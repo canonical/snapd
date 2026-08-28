@@ -6,6 +6,9 @@ details: |
   command list the invalid interfaces.
 
 prepare: |
+  # Clear any pre-existing warnings.
+  snap warnings >/dev/null
+  snap okay || true
   snap pack test-snap
 
 restore: |

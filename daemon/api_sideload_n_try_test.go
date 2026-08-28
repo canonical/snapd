@@ -223,7 +223,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
-	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
+	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 
 		c.Check(path, testutil.FileEquals, "xyzzy")
@@ -232,7 +232,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 
 		installQueue = append(installQueue, si.RealName+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
-		return state.NewTaskSet(t), &snap.Info{SuggestedName: name}, nil
+		return state.NewTaskSet(t), nil
 	})()
 
 	buf := bytes.NewBufferString(content)
@@ -1059,7 +1059,7 @@ version: 1`, nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
+	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap})
 		c.Check(si, check.DeepEquals, &snap.SideInfo{
 			RealName: "foo",
@@ -1067,7 +1067,7 @@ version: 1`, nil)
 			Revision: snap.R(41),
 		})
 
-		return state.NewTaskSet(), &snap.Info{SuggestedName: "foo"}, nil
+		return state.NewTaskSet(), nil
 	})()
 
 	rsp := s.asyncReq(c, req, nil, actionIsExpected)
@@ -1154,8 +1154,8 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 		return &snap.Info{SuggestedName: "foo"}, nil
 	})()
 
-	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-		return nil, nil, &snapstate.ChangeConflictError{Snap: "foo"}
+	defer daemon.MockSnapstateInstallPath(func(s *state.State, si *snap.SideInfo, path, name, channel string, flags snapstate.Flags, prqt snapstate.PrereqTracker) (*state.TaskSet, error) {
+		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	})()
 
 	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))

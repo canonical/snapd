@@ -886,6 +886,20 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
         if (unshare(CLONE_NEWNS) < 0) {
             die("cannot unshare the mount namespace");
         }
+        /* Work around a kernel ordering bug (see ns-support.h) before doing
+           any of the expensive sandbox setup below, while re-unsharing (if
+           needed at all) is still cheap.
+
+           Affected kernels: >= 6.18, < 6.19. Introduced by "nstree: make
+           iterator generic" (885fc8ac0a4dc70f5d87b80b0977292870e35c60), which
+           switched mount namespace id allocation to the per-CPU batched
+           cookie generator this works around. Fixed upstream by "nstree:
+           assign fixed ids to the initial namespaces"
+           (3760342fd6312416491d536144e39297fa5b1950), which gives the initial
+           mount namespace (the common comparison point for this bug) a
+           fixed, always-lowest id instead of a batched one. Both commits are
+           on git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git. */
+        sc_ensure_mount_ns_id_ordered(group);
         sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid, saved_gid);
         sc_store_ns_info(inv);
 

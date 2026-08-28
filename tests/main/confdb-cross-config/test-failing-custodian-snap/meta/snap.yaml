@@ -6,8 +6,8 @@ apps:
 base: core24
 
 plugs:
-  manage-wifi:
+  network-wifi-admin:
     interface: confdb
     account: developer1
-    view: network/wifi-setup
+    view: network/wifi-admin
     role: custodian

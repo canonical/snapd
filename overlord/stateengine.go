@@ -51,6 +51,15 @@ type StateWaiter interface {
 	Wait()
 }
 
+// StateShutDowner is optionally implemented by StateManagers that have
+// running activities that should be cleaned up prior to stopping the daemon's
+// HTTP server.
+type StateShutDowner interface {
+	// ShutDown asks the manager to stop accepting new requests and
+	// finish handling existing requests.
+	ShutDown()
+}
+
 // StateStopper is optionally implemented by StateManagers that have
 // running activities that can be terminated.
 type StateStopper interface {
@@ -70,6 +79,7 @@ type StateEngine struct {
 	state     *state.State
 	stopped   bool
 	startedUp bool
+	shutdown  bool
 	// managers in use
 	mgrLock  sync.Mutex
 	managers []StateManager
@@ -187,6 +197,22 @@ func (se *StateEngine) Wait() {
 			waiter.Wait()
 		}
 	}
+}
+
+// ShutDown asks all managers to stop accepting new requests and
+// finish handling existing requests.
+func (se *StateEngine) ShutDown() {
+	se.mgrLock.Lock()
+	defer se.mgrLock.Unlock()
+	if se.shutdown {
+		return
+	}
+	for _, m := range se.managers {
+		if shutdowner, ok := m.(StateShutDowner); ok {
+			shutdowner.ShutDown()
+		}
+	}
+	se.shutdown = true
 }
 
 // Stop asks all managers to terminate activities running concurrently.

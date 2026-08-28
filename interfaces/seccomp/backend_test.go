@@ -1071,6 +1071,9 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 }
 
 func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(filepath.Join(dirs.SnapSeccompDir, "profile-001.bin2"), nil, 0755)

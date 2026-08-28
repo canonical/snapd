@@ -71,9 +71,9 @@ post:
             containing the new model assertion.
           type: object
           required:
-            - assertion
+            - new-model
           properties:
-            assertion:
+            new-model:
               type: string
               description: A string containing the full, signed model assertion.
               example: |
@@ -90,7 +90,7 @@ post:
           remodelRequest:
             summary: A typical JSON request to set a new model.
             value:
-              assertion: "type: model\nauthority-id: generic\nseries: 16\nbrand-id: generic\nmodel: generic-classic\nclassic: true\ntimestamp: 2025-10-03T10:40:00.0Z\nsign-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa\nAcLBXAQAAQ[...]"
+              new-model: "type: model\nauthority-id: generic\nseries: 16\nbrand-id: generic\nmodel: generic-classic\nclassic: true\ntimestamp: 2025-10-03T10:40:00.0Z\nsign-key-sha3-384: d-JcZF9nD9eBw7bwMnH61x-bklnQOhQud1Is6o_cn2wTj8EYDi9musrIT9z2MdAa\nAcLBXAQAAQ[...]"
 
       multipart/form-data:
         schema:

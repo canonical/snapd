@@ -99,13 +99,8 @@ unconfined_domain(snappy_unconfined_snap_t)
 permissive snappy_t;
 
 # Allow transitions from init_t to snappy for sockets
-# init_named_socket_activation() is not supported by core policy in RHEL7
-gen_require(`
-	type init_t;
-	type var_run_t;
-')
-filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
-filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
+init_named_socket_activation(snappy_t, snappy_var_run_t, "snapd.socket")
+init_named_socket_activation(snappy_t, snappy_var_run_t, "snapd-snap.socket")
 
 # Allow init_t to read snappy data
 allow init_t snappy_var_lib_t:dir read;
@@ -156,7 +151,7 @@ selinux_get_enforce_mode(snappy_t)
 # Allow snapd to manage D-Bus config files for snaps
 optional_policy(`
 	dbus_read_config(snappy_t)
-	allow snappy_t dbusd_etc_t:file { write create rename unlink };
+	allow snappy_t dbusd_etc_t:file { write create rename unlink setattr };
 	allow snappy_t dbusd_etc_t:dir { add_name remove_name };
 	allow snappy_t dbusd_etc_t:lnk_file { read };
 ')
@@ -164,7 +159,7 @@ optional_policy(`
 # Allow snapd to manage kmod-backend (/etc/modules-load.d/) or
 # incorrectly labeled systemd user unit files
 allow snappy_t etc_t:dir { write remove_name add_name };
-allow snappy_t etc_t:file { create write rename unlink };
+allow snappy_t etc_t:file { create write rename unlink setattr };
 
 # Allow snapd to manage udev rules for snaps and trigger events
 optional_policy(`
@@ -723,6 +718,7 @@ gen_require(`
 	type ifconfig_var_run_t;
 	type var_log_t;
 	type lib_t;
+    type ld_so_cache_t;
 ')
 
 admin_pattern(snappy_confine_t, snappy_tmp_t)
@@ -738,6 +734,7 @@ allow snappy_confine_t cert_t:dir { getattr mounton };
 allow snappy_confine_t device_t:filesystem unmount;
 allow snappy_confine_t devpts_t:dir mounton;
 allow snappy_confine_t etc_t:file mounton;
+allow snappy_confine_t ld_so_cache_t:file mounton;
 allow snappy_confine_t home_root_t:dir mounton;
 allow snappy_confine_t ifconfig_var_run_t:dir mounton;
 allow snappy_confine_t modules_object_t:dir mounton;
@@ -795,11 +792,14 @@ gen_require(`
 allow snappy_confine_t unconfined_service_t:process { noatsecure rlimitinh siginh transition dyntransition };
 
 # for classic snaps, snap-confine executes snap-exec from the host (labeled as
-# snappy_exec_t)
+# snappy_exec_t, or snappy_cli_exec_t if merged with snapctl)
 can_exec(snappy_confine_t, snappy_exec_t)
-# allow snappy_exec_t to be an entrypoint to unconfined_service_t, only
-# snap-confine is allowed to transition this way
+can_exec(snappy_confine_t, snappy_cli_exec_t)
+# allow snappy_exec_t and snappy_cli_exec_t to be an entrypoint to
+# unconfined_service_t, only snap-confine is allowed to transition this way
+# (which still requires the source domain to allow such transition)
 domain_entry_file(unconfined_service_t, snappy_exec_t)
+domain_entry_file(unconfined_service_t, snappy_cli_exec_t)
 
 ########################################
 #
@@ -876,9 +876,11 @@ snappy_stream_connect(snappy_cli_t)
 userdom_search_user_tmp_dirs(snappy_cli_t)
 # create /run/user/<uid>/snap.<name> directories
 userdom_manage_tmp_dirs(snappy_cli_t)
+# the snap command probes for /tmp/snap-private-tmp presence
+allow snappy_cli_t snappy_tmp_t:dir getattr;
 
-# execute snapd internal tools
-# needed to grab a version information from snap-seccomp
+# allow snappy_cli_t to exec() into the snapd binary which implements
+# snap CLI handler and other internal snapd tools
 can_exec(snappy_cli_t, snappy_exec_t)
 
 # probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2

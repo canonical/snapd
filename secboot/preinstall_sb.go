@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
@@ -64,6 +65,13 @@ var (
 )
 
 const ActionNone = string(sb_preinstall.ActionNone)
+
+const (
+	// ErrorKindNoHardwareRootOfTrust indicates that the platform's UEFI firmware is not
+	// verified nor measured by a hardware root of trust (typically Boot Guard Authenticated Code
+	// Module (ACM) on Intel systems and Platform Secure Boot (PSB) enabled on AMD systems.
+	ErrorKindNoHardwareRootOfTrust = string(sb_preinstall.ErrorKindNoHardwareRootOfTrust)
+)
 
 func preinstallCheck(ctx context.Context, postInstall bool, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
 	// allow value-added-retailer drivers that are:
@@ -201,6 +209,20 @@ func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) 
 	pcrProfileOpts := cc.sbRunChecksContext.ProfileOpts()
 
 	return &PreinstallCheckResult{sbCheckResult: result, sbPCRProfileOpts: pcrProfileOpts}, nil
+}
+
+// AcceptedErrors returns accepted preinstall check error kinds in stable order.
+func (cr *PreinstallCheckResult) AcceptedErrors() []string {
+	if cr.sbCheckResult == nil || len(cr.sbCheckResult.AcceptedErrors) == 0 {
+		return nil
+	}
+
+	acceptedErrors := make([]string, 0, len(cr.sbCheckResult.AcceptedErrors))
+	for err := range cr.sbCheckResult.AcceptedErrors {
+		acceptedErrors = append(acceptedErrors, string(err))
+	}
+	sort.Strings(acceptedErrors)
+	return acceptedErrors
 }
 
 func (cr *PreinstallCheckResult) save(filename string) error {

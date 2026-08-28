@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -915,8 +916,18 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	defer st.Unlock()
+
 	perfTimings.Save(st)
-	st.Unlock()
+
+	// nothing else should use SnapPath anymore, since that path might not even
+	// exist, in the case that the file was removed above. to prevent this, we
+	// clear it out
+	snapsup.SnapPath = ""
+	if err := SetTaskSnapSetup(t, snapsup); err != nil {
+		return err
+	}
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
@@ -1083,12 +1094,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 	}
 
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-
-	refreshAppAwarenessEnabled := experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type)
+	refreshAppAwarenessEnabled := !excludeFromRefreshAppAwareness(snapsup.Type)
 	if refreshAppAwarenessEnabled && !snapsup.Flags.IgnoreRunning {
 		// Invoke the hard refresh flow. Upon success the returned lock will be
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
@@ -1626,7 +1632,7 @@ func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) 
 		Set(st, snapName, snapst)
 	}
 
-	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
+	seqFile := snap.SequenceFile(snapName)
 	if osutil.FileExists(seqFile) {
 		// might've written migration status to seq file in the change; update it
 		// after undo
@@ -1665,7 +1671,7 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 // writeSeqFile writes the sequence file for failover handling
 func writeSeqFile(name string, snapst *SnapState) error {
-	p := filepath.Join(dirs.SnapSeqDir, name+".json")
+	p := snap.SequenceFile(name)
 	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 		return err
 	}
@@ -2359,7 +2365,7 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 	// that it is using - either because it also has a vendored AppArmor
 	// parser, or because it doesn't in which case it will be using the
 	// host's AppArmor parser)
-	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.Version); err == nil && compare < 0 {
+	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.FullVersion()); err == nil && compare < 0 {
 		logger.Noticef("Downgrading snapd to version %q, discarding all existing snap AppArmor profiles", snapInfo.Version)
 		if err = m.backend.RemoveAllSnapAppArmorProfiles(); err != nil {
 			// We don't propagate the error as we don't want to block the
@@ -3448,6 +3454,28 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	dirOpts := opts.getSnapDirOpts()
+
+	// Detect any non-snapctl mounts that would prevent data removal.
+	// This must run before deleting any data, so that if any such mounts
+	// exist, the returned error can still appropriately undo the change.
+	// Such mounts could be created, for example, manually by a user.
+	// When this is the last revision, check the entire snap data tree
+	// otherwise only check the revision-specific directories.
+	var unknownMounts []string
+	if len(snapst.Sequence.Revisions) > 1 {
+		unknownMounts, err = m.backend.ListNonSnapctlMountsInSnapRevDataDirs(info, dirOpts)
+	} else {
+		unknownMounts, err = m.backend.ListNonSnapctlMountsInSnapAllDataDirs(info, dirOpts)
+	}
+	if err != nil {
+		logger.Noticef("cannot list mounts other than snapctl mounts: %v", err)
+	}
+	if len(unknownMounts) > 0 {
+		mountList := "- " + strings.Join(unknownMounts, "\n- ")
+		return fmt.Errorf("cannot clear snap data due to unknown active mounts at:\n%s\nunmount them and try again", mountList)
+	}
+
 	// Remove mount-control mounts just before removing the data they may be
 	// mounted over. When this is the last revision, remove all mount-control
 	// units for the snap (nil mountBaseDirs = no path filter); otherwise restrict
@@ -3462,7 +3490,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	dirOpts := opts.getSnapDirOpts()
 	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
 	}
@@ -3603,7 +3630,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 
-		// XXX: also remove sequence files?
+		seqFilePath := snap.SequenceFile(snapsup.InstanceName())
+		if err := os.Remove(seqFilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 
 		// remove the snap from any quota groups it may have been in, otherwise
 		// that quota group may get into an inconsistent state
@@ -3727,10 +3757,6 @@ const (
 // during a refresh.
 func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, snapType snap.Type) (skip bool, err error) {
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
-	if err != nil && !config.IsNoOption(err) {
-		return false, err
-	}
 	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
 	if err != nil && !config.IsNoOption(err) {
 		return false, err
@@ -3740,9 +3766,6 @@ func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, 
 		return false, nil
 	}
 	if !experimentalRefreshAppAwarenessUX {
-		return false, nil
-	}
-	if !experimentalRefreshAppAwareness {
 		return false, nil
 	}
 	if excludeFromRefreshAppAwareness(snapType) {

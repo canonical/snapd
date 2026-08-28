@@ -7,7 +7,7 @@ replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
-	github.com/canonical/go-efilib v1.7.1-0.20260310185303-7166aa858b24
+	github.com/canonical/go-efilib v1.8.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.16.2
 	github.com/chai2010/gettext-go v1.0.3
@@ -21,14 +21,14 @@ require (
 	// if below two libseccomp-golang lines are updated, one must also update packaging/ubuntu-14.04/rules
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
-	github.com/snapcore/secboot v0.0.0-20260424115705-c00dcfff2f83
+	github.com/snapcore/secboot v0.0.0-20260814094831-dd95d855ad64
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.8.0
 	golang.org/x/sys v0.21.0
 	golang.org/x/text v0.15.0
 	golang.org/x/time v0.10.0
-	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
+	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/macaroon.v1 v1.0.0
 	gopkg.in/retry.v1 v1.0.3
@@ -37,7 +37,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require go.etcd.io/bbolt v1.3.9
+require (
+	github.com/cilium/ebpf v0.9.1
+	go.etcd.io/bbolt v1.3.9
+)
 
 require (
 	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect

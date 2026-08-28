@@ -108,6 +108,20 @@ nested_wait_for_snap_command() {
         retry=$(( retry - 1 ))
         sleep "$wait"
     done
+    echo "Snap command is ready"
+}
+
+nested_wait_for_snap_seeded() {
+    # Retry since snap may briefly disappear during the initial snapd restart.
+    local attempts=0
+    until remote.exec "sudo snap wait system seed.loaded"; do
+        attempts=$(( attempts + 1 ))
+        if [ "$attempts" = 3 ]; then
+            echo "failed to wait for snap wait command to return successfully"
+            return 1
+        fi
+        sleep 1
+    done
 }
 
 nested_check_unit_stays_active() {
@@ -491,12 +505,7 @@ nested_cleanup_env() {
 }
 
 nested_get_image_channel() {
-    if nested_is_core_26_system; then
-        # TODO: Remove when it becomes available in the other channels
-        echo "edge"
-    else
-        echo "${NESTED_CORE_CHANNEL}"
-    fi
+    echo "${NESTED_CORE_CHANNEL}"
 }
 
 nested_get_base_channel() {
@@ -517,12 +526,7 @@ nested_get_kernel_channel() {
 }
 
 nested_get_gadget_channel() {
-    if nested_is_core_26_system; then
-        # TODO: Remove when it becomes available in the other channels
-        echo "edge"
-    else
-        echo "${NESTED_GADGET_CHANNEL}"
-    fi
+    echo "${NESTED_GADGET_CHANNEL}"
 }
 
 nested_get_image_name_base() {
@@ -562,7 +566,7 @@ nested_is_generic_image() {
 }
 
 nested_get_extra_snaps_path() {
-    echo "/tmp/extra-snaps"
+    echo "${NESTED_WORK_DIR}/extra-snaps"
 }
 
 nested_get_assets_path() {
@@ -837,6 +841,10 @@ EOF
                 GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
 
+            if [ -n "$TAG_FEATURES" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE tag.features=1"
+            fi
+
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
                 GADGET_EXTRA_CMDLINE="ds=nocloud $GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
             fi
@@ -872,6 +880,10 @@ EOF
             # that here, it could end up being empty in which case
             # it is ignored
             "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+        fi
+        if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
+            snap="$(repack_gadget_w_feature_tagging_core_18 "$(nested_get_gadget_channel)" "$NESTED_ASSETS_DIR")"
+            cp "$snap" "$(nested_get_extra_snaps_path)/pc.snap"
         fi
     fi
 }
@@ -991,7 +1003,7 @@ nested_create_core_vm() {
         else
             # create the ubuntu-core image
             local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
             fi
@@ -1077,7 +1089,8 @@ nested_create_core_vm() {
             # volumes must be manually added to the VM creation by the tests
             local BOOTVOLUME
             BOOTVOLUME=pc
-            if [ -e pc-gadget/meta/gadget.yaml ]; then
+            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
+                # this assumes core2* gadget layouts and so cannot run on uc18
                 # shellcheck disable=SC2016
                 BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
@@ -1307,9 +1320,12 @@ nested_create_vm_service() {
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack* ]]; then
+    elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-6}"
+    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]] || [[ "$SPREAD_BACKEND" = "openstack-validation" ]]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1367,7 +1383,7 @@ nested_create_vm_service() {
         # considers removable devices for cold-plug first-boot runs
         # the nec-usb-xhci device is necessary to create the bus we attach the
         # storage to
-        PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
+        PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=unsafe,aio=threads,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
 
     local PARAM_BIOS PARAM_TPM PARAM_IMAGE
@@ -1429,7 +1445,7 @@ nested_create_vm_service() {
     
         if os.query is-arm; then
             PARAM_MACHINE="-machine virt${ENABLE_ARM_TRUSTZONE} -accel tcg,thread=multi"
-            PARAM_CPU="-cpu cortex-a57"
+            PARAM_CPU="-cpu neoverse-n1"
         else
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
         fi
@@ -1520,23 +1536,14 @@ nested_start_core_vm_unit() {
         fi
         # Wait for the snap command to be available
         nested_wait_for_snap_command 120 1
-        # Wait for snap seeding to be done
-        # retry this wait command up to 3 times since we sometimes see races 
-        # where the snap command appears, then immediately disappears and then 
-        # re-appears immediately after and so the next command fails
-        attempts=0
-        until remote.exec "sudo snap wait system seed.loaded"; do
-            attempts=$(( attempts + 1))
-            if [ "$attempts" = 3 ]; then
-                echo "failed to wait for snap wait command to return successfully"
-                return 1
-            fi
-            sleep 1
-        done
+        nested_wait_for_snap_seeded
+        echo "Waiting for snap seeding to complete"
         # Copy tools to be used on tests
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
-        if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
+        # Do not wait for cloud-init on arm because it is disabled and takes delayes the tests
+        if [ "$NESTED_USE_CLOUD_INIT" = true ] && ! os.query is-arm; then
+            echo "Waiting for cloud-init to finish"
             if ! remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"; then
                 # Error 2 means 'recoverable error', ignore that case
                 ret=0
@@ -1558,10 +1565,12 @@ nested_start_core_vm_unit() {
 }
 
 nested_setup_vm(){
+    echo "Setting up the nested VM"
     local modified
     modified=0
 
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        echo "Configuring proxy on the nested VM"
         nested_no_proxy="${NO_PROXY},10.0.2.2"
 
         # Ensure the nameservers used are the same than the host vm
@@ -1599,8 +1608,11 @@ nested_setup_vm(){
         remote.exec "sudo systemctl daemon-reload"
         remote.exec "sudo systemctl start snapd.service snapd.socket"
         modified=1
+        echo "Proxy configuration added to the nested VM"
     fi
+
     if [ -n "${NTP_SERVER:-}" ]; then
+        echo "Configuring NTP server on the nested VM"
         # We reconfigure both chrony and timesyncd if installed. But
         # we only restart the one started.
         if remote.exec "[ -d /etc/chrony/sources.d ]"; then
@@ -1626,9 +1638,11 @@ nested_setup_vm(){
             remote.exec "sudo systemctl try-restart systemd-timesyncd"
             modified=1
         fi
+        echo "NTP server configuration added to the nested VM"
     fi
 
     if [ "${modified}" != 0 ]; then
+      echo "Modifications have been made to the nested VM, syncing changes to disk"
       # Some modification have happened, before return back to a test
       # that might do a hard reset, we need to make sure the
       # modification are saved to disk.
@@ -1796,6 +1810,8 @@ nested_start_classic_vm() {
 
     # Copy tools to be used on tests
     nested_wait_for_ssh
+    nested_wait_for_snap_command 120 1
+    nested_wait_for_snap_seeded
     nested_prepare_tools
     nested_setup_vm
 }
@@ -1820,20 +1836,24 @@ remote.exec_as() {
 }
 
 nested_prepare_tools() {
+    echo "Preparing test tools in nested vm"
+
     TOOLS_PATH=/writable/test-tools
     if ! remote.exec "test -d $TOOLS_PATH" &>/dev/null; then
         remote.exec "sudo mkdir -p $TOOLS_PATH"
-        remote.exec "sudo chown user1:user1 $TOOLS_PATH"
+        remote.exec "sudo chown $NESTED_REMOTE_USER_NAME:$NESTED_REMOTE_USER_NAME $TOOLS_PATH"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
         remote.push "$TESTSTOOLS/retry"
         remote.exec "mv retry $TOOLS_PATH/retry"
+        echo "retry tool copied to nested vm"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/not" &>/dev/null; then
         remote.push "$TESTSTOOLS/not"
         remote.exec "mv not $TOOLS_PATH/not"
+        echo "not tool copied to nested vm"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
@@ -1846,6 +1866,7 @@ nested_prepare_tools() {
         remote.push "MATCH_FILE"
         remote.exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
         rm -f MATCH_FILE
+        echo "MATCH tool copied to nested vm"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
@@ -1858,29 +1879,28 @@ nested_prepare_tools() {
         remote.push "NOMATCH_FILE"
         remote.exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
         rm -f NOMATCH_FILE
+        echo "NOMATCH tool copied to nested vm"
     fi
 
     if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
         remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH:/usr/lib/python | sudo tee -a /etc/environment"
+        echo "PATH updated in /etc/environment"
     fi
 
     if [ -n "$TAG_FEATURES" ]; then
-        # If feature tagging is enabled, then we need to enable debug logging
-        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
-        remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_TRACE=1 SNAPD_JSON_LOGGING=1\n' | sudo tee /etc/systemd/system/snapd.service.d/99-feature-tags.conf"
-        # Persist journal logs
-        remote.exec "sudo snap set system journal.persistent=true"
-        # Add trace structured logging to journal for snap commands
-        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
-        # We changed the service configuration so we need to reload and restart
-        # the units to get them applied
+        # To cover also tests that don't repack the gadget snap, add feature tagging using env variable drop-ins
+        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPPY_TESTING=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
+        CONF_FILE=99-generate-coverage.conf
+        while IFS= read -r line; do
+            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
+            remote.exec "sudo mkdir -p $dir"
+            remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG=1\nEnvironment=SNAPPY_TESTING=1\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
+        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
         remote.exec "sudo systemctl daemon-reload"
-        # stop the socket (it pulls down the service)
-        remote.exec "sudo systemctl stop snapd.socket"
-        # start the service (it pulls up the socket)
-        remote.exec "sudo systemctl start snapd.service"
+        remote.exec "sudo systemctl restart snapd"
+        remote.exec "sudo snap set system journal.persistent=true"
     fi
 }
 

@@ -41,8 +41,7 @@ import (
 )
 
 var (
-	catalogRefreshDelayBase      = 24 * time.Hour
-	catalogRefreshDelayWithDelta = 24*time.Hour + 1 + randutil.RandomDuration(6*time.Hour)
+	catalogRefreshDelayBase = 24 * time.Hour
 )
 
 func init() {
@@ -52,7 +51,8 @@ func init() {
 type catalogRefresh struct {
 	state *state.State
 
-	nextCatalogRefresh time.Time
+	nextCatalogRefresh           time.Time
+	catalogRefreshDelayWithDelta time.Duration
 }
 
 func newCatalogRefresh(st *state.State) *catalogRefresh {
@@ -63,6 +63,10 @@ func newCatalogRefresh(st *state.State) *catalogRefresh {
 func (r *catalogRefresh) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
+
+	if r.catalogRefreshDelayWithDelta == 0 {
+		r.catalogRefreshDelayWithDelta = catalogRefreshDelayBase + 1 + randutil.RandomDuration(6*time.Hour)
+	}
 
 	online, err := isStoreOnline(r.state)
 	if err != nil || !online {
@@ -106,10 +110,10 @@ func (r *catalogRefresh) Ensure() error {
 		// try to use the timestamp on the sections file
 		if st, err := os.Stat(dirs.SnapNamesFile); err == nil && st.ModTime().Before(now) {
 			// add the delay with the delta so we spread the load a bit
-			r.nextCatalogRefresh = st.ModTime().Add(catalogRefreshDelayWithDelta)
+			r.nextCatalogRefresh = st.ModTime().Add(r.catalogRefreshDelayWithDelta)
 		} else {
 			// first time scheduling, add the delta
-			delay = catalogRefreshDelayWithDelta
+			delay = r.catalogRefreshDelayWithDelta
 		}
 	}
 

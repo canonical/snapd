@@ -73,6 +73,11 @@ type EncryptionSetupData struct {
 	// reflects the outcome of the most recent check and contains information
 	// required for optimum PCR configuration and reseal post install
 	preinstallCheckContext *secboot.PreinstallCheckContext
+	// extraSnapdKernelCommandLineFragments holds extra snapd kernel command
+	// line fragments keyed by fragment ID (e.g. "xkb").
+	//
+	// TODO: use typed fragment IDs instead of string keys.
+	extraSnapdKernelCommandLineFragments map[string]string
 }
 
 // EncryptedDevices returns a map partition role -> LUKS mapper device.
@@ -87,6 +92,12 @@ func (esd *EncryptionSetupData) EncryptedDevices() map[string]string {
 // VolumesAuth returns attached volumes authentication options if any.
 func (esd *EncryptionSetupData) VolumesAuth() *device.VolumesAuthOptions {
 	return esd.volumesAuth
+}
+
+// ExtraSnapdKernelCommandLineFragments returns extra snapd kernel command line
+// fragments keyed by fragment ID.
+func (esd *EncryptionSetupData) ExtraSnapdKernelCommandLineFragments() map[string]string {
+	return esd.extraSnapdKernelCommandLineFragments
 }
 
 func (esd *EncryptionSetupData) SetRecoveryKey(rkey *keys.RecoveryKey) {
@@ -115,12 +126,14 @@ func MockEncryptionSetupData(
 	rkey *keys.RecoveryKey,
 	volumesAuth *device.VolumesAuthOptions,
 	checkContext *secboot.PreinstallCheckContext,
+	extraSnapdKernelCommandLineFragments map[string]string,
 ) *EncryptionSetupData {
 	esd := &EncryptionSetupData{
-		parts:                  map[string]partEncryptionData{},
-		volumesAuth:            volumesAuth,
-		rkey:                   rkey,
-		preinstallCheckContext: checkContext,
+		parts:                                map[string]partEncryptionData{},
+		volumesAuth:                          volumesAuth,
+		rkey:                                 rkey,
+		preinstallCheckContext:               checkContext,
+		extraSnapdKernelCommandLineFragments: extraSnapdKernelCommandLineFragments,
 	}
 	for label, encryptData := range labelToEncDevice {
 		//TODO:FDEM: we should use a mock for the bootstrap key. However,

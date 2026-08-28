@@ -503,9 +503,10 @@ func SnapDeviceFile(securityTag string) string {
 	return filepath.Join(dirs.SnapCgroupPolicyDir, fmt.Sprintf("%s.device", securityTag))
 }
 
-// LoadSnapDeviceCgroupOptions loads the device cgroup options for a given security tag.
-func LoadSnapDeviceCgroupOptions(securityTag string) (opts SnapDeviceCgroupOptions, err error) {
-	b, err := os.ReadFile(SnapDeviceFile(securityTag))
+// LoadSnapDeviceCgroupOptions loads the device cgroup options for a given snap
+// security tag.
+func LoadSnapDeviceCgroupOptions(snapSecurityTag string) (opts SnapDeviceCgroupOptions, err error) {
+	b, err := os.ReadFile(SnapDeviceFile(snapSecurityTag))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return opts, nil

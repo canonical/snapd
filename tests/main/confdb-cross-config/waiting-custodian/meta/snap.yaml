@@ -5,8 +5,8 @@ apps:
     command: bin/sh
 base: core24
 plugs:
-  wifi-setup:
+  network-ephemeral-wifi-admin:
     interface: confdb
     account: developer1
-    view: network-ephemeral/wifi-setup
+    view: network-ephemeral/wifi-admin
     role: custodian

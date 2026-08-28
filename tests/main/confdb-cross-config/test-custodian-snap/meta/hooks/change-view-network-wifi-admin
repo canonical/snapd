@@ -1,0 +1,8 @@
+#!/bin/sh -xe
+
+# save the original value so we can check it in the test
+value=$(snapctl get --view :network-wifi-admin ssid)
+echo "$value" >> "$SNAP_COMMON"/change-view-network-wifi-admin-ran
+
+# check we can modify it
+snapctl set --view :network-wifi-admin ssid="$value-custodian"

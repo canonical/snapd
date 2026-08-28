@@ -3,7 +3,7 @@
 
 type: object
 description: |-
-  Request to delegate or withdraw an operator's remote access to confdb views.
+  Request to delegate or withdraw an operator's control over confdb views.
 required:
   - action
   - operator-id

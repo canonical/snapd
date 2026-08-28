@@ -688,12 +688,14 @@ func EncryptPartitions(
 	model *asserts.Model,
 	gadgetRoot,
 	kernelRoot string,
+	extraSnapdKernelCommandLineFragments map[string]string,
 	perfTimings timings.Measurer,
 ) (*EncryptionSetupData, error) {
 	setupData := &EncryptionSetupData{
-		parts:                  make(map[string]partEncryptionData),
-		volumesAuth:            volumesAuth,
-		preinstallCheckContext: checkContext,
+		parts:                                make(map[string]partEncryptionData),
+		volumesAuth:                          volumesAuth,
+		preinstallCheckContext:               checkContext,
+		extraSnapdKernelCommandLineFragments: extraSnapdKernelCommandLineFragments,
 	}
 	for volName, vol := range onVolumes {
 		onDiskVol, err := gadget.OnDiskVolumeFromGadgetVol(vol)

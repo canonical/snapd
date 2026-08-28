@@ -1,0 +1,46 @@
+summary: Ensure that the snap-seccomp blocks mknod setuid/setgid bits
+
+details: |
+    Check that it is not allowed to mknod a file with user or group +s bits (setuid and setgid).
+    Check that creating a FIFO without setuid/setgid is allowed.
+    Both the mknod and mknodat syscalls are exercised via raw syscall() invocations.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test-mknod
+
+execute: |
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-mknod \$SNAP_COMMON" > output.txt
+    cat output.txt
+
+    # mknod setuid/setgid must be denied; sticky and normal must succeed
+    # (skipped gracefully on architectures that don't have SYS_mknod, e.g. arm64)
+    if grep -qE 'mknod setuid: skipped' output.txt; then
+        echo "SYS_mknod is not available, all mknod tests should be skipped"
+        MATCH 'mknod setuid: skipped' < output.txt
+        MATCH 'mknod setgid: skipped' < output.txt
+        MATCH 'mknod normal: skipped' < output.txt
+    else
+        MATCH 'mknod setuid: EACCES' < output.txt
+        MATCH 'mknod setgid: EACCES' < output.txt
+        MATCH 'mknod normal: succeeded' < output.txt
+    fi
+
+    # mknodat with setuid bit must be denied
+    MATCH 'mknodat setuid: EACCES' < output.txt
+
+    # mknodat with setgid bit must be denied
+    MATCH 'mknodat setgid: EACCES' < output.txt
+
+    # mknodat with normal mode must succeed
+    MATCH 'mknodat normal: succeeded' < output.txt

@@ -50,10 +50,6 @@ prepare: |
     # Later on remove the exports file and reload exported filesystems.
     tests.cleanup defer retry -n 10 exportfs -r
 
-restore: |
-    # Run cleanup handlers registered earlier.
-    tests.cleanup restore
-
 execute: |
     snap install --edge   test-snapd-mount-control-nfs
     mkdir -p /media/mounted

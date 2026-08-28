@@ -127,6 +127,10 @@ func (s *selinuxSuite) TestIsEnforcingFailGarbage(c *check.C) {
 }
 
 func (s *selinuxSuite) TestIsEnforcingFailOther(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
+
 	dir := c.MkDir()
 	miLine := fmt.Sprintf("41 19 0:18 / %s rw,relatime shared:20 - selinuxfs selinuxfs rw\n", dir)
 	restore := osutil.MockMountInfo(miLine)

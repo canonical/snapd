@@ -2059,6 +2059,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook [base-snap-b;pre-refresh]",
 		"stop-snap-services",
@@ -2077,6 +2078,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook [snap-a;pre-refresh]",
 		"stop-snap-services",
@@ -2138,6 +2140,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook [snap-a;pre-refresh]",
 		"stop-snap-services",
@@ -2194,6 +2197,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook [snap-a;pre-refresh]",
 		"stop-snap-services",
@@ -2270,7 +2274,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 	defer st.Unlock()
 
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
-		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
+		c.Check(sz, Equals, uint64(123)+snapstate.DefaultDiskSpaceReservation)
 		if fail {
 			return &osutil.NotEnoughDiskSpaceError{}
 		}
@@ -2423,6 +2427,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook [base-snap-b;pre-refresh]",
 		"stop-snap-services",
@@ -2588,6 +2593,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook [base-snap-b;pre-refresh]",
 		"stop-snap-services",

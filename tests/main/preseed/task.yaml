@@ -48,7 +48,7 @@ restore: |
 
 execute: |
   LXD_BASE_SNAP=core20
-  if os.query is-ubuntu-gt 22.04; then
+  if os.query is-ubuntu-gt 20.04; then
       LXD_BASE_SNAP=core22
   fi
 
@@ -75,6 +75,7 @@ execute: |
 
   MATCH "Done .+ prerequisites +Ensure prerequisites for \"snapd\" are available" < tasks.log
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/snapd.snap" < tasks.log
+  MATCH "Done .+ prerequisites +Wait until prerequisites for \"snapd\" are available" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"snapd\" \(unset\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"snapd\" data" < tasks.log
   MATCH "Done .+ setup-profiles +Prepare snap \"snapd\" \(unset\) for security profile setup" < tasks.log
@@ -86,6 +87,7 @@ execute: |
 
   MATCH "Done .+ prerequisites +Ensure prerequisites for \"${LXD_BASE_SNAP}\" are available" < tasks.log
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/${LXD_BASE_SNAP}_[0-9]+.snap" < tasks.log
+  MATCH "Done .+ prerequisites +Wait until prerequisites for \"${LXD_BASE_SNAP}\" are available" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"${LXD_BASE_SNAP}\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"${LXD_BASE_SNAP}\" data" < tasks.log
   MATCH "Done .+ setup-profiles +Prepare snap \"${LXD_BASE_SNAP}\" \([0-9]+\) for security profile setup" < tasks.log
@@ -97,6 +99,7 @@ execute: |
 
   MATCH "Done .+ prerequisites +Ensure prerequisites for \"lxd\" are available" < tasks.log
   MATCH "Done .+ prepare-snap +Prepare snap \"/var/lib/snapd/seed/snaps/lxd_[0-9]+.snap\" \([0-9]+\)" < tasks.log
+  MATCH "Done .+ prerequisites +Wait until prerequisites for \"lxd\" are available" < tasks.log
   MATCH "Done .+ mount-snap +Mount snap \"lxd\" \([0-9]+\)" < tasks.log
   MATCH "Done .+ copy-snap-data +Copy snap \"lxd\" data" < tasks.log
   MATCH "Done .+ setup-profiles +Prepare snap \"lxd\" \([0-9]+\) for security profile setup" < tasks.log
@@ -111,7 +114,7 @@ execute: |
   MATCH "Done .+ setup-aliases +Setup snap \"lxd\" aliases" < tasks.log
 
   echo "Checking that there were no other 'Done' tasks when preseeding"
-  [ "$(grep -c ' Done ' tasks.log)" = "34" ]
+  [ "$(grep -c ' Done ' tasks.log)" = "37" ]
 
   # everything below is pending execution on first boot
   MATCH "Do .+ run-hook +Run install hook of \"${LXD_BASE_SNAP}\" snap if present" < tasks.log

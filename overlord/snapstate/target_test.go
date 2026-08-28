@@ -232,7 +232,7 @@ func (s *targetTestSuite) TestInstallWithComponentsMissingInInfo(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*"%s" is not a component for snap "%s"`, compName, snapName))
 }
 
-func (s *targetTestSuite) TestInstallWithComponentsFromPath(c *C) {
+func (s *targetTestSuite) TestSeedingGoalWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -273,7 +273,7 @@ version: 1.0
 		Path:     snaptest.MakeTestComponent(c, componentYaml),
 	}}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       snapPath,
 		SideInfo:   si,
 		Components: components,
@@ -288,7 +288,7 @@ version: 1.0
 	verifyInstallTasksWithComponents(c, snap.TypeKernel, localSnap|updatesGadgetAssets|mockDelayedEffects, 0, []string{compName}, ts)
 }
 
-func (s *targetTestSuite) TestInstallWithComponentsMixedAssertedCompsAndUnassertedSnap(c *C) {
+func (s *targetTestSuite) TestSeedingGoalWithComponentsMixedAssertedCompsAndUnassertedSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -327,7 +327,7 @@ version: 1.0
 		Path:     snaptest.MakeTestComponent(c, componentYaml),
 	}}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       snapPath,
 		SideInfo:   si,
 		Components: components,
@@ -337,7 +337,7 @@ version: 1.0
 	c.Assert(err, ErrorMatches, "cannot mix unasserted snap and asserted components")
 }
 
-func (s *targetTestSuite) TestInstallWithComponentsMixedUnassertedCompsAndAssertedSnap(c *C) {
+func (s *targetTestSuite) TestSeedingGoalWithComponentsMixedUnassertedCompsAndAssertedSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -378,7 +378,7 @@ version: 1.0
 		Path:     snaptest.MakeTestComponent(c, componentYaml),
 	}}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       snapPath,
 		SideInfo:   si,
 		Components: components,
@@ -687,7 +687,7 @@ func (s *targetTestSuite) TestInvalidPathGoals(c *C) {
 		_, err := snapstate.UpdateOne(context.Background(), s.state, update, nil, snapstate.Options{})
 		c.Check(err, ErrorMatches, t.err)
 
-		install := snapstate.PathInstallGoal(snapstate.PathSnap{
+		install := snapstate.SeedingGoal(snapstate.PathSnap{
 			InstanceName: t.snap.InstanceName,
 			Path:         t.snap.Path,
 			SideInfo:     t.snap.SideInfo,
@@ -717,7 +717,7 @@ func (s *targetTestSuite) TestInstallFromStoreDefaultChannel(c *C) {
 	c.Check(snapsup.Channel, Equals, "stable")
 }
 
-func (s *targetTestSuite) TestInstallFromPathDefaultChannel(c *C) {
+func (s *targetTestSuite) TestSeedingGoalDefaultChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -733,7 +733,7 @@ components:
 		Revision: snap.R(1),
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		InstanceName: si.RealName,
 		Path:         snapPath,
 		SideInfo:     si,
@@ -750,7 +750,7 @@ components:
 	c.Check(snapsup.Channel, Equals, "")
 }
 
-func (s *targetTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C) {
+func (s *targetTestSuite) TestSeedingGoalWithComponentsInvalidComponentFile(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -790,7 +790,7 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       snapPath,
 		SideInfo:   si,
 		Components: components,
@@ -799,7 +799,7 @@ components:
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
 }
 
-func (s *targetTestSuite) TestInstallFromPathSideInfoChannel(c *C) {
+func (s *targetTestSuite) TestSeedingGoalSideInfoChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -816,7 +816,7 @@ components:
 		Channel:  "edge",
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		InstanceName: si.RealName,
 		Path:         snapPath,
 		SideInfo:     si,
@@ -833,7 +833,7 @@ components:
 	c.Check(snapsup.Channel, Equals, "edge")
 }
 
-func (s *targetTestSuite) TestInstallFromPathRevOptsChannel(c *C) {
+func (s *targetTestSuite) TestSeedingGoalRevOptsChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -849,7 +849,7 @@ components:
 		Revision: snap.R(1),
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:     snapPath,
 		SideInfo: si,
 		RevOpts:  snapstate.RevisionOptions{Channel: "edge"},
@@ -869,7 +869,7 @@ components:
 	c.Check(snapsup.Channel, Equals, "edge")
 }
 
-func (s *targetTestSuite) TestInstallFromPathRevOptsSideInfoChannelMismatch(c *C) {
+func (s *targetTestSuite) TestSeedingGoalRevOptsSideInfoChannelMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -886,7 +886,7 @@ components:
 		Channel:  "stable",
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:     snapPath,
 		SideInfo: si,
 		RevOpts:  snapstate.RevisionOptions{Channel: "edge"},
@@ -1168,6 +1168,72 @@ version: 1.0
 	c.Assert(err, IsNil)
 
 	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|localSnap|updatesGadgetAssets|mockDelayedEffects, 0, 0, []string{compName}, ts)
+}
+
+func (s *targetTestSuite) TestPathUpdateGoalExplicitRevisionAlwaysUpdates(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName       = "some-snap"
+		snapID         = "some-snap-id"
+		trackedChannel = "latest/edge"
+	)
+
+	rev := snap.R(7)
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: trackedChannel,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: snapName,
+			SnapID:   snapID,
+			Revision: rev,
+		}}),
+		Current:  rev,
+		SnapType: "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: rev,
+	}
+	snapPath := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+	})
+
+	// without the revision set, the same-revision update is already satisfied.
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
+
+	goal = snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		RevOpts: snapstate.RevisionOptions{
+			Revision: rev,
+		},
+	})
+
+	// with the revision set, the same-revision update runs the full update path.
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	setupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.InstanceName(), Equals, snapName)
+	c.Check(snapsup.Revision(), Equals, rev)
+	c.Check(snapsup.SnapPath, Equals, snapPath)
+	c.Check(snapsup.Channel, Equals, trackedChannel)
 }
 
 func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C) {

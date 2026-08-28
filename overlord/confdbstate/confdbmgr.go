@@ -45,16 +45,29 @@ const (
 	schedulingCachePrefix = "scheduling-confdb-"
 )
 
-func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
-	hookSup := &hookstate.HookSetup{
-		Snap:        snapName,
-		Hook:        hookName,
-		Optional:    true,
-		IgnoreError: ignoreError,
-	}
-	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
-	task := hookstate.HookTask(st, summary, hookSup, nil)
-	return task
+// SystemConfdbHandler is implemented by subsystem-specific handlers that
+// process confdb requests for data in "system" confdbs (e.g., validation-sets).
+type SystemConfdbHandler interface {
+	// SchemaName returns the name of the confdb-schema this handler manages.
+	SchemaName() string
+
+	// Commit takes a transaction holding the modified confdb data and makes those
+	// changes effective within the subsystem. It may return task sets that need
+	// to be completed before the commit can be considered done. If no async work
+	// is needed, it returns nil task sets.
+	Commit(st *state.State, tx *Transaction) ([]*state.TaskSet, error)
+
+	// Databag returns a JSONDatabag holding a confdb-acceptable representation
+	// of the data this handler is responsible for.
+	Databag(st *state.State) (confdb.JSONDatabag, error)
+}
+
+// systemHandlers holds handlers for "system" confdb-schemas.
+var systemHandlers = map[string]SystemConfdbHandler{}
+
+// RegisterConfdbHandler registers a handler for a "system" confdb-schema.
+func RegisterConfdbHandler(c SystemConfdbHandler) {
+	systemHandlers[c.SchemaName()] = c
 }
 
 type ConfdbManager struct{}
@@ -92,6 +105,18 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 	return m
 }
 
+func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
+	hookSup := &hookstate.HookSetup{
+		Snap:        snapName,
+		Hook:        hookName,
+		Optional:    true,
+		IgnoreError: ignoreError,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
+	task := hookstate.HookTask(st, summary, hookSup, nil)
+	return task
+}
+
 func (m *ConfdbManager) Ensure() error { return nil }
 
 func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -99,12 +124,12 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 	st.Lock()
 	defer st.Unlock()
 
-	tx, _, _, err := GetStoredTransaction(t)
+	tx, _, saveTxChanges, err := GetStoredTransaction(t)
 	if err != nil {
 		return err
 	}
 
-	confdbAssert, err := assertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
+	confdbAssert, err := AssertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
 	if err != nil {
 		return err
 	}
@@ -126,6 +151,65 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 			hasSaveViewHook = true
 			break
 		}
+	}
+
+	// changes to "system" confdbs are persisted by subsystem handlers, not by
+	// the usual databag commit path
+	if tx.ConfdbAccount == "system" {
+		handler, ok := systemHandlers[tx.ConfdbName]
+		if !ok {
+			// shouldn't happen; we check for this early
+			return fmt.Errorf("internal error: no system handler registered for confdb-schema %q", tx.ConfdbName)
+		}
+
+		var committed bool
+		if err := t.Get("scheduled-tasks", &committed); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		if committed {
+			// a previous run of this task scheduled async tasks which have now
+			// finished (see the async path below) so we're done. Reset the tx which
+			// re-reads state, so hooks get fully updated state since the subsystem
+			// handlers may make state changes.
+			if err := tx.Reset(st); err != nil {
+				return err
+			}
+			saveTxChanges()
+			return nil
+		}
+
+		taskSets, err := handler.Commit(st, tx)
+		if err != nil {
+			return err
+		}
+
+		if len(taskSets) == 0 {
+			// synchronous commit, nothing to wait for. Reset the tx which re-reads
+			// state, so hooks get fully updated state since the subsystem handlers
+			// may make state changes.
+			if err := tx.Reset(st); err != nil {
+				return err
+			}
+			saveTxChanges()
+			return nil
+		}
+
+		// this confdb handler needs to run tasks asynchronously, so make this task
+		// wait for those and rerun when they're done
+		chg := t.Change()
+		for _, ts := range taskSets {
+			chg.AddAll(ts)
+			t.WaitAll(ts)
+		}
+		// set this to done, so it's picked up again after the dependencies finish
+		t.SetStatus(state.DoStatus)
+		t.Set("scheduled-tasks", true)
+
+		// ensure the new tasks are picked up by the task runner
+		st.EnsureBefore(0)
+
+		return &state.Retry{}
 	}
 
 	// we error early if a write may affect ephemeral data but no save-view hook
@@ -426,13 +510,13 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 		}
 	}
 
-	if len(txs.ReadTxIDs) > 0 {
-		// there are other transactions running (can only be reads) so skip this.
-		// The last one will unblock the next accesses
-		return nil
+	// if there are other transactions running, skip this. The last one will
+	// unblock the next access
+	if len(txs.ReadTxIDs) == 0 {
+		maybeUnblockAccesses(txs)
 	}
 
-	return maybeUnblockAccesses(txs)
+	return nil
 }
 
 // maybeUnblockAccesses unblocks as many consecutive pending accesses as
@@ -447,9 +531,9 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 //
 // If accesses are unblocked, they're removed from the Pending list and put into
 // the Scheduling list so we can track unblocked but still unscheduled accesses.
-func maybeUnblockAccesses(txs *confdbTransactions) error {
+func maybeUnblockAccesses(txs *confdbTransactions) {
 	if len(txs.Pending) == 0 || txs.WriteTxID != "" || len(txs.ReadTxIDs) > 0 || len(txs.Scheduling) != 0 {
-		return nil
+		return
 	}
 
 	var upTo int
@@ -471,8 +555,6 @@ func maybeUnblockAccesses(txs *confdbTransactions) error {
 
 	txs.Scheduling = append([]access{}, txs.Pending[:upTo+1]...)
 	txs.Pending = txs.Pending[upTo+1:]
-
-	return nil
 }
 
 func (m *ConfdbManager) noop(*state.Task, *tomb.Tomb) error { return nil }
@@ -564,7 +646,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	}
 
 	// clear the transaction changes
-	err = tx.Clear(st)
+	err = tx.Reset(st)
 	if err != nil {
 		return false, fmt.Errorf("cannot rollback failed save-view: cannot clear transaction changes: %v", err)
 	}

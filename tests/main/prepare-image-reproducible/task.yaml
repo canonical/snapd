@@ -139,6 +139,9 @@ execute: |
     journalctl -u fakestore | grep 'requested snap "pc-kernel" revision 1'
     journalctl -u fakestore | grep 'requested snap "test-snapd-sh" revision 23'
 
+    echo Verifying fakestore endpoint access counts
+    fakestore debug-api stats | gojq -e '."request-stats"["/v2/snaps/refresh"] >= 1'
+
     # The generated seed.manifest will be in working directory.
     echo Verifying the generated manifest has correct content
     MATCH "core\s1+$" < seed.manifest

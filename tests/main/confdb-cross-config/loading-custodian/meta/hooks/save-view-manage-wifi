@@ -1,5 +1,0 @@
-#!/bin/sh -xe
-
-# check that we save the right value
-value=$(snapctl get --view :manage-wifi password)
-echo "$value" >> "$SNAP_COMMON"/save-view-manage-wifi-ran

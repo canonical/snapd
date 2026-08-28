@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/systemd"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -45,20 +44,15 @@ func (*featureSuite) TestName(c *C) {
 		tested++
 	}
 
-	check(features.Layouts, "layouts")
 	check(features.ParallelInstances, "parallel-instances")
 	check(features.Hotplug, "hotplug")
-	check(features.RefreshAppAwareness, "refresh-app-awareness")
-	check(features.ClassicPreservesXdgRuntimeDir, "classic-preserves-xdg-runtime-dir")
 	check(features.UserDaemons, "user-daemons")
-	check(features.DbusActivation, "dbus-activation")
 	check(features.HiddenSnapDataHomeDir, "hidden-snap-folder")
 	check(features.MoveSnapHomeDir, "move-snap-home-dir")
 	check(features.CheckDiskSpaceInstall, "check-disk-space-install")
 	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
 	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
 	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
-	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.Confdb, "confdb")
 	check(features.ConfdbControl, "confdb-control")
@@ -89,20 +83,15 @@ func (*featureSuite) TestIsExported(c *C) {
 		tested++
 	}
 
-	check(features.Layouts, false)
 	check(features.Hotplug, false)
 	check(features.ParallelInstances, true)
-	check(features.RefreshAppAwareness, true)
-	check(features.ClassicPreservesXdgRuntimeDir, true)
 	check(features.UserDaemons, false)
-	check(features.DbusActivation, false)
 	check(features.HiddenSnapDataHomeDir, true)
 	check(features.MoveSnapHomeDir, true)
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdb, true)
 	check(features.ConfdbControl, false)
@@ -116,21 +105,15 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
 
-func (*featureSuite) TestQuotaGroupsSupportedCallback(c *C) {
-	callback, exists := features.FeaturesSupportedCallbacks[features.QuotaGroups]
-	c.Assert(exists, Equals, true)
+func (*featureSuite) TestIsGraduated(c *C) {
+	graduated := features.Graduated()
+	c.Assert(graduated, Not(HasLen), 0)
 
-	restore1 := systemd.MockSystemdVersion(229, nil)
-	defer restore1()
-	supported, reason := callback()
-	c.Check(supported, Equals, false)
-	c.Check(reason, Matches, "systemd version 229 is too old.*")
-
-	restore2 := systemd.MockSystemdVersion(230, nil)
-	defer restore2()
-	supported, reason = callback()
-	c.Check(supported, Equals, true)
-	c.Check(reason, Equals, "")
+	for _, feature := range graduated {
+		c.Check(features.IsGraduated(feature), Equals, true)
+	}
+	c.Check(features.IsGraduated("quota-groups"), Equals, true)
+	c.Check(features.IsGraduated("other-feature"), Equals, false)
 }
 
 func (*featureSuite) TestUserDaemonsSupportedCallback(c *C) {
@@ -208,7 +191,7 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	c.Check(f.IsEnabled(), Equals, true)
 
 	// Features that are not exported cannot be queried.
-	c.Check(features.Layouts.IsEnabled, PanicMatches, `cannot check if feature "layouts" is enabled because that feature is not exported`)
+	c.Check(features.Hotplug.IsEnabled, PanicMatches, `cannot check if feature "hotplug" is enabled because that feature is not exported`)
 }
 
 func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
@@ -218,21 +201,16 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 		tested++
 	}
 
-	check(features.Layouts, true)
 	check(features.ParallelInstances, false)
 	check(features.Hotplug, false)
-	check(features.RefreshAppAwareness, true)
-	check(features.ClassicPreservesXdgRuntimeDir, true)
 	check(features.UserDaemons, false)
-	check(features.DbusActivation, true)
 	check(features.HiddenSnapDataHomeDir, false)
 	check(features.MoveSnapHomeDir, false)
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, false)
-	check(features.RefreshAppAwarenessUX, false)
+	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
 	check(features.ConfdbControl, false)
@@ -246,7 +224,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 }
 
 func (*featureSuite) TestControlFile(c *C) {
-	c.Check(features.RefreshAppAwareness.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness")
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
@@ -254,19 +231,7 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.Confdb.ControlFile(), Equals, "/var/lib/snapd/features/confdb")
 	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
-	c.Check(features.Layouts.ControlFile, PanicMatches, `cannot compute the control file of feature "layouts" because that feature is not exported`)
-}
-
-func (*featureSuite) TestConfigOptionLayouts(c *C) {
-	snapName, configName := features.Layouts.ConfigOption()
-	c.Check(snapName, Equals, "core")
-	c.Check(configName, Equals, "experimental.layouts")
-}
-
-func (*featureSuite) TestConfigOptionRefreshAppAwareness(c *C) {
-	snapName, configName := features.RefreshAppAwareness.ConfigOption()
-	c.Check(snapName, Equals, "core")
-	c.Check(configName, Equals, "experimental.refresh-app-awareness")
+	c.Check(features.Hotplug.ControlFile, PanicMatches, `cannot compute the control file of feature "hotplug" because that feature is not exported`)
 }
 
 func (*featureSuite) TestConfigOptionRefreshAppAwarenessUX(c *C) {
@@ -282,26 +247,26 @@ func (s *featureSuite) TestFlag(c *C) {
 	tr := config.NewTransaction(st)
 
 	// Feature flags have a value even if unset.
-	flag, err := features.Flag(tr, features.Layouts)
+	flag, err := features.Flag(tr, features.Hotplug)
 	c.Assert(err, IsNil)
-	c.Check(flag, Equals, true)
+	c.Check(flag, Equals, false)
 
 	// Feature flags can be disabled.
-	c.Assert(tr.Set("core", "experimental.layouts", "false"), IsNil)
-	flag, err = features.Flag(tr, features.Layouts)
+	c.Assert(tr.Set("core", "experimental.hotplug", "false"), IsNil)
+	flag, err = features.Flag(tr, features.Hotplug)
 	c.Assert(err, IsNil)
 	c.Check(flag, Equals, false)
 
 	// Feature flags can be enabled.
-	c.Assert(tr.Set("core", "experimental.layouts", "true"), IsNil)
-	flag, err = features.Flag(tr, features.Layouts)
+	c.Assert(tr.Set("core", "experimental.hotplug", "true"), IsNil)
+	flag, err = features.Flag(tr, features.Hotplug)
 	c.Assert(err, IsNil)
 	c.Check(flag, Equals, true)
 
 	// Feature flags must have a well-known value.
-	c.Assert(tr.Set("core", "experimental.layouts", "banana"), IsNil)
-	_, err = features.Flag(tr, features.Layouts)
-	c.Assert(err, ErrorMatches, `layouts can only be set to 'true' or 'false', got "banana"`)
+	c.Assert(tr.Set("core", "experimental.hotplug", "banana"), IsNil)
+	_, err = features.Flag(tr, features.Hotplug)
+	c.Assert(err, ErrorMatches, `hotplug can only be set to 'true' or 'false', got "banana"`)
 }
 
 func (s *featureSuite) TestAll(c *C) {

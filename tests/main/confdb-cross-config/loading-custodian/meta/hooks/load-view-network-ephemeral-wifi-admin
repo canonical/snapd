@@ -1,0 +1,8 @@
+#!/bin/sh -xe
+
+# save the existing value
+value=$(snapctl get --view :network-ephemeral-wifi-admin password 2>&1 || :)
+echo "$value" >> "$SNAP_COMMON"/load-view-network-ephemeral-wifi-admin-ran
+
+# load the ephemeral data
+snapctl set --view :network-ephemeral-wifi-admin password="loaded-secret"

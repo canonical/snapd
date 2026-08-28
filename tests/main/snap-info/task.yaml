@@ -11,6 +11,10 @@ details: |
 systems: [-amazon-*, -centos-*]
 
 prepare: |
+    # Clear any pre-existing warnings.
+    snap warnings >/dev/null
+    snap okay || true
+
     snap pack "$TESTSLIB"/snaps/basic
     snap install test-snapd-tools
     snap install --channel beta --devmode test-snapd-devmode

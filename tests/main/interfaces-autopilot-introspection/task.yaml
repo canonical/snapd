@@ -10,7 +10,6 @@ details: |
 systems:
     - -ubuntu-14.04-*  # no tests.session
     - -ubuntu-core-*  # no session bus (except for core20+)
-    - -amazon-linux-2-*  # no session bus
 
 prepare: |
     echo "Given a snap declaring an autopilot-introspection plug in installed"

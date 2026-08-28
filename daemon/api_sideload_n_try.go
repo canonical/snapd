@@ -579,7 +579,7 @@ func sideloadSnap(_ context.Context, st *state.State, upload *uploadedContainer,
 	message := fmt.Sprintf("%q snap", instanceName)
 	if compInfo == nil {
 		// TODO pass per request context
-		tset, _, err = snapstateInstallPath(st, &info.SideInfo, upload.tmpPath, instanceName, "", flags.Flags, nil)
+		tset, err = snapstateInstallPath(st, &info.SideInfo, upload.tmpPath, instanceName, "", flags.Flags, nil)
 		changeType = installSnapChangeKind
 	} else {
 		// It is a component

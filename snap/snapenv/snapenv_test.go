@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/osutil/user"
@@ -63,6 +62,21 @@ var mockSnapInfo = &snap.Info{
 		Revision: snap.R(17),
 	},
 }
+
+var mockSnapInfoWithComponents = &snap.Info{
+	SuggestedName: "foo",
+	Version:       "1.0",
+	SideInfo: snap.SideInfo{
+		Revision: snap.R(17),
+	},
+	Components: map[string]*snap.Component{
+		"comp1": {
+			Name: "comp1",
+			Type: "standard",
+		},
+	},
+}
+
 var mockSnapInfoWithDesktopFile = func() *snap.Info {
 	mi := *mockSnapInfo
 	mi.Plugs = map[string]*snap.PlugInfo{
@@ -138,6 +152,24 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_COMMON":        "/var/snap/foo/common",
+		"SNAP_DATA":          "/var/snap/foo/17",
+		"SNAP_NAME":          "foo",
+		"SNAP_INSTANCE_NAME": "foo",
+		"SNAP_INSTANCE_KEY":  "",
+		"SNAP_VERSION":       "1.0",
+		"SNAP_REVISION":      "17",
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
+		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
+		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
+	})
+
+	envWithComps := basicEnv(mockSnapInfoWithComponents)
+	c.Assert(envWithComps, DeepEquals, osutil.Environment{
+		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
+		"SNAP_COMMON":        "/var/snap/foo/common",
+		"SNAP_COMPONENTS":    fmt.Sprintf("%s/foo/components/17", dirs.CoreSnapMountDir),
 		"SNAP_DATA":          "/var/snap/foo/17",
 		"SNAP_NAME":          "foo",
 		"SNAP_INSTANCE_NAME": "foo",
@@ -266,26 +298,7 @@ func (ts *HTestSuite) TestUser(c *C) {
 }
 
 func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-
-	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
-	// per-user environment contains an override for XDG_RUNTIME_DIR.
 	env := userEnv(mockClassicSnapInfo, "/root", nil)
-	c.Assert(env, DeepEquals, osutil.Environment{
-		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
-		"SNAP_USER_COMMON": "/root/snap/foo/common",
-		"SNAP_USER_DATA":   "/root/snap/foo/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo", sys.Geteuid()),
-		"SNAP_REAL_HOME":   "/root",
-	})
-
-	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
-	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
-	f := features.ClassicPreservesXdgRuntimeDir
-	c.Assert(os.WriteFile(f.ControlFile(), nil, 0644), IsNil)
-	env = userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
@@ -400,28 +413,10 @@ func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 }
 
 func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("/")
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-
 	info := *mockClassicSnapInfo
 	info.InstanceKey = "bar"
 
-	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
-	// per-user environment contains an override for XDG_RUNTIME_DIR.
 	env := userEnv(&info, "/root", nil)
-	c.Assert(env, DeepEquals, osutil.Environment{
-		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
-		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
-		"XDG_RUNTIME_DIR":  fmt.Sprintf(dirs.GlobalRootDir+"/run/user/%d/snap.foo_bar", sys.Geteuid()),
-		"SNAP_REAL_HOME":   "/root",
-	})
-
-	// With the classic-preserves-xdg-runtime-dir feature enabled the snap
-	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
-	f := features.ClassicPreservesXdgRuntimeDir
-	c.Assert(os.WriteFile(f.ControlFile(), nil, 0644), IsNil)
-	env = userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",

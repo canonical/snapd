@@ -86,6 +86,8 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		// Hide experimental features that are no longer required because it was
 		// either accepted or rejected
 		if snapName == "core" {
+			// TODO: reconsider this filtering now that graduated experimental
+			// flags are pruned from state during configstate.Init.
 			value = pruneExperimentalFlags(key, value)
 		}
 		if key == "" {

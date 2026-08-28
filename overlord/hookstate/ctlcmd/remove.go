@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -55,13 +56,18 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: c.NoWait})
+	async := strutil.ListContains(c.clientFeatures, "async")
+
+	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: async, noWait: c.NoWait})
 	if err != nil {
 		return err
 	}
 
+	// To allow --no-wait to automatically return, we can't send change ID back to client
 	if c.NoWait {
-		fmt.Fprintf(c.stdout, "%s", id)
+		fmt.Fprintf(c.stdout, "%s\n", id)
+	} else if async {
+		*c.changeID = id
 	}
 
 	return nil

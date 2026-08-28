@@ -70,5 +70,11 @@ post:
               stderr:
                 type: string
                 description: Data written to stderr by the command.
+              change-id:
+                type: string
+                description: |-
+                  If the command initiated an asynchronous operation, this field contains
+                  the change ID that can be used to track the operation's progress. If the
+                  command did not initiate an asynchronous operation, this field is null.
     400:
       $ref: '../components/responses/BadRequest.yaml'

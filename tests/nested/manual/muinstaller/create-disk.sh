@@ -11,7 +11,7 @@ cleanup() {
 trap cleanup EXIT INT
 
 # and "install" the current seed to the fake disk
-./muinstaller -label "$LABEL" -device "$loop_device" -rootfs-creator "$TESTSLIB"/muinstaller/mk-classic-rootfs.sh
+./muinstaller -label "$LABEL" -device "$loop_device" -rootfs-creator "$TESTSLIB"/muinstaller/bin/mk-classic-rootfs.sh
 # validate that the fake installer created the expected partitions
 sfdisk -d "$loop_device" > fdisk_output
 MATCH "${loop_device}p1 .* name=\"BIOS Boot\""   < fdisk_output

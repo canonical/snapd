@@ -151,3 +151,6 @@ execute: |
     "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "core20" revision 0'
     "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "snapd" revision 0'
     "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH 'requested snap "core" revision 0'
+
+    echo Verifying fakestore endpoint access counts
+    fakestore debug-api stats | gojq -e '."request-stats"["/v2/snaps/refresh"] >= 1'

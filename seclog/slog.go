@@ -28,6 +28,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -163,16 +164,29 @@ func (h *errorAwareHandler) WithGroup(name string) slog.Handler {
 	return &errorAwareHandler{inner: h.inner.WithGroup(name)}
 }
 
-// LogValue implements [slog.LogValuer], allowing Reason to be
+// LogValue implements [slog.LogValuer], allowing [Reason] to be
 // used directly as a structured log attribute value.
 func (r Reason) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("code", r.Code),
+		slog.Int("code", r.Code),
+		slog.String("kind", r.Kind),
 		slog.String("message", r.Message),
 	)
 }
 
-// LogValue implements [slog.LogValuer], allowing SnapdUser to be
+// LogValue implements [slog.LogValuer], allowing [GrantReason] to be
+// used directly as a structured log attribute value.
+func (r GrantReason) LogValue() slog.Value {
+	return slog.StringValue(string(r))
+}
+
+// LogValue implements [slog.LogValuer], allowing [DenialReason] to be
+// used directly as a structured log attribute value.
+func (r DenialReason) LogValue() slog.Value {
+	return slog.StringValue(string(r))
+}
+
+// LogValue implements [slog.LogValuer], allowing [SnapdUser] to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
 	expiration := "never"
@@ -180,9 +194,68 @@ func (u SnapdUser) LogValue() slog.Value {
 		expiration = u.Expiration.UTC().Format(time.RFC3339Nano)
 	}
 	return slog.GroupValue(
-		slog.Int64("snapd-user-id", u.ID),
-		slog.String("store-user-name", u.StoreUserName),
-		slog.String("store-user-email", u.StoreUserEmail),
+		slog.Int64("snapd_user_id", u.ID),
+		slog.String("store_user_name", u.StoreUserName),
+		slog.String("store_user_email", u.StoreUserEmail),
 		slog.String("expiration", expiration),
 	)
+}
+
+// LogValue implements [slog.LogValuer], allowing [Endpoint] to be
+// used directly as a structured log attribute value.
+func (e Endpoint) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("method", fieldOrUnknown(e.Method)),
+		slog.String("path", fieldOrUnknown(e.Path)),
+		slog.String("action", fieldOrNone(e.Action)),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing [Peer] to be used
+// directly as a structured log attribute value.
+func (p Peer) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("socket", p.Socket),
+		slog.Int64("uid", int64(p.UID)),
+		slog.Int64("pid", int64(p.PID)),
+		slog.String("exe", fieldOrUnknown(p.Exe)),
+		peerSecurityLabelsAttr(p.SecurityLabels),
+		slog.String("cgroup_label", fieldOrUnknown(p.CgroupLabel)),
+		slog.String("snap", fieldOrUnknown(p.Snap)),
+		slog.String("app", fieldOrUnknown(p.App)),
+	)
+}
+
+// fieldOrUnknown returns [unknown] when value is empty.
+func fieldOrUnknown(value string) string {
+	if value == "" {
+		return unknown
+	}
+	return value
+}
+
+// fieldOrNone returns [none] when value is empty.
+func fieldOrNone(value string) string {
+	if value == "" {
+		return none
+	}
+	return value
+}
+
+// peerSecurityLabelsAttr renders security_labels as an empty JSON object when
+// no LSM labels were obtained, or as a key-sorted group otherwise.
+func peerSecurityLabelsAttr(labels map[string]string) slog.Attr {
+	if len(labels) == 0 {
+		return slog.Any("security_labels", map[string]string{})
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	attrs := make([]slog.Attr, 0, len(keys))
+	for _, key := range keys {
+		attrs = append(attrs, slog.String(key, labels[key]))
+	}
+	return slog.Attr{Key: "security_labels", Value: slog.GroupValue(attrs...)}
 }

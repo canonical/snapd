@@ -22,10 +22,9 @@ package servicestate
 import (
 	"fmt"
 	"strings"
+	"sync"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -35,6 +34,7 @@ import (
 )
 
 var (
+	systemdVersionOnce  sync.Once
 	systemdVersionError error
 )
 
@@ -44,7 +44,6 @@ func checkSystemdVersion() {
 
 func init() {
 	snapstate.AddSnapToQuotaGroup = AddSnapToQuotaGroup
-	EnsureQuotaUsability()
 }
 
 // EnsureQuotaUsability is exported for unit tests from other packages to re-run
@@ -67,20 +66,9 @@ var resourcesCheckFeatureRequirements = func(r *quota.Resources) error {
 
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
+	systemdVersionOnce.Do(checkSystemdVersion)
 	if systemdVersionError != nil {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
-	}
-	return nil
-}
-
-func isExperimentalQuotasAvailable(st *state.State, quotaName string) error {
-	tr := config.NewTransaction(st)
-	status, err := features.Flag(tr, features.QuotaGroups)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if !status {
-		return fmt.Errorf("%s quota options are experimental - test it by setting 'experimental.quota-groups' to true", quotaName)
 	}
 	return nil
 }
@@ -110,11 +98,6 @@ func verifyQuotaRequirements(st *state.State, resourceLimits quota.Resources) er
 	if resourceLimits.Journal != nil {
 		if err := systemd.EnsureAtLeast(245); err != nil {
 			return fmt.Errorf("cannot use journal quota with incompatible systemd: %v", err)
-		}
-
-		// To use journal quotas, the quota-group experimental features must be enabled.
-		if err := isExperimentalQuotasAvailable(st, "journal"); err != nil {
-			return err
 		}
 	}
 	return nil

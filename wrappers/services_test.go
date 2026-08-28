@@ -1780,6 +1780,10 @@ TasksAccounting=true
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFileDir := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system")
 
@@ -4676,11 +4680,16 @@ apps:
 	sysdLog = nil
 	err = wrappers.StopServices(services, nil, nil, snap.StopReasonRemove, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, `really failed to stop service`)
-	c.Check(sysdLog, DeepEquals, [][]string{
-		{"stop", filepath.Base(fooUnitFile)},
-		{"show", "--property=ActiveState", filepath.Base(fooUnitFile)},
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", filepath.Base(fooUnitFile)},
-	})
+
+	// systemd.Stop may poll ActiveState more than once while the stop command
+	// completes. the important part is that StopServices checks the full
+	// service status before reporting that the failed stop is fatal.
+	c.Assert(len(sysdLog) >= 3, Equals, true)
+	c.Check(sysdLog[0], DeepEquals, []string{"stop", filepath.Base(fooUnitFile)})
+	for _, cmd := range sysdLog[1 : len(sysdLog)-1] {
+		c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", filepath.Base(fooUnitFile)})
+	}
+	c.Check(sysdLog[len(sysdLog)-1], DeepEquals, []string{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", filepath.Base(fooUnitFile)})
 }
 
 func (s *servicesTestSuite) TestStartSnapSocketEnableStart(c *C) {

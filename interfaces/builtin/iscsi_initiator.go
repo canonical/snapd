@@ -19,6 +19,14 @@
 
 package builtin
 
+import (
+	"path/filepath"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/osutil"
+)
+
 /*
  * The iscsi-initiator interface allows snaps to act as iSCSI initiators,
  * enabling them to discover, connect to, and manage iSCSI targets for
@@ -48,9 +56,20 @@ const iscsiInitiatorConnectedPlugAppArmor = `
 # iSCSI initiator configuration files
 /etc/iscsi/initiatorname.iscsi r,
 /etc/iscsi/iscsid.conf r,
+# Additional Open-iSCSI persistent state
+/etc/iscsi/ifaces/ rwk,
+/etc/iscsi/ifaces/** rw,
+/etc/iscsi/send_targets/ rwk,
+/etc/iscsi/send_targets/** rw,
+/etc/iscsi/fw/ rwk,
+/etc/iscsi/fw/** rw,
+/etc/iscsi/static/ rwk,
+/etc/iscsi/static/** rw,
+/etc/iscsi/isns/ rwk,
+/etc/iscsi/isns/** rw,
 # iSCSI target node information for persistent connections
-/etc/iscsi/nodes/ rwk,
-/etc/iscsi/nodes/** rw,
+/{etc,var/lib}/iscsi/nodes/ rwk,
+/{etc,var/lib}/iscsi/nodes/** rw,
 
 # Runtime files and locks for iSCSI daemon operation
 /run/lock/iscsi/ rw,
@@ -92,7 +111,30 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     iscsiInitiatorBaseDeclarationSlots,
 		baseDeclarationPlugs:     iscsiInitiatorBaseDeclarationPlugs,
-		connectedPlugAppArmor:    iscsiInitiatorConnectedPlugAppArmor,
 		connectedPlugKModModules: iscsiInitiatorConnectedPlugKmod,
+		// expose the host's iSCSI persistent node database at /var/lib/iscsi/nodes,
+		// if one exists
+		connectedPlugMount: []osutil.MountEntry{{
+			Name:    filepath.Join("/var/lib/snapd/hostfs", nodesDBDebianPath),
+			Dir:     nodesDBDebianPath,
+			Options: []string{"bind", "rw"},
+		}},
 	}})
+}
+
+const nodesDBDebianPath = "/var/lib/iscsi/nodes"
+
+// AppArmorConnectedPlug updates the snap-update-ns rules to allow the bind
+// mount of the iscsi node DB to the correct location.
+func (iface *iscsiInitiatorInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(iscsiInitiatorConnectedPlugAppArmor)
+
+	emit := spec.AddUpdateNSf
+	emit("  # Bind-mount host's iSCSI persistent node database\n")
+	emit("  mount options=(bind, rw) /var/lib/snapd/hostfs%[1]s/ -> %[1]s/,\n", nodesDBDebianPath)
+	emit("  umount %s/,\n", nodesDBDebianPath)
+	// /var/lib/iscsi/nodes/ does not exist in the snap's base, so we need to
+	// add writable-mimic rules for snap-update-ns to create it.
+	apparmor.GenWritableProfile(emit, nodesDBDebianPath, 1)
+	return nil
 }

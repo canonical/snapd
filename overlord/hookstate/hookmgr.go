@@ -213,6 +213,15 @@ func (m *HookManager) Ensure() error {
 	return nil
 }
 
+// ShutDown implements the ShutDowner interface for the HookManager.
+func (m *HookManager) ShutDown() {
+	// stop hooks gracefully
+	logger.Noticef("gracefully waiting for running hooks")
+	m.GracefullyWaitRunningHooks()
+	logger.Noticef("done waiting for running hooks")
+	m.StopHooks()
+}
+
 // StopHooks kills all currently running hooks and returns after
 // that's done.
 func (m *HookManager) StopHooks() {

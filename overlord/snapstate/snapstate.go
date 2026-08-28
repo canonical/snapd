@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +40,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -90,6 +93,8 @@ var userDaemonsOverrides = []string{
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
+const defaultDiskSpaceReservation = 5 * 1024 * 1024
 
 // TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
 // from a broken snapd that does not generate a "update-gadget-assets" task.
@@ -172,9 +177,31 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 	return true, nil
 }
 
-// safetyMarginDiskSpace returns size plus a safety margin (5Mb)
-func safetyMarginDiskSpace(size uint64) uint64 {
-	return size + 5*1024*1024
+func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
+	addReservation := func(reservation uint64) (uint64, error) {
+		if size > math.MaxUint64-reservation {
+			return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
+		}
+		return size + reservation, nil
+	}
+
+	// the value may be a string (e.g. "5M") or a plain number of bytes
+	// (e.g. 0), as snap set stores valid JSON values in their parsed form
+	var reservation any
+	err := tr.Get("core", "disk-reservation.size", &reservation)
+	if config.IsNoOption(err) {
+		return addReservation(defaultDiskSpaceReservation)
+	}
+	if err != nil {
+		return addReservation(defaultDiskSpaceReservation)
+	}
+
+	parsedReservation, err := quantity.ParseSize(fmt.Sprintf("%v", reservation))
+	if err != nil {
+		return addReservation(defaultDiskSpaceReservation)
+	}
+
+	return addReservation(uint64(parsedReservation))
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -531,16 +558,6 @@ func defaultProviderContentAttrs(st *state.State, info *snap.Info, prqt PrereqTr
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
-	if len(info.Layout) > 0 {
-		flag, err := features.Flag(tr, features.Layouts)
-		if err != nil {
-			return err
-		}
-		if !flag {
-			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.layouts' to true")
-		}
-	}
-
 	if info.InstanceKey != "" {
 		flag, err := features.Flag(tr, features.ParallelInstances)
 		if err != nil {
@@ -551,13 +568,10 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 
-	var hasUserService, usesDbusActivation bool
+	var hasUserService bool
 	for _, app := range info.Apps {
 		if app.IsService() && app.DaemonScope == snap.UserDaemon {
 			hasUserService = true
-		}
-		if len(app.ActivatesOn) != 0 {
-			usesDbusActivation = true
 		}
 	}
 
@@ -579,13 +593,41 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 
-	if usesDbusActivation {
-		flag, err := features.Flag(tr, features.DbusActivation)
-		if err != nil {
-			return err
+	return nil
+}
+
+// checkParallelInstancesSupport checks that a snap installed as a parallel
+// instance only uses interfaces that support parallel instances.
+func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
+	if info.InstanceKey == "" {
+		return nil
+	}
+
+	repo := ifacerepo.Get(st)
+
+	for plugName, plugInfo := range info.Plugs {
+		definer, ok := repo.Interface(plugInfo.Interface).(interfaces.ParallelInstancesPlugDefiner)
+		if !ok {
+			// non-definer interfaces are assumed to support parallel instances
+			continue
 		}
-		if !flag {
-			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+		if !definer.ParallelInstancesSupportedForPlug(plugInfo) {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"plug %q with interface %q is not supported for parallel instances",
+				info.InstanceName(), plugName, plugInfo.Interface)
+		}
+	}
+
+	for slotName, slotInfo := range info.Slots {
+		definer, ok := repo.Interface(slotInfo.Interface).(interfaces.ParallelInstancesSlotDefiner)
+		if !ok {
+			// non-definer interfaces are assumed to support parallel instances
+			continue
+		}
+		if !definer.ParallelInstancesSupportedForSlot(slotInfo) {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"slot %q with interface %q is not supported for parallel instances",
+				info.InstanceName(), slotName, slotInfo.Interface)
 		}
 	}
 
@@ -625,6 +667,9 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
+	if err := checkParallelInstancesSupport(st, info); err != nil {
+		return flags, err
+	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
 	if err := checkDBusServiceConflicts(st, info); err != nil {
@@ -659,31 +704,41 @@ type PrereqTracker interface {
 	MissingProviderContentTags(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 
-// InstallPath returns a set of tasks for installing a snap from a file path
-// and the snap.Info for the given snap.
+// InstallPath returns a set of tasks for installing a snap from a file path.
 //
-// Note that the state must be locked by the caller.
-// The provided SideInfo can contain just a name which results in a
-// local revision and sideloading, or full metadata in which case it
-// the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	target := PathInstallGoal(PathSnap{
+// The state must be locked by the caller. The provided SideInfo can
+// contain just a name which results in a local revision and sideloading, or
+// full metadata in which case it the snap will appear as installed from the
+// store.
+//
+// This function should also be used when updating an already installed snap
+// from a local file.
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, error) {
+	target := PathUpdateGoal(PathSnap{
 		InstanceName: instanceName,
 		Path:         path,
 		SideInfo:     si,
-		RevOpts:      RevisionOptions{Channel: channel},
+		RevOpts: RevisionOptions{
+			Channel: channel,
+
+			// setting the revision here makes this single-snap path install an
+			// explicit revision update. InstallPathMany intentionally does not
+			// do this, so same-revision local snaps can be handled differently
+			// by the two API entrypoints
+			Revision: si.Revision,
+		},
 	})
+
+	// since this is implemented in terms of a refresh, we always need to
+	// disable re-refresh
+	flags.NoReRefresh = true
 
 	// TODO have caller pass a context
-	info, ts, err := InstallOne(context.Background(), st, target, Options{
+	return UpdateOne(context.Background(), st, target, nil, Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
+		ExpectOneSnap: true,
 	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ts, info, nil
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -691,7 +746,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
+	ts, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
 	return ts, err
 }
 
@@ -734,41 +789,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	return ts, nil
-}
-
-// InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
-// Note that the state must be locked by the caller.
-//
-// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
-// identifying the last task before the first task that introduces system
-// modifications.
-func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
-	opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker,
-	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	logger.Debugf("installing from local file with device context %s", name)
-
-	if opts == nil {
-		opts = &RevisionOptions{}
-	}
-
-	target := PathInstallGoal(PathSnap{
-		InstanceName: name,
-		Path:         path,
-		SideInfo:     si,
-		RevOpts:      *opts,
-	})
-
-	_, ts, err := InstallOne(context.Background(), st, target, Options{
-		Flags:           flags,
-		UserID:          userID,
-		ConflictOptions: ConflictOptions{FromChange: fromChange},
-		PrereqTracker:   prqt,
-		DeviceCtx:       deviceCtx,
-	})
-	if err != nil {
-		return nil, err
-	}
 	return ts, nil
 }
 
@@ -916,7 +936,7 @@ func downloadTasks(
 	if !skipSnapDownload {
 		// TODO:COMPS: support checking for available space for components
 		toDownloadTo := filepath.Dir(snapsup.BlobPath())
-		if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
+		if err := checkDiskSpaceDownload(st, []minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
 			return nil, nil, err
 		}
 
@@ -985,6 +1005,9 @@ func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap
 // The provided SideInfos can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case
 // the snaps will appear as installed from the store.
+//
+// This function should also be used when updating an already installed snap
+// from a local file.
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if len(paths) != len(sideInfos) {
 		return nil, fmt.Errorf("internal error: number of paths and side infos must match: %d != %d", len(paths), len(sideInfos))
@@ -1631,6 +1654,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			ConflictOptions:     opts.ConflictOptions,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
+			SkipConfigure:       opts.Flags.SkipConfigure,
 		})
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && sts.ts != nil {
@@ -1656,7 +1680,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
 	if err != nil {
 		return nil, false, nil, err
 	}
@@ -2149,10 +2173,20 @@ func firstNonEmpty(strs ...string) string {
 	return ""
 }
 
-// resolveChannel conditionally resolves the channel for the given snap. If the
-// the revision is set and the channel is empty, then we assume that the caller
-// wants to install by revision and do not mutate the channel.
+// resolveChannel resolves the channel for the given snap.
 func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
+	if err != nil {
+		return err
+	}
+	r.Channel = resolved
+	return nil
+}
+
+// resolveChannelForStore conditionally resolves the channel for the given snap.
+// If the the revision is set and the channel is empty, then we assume that the
+// caller wants to install by revision and does not mutate the channel.
+func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	// if the revision is set and the caller didn't provide a channel, then we
 	// shouldn't mess with the channel. this is because we don't want the caller
 	// to have to pick the right channel when refreshing/installing by revision.
@@ -2162,14 +2196,7 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 
 	// otherwise, we know that the channel is either empty, or it is specified
 	// along with the revision. in either case, we need to resolve the channel.
-
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
-	if err != nil {
-		return err
-	}
-	r.Channel = resolved
-
-	return nil
+	return r.resolveChannel(instanceName, fallback, deviceCtx)
 }
 
 // initializeValidationSets ensures that r.ValidationSets is initialized with a
@@ -2524,13 +2551,13 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 	return updateTss, nil
 }
 
-func checkDiskSpaceDownload(infos []minimalInstallInfo, rootDir string) error {
+func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir string) error {
 	var totalSize uint64
 	for _, info := range infos {
 		totalSize += uint64(info.DownloadSize())
 	}
 
-	return checkForAvailableSpace(totalSize, infos, "download", rootDir)
+	return checkForAvailableSpace(totalSize, config.NewTransaction(st), infos, "download", rootDir)
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
@@ -2561,11 +2588,15 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
-	return checkForAvailableSpace(totalSize, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
+	return checkForAvailableSpace(totalSize, tr, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
 }
 
-func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
-	requiredSpace := safetyMarginDiskSpace(totalSize)
+func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, infos []minimalInstallInfo, changeKind string, rootDir string) error {
+	requiredSpace, err := diskSpaceReservation(totalSize, transaction)
+	if err != nil {
+		return err
+	}
+
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
@@ -3094,7 +3125,8 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		if err := CheckSeedRefreshRemove(st, si, deviceCtx); err != nil {
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
+		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
 	}
@@ -3162,7 +3194,11 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
-		requiredSpace := safetyMarginDiskSpace(snapshotSize)
+		requiredSpace, err := diskSpaceReservation(snapshotSize, config.NewTransaction(st))
+		if err != nil {
+			return nil, err
+		}
+
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -3597,7 +3633,11 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	// removeTasks() checks check-disk-space-remove feature flag, so totalSnapshotsSize
 	// will only be greater than 0 if the feature is enabled.
 	if totalSnapshotsSize > 0 {
-		requiredSpace := safetyMarginDiskSpace(totalSnapshotsSize)
+		requiredSpace, err := diskSpaceReservation(totalSnapshotsSize, config.NewTransaction(st))
+		if err != nil {
+			return nil, nil, err
+		}
+
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 				return nil, nil, &InsufficientSpaceError{
@@ -3671,7 +3711,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	// from, we use ReplaceLatest to indicate that the most recent seed should
 	// be replaced with the incoming one. this is only applicable if this snap
 	// triggers a seed refresh.
-	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, nil, SeedRefreshEvictionPolicy{
+	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, SeedRefreshEvictionPolicy{
 		SeedsToRetain: 1,
 		ReplaceLatest: true,
 	}, Options{

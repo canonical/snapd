@@ -50,9 +50,12 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -78,6 +81,9 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		return nil, nil
 	}
 	s.AddCleanup(osutil.MockMountInfo(""))
+	s.AddCleanup(systemd.MockNewSystemd(func(_ systemd.Backend, _ string, _ systemd.InstanceMode, _ systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{}
+	}))
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -2120,5 +2126,5 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEnsureLoopLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
 }

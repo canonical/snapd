@@ -1,0 +1,9 @@
+{
+    "plugs": {
+        "hostname-control": {
+            "allow-installation": "true",
+            "allow-auto-connection": "true"
+        }
+    },
+    "format": "1"
+}

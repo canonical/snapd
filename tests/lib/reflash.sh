@@ -69,7 +69,7 @@ set -eu
 
 umount -l /oldroot
 
-gunzip -c /image.gz | dd of='${DISK}' bs=32M
+gunzip -c /image.gz | dd of='${DISK}' bs=32M iflag=fullblock oflag=direct conv=fsync
 
 exec '${systemd_shutdown}' "\${@}"
 EOF

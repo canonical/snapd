@@ -5,8 +5,8 @@ apps:
     command: bin/sh
 base: core24
 plugs:
-  wifi-setup:
+  network-wifi-admin:
     interface: confdb
     account: developer1
-    view: network/wifi-setup
+    view: network/wifi-admin
     role: custodian

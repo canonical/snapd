@@ -579,3 +579,50 @@ func (s *preinstallSuite) TestLoadCheckResultInvalidJSON(c *C) {
 	c.Assert(checkResult, IsNil)
 	c.Assert(err, ErrorMatches, "cannot deserialize preinstall check result: .*")
 }
+
+func (s *preinstallSuite) TestAcceptedErrors(c *C) {
+	testCases := []struct {
+		name        string
+		checkResult *secboot.PreinstallCheckResult
+		expected    []string
+	}{
+		{
+			name:        "nil secboot check result",
+			checkResult: secboot.NewPreinstallCheckResult(nil, sb_preinstall.PCRProfileOptionsDefault),
+			expected:    nil,
+		},
+		{
+			name: "empty accepted errors",
+			checkResult: secboot.NewPreinstallCheckResult(
+				&sb_preinstall.CheckResult{AcceptedErrors: map[sb_preinstall.ErrorKind]json.RawMessage{}},
+				sb_preinstall.PCRProfileOptionsDefault,
+			),
+			expected: nil,
+		},
+		{
+			name: "accepted errors are returned as strings",
+			checkResult: secboot.NewPreinstallCheckResult(
+				&sb_preinstall.CheckResult{AcceptedErrors: map[sb_preinstall.ErrorKind]json.RawMessage{
+					sb_preinstall.ErrorKindNoHardwareRootOfTrust: nil,
+					sb_preinstall.ErrorKindTPMDeviceDisabled:     nil,
+				}},
+				sb_preinstall.PCRProfileOptionsDefault,
+			),
+			expected: []string{
+				secboot.ErrorKindNoHardwareRootOfTrust,
+				string(sb_preinstall.ErrorKindTPMDeviceDisabled),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		acceptedErrors := tc.checkResult.AcceptedErrors()
+		if acceptedErrors == nil {
+			c.Check(acceptedErrors, DeepEquals, tc.expected, Commentf(tc.name))
+			continue
+		}
+
+		expected := append([]string(nil), tc.expected...)
+		c.Check(acceptedErrors, DeepEquals, expected, Commentf(tc.name))
+	}
+}

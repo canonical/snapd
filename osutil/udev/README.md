@@ -1,4 +1,4 @@
-# go-udev [![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Build Status](https://travis-ci.org/pilebones/go-udev.svg?branch=master)](https://travis-ci.org/pilebones/go-udev)
+# go-udev [![Go Report Card](https://goreportcard.com/badge/github.com/pilebones/go-udev)](https://goreportcard.com/report/github.com/pilebones/go-udev) [![GoDoc](https://godoc.org/github.com/pilebones/go-udev?status.svg)](https://godoc.org/github.com/pilebones/go-udev) [![Build Status](https://github.com/pilebones/go-udev/workflows/CI/badge.svg)](https://github.com/pilebones/go-udev/actions)
 
 Simple udev implementation in Golang developed from scratch.
 This library allow to listen and manage Linux-kernel (since version 2.6.10) Netlink messages to user space (ie: NETLINK_KOBJECT_UEVENT).

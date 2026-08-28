@@ -19,6 +19,8 @@ backends: [-autopkgtest]
 prepare: |
     snap set system experimental.parallel-instances=true
 
+    # parallel instance installation succeeds when all interfaces of the snap
+    # support parallel instances (both on plug and slot side)
     echo "Install test snaps"
     "$TESTSTOOLS"/snaps-state install-local home-consumer
     "$TESTSTOOLS"/snaps-state install-local-as home-consumer home-consumer_foo

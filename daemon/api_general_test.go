@@ -48,12 +48,12 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var _ = check.Suite(&generalSuite{})
@@ -108,7 +108,8 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	// use Ubuntu 14.04 so UserDaemons is unsupported
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
@@ -124,10 +125,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 
 	restore = daemon.MockSystemdVirt("magic")
 	defer restore()
-	// Set systemd version <230 so QuotaGroups feature unsupported
-	restore = systemd.MockSystemdVersion(229, nil)
-	defer restore()
-
 	buildID := "this-is-my-build-id"
 	restore = daemon.MockBuildID(buildID)
 	defer restore()
@@ -142,7 +139,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
 	tr.Set("core", "refresh.timer", "8:00~9:00/2")
 	tr.Set("core", "experimental.parallel-instances", "false")
-	tr.Set("core", "experimental.quota-groups", "true")
+	tr.Set("core", "experimental.user-daemons", "true")
 	tr.Commit()
 	st.Unlock()
 
@@ -157,8 +154,8 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 		"series":  "16",
 		"version": "42b1",
 		"os-release": map[string]any{
-			"id":         "distro-id",
-			"version-id": "1.2",
+			"id":         "ubuntu",
+			"version-id": "14.04",
 		},
 		"build-id":   buildID,
 		"on-classic": true,
@@ -197,16 +194,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	// Check that "features" is map
 	featuresAll, ok := resultFeatures.(map[string]any)
 	c.Assert(ok, check.Equals, true)
-	// Ensure that Layouts exists and is feature.FeatureInfo
-	layoutsInfoRaw, exists := featuresAll[features.Layouts.String()]
-	c.Assert(exists, check.Equals, true)
-	layoutsInfo, ok := layoutsInfoRaw.(map[string]any)
-	c.Assert(ok, check.Equals, true, check.Commentf("%+v", layoutsInfoRaw))
-	// Ensure that Layouts is supported and enabled
-	c.Check(layoutsInfo["supported"], check.Equals, true)
-	_, exists = layoutsInfo["unsupported-reason"]
-	c.Check(exists, check.Equals, false)
-	c.Check(layoutsInfo["enabled"], check.Equals, true)
 	// Ensure that ParallelInstances exists and is a feature.FeatureInfo
 	parallelInstancesInfoRaw, exists := featuresAll[features.ParallelInstances.String()]
 	c.Assert(exists, check.Equals, true)
@@ -217,17 +204,17 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	_, exists = parallelInstancesInfo["unsupported-reason"]
 	c.Check(exists, check.Equals, false)
 	c.Check(parallelInstancesInfo["enabled"], check.Equals, false)
-	// Ensure that QuotaGroups exists and is a feature.FeatureInfo
-	quotaGroupsInfoRaw, exists := featuresAll[features.QuotaGroups.String()]
+	// ensure that UserDaemons exists and is a feature.FeatureInfo.
+	userDaemonsInfoRaw, exists := featuresAll[features.UserDaemons.String()]
 	c.Assert(exists, check.Equals, true)
-	quotaGroupsInfo, ok := quotaGroupsInfoRaw.(map[string]any)
+	userDaemonsInfo, ok := userDaemonsInfoRaw.(map[string]any)
 	c.Assert(ok, check.Equals, true)
-	// Ensure that QuotaGroups is unsupported but enabled
-	c.Check(quotaGroupsInfo["supported"], check.Equals, false)
-	unsupportedReason, exists := quotaGroupsInfo["unsupported-reason"]
+	// ensure that UserDaemons is unsupported but enabled.
+	c.Check(userDaemonsInfo["supported"], check.Equals, false)
+	unsupportedReason, exists := userDaemonsInfo["unsupported-reason"]
 	c.Check(exists, check.Equals, true)
 	c.Check(unsupportedReason, check.Not(check.Equals), "")
-	c.Check(quotaGroupsInfo["enabled"], check.Equals, true)
+	c.Check(userDaemonsInfo["enabled"], check.Equals, true)
 }
 
 func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
@@ -341,10 +328,6 @@ func (s *generalSuite) testSysInfoBinOrigin(c *check.C, exp string, expErr strin
 
 	restore = daemon.MockSystemdVirt("magic")
 	defer restore()
-	// Set systemd version <230 so QuotaGroups feature unsupported
-	restore = systemd.MockSystemdVersion(229, nil)
-	defer restore()
-
 	buildID := "this-is-my-build-id"
 	restore = daemon.MockBuildID(buildID)
 	defer restore()
@@ -1250,6 +1233,10 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 		expectedStatus = status
 		expectedResponse["status"] = status
 		expectedResponse["auto-repair-result"] = "not-initialized"
+		expectedResponse["preinstall"] = map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		}
 	}
 
 	defer daemon.MockFdestateSystemState(func(s *state.State, model *asserts.Model) (*fdestate.FDESystemState, error) {
@@ -1258,12 +1245,20 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusActive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements:   []install.EncryptionSupportRequirement{},
+					AcceptedErrors: map[string]any{},
+				},
 			}, nil
 
 		case "inactive":
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusInactive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements:   []install.EncryptionSupportRequirement{},
+					AcceptedErrors: map[string]any{},
+				},
 			}, nil
 		}
 
@@ -1325,6 +1320,12 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
 		expectedStatus = status
 		expectedResponse["status"] = status
 		expectedResponse["auto-repair-result"] = "not-initialized"
+		expectedResponse["preinstall"] = map[string]any{
+			"requirements": []any{"volumes-auth"},
+			"accepted-errors": map[string]any{
+				"no-hardware-root-of-trust": nil,
+			},
+		}
 	}
 
 	defer daemon.MockFdestateSystemState(func(s *state.State, model *asserts.Model) (*fdestate.FDESystemState, error) {
@@ -1333,12 +1334,24 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusActive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements: []install.EncryptionSupportRequirement{"volumes-auth"},
+					AcceptedErrors: map[string]any{
+						"no-hardware-root-of-trust": nil,
+					},
+				},
 			}, nil
 
 		case "inactive":
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusInactive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements: []install.EncryptionSupportRequirement{"volumes-auth"},
+					AcceptedErrors: map[string]any{
+						"no-hardware-root-of-trust": nil,
+					},
+				},
 			}, nil
 		}
 

@@ -33,6 +33,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -479,6 +481,45 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookErrorAndIgnoresIt(c *C) {
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 
 	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
+func (s *hookManagerSuite) TestHookTaskShutDown(c *C) {
+	restore := hookstate.MockDefaultHookTimeout(100 * time.Millisecond)
+	defer restore()
+	logbuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+	defer cmd.Restore()
+
+	// Signal when the hook has started running
+	started := make(chan struct{})
+	s.mockHandler.BeforeCallback = func() {
+		close(started)
+	}
+	// Start the hook (no restart pending)
+	s.se.Ensure()
+	// Wait for the hook to actually start
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		c.Fatal("hook did not start")
+	}
+
+	s.se.ShutDown()
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+
+	c.Check(logbuf.String(), testutil.Contains, "gracefully waiting for running hooks")
+	c.Check(logbuf.String(), testutil.Contains, "done waiting for running hooks")
 }
 
 func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
@@ -1545,5 +1586,5 @@ func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("hookmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("hookmgr.go", c, false)
 }

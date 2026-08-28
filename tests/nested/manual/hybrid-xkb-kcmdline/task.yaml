@@ -24,6 +24,9 @@ environment:
   STORE_ADDR: localhost:11028
   STORE_DIR: $(pwd)/fake-store-blobdir
 
+  WITH_INSTALL_TIME_KEYBOARD_CONFIG/with_install_time_keyboard_config: true
+  WITH_INSTALL_TIME_KEYBOARD_CONFIG/without_install_time_keyboard_config: false
+
 skip:
     - reason: This test needs test keys to be trusted
       if: |
@@ -76,14 +79,26 @@ prepare: |
 
   # setup_nested_hybrid_system.sh runs the muinstaller to install a hybrid
   # system
-  # shellcheck disable=SC2086
-  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
-     --model classic.model \
-     --store-dir "${STORE_DIR}" \
-     --gadget pc.snap \
-     --gadget-assertion pc.assert \
-     --kernel pc-kernel-repacked.snap \
-     --kernel-assertion pc-kernel-from-store.assert
+  if [ "$WITH_INSTALL_TIME_KEYBOARD_CONFIG" = "true" ]; then
+    # shellcheck disable=SC2086
+    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+       --model classic.model \
+       --store-dir "${STORE_DIR}" \
+       --gadget pc.snap \
+       --gadget-assertion pc.assert \
+       --kernel pc-kernel-repacked.snap \
+       --kernel-assertion pc-kernel-from-store.assert \
+       --keyboard-config "us,pc105,dvorak,terminate:ctrl_alt_bksp"
+  else
+    # shellcheck disable=SC2086
+    "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+       --model classic.model \
+       --store-dir "${STORE_DIR}" \
+       --gadget pc.snap \
+       --gadget-assertion pc.assert \
+       --kernel pc-kernel-repacked.snap \
+       --kernel-assertion pc-kernel-from-store.assert
+  fi
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
@@ -113,12 +128,22 @@ execute: |
     tests.nested vm start
   }
 
-  # Fresh start, nothing applied yet
-  get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1$'
+  if [ "$WITH_INSTALL_TIME_KEYBOARD_CONFIG" = "true" ]; then
+    # With install-time keyboard config, the XKB fragment is already on the cmdline
+    get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1 snapd.xkb="us,pc105,dvorak,terminate:ctrl_alt_bksp"$'
+
+    # Verify that install-time keyboard config is kept under ubuntu-save
+    remote.exec "sudo cat /var/lib/snapd/save/device/kcmdline-extra-snapd-fragments.json" | gojq -r '.xkb' | MATCH '^snapd.xkb="us,pc105,dvorak,terminate:ctrl_alt_bksp"$'
+  else
+    # Fresh start, nothing applied yet
+    get_kcmdline | MATCH '^snapd_recovery_mode=run console=ttyS0,115200n8 console=tty1 panic=-1$'
+
+    # Also, No install-time extra snapd fragments
+    remote.exec "test ! -e /var/lib/snapd/save/device/kcmdline-extra-snapd-fragments.json"
+  fi
 
   # Wait for snapd to pick up the current keyboard config
   retry -n 100 bash -c 'get_snapd_xkb | MATCH "^snapd\.xkb=\"uk,pc105,basic,compat\"$"'
-
 
   # And wait until modeenv is updated
   retry -n 100 bash -c 'get_modeenv | MATCH "uk,pc105,basic,compat"'

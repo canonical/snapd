@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -202,7 +203,7 @@ func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snap
 	}
 }
 
-func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {
@@ -397,7 +398,24 @@ var (
 	ErrToResponse      = errToResponse
 
 	MaxReadBuflen = maxReadBuflen
+
+	IsRequestFromSnapCmd = isRequestFromSnapCmd
+
+	// Together these reproduce what Command.ServeHTTP does to a request
+	// before access checking.
+	ExtractRequestAction = extractRequestAction
+	WithActionResult     = withActionResult
+	IsBodyUnusable       = isBodyUnusable
+
+	// The rules Command.ServeHTTP uses to find a request's action, shared
+	// with the action coverage check in api_base_test.go.
+	DecodeAction = decodeActionFromBody
 )
+
+func RequestDecodesAction(r *http.Request) bool {
+	_, decodeAction := requestBodyPolicy(r)
+	return decodeAction
+}
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	restore = testutil.Backup(&rebootNoticeWait)
@@ -451,4 +469,18 @@ func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, group
 
 func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot string) (*state.Change, error)) (restore func()) {
 	return testutil.Mock(&devicestateInstallPreseed, f)
+}
+
+func ResetVirtualizationDetection() {
+	systemdVirtOnce = sync.Once{}
+	systemdVirt = ""
+}
+
+func ResetBuildIDDetection() {
+	buildIDOnce = sync.Once{}
+	buildID = "unknown"
+}
+
+func MockDevicestateReprovision(f func(st *state.State) (*state.Change, error)) (restore func()) {
+	return testutil.Mock(&devicestateReprovision, f)
 }

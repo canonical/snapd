@@ -19,7 +19,6 @@ details: |
 # slot, and Amazon Linux because it doesn't have the required Python 3
 # packages to run the test.
 systems:
-    - -amazon-linux-2-*
     - -centos-*
     - -ubuntu-14.04-*
     - -ubuntu-core-*

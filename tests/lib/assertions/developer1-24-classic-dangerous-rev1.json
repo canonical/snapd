@@ -41,8 +41,7 @@
         },
         {
             "default-channel": "latest/stable",
-            "id": "zBAzEImJzOAoGxmoG5o6Tl6ELZXMeUlt",
-            "name": "test-snapd-jq-core24",
+            "name": "test-snapd-sh-core24",
             "type": "app"
         }
     ]

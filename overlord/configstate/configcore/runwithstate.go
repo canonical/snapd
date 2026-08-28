@@ -60,6 +60,7 @@ func init() {
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
+	addWithStateHandler(validateDiskSpaceReservation, nil, validateOnly)
 
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, coreOnly)
@@ -179,6 +180,14 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 			}
 		case isInterfaceChange(k):
 			if err := validateInterfaceChange(k); err != nil {
+				return err
+			}
+		case isDefaultEnabledExperimentalChange(k):
+			if err := warnDefaultEnabledExperimentalChange(cfg, k); err != nil {
+				return err
+			}
+		case isGraduatedExperimentalChange(k):
+			if err := dropGraduatedExperimentalChange(cfg, k); err != nil {
 				return err
 			}
 		case !supportedConfigurations[k]:

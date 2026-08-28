@@ -56,6 +56,44 @@ func (name FdName) isSocket() bool {
 	return strings.HasSuffix(string(name), ".socket")
 }
 
+type Store interface {
+	// Add passes a file descriptor to systemd associated with a name
+	// to reuse it across snapd restarts.
+	//
+	//   - The file descriptors can be retrieved by calling Get().
+	//   - Only a single file descriptor can associated with a FdName.
+	//
+	// Maintains a copy of the underlying file descriptor internally. It
+	// is the caller's responsibility to close f when finished.
+	Add(name FdName, f *os.File) error
+	// Get retrieves a duplicate of the file descriptor passed from systemd by
+	// its name. close-on-exec is set on the returned file descriptor. An error
+	// matching ErrNotFound is returned if no matching file descriptor is found.
+	// Passed name cannot be a socket (i.e. cannot end in ".socket"), for
+	// activation sockets use ActivationListeners() instead.
+	//
+	// The fdstore holds a copy of the file descriptor, the caller needs to
+	// call Remove() on top of closing all privately held references in order
+	// to release all resources associated with a given fd.
+	Get(name FdName) (*os.File, error)
+	// Remove removes file descriptors from systemd given their name.
+	// Remove cannot remove activation sockets.
+	Remove(name FdName) error
+	// ActivationListeners returns activation listeners that were passed
+	// from systemd. Only sockets whose name has a ".socket" suffix are
+	// returned. Order of returned listeners is not deterministic.
+	//
+	// It is the caller's responsibility to close returned listeners when finished.
+	ActivationListeners() ([]net.Listener, error)
+}
+
+type store struct{}
+
+// New returns an instance of the fdstore.
+func New() Store {
+	return &store{}
+}
+
 var (
 	osGetpid        = os.Getpid
 	osFileClose     = (*os.File).Close
@@ -76,7 +114,7 @@ var mu sync.RWMutex
 // passed from systemd.
 const sd_LISTEN_FDS_START = 3
 
-func initFdstore() {
+func (s *store) initFdstore() {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -149,7 +187,7 @@ func initFdstore() {
 		}
 		if shouldRemove {
 			logger.Noticef("removing unexpected fdstore entry %q", name)
-			if err := remove(name); err != nil {
+			if err := s.remove(name); err != nil {
 				logger.Noticef("internal error: cannot remove fdstore entry %q: %v", name, err)
 				continue
 			}
@@ -172,10 +210,8 @@ func checkSystemdVersion() error {
 	return nil
 }
 
-// Remove removes file descriptors from systemd given their name.
-// Remove cannot remove activation sockets.
-func Remove(name FdName) error {
-	initFdstore()
+func (s *store) Remove(name FdName) error {
+	s.initFdstore()
 
 	if err := checkSystemdVersion(); err != nil {
 		return fmt.Errorf("cannot remove file descriptor from fdstore: %w", err)
@@ -194,13 +230,13 @@ func Remove(name FdName) error {
 		return fmt.Errorf("cannot remove file descriptor from fdstore: %w", ErrNotFound)
 	}
 
-	return remove(name)
+	return s.remove(name)
 }
 
 // remove file descriptors from systemd given their name.
 //
 // Caller must hold the fdstore lock.
-func remove(name FdName) error {
+func (s *store) remove(name FdName) error {
 	state := fmt.Sprintf("FDSTOREREMOVE=1\nFDNAME=%s", name)
 	if err := sdNotify(state); err != nil {
 		return err
@@ -226,17 +262,8 @@ func duplicateFile(name FdName, f *os.File) (*os.File, error) {
 	return os.NewFile(uintptr(duplicatedFd), string(name)), nil
 }
 
-// Get retrieves a duplicate of the file descriptor passed from systemd by
-// its name. close-on-exec is set on the returned file descriptor. An error
-// matching ErrNotFound is returned if no matching file descriptor is found.
-// Passed name cannot be a socket (i.e. cannot end in ".socket"), for
-// activation sockets use ActivationListeners() instead.
-//
-// The fdstore holds a copy of the file descriptor, the caller needs to
-// call Remove() on top of closing all privately held references in order
-// to release all resources associated with a given fd.
-func Get(name FdName) (*os.File, error) {
-	initFdstore()
+func (s *store) Get(name FdName) (*os.File, error) {
+	s.initFdstore()
 
 	if err := checkSystemdVersion(); err != nil {
 		return nil, fmt.Errorf("cannot get file descriptor from fdstore: %w", err)
@@ -261,16 +288,8 @@ func Get(name FdName) (*os.File, error) {
 	return duplicateFile(name, fds[0])
 }
 
-// Add passes a file descriptor to systemd associated with a name
-// to reuse it across snapd restarts.
-//
-//   - The file descriptors can be retrieved by calling Get().
-//   - Only a single file descriptor can associated with a FdName.
-//
-// Maintains a copy of the underlying file descriptor internally. It
-// is the caller's responsibility to close f when finished.
-func Add(name FdName, f *os.File) error {
-	initFdstore()
+func (s *store) Add(name FdName, f *os.File) error {
+	s.initFdstore()
 
 	if err := checkSystemdVersion(); err != nil {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %w", err)
@@ -307,13 +326,8 @@ func Add(name FdName, f *os.File) error {
 	return nil
 }
 
-// ActivationListeners returns activation listeners that were passed
-// from systemd. Only sockets whose name has a ".socket" suffix are
-// returned. Order of returned listeners is not deterministic.
-//
-// It is the caller's responsibility to close returned listeners when finished.
-func ActivationListeners() (retListeners []net.Listener, retErr error) {
-	initFdstore()
+func (s *store) ActivationListeners() (retListeners []net.Listener, retErr error) {
+	s.initFdstore()
 
 	mu.RLock()
 	defer mu.RUnlock()

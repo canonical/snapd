@@ -87,17 +87,17 @@ execute: |
     # expect that three runs and is enabled for current user
 
     echo "Verify status of running services after install"
-    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH "inactive"
-    systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "disabled"
+    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH '^inactive$'
+    systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH '^disabled$'
 
-    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH "active"
-    systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service-two | MATCH "enabled"
+    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH '^active$'
+    systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service-two | MATCH '^enabled$'
 
     echo "Enable the first user service for just us"
     snap_as_test start --user --enable test-snapd-user-service-disabled.user-service
 
-    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH "active"
-    systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "enabled"
+    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH '^active$'
+    systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH '^enabled$'
 
     function systemctl_as_test2() {
       tests.session -u test2 exec systemctl --user "$@"
@@ -110,10 +110,10 @@ execute: |
 
     # the first user-service that we started and enabled for just user
     # 'test' should not be running 
-    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service | MATCH "inactive"
-    systemctl_as_test2 is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "disabled"
+    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service | MATCH '^inactive$'
+    systemctl_as_test2 is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH '^disabled$'
 
     # the second one which was enabled globally by the install hook should
     # be running
-    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH "active"
-    systemctl_as_test2 is-enabled snap.test-snapd-user-service-disabled.user-service-two | MATCH "enabled"
+    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH '^active$'
+    systemctl_as_test2 is-enabled snap.test-snapd-user-service-disabled.user-service-two | MATCH '^enabled$'

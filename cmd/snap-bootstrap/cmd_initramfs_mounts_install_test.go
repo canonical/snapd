@@ -127,7 +127,7 @@ func (s *initramfsMountsSuite) _testInitramfsMountsInstallMode(c *C, expErr erro
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	restore = snapdtool.MockVersion("1.2.3")
+	restore = snapdtool.MockVersion("1.2.3", "")
 	defer restore()
 
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)

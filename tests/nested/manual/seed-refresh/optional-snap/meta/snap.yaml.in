@@ -1,0 +1,8 @@
+name: test-snapd-seed-optional
+version: 1.0
+summary: Optional snap for seed-refresh tests
+description: An optional snap that must not be added to a refreshed seed.
+architectures: [all]
+base: @@BASE@@
+grade: devel
+confinement: strict

@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	unix "syscall"
+	"strings"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -70,56 +72,64 @@ func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error 
 
 // RemoveSnapDataDir removes base snap data directories
 func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts *dirs.SnapDirOptions) error {
-	if info.InstanceKey != "" {
-		// data directories of snaps with instance key are never used by
-		// other instances
-		dirs, err := snapBaseDataDirs(info.InstanceName(), opts)
+	removeBaseDataDirsFor := func(snapName string) error {
+		dirs, err := snapBaseDataDirs(snapName, opts)
 		if err != nil {
 			return err
 		}
 		var firstRemoveErr error
+		var firstErrDir string
 		for _, dir := range dirs {
 			// remove data symlink that could have been created by snap-run
 			// https://bugs.launchpad.net/snapd/+bug/2009617
 			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
+					// firstErrDir is not set here: it is needed only
+					// to list dir contents in case of ENOTEMPTY error
 					firstRemoveErr = err
 				}
 			}
 			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
 					firstRemoveErr = err
+					firstErrDir = dir
 				}
 			}
 		}
 		if firstRemoveErr != nil {
-			return fmt.Errorf("failed to remove snap %q base directory: %v", info.InstanceName(), firstRemoveErr)
+			dirContents := func() string {
+				if !errors.Is(firstRemoveErr, unix.ENOTEMPTY) {
+					return ""
+				}
+				d, err := os.Open(firstErrDir)
+				if err != nil {
+					return ""
+				}
+				defer d.Close()
+				const maxEntries = 10
+				names, err := d.Readdirnames(maxEntries)
+				if err != nil {
+					return ""
+				}
+				return "\ndir contents: [" + strings.Join(names, ", ") + "]"
+			}()
+			return fmt.Errorf("failed to remove snap %q base directory: %v%s", snapName, firstRemoveErr, dirContents)
+		}
+		return nil
+	}
+
+	if info.InstanceKey != "" {
+		// data directories of snaps with instance key are never used by
+		// other instances
+		if err := removeBaseDataDirsFor(info.InstanceName()); err != nil {
+			return err
 		}
 	}
 	if !hasOtherInstances {
 		// remove the snap base directory only if there are no other
 		// snap instances using it
-		dirs, err := snapBaseDataDirs(info.SnapName(), opts)
-		if err != nil {
+		if err := removeBaseDataDirsFor(info.SnapName()); err != nil {
 			return err
-		}
-		var firstRemoveErr error
-		for _, dir := range dirs {
-			// remove data symlink that could have been created by snap-run
-			// https://bugs.launchpad.net/snapd/+bug/2009617
-			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
-				if firstRemoveErr == nil {
-					firstRemoveErr = err
-				}
-			}
-			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
-				if firstRemoveErr == nil {
-					firstRemoveErr = err
-				}
-			}
-		}
-		if firstRemoveErr != nil {
-			return fmt.Errorf("failed to remove snap %q base directory: %v", info.SnapName(), firstRemoveErr)
 		}
 	}
 
@@ -151,17 +161,36 @@ func removeDirs(dirs []string) error {
 	return nil
 }
 
-// snapDataDirs returns the list of base data directories for the given snap.
-func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, error) {
-	// collect the directories, homes first
-	var found []string
+// canAccessSnapDir reports whether the process is not denied access to user snap dir.
+// unix.Access uses the real UID, so on NFS with root_squash it correctly
+// reflects the nobody mapping.
+func canAccessSnapDir(homeDir string, opts *dirs.SnapDirOptions) bool {
+	snapDir := snap.SnapDir(homeDir, opts)
+	err := unix.Access(snapDir, unix.R_OK|unix.W_OK|unix.X_OK)
+	return !errors.Is(err, unix.EACCES)
+}
 
-	for _, entry := range snap.BaseDataHomeDirs(snapName, opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
+// snapBaseDataDirs returns the list of base data directories for the given snap.
+func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, error) {
+	// collect the directories, homes first — only for verified users
+	users, err := allUsers(opts)
+	if err != nil {
+		return nil, err
+	}
+	var found []string
+	for _, usr := range users {
+		if usr.Uid == "0" {
+			// root is ordered explicitly below
+			continue
 		}
-		found = append(found, entryPaths...)
+		// Skip users whose snap dir is inaccessible (e.g. NFS root_squash maps
+		// root to nobody); snap subdirs under it are similarly restricted.
+		// Filtering early avoids spreading EACCES handling across the several
+		// consumers of snap data dir lists (remove, copy, undo etc).
+		if !canAccessSnapDir(usr.HomeDir, opts) {
+			continue
+		}
+		found = append(found, snap.UserSnapDir(usr.HomeDir, snapName, opts))
 	}
 
 	// then the /root user (including GlobalRootDir for tests)
@@ -173,52 +202,74 @@ func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, err
 }
 
 // snapDataDirs returns the list of data directories for the given snap version
-func snapDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
-	// collect the directories, homes first
+func snapDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	// collect the directories, homes first — only for verified users
+	users, err := allUsers(opts)
+	if err != nil {
+		return nil, err
+	}
 	var found []string
-
-	for _, entry := range snap.DataHomeDirs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
+	for _, usr := range users {
+		if usr.Uid == "0" {
+			// root is ordered explicitly below
+			continue
 		}
-		found = append(found, entryPaths...)
+		// Skip users whose snap dir is inaccessible (e.g. NFS root_squash maps
+		// root to nobody); snap subdirs under it are similarly restricted.
+		// Filtering early avoids spreading EACCES handling across the several
+		// consumers of snap data dir lists (remove, copy, undo etc).
+		if !canAccessSnapDir(usr.HomeDir, opts) {
+			continue
+		}
+		found = append(found, info.UserDataDir(usr.HomeDir, opts))
 	}
 
 	// then the /root user (including GlobalRootDir for tests)
-	found = append(found, snap.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts))
+	found = append(found, info.UserDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts))
 	// then system data
-	found = append(found, snap.DataDir())
+	found = append(found, info.DataDir())
 
 	return found, nil
 }
 
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
-func snapCommonDataDirs(snap *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
-	// collect the directories, homes first
-	var found []string
-
-	for _, entry := range snap.CommonDataHomeDirs(opts) {
-		entryPaths, err := filepath.Glob(entry)
-		if err != nil {
-			return nil, err
-		}
-		found = append(found, entryPaths...)
-	}
-
-	// then the root user's common data dir
-	rootCommon := snap.UserCommonDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts)
-	found = append(found, rootCommon)
-
-	// then XDG_RUNTIME_DIRs for the users
-	foundXdg, err := filepath.Glob(snap.XdgRuntimeDirs())
+func snapCommonDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	// collect the directories, homes first — only for verified users
+	users, err := allUsers(opts)
 	if err != nil {
 		return nil, err
 	}
-	found = append(found, foundXdg...)
+	var found []string
+	for _, usr := range users {
+		if usr.Uid == "0" {
+			// root is ordered explicitly below
+			continue
+		}
+		// Skip users whose snap dir is inaccessible (e.g. NFS root_squash maps
+		// root to nobody); snap subdirs under it are similarly restricted.
+		// Filtering early avoids spreading EACCES handling across the several
+		// consumers of snap data dir lists (remove, copy, undo etc).
+		if !canAccessSnapDir(usr.HomeDir, opts) {
+			continue
+		}
+		found = append(found, info.UserCommonDataDir(usr.HomeDir, opts))
+	}
+
+	// then the root user's common data dir
+	rootCommon := info.UserCommonDataDir(filepath.Join(dirs.GlobalRootDir, "/root/"), opts)
+	found = append(found, rootCommon)
+
+	// then XDG_RUNTIME_DIRs for the users
+	for _, usr := range users {
+		uid, _, err := osutil.UidGid(usr)
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, info.UserXdgRuntimeDir(uid))
+	}
 
 	// then system data
-	found = append(found, snap.CommonDataDir())
+	found = append(found, info.CommonDataDir())
 
 	return found, nil
 }

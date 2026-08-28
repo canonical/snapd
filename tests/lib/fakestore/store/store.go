@@ -89,6 +89,9 @@ type Store struct {
 	// for all requests to a given endpoint and after exceeding it, all
 	// subsequent requests will fail until it is reset through a request
 	killAfter map[string]int64
+
+	// endpoint -> access count, cleared by "reset" debug action
+	endpointStats map[string]uint64
 }
 
 type wrappedWriter struct {
@@ -144,11 +147,13 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		channelRepository: &ChannelRepository{
 			rootDir: filepath.Join(topDir, "channels"),
 		},
-		snapsCache: make(map[string]snapCachedInfo),
-		killAfter:  make(map[string]int64),
+		snapsCache:    make(map[string]snapCachedInfo),
+		killAfter:     make(map[string]int64),
+		endpointStats: make(map[string]uint64),
 	}
 
 	r.Use(logit)
+	r.Use(store.countRequests)
 	r.Use(store.applyKillAfter)
 
 	r.HandleFunc("/", rootEndpoint)
@@ -455,7 +460,8 @@ type debugRequestJSON struct {
 }
 
 type debugResultJSON struct {
-	KillAfter map[string]int64 `json:"kill-after"`
+	KillAfter    map[string]int64  `json:"kill-after"`
+	RequestStats map[string]uint64 `json:"request-stats"`
 }
 
 func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -464,7 +470,8 @@ func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
 			s.lock.Lock()
 			defer s.lock.Unlock()
 			res := debugResultJSON{
-				KillAfter: s.killAfter,
+				KillAfter:    s.killAfter,
+				RequestStats: s.endpointStats,
 			}
 			return json.Marshal(res)
 		}()
@@ -530,7 +537,8 @@ func (s *Store) debugActionReset(_ *debugRequestJSON) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.killAfter = map[string]int64{}
+	s.killAfter = make(map[string]int64)
+	s.endpointStats = make(map[string]uint64)
 }
 
 func (s *Store) applyKillAfter(next http.Handler) http.Handler {
@@ -576,6 +584,20 @@ func (s *Store) applyKillAfter(next http.Handler) http.Handler {
 
 			w = kaw
 		}
+		next.ServeHTTP(w, req)
+	})
+}
+
+func (s *Store) countRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		path := req.URL.Path
+
+		func() {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+			s.endpointStats[path]++
+		}()
+
 		next.ServeHTTP(w, req)
 	})
 }

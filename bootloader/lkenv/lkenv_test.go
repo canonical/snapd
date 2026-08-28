@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -30,7 +31,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
@@ -542,7 +542,7 @@ func (l *lkenvTestSuite) TestLoadPropagatesErrNotExist(c *C) {
 	c.Check(env, NotNil)
 
 	err := env.Load()
-	c.Assert(xerrors.Is(err, os.ErrNotExist), Equals, true, Commentf("err is %+v", err))
+	c.Assert(errors.Is(err, os.ErrNotExist), Equals, true, Commentf("err is %+v", err))
 	c.Assert(err, ErrorMatches, "cannot open LK env file: open some-nonsense-file-this-doesnt-existbak: no such file or directory")
 }
 

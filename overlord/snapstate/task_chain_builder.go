@@ -58,6 +58,12 @@ func (b *taskChainBuilder) Append(t *state.Task) {
 	tmp.Append(t)
 }
 
+// UpdateEdge marks the task as an edge. If the task set owned by this
+// taskChainBuilder already has that edge, it is overwritten.
+func (b *taskChainBuilder) UpdateEdge(t *state.Task, e state.TaskSetEdge) {
+	b.ts.MarkEdge(t, e)
+}
+
 // OpenSpan creates a new taskChainSpan that shares this taskChainBuilder's task
 // set and tail.
 func (b *taskChainBuilder) OpenSpan() *taskChainSpan {
@@ -130,7 +136,7 @@ func (s *taskChainSpan) AppendWithoutData(t *state.Task) {
 // UpdateEdge marks the task as an edge. If the task set owned by the parent
 // taskChainBuilder already has that edge, it is overwritten.
 func (s *taskChainSpan) UpdateEdge(t *state.Task, e state.TaskSetEdge) {
-	s.b.ts.MarkEdge(t, e)
+	s.b.UpdateEdge(t, e)
 }
 
 // UpdateEdgeIfUnset marks the task as an edge only if the edge is not already set.
@@ -259,4 +265,28 @@ func serializeTaskSets(prev, next *state.TaskSet) {
 			h.WaitFor(t)
 		}
 	}
+}
+
+// serializeTaskSetBeforeInProgressChange makes the tasks in chg that still need
+// to run (in the do direction) wait on ts without creating superfluous
+// dependencies.
+func serializeTaskSetBeforeInProgressChange(ts *state.TaskSet, chg *state.Change) {
+	tasks := make([]*state.Task, 0, len(chg.Tasks()))
+	for _, t := range chg.Tasks() {
+		// only consider tasks that still need to be done, everything else can
+		// be skipped
+		switch t.Status() {
+		case state.DoStatus:
+		case state.WaitStatus:
+			if t.WaitedStatus() != state.DoStatus {
+				continue
+			}
+		default:
+			continue
+		}
+
+		tasks = append(tasks, t)
+	}
+
+	serializeTaskSets(ts, state.NewTaskSet(tasks...))
 }

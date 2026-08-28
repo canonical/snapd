@@ -49,6 +49,10 @@ restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
 
+    rm -f /etc/systemd/system/snapd.service.d/fakestore-wait.conf
+    systemctl daemon-reload
+    systemctl restart snapd
+
     snap set system refresh.hold!
 
 debug: |
@@ -57,6 +61,18 @@ debug: |
 execute: |
     # The daemon is configured to point to the fake store
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+
+    # Ensure snapd does not start before fakestore is active after reboot.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat > /etc/systemd/system/snapd.service.d/fakestore-wait.conf <<'EOF'
+    [Unit]
+    Wants=fakestore.service
+    After=fakestore.service
+
+    [Service]
+    ExecStartPre=/bin/sh -c 'for _ in $(seq 120); do systemctl is-active --quiet fakestore && exit 0; sleep 0.5; done; echo "fakestore is not active"; systemctl status fakestore || true; exit 1'
+    EOF
+    systemctl daemon-reload
 
     LAST_CHANGE_ID="$(cat last-change-id)"
 

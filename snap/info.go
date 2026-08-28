@@ -126,18 +126,6 @@ type PlaceInfo interface {
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDirs returns a slice of globs that match all per user data directories
-	// of a snap.
-	DataHomeDirs(opts *dirs.SnapDirOptions) []string
-
-	// CommonDataHomeDirs returns a slice of globs that match all per user data
-	// directories common across revisions of the snap.
-	CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string
-
-	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
-	// directories for all users of the snap.
-	XdgRuntimeDirs() string
-
 	// UserExposedHomeDir returns the snap's new home directory under ~/Snap.
 	UserExposedHomeDir(home string) string
 
@@ -273,6 +261,11 @@ func CommonDataDir(name string) string {
 	return filepath.Join(dirs.SnapDataDir, name, "common")
 }
 
+// SequenceFile returns the path to the sequence file for the given snap name.
+func SequenceFile(name string) string {
+	return filepath.Join(dirs.SnapSeqDir, name+".json")
+}
+
 // HooksDir returns the directory containing the snap's hooks for given snap
 // name. The name can be either a snap name or snap instance name.
 func HooksDir(name string, revision Revision) string {
@@ -296,16 +289,6 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	}
 
 	return dirs.UserHomeSnapDir
-}
-
-// BaseDataHomeDirs returns the per user base data directories of the snap across multiple
-// home directories.
-func BaseDataHomeDirs(name string, opts *dirs.SnapDirOptions) []string {
-	var dataHomeGlob []string
-	for _, glob := range dirs.DataHomeGlobs(opts) {
-		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, name))
-	}
-	return dataHomeGlob
 }
 
 // UserDataDir returns the user-specific data directory for given snap name. The
@@ -741,36 +724,10 @@ func (s *Info) CommonDataSaveDir() string {
 	return CommonDataSaveDir(s.InstanceName())
 }
 
-// DataHomeDirs returns the per user data directories of the snap across multiple
-// home directories.
-func (s *Info) DataHomeDirs(opts *dirs.SnapDirOptions) []string {
-	var dataHomeGlob []string
-	for _, glob := range dirs.DataHomeGlobs(opts) {
-		dataHomeGlob = append(dataHomeGlob, filepath.Join(glob, s.InstanceName(), s.Revision.String()))
-	}
-	return dataHomeGlob
-}
-
-// CommonDataHomeDirs returns the per user data directories common across revisions
-// of the snap in all defined home directories.
-func (s *Info) CommonDataHomeDirs(opts *dirs.SnapDirOptions) []string {
-	var comDataHomeGlob []string
-	for _, glob := range dirs.DataHomeGlobs(opts) {
-		comDataHomeGlob = append(comDataHomeGlob, filepath.Join(glob, s.InstanceName(), "common"))
-	}
-	return comDataHomeGlob
-}
-
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a
 // particular user.
 func (s *Info) UserXdgRuntimeDir(euid sys.UserID) string {
 	return UserXdgRuntimeDir(euid, s.InstanceName())
-}
-
-// XdgRuntimeDirs returns the XDG_RUNTIME_DIR directories for all users of the
-// snap.
-func (s *Info) XdgRuntimeDirs() string {
-	return filepath.Join(dirs.XdgRuntimeDirGlob, fmt.Sprintf("snap.%s", s.InstanceName()))
 }
 
 func (s *Info) BinaryNameGlobs() []string {
@@ -1241,7 +1198,7 @@ func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string,
 		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
 			// usage can be "snap:slot" but slot
 			// is ignored/unused
-			name := strings.Split(dprovider, ":")[0]
+			name, _, _ := strings.Cut(dprovider, ":")
 			var contentTag string
 			plug.Attr("content", &contentTag)
 			if filterTags[contentTag] {

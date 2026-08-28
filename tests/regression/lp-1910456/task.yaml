@@ -31,21 +31,17 @@ prepare: |
         SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
         if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
             # set up classic execution support
-            ln -sf "$SNAP_MOUNT_DIR" /snap
+            ln -sfn "$SNAP_MOUNT_DIR" /snap
             tests.cleanup defer rm -f /snap
         fi
 
         snap pack classic-container-mgr-snap
         snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
     fi
-
-restore: |
-    tests.cleanup restore
     if os.query is-xenial || os.query is-bionic; then
-        # old system is not doing cleanups
-        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
-             rmdir "$svc" || true
-        done
+        # Old kernels do not clean up snap cgroup dirs on snap removal.
+        # Must run after snap remove --purge docker (LIFO).
+        tests.cleanup defer find /sys/fs/cgroup/ -type d -name snap.\* -prune -exec rmdir '{}' '+' '||' true
     fi
 
 execute: |

@@ -9,6 +9,18 @@ concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+# Granted at workflow level so the reusable spread-tests.yaml `run-spread`
+# job (which declares `pull-requests: read` for `gh pr view`) can be called
+# from a private repo. Reusable workflows cannot elevate caller scopes; an
+# explicit `permissions:` block also resets unlisted scopes to `none`, so
+# `contents`, `packages` and `actions` are listed to preserve defaults
+# (checkout, image pulls, cross-run artifact downloads).
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+  actions: read
+
 jobs:
   go-channels:
     runs-on: ubuntu-latest
@@ -125,7 +137,6 @@ jobs:
         build-config:
           - { system: "opensuse-tumbleweed-64", dockerfile: "opensuse.dockerfile", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
           - { system: "opensuse-16.0-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "16.0",   pkg-dir: "opensuse-16.0"       }
-          - { system: "amazon-linux-2-64",      dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2",      pkg-dir: "amzn-2"              }
           - { system: "amazon-linux-2023-64",   dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2023",   pkg-dir: "amzn-2023"           }
 
   package-snapd-arch:
@@ -149,7 +160,6 @@ jobs:
       matrix:
         build-config:
           - { system: "ubuntu-26.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '26.04' }
-          - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10' }
           - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04' }
           - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }
@@ -540,6 +550,17 @@ jobs:
                 echo "nested-systems=" >> $GITHUB_OUTPUT
               fi
             fi
+
+            if grep -q '^Skip spread$' <<<$labels; then
+              github_hosted_runs_on="['ubuntu-latest']"
+              fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-fundamental-systems.json)"
+              non_fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-non-fundamental-systems.json)"
+              nested_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-nested-systems.json)"
+
+              echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
+              echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
+              echo "nested-systems=$nested_systems" >> $GITHUB_OUTPUT
+            fi
           fi
 
   spread-fundamental:
@@ -556,7 +577,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -596,7 +616,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -631,7 +650,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -658,7 +676,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}

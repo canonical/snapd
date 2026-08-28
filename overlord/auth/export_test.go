@@ -19,7 +19,18 @@
 
 package auth
 
+import "github.com/snapcore/snapd/testutil"
+
+var IsSnapdMacaroon = isSnapdMacaroon
+
 // ChangedFields exports changedFields for testing.
 func (u *UserState) ChangedFields(other *UserState) []string {
 	return u.changedFields(other)
+}
+
+// MockNewUserMacaroon replaces newUserMacaroon for the duration of a test.
+func MockNewUserMacaroon(f func(macaroonKey []byte, userID int) (string, error)) (restore func()) {
+	restore = testutil.Backup(&newUserMacaroon)
+	newUserMacaroon = f
+	return restore
 }

@@ -48,6 +48,8 @@ import (
 
 type sealSuite struct {
 	testutil.BaseTest
+
+	rootdir string
 }
 
 var _ = Suite(&sealSuite{})
@@ -55,8 +57,8 @@ var _ = Suite(&sealSuite{})
 func (s *sealSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	rootdir := c.MkDir()
-	dirs.SetRootDir(rootdir)
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
 	s.AddCleanup(efi.MockVars(nil, nil))
@@ -79,18 +81,39 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	defer boot.MockSealModeenvLocked()()
 
 	for idx, tc := range []struct {
-		sealErr       error
-		provisionErr  error
-		factoryReset  bool
-		shimId        string
-		grubId        string
-		runGrubId     string
-		expErr        string
-		expSealCalls  int
-		disableTokens bool
+		sealErr                error
+		provisionErr           error
+		factoryReset           bool
+		reprovision            bool
+		shimId                 string
+		grubId                 string
+		runGrubId              string
+		goodRecoverySystems    []string
+		currentRecoverySystems []string
+		expErr                 string
+		expSealCalls           int
+		disableTokens          bool
 	}{
 		{
 			expSealCalls: 1,
+		},
+		{
+			currentRecoverySystems: []string{"20200825"},
+			expSealCalls:           1,
+		},
+		{
+			currentRecoverySystems: []string{"20200825"},
+			goodRecoverySystems:    []string{"20200825"},
+			expSealCalls:           1,
+		},
+		{
+			currentRecoverySystems: []string{"20260702"},
+			expErr:                 `trying to install or reprovision with a try system "20260702"`,
+		},
+		{
+			currentRecoverySystems: []string{"20260702"},
+			goodRecoverySystems:    []string{"20200825"},
+			expErr:                 `trying to install or reprovision with a try system "20260702"`,
 		},
 		{
 			expSealCalls:  1,
@@ -101,6 +124,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			expSealCalls: 1,
 		}, {
 			factoryReset: true,
+			reprovision:  true,
+			expSealCalls: 1,
+		}, {
+			reprovision:  true,
 			expSealCalls: 1,
 		}, {
 			sealErr: errors.New("seal error"), expErr: `seal error`,
@@ -155,6 +182,13 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			ModelSignKeyID: model.SignKeyID(),
 		}
 
+		if tc.currentRecoverySystems != nil {
+			modeenv.CurrentRecoverySystems = tc.currentRecoverySystems
+		}
+		if tc.goodRecoverySystems != nil {
+			modeenv.GoodRecoverySystems = tc.goodRecoverySystems
+		}
+
 		// mock asset cache
 		boottest.MockAssetsCache(c, rootdir, "grub", []string{
 			fmt.Sprintf("%s-shim-hash-1", shimId),
@@ -178,7 +212,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		defer restore()
 
 		sealKeyForBootChainsCalled := 0
-		restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
+		restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 			sealKeyForBootChainsCalled++
 
 			for _, d := range []string{boot.InitramfsSeedEncryptionKeyDir, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde")} {
@@ -231,7 +265,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Assert(recoveryGrub.Hashes, HasLen, 1)
 			c.Check(recoveryGrub.Hashes[0], Equals, "grub-hash-1")
 
-			c.Check(params.FactoryReset, Equals, tc.factoryReset)
+			c.Check(params.Reprovision, Equals, tc.reprovision)
+			c.Check(params.LegacyFactoryResetKeyPath, Equals, tc.factoryReset)
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 			c.Check(params.UseTokens, Equals, !tc.disableTokens)
 
@@ -241,10 +276,11 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		u := mockUnlocker{}
 		err = boot.SealKeyToModeenv(myKey, myKey2, nil, myVolumesAuth, myCheckResult, model, modeenv, boot.MockSealKeyToModeenvFlags{
-			FactoryReset:  tc.factoryReset,
-			StateUnlocker: u.unlocker,
-			UseTokens:     !tc.disableTokens,
-		})
+			LegacyFactoryResetKeyPath: tc.factoryReset,
+			Reprovision:               tc.reprovision,
+			StateUnlocker:             u.unlocker,
+			UseTokens:                 !tc.disableTokens,
+		}, nil)
 		c.Check(u.unlocked, Equals, 1)
 		c.Check(sealKeyForBootChainsCalled, Equals, tc.expSealCalls)
 		if tc.expErr == "" {
@@ -1615,7 +1651,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 	myKey2 := secboot.CreateMockBootstrappedContainer()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodFDESetupHook)
 		c.Check(key, DeepEquals, myKey)
@@ -1634,7 +1670,8 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 		c.Check(recoveryBootChain.Model, Equals, model.Model())
 		c.Check(recoveryBootChain.AssetChain, HasLen, 0)
 
-		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.Reprovision, Equals, false)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 		c.Check(params.UseTokens, Equals, true)
 
@@ -1644,7 +1681,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true})
+	err := boot.SealKeyToModeenv(myKey, myKey2, nil, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}, UseTokens: true}, nil)
 	c.Assert(err, IsNil)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -1657,7 +1694,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorSad(c *C) {
 	model := boottest.MakeMockUC20Model()
 
 	sealKeyForBootChainsCalled := 0
-	restore := boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
+	restore := boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 		sealKeyForBootChainsCalled++
 
 		return fmt.Errorf("seal key failed")
@@ -1677,7 +1714,7 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorSad(c *C) {
 
 	defer boot.MockSealModeenvLocked()()
 
-	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}})
+	err := boot.SealKeyToModeenv(key, saveKey, nil, nil, nil, model, modeenv, boot.MockSealKeyToModeenvFlags{HookKeyProtectorFactory: &fakeProtectorFactory{}}, nil)
 	c.Assert(err, ErrorMatches, `seal key failed`)
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
 }
@@ -2156,4 +2193,22 @@ func (s *sealSuite) TestWithBootChainsFDEHook(c *C) {
 	}
 
 	c.Check(chains, DeepEquals, expected)
+}
+
+func (s *sealSuite) TestCheckResealKeyToModeenvUsesDryRun(c *C) {
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(s.rootdir)
+	c.Assert(err, IsNil)
+
+	resealCalls := 0
+	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealCalls++
+		c.Check(rootdir, Equals, s.rootdir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts, DeepEquals, boot.ResealKeyToModeenvOptions{DryRun: true, Force: true})
+		return nil
+	})()
+
+	err = boot.CheckResealKeyToModeenv(s.rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 1)
 }

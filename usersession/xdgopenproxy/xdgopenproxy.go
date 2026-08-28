@@ -21,10 +21,10 @@
 package xdgopenproxy
 
 import (
+	"errors"
 	"net/url"
 
 	"github.com/godbus/dbus/v5"
-	"golang.org/x/xerrors"
 )
 
 type responseError struct {
@@ -77,7 +77,7 @@ func launch(bus *dbus.Conn, launchers []desktopLauncher, urlOrFile string) error
 		if err == nil {
 			break
 		}
-		if xerrors.Is(err, &responseError{}) {
+		if errors.Is(err, &responseError{}) {
 			// got a response which indicates the action was either
 			// explicitly rejected by the user or abandoned due to
 			// other reasons eg. timeout waiting for user to respond

@@ -101,3 +101,21 @@ func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineFragmentErr
 	err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, fragmentID, "some-val")
 	c.Assert(err, ErrorMatches, "cannot set extra snapd kernel command line fragments until fully seeded")
 }
+
+func (s *deviceMgrBootconfigSuite) TestRenderExtraSnapdKernelCommandLineFragments(c *C) {
+	// Empty/nil returns empty string.
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(nil), Equals, "")
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(map[string]string{}), Equals, "")
+
+	// Single fragment.
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(map[string]string{
+		"xkb": `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`,
+	}), Equals, `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`)
+
+	// Multiple fragments are sorted by value to get a stable order.
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(map[string]string{
+		"b": "zzz",
+		"a": "aaa",
+		"c": "mmm",
+	}), Equals, "aaa mmm zzz")
+}

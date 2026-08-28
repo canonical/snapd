@@ -24,7 +24,6 @@ import (
 	"errors"
 	"io"
 
-	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 )
 
@@ -71,6 +70,6 @@ func (cs *clientSuite) TestClientCreateCohorts(c *check.C) {
 func (cs *clientSuite) TestClientCreateCohortsErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.CreateCohorts([]string{"foo", "bar"})
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, check.Implements, &e)
 }

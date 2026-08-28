@@ -23,12 +23,12 @@ jobs:
         run: |
           go mod vendor
           ./mkversion.sh
-          go build -tags nosecboot -o /tmp/snp ./cmd/snap
+          go build -tags nosecboot -o /tmp/snap ./cmd/snapd
 
       - name: Runtime quick checks
         run: |
-          /tmp/snp download hello
-          /tmp/snp version
+          /tmp/snap download hello
+          /tmp/snap version
           if command -v mksquashfs; then
-            /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
+            /tmp/snap pack tests/lib/snaps/test-snapd-tools/ /tmp
           fi

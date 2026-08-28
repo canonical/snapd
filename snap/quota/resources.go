@@ -21,6 +21,7 @@ package quota
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -31,11 +32,15 @@ var (
 	cgroupVer    int
 	cgroupVerErr error
 
-	cgroupCheckMemoryCgroupErr error
+	cgroupCheckMemoryCgroupOnce sync.Once
+	cgroupCheckMemoryCgroupErr  error
 )
 
 func init() {
 	cgroupVer, cgroupVerErr = cgroup.Version()
+}
+
+func setMemoryCgroupSupport() {
 	cgroupCheckMemoryCgroupErr = cgroup.CheckMemoryCgroup()
 }
 
@@ -199,8 +204,12 @@ func (qr *Resources) CheckFeatureRequirements() error {
 			return fmt.Errorf("cannot use CPU set with cgroup version %d", cgroupVer)
 		}
 	}
-	if qr.Memory != nil && cgroupCheckMemoryCgroupErr != nil {
-		return fmt.Errorf("cannot use memory quota: %v", cgroupCheckMemoryCgroupErr)
+	if qr.Memory != nil {
+		cgroupCheckMemoryCgroupOnce.Do(setMemoryCgroupSupport)
+
+		if cgroupCheckMemoryCgroupErr != nil {
+			return fmt.Errorf("cannot use memory quota: %v", cgroupCheckMemoryCgroupErr)
+		}
 	}
 
 	return nil

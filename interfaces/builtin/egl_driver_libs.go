@@ -35,10 +35,10 @@ import (
 
 const eglDriverLibsSummary = `allows exposing EGL driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plugs only supported for the system snap (note this is checked on "system"
+// snap installation even though this is an implicit plug in that case) - in
+// the future we will allow snaps having this as plug and this declaration will
+// have to change.
 const eglDriverLibsBaseDeclarationPlugs = `
   egl-driver-libs:
     allow-installation:
@@ -94,6 +94,11 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 
 func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
+	// ldconfig is only used on classic; on core the libraries are exported
+	// via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	return addLdconfigLibDirs(spec, slot)
 }
 
@@ -132,6 +137,11 @@ func checkEglIcdFile(slot *interfaces.ConnectedSlot, icdContent []byte) error {
 }
 
 func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Symlinks are only created on classic; on core the libraries are
+	// exported via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	const withPriority = true
 	return symlinksForSourceDir(spec, slot,
 		sourceDirAttr{attrName: "icd-source", isOptional: false}, eglVendorPath,
@@ -143,13 +153,8 @@ func (t *eglDriverLibsInterface) PathPatterns() []string {
 }
 
 func (iface *eglDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Files used by snap-confine on classic
-	if release.OnClassic {
-		if err := addConfigfilesForSystemLibrarySourcePaths(eglDriverLibs, spec, slot); err != nil {
-			return err
-		}
-	}
-	return nil
+	// Files used by snap-confine on classic and core
+	return addConfigfilesForSystemLibrarySourcePaths(eglDriverLibs, spec, slot)
 }
 
 func (iface *eglDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
@@ -165,8 +170,8 @@ func init() {
 			summary:              eglDriverLibsSummary,
 			baseDeclarationPlugs: eglDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: eglDriverLibsBaseDeclarationSlots,
-			// Not supported on core yet
-			implicitPlugOnCore:    false,
+			// Supported on core and classic
+			implicitPlugOnCore:    true,
 			implicitPlugOnClassic: true,
 		},
 	})

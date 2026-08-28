@@ -4,8 +4,19 @@ set -e
 
 case "$1" in
     configure)
+        # Create the private tmp directory for snap-confine
+        install -d -m 0700 /tmp/snap-private-tmp
+
         # Ensure that the void directory has correct permissions.
         chmod 111 /var/lib/snapd/void
+
+        # Ensure that the seed is valid, otherwise disable it
+        if [ -e /var/lib/snapd/seed/seed.yaml ] && [ "$(snap debug state --is-seeded /var/lib/snapd/state.json)" = "false" ]; then
+            if ! snap debug validate-seed /var/lib/snapd/seed/seed.yaml; then
+                echo "Found incorrect seed, disabling it"
+                mv /var/lib/snapd/seed /var/lib/snapd/seed.disabled
+            fi
+        fi
 
         # ensure required caps on snap-confine
         setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps

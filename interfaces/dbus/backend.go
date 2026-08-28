@@ -159,11 +159,11 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain dbus specification for snap %q: %s", instanceName, err)
 	}
 
 	snapInfo := appSet.Info()
@@ -173,8 +173,6 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
-		// TODO: Make this conditional on the dbus-activation
-		// feature flag.
 		if err := setupHostDBusConf(snapInfo); err != nil {
 			logger.Noticef("cannot create host dbus config: %s", err)
 		}
@@ -183,7 +181,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// Get the files that this snap should have
 	content := b.deriveContent(spec.(*Specification), appSet)
 
-	globs := profileGlobs(snapName)
+	globs := profileGlobs(instanceName.TODOInstanceName())
 
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -192,7 +190,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 	_, _, err = osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", instanceName, err)
 	}
 	return nil
 }

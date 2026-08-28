@@ -103,10 +103,18 @@ execute: |
     # (also wait until systemd cleans up the cgroup)
     retry -n 10 test ! -e "/sys/fs/cgroup/$testshcgroup"
     echo "Verify there continue to be no snap BPF programs"
-    test -z "$(dump_cgroup_device_progs)"
+    # retry as the kernel may not immediately free BPF programs after cgroup dir removal
+    export -f dump_cgroup_device_progs
+    # shellcheck disable=SC2016
+    retry -n 10 bash -c 'test -z "$(dump_cgroup_device_progs)"'
 
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_sh > device-access.map-app
+
+    echo "Verify snap debug device-cgroup shows the allowed devices for the app"
+    snap debug device-cgroup test-snapd-service > device-cgroup-devices.out
+    MATCH 'Security tag: snap\.test-snapd-service\.sh' < device-cgroup-devices.out
+    MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices.out
 
     # NOTE: the actual permissions may drift over time. We just care about the fact
     # that there *are* some constraints here now and there were none before.
@@ -132,6 +140,11 @@ execute: |
     test -e /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service > device-access.map-service
+
+    echo "Verify snap debug device-cgroup also shows the service's allowed devices"
+    snap debug device-cgroup test-snapd-service > device-cgroup-devices-service.out
+    MATCH 'Security tag: snap\.test-snapd-service\.test-snapd-service' < device-cgroup-devices-service.out
+    MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices-service.out
 
     # we use a hash map, and there may be a random element introduced affecting
     # the ordering, so just verify the basics

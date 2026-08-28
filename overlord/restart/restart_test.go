@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -1278,7 +1279,7 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 }
 
 func (s *restartSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("restart.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("restart.go", c, false)
 }
 
 func (*restartSuite) TestStringfiedTypes(c *C) {

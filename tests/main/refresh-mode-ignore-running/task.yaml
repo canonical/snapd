@@ -7,14 +7,12 @@ details: |
 systems: [-ubuntu-14.04-*]
 
 prepare: |
-  snap set system experimental.refresh-app-awareness=true
   snap pack test-snapd-refresh
   snap install --dangerous ./test-snapd-refresh_1_all.snap
 
 restore: |
   snap remove --purge test-snapd-refresh
   rm -f test-snapd-refresh_1.all.snap
-  snap unset system experimental.refresh-app-awareness
 
 execute: |
   tests.cleanup defer rm -f stamp

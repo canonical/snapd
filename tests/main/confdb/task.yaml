@@ -23,62 +23,62 @@ restore: |
 execute: |
   snap ack "$TESTSLIB/assertions/developer1-network.confdb"
   "$TESTSTOOLS"/snaps-state install-local test-custodian-snap
-  snap connect test-custodian-snap:manage-wifi
+  snap connect test-custodian-snap:network-wifi-admin
 
   # check basic read, write and unset
-  snap set developer1/network/wifi-setup ssid=canonical
-  snap get developer1/network/wifi-setup ssid | MATCH "canonical"
+  snap set developer1/network/wifi-admin ssid=canonical
+  snap get developer1/network/wifi-admin ssid | MATCH "canonical"
   # hook was called
-  MATCH "canonical" < /var/snap/test-custodian-snap/common/observe-view-manage-wifi-ran
-  snap set developer1/network/wifi-setup ssid!
-  snap get developer1/network/wifi-setup ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-setup: no data'
+  MATCH "canonical" < /var/snap/test-custodian-snap/common/observe-view-network-wifi-admin-ran
+  snap set developer1/network/wifi-admin ssid!
+  snap get developer1/network/wifi-admin ssid 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "ssid" through developer1/network/wifi-admin: no data'
 
   # check writing, reading and unsetting using placeholders
-  snap set -t developer1/network/wifi-setup private.my-company=\"my-config\" private.your-company=\"your-config\"
-  snap get developer1/network/wifi-setup private.my-company | MATCH "my-config"
-  snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
+  snap set -t developer1/network/wifi-admin private.my-company=\"my-config\" private.your-company=\"your-config\"
+  snap get developer1/network/wifi-admin private.my-company | MATCH "my-config"
+  snap get developer1/network/wifi-admin private.your-company | MATCH "your-config"
 
-  snap set developer1/network/wifi-setup private.my-company!
-  snap get developer1/network/wifi-setup private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" through developer1/network/wifi-setup: no data'
+  snap set developer1/network/wifi-admin private.my-company!
+  snap get developer1/network/wifi-admin private.my-company 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH $'cannot get "private.my-company" through developer1/network/wifi-admin: no data'
 
-  snap get developer1/network/wifi-setup private.your-company | MATCH "your-config"
-  snap set developer1/network/wifi-setup private.your-company!
+  snap get developer1/network/wifi-admin private.your-company | MATCH "your-config"
+  snap set developer1/network/wifi-admin private.your-company!
 
   # check setting lists with different types
-  snap set -t developer1/network/wifi-setup ssids='["one", 2]'
-  snap set developer1/network/wifi-setup ssids[0]=two
+  snap set -t developer1/network/wifi-admin ssids='["one", 2]'
+  snap set developer1/network/wifi-admin ssids[0]=two
   # read specific index
-  snap get developer1/network/wifi-setup ssids[0] | MATCH 'two'
+  snap get developer1/network/wifi-admin ssids[0] | MATCH 'two'
 
   # append to the list
-  snap set developer1/network/wifi-setup ssids[2]=true
-  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH "\[\"two\",2,true\]"
+  snap set developer1/network/wifi-admin ssids[2]=true
+  snap get -d developer1/network/wifi-admin ssids | gojq -c .ssids | MATCH "\[\"two\",2,true\]"
 
   # remove at the middle and at the end (both with unset and set!)
-  snap unset developer1/network/wifi-setup ssids[1]
-  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH "\[\"two\",true\]"
-  snap set developer1/network/wifi-setup ssids[1]!
-  snap get -d developer1/network/wifi-setup ssids | gojq -c .ssids | MATCH "\[\"two\"\]"
+  snap unset developer1/network/wifi-admin ssids[1]
+  snap get -d developer1/network/wifi-admin ssids | gojq -c .ssids | MATCH "\[\"two\",true\]"
+  snap set developer1/network/wifi-admin ssids[1]!
+  snap get -d developer1/network/wifi-admin ssids | gojq -c .ssids | MATCH "\[\"two\"\]"
 
   # check access control
-  snap set developer1/network/wifi-setup status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" through developer1/network/wifi-setup: no matching rule'
-  snap set developer1/network/wifi-setup password=foo
-  snap get developer1/network/wifi-setup password 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot get "password" through developer1/network/wifi-setup: no matching rule'
+  snap set developer1/network/wifi-admin status=foo 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot set "status" through developer1/network/wifi-admin: no matching rule'
+  snap set developer1/network/wifi-admin password=foo
+  snap get developer1/network/wifi-admin password 2>&1 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'cannot get "password" through developer1/network/wifi-admin: no matching rule'
 
   # check that snaps can't access confdb through snapctl without a connected plug
-  snap disconnect test-custodian-snap:manage-wifi
+  snap disconnect test-custodian-snap:network-wifi-admin
 
   # install another snap to serve as the custodian
   "$TESTSTOOLS"/snaps-state install-local-as test-custodian-snap test-custodian-snap_other
-  snap connect test-custodian-snap_other:manage-wifi
+  snap connect test-custodian-snap_other:network-wifi-admin
   # the new custodian can still access confdb
-  snap run --shell test-custodian-snap_other.sh -c 'snapctl set --view :manage-wifi ssid=foo'
-  snap run --shell test-custodian-snap_other.sh -c 'snapctl get --view :manage-wifi ssid' | MATCH "foo"
+  snap run --shell test-custodian-snap_other.sh -c 'snapctl set --view :network-wifi-admin ssid=foo'
+  snap run --shell test-custodian-snap_other.sh -c 'snapctl get --view :network-wifi-admin ssid' | MATCH "foo"
 
   # but the disconnected snap cannot
-  snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
-  snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=foo' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
-  snap run --shell test-custodian-snap.sh -c 'snapctl unset --view :manage-wifi ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :manage-wifi"
+  snap run --shell test-custodian-snap.sh -c 'snapctl get --view :network-wifi-admin ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :network-wifi-admin"
+  snap run --shell test-custodian-snap.sh -c 'snapctl set --view :network-wifi-admin ssid=foo' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :network-wifi-admin"
+  snap run --shell test-custodian-snap.sh -c 'snapctl unset --view :network-wifi-admin ssid' 2>&1 | MATCH "error: snapctl: cannot access confdb through unconnected plug :network-wifi-admin"
 
   snap remove --purge test-custodian-snap_other test-custodian-snap
   "$TESTSTOOLS"/snaps-state install-local waiting-custodian
@@ -87,15 +87,15 @@ execute: |
   # (only one can run at once), so we'll refresh here and revert so that no pre-refresh
   # hook runs and we approximate a custodian hook starting mid-refresh
   "$TESTSTOOLS"/snaps-state install-local waiting-custodian
-  snap connect waiting-custodian:wifi-setup
+  snap connect waiting-custodian:network-wifi-admin
 
   # access confdb triggering a custodian hook that hangs
   OLD_CHG=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  snap get developer1/network/wifi-setup ssid &>/dev/null &
+  snap get developer1/network/wifi-admin ssid &>/dev/null &
   pid="$!"
   GET_CHG="$((OLD_CHG+1))"
 
-  retry -n 5 sh -c "snap change $GET_CHG | grep "Doing.*Run hook load-view-wifi-setup""
+  retry -n 5 sh -c "snap change $GET_CHG | grep "Doing.*Run hook load-view-network-wifi-admin""
 
   # try to "refresh" the custodian and check it waits before unlinking
   REVERT_CHG="$(snap revert waiting-custodian --no-wait)"
@@ -115,35 +115,35 @@ execute: |
   #    {"to": "192.168.5.0/24", "via": "192.168.5.1", "type": "local", ...}
   #  ]
   #}
-  snap set developer1/network/wifi-setup -t routes="$(gojq .routes original)"
+  snap set developer1/network/wifi-admin -t routes="$(gojq .routes original)"
 
   # filter the routes for "type = local"
   gojq '.routes |= map(select(.type == "local"))' original > expected
-  snap get developer1/network/wifi-setup -d routes --with type=local > got
+  snap get developer1/network/wifi-admin -d routes --with type=local > got
   diff <(gojq . expected) <(gojq . got)
 
   # composing filters works by ANDing the constraints
   gojq '.routes |= map(select(.to == "default" and .type == "local"))' original > expected
-  snap get developer1/network/wifi-setup -d routes --with to=default --with type=local > got
+  snap get developer1/network/wifi-admin -d routes --with to=default --with type=local > got
   diff <(gojq . expected) <(gojq . got)
 
   # filtering everything out results in a "no data" error
-  snap get developer1/network/wifi-setup -d routes --with to=non-existent 2>&1 | MATCH "error: cannot get \"routes\" through developer1/network/wifi-setup: no data"
+  snap get developer1/network/wifi-admin -d routes --with to=non-existent 2>&1 | MATCH "error: cannot get \"routes\" through developer1/network/wifi-admin: no data"
 
   # filtering with typed constraints (bool and number)
   gojq '.routes |= map(select(."on-link" == true))' original > expected
-  snap get developer1/network/wifi-setup -d routes --with on-link=true > got
+  snap get developer1/network/wifi-admin -d routes --with on-link=true > got
   diff <(gojq . expected) <(gojq . got)
 
   gojq '.routes |= map(select(.metric == 200))' original > expected
-  snap get developer1/network/wifi-setup -d routes --with metric=200 > got
+  snap get developer1/network/wifi-admin -d routes --with metric=200 > got
   diff <(gojq . expected) <(gojq . got)
 
   # constraints can also be applied to placeholders subkeys
-  snap set -t developer1/network/wifi-setup private='{"my-company": "foo", "your-company": "bar"}'
-  snap get developer1/network/wifi-setup -l private --with placeholder="my-company" | tail -n1 | MATCH "private.my-company  foo"
+  snap set -t developer1/network/wifi-admin private='{"my-company": "foo", "your-company": "bar"}'
+  snap get developer1/network/wifi-admin -l private --with placeholder="my-company" | tail -n1 | MATCH "private.my-company  foo"
 
   # snapctl also supports --with
   gojq '.routes |= map(select(.type == "local"))' original > expected
-  snap run --shell waiting-custodian.sh -c 'snapctl get --view -d :wifi-setup routes --with type=local' > got
+  snap run --shell waiting-custodian.sh -c 'snapctl get --view -d :network-wifi-admin routes --with type=local' > got
   diff <(gojq . expected) <(gojq . got)

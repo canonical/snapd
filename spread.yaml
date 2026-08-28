@@ -175,10 +175,6 @@ backends:
                   image: ubuntu-2404-64
                   storage: 15G
                   workers: 8
-            - ubuntu-25.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2510-amd64
-                  storage: 15G
-                  workers: 8
 
     google-core:
         type: google
@@ -257,9 +253,6 @@ backends:
                   storage: 20G
                   workers: 6
 
-            - amazon-linux-2-64:
-                  workers: 6
-                  storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
@@ -398,14 +391,23 @@ backends:
             - ubuntu-22.04-64:
                 image: snapd-spread/ubuntu-22.04-64
                 workers: 8
+            - ubuntu-fips-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64-pro-fips
+            - ubuntu-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64
+                workers: 8
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
+            - ubuntu-fips-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64-pro-fips
+            - ubuntu-secboot-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64-secboot
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
             - ubuntu-core-18-64:
@@ -431,10 +433,6 @@ backends:
                 image: snapd-spread/debian-sid-64
                 workers: 6
 
-            - amazon-linux-2-64:
-                image: snapd-spread/amazon-linux-2-64
-                workers: 6
-                storage: 50G
             - amazon-linux-2023-64:
                 image: snapd-spread/amazon-linux-2023-64
                 workers: 6
@@ -505,11 +503,11 @@ backends:
                   storage: 25G
                   workers: 12
             - ubuntu-24.04-64:
-                  image: snapd-spread/ubuntu-24.04-64
+                  image: snapd-spread/ubuntu-24.04-64-nested
                   storage: 30G
                   workers: 12
             - ubuntu-26.04-64:
-                  image: snapd-spread/ubuntu-26.04-64
+                  image: snapd-spread/ubuntu-26.04-64-nested
                   storage: 30G
                   workers: 12
 
@@ -587,7 +585,19 @@ backends:
         cidr-port-rel: [10.151.89.0/24:8000]
         volume-auto-delete: true
         environment: *openstack-env
-        systems: *openstack-arm-systems
+        systems: &openstack-arm-nested-systems
+            - ubuntu-20.04-arm-64:
+                image: snapd-spread/ubuntu-20.04-arm-64
+                workers: 8
+            - ubuntu-22.04-arm-64:
+                image: snapd-spread/ubuntu-22.04-arm-64
+                workers: 8
+            - ubuntu-24.04-arm-64:
+                image: snapd-spread/ubuntu-24.04-arm-64-nested
+                workers: 8
+            - ubuntu-26.04-arm-64:
+                image: snapd-spread/ubuntu-26.04-arm-64-nested
+                workers: 8
 
     openstack-arm-dev:
         type: openstack
@@ -633,11 +643,11 @@ backends:
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
     qemu-nested:
@@ -715,9 +725,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - amazon-linux-2-64:
-                  username: ec2-user
-                  password: ec2-user
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -734,7 +741,7 @@ backends:
                 PATH="${SPREAD_HOST_PATH}"
             fi
             # Spread does not expose any settings to ad-hoc backends.
-            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_MEM_OPTION="-m 6144"
             export QEMU_SMP_OPTION="-smp 4"
             exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
@@ -785,9 +792,6 @@ backends:
             - ubuntu-24.04-64:
                   username: root
                   password: root
-            - ubuntu-25.10-64:
-                  username: root
-                  password: root
             - ubuntu-26.04-64:
                   username: root
                   password: root
@@ -813,9 +817,6 @@ backends:
                   username: root
                   password: root
             - arch-linux-64:
-                  username: root
-                  password: root
-            - amazon-linux-2-64:
                   username: root
                   password: root
             - amazon-linux-2023-64:
@@ -1264,7 +1265,14 @@ prepare: |
     download.max_silent_tries = 20
     EOF
 
-        # Make sure docs are installed with the packages
+        # Make sure docs are installed with the packages. Newer systems use a
+        # vendor drop-in under /usr/etc, while older ones keep the setting in
+        # /etc/zypp/zypp.conf.
+        mkdir -p /etc/zypp/zypp.conf.d
+        cat <<-EOF > /etc/zypp/zypp.conf.d/excludedocs.conf
+    [main]
+    rpm.install.excludedocs = no
+    EOF
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
 
         # TODO: enable enforcing mode
@@ -1293,24 +1301,15 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
-        pro refresh
-        pro status
-
-        if [[ "$SPREAD_REBOOT" = 0 ]]; then
-            echo "--- enabling FIPS"
-            pro enable fips-updates --assume-yes
-            REBOOT
-        fi
-
         if ! [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]; then
             echo "FIPS not enabled"
             exit 1
         fi
 
-        # enable GO FIPS PPA
-        add-apt-repository --yes ppa:ubuntu-toolchain-r/golang-fips
-        # XXX pin priority?
-        apt update
+        if apt-cache policy | NOMATCH golang-fips; then
+            echo "golang-fips repo not found, the system is not properly configured for FIPS"
+            exit 1
+        fi
     fi
 
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
@@ -1478,7 +1477,7 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
-        backends: [google, qemu, garden]
+        backends: [openstack, qemu, garden]
         prepare-each: |
             tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
@@ -1649,14 +1648,12 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # In Arch there is no separate snap-confine package.
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            if tests.pkgs is-installed snap-confine; then
+                distro_purge_package snap-confine
+            fi
+            if tests.pkgs is-installed ubuntu-core-launcher; then
+                distro_purge_package ubuntu-core-launcher
+            fi
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -1768,17 +1765,24 @@ suites:
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                if os.query is-arm; then
+                    distro_install_local_package qemu-efi-aarch64
+                fi
+
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
             fi
+
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1831,6 +1835,8 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -1845,9 +1851,11 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                if os.query is-arm; then
+                    distro_install_local_package qemu-efi-aarch64
+                fi
+
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
@@ -1859,7 +1867,9 @@ suites:
             # Configure the ssh connection to the test vm
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1906,6 +1916,8 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -1920,9 +1932,11 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                if os.query is-arm; then
+                    distro_install_local_package qemu-efi-aarch64
+                fi
+
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
@@ -1933,7 +1947,9 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP"/cert-file
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -2021,7 +2037,9 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -2092,7 +2110,6 @@ suites:
         systems:
             - arch-linux-*
             - opensuse-*
-            - amazon-linux-2-*
             - amazon-linux-2023-*
             - fedora-*
             - centos-*
@@ -2106,7 +2123,7 @@ suites:
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             case "$SNAP_MOUNT_DIR" in
                 /var/lib/snapd/snap)
-                    ln -sf "$SNAP_MOUNT_DIR" /snap
+                    ln -sfn "$SNAP_MOUNT_DIR" /snap
                     tests.cleanup defer rm -f /snap
                     ;;
             esac

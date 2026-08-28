@@ -1445,10 +1445,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
+		var seenPCRProfile *sb_tpm2.PCRProtectionProfile
+
 		// mock sealing
 		sealCalls := 0
 		restore = secboot.MockSbNewTPMProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			sealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1458,6 +1466,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		passphraseSealCalls := 0
 		restore = secboot.MockSbNewTPMPassphraseProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PassphraseProtectKeyParams, passphrase string) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			passphraseSealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1478,6 +1492,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		pinSealCalls := 0
 		restore = secboot.MockSbNewTPMPINProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			pinSealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1494,7 +1514,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		_, err := secboot.SealKeys(myKeys, &myParams)
+		_, pcrProfileSerialized, err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
@@ -1518,6 +1538,13 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				_, bHasToken := containerB.Tokens["foo2"]
 				c.Check(bHasToken, Equals, true)
 			}
+
+			c.Assert(seenPCRProfile, NotNil)
+			c.Assert(pcrProfileSerialized, NotNil)
+			pcrProfile := &sb_tpm2.PCRProtectionProfile{}
+			_, err = mu.UnmarshalFromBytes(pcrProfileSerialized, pcrProfile)
+			c.Assert(err, IsNil)
+			c.Check(pcrProfile, DeepEquals, seenPCRProfile)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
@@ -1561,6 +1588,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
+		dryRun                 bool
 		usePrimaryKeyFile      bool
 		keyDataInFile          bool
 		missingFile            bool
@@ -1579,15 +1607,22 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		dbxUpdates             []secboot.DbUpdate
 		revoke                 bool
 		noDmaProtection        bool
+		noThunderboltSecurity  bool
 		// Preinstall check was used to determine for encryption availability at install time
 		hasCheckResult bool
 	}{
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
+		// happy case, dry-run skips persisting rewritten key data
+		{tpmEnabled: true, resealCalls: 1, dryRun: true},
 		// happy case with AllowInsufficientDmaProtection
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true},
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true, hasCheckResult: true},
+		// happy case with AllowThunderboltSecurityLevel0
+		{tpmEnabled: true, resealCalls: 1, noThunderboltSecurity: true},
+		// happy case with check result available on disk and AllowThunderboltSecurityLevel0 true
+		{tpmEnabled: true, resealCalls: 1, noThunderboltSecurity: true, hasCheckResult: true},
 		// happy case with check result available on disk and DBX update
 		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdates: []secboot.DbUpdate{{Database: secboot.KeyDatabaseDBX, Payload: []byte("dbx-update")}}},
 		// happy case with key files
@@ -1720,6 +1755,14 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			)
 		}
 
+		if !tc.hasCheckResult && tc.noThunderboltSecurity {
+			// add option to deal with downgraded Thunderbolt security level
+			expectedOptions = append(
+				expectedOptions,
+				sb_efi.WithAllowThunderboltSecurityLevel0(),
+			)
+		}
+
 		addPCRProfileCalls := 0
 		restore := secboot.MockSbEfiAddPCRProfile(func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error {
 			addPCRProfileCalls++
@@ -1760,7 +1803,10 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		})
 		defer restore()
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, checkResult, tc.noDmaProtection)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, checkResult, secboot.PCRProtectionProfileOptions{
+			AllowInsufficientDmaProtection: tc.noDmaProtection,
+			AllowThunderboltSecurityLevel0: tc.noThunderboltSecurity,
+		})
 		if len(tc.buildProfileErr) > 0 {
 			c.Assert(err, ErrorMatches, tc.buildProfileErr)
 			continue
@@ -1773,6 +1819,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysWithTPMParams{
 			PCRProfile: pcrProfile,
+			DryRun:     tc.dryRun,
 			Keys: []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/somedevice",
@@ -1949,6 +1996,9 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			if tc.oldKeyFiles {
 				c.Check(sealedKeysRequested, Equals, 0)
 				c.Check(updatedKeys, IsNil)
+			} else if tc.dryRun {
+				c.Check(sealedKeysRequested, Equals, 0)
+				c.Check(updatedKeys, IsNil)
 			} else {
 				c.Check(sealedKeysRequested, Equals, 2)
 				c.Check(updatedKeys, HasLen, 2)
@@ -1976,7 +2026,7 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
 	}
 
-	_, err := secboot.SealKeys(myKeys, &myParams)
+	_, _, err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 
@@ -3889,7 +3939,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		return nil, fmt.Errorf("unexpected call")
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"}, false)
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -3899,7 +3949,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 	c.Check(key, DeepEquals, key1)
 }
 
-func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+func (s *secbootSuite) testResealKeysWithFDESetupHookV2(c *C, dryRun bool) {
 	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	key1 := []byte(`{"platform_name":"fde-hook-v2","platform_handle":{"handle-for":"key1"},"encrypted_payload":"U0VBTEVEOgAEAQIDBAAgAQIDBAUGBwgJCgsMDQ4PEAECAwQFBgcICQoLDA0ODxA=","authorized_snap_models":{"alg":"sha256","key_digest":"KTj3yfwaA090S9iS3TuTqEdU8+taRAUy/PVbJAhoqpI=","hmacs":["O8n/7j4ZT12hBjbF4rzPHpSUna69e7I43a90oZaB3HY="]}}`)
 
@@ -3932,7 +3982,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		return auxKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"}, dryRun)
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -3942,7 +3992,21 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 
 	afterAuthorized, err := afterKeyData.IsSnapModelAuthorized(auxKey, m)
 	c.Assert(err, IsNil)
-	c.Check(afterAuthorized, Equals, true)
+	if dryRun {
+		c.Check(afterAuthorized, Equals, false)
+	} else {
+		c.Check(afterAuthorized, Equals, true)
+	}
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+	const dryRun = false
+	s.testResealKeysWithFDESetupHookV2(c, dryRun)
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2DryRun(c *C) {
+	const dryRun = true
+	s.testResealKeysWithFDESetupHookV2(c, dryRun)
 }
 
 type fakeKeyProtector struct{}
@@ -4023,7 +4087,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"}, false)
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -4099,7 +4163,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"}, false)
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -4739,6 +4803,10 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 }
 
 func (s *secbootSuite) TestGetPrimaryKeyError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
+
 	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
 		switch node {
 		case "/dev/test/device1":
@@ -5189,7 +5257,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 	} {
 		c.Logf("tc: %v", idx)
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, secboot.PCRProtectionProfileOptions{})
 		c.Assert(err, IsNil)
 
 		defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
@@ -5514,7 +5582,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string, dryRun bool) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -5522,6 +5590,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
 		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Check(dryRun, Equals, false)
 		c.Assert(models, HasLen, 1)
 		c.Check(models[0].Model(), Equals, "mytest")
 		return nil
@@ -5578,7 +5647,7 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string, dryRun bool) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -5587,6 +5656,7 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
 		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Check(dryRun, Equals, false)
 		c.Assert(models, HasLen, 1)
 		c.Check(models[0].Model(), Equals, "mytest")
 		return nil
@@ -5869,6 +5939,7 @@ func (s *secbootSuite) TestActivateStateDegraded(c *C) {
 		//FIXME: enable this once we can discriminate the no
 		// key data case.
 		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidRoleParams,
 		sb.KeyslotErrorInvalidPrimaryKey,
 		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
@@ -5894,23 +5965,54 @@ func (s *secbootSuite) TestShouldAttemptRepairDegraded(c *C) {
 
 	// Incorrect user auth should not cause repair
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+
+	// Technically KeyslotErrorUserAuthUnavailable should also be ignored though
+	// it would never happen as degraded.
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
-		sb.KeyslotErrorInvalidKeyData,
 		sb.KeyslotErrorInvalidPrimaryKey,
 		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["b"] = failure
 
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
+	}
+
+	// TODO: we should handle KeyslotErrorInvalidKeyData once we can
+	// discriminate the case of not using token.
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorInvalidKeyData,
+	} {
+		state.Activations["a"].KeyslotErrors["b"] = failure
+
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{})
 	}
 
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncompatibleRoleParams
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{AttemptRepair: true})
+
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorInvalidRoleParams
+
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{AttemptRepair: true})
+
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
+
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
 }
 
 func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
@@ -5922,7 +6024,7 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 				"a": sb.KeyslotErrorIncorrectUserAuth,
 			},
 		},
-		"ignored": {
+		"b": {
 			Status: sb.ActivationSucceededWithPlatformKey,
 			KeyslotErrors: map[string]sb.KeyslotErrorType{
 				"a": sb.KeyslotErrorIncompatibleRoleParams,
@@ -5930,19 +6032,426 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 		},
 	}
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	})
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
-		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidRoleParams,
 		sb.KeyslotErrorInvalidPrimaryKey,
-		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["a"] = failure
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorIncorrectUserAuth,
+	} {
+		state.Activations["a"].KeyslotErrors["a"] = failure
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+			PermitManual:       true,
+		})
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorPlatformFailure,
+	} {
+		state.Activations["a"].KeyslotErrors["a"] = failure
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
 	}
 
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+
+	// A degraded error on b can force auto repair.
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorPlatformFailure
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+
+	// DA lockout should not need fix, but "b" does need fix.
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+
+	// Let's clear error on b
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorNone
+
+	// DA lockout does not need fix
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+
+	// Special unexpected case: no errors at all should not be
+	// considered only KeyslotErrorUserAuthUnavailable errors.
+	delete(state.Activations["a"].KeyslotErrors, "a")
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairWithMultipleRecovery(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncompatibleRoleParams,
+			},
+		},
+		"b": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncompatibleRoleParams,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+
+	// All incorrect user auth on one container
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorIncorrectUserAuth
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	})
+
+	// Same but inverted
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncorrectUserAuth
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	})
+
+	// Some more complicated errror
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorInvalidPrimaryKey
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorInvalidPrimaryKey
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairNoRepair(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorLocked(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorUserAuthUnavailable,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrTPMLockout)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequirePlatformReset: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorAnyError(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, fmt.Errorf("some-unknown-error"))
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorUninitializedWithRecovery(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorInvalidKeyData,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrLockoutAuthNotInitialized)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorUninitialized(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrLockoutAuthNotInitialized)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromToken(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return &myFakeKeyData{platformName: "tpm2", handle: 42}, nil
+	})()
+
+	handle, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenNotTPM(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return &myFakeKeyData{platformName: "not-tpm2", handle: 42}, nil
+	})()
+
+	handle, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(0))
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenErrorReader(c *C) {
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, ErrorMatches, `boom`)
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenErrorRead(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, ErrorMatches, `cannot read key data for slot 'the-slot': boom`)
+}
+
+type mockKeyslot struct {
+	t    sb.KeyslotType
+	name string
+	data []byte
+}
+
+func (m *mockKeyslot) Type() sb.KeyslotType {
+	return m.t
+}
+
+func (m *mockKeyslot) Name() string {
+	return m.name
+}
+
+func (m *mockKeyslot) Priority() int {
+	return 0
+}
+
+func (m *mockKeyslot) Data() sb.KeyDataReader {
+	return newFakeKeyDataReader(m.name, m.data)
+}
+
+type mockStorageContainerReader struct {
+	keyslots map[string]*mockKeyslot
+}
+
+func (m *mockStorageContainerReader) Container() sb.StorageContainer {
+	return nil
+}
+
+func (m *mockStorageContainerReader) ListKeyslotNames(ctx context.Context) ([]string, error) {
+	var names []string
+	for name := range m.keyslots {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func (m *mockStorageContainerReader) ReadKeyslot(ctx context.Context, name string) (sb.Keyslot, error) {
+	ret, ok := m.keyslots[name]
+	if ok {
+		return ret, nil
+	} else {
+		return ret, fmt.Errorf("some error")
+	}
+}
+
+func (m *mockStorageContainerReader) Close() error {
+	return nil
+}
+
+type mockStorageContainerWithReader struct {
+	reader *mockStorageContainerReader
+}
+
+func (m *mockStorageContainerWithReader) Path() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) BackendName() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) CredentialName() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) Activate(ctx context.Context, ks sb.Keyslot, key []byte, cfg sb.ActivateConfigGetter) error {
+	return fmt.Errorf("unexpected")
+}
+
+func (m *mockStorageContainerWithReader) Deactivate(ctx context.Context) error {
+	return fmt.Errorf("unexpected")
+}
+
+func (m *mockStorageContainerWithReader) OpenRead(ctx context.Context) (sb.StorageContainerReader, error) {
+	return m.reader, nil
+}
+
+func (s *secbootSuite) TestTestProtectorKey(c *C) {
+	storage := &mockStorageContainerWithReader{
+		reader: &mockStorageContainerReader{
+			keyslots: map[string]*mockKeyslot{
+				"the-slot": {
+					t:    sb.KeyslotTypePlatform,
+					name: "the-slot",
+					data: []byte(`{}`),
+				},
+			},
+		},
+	}
+	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
+		c.Check(path, Equals, "/dev/foo")
+		return storage, nil
+	})()
+
+	isRightProtectorKey := false
+	defer secboot.MockSetProtectorKeys(func(keys ...[]byte) {
+		for _, key := range keys {
+			if len(key) == 4 &&
+				key[0] == 1 &&
+				key[1] == 2 &&
+				key[2] == 3 &&
+				key[3] == 4 {
+				isRightProtectorKey = true
+				return
+			}
+		}
+		isRightProtectorKey = false
+	})()
+
+	defer secboot.MockSbKeyDataRecoverKeys(func(d *sb.KeyData) (sb.DiskUnlockKey, sb.PrimaryKey, error) {
+		if isRightProtectorKey {
+			return []byte{1, 1, 1, 1}, []byte{0}, nil
+		} else {
+			return []byte{2, 2, 2, 2}, []byte{1}, nil
+		}
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKey(func(devicePath string, key []byte) bool {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return len(key) == 4 &&
+			key[0] == 1 &&
+			key[1] == 1 &&
+			key[2] == 1 &&
+			key[3] == 1
+	})()
+
+	works, err := secboot.TestProtectorKey(context.Background(), "/dev/foo", "the-slot", []byte{1, 2, 3, 4})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, true)
+
+	works, err = secboot.TestProtectorKey(context.Background(), "/dev/foo", "the-slot", []byte{5, 6, 7, 8})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, false)
+
+	works, err = secboot.TestProtectorKey(context.Background(), "/dev/foo", "unknown", []byte{1, 2, 3, 4})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, false)
 }

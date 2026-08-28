@@ -13,7 +13,7 @@ This document provides a set of guidelines for contributing to our OpenAPI speci
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md).
+This project and everyone participating in it is governed by our [Code of Conduct](../../CODE_OF_CONDUCT.md).
 By participating, you are expected to uphold this code. Please report unacceptable behavior.
 
 ---
@@ -38,7 +38,7 @@ There are many ways to contribute to the project.
 ### **Reporting Bugs**
 
 If you find a bug in the API specification (e.g., an incorrect data type, a missing field, or a confusing description),
-please **[open a new issue](https://github.com/canonical/snapd-rest-openapi/issues)** in our issue tracker.
+please **[open a new issue](https://bugs.launchpad.net/snapd/)** in our issue tracker.
 
 Please include:
 * A clear and descriptive title.
@@ -49,7 +49,7 @@ Please include:
 ### **Suggesting Enhancements**
 
 If you have an idea for a new feature or an improvement to an existing one,
-please **[open a new issue](https://github.com/rnfudge02/canonical/issues)** to discuss it.
+please **[open a new issue](https://bugs.launchpad.net/snapd/)** to discuss it.
 This allows us to coordinate our efforts and prevent duplication of work.
 
 ### **Your First Code Contribution**
@@ -64,15 +64,4 @@ These are typically smaller changes that are a great way to get familiar with th
 Contributions are submitted through a **pull request** (PR) created from a fork of this repository.
 Before making a PR, ensure that the specification is valid using the Makefile.
 
-### **1. Setup Your Environment**
-
-Fork the repository, clone it to your local machine, and create a new branch with a descriptive name.
-
-```bash
-# Clone your fork
-git clone [https://github.com/YOUR_USERNAME/snapd-rest-openapi.git](https://github.com/rnfudge02/snapd-rest-openapi.git)
-cd snapd-rest-openapi
-
-# Create a new branch
-git checkout -b feature/some-change
-```
+For more information on contributing to snapd, see [CONTRIBUTING.md](../../CONTRIBUTING.md).

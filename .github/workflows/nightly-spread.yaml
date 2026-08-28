@@ -25,6 +25,18 @@ on:
           - spread-master-not-fundamental
           - spread-master-nested
 
+# Granted at workflow level so the reusable spread-tests.yaml `run-spread`
+# job (which declares `pull-requests: read` for `gh pr view`) can be called
+# from a private repo. Reusable workflows cannot elevate caller scopes; an
+# explicit `permissions:` block also resets unlisted scopes to `none`, so
+# `contents`, `packages` and `actions` are listed to preserve defaults
+# (checkout, image pulls, cross-run artifact downloads).
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+  actions: read
+
 jobs:
 
   spread-nightly:
@@ -39,44 +51,6 @@ jobs:
       tasks: 'tests/nightly/...'
       rules: ''
       use-snapd-snap-from-master: true
-
-  spread-nightly-google:
-    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-google') }}
-    uses: ./.github/workflows/spread-tests.yaml
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      rules: ''
-      use-snapd-snap-from-master: true
-      skip-tests: 'ubuntu-14.04-64 ubuntu-core-16-64'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - group: jammy
-            backend: google
-            systems: 'ubuntu-22.04-64'
-            tasks: 'tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers'
-          - group: google
-            backend: google
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-core
-            backend: google-core
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-distro
-            backend: google-distro
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-arm
-            backend: google-distro
-            systems: 'ubuntu-22.04-arm-64 ubuntu-core-24-arm-64'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
 
   spread-test-build-from-current:
     if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-build-from-current') }}
@@ -145,7 +119,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -169,7 +142,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
@@ -192,7 +164,6 @@ jobs:
       runs-on: '${{ matrix.runs-on }}'
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
-      alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}

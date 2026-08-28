@@ -85,6 +85,24 @@ func MockSnapdAppArmorSupportsReexec(new func() bool) (restore func()) {
 	return restore
 }
 
+func MockHostAbi30File(new string) func() {
+	restore := testutil.Backup(&hostAbi30File)
+	hostAbi30File = new
+	return restore
+}
+
+func MockHostAbi40File(new string) func() {
+	restore := testutil.Backup(&hostAbi40File)
+	hostAbi40File = new
+	return restore
+}
+
+func MockHostAbi50File(new string) func() {
+	restore := testutil.Backup(&hostAbi50File)
+	hostAbi50File = new
+	return restore
+}
+
 var (
 	ProbeKernelFeatures = probeKernelFeatures
 	ProbeParserFeatures = probeParserFeatures

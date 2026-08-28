@@ -250,13 +250,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 		}
 
 		instanceName := set.InstanceName()
-		optsForAppSet, err := computeConfinementOpts(instanceName)
+		optsForAppSet, err := computeConfinementOpts(instanceName.TODOInstanceName())
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %v", instanceName, err)
 			continue
 		}
 
-		precompOpts[instanceName] = optsForAppSet
+		precompOpts[instanceName.TODOInstanceName()] = optsForAppSet
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -627,11 +627,11 @@ ConnsLoop:
 			policyChecker = connChecker.check
 		}
 
-		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, nil)
+		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, interfaces.NoComponents)
 		if err != nil {
 			return nil, nil, err
 		}
-		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, nil)
+		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, interfaces.NoComponents)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -706,7 +706,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	}
 	confOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
 	for i, set := range appSets {
-		confOpts[set.InstanceName()] = opts[i]
+		confOpts[set.InstanceName().TODOInstanceName()] = opts[i]
 	}
 
 	st := task.State()
@@ -735,7 +735,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	sctxs := map[string]interfaces.SetupContext{
-		appSet.InstanceName(): {
+		appSet.InstanceName().TODOInstanceName(): {
 			Reason: interfaces.SnapSetupReasonOther,
 			// this is called only in the contexts where all backend effects
 			// are expected to be immediate

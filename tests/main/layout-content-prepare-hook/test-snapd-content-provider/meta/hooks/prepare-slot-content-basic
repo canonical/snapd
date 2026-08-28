@@ -1,0 +1,9 @@
+#!/bin/sh
+exec >> "$SNAP_COMMON/hook.log" 2>&1
+
+date
+echo "=== provider"
+echo "content slot prepare hook"
+
+mkdir -p "$SNAP_COMMON"/basic
+echo "content basic" > "$SNAP_COMMON"/basic/content

@@ -23,4 +23,8 @@ import "syscall"
 
 const (
 	_SYS_FCHOWNAT = syscall.SYS_FCHOWNAT
+
+	// This is not defined for all architectures, but we need it for memfd_secret.
+	// 32 bit systems will return ENOSYS, which is fine.
+	_SYS_MEMFD_SECRET = 447
 )

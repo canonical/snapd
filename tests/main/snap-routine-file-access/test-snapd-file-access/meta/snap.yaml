@@ -8,3 +8,4 @@ apps:
         plugs:
           - home
           - removable-media
+          - system-packages-doc

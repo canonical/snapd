@@ -236,6 +236,12 @@ type setupInfoGetter struct {
 }
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
+	if allowlist := ig.setup.Allowlist; allowlist != nil {
+		if !strutil.ListContains(allowlist.Components[cref.SnapName], cref.ComponentName) {
+			return nil, "", false, nil
+		}
+	}
+
 	// components will come from one of these places:
 	//   * passed into the task via a list of side infos (these would have
 	//     come from a user posting snaps via the API)
@@ -319,6 +325,12 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 }
 
 func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
+	if allowlist := ig.setup.Allowlist; allowlist != nil {
+		if !strutil.ListContains(allowlist.Snaps, name) {
+			return nil, "", false, nil
+		}
+	}
+
 	// snaps will come from one of these places:
 	//   * passed into the task via a list of side infos (these would have
 	//     come from a user posting snaps via the API)
@@ -357,9 +369,13 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 		if snapsup.SnapName() != name {
 			continue
 		}
-		// by the time this task runs, the file has already been
-		// downloaded and validated
-		snapFile, err := snapfile.Open(snapsup.BlobPath())
+		// local path tasks carry SnapPath until mount-snap consumes it; otherwise
+		// use the canonical blob path prepared by download-snap or mount-snap.
+		snapPath := snapsup.SnapPath
+		if snapPath == "" {
+			snapPath = snapsup.BlobPath()
+		}
+		snapFile, err := snapfile.Open(snapPath)
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -368,7 +384,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 			return nil, "", false, err
 		}
 
-		return info, info.MountFile(), true, nil
+		return info, snapPath, true, nil
 	}
 
 	// either a remodel scenario, in which case the snap is not

@@ -96,7 +96,16 @@ func checkLabelAttributes(attrs map[string]any, nameDef string) error {
 	// here we allow the compatibility labels to exist in any case as it
 	// has no further side effect.
 	content, okContent := attrs["content"].(string)
+
+	// TODO: consider asserting that "content" is a string. right now, a
+	// non-string "content" attribute will result in us using the plug's name as
+	// the "content" attribute.
+
 	compat, okCompat := attrs["compatibility"].(string)
+	if _, ok := attrs["compatibility"]; ok && !okCompat {
+		return errors.New("compatibility label must be a string")
+	}
+
 	hasContent := okContent && len(content) > 0
 	hasCompat := okCompat && len(compat) > 0
 	if hasCompat && hasContent {

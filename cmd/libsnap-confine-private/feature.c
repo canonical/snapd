@@ -33,9 +33,6 @@ static const char *feature_flag_dir = "/var/lib/snapd/features";
 bool sc_feature_enabled(sc_feature_flag flag) {
     const char *file_name;
     switch (flag) {
-        case SC_FEATURE_REFRESH_APP_AWARENESS:
-            file_name = "refresh-app-awareness";
-            break;
         case SC_FEATURE_PARALLEL_INSTANCES:
             file_name = "parallel-instances";
             break;

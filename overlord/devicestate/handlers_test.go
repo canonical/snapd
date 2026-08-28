@@ -499,27 +499,27 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 
 	var testStore snapstate.StoreService
 
-	restore := devicestate.MockSnapstateInstallOne(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error) {
-		g := goal.(*storeInstallGoalRecorder)
+	restore := devicestate.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		g := goal.(*storeUpdateGoalRecorder)
 		name := g.snaps[0].InstanceName
 
 		c.Check(opts.Flags.Required, Equals, true)
 		c.Check(opts.DeviceCtx, NotNil)
 		c.Check(opts.DeviceCtx.ForRemodeling(), Equals, true)
 
-		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
-		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+		download := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		download.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
 				RealName: name,
 			},
 		})
-		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
-		tValidate.WaitFor(tDownload)
-		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
-		tInstall.WaitFor(tValidate)
-		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
-		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
-		return nil, ts, nil
+		validate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		validate.WaitFor(download)
+		install := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		install.WaitFor(validate)
+		ts := state.NewTaskSet(download, validate, install)
+		ts.MarkEdge(validate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
 	})
 	defer restore()
 
@@ -593,7 +593,7 @@ func (s *deviceMgrSuite) TestDoPrepareRemodeling(c *C) {
 	// check that the expected tasks were injected
 	tl := chg.Tasks()
 	// 1 prepare-remodeling
-	// 2 snaps * 3 tasks (from the mock install above) +
+	// 2 snaps * 3 tasks (from the mock update above) +
 	// 1 "set-model" task at the end
 	c.Assert(tl, HasLen, 1+2*3+1)
 

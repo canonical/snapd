@@ -114,6 +114,12 @@ post:
               enum:
                 - per-snap
                 - all-snaps
+            validation-sets:
+              type: array
+              items:
+                type: string
+              description: |-
+                A list of validation sets to enforce when performing the refresh action.
       multipart/form-data:
         schema:
           type: object

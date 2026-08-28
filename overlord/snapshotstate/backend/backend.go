@@ -301,6 +301,28 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string, dirOpts *dirs.SnapD
 	return total, nil
 }
 
+// MapSnapDataDirToSnapVar returns a map from absolute path of a snap's data
+// directories to snap variable name. The global directories
+// {$SNAP_DATA, $SNAP_COMMON} are always included and the user directories
+// {$SNAP_USER_DATA, $SNAP_USER_COMMON} are included only for the given
+// usernames (if non-empty). If usernames is empty all users are considered.
+// On user lookup error, the error is returned with nil mappings.
+func MapSnapDataDirToSnapVar(si *snap.Info, opts *dirs.SnapDirOptions, usernames []string) (map[string]string, error) {
+	users, err := usersForUsernames(usernames, opts)
+	if err != nil {
+		return nil, err
+	}
+	mappings := map[string]string{
+		si.DataDir():       "$SNAP_DATA",
+		si.CommonDataDir(): "$SNAP_COMMON",
+	}
+	for _, usr := range users {
+		mappings[si.UserDataDir(usr.HomeDir, opts)] = "$SNAP_USER_DATA"
+		mappings[si.UserCommonDataDir(usr.HomeDir, opts)] = "$SNAP_USER_COMMON"
+	}
+	return mappings, nil
+}
+
 // Save a snapshot
 func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string, dynSnapshotOpts *snap.SnapshotOptions, dirOpts *dirs.SnapDirOptions) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {

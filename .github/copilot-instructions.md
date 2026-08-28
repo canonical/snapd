@@ -77,6 +77,10 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 - Release lock only for slow I/O/network operations
 - Working state + status changes must be atomic via `Task.SetStatus()` before unlock
 
+## Skills
+
+Detailed, executable workflows for common tasks live in `.agents/skills/`.
+
 ## Developer Workflows
 
 ### Building & Testing
@@ -89,10 +93,12 @@ signed with the well-known, insecure test key.
 
 Building several elements of snapd individually:
 ```bash
-go build -o /tmp/build/snap ./cmd/snap
 go build -o /tmp/build/snapd ./cmd/snapd
 go build -o /tmp/build ./...  # All binaries
 ```
+
+The snapd binary implements both the daemon and the client functionality. The
+client functionality is invoked when `argv[0]` equals to `snap`.
 
 You may want to build the snapd snap package with `snapcraft pack` instead, as that constructs a complete, cohesive set of programs.
 

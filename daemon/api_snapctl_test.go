@@ -21,6 +21,7 @@ package daemon_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -61,9 +62,9 @@ func (s *snapctlSuite) TestSnapctlGetFeatures(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, args []string, uid uint32, features []string) ([]byte, []byte, error) {
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, args []string, uid uint32, features []string) ([]byte, []byte, string, error) {
 		c.Check(features, check.DeepEquals, []string{"feat1", "feat2"})
-		return []byte("stdout output"), nil, nil
+		return []byte("stdout output"), nil, "", nil
 	})()
 
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "foo"]}`)
@@ -81,6 +82,34 @@ func (s *snapctlSuite) TestSnapctlGetFeatures(c *check.C) {
 	})
 }
 
+func (s *snapctlSuite) TestSnapctlAsyncFeature(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
+	})()
+
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, args []string, uid uint32, features []string) ([]byte, []byte, string, error) {
+		c.Check(features, check.DeepEquals, []string{"async"})
+		return []byte("stdout output"), nil, "test-change-id", nil
+	})()
+
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["start", "snap.service"]}`)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+
+	req.Header.Set("X-Snapctl-Features", "async")
+
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.DeepEquals, map[string]string{
+		"stdout":    "stdout output",
+		"stderr":    "",
+		"change-id": "test-change-id",
+	})
+}
+
 func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	s.daemon(c)
 
@@ -88,8 +117,8 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.ForbiddenCommandError{}
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, string, error) {
+		return nil, nil, "", &ctlcmd.ForbiddenCommandError{}
 	})()
 
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
@@ -106,8 +135,8 @@ func (s *snapctlSuite) TestSnapctlForbiddenErrorWithStdin(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.ForbiddenCommandError{}
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, string, error) {
+		return nil, nil, "", &ctlcmd.ForbiddenCommandError{}
 	})()
 
 	// stdin is "123" in base64
@@ -125,8 +154,8 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
-	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, error) {
-		return nil, nil, &ctlcmd.UnsuccessfulError{ExitCode: 123}
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, string, error) {
+		return nil, nil, "", &ctlcmd.UnsuccessfulError{ExitCode: 123}
 	})()
 
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
@@ -140,4 +169,23 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 		"stderr":    "",
 		"exit-code": 123,
 	})
+}
+
+func (s *snapctlSuite) TestSnapctlGenericError(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 0, Pid: 9999, Socket: dirs.SnapSocket}, nil
+	})()
+
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, string, error) {
+		return nil, nil, "", errors.New("something broke")
+	})()
+
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "foo"]}`)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, "snapctl: something broke")
 }

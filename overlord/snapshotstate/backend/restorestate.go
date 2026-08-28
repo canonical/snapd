@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
@@ -35,6 +36,7 @@ import (
 // one failing necessitates undoing the Restore.
 type RestoreState struct {
 	Done    bool     `json:"done,omitempty"`
+	Snap    string   `json:"snap,omitempty"`
 	Created []string `json:"created,omitempty"`
 	Moved   []string `json:"moved,omitempty"`
 	// Config is here for convenience; this package doesn't touch it
@@ -77,10 +79,47 @@ func (rs *RestoreState) Revert() {
 	rs.Done = true
 	for _, dir := range rs.Created {
 		logger.Debugf("Removing %q.", dir)
+		// Handle mounts under dir before removing it.
+		// * snapctl mounts are stopped and restarted after Revert returns
+		//   (i.e., once the Moved loop has put old data back in place).
+		// * if dir wasn't existing before Restore it would likely not have
+		//   any mounts now.
+		// * only Created dirs are checked for mounts because these are the
+		//   paths where the original data was located and where mounts could
+		//   have been present before Restore and hence also after moving data
+		//   during Restore.
+		// * rs.Snap may be empty for a RestoreState persisted by an older
+		//   snapd, in that case skip mount handling.
+		if rs.Snap != "" {
+			snapctlMPs, nonSnapctlMPs, mountErr := listMountsAtOrUnder(rs.Snap, dir)
+			if mountErr != nil {
+				logger.Noticef("skipping removal of %q, cannot list mounts for snap %q under it: %v", dir, rs.Snap, mountErr)
+				continue
+			} else if len(nonSnapctlMPs) > 0 {
+				logger.Noticef("skipping removal of %q, cannot remove data with unknown mount(s) under it: %s",
+					dir, strings.Join(nonSnapctlMPs, ", "))
+				continue
+			} else {
+				stoppedUnits, stopErr := stopMountUnits(snapctlMPs)
+				// Pass dir as a parameter to avoid capturing the loop
+				// variable by reference (Go < 1.22 reuses it each iteration).
+				defer func(units []string, d string) {
+					if startErr := startMountUnits(units); startErr != nil {
+						logger.Noticef("cannot restart mount unit(s) for snap %q under %q: %v", rs.Snap, d, startErr)
+					}
+				}(stoppedUnits, dir)
+				if stopErr != nil {
+					logger.Noticef("skipping removal of %q, cannot stop mount unit(s) for snap %q under it: %v", dir, rs.Snap, stopErr)
+					continue
+				}
+			}
+		}
 		if err := os.RemoveAll(dir); err != nil {
 			logger.Noticef("While undoing changes because of a previous error: cannot remove %q: %v.", dir, err)
 		}
 	}
+	// Restore makes sure that there are no active mounts under the Moved dirs,
+	// so we can just move them back without checking for mounts.
 	for _, dir := range rs.Moved {
 		orig := restoreState2orig(dir)
 		if orig == "" {

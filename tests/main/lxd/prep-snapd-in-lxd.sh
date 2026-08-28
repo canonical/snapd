@@ -7,8 +7,6 @@ if ! command -v snap; then
     apt install -y snapd
 fi
 
-# TODO: Remove the refresh once the issue https://github.com/lxc/lxd/issues/10079 is release to 4.0/candidate
-# Make sure the lxd snap is updated before removing it
 for _ in $(seq 30); do
     if snap changes | grep -qE "Done.*Initialize device"; then
         break
@@ -17,7 +15,6 @@ for _ in $(seq 30); do
 done
 snap wait system seed.loaded
 if snap list lxd; then
-    snap refresh lxd --channel=latest/stable
     snap remove lxd
 fi
 
@@ -28,7 +25,9 @@ if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
     sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
 fi
 
-apt autoremove --purge -y snapd ubuntu-core-launcher
+apt autoremove --purge -y snapd
+# ubuntu-core-launcher is a transitional package and removed in recent distros
+apt autoremove --purge -y ubuntu-core-launcher || true
 apt update
 
 # requires the snapd deb to already have been "lxd file push"d into the 

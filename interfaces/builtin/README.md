@@ -491,6 +491,12 @@ Desktop means this idea is not always valid. A different approach is to
 deny-connection based on the type of slot carrying snap, e.g for
 `upower-observe` nowadays, we have:
 
+`on-classic` constraints can also be limited to specific classic operating
+systems. A plain operating system ID such as `ubuntu` matches any variant for
+compatibility. Starting with snap-declaration format 7, entries can also use
+`distro/variant` to match a specific VARIANT_ID, `distro/*` to match any
+variant, and `distro/` to match only when VARIANT_ID is unset.
+
     upower-observe:
       allow-installation:
         slot-snap-type:

@@ -1,7 +1,9 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+//go:build linux
+
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,46 +21,27 @@
 
 package main
 
-import (
-	"io"
-	"time"
+import "github.com/snapcore/snapd/testutil"
 
-	"github.com/snapcore/snapd/seclog"
-)
+// Main exposes the unexported main() for testing.
+var Main = main
 
-var (
-	Run                  = run
-	SetupSecurityLogging = setupSecurityLogging
-)
-
-func MockSyscheckCheckSystem(f func() error) (restore func()) {
-	oldSyscheckCheckSystem := syscheckCheckSystem
-	syscheckCheckSystem = f
-	return func() {
-		syscheckCheckSystem = oldSyscheckCheckSystem
-	}
+// MockToolMains replaces the toolMains dispatch map for the duration of a test.
+func MockToolMains(m map[string]func()) (restore func()) {
+	return testutil.Mock(&toolMains, m)
 }
 
-func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
-	oldCheckRunningConditionsRetryDelay := checkRunningConditionsRetryDelay
-	checkRunningConditionsRetryDelay = d
-	return func() {
-		checkRunningConditionsRetryDelay = oldCheckRunningConditionsRetryDelay
-	}
+// MockReexecTools replaces the reexecTools list for the duration of a test.
+func MockReexecTools(r []string) (restore func()) {
+	return testutil.Mock(&reexecTools, r)
 }
 
-func MockOpenAuditWriter(f func() (*seclog.AuditWriter, error)) (restore func()) {
-	oldOpenAuditWriter := openAuditWriter
-	openAuditWriter = f
-	return func() {
-		openAuditWriter = oldOpenAuditWriter
-	}
+// MockDaemonMain replaces the daemon entry point for the duration of a test.
+func MockDaemonMain(f func()) (restore func()) {
+	return testutil.Mock(&daemonMain, f)
 }
 
-func MockNewSlogLogger(f func(io.Writer, string, seclog.Level) seclog.SecurityLogger) (restore func()) {
-	oldNewSlogLogger := newSlogLogger
-	newSlogLogger = f
-	return func() {
-		newSlogLogger = oldNewSlogLogger
-	}
+// MockCLIMain replaces the CLI entry point for the duration of a test.
+func MockCLIMain(f func()) (restore func()) {
+	return testutil.Mock(&cliMain, f)
 }

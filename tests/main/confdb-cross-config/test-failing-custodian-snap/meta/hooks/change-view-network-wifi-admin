@@ -1,0 +1,7 @@
+#!/bin/sh -xe
+
+value=$(snapctl get --view :network-wifi-admin ssid)
+echo "$value" > "$SNAP_COMMON"/change-view-network-wifi-admin-ran
+
+# modify it again so we can check that we read the previously modded value
+snapctl set --view :network-wifi-admin ssid="$value-rollback"

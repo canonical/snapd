@@ -187,7 +187,7 @@ func certificateFingerprint(certContent string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return cdata.Digest, nil
+	return cdata.Sha256, nil
 }
 
 func ensureCertificateState(fp string, cert certificate) error {
@@ -300,7 +300,16 @@ func handleCustomCertificateRequest(tr RunTransaction, opts *fsOnlyContext) erro
 			return fmt.Errorf("invalid state value for custom certificate %q: %q", cert.Name, cert.State)
 		}
 	}
-	return certstate.GenerateCertificateDatabase()
+
+	// Refresh the certificate database while we hold the lock to avoid any
+	// concurrent updates to the certificate database from other actions like
+	// a base-refresh (while unlikely).
+	// OBS: We're doing I/O work here while holding the lock which is not
+	// ideal.
+	st := tr.State()
+	st.Lock()
+	defer st.Unlock()
+	return certstate.RefreshCertificateDatabase()
 }
 
 func validateCustomCertificateRequest(tr RunTransaction) error {

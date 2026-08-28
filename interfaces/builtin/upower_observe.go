@@ -20,13 +20,16 @@
 package builtin
 
 import (
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -224,7 +227,7 @@ func (iface *upowerObserveInterface) Name() string {
 func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
 		Summary:              upowerObserveSummary,
-		ImplicitOnCore:       osutil.IsExecutable("/usr/libexec/upowerd"),
+		ImplicitOnCore:       !release.OnClassic && osutil.IsExecutable(filepath.Join(dirs.GlobalRootDir, "/usr/libexec/upowerd")),
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
 	}

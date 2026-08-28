@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/tests/lib/fakestore/store"
 )
 
@@ -61,6 +62,8 @@ func runServer(topDir, addr string, assertFallback bool) error {
 	if err := st.Start(); err != nil {
 		return err
 	}
+
+	logger.Noticef("listening on http://%v/", addr)
 
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

@@ -122,11 +122,37 @@ func (s *SecLogSuite) TestLogLoginFailure(c *C) {
 		StoreUserEmail: "user@example.com",
 		StoreUserName:  "jdoe",
 	}
-	seclog.LogLoginFailure(user, seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"})
+	seclog.LogLoginFailure(user, seclog.Reason{Code: 401, Kind: "invalid-credentials", Message: "invalid credentials"})
 
 	c.Check(s.buf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.buf.String(), testutil.Contains, "user@example.com")
-	c.Check(s.buf.String(), testutil.Contains, seclog.ReasonInvalidCredentials)
+	c.Check(s.buf.String(), testutil.Contains, "invalid-credentials")
+}
+
+func (s *SecLogSuite) TestLogAuthnTokenCreated(c *C) {
+	user := seclog.SnapdUser{
+		ID:             7,
+		StoreUserEmail: "user@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogAuthnTokenCreated(user, 99)
+
+	c.Check(s.buf.String(), testutil.Contains, "authn_token_created")
+	c.Check(s.buf.String(), testutil.Contains, "Token created for user 7:user@example.com:jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "[token_id=99]")
+}
+
+func (s *SecLogSuite) TestLogAuthnTokenDeleted(c *C) {
+	user := seclog.SnapdUser{
+		ID:             7,
+		StoreUserEmail: "user@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogAuthnTokenDeleted(user, 99)
+
+	c.Check(s.buf.String(), testutil.Contains, "authn_token_delete")
+	c.Check(s.buf.String(), testutil.Contains, "Token deleted for user 7:user@example.com:jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "[token_id=99]")
 }
 
 func (s *SecLogSuite) TestLogLoggerEnabledLogsEvent(c *C) {
@@ -217,4 +243,58 @@ func (s *SecLogSuite) TestLogUserRemoved(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "user_removed")
 	c.Check(s.buf.String(), testutil.Contains, "jdoe")
 	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
+}
+
+// TestLogAdminActivity verifies that LogAdminActivity emits the expected event and attributes.
+func (s *SecLogSuite) TestLogAdminActivity(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
+	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 0, PID: 4242}
+	endpoint := seclog.Endpoint{
+		Method: "POST",
+		Path:   "/v2/snaps",
+		Action: "install",
+	}
+	seclog.LogAdminActivity(user, peer, endpoint, seclog.GrantRootAuth)
+
+	c.Check(s.buf.String(), testutil.Contains, "authz_admin")
+	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "granted access to POST:/v2/snaps:install (root-auth)")
+	c.Check(s.buf.String(), testutil.Contains, "admin@example.com")
+	c.Check(s.buf.String(), testutil.Contains, "/run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "4242")
+	c.Check(s.buf.String(), testutil.Contains, "[peer=")
+	c.Check(s.buf.String(), testutil.Contains, "[endpoint=")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_granted=\"root-auth\"]")
+	c.Check(s.buf.String(), testutil.Contains, "[user=")
+}
+
+func (s *SecLogSuite) TestLogAdminActivityWithInterface(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
+	peer := seclog.Peer{Socket: "/run/snapd-snap.socket", UID: 0, PID: 4242}
+	endpoint := seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}
+	reason := seclog.GrantRootAuth.WithInterface("desktop-launch", true)
+	seclog.LogAdminActivity(user, peer, endpoint, reason)
+
+	c.Check(s.buf.String(), testutil.Contains, "granted access to GET:/v2/snaps:<none> (root-auth desktop-launch plug)")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_granted=\"root-auth desktop-launch plug\"]")
+}
+
+// TestLogUnauthorizedAccess verifies that LogUnauthorizedAccess emits the expected event and attributes.
+func (s *SecLogSuite) TestLogUnauthorizedAccess(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "hacker@example.com", StoreUserName: "hacker"}
+	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 1000, PID: 12345}
+	endpoint := seclog.Endpoint{Method: "DELETE", Path: "/v2/snaps/core"}
+
+	seclog.LogUnauthorizedAccess(user, peer, endpoint, seclog.DenialUserAuth)
+
+	c.Check(s.buf.String(), testutil.Contains, "authz_fail")
+	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "denied access to DELETE:/v2/snaps/core:<none> (user-auth-denied)")
+	c.Check(s.buf.String(), testutil.Contains, "hacker@example.com")
+	c.Check(s.buf.String(), testutil.Contains, "/run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "12345")
+	c.Check(s.buf.String(), testutil.Contains, "[peer=")
+	c.Check(s.buf.String(), testutil.Contains, "[endpoint=")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_denied=\"user-auth-denied\"]")
+	c.Check(s.buf.String(), testutil.Contains, "[user=")
 }

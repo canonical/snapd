@@ -22,9 +22,11 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
@@ -57,12 +59,13 @@ type SnapCtlPostData struct {
 }
 
 type snapctlOutput struct {
-	Stdout string `json:"stdout"`
-	Stderr string `json:"stderr"`
+	Stdout   string `json:"stdout"`
+	Stderr   string `json:"stderr"`
+	ChangeID string `json:"change-id"`
 }
 
 var supportedFeatures = []string{
-	// "async",
+	"async",
 }
 
 // protect against too much data via stdin
@@ -105,5 +108,68 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		return nil, nil, err
 	}
 
+	// If a change ID is returned, poll until the change is ready.
+	if output.ChangeID != "" {
+		err = client.snapctlPollLoop(output.ChangeID, options.ContextID, header)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	return []byte(output.Stdout), []byte(output.Stderr), nil
+}
+
+func (client *Client) snapctlPollLoop(changeID string, contextID string, header map[string]string) error {
+	pollBody, err := json.Marshal(SnapCtlPostData{
+		SnapCtlOptions: SnapCtlOptions{
+			ContextID: contextID,
+			Args:      []string{"is-ready", changeID},
+		},
+		Stdin: nil,
+	})
+	if err != nil {
+		return errors.New("internal error: cannot marshal poll options")
+	}
+
+	for {
+		_, err := client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(pollBody), nil)
+
+		// an empty error here implies exit-code==0. in that case, the change is
+		// done and successful, proceed.
+		if err == nil {
+			return nil
+		}
+
+		e, ok := err.(*Error)
+		if !ok || e.Kind != ErrorKindUnsuccessful {
+			return err
+		}
+
+		val, ok := e.Value.(map[string]any)
+		if !ok {
+			return errors.New("internal error: unexpected type")
+		}
+
+		num, ok := val["exit-code"].(float64)
+		if !ok {
+			return errors.New("internal error: unexpected type")
+		}
+
+		stderr, _ := val["stderr"].(string)
+
+		switch int64(num) {
+		case 1:
+			// Failed to get the state of the change. Return the stderr message.
+			return errors.New(stderr)
+		case 2:
+			// Ready, but the change failed. Return the stderr message.
+			return errors.New(stderr)
+		case 3:
+			// Not ready yet, wait and poll again.
+			time.Sleep(100 * time.Millisecond)
+			continue
+		default:
+			return fmt.Errorf("internal error: unexpected exit code %d", int64(num))
+		}
+	}
 }

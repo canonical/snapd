@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -53,7 +54,6 @@ var (
 	SecurebootUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 	AddPlatformKeysAffectedSnaps  = addPlatformKeysAffectedSnaps
 
-	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
 
 	SetRepairAttemptResult = setRepairAttemptResult
@@ -176,6 +176,10 @@ func MockBootLoadDiskUnlockState(f func(name string) (*boot.DiskUnlockState, err
 	return testutil.Mock(&bootLoadDiskUnlockState, f)
 }
 
+func MockInstallLoadPreinstallInfo(f func() (*install.PreinstallInfo, error)) (restore func()) {
+	return testutil.Mock(&installLoadPreinstallInfo, f)
+}
+
 type CachedActivateStateKey = cachedActivateStateKey
 
 func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
@@ -186,7 +190,7 @@ func MockOsutilBootID(f func() (string, error)) (restore func()) {
 	return testutil.Mock(&osutilBootID, f)
 }
 
-func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState) bool) (restore func()) {
+func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions) (restore func()) {
 	return testutil.Mock(&secbootShouldAttemptRepair, f)
 }
 

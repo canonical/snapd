@@ -53,15 +53,17 @@ type (
 
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
+var DiskSpaceReservation = diskSpaceReservation
 
 const (
-	None         = none
-	Full         = full
-	Hidden       = hidden
-	Home         = home
-	RevertHidden = revertHidden
-	DisableHome  = disableHome
-	RevertFull   = revertFull
+	None                        = none
+	Full                        = full
+	Hidden                      = hidden
+	Home                        = home
+	RevertHidden                = revertHidden
+	DisableHome                 = disableHome
+	RevertFull                  = revertFull
+	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -129,8 +131,6 @@ var (
 
 	HasOtherInstances = hasOtherInstances
 
-	SafetyMarginDiskSpace = safetyMarginDiskSpace
-
 	AffectedByRefresh = affectedByRefresh
 
 	GetDirMigrationOpts             = getDirMigrationOpts
@@ -194,9 +194,8 @@ var (
 	NewRefreshHints               = newRefreshHints
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
 
-	NewCatalogRefresh            = newCatalogRefresh
-	CatalogRefreshDelayBase      = catalogRefreshDelayBase
-	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
+	NewCatalogRefresh       = newCatalogRefresh
+	CatalogRefreshDelayBase = catalogRefreshDelayBase
 
 	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
@@ -432,7 +431,7 @@ func MockRefreshAppsCheck(fn func(info *snap.Info) error) (restore func()) {
 	return func() { refreshAppsCheck = old }
 }
 
-func MockCheckSeedRefreshRemove(fn func(st *state.State, si *snap.Info, dctx DeviceContext) error) (restore func()) {
+func MockCheckSeedRefreshRemove(fn func(st *state.State, candidate SeedRefreshCandidate, dctx DeviceContext) error) (restore func()) {
 	r := testutil.Backup(&CheckSeedRefreshRemove)
 	CheckSeedRefreshRemove = fn
 	return r
@@ -632,14 +631,18 @@ type SnapInstallTaskSet = snapInstallTaskSet
 func NewSnapInstallTaskSetForTest(
 	snapsup *SnapSetup,
 	ts *state.TaskSet,
+	prerequisites *state.Task,
 	beforeLocalSystemModificationsTasks []*state.Task,
+	prerequisitesSync *state.Task,
 	mountSnap *state.Task,
 	upToLinkSnapAndBeforeReboot, afterLinkSnapAndPostReboot []*state.Task,
 ) SnapInstallTaskSet {
 	return SnapInstallTaskSet{
 		ts:                                  ts,
 		snapsup:                             snapsup,
+		prerequisites:                       prerequisites,
 		beforeLocalSystemModificationsTasks: beforeLocalSystemModificationsTasks,
+		prerequisitesSync:                   prerequisitesSync,
 		mountSnap:                           mountSnap,
 		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
 		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
@@ -650,4 +653,8 @@ var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)
+}
+
+func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
+	return s.catalogRefreshDelayWithDelta
 }

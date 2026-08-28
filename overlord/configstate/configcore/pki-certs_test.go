@@ -85,7 +85,7 @@ func makePKITestCertPEM(c *C, commonName string) []byte {
 func certDigest(c *C, certPEM []byte) string {
 	parsed, err := certstate.ParseCertificateData(certPEM)
 	c.Assert(err, IsNil)
-	return parsed.Digest
+	return parsed.Sha256
 }
 
 func certificateDatabaseContains(c *C, certPEM []byte) bool {
@@ -113,6 +113,15 @@ func assertSymlinkAbsent(c *C, path string) {
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
+func seedCurrentPublishedGeneration(c *C, generation string, bundle []byte) string {
+	target := filepath.Join("published", generation)
+	generationDir := filepath.Join(dirs.SnapdPKIV1Dir, target)
+	c.Assert(os.MkdirAll(generationDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(generationDir, "ca-certificates.crt"), bundle, 0o644), IsNil)
+	c.Assert(os.Symlink(target, filepath.Join(dirs.SnapdPKIV1Dir, "merged")), IsNil)
+	return target
+}
+
 func (s *pkiCertsSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
@@ -124,7 +133,7 @@ func (s *pkiCertsSuite) SetUpTest(c *C) {
 		dirs.SnapdPKIV1Dir,
 		filepath.Join(dirs.SnapdPKIV1Dir, "added"),
 		filepath.Join(dirs.SnapdPKIV1Dir, "blocked"),
-		filepath.Join(dirs.SnapdPKIV1Dir, "merged"),
+		filepath.Join(dirs.SnapdPKIV1Dir, "published"),
 	} {
 		c.Assert(os.MkdirAll(dir, 0o755), IsNil)
 	}
@@ -230,10 +239,9 @@ func (s *pkiCertsSuite) TestHandleCustomCertificateAcceptedWritesFileAndSymlink(
 func (s *pkiCertsSuite) TestHandleCustomCertificateChangeRegeneratesDatabase(c *C) {
 	certPEM := makePKITestCertPEM(c, "regenerate-db-cert")
 
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	oldBundle := []byte("old-bundle-content")
-	mergedPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	c.Assert(os.WriteFile(mergedPath, oldBundle, 0o644), IsNil)
+	seedCurrentPublishedGeneration(c, "old", oldBundle)
+	mergedPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
 
 	cfg := &mockConf{
 		state: s.state,
@@ -250,10 +258,6 @@ func (s *pkiCertsSuite) TestHandleCustomCertificateChangeRegeneratesDatabase(c *
 	c.Assert(err, IsNil)
 	c.Check(bytes.Equal(newBundle, oldBundle), Equals, false)
 	assertCertificateDatabaseContains(c, certPEM, true)
-
-	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.old"))
-	c.Assert(err, IsNil)
-	c.Check(bak, DeepEquals, oldBundle)
 }
 
 func (s *pkiCertsSuite) TestHandleCustomCertificateBlockedWritesBlockedSymlink(c *C) {

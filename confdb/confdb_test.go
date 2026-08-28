@@ -197,6 +197,24 @@ func (*viewSuite) TestNewConfdb(c *C) {
 	}
 }
 
+func (*viewSuite) TestSchemaIsSystem(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"storage": "foo"},
+			},
+		},
+	}
+
+	db, err := confdb.NewSchema("system", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Check(db.IsSystem(), Equals, true)
+
+	db, err = confdb.NewSchema("other", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Check(db.IsSystem(), Equals, false)
+}
+
 func (s *viewSuite) TestMissingRequestDefaultsToStorage(c *C) {
 	databag := confdb.NewJSONDatabag()
 	views := map[string]any{
@@ -746,6 +764,51 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 	}
 }
 
+func (s *viewSuite) TestValidateConstraintsOK(c *C) {
+	err := confdb.ValidateConstraints(map[string]any{
+		"iface": "wlan0",
+		"count": 1,
+		"admin": true,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *viewSuite) TestValidateConstraintsEmpty(c *C) {
+	err := confdb.ValidateConstraints(nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *viewSuite) TestValidateConstraintsInvalid(c *C) {
+	tests := []struct {
+		name        string
+		constraints map[string]any
+		expectedErr string
+	}{
+		{
+			name:        "null value",
+			constraints: map[string]any{"iface": nil},
+			expectedErr: `constraint value must be non-null scalar but parameter "iface" has null constraint`,
+		},
+		{
+			name:        "array value",
+			constraints: map[string]any{"iface": []any{"wlan0", "wlan1"}},
+			expectedErr: `constraint value must be non-null scalar but parameter "iface" has array constraint`,
+		},
+		{
+			name:        "map value",
+			constraints: map[string]any{"iface": map[string]any{"name": "wlan0"}},
+			expectedErr: `constraint value must be non-null scalar but parameter "iface" has map constraint`,
+		},
+	}
+
+	for _, t := range tests {
+		cmt := Commentf("%s test", t.name)
+		err := confdb.ValidateConstraints(t.constraints)
+		c.Assert(err, NotNil, cmt)
+		c.Check(err, ErrorMatches, t.expectedErr, cmt)
+	}
+}
+
 func (s *viewSuite) TestViewAssertionWithPlaceholder(c *C) {
 	for _, t := range []struct {
 		rule     map[string]any
@@ -1132,28 +1195,6 @@ func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 	data, err = bagCopy.Data()
 	c.Assert(err, IsNil)
 	c.Assert(string(data), Equals, `{"foo":"baz"}`)
-}
-
-func (s *viewSuite) TestJSONDataOverwrite(c *C) {
-	bag := confdb.NewJSONDatabag()
-	err := bag.Set(parsePath(c, "foo"), "bar")
-	c.Assert(err, IsNil)
-
-	// precondition check
-	data, err := bag.Data()
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":"bar"}`)
-
-	err = bag.Overwrite([]byte(`{"bar":"foo"}`))
-	c.Assert(err, IsNil)
-
-	val, err := bag.Get(parsePath(c, "bar"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
-
-	data, err = bag.Data()
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"bar":"foo"}`)
 }
 
 func (s *viewSuite) TestViewGetResultNamespaceMatchesRequest(c *C) {
@@ -3705,6 +3746,41 @@ func (*viewSuite) TestGetListPlaceholderValueNotFound(c *C) {
 	// path goes beyond stored list
 	_, err = view.Get(bag, "c[2]", nil, confdb.AdminAccess)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (*viewSuite) TestGetListUnevenListMerge(c *C) {
+	// check that reading lists with values missing in early positions preserves
+	// the position of later elements when merging the results
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{
+					"request": "items[{n}]",
+					"storage": "items[{n}]",
+					"content": []any{
+						map[string]any{"storage": "name"},
+						map[string]any{"storage": "other"},
+					},
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "items"), []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second", "other": "value"},
+	})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second", "other": "value"},
+	})
 }
 
 func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {

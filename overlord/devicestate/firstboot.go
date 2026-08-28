@@ -68,7 +68,7 @@ func installSeedSnap(st *state.State, sn *seed.Snap, flags snapstate.Flags, prqt
 
 	flags.NoDelayedSideEffects = true
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       sn.Path,
 		SideInfo:   sn.SideInfo,
 		Components: components,

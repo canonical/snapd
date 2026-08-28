@@ -12,7 +12,6 @@ systems:
     - -ubuntu-14.04-*  # no tests.session support
     - -ubuntu-core-*  # dbus interface disallows unconfined access on core,
                       # in addition, up until core20 session bus was not supported
-    - -amazon-linux-2-* # session bus is not supported
 
 prepare: |
     echo "Give a snap declaring a dbus slot in installed"

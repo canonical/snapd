@@ -1,0 +1,13 @@
+name: test-snapd-udev-input-trigger
+version: 1.0
+summary: Test snap for udev subsystem trigger
+confinement: strict
+
+slots:
+  mir-slot:
+    interface: mir
+
+apps:
+  app:
+    command: bin/app
+    slots: [mir-slot]

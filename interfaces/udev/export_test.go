@@ -22,3 +22,5 @@ package udev
 func (b *Backend) ReloadRules(subsystemTriggers []string) error {
 	return b.reloadRules(subsystemTriggers)
 }
+
+var ReadRulesSubsystemTriggers = readRulesSubsystemTriggers

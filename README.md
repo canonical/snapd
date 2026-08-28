@@ -19,12 +19,12 @@ Alongside its various service and management functions, snapd:
 
 For general details, including
 [installation](https://snapcraft.io/docs/installing-snapd) and [Getting
-started](https://snapcraft.io/docs/getting-started) guides, head over to our
+started](https://snapcraft.io/docs/tutorials/get-started/#tutorials-get-started) guides, head over to our
 [Snap documentation](https://snapcraft.io/docs). If you're looking for
 something to install, such as [Spotify](https://snapcraft.io/spotify) or
 [Visual Studio Code](https://snapcraft.io/code), take a look at the [Snap
 Store](https://snapcraft.io/store). And if you want to build your own snaps,
-start with our [Creating a snap](https://snapcraft.io/docs/creating-a-snap)
+start with our [Creating a snap](https://documentation.ubuntu.com/snapcraft/stable/tutorials/craft-a-snap/)
 documentation.
 
 ## Get involved

@@ -26,16 +26,16 @@ import (
 )
 
 func (s *SecLogSuite) TestReasonString(c *C) {
-	// Both fields set.
+	// Code and message set.
 	c.Check(seclog.Reason{
-		Code: seclog.ReasonInvalidCredentials, Message: "bad password",
-	}.String(), Equals, "invalid-credentials:bad password")
+		Code: 401, Kind: "invalid-credentials", Message: "bad password",
+	}.String(), Equals, "401:bad password")
 
-	// Both fields empty — all "<unknown>".
+	// All fields empty — all "<unknown>".
 	c.Check(seclog.Reason{}.String(), Equals, "<unknown>:<unknown>")
 
 	// Only code set.
-	c.Check(seclog.Reason{Code: seclog.ReasonInternal}.String(), Equals, "internal:<unknown>")
+	c.Check(seclog.Reason{Code: 500, Kind: "internal"}.String(), Equals, "500:<unknown>")
 
 	// Only message set.
 	c.Check(seclog.Reason{Message: "something broke"}.String(), Equals, "<unknown>:something broke")
@@ -58,4 +58,43 @@ func (s *SecLogSuite) TestSnapdUserString(c *C) {
 
 	// Only username set.
 	c.Check(seclog.SnapdUser{StoreUserName: "root"}.String(), Equals, "<unknown>:<unknown>:root")
+}
+
+func (s *SecLogSuite) TestEndpointString(c *C) {
+	c.Check(seclog.Endpoint{
+		Method: "POST", Path: "/v2/snaps", Action: "install",
+	}.String(), Equals, "POST:/v2/snaps:install")
+
+	c.Check(seclog.Endpoint{Method: "DELETE", Path: "/v2/snaps/core"}.String(),
+		Equals, "DELETE:/v2/snaps/core:<none>")
+
+	c.Check(seclog.Endpoint{}.String(), Equals, "<unknown>:<unknown>:<none>")
+
+	c.Check(seclog.Endpoint{Method: "GET"}.String(), Equals, "GET:<unknown>:<none>")
+}
+
+func (s *SecLogSuite) TestPeerString(c *C) {
+	c.Check(seclog.Peer{
+		Socket: "/run/snapd.socket", UID: 0, PID: 4242,
+	}.String(), Equals, "/run/snapd.socket:0:4242")
+
+	// Zero UID is root; only the nobody sentinel is unknown.
+	c.Check(seclog.Peer{}.String(), Equals, "<unknown>:0:<unknown>")
+
+	c.Check(seclog.Peer{Socket: "/run/snapd.socket"}.String(), Equals, "/run/snapd.socket:0:<unknown>")
+
+	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
+}
+
+func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {
+	c.Check(seclog.GrantRootAuth.WithInterface("desktop-launch", true),
+		Equals, seclog.GrantReason("root-auth desktop-launch plug"))
+	c.Check(seclog.GrantUserAuth.WithInterface("snap-themes-control", false),
+		Equals, seclog.GrantReason("user-auth snap-themes-control slot"))
+	c.Check(seclog.GrantPolkitAuth.WithInterface("snap-fde-control", true),
+		Equals, seclog.GrantReason("polkit-auth snap-fde-control plug"))
+
+	// Empty iface means no interface contributed; the base reason is unchanged.
+	c.Check(seclog.GrantRootAuth.WithInterface("", true), Equals, seclog.GrantRootAuth)
+	c.Check(seclog.GrantRootAuth.WithInterface("", false), Equals, seclog.GrantRootAuth)
 }

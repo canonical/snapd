@@ -88,7 +88,7 @@ func (s *tasksSuite) TestTasksCommandInvalidArguments(c *C) {
 	}
 
 	for _, tc := range testCases {
-		_, _, err := ctlcmd.Run(ctx, tc.args, 0, nil)
+		_, _, _, err := ctlcmd.Run(ctx, tc.args, 0, nil)
 		c.Assert(err, NotNil)
 		c.Assert(err, ErrorMatches, ".*invalid number of arguments.*")
 	}
@@ -99,7 +99,7 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	st, ctx, chg1ID := s.setupChangeAndContext(c, "task-1-done", state.DoneStatus)
 
 	// Verify task 1 (done)
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
+	stdout, _, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output := string(stdout)
 
@@ -117,7 +117,7 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	st.Unlock()
 
 	// Verify task 2 (doing)
-	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
+	stdout, _, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
 
@@ -137,7 +137,7 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	st.Unlock()
 
 	// Verify task 3 (error)
-	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
+	stdout, _, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
 
@@ -156,7 +156,7 @@ func (s *tasksSuite) TestTasksCommandNoAssociatedChanges(c *C) {
 	unassociatedID := chg.ID()
 	st.Unlock()
 
-	_, _, err := ctlcmd.Run(ctx, []string{"tasks", unassociatedID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"tasks", unassociatedID}, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*not found")
 }
@@ -176,13 +176,13 @@ func (s *tasksSuite) TestTasksCommandFiltersOtherSnaps(c *C) {
 	st.Unlock()
 
 	// test-snap's own change should be accessible
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
+	stdout, _, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output := string(stdout)
 	c.Assert(output, testutil.Contains, "test-snap-change")
 
 	// other-snap's change should not be accessible
-	_, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
+	_, _, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, ".*not found")
 }
@@ -193,7 +193,7 @@ func (s *tasksSuite) TestTasksCommandAllowedForUnprivilegedUser(c *C) {
 	const unprivilegedUID = uint32(1000)
 	_, ctx, chgID := s.setupChangeAndContext(c, "test-change", state.DoneStatus)
 
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chgID}, unprivilegedUID, nil)
+	stdout, _, _, err := ctlcmd.Run(ctx, []string{"tasks", chgID}, unprivilegedUID, nil)
 	c.Assert(err, IsNil)
 	c.Assert(string(stdout), testutil.Contains, "Done")
 }
@@ -202,7 +202,7 @@ func (s *tasksSuite) TestTasksCommandAllowedForUnprivilegedUser(c *C) {
 func (s *tasksSuite) TestTasksCommandJSONFormat(c *C) {
 	_, ctx, changeID := s.setupChangeAndContext(c, "json-test-change", state.DoneStatus)
 
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", changeID, "--format", "json"}, 0, nil)
+	stdout, _, _, err := ctlcmd.Run(ctx, []string{"tasks", changeID, "--format", "json"}, 0, nil)
 	c.Assert(err, IsNil)
 
 	// Parse JSON output (single change object)

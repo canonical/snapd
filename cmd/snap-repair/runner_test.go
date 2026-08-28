@@ -2331,6 +2331,9 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 }
 
 func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
 	runner := repair.NewRunner()
 
 	err := os.Chmod(dirs.SnapModeenvFile, 0300)

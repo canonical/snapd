@@ -13,7 +13,6 @@ systems:
   # stub portal implementation doesn't seem to start on 14.04
   - -ubuntu-14.04-*
   # Amazon-linux does not include Python 3 D-Bus bindings
-  - -amazon-linux-2-*
   - -amazon-linux-2023-*
   # TODO: reenable these two systems when apparmor 5 support is added
   # currently the dbus we have and the dbus in the upstream kernel

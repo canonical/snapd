@@ -1,0 +1,4 @@
+component: test-async-snap+comp
+type: standard
+version: 1.0
+summary: Test component for snapctl async feature negotiation
