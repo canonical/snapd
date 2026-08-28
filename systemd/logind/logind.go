@@ -22,6 +22,7 @@ package logind
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,6 +31,10 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 )
+
+// ErrNoDisplayEligibleSession is returned when the current user has no
+// display-eligible session.
+var ErrNoDisplayEligibleSession = errors.New("cannot find display-eligible session for the current user")
 
 // loginctlCmd calls loginctl with the given args, returning its standard
 // output (and wrapped error)
@@ -118,7 +123,7 @@ func SessionClass(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if sessionID == "" {
-		return "", fmt.Errorf("cannot find session for the current user: %d", uid)
+		return "", fmt.Errorf("%w: %d", ErrNoDisplayEligibleSession, uid)
 	}
 
 	out, err = loginctlCmd(ctx, "show-session", sessionID, "--all", "-p", "Class")

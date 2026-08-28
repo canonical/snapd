@@ -21,11 +21,14 @@ package cli_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/snapcore/snapd/systemd/logind"
 )
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNonGreeter(c *C) {
@@ -99,6 +102,9 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCod
 }
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
+	restoreSleep := snap.MockTimeSleep(func(time.Duration) {})
+	defer restoreSleep()
+
 	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cannot find session for the current user: 1000")
 	})
@@ -112,6 +118,9 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
 }
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode(c *C) {
+	restoreSleep := snap.MockTimeSleep(func(time.Duration) {})
+	defer restoreSleep()
+
 	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cannot find session for the current user: 1000")
 	})
@@ -122,4 +131,47 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode
 	c.Check(snap.ExitCodeFromError(err), Equals, 3)
 	c.Check(err.Error(), Equals, "cannot determine session class: cannot find session for the current user: 1000")
 	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestRoutineUserServicePreconditionRetriesNoDisplayEligibleSession(c *C) {
+	calls := 0
+	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
+		calls++
+		if calls < 3 {
+			return "", fmt.Errorf("%w: 1000", logind.ErrNoDisplayEligibleSession)
+		}
+		return "user", nil
+	})
+	defer restore()
+
+	sleeps := 0
+	restoreSleep := snap.MockTimeSleep(func(time.Duration) {
+		sleeps++
+	})
+	defer restoreSleep()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
+	c.Assert(err, IsNil)
+	c.Check(calls, Equals, 3)
+	c.Check(sleeps, Equals, 2)
+}
+
+func (s *SnapSuite) TestRoutineUserServicePreconditionDoesNotRetryOtherErrors(c *C) {
+	calls := 0
+	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
+		calls++
+		return "", errors.New("cannot call loginctl")
+	})
+	defer restore()
+
+	sleeps := 0
+	restoreSleep := snap.MockTimeSleep(func(time.Duration) {
+		sleeps++
+	})
+	defer restoreSleep()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
+	c.Assert(err, NotNil)
+	c.Check(calls, Equals, 1)
+	c.Check(sleeps, Equals, 0)
 }
