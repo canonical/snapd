@@ -396,6 +396,14 @@ func MockLogindSessionClass(f func(ctx context.Context) (string, error)) (restor
 	}
 }
 
+func MockTimeSleep(f func(time.Duration)) (restore func()) {
+	old := timeSleep
+	timeSleep = f
+	return func() {
+		timeSleep = old
+	}
+}
+
 func MockSyscallUmount(f func(string, int) error) (restore func()) {
 	old := syscallUnmount
 	syscallUnmount = f
