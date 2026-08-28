@@ -552,6 +552,14 @@ func MockEnforcedValidationSets(f func(st *state.State, extraVss ...*asserts.Val
 	}
 }
 
+func MockValidationSetsFromKeys(f func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error)) func() {
+	old := ValidationSetsFromKeys
+	ValidationSetsFromKeys = f
+	return func() {
+		ValidationSetsFromKeys = old
+	}
+}
+
 func MockEnforceValidationSets(f func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error) func() {
 	old := EnforceValidationSets
 	EnforceValidationSets = f
@@ -658,3 +666,8 @@ func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []in
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 	return s.catalogRefreshDelayWithDelta
 }
+
+var (
+	NeedsSnapdLTSTrackResolve    = needsSnapdLTSTrackResolve
+	MaybeRedirectSnapdToLTSTrack = maybeRedirectSnapdToLTSTrack
+)

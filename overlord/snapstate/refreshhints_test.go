@@ -141,6 +141,10 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restoreEnforcedValidationSets)
+	restoreFromKeys := snapstate.MockValidationSetsFromKeys(func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error) {
+		return snapasserts.NewValidationSets(), nil
+	})
+	s.AddCleanup(restoreFromKeys)
 	s.AddCleanup(func() {
 		dirs.SetRootDir("/")
 		snapstate.CanAutoRefresh = nil
@@ -374,9 +378,10 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Revision: snap.R(1),
 			SnapID:   "some-snap-id",
 		},
-		PlugsOnly: true,
-		CohortKey: "cohort",
-		Channel:   "stable",
+		PlugsOnly:      true,
+		CohortKey:      "cohort",
+		Channel:        "stable",
+		ValidationSets: []snapasserts.ValidationSetKey{},
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},
@@ -404,6 +409,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		PrereqContentAttrs: map[string][]string{"foo-snap": {"some-content"}},
 		PlugsOnly:          true,
 		Channel:            "devel",
+		ValidationSets:     []snapasserts.ValidationSetKey{},
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},

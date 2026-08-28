@@ -32,6 +32,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	snapchannel "github.com/snapcore/snapd/snap/channel"
 )
@@ -100,6 +101,19 @@ func Resolve(model *asserts.Model, channel string, candidateSnapd snap.Container
 }
 
 var snapdLTSTrackMapFromCurrentSnapd = snap.SnapdLTSTrackMapFromCurrentSnapd
+
+// MockSnapdLTSTrackMap replaces this snapd's LTS track map for tests.
+// The mocked snapd version is 2.75.
+func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
+	osutil.MustBeTestBinary("MockSnapdLTSTrackMap can only be used in tests")
+	restoreLoader := snapdLTSTrackMapFromCurrentSnapd
+	snapdLTSTrackMapFromCurrentSnapd = func() (map[int]map[string]string, string, error) {
+		return tracks, "2.75", nil
+	}
+	return func() {
+		snapdLTSTrackMapFromCurrentSnapd = restoreLoader
+	}
+}
 
 func loadLTSTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string]string, version, origin string, err error) {
 	if candidateSnapd != nil {
