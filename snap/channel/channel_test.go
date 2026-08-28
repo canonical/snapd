@@ -167,6 +167,23 @@ func (s storeChannelSuite) TestParseVerbatim(c *C) {
 	c.Check(mustParse(c, "latest/stable/foo"), DeepEquals, ch.Clean())
 }
 
+func (s storeChannelSuite) TestIsVerbatimTrackOnly(c *C) {
+	for _, t := range []struct {
+		name string
+		ok   bool
+	}{
+		{"latest", true},
+		{"18", true},
+		{"18-fips", true},
+		{"", false},
+		{"stable", false},
+		{"18/stable", false},
+		{"18/stable/hotfix", false},
+	} {
+		c.Check(channel.IsVerbatimTrackOnly(t.name), Equals, t.ok, Commentf("%q", t.name))
+	}
+}
+
 func (s storeChannelSuite) TestClean(c *C) {
 	ch := channel.Channel{
 		Architecture: "arm64",
