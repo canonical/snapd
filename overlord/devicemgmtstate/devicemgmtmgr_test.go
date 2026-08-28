@@ -135,13 +135,11 @@ type deviceMgmtMgrSuite struct {
 
 var _ = Suite(&deviceMgmtMgrSuite{})
 
-const (
-	testAccountID = "my-brand"
-	testDeviceID  = "serial-1.my-model.my-brand"
-)
+var fixedTestTime = time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
 
-var (
-	fixedTestTime   = time.Date(2025, 6, 14, 12, 0, 0, 0, time.UTC)
+const (
+	testAccountID   = "my-brand"
+	testDeviceID    = "serial-1.my-model.my-brand"
 	testRequestBody = `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`
 )
 
