@@ -10,6 +10,9 @@ set -eux
 . "$TESTSLIB/state.sh"
 #shellcheck source=tests/lib/core-initrd.sh
 . "$TESTSLIB"/core-initrd.sh
+#shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB"/systems.sh
+
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -347,6 +350,7 @@ prepare_memory_limit_override() {
     # or the system is known to be problematic
     local set_limit=1
 
+    memlimit="200M"
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*|ubuntu-core-18-*|ubuntu-16.04-*|ubuntu-18.04-*)
             # the tests on UC16, UC18 and correspondingly 16.04 and 18.04 have
@@ -389,13 +393,19 @@ prepare_memory_limit_override() {
         # oom-killer which will be caught in restore_project_each in
         # prepare-restore.sh.
         #
-        # This ought to set MemoryMax, but on systems with older systemd we need to
-        # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
-        # systemd is backwards compatible so the limit is still set.
-        cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+        # MeoryMax was added in systemd 231 ~2016, so it's safe to assume all
+        # cgroup v2 systems should be using it.
+        if is_cgroupv2; then
+            cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
-MemoryLimit=200M
+MemoryMax=${memlimit}
 EOF
+        else
+            cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+[Service]
+MemoryLimit=${memlimit}
+EOF
+        fi
     fi
     # the service setting may have changed in the service so we need
     # to ensure snapd is reloaded
