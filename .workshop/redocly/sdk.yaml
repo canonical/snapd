@@ -1,0 +1,5 @@
+name: redocly
+plugs:
+  node-modules:
+    interface: mount
+    workshop-target: /usr/local/lib/node_modules

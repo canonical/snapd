@@ -1,0 +1,12 @@
+name: spread
+plugs:
+  # Not sure where cache lives for locally-built image-garden with unset $XDG_CACHE_HOME
+  #garden-snap-cache:
+    #interface: mount
+    #workshop-target: /var/snap/image-garden/common/cache
+  #garden-home-cache:
+    #interface: mount
+    #workshop-target: /home/workshop/snap/image-garden-common/cache
+  #garden-project-cache:
+    #interface: mount
+    #workshop-target: /project/.image-garden
