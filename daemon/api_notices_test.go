@@ -50,7 +50,7 @@ func (s *noticesSuite) SetUpTest(c *C) {
 	dirstest.MustMockDefaultLibExecDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
-	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control"}})
+	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control", "snap-health-observe"}})
 	s.expectWriteAccess(daemon.OpenAccess{})
 }
 
@@ -247,6 +247,7 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "def", nil)
+	addNotice(c, st, nil, state.SnapHealthNotice, "myapp", nil)
 	st.Unlock()
 
 	// Check that a snap request without specifying types filter only shows
@@ -281,6 +282,19 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	c.Check(seenNoticeType["change-update"], Equals, 1)
 	c.Check(seenNoticeType["refresh-inhibit"], Equals, 1)
 	c.Check(seenNoticeType["snap-run-inhibit"], Equals, 1)
+
+	// snap-health-observe interface allows accessing snap-health notices
+	req, err = http.NewRequest("GET", "/v2/notices", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-health-observe;", dirs.SnapSocket)
+	rsp = s.syncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, Equals, 200)
+	notices, ok = rsp.Result.([]*state.Notice)
+	c.Assert(ok, Equals, true)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["type"], Equals, "snap-health")
+	c.Check(n["key"], Equals, "myapp")
 
 	// Check that multiple interfaces allow accessing notice types granted by
 	// any of the connected interfaces
@@ -390,7 +404,21 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s;", dirs.SnapSocket, iface)
 		rsp = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rsp.Status, Equals, 403)
+
+		// neither interface gives access to snap-health notices.
+		req, err = http.NewRequest("GET", "/v2/notices?types=snap-health", nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=%s;", dirs.SnapSocket, iface)
+		rsp = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rsp.Status, Equals, 403)
 	}
+
+	// snap-health-observe doesn't give access to change-update notices.
+	req, err = http.NewRequest("GET", "/v2/notices?types=change-update", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;iface=snap-health-observe;", dirs.SnapSocket)
+	rsp = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, Equals, 403)
 
 	// No interfaces connected.
 	req, err = http.NewRequest("GET", "/v2/notices?types=change-update,refresh-inhibit,snap-run-inhibit", nil)

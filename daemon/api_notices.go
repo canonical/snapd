@@ -38,6 +38,7 @@ var noticeReadInterfaces = map[state.NoticeType][]string{
 	state.SnapRunInhibitNotice:               {"snap-refresh-observe"},
 	state.InterfacesRequestsPromptNotice:     {"snap-interfaces-requests-control"},
 	state.InterfacesRequestsRuleUpdateNotice: {"snap-interfaces-requests-control"},
+	state.SnapHealthNotice:                   {"snap-health-observe"},
 }
 
 var (
@@ -46,14 +47,14 @@ var (
 		GET:         getNotices,
 		POST:        postNotices,
 		Actions:     []string{"add"},
-		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control"}},
+		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control", "snap-health-observe"}},
 		WriteAccess: openAccess{},
 	}
 
 	noticeCmd = &Command{
 		Path:       "/v2/notices/{id}",
 		GET:        getNotice,
-		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control"}},
+		ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control", "snap-health-observe"}},
 	}
 )
 

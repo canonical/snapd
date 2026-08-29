@@ -253,3 +253,121 @@ func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
 	// no health in the context -> no health in state
 	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 }
+
+func (s *healthSuite) TestHealthNoticeEmittedOnUnhealthyChange(c *check.C) {
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "foo"}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	// First call: blocked status -> notice should be emitted (no previous state)
+	ctx.Set("health", &healthstate.HealthState{
+		Status:  healthstate.BlockedStatus,
+		Message: "needs config",
+		Code:    "needs-config",
+	})
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	notices := s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapHealthNotice}})
+	c.Assert(notices, check.HasLen, 1)
+	c.Check(notices[0].Key(), check.Equals, "foo")
+
+	// Second call: same state -> no new notice (occurrences stays 1)
+	ctx.Set("health", &healthstate.HealthState{
+		Status:  healthstate.BlockedStatus,
+		Message: "needs config",
+		Code:    "needs-config",
+	})
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	notices = s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapHealthNotice}})
+	c.Assert(notices, check.HasLen, 1)
+	c.Check(notices[0].Key(), check.Equals, "foo")
+
+	// Third call: status changes -> notice repeated
+	ctx.Set("health", &healthstate.HealthState{
+		Status:  healthstate.ErrorStatus,
+		Message: "something broke",
+		Code:    "broke",
+	})
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	notices = s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapHealthNotice}})
+	c.Assert(notices, check.HasLen, 1)
+	// occurrences incremented because state changed
+	repeatedAfterError := notices[0].LastRepeated()
+	c.Check(repeatedAfterError.IsZero(), check.Equals, false)
+
+	// Fourth call: recovery to okay -> notice emitted so client knows snap recovered
+	ctx.Set("health", &healthstate.HealthState{Status: healthstate.OkayStatus})
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	notices = s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapHealthNotice}})
+	c.Assert(notices, check.HasLen, 1)
+	c.Check(notices[0].LastRepeated().After(repeatedAfterError), check.Equals, true)
+	c.Check(notices[0].LastData()["status"], check.Equals, "okay")
+}
+
+func (s *healthSuite) TestHealthNoticeNotEmittedForOkay(c *check.C) {
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "bar"}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	ctx.Set("health", &healthstate.HealthState{Status: healthstate.OkayStatus})
+	err = healthstate.SetFromHookContext(ctx)
+	c.Assert(err, check.IsNil)
+
+	notices := s.state.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapHealthNotice}})
+	c.Assert(notices, check.HasLen, 0)
+}
+
+func (*healthSuite) TestHealthStateChanged(c *check.C) {
+	rev42 := snap.R(42)
+	rev43 := snap.R(43)
+
+	old := &healthstate.HealthState{
+		Status:   healthstate.BlockedStatus,
+		Message:  "needs config",
+		Code:     "needs-config",
+		Revision: rev42,
+	}
+
+	// nil old -> always changed
+	c.Check(healthstate.HealthStateChanged(nil, old), check.Equals, true)
+
+	// identical (timestamp differences ignored)
+	same := &healthstate.HealthState{
+		Status:   healthstate.BlockedStatus,
+		Message:  "needs config",
+		Code:     "needs-config",
+		Revision: rev42,
+	}
+	c.Check(healthstate.HealthStateChanged(old, same), check.Equals, false)
+
+	// status change
+	c.Check(healthstate.HealthStateChanged(old, &healthstate.HealthState{
+		Status: healthstate.ErrorStatus, Message: "needs config", Code: "needs-config", Revision: rev42,
+	}), check.Equals, true)
+
+	// message change
+	c.Check(healthstate.HealthStateChanged(old, &healthstate.HealthState{
+		Status: healthstate.BlockedStatus, Message: "different", Code: "needs-config", Revision: rev42,
+	}), check.Equals, true)
+
+	// code change
+	c.Check(healthstate.HealthStateChanged(old, &healthstate.HealthState{
+		Status: healthstate.BlockedStatus, Message: "needs config", Code: "other-code", Revision: rev42,
+	}), check.Equals, true)
+
+	// revision change
+	c.Check(healthstate.HealthStateChanged(old, &healthstate.HealthState{
+		Status: healthstate.BlockedStatus, Message: "needs config", Code: "needs-config", Revision: rev43,
+	}), check.Equals, true)
+}
