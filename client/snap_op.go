@@ -160,6 +160,16 @@ func (client *Client) RemoveMany(names []string, components map[string][]string,
 	return client.doMultiSnapAction("remove", names, components, options)
 }
 
+// Reinstall reinstalls the snap with the given name.
+func (client *Client) Reinstall(name string, components []string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("reinstall", name, components, options)
+}
+
+// ReinstallMany reinstalls the snaps in names.
+func (client *Client) ReinstallMany(names []string, components map[string][]string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("reinstall", names, components, options)
+}
+
 // Refresh refreshes the snap with the given name (switching it to track
 // the given channel if given).
 func (client *Client) Refresh(name string, components []string, options *SnapOptions) (changeID string, err error) {
