@@ -16,9 +16,11 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <regex.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -101,14 +103,53 @@ bool sc_is_debug_enabled(void) { return getenv_bool("SNAP_CONFINE_DEBUG", false)
 
 bool sc_is_reexec_enabled(void) { return getenv_bool("SNAP_REEXEC", true); }
 
+const int debug_out_fd = STDERR_FILENO;
+
+static uint32_t debug_seq_cnt = 0;
+
+void debug_output_init(void) {
+    int flags = fcntl(debug_out_fd, F_GETFL, 0);
+    if (fcntl(debug_out_fd, F_SETFL, flags | O_NONBLOCK) != 0) {
+        die("cannot initialize logging output");
+    }
+}
+
 void debug(const char *msg, ...) {
     if (sc_is_debug_enabled()) {
         va_list va;
+        char buf[258] = {0};
+        /* We format the message such that if it's longer then the buffer, it
+         * will be truncated but we ensure a trailing \n. We're passing the
+         * buffer directly to write, which does not care about terminating 0,
+         * but intermediate sprintf() calls do.
+         */
+        const size_t max_len = sizeof(buf);
+        uint32_t seq = __atomic_add_fetch(&debug_seq_cnt, 1, __ATOMIC_ACQ_REL);
+
+        /* Format the header */
+        int wr = snprintf(buf, max_len, "DEBUG[%" PRIu32 "]: ", seq);
+        size_t off = (wr < 0) ? 0 : (size_t)wr;
+        /* Limit to buffer size, and 1 byte for \n */
+        if (off >= max_len - 1) off = max_len - 1;
+
         va_start(va, msg);
-        fprintf(stderr, "DEBUG: ");
-        vfprintf(stderr, msg, va);
-        fprintf(stderr, "\n");
+        wr = vsnprintf(buf + off, max_len - off, msg, va);
         va_end(va);
+        if (wr > 0) {
+            /* Could only have written up to the remaining buffer length */
+            off += (size_t)wr;
+        }
+        /* So in wort case we're filling the last byte with \n */
+        if (off >= max_len) {
+            off = max_len - 1;
+        }
+
+        buf[off] = '\n';
+        off++;
+
+        /* explicitly ignore errors when writing out debug logs, we definitely
+           do not care about EAGAIN */
+        (void)write(debug_out_fd, buf, off);
     }
 }
 

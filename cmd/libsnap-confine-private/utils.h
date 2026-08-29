@@ -36,6 +36,12 @@ __attribute__((noreturn)) __attribute__((format(printf, 1, 2))) void die(const c
 __attribute__((format(printf, 1, 2))) void debug(const char *fmt, ...);
 
 /**
+ *
+ * Initialize debug logging output.
+ */
+void debug_output_init(void);
+
+/**
  * Get an environment variable and convert it to a boolean.
  *
  * Supported values are those of parse_bool(), namely "yes", "no" as well as "1"
