@@ -402,6 +402,110 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 	return env.Save()
 }
 
+// bootPartitionPath returns the path to the storage backing the named boot
+// image partition.
+func (l *lk) bootPartitionPath(bootPartition string) (string, error) {
+	// TODO: for RoleSole bootloaders this will eventually be the same
+	// codepath as for non-RoleSole bootloader
+	if l.role == RoleSole {
+		return filepath.Join(l.dir(), bootPartition), nil
+	}
+	path, _, err := l.devPathForPartName(bootPartition)
+	return path, err
+}
+
+// bootPartitionsHoldSameImage returns whether the two named boot image
+// partitions hold byte for byte identical content.
+func (l *lk) bootPartitionsHoldSameImage(bootPartition1, bootPartition2 string) (bool, error) {
+	path1, err := l.bootPartitionPath(bootPartition1)
+	if err != nil {
+		return false, err
+	}
+	path2, err := l.bootPartitionPath(bootPartition2)
+	if err != nil {
+		return false, err
+	}
+
+	return osutil.FilesAreEqual(path1, path2), nil
+}
+
+// repairDuplicateKernelBootPartitions repairs a boot image matrix in which the
+// same kernel revision is recorded in more than one boot image partition.
+//
+// Such a matrix is the result of a bug in which finding a free boot image
+// partition for an already installed kernel revision could return a different,
+// seemingly free boot image partition rather than the one the kernel revision
+// was already assigned to, after which the kernel revision was assigned to both.
+// This wastes the boot image partition that the next kernel refresh needs, and
+// once every boot image partition is taken by the currently installed kernel no
+// free boot image partition can be found at all, permanently breaking kernel
+// refreshes on the device.
+//
+// A kernel revision named by neither snap_kernel nor snap_try_kernel is not
+// used to boot the device. The bootloader never searches the matrix for it, so
+// no boot image partition it points at can be selected, and the redundant
+// references can be dropped without comparing the boot image partitions at all.
+//
+// For a kernel revision that is referenced, the redundant references are only
+// cleared once the boot image partitions have been confirmed to hold identical
+// content, so that a reference is never dropped while it is the only record of
+// where a distinct boot image actually lives - clearing such a reference would
+// leave a boot image partition the bootloader can no longer find, and would let
+// a subsequent extraction overwrite a boot image that is still needed. The
+// reference in the boot image partition appearing first in the matrix is kept,
+// matching the partition that GetKernelBootPartition() resolves the kernel
+// revision to.
+func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
+	duplicates, err := env.DuplicateKernelBootPartitions()
+	if err != nil {
+		return err
+	}
+	if len(duplicates) == 0 {
+		return nil
+	}
+
+	repaired := false
+	for kernel, bootPartitions := range duplicates {
+		// a kernel revision that nothing boots from cannot be booted from
+		// whichever boot image partition it is recorded in, so the redundant
+		// references can go regardless of what the boot image partitions hold
+		referenced := env.IsKernelReferenced(kernel)
+
+		keep := bootPartitions[0]
+		for _, drop := range bootPartitions[1:] {
+			if referenced {
+				// only drop the redundant reference if both boot image
+				// partitions really do hold the same boot image, otherwise the
+				// reference is the only record of a distinct boot image that is
+				// still referenced for booting and dropping it would lose it
+				same, err := l.bootPartitionsHoldSameImage(keep, drop)
+				if err != nil {
+					return err
+				}
+				if !same {
+					logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in boot image partitions %s and %s but their contents differ", kernel, keep, drop)
+					continue
+				}
+
+				logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
+			} else {
+				logger.Noticef("repairing lk boot image matrix: unreferenced kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
+			}
+
+			if err := env.ClearKernelBootPartition(drop); err != nil {
+				return err
+			}
+			repaired = true
+		}
+	}
+
+	if !repaired {
+		return nil
+	}
+
+	return env.Save()
+}
+
 // ExtractKernelAssets extract kernel assets per bootloader specifics
 // lk bootloader requires boot partition to hold valid boot image
 // there are two boot partition available, one holding current bootimage
@@ -425,6 +529,15 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 		// when in reality the reason one can't find an available boot image
 		// partition is because we couldn't read the env file and so returning
 		// that error is better
+		return err
+	}
+
+	// a device that was updated by a snapd carrying the duplicate boot image
+	// partition bug may have the same kernel revision recorded in more than one
+	// boot image partition, which leaves no free boot image partition for this
+	// kernel and would make FindFreeKernelBootPartition() below fail forever.
+	// Repair the boot image matrix first so such a device can be updated again.
+	if err := l.repairDuplicateKernelBootPartitions(env); err != nil {
 		return err
 	}
 
@@ -459,16 +572,9 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 			return fmt.Errorf("cannot open unpacked %s: %v", bootImg, err)
 		}
 		defer bif.Close()
-		var bpart string
-		// TODO: for RoleSole bootloaders this will eventually be the same
-		// codepath as for non-RoleSole bootloader
-		if l.role == RoleSole {
-			bpart = filepath.Join(l.dir(), bootPartition)
-		} else {
-			bpart, _, err = l.devPathForPartName(bootPartition)
-			if err != nil {
-				return err
-			}
+		bpart, err := l.bootPartitionPath(bootPartition)
+		if err != nil {
+			return err
 		}
 
 		bpf, err := os.OpenFile(bpart, os.O_WRONLY, 0660)
