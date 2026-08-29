@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -64,12 +65,12 @@ dbus (send)
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=session
-    name="core.ubuntu.media.Service",
+    name="com.lomiri.MediaHub.Service",
 
 # Allow communications with unconfined processes
 dbus (receive, send)
     bus=session
-    path=/com/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHubService{,/**}
     interface=org.freedesktop.DBus{,.*}
     peer=(label=unconfined),
 
@@ -81,20 +82,20 @@ dbus (receive)
 
 dbus (receive, send)
     bus=session
-    path=/core/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHub/Service{,/**}
     peer=(label=unconfined),
 
 # Allow sending/receiving mpris signals for session path
 dbus (receive, send)
     bus=session
-    path=/core/ubuntu/media/Service/sessions/**
+    path=/com/lomiri/MediaHub/Service/sessions/**
     interface="org.mpris.MediaPlayer2{,.Player,.TrackList}"
     peer=(label=unconfined),
 
 # Allow sending properties signals for session path
 dbus (send)
     bus=session
-    path=/core/ubuntu/media/Service/sessions/**
+    path=/com/lomiri/MediaHub/Service/sessions/**
     interface="org.freedesktop.DBus.Properties"
     peer=(label=unconfined),
 `
@@ -104,22 +105,22 @@ const mediaHubConnectedSlotAppArmor = `
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/core/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHub/Service{,/**}
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow client to introspect our DBus api
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path=/core/ubuntu/media/Service
+    path=/com/lomiri/MediaHub/Service
     member="Introspect"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 # Allow clients to manage Player sessions
 dbus (receive)
     bus=session
-    interface="core.ubuntu.media.Service{,.*}"
-    path=/core/ubuntu/media/Service
+    interface="com.lomiri.MediaHub.Service{,.*}"
+    path=/com/lomiri/MediaHub/Service
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -132,23 +133,52 @@ const mediaHubConnectedPlugAppArmor = `
 dbus (receive, send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/core/ubuntu/media/Service{,/**}
+    path=/com/lomiri/MediaHub/Service{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow client to introspect our DBus api
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path=/core/ubuntu/media/Service
+    path=/com/lomiri/MediaHub/Service
     member="Introspect"
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to manage Player sessions
 dbus (send)
     bus=session
-    interface="core.ubuntu.media.Service{,.*}"
-    path=/core/ubuntu/media/Service
+    interface="com.lomiri.MediaHub.Service{,.*}"
+    path=/com/lomiri/MediaHub/Service
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow clients to use Media Hub's MPRIS interface
+dbus (send, receive)
+    bus=session
+    path="/com/lomiri/MediaHub/**"
+    interface="org.mpris.MediaPlayer2.Player"
+    member="{Next,Previous,Pause,PlayPause,Play,Stop,Seek,SetPosition,CreateVideoSink,Key,OpenUri,OpenUriExtended,Seeked,AboutToFinish,EndOfStream,PlaybackStatusChanged,VideoDimensionChanged,Error,Buffering}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send, receive)
+    bus=session
+    path="/com/lomiri/MediaHub/Service/sessions/**"
+    interface="org.mpris.MediaPlayer2.TrackList"
+    member="{GetTracksMetadata,AddTrack,RemoveTrack,GoTo,GetTracksUri,AddTracks,MoveTracks,Reset,TrackAdded,TracksAdded,TrackMoved,TrackChanged,TrackListReset}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send, receive)
+    bus=session
+    interface="org.freedesktop.DBus.Properties"
+    path="/com/lomiri/MediaHub/Service/sessions/*"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow communications with mediascanner2
+dbus (send)
+    bus=session
+    path=/com/lomiri/MediaScanner2
+    interface=com.lomiri.MediaScanner2
+    peer=(label=###SLOT_SECURITY_TAGS_SCANNER###),
+dbus (receive)
+    bus=session
+    peer=(label=###SLOT_SECURITY_TAGS_SCANNER###),
 `
 
 const mediaHubPermanentSlotSecComp = `
@@ -157,23 +187,34 @@ const mediaHubPermanentSlotSecComp = `
 bind
 `
 
-type mediaHubInterface struct{}
+type mediaHubInterface struct{
+	commonInterface
+}
 
 func (iface *mediaHubInterface) Name() string {
 	return "media-hub"
 }
 
-func (iface *mediaHubInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              mediaHubSummary,
-		BaseDeclarationSlots: mediaHubBaseDeclarationSlots,
-	}
-}
-
 func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	old := "###SLOT_SECURITY_TAGS###"
-	new := slot.LabelExpression()
-	spec.AddSnippet(strings.Replace(mediaHubConnectedPlugAppArmor, old, new, -1))
+	oldMediaHub := "###SLOT_SECURITY_TAGS###"
+	newMediaHub := slot.LabelExpression()
+
+	// Ubuntu Touch already provides an enforced media-hub in the host
+	if implicitSystemConnectedSlot(slot) {
+		newMediaHub = "\"/usr/bin/media-hub-server\""
+	}
+	rules := strings.Replace(mediaHubConnectedPlugAppArmor, oldMediaHub, newMediaHub, -1)
+
+	oldMediaScanner := "###SLOT_SECURITY_TAGS_SCANNER###"
+	newMediaScanner := slot.LabelExpression()
+
+	// The host-side mediascanner also runs within it's own profile on Touch
+	if implicitSystemConnectedSlot(slot) {
+		newMediaScanner = "\"/usr/bin/mediascanner-service*\""
+	}
+	rules = strings.Replace(rules, oldMediaScanner, newMediaScanner, -1)
+
+	spec.AddSnippet(rules)
 	return nil
 }
 
@@ -200,5 +241,10 @@ func (iface *mediaHubInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool
 }
 
 func init() {
-	registerIface(&mediaHubInterface{})
+	registerIface(&mediaHubInterface{commonInterface{
+		name:			"media-hub",
+		summary:		mediaHubSummary,
+		implicitOnClassic:	release.OnTouch,
+		baseDeclarationSlots:	mediaHubBaseDeclarationSlots,
+	}})
 }
