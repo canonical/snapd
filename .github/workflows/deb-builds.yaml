@@ -25,7 +25,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Download vendor
       uses: actions/download-artifact@v8
