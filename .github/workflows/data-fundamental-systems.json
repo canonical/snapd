@@ -1,67 +1,19 @@
 {
     "include": [
       {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "debian-req",
-        "backend": "openstack",
-        "systems": "debian-12-64",
-        "tasks": "tests/...",
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-xenial (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-16.04-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": "main"
       },
       {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-focal",
-        "backend": "openstack",
-        "systems": "ubuntu-20.04-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-noble",
-        "backend": "openstack",
-        "systems": "ubuntu-24.04-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-resolute",
-        "backend": "openstack",
-        "systems": "ubuntu-26.04-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-core-18",
-        "backend": "openstack",
-        "systems": "ubuntu-core-18-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-core-20",
-        "backend": "openstack",
-        "systems": "ubuntu-core-20-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-core-24",
-        "backend": "openstack",
-        "systems": "ubuntu-core-24-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "arch-linux",
-        "backend": "openstack",
-        "systems": "arch-linux-64",
-        "tasks": "tests/...",
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-bionic (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-18.04-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": "main"
       }
     ]
