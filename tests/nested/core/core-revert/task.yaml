@@ -18,7 +18,7 @@ environment:
 skip:
     - reason: This test needs to start from beta/candidate/stable channel
       if: |
-        [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ] || [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]
+        [ "$NESTED_CORE_CHANNEL" = "$NESTED_CORE_REFRESH_CHANNEL" ]
 
 debug: |
     systemctl stop nested-vm || true
