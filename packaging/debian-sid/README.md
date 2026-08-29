@@ -68,9 +68,9 @@ mkdir -p .build
 
 ## Container Script
 
-The build script has several sections. The source tree is copied to a writable
-location, the `debian/` directory is populated from `packaging/debian-sid/`, Go
-modules are vendored, and then `dpkg-buildpackage` is invoked.
+The build script has several sections. The pre-created source tarballs from
+`packaging/.build/` are extracted and the `debian/` directory is populated from
+`packaging/debian-sid/`, then `dpkg-buildpackage` is invoked.
 
 ```sh
 # Show the sizes of persistent caches to verify volumes are populated across runs.
@@ -85,37 +85,20 @@ export GOMODCACHE=/var/cache/gomod
 # .deb files after every dpkg run. Remove it so the archive cache is preserved.
 rm -f /etc/apt/apt.conf.d/docker-clean
 
-# Install the base build-dependencies as well as golang needed
-# to export the source tarball.
+# Install the base build-dependencies.
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
-    devscripts build-essential golang
+    devscripts build-essential
 
 # Determine the version of the package.
 # The cut there is to extract the upstream component of the non-native package.
 version=$(dpkg-parsechangelog --file /src/packaging/debian-sid/changelog --show-field Version | cut -d - -f 1)
 
-# Copy the source tree to a temporary location, so that we can call go mod vendor.
-mkdir -p /src-rw
-tar -C /src -c \
-    --exclude='./vendor/*' \
-    --exclude='./c-vendor/squashfuse' \
-    --exclude='.git' \
-    --exclude='.git/*' \
-    --exclude='.image-garden/*' \
-    --exclude='./packaging/*/.build/*' \
-    --exclude='./built-snap/*' \
-    --exclude='./*.snap' \
-. | tar -C /src-rw -x
-
-# Vendor Go modules that are needed.
-( cd /src-rw && go mod vendor )
-
-# Create two separate source archives, one with upstream bits and one with vendored dependencies.
-( cd /src-rw && ./packaging/pack-source -v "$version" -o /build )
+# Extract the pre-created source tarballs from the packaging directory.
+tar -Jxf /src/packaging/.build/snapd_"$version".no-vendor.tar.xz -C /build
+tar -Jxf /src/packaging/.build/snapd_"$version".only-vendor.tar.xz -C /build
 
 # Copy packaging files to the build directory.
-tar -Jxf /build/snapd_"$version".no-vendor.tar.xz -C /build
 # The debian-sid directory contains .build/ which would be copied recursively, exclude it by using a glob.
 mkdir /build/snapd-"$version"/debian
 cp -a /src/packaging/debian-sid/* /build/snapd-"$version"/debian

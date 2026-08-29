@@ -282,3 +282,80 @@ A support script which can be invoked from the snapd SELinux policy subpackage.
 Its purpose is to patch snap mount units to use a dedicated SELinux context for
 all snap mounts. The script is only relevant if there is possibility that the
 users, on a SELinux enabled system, may be updating from snapd older than 2.39.
+
+## Creating Source Tarballs
+
+The source tarballs can be created by invoking the `kulturysta` script from this
+directory. The tarballs are written to `.build/` and can then be used by the
+per-distribution packaging scripts.
+
+```sh
+./kulturysta
+```
+
+## Build Container
+
+The choice of container image (`ubuntu:noble` below) determines the version of
+Go available inside the container. This Go is used to run `go run ./asserts/info`
+(which computes supported assertion formats) and to run `go mod vendor`. It is
+**not** the version of Go used to actually build snapd; that is determined by
+each distribution's own build environment.
+
+```sh
+podman run \
+    --rm \
+    --interactive \
+    --attach stdin \
+    --attach stdout \
+    --attach stderr \
+    --preserve-fd="${BASH_XTRACEFD-}" \
+    --userns host \
+    -e BASH_XTRACEFD="${BASH_XTRACEFD-}" \
+    -v "../:/src:ro,Z" \
+    -v ".build/:/build" \
+    -w /build \
+    docker.io/ubuntu:noble \
+    /bin/bash -x -e -u
+```
+
+## Host Script
+
+```sh
+rm -rf .build
+mkdir -p .build
+```
+
+## Container Script
+
+**NOTE:** The _version_ that is important from the upstream point of view
+is **CURRENTLY** encoded in the packaging/ubuntu-16.04/changelog file.
+
+```sh
+# Install required tools: git for git archive, Go for go mod vendor and
+# asserts/info, and ca-certificates for module downloads.
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
+    dpkg-dev git golang ca-certificates
+
+# Determine the version from the ubuntu-16.04 changelog.
+# TODO: The ubuntu-16.04 package is currently a native Debian package (3.0
+# (native) format) so the version string doubles as both the upstream version
+# and the distro packaging version. Once we move to a non-native package for
+# ubuntu-26.10 (and beyond), the upstream version will need to be determined
+# by a different mechanism, e.g. from the latest git tag, so that the two parts
+# of the version (upstream version and distro revision) remain separate.
+version=$(dpkg-parsechangelog --file /src/packaging/ubuntu-16.04/changelog --show-field Version)
+
+# Copy the source tree to a writable location so that go mod vendor can run.
+# The .git directory is included so that git archive works inside the copy.
+cp -a /src /src-rw
+
+# Vendor Go modules.
+( cd /src-rw && go mod vendor )
+
+# Vendor C dependencies (squashfuse and friends).
+( cd /src-rw/c-vendor && sh vendor.sh )
+
+# Create the source tarballs in /build (mapped to packaging/.build/ on the host).
+( cd /src-rw && ./packaging/pack-source -v "$version" -o /build )
+```
