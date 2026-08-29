@@ -94,10 +94,10 @@ func SessionClass(ctx context.Context) (string, error) {
 
 	// strip the "Class=" prefix from the output
 	orig := strings.TrimSpace(string(out))
-	propName, propValue, ok := strings.Cut(orig, "=")
-	if !ok || propName != "Class" || propValue == "" || strings.Contains(propValue, "=") {
+	before, after, ok := strings.Cut(orig, "=")
+	if !ok || before != "Class" || after == "" || strings.Contains(after, "=") {
 		return "", fmt.Errorf("invalid property format from loginctl for Class: %q", orig)
 	}
 
-	return strings.TrimSpace(propValue), nil
+	return strings.TrimSpace(after), nil
 }
