@@ -726,9 +726,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		RevOpts: RevisionOptions{
 			Channel: channel,
 
-			// setting the revision here makes this single-snap path install an
-			// explicit revision update. InstallPathMany intentionally does not
-			// do this, so same-revision local snaps can be handled differently
+			// setting the revision here makes this single-snap path install a
+			// by-revision update. InstallPathMany intentionally does not do
+			// this, so same-revision local snaps can be handled differently
 			// by the two API entrypoints
 			Revision: si.Revision,
 		},
@@ -858,6 +858,8 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
+	// Injected default, not a caller-requested channel. Callers that
+	// allow a UC track switch must set AllowUCTrackSwitch on RevOpts themselves.
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
 	}
@@ -903,6 +905,8 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		AllowUCTrackSwitch:          revOpts.AllowUCTrackSwitch,
+		ValidationSets:              revOpts.snapSetupValidationSets(),
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1189,6 +1193,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
+				// Validation-set auto-resolve policy: allow switching to a UC track.
+				AllowUCTrackSwitch: true,
 			},
 			AdditionalComponents: missingComponentsFor(name),
 		})
@@ -1200,6 +1206,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
+				// Validation-set auto-resolve policy: allow switching to a UC track.
+				AllowUCTrackSwitch: true,
 			},
 			AdditionalComponents: missingComponentsFor(name),
 			InstallIfMissing:     true,
@@ -2167,6 +2175,10 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// AllowUCTrackSwitch is set when UC track policy may switch this download onto a UC track
+	// so snapd stays within the UC track's feature compatibility limit.
+	AllowUCTrackSwitch bool
 }
 
 func firstNonEmpty(strs ...string) string {
@@ -2223,6 +2235,15 @@ func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, o
 		r.ValidationSets = enforced
 	}
 	return nil
+}
+
+// snapSetupValidationSets returns the planned validation-set keys for
+// SnapSetup. Empty means this operation has no constraints.
+func (r *RevisionOptions) snapSetupValidationSets() []snapasserts.ValidationSetKey {
+	if r.ValidationSets == nil {
+		return []snapasserts.ValidationSetKey{}
+	}
+	return r.ValidationSets.Keys()
 }
 
 // Update initiates a change updating a snap.
@@ -2334,6 +2355,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSet
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
+		// Auto-refresh policy: refresh-all; AllowUCTrackSwitch is set in initRefreshAllStoreUpdates.
 		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
 	}
 
@@ -3848,6 +3870,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			RevOpts: RevisionOptions{
 				Channel:        oldSnapst.TrackingChannel,
 				ValidationSets: enforced,
+				// Core transition policy: allow switching to a UC track (channel is from tracking).
+				AllowUCTrackSwitch: true,
 			},
 		}, Options{})
 		if err != nil {
@@ -3863,6 +3887,9 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
+			// Core transition policy: allow switching to a UC track (channel is from tracking).
+			AllowUCTrackSwitch: true,
+			ValidationSets:     enforced.Keys(),
 		}, nil, installContext{})
 		if err != nil {
 			return nil, err

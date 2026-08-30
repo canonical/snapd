@@ -664,7 +664,8 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 			InstanceName:  "to-install",
 			SkipIfPresent: true,
 			RevOpts: snapstate.RevisionOptions{
-				Channel: "latest/stable",
+				Channel:            "latest/stable",
+				AllowUCTrackSwitch: true,
 			},
 		},
 	})
@@ -674,7 +675,8 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 		{
 			InstanceName: "to-refresh",
 			RevOpts: snapstate.RevisionOptions{
-				Channel: "latest/stable",
+				Channel:            "latest/stable",
+				AllowUCTrackSwitch: true,
 			},
 		},
 	})
