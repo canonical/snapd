@@ -2017,8 +2017,9 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
 	checkOpts := func(opts *snapstate.RevisionOptions) {
-		// no channel in -> no channel out
+		// no channel in -> no channel out, LTS may rewrite
 		c.Check(opts.Channel, check.Equals, "")
+		c.Check(opts.AllowLTSRedirect, check.Equals, true)
 	}
 	summary, systemRestartImmediate := s.testPostSnap(c, "", checkOpts)
 	c.Check(summary, check.Equals, `Install "foo" snap`)
@@ -2027,11 +2028,23 @@ func (s *snapsSuite) TestPostSnap(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
 	checkOpts := func(opts *snapstate.RevisionOptions) {
-		// channel in -> channel out
+		// channel in -> channel out, LTS must not rewrite
 		c.Check(opts.Channel, check.Equals, "xyzzy")
+		c.Check(opts.AllowLTSRedirect, check.Equals, false)
 	}
 	summary, systemRestartImmediate := s.testPostSnap(c, `"channel": "xyzzy"`, checkOpts)
 	c.Check(summary, check.Equals, `Install "foo" snap from "xyzzy" channel`)
+	c.Check(systemRestartImmediate, check.Equals, false)
+}
+
+func (s *snapsSuite) TestPostSnapWithRevision(c *check.C) {
+	checkOpts := func(opts *snapstate.RevisionOptions) {
+		c.Check(opts.Channel, check.Equals, "")
+		c.Check(opts.Revision, check.Equals, snap.R(42))
+		c.Check(opts.AllowLTSRedirect, check.Equals, false)
+	}
+	summary, systemRestartImmediate := s.testPostSnap(c, `"revision": 42`, checkOpts)
+	c.Check(summary, check.Equals, `Install "foo" snap`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
@@ -4245,6 +4258,7 @@ func (s *snapsSuite) TestUpdateWithAdditionalComponents(c *check.C) {
 		c.Check(goal.snaps, check.DeepEquals, []snapstate.StoreUpdate{{
 			InstanceName:         "some-snap",
 			AdditionalComponents: []string{"comp1", "comp2"},
+			RevOpts:              snapstate.RevisionOptions{AllowLTSRedirect: true},
 		}})
 		t := st.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -4288,6 +4302,59 @@ func (s *snapsSuite) TestUpdateWithAdditionalComponents(c *check.C) {
 	c.Check(chg.Summary(), check.Equals, `Refresh "some-snap" snap with components "comp1", "comp2"`)
 }
 
+func (s *snapsSuite) TestUpdateAllowLTSRedirect(c *check.C) {
+	restore := daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})
+	defer restore()
+
+	var expectedChannel string
+	var expectedRevision snap.Revision
+	var expectedAllow bool
+
+	restore = daemon.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		goal := g.(*storeUpdateGoalRecorder)
+		c.Assert(goal.snaps, check.HasLen, 1)
+		c.Check(goal.snaps[0].InstanceName, check.Equals, "some-snap")
+		c.Check(goal.snaps[0].RevOpts.Channel, check.Equals, expectedChannel)
+		c.Check(goal.snaps[0].RevOpts.Revision, check.Equals, expectedRevision)
+		c.Check(goal.snaps[0].RevOpts.AllowLTSRedirect, check.Equals, expectedAllow)
+		t := st.NewTask("fake-refresh-snap", "Doing a fake refresh")
+		return state.NewTaskSet(t), nil
+	})
+	defer restore()
+
+	d := s.daemonWithFakeSnapManager(c)
+
+	for _, tc := range []struct {
+		body             string
+		channel          string
+		revision         snap.Revision
+		allowLTSRedirect bool
+	}{
+		{`{"action": "refresh"}`, "", snap.Revision{}, true},
+		{`{"action": "refresh", "channel": "latest/stable"}`, "latest/stable", snap.Revision{}, false},
+		{`{"action": "refresh", "revision": 100}`, "", snap.R(100), false},
+		{`{"action": "refresh", "channel": "latest/stable", "revision": 100}`, "latest/stable", snap.R(100), false},
+	} {
+		expectedChannel = tc.channel
+		expectedRevision = tc.revision
+		expectedAllow = tc.allowLTSRedirect
+
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", strings.NewReader(tc.body))
+		c.Assert(err, check.IsNil, check.Commentf("%s", tc.body))
+
+		rsp := s.asyncReq(c, req, nil, actionIsExpected)
+
+		st := d.Overlord().State()
+		st.Lock()
+		chg := st.Change(rsp.Change)
+		c.Assert(chg, check.NotNil, check.Commentf("%s", tc.body))
+		c.Check(chg.Kind(), check.Equals, "refresh-snap", check.Commentf("%s", tc.body))
+		st.Unlock()
+	}
+}
+
 func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
 		goal, ok := g.(*storeInstallGoalRecorder)
@@ -4298,10 +4365,12 @@ func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {
 			{
 				InstanceName: "some-snap",
 				Components:   []string{"some-comp1", "some-comp2"},
+				RevOpts:      snapstate.RevisionOptions{AllowLTSRedirect: true},
 			},
 			{
 				InstanceName: "other-snap",
 				Components:   []string{"other-comp1"},
+				RevOpts:      snapstate.RevisionOptions{AllowLTSRedirect: true},
 			},
 		})
 
@@ -4351,10 +4420,12 @@ func (s *snapsSuite) TestUpdateManyWithComponents(c *check.C) {
 			{
 				InstanceName:         "some-snap",
 				AdditionalComponents: []string{"some-comp1", "some-comp2"},
+				RevOpts:              snapstate.RevisionOptions{AllowLTSRedirect: true},
 			},
 			{
 				InstanceName:         "other-snap",
 				AdditionalComponents: []string{"other-comp1"},
+				RevOpts:              snapstate.RevisionOptions{AllowLTSRedirect: true},
 			},
 		})
 

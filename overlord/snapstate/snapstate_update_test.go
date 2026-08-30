@@ -1248,7 +1248,6 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "channel-for-components",
 		UserID:  s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -1528,7 +1527,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		Channel:   "some-channel",
 		CohortKey: "some-cohort",
 		UserID:    s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -1917,7 +1915,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "some-channel",
 		UserID:  s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -2268,7 +2265,6 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "18/edge",
 		UserID:  s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -5031,6 +5027,23 @@ epoch: 1*
 	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)}
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1*
+`)
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", nil, s.user.ID, snapstate.Flags{}, nil, nil, "")
+	c.Assert(err, IsNil)
+
+	sup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(sup.AllowLTSRedirect, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5380,6 +5393,54 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "latest/edge")
+	// Name-based Update is not used in production; LTS policy is fail-closed.
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateChannelDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.Channel, Equals, "some-channel")
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateRevisionDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.Revision(), Equals, snap.R(11))
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateTooEarly(c *C) {
@@ -5528,6 +5589,11 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	ts := tts[0]
 	verifyUpdateTasks(c, snap.TypeApp, 0, 3, ts)
 
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.AllowLTSRedirect, Equals, true)
+
 	// check that the tasks are in non-default lane
 	for _, t := range ts.Tasks() {
 		c.Assert(t.Lanes(), DeepEquals, []int{1})
@@ -5541,6 +5607,56 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	c.Assert(err, IsNil)
 
 	checkIsAutoRefresh(c, ts.Tasks(), false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyRevisionDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(11)}}
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, revOpts, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updates, DeepEquals, []string{"some-snap"})
+	c.Assert(tts, HasLen, 3)
+
+	var snapsup snapstate.SnapSetup
+	err = tts[0].Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(11))
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyNamedSnapsDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap"}, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(updates, DeepEquals, []string{"some-snap"})
+	c.Assert(tts, HasLen, 3)
+
+	var snapsup snapstate.SnapSetup
+	err = tts[0].Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	// Name-based UpdateMany is not used in production; LTS policy is fail-closed.
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyIgnoreRunning(c *C) {
@@ -8593,6 +8709,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionWithValidationSets(c *C) {
 
 	// new snap revision from the store
 	c.Check(snapsup.Revision(), Equals, snap.R(11))
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
@@ -15685,9 +15802,8 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -16364,9 +16480,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
@@ -16908,9 +17023,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
@@ -17681,9 +17795,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	c.Assert(err, IsNil)
 
 	expectedSnapsup := snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SideInfo:  snapsup.SideInfo,
 		Type:      opts.snapType,
 		Version:   snapName + "Ver",
@@ -18177,9 +18290,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	c.Assert(err, IsNil)
 
 	expectedSnapsup := snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
 		Version:   "kernelVer",

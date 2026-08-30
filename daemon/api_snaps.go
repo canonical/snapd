@@ -313,6 +313,9 @@ func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
 		Revision:    inst.Revision,
 		CohortKey:   inst.CohortKey,
 		LeaveCohort: inst.LeaveCohort,
+		// Store install/refresh policy: allow switching to an LTS track unless
+		// channel or revision is explicitly specified.
+		AllowLTSRedirect: inst.Channel == "" && inst.Revision.Unset(),
 	}
 }
 
@@ -943,7 +946,9 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		opts.Flags.Transaction = inst.Transaction
 	}
 
-	revOpts := snapstate.RevisionOptions{}
+	// Install-many policy: allow switching to an LTS track unless channel or
+	// revision is explicitly specified. One snap uses revnoOpts below.
+	revOpts := snapstate.RevisionOptions{AllowLTSRedirect: true}
 	if expectOneSnap {
 		revOpts = *inst.revnoOpts()
 	}
@@ -1072,6 +1077,11 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 		updates = append(updates, snapstate.StoreUpdate{
 			InstanceName:         name,
 			AdditionalComponents: inst.CompsForSnaps[name],
+			RevOpts: snapstate.RevisionOptions{
+				// Refresh-many policy: allow switching to an LTS track unless channel or
+				// revision is explicitly specified.
+				AllowLTSRedirect: true,
+			},
 		})
 	}
 

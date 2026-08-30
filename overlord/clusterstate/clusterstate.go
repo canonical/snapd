@@ -343,6 +343,8 @@ func snapsForSubcluster(
 						InstanceName: sn.Instance,
 						RevOpts: snapstate.RevisionOptions{
 							Channel: sn.Channel,
+							// Cluster refresh policy: allow switching to an LTS track (channel is from the assertion).
+							AllowLTSRedirect: true,
 						},
 					})
 				}
@@ -354,6 +356,8 @@ func snapsForSubcluster(
 				SkipIfPresent: true,
 				RevOpts: snapstate.RevisionOptions{
 					Channel: sn.Channel,
+					// Cluster install policy: allow switching to an LTS track (channel is from the assertion).
+					AllowLTSRedirect: true,
 				},
 			}
 

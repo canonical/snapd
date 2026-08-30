@@ -1575,8 +1575,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	checkGatingTask(c, tss[0].Tasks()[0], map[string]*snapstate.RefreshCandidate{
 		"snap-a": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				PlugsOnly: true,
+				Type:             "app",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -1589,8 +1590,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 		},
 		"base-snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "base",
-				PlugsOnly: true,
+				Type:             "base",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -1603,8 +1605,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 		},
 		"snap-c": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				PlugsOnly: true,
+				Type:             "app",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -1617,8 +1620,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 		},
 		"snap-f": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				PlugsOnly: true,
+				Type:             "app",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -1711,9 +1715,10 @@ func (s *autorefreshGatingSuite) TestAffectedByRefreshUsesCurrentSnapInfo(c *C) 
 	checkGatingTask(c, tss[0].Tasks()[0], map[string]*snapstate.RefreshCandidate{
 		"snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				Base:      "new-base",
-				PlugsOnly: true,
+				Type:             "app",
+				Base:             "new-base",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -1726,8 +1731,9 @@ func (s *autorefreshGatingSuite) TestAffectedByRefreshUsesCurrentSnapInfo(c *C) 
 		},
 		"base-snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "base",
-				PlugsOnly: true,
+				Type:             "base",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -1804,8 +1810,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C)
 	checkGatingTask(c, tss[0].Tasks()[0], map[string]*snapstate.RefreshCandidate{
 		"snap-a": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				PlugsOnly: true,
+				Type:             "app",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -2713,8 +2720,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	checkGatingTask(c, conditionalRefreshTask, map[string]*snapstate.RefreshCandidate{
 		"base-snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "base",
-				PlugsOnly: true,
+				Type:             "base",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -2727,9 +2735,10 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 		},
 		"snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				Base:      "base-snap-b",
-				PlugsOnly: true,
+				Type:             "app",
+				Base:             "base-snap-b",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -2820,8 +2829,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c
 	checkGatingTask(c, conditionalRefreshTask, map[string]*snapstate.RefreshCandidate{
 		"base-snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "base",
-				PlugsOnly: true,
+				Type:             "base",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},
@@ -2834,9 +2844,10 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c
 		},
 		"snap-b": {
 			SnapSetup: snapstate.SnapSetup{
-				Type:      "app",
-				Base:      "base-snap-b",
-				PlugsOnly: true,
+				Type:             "app",
+				Base:             "base-snap-b",
+				PlugsOnly:        true,
+				AllowLTSRedirect: true,
 				Flags: snapstate.Flags{
 					IsAutoRefresh: true,
 				},

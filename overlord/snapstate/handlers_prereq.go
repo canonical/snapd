@@ -249,6 +249,8 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 				InstanceName: "snapd",
 				RevOpts: RevisionOptions{
 					Channel: defaultSnapdSnapsChannel(),
+					// Snapd prereq policy: allow switching to an LTS track (channel is the default).
+					AllowLTSRedirect: true,
 				},
 			}, opts)
 		})

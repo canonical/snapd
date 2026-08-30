@@ -374,9 +374,10 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Revision: snap.R(1),
 			SnapID:   "some-snap-id",
 		},
-		PlugsOnly: true,
-		CohortKey: "cohort",
-		Channel:   "stable",
+		PlugsOnly:        true,
+		CohortKey:        "cohort",
+		Channel:          "stable",
+		AllowLTSRedirect: true,
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},
@@ -404,6 +405,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		PrereqContentAttrs: map[string][]string{"foo-snap": {"some-content"}},
 		PlugsOnly:          true,
 		Channel:            "devel",
+		AllowLTSRedirect:   true,
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},
