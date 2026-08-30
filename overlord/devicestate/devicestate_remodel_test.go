@@ -2906,6 +2906,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		name := sn.SideInfo.RealName
 
 		c.Check(sn.SideInfo.RealName, Equals, "app-snap")
+		// Remodel (offline) policy: LTS tracks do not apply (local snap blob).
+		c.Check(sn.RevOpts.AllowLTSRedirect, Equals, false)
 
 		validate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		validate.Set("snap-setup",
@@ -3168,6 +3170,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		sn := g.snaps[0]
 
 		c.Check(sn.SideInfo.RealName, Equals, "app-snap")
+		// Remodel (offline) policy: LTS tracks do not apply (local snap blob).
+		c.Check(sn.RevOpts.AllowLTSRedirect, Equals, false)
 
 		validate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", sn.SideInfo.RealName))
 		validate.Set("snap-setup",
@@ -5615,6 +5619,8 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		c.Check(si, NotNil)
 		c.Check(si.RealName, Equals, name)
 		c.Check(si.RealName, Not(Equals), "not-used-snap")
+		// Remodel (offline) policy: LTS tracks do not apply (local snap blob).
+		c.Check(g.snaps[0].RevOpts.AllowLTSRedirect, Equals, false)
 
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup",
@@ -6708,6 +6714,8 @@ func mockSnapstateUpdateOneFromFile(c *C, snaps map[string]expectedSnap) (restor
 		c.Assert(ok, Equals, true, Commentf("unexpected snap update: %q", name))
 
 		c.Assert(g.snaps[0].RevOpts.Revision, Equals, expected.revision)
+		// Remodel (offline) policy: LTS tracks do not apply (local snap blob).
+		c.Check(g.snaps[0].RevOpts.AllowLTSRedirect, Equals, false)
 
 		if expected.path != "" {
 			c.Assert(g.snaps[0].Path, Equals, expected.path)
@@ -9743,6 +9751,8 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 
 		rev := g.snaps[0].RevOpts.Revision
 		c.Check(rev, Equals, snap.R(1))
+		// Remodel (installed revision) policy: LTS tracks do not apply (local snap blob).
+		c.Check(g.snaps[0].RevOpts.AllowLTSRedirect, Equals, false)
 		opts.PrereqTracker.Add(baseInfo)
 
 		prepare := s.state.NewTask("prepare-snap", fmt.Sprintf("prepare %s", name))

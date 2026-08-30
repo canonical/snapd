@@ -1162,6 +1162,8 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
 	c.Assert(snapsup.ComponentExclusiveOperation, Equals, true)
+	// Component install policy: LTS tracks do not apply (snapd does not have components).
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
 
 	// ensure that we didn't drop persistent classic flag when installing the
 	// component

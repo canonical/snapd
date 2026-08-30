@@ -505,6 +505,8 @@ func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
 		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		// Seeding policy: LTS tracks do not apply (local seed blob).
+		c.Check(snapsup.AllowLTSRedirect, Equals, false)
 		matched++
 	}
 	c.Check(matched, Equals, len(snaps))

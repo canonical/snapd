@@ -5142,6 +5142,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, error,
 	) {
 		c.Assert(revOpts.Revision, Equals, snapRevisions[name])
+		// Recovery-system component download policy: LTS tracks do not apply (snapd does not have components).
+		c.Check(revOpts.AllowLTSRedirect, Equals, false)
 
 		si := &snap.SideInfo{
 			RealName: name,

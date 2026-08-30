@@ -721,9 +721,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		RevOpts: RevisionOptions{
 			Channel: channel,
 
-			// setting the revision here makes this single-snap path install an
-			// explicit revision update. InstallPathMany intentionally does not
-			// do this, so same-revision local snaps can be handled differently
+			// setting the revision here makes this single-snap path install a
+			// by-revision update. InstallPathMany intentionally does not do
+			// this, so same-revision local snaps can be handled differently
 			// by the two API entrypoints
 			Revision: si.Revision,
 		},
@@ -853,6 +853,8 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
+	// Injected default, not a caller-requested channel. Callers that
+	// allow LTS rewrite must set AllowLTSRedirect on RevOpts themselves.
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
 	}
@@ -898,6 +900,8 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		AllowLTSRedirect:            revOpts.AllowLTSRedirect,
+		ValidationSets:              revOpts.snapSetupValidationSets(),
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1184,6 +1188,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
+				// Validation-set auto-resolve policy: allow switching to an LTS track.
+				AllowLTSRedirect: true,
 			},
 			AdditionalComponents: missingComponentsFor(name),
 		})
@@ -1195,6 +1201,8 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 			InstanceName: name,
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
+				// Validation-set auto-resolve policy: allow switching to an LTS track.
+				AllowLTSRedirect: true,
 			},
 			AdditionalComponents: missingComponentsFor(name),
 			InstallIfMissing:     true,
@@ -2162,6 +2170,10 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// AllowLTSRedirect is set when LTS policy may rewrite this download
+	// so snapd stays within the LTS branch's feature compatibility limit.
+	AllowLTSRedirect bool
 }
 
 func firstNonEmpty(strs ...string) string {
@@ -2218,6 +2230,15 @@ func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, o
 		r.ValidationSets = enforced
 	}
 	return nil
+}
+
+// snapSetupValidationSets returns the planned validation-set keys for
+// SnapSetup. Empty means this operation has no constraints.
+func (r *RevisionOptions) snapSetupValidationSets() []snapasserts.ValidationSetKey {
+	if r.ValidationSets == nil {
+		return []snapasserts.ValidationSetKey{}
+	}
+	return r.ValidationSets.Keys()
 }
 
 // Update initiates a change updating a snap.
@@ -2329,6 +2350,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSet
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
+		// Auto-refresh policy: refresh-all; AllowLTSRedirect is set in initRefreshAllStoreUpdates.
 		return updateManyFiltered(ctx, st, nil, nil, userID, nil, &Flags{IsAutoRefresh: true}, "")
 	}
 
@@ -3842,6 +3864,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			RevOpts: RevisionOptions{
 				Channel:        oldSnapst.TrackingChannel,
 				ValidationSets: enforced,
+				// Core transition policy: allow switching to an LTS track (channel is from tracking).
+				AllowLTSRedirect: true,
 			},
 		}, Options{})
 		if err != nil {
@@ -3857,6 +3881,8 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 			SideInfo:     &newInfo.SideInfo,
 			Type:         newInfo.Type(),
 			Version:      newInfo.Version,
+			// Core transition policy: allow switching to an LTS track (channel is from tracking).
+			AllowLTSRedirect: true,
 		}, nil, installContext{})
 		if err != nil {
 			return nil, err

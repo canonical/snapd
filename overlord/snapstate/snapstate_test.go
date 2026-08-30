@@ -11511,6 +11511,57 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
 }
 
+func (s *snapmgrTestSuite) TestDownloadCopiesAllowLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		AllowLTSRedirect: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "stable")
+	c.Check(snapsup.AllowLTSRedirect, Equals, true)
+	c.Check(snapsup.ValidationSets, HasLen, 0)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel:          "some-channel",
+		AllowLTSRedirect: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "some-channel")
+	c.Check(snapsup.AllowLTSRedirect, Equals, true)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Revision:         snap.R(2),
+		AllowLTSRedirect: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(2))
+	c.Check(snapsup.AllowLTSRedirect, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestDownloadPreservesCallerAllowLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel: "some-channel",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -11808,6 +11859,10 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 
 	const componentExclusive = false
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 }
 
 func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
@@ -11885,6 +11940,26 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 
 	const componentExclusive = true
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	ts, err = snapstate.DownloadComponents(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		downloadDir,
+		snapstate.RevisionOptions{
+			Channel:          "latest/stable",
+			Revision:         snap.R(11),
+			AllowLTSRedirect: true,
+		},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+	begin = ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.AllowLTSRedirect, Equals, true)
 }
 
 func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string, componentExclusive bool) {
@@ -11892,6 +11967,7 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 	err := begin.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.DownloadBlobDir, Equals, downloadDir)
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
 
 	expectedDownloadDir := downloadDir
 	if expectedDownloadDir == "" {

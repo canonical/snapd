@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -374,6 +375,10 @@ func (s *themesSuite) TestThemesCmdGet(c *C) {
 func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 	d := s.apiBaseSuite.daemonWithOverlordMock()
 
+	oldDeviceCtx := snapstate.DeviceCtx
+	s.AddCleanup(func() { snapstate.DeviceCtx = oldDeviceCtx })
+	snapstate.DeviceCtx = devicestate.DeviceCtx
+
 	overlord := d.Overlord()
 	st := overlord.State()
 	runner := overlord.TaskRunner()
@@ -420,6 +425,10 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 		goal, ok := g.(*storeInstallGoalRecorder)
 		c.Assert(ok, Equals, true, Commentf("unexpected InstallGoal type %T", g))
 		c.Assert(goal.snaps, HasLen, 3)
+		for _, sn := range goal.snaps {
+			// Theme install policy: LTS tracks do not apply (theme snaps are never snapd).
+			c.Check(sn.RevOpts.AllowLTSRedirect, Equals, false)
+		}
 
 		t := st.NewTask("fake-theme-install", "Theme install")
 		return storeSnapInfos(goal.snaps), []*state.TaskSet{state.NewTaskSet(t)}, nil

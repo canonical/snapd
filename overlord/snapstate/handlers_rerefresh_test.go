@@ -142,12 +142,17 @@ func (s *reRefreshSuite) TestDoCheckReRefreshNoReRefreshes(c *C) {
 
 func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 	var chgID string
-	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, _ *state.State, snaps []string, _ []*snapstate.RevisionOptions, userID int, _ snapstate.UpdateFilter, flags *snapstate.Flags, changeID string) ([]string, *snapstate.UpdateTaskSets, error) {
+	defer snapstate.MockReRefreshUpdateMany(func(_ context.Context, _ *state.State, snaps []string, revOpts []*snapstate.RevisionOptions, userID int, _ snapstate.UpdateFilter, flags *snapstate.Flags, changeID string) ([]string, *snapstate.UpdateTaskSets, error) {
 		c.Check(changeID, Equals, chgID)
 		expected := []string{"foo", "bar", "baz"}
 		sort.Strings(expected)
 		sort.Strings(snaps)
 		c.Check(snaps, DeepEquals, expected)
+		c.Assert(revOpts, HasLen, len(snaps))
+		for _, opts := range revOpts {
+			c.Assert(opts, NotNil)
+			c.Check(opts.AllowLTSRedirect, Equals, true)
+		}
 		c.Check(userID, Equals, 42)
 		c.Check(flags, DeepEquals, &snapstate.Flags{
 			DevMode:  true,

@@ -863,6 +863,8 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 		RevOpts: snapstate.RevisionOptions{
 			Channel:        sn.channel,
 			ValidationSets: r.vsets,
+			// Online remodel policy: allow switching to an LTS track (channel is from the model).
+			AllowLTSRedirect: true,
 		},
 	}), nil
 }
@@ -2546,6 +2548,8 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			ts, _, err := snapstateDownload(context.TODO(), st, sn.Name, requiredComponents, dirs.SnapBlobDir, snapstate.RevisionOptions{
 				Channel:        sn.DefaultChannel,
 				ValidationSets: valsets,
+				// Recovery-system download policy: allow switching to an LTS track (channel is from the model).
+				AllowLTSRedirect: true,
 			}, snapstate.Options{
 				PrereqTracker: tracker,
 			})

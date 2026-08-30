@@ -869,6 +869,8 @@ func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "stable")
+	// Name-based Install is not used in production; LTS policy is fail-closed.
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestInstallRevision(c *C) {
@@ -884,6 +886,61 @@ func (s *snapmgrTestSuite) TestInstallRevision(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Revision(), Equals, snap.R(7))
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallChannelDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+
+	c.Check(snapsup.Channel, Equals, "some-channel")
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "", snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	sup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(sup.AllowLTSRedirect, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestSeedingGoalDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	defer r()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
+		Path:     mockSnap,
+		SideInfo: &snap.SideInfo{RealName: "some-snap"},
+		RevOpts:  snapstate.RevisionOptions{Channel: "latest/stable"},
+	})
+	_, ts, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{Seed: true})
+	c.Assert(err, IsNil)
+
+	sup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(sup.AllowLTSRedirect, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestInstallTooEarly(c *C) {
@@ -4373,11 +4430,30 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
 				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				// Name-based InstallMany is not used in production; LTS policy is fail-closed.
+				c.Check(sup.AllowLTSRedirect, Equals, false)
 			}
 		}
 	}
 
 	verifyDelayedEffectsTasks(c, tts[2], []int{1, 2}, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallManyRevisionDisallowsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	revOpts := []*snapstate.RevisionOptions{{Revision: snap.R(7)}}
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"some-snap"}, revOpts, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(installed, DeepEquals, []string{"some-snap"})
+	c.Assert(tts, HasLen, 2)
+
+	var snapsup snapstate.SnapSetup
+	err = tts[0].Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(7))
+	c.Check(snapsup.AllowLTSRedirect, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestInstallManyNoDelayed(c *C) {
@@ -5558,8 +5634,13 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{ValidationSets: vsets}
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 
 	// validation sets are set on the action
 	expectedOp := fakeOp{
@@ -5896,6 +5977,7 @@ epoch: 1
 				c.Assert(err, IsNil)
 				c.Check(sup.SnapName(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
+				c.Check(sup.AllowLTSRedirect, Equals, false)
 			}
 		}
 	}

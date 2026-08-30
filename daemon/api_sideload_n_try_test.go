@@ -1408,6 +1408,7 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 		var names []string
 		for _, sn := range goal.snaps {
 			c.Check(sn.Path, testutil.FileEquals, sn.SideInfo.RealName)
+			c.Check(sn.RevOpts.AllowLTSRedirect, check.Equals, false)
 
 			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
 			tss = append(tss, ts)
@@ -1564,6 +1565,7 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 		var names []string
 		for _, sn := range goal.snaps {
 			c.Check(sn.SideInfo.Revision.Unset(), check.Equals, true)
+			c.Check(sn.RevOpts.AllowLTSRedirect, check.Equals, false)
 
 			comps, ok := expectedSnapsToComps[sn.SideInfo.RealName]
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
@@ -1732,6 +1734,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 		var names []string
 		for _, sn := range goal.snaps {
 			c.Check(sn.SideInfo.Revision.Unset(), check.Equals, false)
+			c.Check(sn.RevOpts.AllowLTSRedirect, check.Equals, false)
 
 			comps, ok := snapsToComps[sn.SideInfo.RealName]
 			c.Assert(ok, check.Equals, true, check.Commentf("unexpected snap name %q", sn.SideInfo.RealName))
@@ -2174,6 +2177,7 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 				SnapID:   snaps[i] + "-id",
 				Revision: snap.R(41),
 			})
+			c.Check(sn.RevOpts.AllowLTSRedirect, check.Equals, false)
 
 			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
 			tss = append(tss, ts)
