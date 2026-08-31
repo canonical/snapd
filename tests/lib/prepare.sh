@@ -351,6 +351,9 @@ prepare_memory_limit_override() {
     local set_limit=1
 
     memlimit="200M"
+    # soft limit which applies to v2 and controls when the kernel will apply
+    # throttling, normally unset
+    memsoftlimit=""
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*|ubuntu-core-18-*|ubuntu-16.04-*|ubuntu-18.04-*)
             # the tests on UC16, UC18 and correspondingly 16.04 and 18.04 have
@@ -367,6 +370,10 @@ prepare_memory_limit_override() {
             # try to workaround xfs doing weird things with the page cache
             # which is counted towards the cgroup memory limits
             memlimit="600M"
+            # we also need to apply soft limit to throttle snapd or its child
+            # processes within the same cgroup, such that a lot of cached,
+            # unflushed I/O will not exhaust the hard limit
+            memsoftlimit="300M"
             ;;
         *)
             if [ "$SNAPD_NO_MEMORY_LIMIT" = 1 ]; then
@@ -404,6 +411,7 @@ prepare_memory_limit_override() {
             cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
 MemoryMax=${memlimit}
+MemoryHigh=${memsoftlimit}
 EOF
         else
             cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
