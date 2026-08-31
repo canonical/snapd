@@ -132,7 +132,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		InternalError(err.Error()).ServeHTTP(w, r)
@@ -388,7 +388,8 @@ func logit(handler http.Handler) http.Handler {
 		t := time.Since(t0)
 		url := r.URL.String()
 		if !strings.Contains(url, "/changes/") {
-			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+			ucred, _ := ucrednetGet(r.Context())
+			logger.Debugf("%s %s %s %s %d", ucred.String(), r.Method, r.URL, t, ww.s)
 		}
 	})
 }
@@ -526,8 +527,9 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 
 	d.connTracker = &connTracker{conns: make(map[net.Conn]struct{})}
 	d.serve = &http.Server{
-		Handler:   logit(d.router),
-		ConnState: d.connTracker.trackConn,
+		Handler:     logit(d.router),
+		ConnState:   d.connTracker.trackConn,
+		ConnContext: ucrednetConnContext,
 	}
 
 	// enable standby handling
