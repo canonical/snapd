@@ -196,7 +196,7 @@ func (s *secretStateSuite) TearDownTest(c *C) {
 
 func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, fdstoreSupported bool) {
 	if !fdstoreSupported {
-		s.failOn["fdstore-get"] = fdstore.ErrUnsupportedSystemdVersion
+		s.failOn["fdstore-get"] = fdstore.ErrUnsupported
 	}
 
 	logbuf, restore := logger.MockDebugLogger()

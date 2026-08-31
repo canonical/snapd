@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/fdstore"
@@ -157,8 +158,8 @@ func (s *fdstoreTestSuite) TestGetLowSystemdVersionError(c *C) {
 
 	store := fdstore.New()
 	_, err := store.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
-	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: fdstore is not supported: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
 }
 
 func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
@@ -281,8 +282,29 @@ func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
 
 	store := fdstore.New()
 	err := store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
-	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
-	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: fdstore is not supported: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
+
+	c.Check(s.sdNotifyCalls, HasLen, 0)
+}
+
+func (s *fdstoreTestSuite) TestPreseedingUnsupported(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	store := fdstore.New()
+
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: fdstore is not supported: snapd is preseeding`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
+
+	err = store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
+	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: fdstore is not supported: snapd is preseeding`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
+
+	err = store.Remove(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: fdstore is not supported: snapd is preseeding`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 }
@@ -359,8 +381,8 @@ func (s *fdstoreTestSuite) TestRemoveLowSystemdVersionError(c *C) {
 
 	store := fdstore.New()
 	err := store.Remove(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
-	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: fdstore is not supported: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 	c.Check(s.closeOnExecFds, DeepEquals, []int{3, 4})
