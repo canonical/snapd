@@ -77,6 +77,8 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 		if notifySocket == "/run/systemd/notify" {
 			// Seen on OpenSUSE Tumbleweed: this socket can get mediated as the
 			// disconnected path /systemd/notify instead of /run/systemd/notify.
+			// Related bug reports (eg https://bugzilla.opensuse.org/show_bug.cgi?id=1265864)
+			// were fixed in apparmor upstream by adding the disconnected path.
 			rule += `,
 "/systemd/notify" w`
 		}
