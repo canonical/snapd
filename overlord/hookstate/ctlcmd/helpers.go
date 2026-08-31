@@ -711,7 +711,7 @@ type changeRateLimitKey struct {
 
 // isReady checks if the change is ready, if it is, it returns the status, otherwise state.DoingStatus.
 func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
-	callerSnapName := hctx.InstanceName()
+	callerInstanceName := hctx.InstanceName()
 
 	st := hctx.State()
 	st.Lock()
@@ -729,7 +729,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
-	if initiatorSnapName != callerSnapName.String() {
+	if initiatorSnapName != callerInstanceName.String() {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
@@ -842,7 +842,7 @@ func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
 // getAssociatedChange returns a change associated with the snapctl context and passed change ID,
 // otherwise nil with error. This function expects the lock to be held by the caller during operation.
 func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Change, error) {
-	callerSnapName := hctx.InstanceName()
+	callerInstanceName := hctx.InstanceName()
 
 	st := hctx.State()
 
@@ -858,7 +858,7 @@ func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Chang
 		return nil, changeNotFoundError(changeID)
 	}
 
-	if initiatorSnapName != callerSnapName.String() {
+	if initiatorSnapName != callerInstanceName.String() {
 		return nil, changeNotFoundError(changeID)
 	}
 

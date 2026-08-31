@@ -407,11 +407,11 @@ func hasSnapRefreshControlInterface(st *state.State, snapName string) (bool, err
 func (c *refreshCommand) printInhibitLockHint() error {
 	ctx := c.context()
 	ctx.Lock()
-	snapName := ctx.InstanceName()
+	instanceName := ctx.InstanceName()
 	ctx.Unlock()
 
 	// obtain snap lock before manipulating runinhibit lock.
-	lock, err := snaplock.OpenLock(snapName.String())
+	lock, err := snaplock.OpenLock(instanceName.String())
 	if err != nil {
 		return err
 	}
@@ -420,7 +420,7 @@ func (c *refreshCommand) printInhibitLockHint() error {
 	}
 	defer lock.Unlock()
 
-	hint, _, err := runinhibit.IsLocked(snapName.String(), nil)
+	hint, _, err := runinhibit.IsLocked(instanceName.String(), nil)
 	if err != nil {
 		return err
 	}
