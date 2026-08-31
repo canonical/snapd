@@ -25,6 +25,7 @@ parts:
     deps:
         plugin: python
         stage-packages: [python3-gi, python3-dbus, gir1.2-glib-2.0]
+        source: .
     copy:
         plugin: dump
         source: .
