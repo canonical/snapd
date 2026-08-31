@@ -840,8 +840,17 @@ type consistencyChecker interface {
 	checkConsistency(roDB RODatabase, signingKey *AccountKey) error
 }
 
+// ConsistencyChecker is implemented by externally defined assertions that
+// perform additional checks using the assertion database and their signing key.
+type ConsistencyChecker interface {
+	CheckConsistency(db RODatabase, signingKey *AccountKey) error
+}
+
 // CheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
 func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
+	if checker, ok := assert.(ConsistencyChecker); ok {
+		return checker.CheckConsistency(roDB, signingKey)
+	}
 	// see if the assertion requires further checks
 	if checker, ok := assert.(consistencyChecker); ok {
 		return checker.checkConsistency(roDB, signingKey)

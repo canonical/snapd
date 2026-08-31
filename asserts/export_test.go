@@ -266,6 +266,18 @@ func init() {
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
+// MockRegistryConfiguration resets the one-shot registry configuration state
+// for a test and restores the active registry and state afterwards.
+func MockRegistryConfiguration() (restore func()) {
+	previousRegistry := typeRegistry
+	previousConfigured := registryConfigured
+	registryConfigured = false
+	return func() {
+		typeRegistry = previousRegistry
+		registryConfigured = previousConfigured
+	}
+}
+
 func (ak *AccountKey) CanSign(a Assertion) bool {
 	return ak.canSign(a)
 }
