@@ -682,17 +682,17 @@ func (m *autoRefresh) launchAutoRefresh() error {
 // exist in the UpdateTaskSets and returns whether or not a change was created.
 func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, error) {
 	if updateTss != nil && len(updateTss.PreDownload) > 0 {
-		var snapNames []string
+		var instanceNames []string
 		for _, ts := range updateTss.PreDownload {
 			task := ts.Tasks()[0]
 			var snapsup *SnapSetup
 			if err := task.Get("snap-setup", &snapsup); err != nil {
 				return false, err
 			}
-			snapNames = append(snapNames, snapsup.InstanceName().String())
+			instanceNames = append(instanceNames, snapsup.InstanceName().String())
 		}
 
-		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(snapNames))
+		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(instanceNames))
 		preDlChg := st.NewChange(preDownloadChangeKind, chgSummary)
 		for _, ts := range updateTss.PreDownload {
 			preDlChg.AddAll(ts)
