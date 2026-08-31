@@ -900,12 +900,12 @@ func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'})
 	// deleted from state after retrieval
-	c.Assert(m.SecretState().Get("1", nil), testutil.ErrorIs, backend.ErrNoState)
+	c.Assert(m.SecretState().Get("1", nil), testutil.ErrorIs, backend.ErrNoSecret)
 
 	rkey, err = fdestate.GetRecoveryKey(s.st, "2")
 	c.Assert(err, ErrorMatches, "recovery key has expired")
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{})
-	c.Assert(m.SecretState().Get("2", nil), testutil.ErrorIs, backend.ErrNoState)
+	c.Assert(m.SecretState().Get("2", nil), testutil.ErrorIs, backend.ErrNoSecret)
 }
 
 func (s *fdeMgrSuite) testCheckRecoveryKey(c *C, defaultContainerRoles bool) {

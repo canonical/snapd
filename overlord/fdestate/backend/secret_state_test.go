@@ -256,8 +256,8 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	// Get a non-existing key
 	var value string
 	err = secretState.Get("non-existing", &value)
-	c.Check(err, testutil.ErrorIs, backend.ErrNoState)
-	c.Check(err, ErrorMatches, `no state entry for key "non-existing"`)
+	c.Check(err, testutil.ErrorIs, backend.ErrNoSecret)
+	c.Check(err, ErrorMatches, `no secret state entry for key "non-existing"`)
 
 	// Set a key
 	err = secretState.Set("key-1", "some-value")
@@ -329,7 +329,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	} else {
 		// if fdstore is not supported, the memfd-secret file is recreated
 		// on reopening and the previous state is lost.
-		c.Check(err, testutil.ErrorIs, backend.ErrNoState)
+		c.Check(err, testutil.ErrorIs, backend.ErrNoSecret)
 	}
 
 	err = secretState.Close()

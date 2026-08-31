@@ -297,7 +297,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
 			},
 			badRecoveryKeyID: true,
-			expectedErr:      `cannot find recovery key with id "bad-id": no state entry for key "bad-id"`,
+			expectedErr:      `cannot find recovery key with id "bad-id": no secret state entry for key "bad-id"`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
@@ -1079,7 +1079,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 				// Auth options are removed on completion
 				var opts fdestate.ExpiringChangeAuthOptions
 				err := m.SecretState().Get(changeAuthID, &opts)
-				c.Assert(err, testutil.ErrorIs, backend.ErrNoState)
+				c.Assert(err, testutil.ErrorIs, backend.ErrNoSecret)
 			}
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
@@ -1410,7 +1410,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			if volumesAuthID != "" {
 				var opts fdestate.ExpiringVolumesAuthOptions
 				err := m.SecretState().Get(volumesAuthID, &opts)
-				c.Assert(err, testutil.ErrorIs, backend.ErrNoState, cmt)
+				c.Assert(err, testutil.ErrorIs, backend.ErrNoSecret, cmt)
 			}
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
