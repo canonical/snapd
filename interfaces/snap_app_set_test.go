@@ -567,11 +567,11 @@ slots:
 
 	comps := set.Components()
 	c.Check(comps, DeepEquals, []*snap.ComponentInfo{compInfo})
-	comp1Info := set.Component("comp")
+	comp1Info := set.Component("comp1")
 	c.Check(comp1Info, DeepEquals, compInfo)
 	// The comp2 component  was not in the set
 	comp2Info := set.Component("comp2")
-	c.Check(comp2Info, Equals, nil)
+	c.Check(comp2Info, IsNil)
 }
 
 func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {
