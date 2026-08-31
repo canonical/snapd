@@ -41,30 +41,30 @@ var (
 	// state does not fit in the fixed-size backing store.
 	ErrInsufficientCapacity = errors.New("insufficient capacity in secret state")
 
-	// ErrNoState is returned by SecretState.Get in the case of no state entry for a given key.
-	ErrNoState = errors.New("no state entry for key")
+	// ErrNoSecret is returned by SecretState.Get in the case of no secret state entry for a given key.
+	ErrNoSecret = errors.New("no secret state entry for key")
 )
 
-// NoStateError represents the case where no state could be found for a given key.
-type NoStateError struct {
+// NoSecretError represents the case where no secret state could be found for a given key.
+type NoSecretError struct {
 	// Key is the key for which no state could be found.
 	Key string
 }
 
-func (e *NoStateError) Error() string {
+func (e *NoSecretError) Error() string {
 	var keyMsg string
 	if e.Key != "" {
 		keyMsg = fmt.Sprintf(" %q", e.Key)
 	}
 
-	return fmt.Sprintf("no state entry for key%s", keyMsg)
+	return fmt.Sprintf("no secret state entry for key%s", keyMsg)
 }
 
-// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
-// NoStateError's key isn't compared between errors.
-func (e *NoStateError) Is(err error) bool {
-	_, ok := err.(*NoStateError)
-	return ok || errors.Is(err, ErrNoState)
+// Is returns true if the error is of type *NoSecretError or equal to ErrNoSecret.
+// NoSecretError's key isn't compared between errors.
+func (e *NoSecretError) Is(err error) bool {
+	_, ok := err.(*NoSecretError)
+	return ok || errors.Is(err, ErrNoSecret)
 }
 
 var (
@@ -91,7 +91,7 @@ const (
 type SecretState interface {
 	// Get unmarshals the stored value associated with the provided key
 	// into the value parameter.
-	// It returns ErrNoState if there is no entry for key.
+	// It returns ErrNoSecret if there is no entry for key.
 	Get(key string, value any) error
 
 	// Has returns whether the provided key has an associated value.
@@ -151,7 +151,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value any) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return &NoStateError{Key: key}
+		return &NoSecretError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {

@@ -353,7 +353,7 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		}
 		var opts expiringVolumesAuthOptions
 		if err := m.secretState.Get(volumesAuthID, &opts); err != nil {
-			if errors.Is(err, backend.ErrNoState) {
+			if errors.Is(err, backend.ErrNoSecret) {
 				return errors.New("cannot find authentication options in memory: unexpected system restart")
 			}
 			return err
@@ -500,7 +500,7 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	var opts expiringChangeAuthOptions
 	if err := m.secretState.Get(changeAuthID, &opts); err != nil {
-		if errors.Is(err, backend.ErrNoState) {
+		if errors.Is(err, backend.ErrNoSecret) {
 			return errors.New("cannot find authentication options in memory: unexpected system restart")
 		}
 		return err
