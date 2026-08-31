@@ -29,7 +29,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 	"golang.org/x/sys/unix"
 )
@@ -204,8 +203,8 @@ func checkUnsupported() error {
 	// snapd, which requires snapd to be managed by systemd. During
 	// preseeding snapd is not run by systemd (no NOTIFY_SOCKET), so the
 	// fdstore cannot be used.
-	if snapdenv.Preseeding() {
-		return fmt.Errorf("%w: snapd is preseeding", ErrUnsupported)
+	if os.Getenv("NOTIFY_SOCKET") == "" {
+		return fmt.Errorf("%w: snapd is not running as a systemd service", ErrUnsupported)
 	}
 
 	// FDNAME=... was added in systemd v233, but for the sake
