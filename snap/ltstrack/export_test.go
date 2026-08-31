@@ -19,8 +19,8 @@
 
 package ltstrack
 
-// SystemBootBaseAllowed exposes systemBootBaseAllowed for tests.
-var SystemBootBaseAllowed = systemBootBaseAllowed
+// SystemBootBaseApplicable exposes systemBootBaseApplicable for tests.
+var SystemBootBaseApplicable = systemBootBaseApplicable
 
 // MockSnapdLTSTrackMap replaces this snapd's LTS track map for tests.
 // The mocked snapd version is 2.75.

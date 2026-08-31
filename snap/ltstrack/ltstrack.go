@@ -37,13 +37,13 @@ import (
 )
 
 var (
-	// ErrNotAllowed is returned when LTS policy does not apply to the model.
-	ErrNotAllowed = errors.New("cannot use LTS tracks")
-	// ErrBootBaseNotManaged is returned when the model's boot base has no LTS
+	// ErrNotApplicable is returned when LTS policy does not apply to the model.
+	ErrNotApplicable = errors.New("cannot use LTS tracks")
+	// ErrBootBaseNotCovered is returned when the model's boot base has no LTS
 	// mapping yet. Callers pass through: no channel restriction applies
 	// until the boot base is onboarded.
-	ErrBootBaseNotManaged = errors.New("cannot find LTS track map for boot base")
-	// ErrNoTrack is returned when the boot base is managed but the input
+	ErrBootBaseNotCovered = errors.New("cannot find LTS track map for boot base")
+	// ErrNoTrack is returned when the boot base is covered but the input
 	// track is neither a map key nor a map value. Callers pass through.
 	ErrNoTrack = errors.New("cannot find LTS track for input track")
 )
@@ -51,12 +51,12 @@ var (
 // Resolve applies LTS track policy to channel for model. On success it
 // returns the remapped channel with the LTS target track, the original risk, and
 // any branch dropped. On failure it returns ("", err). Policy errors wrap
-// sentinels: ErrNotAllowed when the model's system type or boot base is not
-// allowed, ErrNoTrack when the boot base is managed but the input track is
-// neither a transition key nor an LTS target, and ErrBootBaseNotManaged when the
-// boot base has no map entry. Channel parse and map-load failures are plain
-// errors. Programming errors (nil model, undetermined boot base) are prefixed
-// with "internal error:".
+// sentinels: ErrNotApplicable when LTS policy does not apply to the model's
+// system type or boot base, ErrNoTrack when the boot base is covered but the
+// input track is neither a transition key nor an LTS target, and
+// ErrBootBaseNotCovered when the boot base has no map entry. Channel parse and
+// map-load failures are plain errors. Programming errors (nil model,
+// undetermined boot base) are prefixed with "internal error:".
 //
 // candidateSnapd is the snapd snap being installed or refreshed.
 // It is not a store channel risk. If nil, the map is read from the
@@ -80,7 +80,7 @@ func Resolve(model *asserts.Model, channel string, candidateSnapd snap.Container
 		inputTrack = "latest"
 	}
 
-	bootBase, err := systemBootBaseAllowed(model)
+	bootBase, err := systemBootBaseApplicable(model)
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +116,7 @@ func loadLTSTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string
 func resolveLTSTrack(trackMap map[int]map[string]string, version, origin string, bootBase int, inputTrack string) (string, error) {
 	baseTrackMap, ok := trackMap[bootBase]
 	if !ok {
-		return "", fmt.Errorf("%w %d from %s %s", ErrBootBaseNotManaged, bootBase, origin, version)
+		return "", fmt.Errorf("%w %d from %s %s", ErrBootBaseNotCovered, bootBase, origin, version)
 	}
 	ltsTrack, found := lookupLTSTrack(baseTrackMap, inputTrack)
 	if !found {
@@ -133,6 +133,7 @@ func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (ltsTrack
 	if ltsTrack, ok := baseTrackMap[inputTrack]; ok && ltsTrack != "" {
 		return ltsTrack, true
 	}
+	// Already on an LTS target (e.g. "18" after a previous jump): keep it.
 	for _, target := range baseTrackMap {
 		if target != "" && target == inputTrack {
 			return inputTrack, true
@@ -141,15 +142,15 @@ func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (ltsTrack
 	return "", false
 }
 
-// systemBootBaseAllowed returns the boot-base version to consult for LTS policy
-// when it applies to the model's system type. It returns an error when the
-// system type or boot base is not allowed.
-func systemBootBaseAllowed(model *asserts.Model) (int, error) {
+// systemBootBaseApplicable returns the boot-base version to consult for LTS
+// policy when it applies to the model's system type. It returns an error when
+// the system type or boot base is not applicable.
+func systemBootBaseApplicable(model *asserts.Model) (int, error) {
 	if model.Classic() {
 		if model.HybridClassic() {
-			return 0, fmt.Errorf("%w on a hybrid classic system", ErrNotAllowed)
+			return 0, fmt.Errorf("%w on a hybrid classic system", ErrNotApplicable)
 		}
-		return 0, fmt.Errorf("%w on a classic system", ErrNotAllowed)
+		return 0, fmt.Errorf("%w on a classic system", ErrNotApplicable)
 	}
 
 	bootBase, err := model.CoreVersion()
@@ -159,7 +160,7 @@ func systemBootBaseAllowed(model *asserts.Model) (int, error) {
 	// UC16 uses the core snap as both base and snapd, so there is no
 	// separate snapd snap to apply LTS track policy to.
 	if bootBase == 16 {
-		return 0, fmt.Errorf("%w: unsupported Ubuntu Core 16 model", ErrNotAllowed)
+		return 0, fmt.Errorf("%w: unsupported Ubuntu Core 16 model", ErrNotApplicable)
 	}
 	return bootBase, nil
 }

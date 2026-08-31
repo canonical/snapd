@@ -122,29 +122,29 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	return snapf
 }
 
-func (s *ltsSuite) TestSystemBootBaseAllowedClassic(c *C) {
-	_, err := ltstrack.SystemBootBaseAllowed(s.classicModel(c))
+func (s *ltsSuite) TestSystemBootBaseApplicableClassic(c *C) {
+	_, err := ltstrack.SystemBootBaseApplicable(s.classicModel(c))
 	c.Assert(err, ErrorMatches, "cannot use LTS tracks on a classic system")
 }
 
-func (s *ltsSuite) TestSystemBootBaseAllowedHybridClassic(c *C) {
-	_, err := ltstrack.SystemBootBaseAllowed(s.hybridClassicModel(c, "core22"))
+func (s *ltsSuite) TestSystemBootBaseApplicableHybridClassic(c *C) {
+	_, err := ltstrack.SystemBootBaseApplicable(s.hybridClassicModel(c, "core22"))
 	c.Assert(err, ErrorMatches, "cannot use LTS tracks on a hybrid classic system")
 }
 
-func (s *ltsSuite) TestSystemBootBaseAllowedUC18(c *C) {
+func (s *ltsSuite) TestSystemBootBaseApplicableUC18(c *C) {
 	uc18 := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
-	bootBase, err := ltstrack.SystemBootBaseAllowed(uc18)
+	bootBase, err := ltstrack.SystemBootBaseApplicable(uc18)
 	c.Assert(err, IsNil)
 	c.Check(bootBase, Equals, 18)
 }
 
-func (s *ltsSuite) TestSystemBootBaseAllowedUC16HardError(c *C) {
+func (s *ltsSuite) TestSystemBootBaseApplicableUC16HardError(c *C) {
 	for _, base := range []string{"", "core", "core16"} {
 		uc16 := s.coreModel(c, base, "pc", "pc-kernel")
-		_, err := ltstrack.SystemBootBaseAllowed(uc16)
+		_, err := ltstrack.SystemBootBaseApplicable(uc16)
 		c.Assert(err, ErrorMatches, "cannot use LTS tracks: unsupported Ubuntu Core 16 model", Commentf("base %q", base))
-		c.Check(errors.Is(err, ltstrack.ErrNotAllowed), Equals, true, Commentf("base %q", base))
+		c.Check(errors.Is(err, ltstrack.ErrNotApplicable), Equals, true, Commentf("base %q", base))
 	}
 }
 
@@ -215,8 +215,8 @@ func (s *ltsSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
 	c.Check(resolved, Equals, "24/edge")
 }
 
-func (s *ltsSuite) TestResolveUnmanagedBootBaseErrors(c *C) {
-	// Boot base 22 is unmanaged (not in the mocked map; 18 is onboarded).
+func (s *ltsSuite) TestResolveUncoveredBootBaseErrors(c *C) {
+	// Boot base 22 is not covered (not in the mocked map; 18 is onboarded).
 	restore := ltstrack.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
 	defer restore()
 
@@ -225,7 +225,7 @@ func (s *ltsSuite) TestResolveUnmanagedBootBaseErrors(c *C) {
 	for _, channel := range []string{"latest/stable", "22/stable", "stable"} {
 		_, err := ltstrack.Resolve(model, channel, nil)
 		c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from running snapd 2.75`, Commentf("channel %q", channel))
-		c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true, Commentf("channel %q", channel))
+		c.Check(errors.Is(err, ltstrack.ErrBootBaseNotCovered), Equals, true, Commentf("channel %q", channel))
 	}
 }
 
@@ -236,7 +236,7 @@ func (s *ltsSuite) TestResolveMockEmptyMapErrors(c *C) {
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
 	_, err := ltstrack.Resolve(model, "latest/stable", nil)
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from running snapd 2.75`)
-	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
+	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotCovered), Equals, true)
 }
 
 func (s *ltsSuite) TestResolveBranchDropped(c *C) {
@@ -261,24 +261,24 @@ func (s *ltsSuite) TestResolveErrors(c *C) {
 	_, err = ltstrack.Resolve(uc18, "foo/bar/baz/quux", nil)
 	c.Check(err, ErrorMatches, `cannot parse input channel: .*`)
 
-	// Unknown track on a managed boot base errors.
+	// Unknown track on a covered boot base errors.
 	_, err = ltstrack.Resolve(uc18, "20/stable", nil)
 	c.Check(err, ErrorMatches, `cannot find LTS track for input track 20 for boot base 18 from running snapd 2.75`)
 	c.Check(errors.Is(err, ltstrack.ErrNoTrack), Equals, true)
 }
 
-func (s *ltsSuite) TestResolveOutOfScopeNotAllowed(c *C) {
+func (s *ltsSuite) TestResolveOutOfScopeNotApplicable(c *C) {
 	restore := ltstrack.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
 	defer restore()
 
-	// Classic and hybrid classic models are not allowed.
+	// Classic and hybrid classic models are not applicable.
 	_, err := ltstrack.Resolve(s.classicModel(c), "latest/stable", nil)
 	c.Assert(err, ErrorMatches, "cannot use LTS tracks on a classic system")
-	c.Check(errors.Is(err, ltstrack.ErrNotAllowed), Equals, true)
+	c.Check(errors.Is(err, ltstrack.ErrNotApplicable), Equals, true)
 
 	_, err = ltstrack.Resolve(s.hybridClassicModel(c, "core22"), "latest/stable", nil)
 	c.Assert(err, ErrorMatches, "cannot use LTS tracks on a hybrid classic system")
-	c.Check(errors.Is(err, ltstrack.ErrNotAllowed), Equals, true)
+	c.Check(errors.Is(err, ltstrack.ErrNotApplicable), Equals, true)
 }
 
 func (s *ltsSuite) TestResolveUC16Rejected(c *C) {
@@ -286,7 +286,7 @@ func (s *ltsSuite) TestResolveUC16Rejected(c *C) {
 		uc16 := s.coreModel(c, base, "pc", "pc-kernel")
 		_, err := ltstrack.Resolve(uc16, "latest/stable", nil)
 		c.Check(err, ErrorMatches, "cannot use LTS tracks: unsupported Ubuntu Core 16 model", Commentf("base %q", base))
-		c.Check(errors.Is(err, ltstrack.ErrNotAllowed), Equals, true, Commentf("base %q", base))
+		c.Check(errors.Is(err, ltstrack.ErrNotApplicable), Equals, true, Commentf("base %q", base))
 	}
 }
 
@@ -323,7 +323,7 @@ func (s *ltsSuite) TestResolveCandidateSnapdUsesMapNotThis(c *C) {
 
 	_, err := ltstrack.Resolve(model, "latest/stable", nil)
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from running snapd 2.75`)
-	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
+	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotCovered), Equals, true)
 
 	candidateSnapd := s.snapdContainer(c, uc18CandidateSnapdInfo)
 	resolved, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
@@ -340,16 +340,16 @@ func (s *ltsSuite) TestResolveCandidateSnapdWithoutMapErrors(c *C) {
 
 	_, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from candidate snapd snap 2.99`)
-	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
+	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotCovered), Equals, true)
 }
 
-func (s *ltsSuite) TestResolveCandidateSnapdUnmanagedBootBaseErrors(c *C) {
+func (s *ltsSuite) TestResolveCandidateSnapdUncoveredBootBaseErrors(c *C) {
 	model := s.coreModel(c, "core22", "pc=22", "pc-kernel=22")
 	candidateSnapd := s.snapdContainer(c, uc18CandidateSnapdInfo)
 
 	_, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from candidate snapd snap 2.99`)
-	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
+	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotCovered), Equals, true)
 }
 
 func (s *ltsSuite) TestResolveCandidateSnapdErrors(c *C) {
