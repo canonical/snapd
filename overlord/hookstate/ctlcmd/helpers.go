@@ -376,7 +376,7 @@ func queueDefaultConfigureHookCommand(context *hookstate.Context, tts []*state.T
 			// Multiple snaps could be installed in single transaction mode
 			// where all snap tasksets are in a single lane.
 			// Check that the task belongs to the relevant snap.
-			if snapsup.InstanceName() != context.InstanceName() {
+			if snapsup.InstanceName().String() != context.InstanceName() {
 				continue
 			}
 			for _, ts := range tts {

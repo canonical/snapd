@@ -312,7 +312,7 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 		}
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
-		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName()) {
+		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName().String()) {
 			c.Assert(snapsup.DevMode, Equals, true)
 			matched++
 		} else {

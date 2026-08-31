@@ -141,7 +141,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 func (b *Backend) updateOrDiscard(instanceName naming.InstanceName, snapInfo *snap.Info) error {
 	logger.Debugf("update or discard mount ns for snap %v", snapInfo.InstanceName())
 
-	if err := UpdateSnapNamespace(instanceName.TODOInstanceName()); err != nil {
+	if err := UpdateSnapNamespace(instanceName.String()); err != nil {
 		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
 		for _, app := range snapInfo.Apps {
 			if app.Daemon != "" && app.RefreshMode == "endure" {
@@ -151,7 +151,7 @@ func (b *Backend) updateOrDiscard(instanceName naming.InstanceName, snapInfo *sn
 		logger.Noticef("discarding mount namespace of snap %q due update failure: %v", instanceName, err)
 		// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
 		// the update can fail. Discarding the namespace allows to solve this.
-		if err = DiscardSnapNamespace(instanceName.TODOInstanceName()); err != nil {
+		if err = DiscardSnapNamespace(instanceName.String()); err != nil {
 			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", instanceName, err)
 		}
 	}
@@ -275,7 +275,7 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 }
 
 func opportunisticDiscard(appSet *interfaces.SnapAppSet) error {
-	instanceName := appSet.InstanceName().TODOInstanceName()
+	instanceName := appSet.InstanceName().String()
 	return snaplock.WithTryLock(instanceName, func() error {
 		paths, err := cgroup.InstancePathsOfSnap(instanceName, cgroup.InstancePathsOptions{
 			ReturnCGroupPath: true,
