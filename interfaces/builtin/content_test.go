@@ -1456,6 +1456,25 @@ components:
 		`component paths can only be used with read, not write: "\$SNAP_COMPONENT\(comp1\)/share"`)
 }
 
+func (s *ContentSuite) TestSanitizeSlotComponentDirtySubpathInWrite(c *C) {
+	const yaml = `name: producer
+version: 0
+slots:
+  content:
+    interface: content
+    write:
+      - $SNAP_COMPONENT(comp1)/../out
+components:
+  comp1:
+    type: standard
+`
+	// Even with a dirty subpath, a component path in write must report the
+	// read-only restriction, not a subpath validation error.
+	slot := MockSlot(c, yaml, nil, "content")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`component paths can only be used with read, not write: "\$SNAP_COMPONENT\(comp1\)/\.\./out"`)
+}
+
 func (s *ContentSuite) TestSanitizeSlotComponentMalformed(c *C) {
 	const tmpl = `name: producer
 version: 0

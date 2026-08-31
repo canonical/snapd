@@ -101,30 +101,37 @@ const componentPrefix = "$SNAP_COMPONENT("
 // parseComponentPath decomposes a $SNAP_COMPONENT(<name>)[/<sub>] path.
 //
 // If the path is not a component path (does not start with componentPrefix),
-// isComponent is false and the other return values are zero.
+// isComponent is false and the other return values are empty.
 //
 // If it is a component path, compName holds the component name and subPath
 // holds the remainder (possibly empty, meaning the whole component is shared).
-// err is set when the path is malformed. Whole-component sharing is allowed:
-// both $SNAP_COMPONENT(foo) and $SNAP_COMPONENT(foo)/ resolve with subPath == "".
+// err is set when the path is malformed, or when the subpath (when present)
+// does not pass the same validation as ordinary paths. Whole-component
+// sharing is allowed: both $SNAP_COMPONENT(foo) and $SNAP_COMPONENT(foo)/
+// resolve with subPath == "".
 func parseComponentPath(path string) (compName, subPath string, isComponent bool, err error) {
 	if !strings.HasPrefix(path, componentPrefix) {
 		return "", "", false, nil
 	}
 	rest := path[len(componentPrefix):]
 	compName, tail, had := strings.Cut(rest, ")")
-	if !had || compName == "" {
+	if !had || compName == "" || (tail != "" && !strings.HasPrefix(tail, "/")) {
 		return "", "", true, fmt.Errorf("invalid format in path %q", path)
 	}
 	if tail == "" || tail == "/" {
 		// Whole-component sharing: $SNAP_COMPONENT(foo) or $SNAP_COMPONENT(foo)/
 		return compName, "", true, nil
 	}
-	if !strings.HasPrefix(tail, "/") {
-		// Trailing non-slash characters after ), e.g. $SNAP_COMPONENT(foo)bar
-		return "", "", true, fmt.Errorf("invalid format in path %q", path)
+
+	// $SNAP_COMPONENT(foo)/bar -> bar
+	subPath = tail[1:]
+	if subPath != "" {
+		if err := validatePath(subPath); err != nil {
+			return "", "", true, err
+		}
 	}
-	return compName, tail[1:], true, nil
+
+	return compName, subPath, true, nil
 }
 
 func checkLabelAttributes(attrs map[string]any, nameDef string) error {
@@ -188,28 +195,26 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// reference a component declared in the snap, and their subpath (when
 	// present) must pass the same validation as ordinary paths.
 	for _, p := range wpath {
-		if _, _, isComp, err := parseComponentPath(p); err != nil {
-			return err
-		} else if isComp {
+		// isComp is checked before err so that even a malformed component
+		// path (e.g. dirty subpath) in a write list reports the read-only
+		// restriction.
+		if _, _, isComp, err := parseComponentPath(p); isComp {
 			return fmt.Errorf("component paths can only be used with read, not write: %q", p)
+		} else if err != nil {
+			return err
 		}
 		if err := validatePath(p); err != nil {
 			return err
 		}
 	}
 	for _, p := range rpath {
-		compName, subPath, isComp, err := parseComponentPath(p)
+		compName, _, isComp, err := parseComponentPath(p)
 		if err != nil {
 			return err
 		}
 		if isComp {
 			if _, ok := slot.Snap.Components[compName]; !ok {
 				return fmt.Errorf("component %s specified in path %q is not defined in the snap", compName, p)
-			}
-			if subPath != "" {
-				if err := validatePath(subPath); err != nil {
-					return err
-				}
 			}
 			continue
 		}
@@ -294,12 +299,39 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info, perspective snap.E
 	return snapInfo.ExpandSnapVariablesSetSnapMountDir(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, perspective)
 }
 
+// componentSource resolves the source path and the basename to use for
+// target derivation for an installed component. ok is false if the
+// component is declared in the snap but not installed (absent from the
+// app set).
+func componentSource(slot *interfaces.ConnectedSlot, compName, subPath string) (source, sourceName string, ok bool) {
+	ci := slot.AppSet().Component(compName)
+	if ci == nil {
+		// Component declared but not installed.
+		return "", "", false
+	}
+	// snap.ComponentMountDir is rooted at dirs.SnapMountDir, but content
+	// interface paths must use dirs.CoreSnapMountDir to be consistent with
+	// $SNAP resolution and visible inside the snap mount namespace (where
+	// /snap is the mount point, not /var/lib/snapd/snap).
+	compMountDir := snap.ComponentMountDir(compName, ci.Revision, slot.Snap().InstanceName())
+	source = filepath.Clean(filepath.Join(
+		dirs.CoreSnapMountDir, strings.TrimPrefix(compMountDir, dirs.SnapMountDir), subPath))
+	if subPath == "" {
+		// Whole-component sharing: use the component name as the
+		// basename so that, with a "source" section present, the target
+		// resolves to <target>/<compName> rather than the revision
+		// directory.
+		sourceName = compName
+	}
+	return source, sourceName, true
+}
+
 // sourceTarget resolves the source and target paths for a given read/write
 // slot path. For component paths ($SNAP_COMPONENT(...)), the source is the
 // component mount directory of the installed component; if the component is
-// declared but not installed (not present in the slot's app set), ok is false
-// and the caller should skip the path. For ordinary paths the behavior is
-// unchanged and ok is always true.
+// declared in the snap but not installed (absent from the slot's app set),
+// ok is false and the caller should skip the path. For ordinary paths the
+// behavior is unchanged and ok is always true.
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (source, target string, ok bool) {
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
@@ -311,30 +343,9 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 	var sourceName string
 
 	if compName, subPath, isComp, err := parseComponentPath(relSrc); err == nil && isComp {
-		var ci *snap.ComponentInfo
-		for _, comp := range slot.AppSet().Components() {
-			if comp.Component.ComponentName == compName {
-				ci = comp
-				break
-			}
-		}
-		if ci == nil {
-			// Component declared but not installed: skip this path.
+		source, sourceName, ok = componentSource(slot, compName, subPath)
+		if !ok {
 			return "", "", false
-		}
-		// snap.ComponentMountDir is rooted at dirs.SnapMountDir, but content
-		// interface paths must use dirs.CoreSnapMountDir to be consistent with
-		// $SNAP resolution and visible inside the snap mount namespace (where
-		// /snap is the mount point, not /var/lib/snapd/snap).
-		compMountDir := snap.ComponentMountDir(compName, ci.Revision, slot.Snap().InstanceName())
-		source = filepath.Clean(filepath.Join(
-			dirs.CoreSnapMountDir, strings.TrimPrefix(compMountDir, dirs.SnapMountDir), subPath))
-		if subPath == "" {
-			// Whole-component sharing: use the component name as the
-			// basename so that, with a "source" section present, the target
-			// resolves to <target>/<compName> rather than the revision
-			// directory.
-			sourceName = compName
 		}
 	} else {
 		// Errors from parseComponentPath are safely ignored here: the slot
@@ -357,6 +368,9 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 	return source, target, true
 }
 
+// mountEntry builds the bind-mount entry for a read/write slot path. ok is
+// false if the path references a component that is declared in the snap but
+// not installed; the caller should then skip the entry.
 func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string, extraOptions ...string) (osutil.MountEntry, bool) {
 	options := make([]string, 0, len(extraOptions)+1)
 	options = append(options, "bind")
