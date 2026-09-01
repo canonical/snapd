@@ -63,26 +63,27 @@ var (
 )
 
 const (
-	MaxDALockoutTokens      = maxDALockoutTokens
+	DALockoutMaxTokens      = daLockoutMaxTokens
 	DALockoutRefillInterval = daLockoutRefillInterval
+	DALockoutSyncInterval   = daLockoutSyncInterval
 )
 
 // GetDALockoutRateLimit returns the current DA lockout token bucket state.
-func GetDALockoutRateLimit(st *state.State) (tokens int, lastRefill time.Time, err error) {
+func GetDALockoutRateLimit(st *state.State) (tokens int, lastUpdate time.Time, err error) {
 	var s FdeState
 	if err := st.Get(fdeStateKey, &s); err != nil {
 		return 0, time.Time{}, err
 	}
-	return s.DALockoutRateLimit.Tokens, s.DALockoutRateLimit.LastRefill, nil
+	return s.DALockoutRateLimit.Tokens, s.DALockoutRateLimit.LastUpdate, nil
 }
 
 // SetDALockoutRateLimit sets the DA lockout token bucket state.
-func SetDALockoutRateLimit(st *state.State, tokens int, lastRefill time.Time, bootID string) error {
+func SetDALockoutRateLimit(st *state.State, tokens int, lastUpdate time.Time, bootID string) error {
 	var s FdeState
 	if err := st.Get(fdeStateKey, &s); err != nil {
 		return err
 	}
-	s.DALockoutRateLimit = &daLockoutRateLimit{Tokens: tokens, LastRefill: lastRefill, BootID: bootID}
+	s.DALockoutRateLimit = &daLockoutRateLimit{Tokens: tokens, LastUpdate: lastUpdate, BootID: bootID}
 	st.Set(fdeStateKey, &s)
 	return nil
 }
@@ -235,4 +236,8 @@ func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore
 
 func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
 	return testutil.Mock(&secbootPostinstallCheck, f)
+}
+
+func MockSecbootGetDALockoutCounter(f func() (int, error)) (restore func()) {
+	return testutil.Mock(&secbootGetDALockoutCounter, f)
 }

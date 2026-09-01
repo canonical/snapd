@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/client"
@@ -349,7 +350,7 @@ func FDEChangeAuthThrottled(err *fdestate.DALockoutThrottledError) *apiError {
 		Message: err.Error(),
 		Kind:    client.ErrorKindFDEChangeAuthThrottled,
 		Value: map[string]any{
-			"retry-after": err.RetryAfter,
+			"retry-after": err.RetryAfter.Format(time.RFC3339),
 		},
 	}
 }

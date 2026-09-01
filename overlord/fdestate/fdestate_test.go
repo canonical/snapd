@@ -505,8 +505,8 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// Reset the rate-limiter
-	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
+	// reset the DA lockout rate limiter
+	fdestate.SetDALockoutRateLimit(s.st, fdestate.DALockoutMaxTokens, time.Now(), s.bootId)
 
 	logBuf, restore := logger.MockLogger()
 	defer restore()
@@ -680,36 +680,41 @@ func (s *fdeMgrSuite) TestConsumeDALockoutToken(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
+	currentDALockoutCounter := 5
+	defer fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
+		return currentDALockoutCounter, nil
+	})()
+
 	now := time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)
 	defer fdestate.MockTimeNow(func() time.Time { return now })()
 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// a non-initialized bucket is an error
-	c.Assert(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "DA lockout rate-limit bucket is not initialized: reboot required")
-
-	// reset the rate-limiter
-	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
-
-	// now it is initialized, consume all tokens
-	for i := 0; i < fdestate.MaxDALockoutTokens; i++ {
+	// rate limiter is initialized with value from the TPM DA lockout counter
+	// consume remaining tokens
+	for i := 0; i < fdestate.DALockoutMaxTokens-currentDALockoutCounter; i++ {
 		c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
 	}
 
-	tokens, lastRefill, err := fdestate.GetDALockoutRateLimit(s.st)
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
 	c.Assert(err, IsNil)
 	c.Check(tokens, Equals, 0)
-	c.Check(lastRefill.Equal(now), Equals, true)
+	c.Check(lastUpdate.Equal(now), Equals, true)
 
 	// the next attempt is throttled
 	err = fdestate.ConsumeDALockoutToken(s.st)
 	var throttledErr *fdestate.DALockoutThrottledError
 	c.Assert(errors.As(err, &throttledErr), Equals, true)
 	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
+
+	tokens, lastUpdate, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastUpdate.Equal(now), Equals, true)
 }
 
-func (s *fdeMgrSuite) TestConsumeDALockoutTokenLazyRefill(c *C) {
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenLazySync(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
@@ -724,25 +729,35 @@ func (s *fdeMgrSuite) TestConsumeDALockoutTokenLazyRefill(c *C) {
 	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start, s.bootId), IsNil)
 
 	// throttled while empty
-	c.Check(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "too many authentication attempts, try again later")
+	c.Check(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "too many authentication attempts, try again after .*")
 
-	// after one refill interval, one token is available
-	now = start.Add(fdestate.DALockoutRefillInterval)
+	currentDALockoutCounter := 5
+	restore := fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
+		return currentDALockoutCounter, nil
+	})
+	defer restore()
+
+	// after one sync interval, TPM is consulted for the current DA lockout counter
+	now = start.Add(fdestate.DALockoutSyncInterval)
 	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
-	tokens, lastRefill, err := fdestate.GetDALockoutRateLimit(s.st)
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, fdestate.DALockoutMaxTokens-currentDALockoutCounter-1)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+
+	currentDALockoutCounter = 16
+
+	// after another sync interval, TPM is consulted again
+	now = now.Add(fdestate.DALockoutSyncInterval)
+	err = fdestate.ConsumeDALockoutToken(s.st)
+	c.Assert(err, ErrorMatches, "too many authentication attempts, try again after .*")
+	tokens, lastUpdate, err = fdestate.GetDALockoutRateLimit(s.st)
 	c.Assert(err, IsNil)
 	c.Check(tokens, Equals, 0)
-	c.Check(lastRefill.Equal(now), Equals, true)
-
-	// after two more intervals, two tokens are refilled (one is then consumed)
-	now = now.Add(2 * fdestate.DALockoutRefillInterval)
-	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
-	tokens, _, err = fdestate.GetDALockoutRateLimit(s.st)
-	c.Assert(err, IsNil)
-	c.Check(tokens, Equals, 1)
+	c.Check(lastUpdate.Equal(now), Equals, true)
 }
 
-func (s *fdeMgrSuite) TestConsumeDALockoutTokenRefillCappedAtMax(c *C) {
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenNoSyncWithinInterval(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
@@ -750,33 +765,54 @@ func (s *fdeMgrSuite) TestConsumeDALockoutTokenRefillCappedAtMax(c *C) {
 	now := start
 	defer fdestate.MockTimeNow(func() time.Time { return now })()
 
+	// the TPM must not be consulted within the sync interval
+	defer fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
+		c.Fatal("unexpected TPM DA lockout counter read within the sync interval")
+		return 0, nil
+	})()
+
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// drain the bucket
-	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start, s.bootId), IsNil)
+	// seed a valid, partially-filled bucket for the current boot
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 5, start, s.bootId), IsNil)
 
-	// let a very long time pass, way more than needed to refill the whole bucket
-	now = start.Add(1000 * fdestate.DALockoutRefillInterval)
-	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	// consume a few tokens just before the sync interval elapses
+	now = start.Add(fdestate.DALockoutSyncInterval - time.Second)
+	for i := 0; i < 3; i++ {
+		c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	}
 
-	// the bucket is capped at max (minus the one just consumed)
-	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
+	// tokens were decremented locally without re-syncing with the TPM
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
 	c.Assert(err, IsNil)
-	c.Check(tokens, Equals, fdestate.MaxDALockoutTokens-1)
+	c.Check(tokens, Equals, 2)
+	c.Check(lastUpdate.Equal(now), Equals, true)
 }
 
 func (s *fdeMgrSuite) TestConsumeDALockoutTokenBadBootID(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
 
+	now := time.Now()
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	currentDALockoutCounter := 9
+	defer fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
+		return currentDALockoutCounter, nil
+	})()
+
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// full bucket, but with a bad boot ID (e.g. after a reboot, before reset)
-	c.Assert(fdestate.SetDALockoutRateLimit(s.st, fdestate.MaxDALockoutTokens, time.Now(), "bad-boot-id"), IsNil)
+	// full bucket, but with a bad boot ID forces a TPM counter sync.
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, fdestate.DALockoutMaxTokens, now, "bad-boot-id"), IsNil)
 
-	c.Assert(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "DA lockout rate-limit bucket is from a previous boot: reboot required")
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, fdestate.DALockoutMaxTokens-currentDALockoutCounter-1)
+	c.Check(lastUpdate.Equal(now), Equals, true)
 }
 
 func (s *fdeMgrSuite) TestResetDALockoutRateLimit(c *C) {
@@ -792,12 +828,29 @@ func (s *fdeMgrSuite) TestResetDALockoutRateLimit(c *C) {
 	// drain the bucket
 	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, now.Add(-time.Minute), s.bootId), IsNil)
 
+	// mock actual TPM DA lockout counter
+	currentDALockoutCounter := 5
+	restore := fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
+		return currentDALockoutCounter, nil
+	})
+	defer restore()
+
 	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
 
-	tokens, lastRefill, err := fdestate.GetDALockoutRateLimit(s.st)
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
 	c.Assert(err, IsNil)
-	c.Check(tokens, Equals, fdestate.MaxDALockoutTokens)
-	c.Check(lastRefill.Equal(now), Equals, true)
+	c.Check(tokens, Equals, fdestate.DALockoutMaxTokens-currentDALockoutCounter)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+
+	// big counter cannot drain the bucket below zero
+	currentDALockoutCounter = 9999
+
+	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
+
+	tokens, lastUpdate, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastUpdate.Equal(now), Equals, true)
 }
 
 func (s *fdeMgrSuite) TestResetDALockoutRateLimitNoState(c *C) {

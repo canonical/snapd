@@ -1529,3 +1529,19 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 	keyData := keyData{kd: protectedKey}
 	return keyData.WriteTokenAtomic(devicePath, slotName)
 }
+
+func GetDALockoutCounter() (int, error) {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		err = fmt.Errorf("cannot connect to TPM device: %v", err)
+		logger.Noticef("%v", err)
+		return 0, err
+	}
+	defer tpm.Close()
+
+	counter, err := tpm.GetCapabilityTPMProperty(tpm2.PropertyLockoutCounter)
+	if err != nil {
+		return 0, fmt.Errorf("cannot get lockout counter from TPM: %v", err)
+	}
+	return int(counter), nil
+}

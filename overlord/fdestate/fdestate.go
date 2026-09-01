@@ -41,6 +41,7 @@ var (
 	secbootGetPrimaryKeyDigest    = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest = secboot.VerifyPrimaryKeyDigest
 	secbootGetPCRHandle           = secboot.GetPCRHandle
+	secbootGetDALockoutCounter    = secboot.GetDALockoutCounter
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -182,25 +183,59 @@ type FdeState struct {
 	DALockoutRateLimit *daLockoutRateLimit `json:"da-lockout-rate-limit"`
 }
 
+const (
+	// daLockoutMaxTokens is the maximum number of tries snapd allows before
+	// throttling. It is kept below the TPM's maximum number of tries (32)
+	// (see secboot tpm2/provisioning.go).
+	daLockoutMaxTokens = 16
+	// daLockoutRefillInterval is the TPM DA lockout recoveryTime (7200s), i.e.
+	// the interval at which the TPM lockout counter is decremented by 1 (see
+	// secboot tpm2/provisioning.go). It is only used to approximate the
+	// retry-after hint returned when throttled.
+	daLockoutRefillInterval = 2 * time.Hour
+	// daLockoutSyncInterval is the interval at which the DA lockout rate limiter is
+	// synchronized with the actual TPM DA lockout counter. This avoids an unprivileged
+	// user from spamming snapd by doing expensive syncs with the TPM.
+	daLockoutSyncInterval = 5 * time.Minute
+)
+
 // daLockoutRateLimit is a token bucket mirroring the TPM DA lockout counter.
 type daLockoutRateLimit struct {
 	Tokens     int       `json:"tokens"`
-	LastRefill time.Time `json:"last-refill"`
+	LastUpdate time.Time `json:"last-update"`
 
 	BootID string `json:"last-boot-id"`
 }
 
-const (
-	// maxDALockoutTokens is the maximum number of tokens in the bucket. It
-	// is less than the maximum number of tries (32) (see secboot tpm2/provisioning.go).
-	maxDALockoutTokens = 16
-	// daLockoutRefillInterval is the interval at which one token is refilled.
-	// It mirrors the TPM DA lockout recoveryTime (7200s) (see secboot tpm2/provisioning.go).
-	daLockoutRefillInterval = 2 * time.Hour
-)
+func (rl *daLockoutRateLimit) syncNeeded(currentBootID string) bool {
+	if elapsed := timeNow().Sub(rl.LastUpdate); elapsed >= daLockoutSyncInterval {
+		return true
+	}
 
-// consumeDALockoutToken lazily refills the DA lockout token bucket and then
-// consumes a single token. It must be called with the state lock held.
+	return rl.BootID != currentBootID
+}
+
+func initDALockoutRateLimit(currentBootID string) (*daLockoutRateLimit, error) {
+	daLockoutCounter, err := secbootGetDALockoutCounter()
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := daLockoutMaxTokens - daLockoutCounter
+	if tokens < 0 {
+		tokens = 0
+	}
+
+	return &daLockoutRateLimit{
+		Tokens:     tokens,
+		LastUpdate: timeNow(),
+		BootID:     currentBootID,
+	}, nil
+}
+
+// consumeDALockoutToken lazily synchronizes the DA lockout token bucket with
+// the TPM DA lockout counter and then consumes a single token. It must be
+// called with the state lock held.
 //
 // If the bucket is empty a *DALockoutThrottledError is returned and no token
 // is consumed.
@@ -210,46 +245,37 @@ func consumeDALockoutToken(st *state.State) error {
 		return err
 	}
 
-	bucket := s.DALockoutRateLimit
-	// A non-initialized bucket is an error, ResetDALockoutRateLimit must be called first.
-	if bucket == nil {
-		return fmt.Errorf("DA lockout rate-limit bucket is not initialized: reboot required")
-	}
-
 	currentBootID, err := osutilBootID()
 	if err != nil {
 		return fmt.Errorf("cannot obtain current boot ID: %w", err)
 	}
-	if bucket.BootID != currentBootID {
-		return fmt.Errorf("DA lockout rate-limit bucket is from a previous boot: reboot required")
-	}
 
-	now := timeNow()
-	// Lazily refill based on the elapsed time since the last refill.
-	if elapsed := now.Sub(bucket.LastRefill); elapsed >= daLockoutRefillInterval {
-		add := int(elapsed / daLockoutRefillInterval)
-		bucket.Tokens += add
-		if bucket.Tokens > maxDALockoutTokens {
-			bucket.Tokens = maxDALockoutTokens
+	bucket := s.DALockoutRateLimit
+	if bucket == nil || bucket.syncNeeded(currentBootID) {
+		bucket, err = initDALockoutRateLimit(currentBootID)
+		if err != nil {
+			return err
 		}
-		bucket.LastRefill = now
+
+		s.DALockoutRateLimit = bucket
+		st.Set(fdeStateKey, &s)
 	}
 
-	if bucket.Tokens <= 0 {
-		return &DALockoutThrottledError{RetryAfter: bucket.LastRefill.Add(daLockoutRefillInterval)}
+	if bucket.Tokens < 1 {
+		// this is not exact retry-after time as it might be less, but a good approximation.
+		return &DALockoutThrottledError{RetryAfter: bucket.LastUpdate.Add(daLockoutRefillInterval)}
 	}
 
 	bucket.Tokens--
+	bucket.LastUpdate = timeNow()
 	s.DALockoutRateLimit = bucket
 	st.Set(fdeStateKey, &s)
 
 	return nil
 }
 
-// ResetDALockoutRateLimit refills the DA lockout rate-limit token bucket to its
-// maximum. It is meant to be called right after the TPM DA lockout counter has
-// been reset, so both stay in lockstep. It must be called with the state lock
-// held.
+// ResetDALockoutRateLimit re-synchronizes the DA lockout rate-limit token bucket
+// with the TPM DA lockout counter. It must be called with the state lock held.
 func ResetDALockoutRateLimit(st *state.State) error {
 	var s FdeState
 	err := st.Get(fdeStateKey, &s)
@@ -261,16 +287,17 @@ func ResetDALockoutRateLimit(st *state.State) error {
 		return err
 	}
 
-	bootID, err := osutilBootID()
+	currentBootID, err := osutilBootID()
 	if err != nil {
 		return err
 	}
 
-	s.DALockoutRateLimit = &daLockoutRateLimit{
-		Tokens:     maxDALockoutTokens,
-		LastRefill: timeNow(),
-		BootID:     bootID,
+	bucket, err := initDALockoutRateLimit(currentBootID)
+	if err != nil {
+		return err
 	}
+
+	s.DALockoutRateLimit = bucket
 	st.Set(fdeStateKey, &s)
 
 	return nil
