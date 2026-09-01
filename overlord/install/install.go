@@ -477,20 +477,21 @@ func encryptionAvailabilityCheck(
 	checkAction *secboot.PreinstallAction,
 	model *asserts.Model,
 ) (*secboot.PreinstallCheckContext, string, []secboot.PreinstallErrorDetails, error) {
-	// Now we know what we could install/recovery/reset is
-	// supported, let's check for where we are currently
-	// running.
-
 	var tpmMode secboot.TPMProvisionMode
 	var postInstall bool
 	var currentBootMode bootMode
 
+	// The model is the system we might install; modeenv is where we are
+	// running. Pre vs post install checks and which boot images to use
+	// follow the current boot, not the model.
 	modeenv, err := bootMaybeReadModeenv()
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("cannot read modeenv: %v", err)
+		return nil, "", nil, err
 	}
 
 	if modeenv == nil {
+		// No modeenv means a classic installer ISO, not a
+		// core-based installer.
 		currentBootMode = ubuntuISOBootMode
 		postInstall = false
 		tpmMode = secboot.TPMProvisionFull
@@ -608,7 +609,7 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 }
 
 func orderedCurrentBootImages(currentBootMode bootMode) ([]bootloader.BootFile, error) {
-	// model represents what we want to install, and currentBootMode is what we have booted
+	// Note that currentBootMode is the boot mode of what we have booted, not what we are installing.
 	switch currentBootMode {
 	case ubuntuISOBootMode:
 		images, err := orderedCurrentBootImagesHybrid()
@@ -626,9 +627,9 @@ func orderedCurrentBootImages(currentBootMode bootMode) ([]bootloader.BootFile, 
 		// TODO: When support for post/pre install checks in
 		// Core, we will need to find the recover boot
 		// chain. For now this is not used.
-		return nil, fmt.Errorf("orderedCurrentBootImages: ephemeral boot mode is not yet implemented")
+		return nil, fmt.Errorf("pre/post-install check is not yet implemented for ephemeral boot mode")
 	default:
-		return nil, fmt.Errorf("cannot find current boot chain: unknown current boot mode")
+		return nil, fmt.Errorf("internal error: cannot find current boot chain: unknown current boot mode %v", currentBootMode)
 	}
 }
 

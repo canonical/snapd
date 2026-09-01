@@ -1039,7 +1039,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			nil,
 			"",
 			nil,
-			"cannot locate ordered current boot images: orderedCurrentBootImages: ephemeral boot mode is not yet implemented",
+			"cannot locate ordered current boot images: pre/post-install check is not yet implemented for ephemeral boot mode",
 		},
 		// post install case, factory-reset mode
 		{
@@ -1052,7 +1052,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			nil,
 			"",
 			nil,
-			"cannot locate ordered current boot images: orderedCurrentBootImages: ephemeral boot mode is not yet implemented",
+			"cannot locate ordered current boot images: pre/post-install check is not yet implemented for ephemeral boot mode",
 		},
 		// post install case, install mode
 		{
@@ -1065,7 +1065,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			nil,
 			"",
 			nil,
-			"cannot locate ordered current boot images: orderedCurrentBootImages: ephemeral boot mode is not yet implemented",
+			"cannot locate ordered current boot images: pre/post-install check is not yet implemented for ephemeral boot mode",
 		},
 	} {
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, tc.checkFailErrors, nil, tc.fromISO, tc.provisioned)

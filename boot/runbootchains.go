@@ -31,9 +31,9 @@ import (
 // GetRunBootChain returns the boot chain expected to be used
 // for a normal "run" mode boot.
 //
-// The image files in the bootchain will either point a file in a snap
-// or to a file in the trusted boot asset cache. They will not
-// point to the effective path where the read from, though they
+// The image files in the bootchain will either point to a file in a snap
+// or in the trusted boot asset cache. They will not
+// point to the effective path where it is read from, though they
 // are expected to be the same, unless boot partition were compromised.
 func GetRunBootChain(modeenv *Modeenv) ([]bootloader.BootFile, error) {
 	rbl, err := bootloaderFind(InitramfsUbuntuSeedDir, &bootloader.Options{

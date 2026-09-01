@@ -49,7 +49,7 @@ func (s *runBootChainsSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChains(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChain(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
 	recoveryBl.TrustedAssetsMap = map[string]string{
 		"EFI/ubuntu/shim.efi": "ubuntu:shim",
@@ -123,7 +123,7 @@ func (s *runBootChainsSuite) TestGetRunBootChains(c *C) {
 	})
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsTryKernel(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainTryKernel(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
 	recoveryBl.TrustedAssetsMap = map[string]string{
 		"EFI/ubuntu/shim.efi": "ubuntu:shim",
@@ -196,7 +196,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsTryKernel(c *C) {
 	})
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsNoKernel(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainNoKernel(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
 	recoveryBl.TrustedAssetsMap = map[string]string{
 		"EFI/ubuntu/shim.efi": "ubuntu:shim",
@@ -245,7 +245,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsNoKernel(c *C) {
 	c.Assert(err, ErrorMatches, "boom")
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsFailedTryKernel(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainFailedTryKernel(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
 	recoveryBl.TrustedAssetsMap = map[string]string{
 		"EFI/ubuntu/shim.efi": "ubuntu:shim",
@@ -295,7 +295,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsFailedTryKernel(c *C) {
 	c.Assert(err, ErrorMatches, `boom`)
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsNoRecoveryBl(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainNoRecoveryBl(c *C) {
 	runBl := bootloadertest.Mock("run", "").WithExtractedRunKernelImage()
 	runBl.SetEnabledKernel(&snap.Info{SuggestedName: "some-kernel", InstanceKey: "x1", SnapType: snap.TypeKernel})
 
@@ -330,7 +330,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsNoRecoveryBl(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find recovery bootloader: boom`)
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsBadRecoveryBl(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainBadRecoveryBl(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "")
 
 	runBl := bootloadertest.Mock("run", "").WithExtractedRunKernelImage()
@@ -367,7 +367,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsBadRecoveryBl(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: recovery bootloader does not support trusted assets`)
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsNoRunBl(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainNoRunBl(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
 	recoveryBl.TrustedAssetsMap = map[string]string{
 		"EFI/ubuntu/shim.efi": "ubuntu:shim",
@@ -413,7 +413,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsNoRunBl(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find run bootloader: boom`)
 }
 
-func (s *runBootChainsSuite) TestGetRunBootChainsBadRunBl(c *C) {
+func (s *runBootChainsSuite) TestGetRunBootChainBadRunBl(c *C) {
 	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
 	recoveryBl.TrustedAssetsMap = map[string]string{
 		"EFI/ubuntu/shim.efi": "ubuntu:shim",
