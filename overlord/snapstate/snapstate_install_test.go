@@ -3998,6 +3998,7 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation)
 	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -4625,6 +4626,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation)
 	tr.Commit()
 
 	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
@@ -6198,6 +6200,7 @@ epoch: 1
 	}
 	tr := config.NewTransaction(s.state)
 	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation), IsNil)
 	tr.Commit()
 
 	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)

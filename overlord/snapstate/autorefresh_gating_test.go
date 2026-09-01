@@ -2302,6 +2302,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-refresh", true)
+	tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation)
 	tr.Commit()
 
 	snapstate.ReplaceStore(s.state, &autoRefreshGatingStore{

@@ -196,6 +196,7 @@ func (s *snapmgrTestSuite) testRemoveDiskSpaceCheck(c *C, featureFlag, automatic
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", featureFlag)
+	tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation)
 	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -1620,6 +1621,7 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", featureFlag)
+	tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation)
 	tr.Commit()
 
 	snapstate.Set(s.state, "one", &snapstate.SnapState{
