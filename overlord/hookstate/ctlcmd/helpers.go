@@ -723,13 +723,13 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
-	var initiatorSnapName string
-	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	var initiatorInstanceName string
+	err := chg.Get("initiated-by-snap", &initiatorInstanceName)
 	if err != nil {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
-	if initiatorSnapName != callerInstanceName.String() {
+	if initiatorInstanceName != callerInstanceName.String() {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
@@ -852,13 +852,13 @@ func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Chang
 		return nil, changeNotFoundError(changeID)
 	}
 
-	var initiatorSnapName string
-	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	var initiatorInstanceName string
+	err := chg.Get("initiated-by-snap", &initiatorInstanceName)
 	if err != nil {
 		return nil, changeNotFoundError(changeID)
 	}
 
-	if initiatorSnapName != callerInstanceName.String() {
+	if initiatorInstanceName != callerInstanceName.String() {
 		return nil, changeNotFoundError(changeID)
 	}
 
