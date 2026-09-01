@@ -1295,8 +1295,7 @@ func (m *DeviceManager) ensureFDE() error {
 	// FIXME: we should rename to something like "reset lockout"
 	lockoutResetErr := secbootMarkSuccessful()
 
-	// The TPM DA lockout counter was just reset, so refill the rate-limiting
-	// token bucket to keep the two in sync.
+	// Sync DA lockout rate-limiter with real TPM counter.
 	if lockoutResetErr == nil {
 		if err := fdestateResetDALockoutRateLimit(m.state); err != nil {
 			return err
