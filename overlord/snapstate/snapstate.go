@@ -3220,18 +3220,18 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
-		reservation, reservationErr := diskSpaceReservation(config.NewTransaction(st))
-		if reservationErr != nil {
-			if errors.Is(reservationErr, diskSpaceUnsetError) {
+		reservation, err := diskSpaceReservation(config.NewTransaction(st))
+		if err != nil {
+			if errors.Is(err, diskSpaceUnsetError) {
 				return ts, err
 			}
-			return nil, reservationErr
+			return nil, err
 		}
 
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 		messagePrefix := "cannot create automatic snapshot when removing last revision of the snap"
-		if checkErr := checkForAvailableSpace(snapshotSize, reservation, []string{name}, "remove", path, messagePrefix); checkErr != nil {
-			return nil, checkErr
+		if err := checkForAvailableSpace(snapshotSize, reservation, []string{name}, "remove", path, messagePrefix); err != nil {
+			return nil, err
 		}
 	}
 	return ts, err
