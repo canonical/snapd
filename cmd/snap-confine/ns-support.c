@@ -486,7 +486,7 @@ static bool managed_ca_cert_db_changed(const sc_invocation *inv, sc_distro distr
               current_generation);
         return true;
     } else if (!mount_supported) {
-        // If the namespace recorded a generation but the host no longer exposes one, 
+        // If the namespace recorded a generation but the host no longer exposes one,
         // then the preserved namespace is stale.
         return current_generation != NULL;
     }
