@@ -1523,16 +1523,14 @@ setup_reflash_magic() {
     UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    if os.query is-arm; then
-        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-    elif is_test_target_core 16; then
+    if is_test_target_core 16; then
         # the new ubuntu-image expects mkfs to support -d option, which was not
         # supported yet by the version of mkfs that shipped with Ubuntu 16.04
         snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
     else
         # shellcheck source=tests/lib/image.sh
         . "$TESTSLIB/image.sh"
-        get_ubuntu_image
+        prepare_ubuntu_image
     fi
 
     # needs to be under /home because ubuntu-device-flash
