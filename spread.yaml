@@ -977,7 +977,7 @@ rename:
     - s,^,$DELTA_PREFIX,S
 
 repack: |
-    # For Linode, compute a delta based on a known git reference that can be
+    # For openstack, compute a delta based on a known git reference that can be
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.

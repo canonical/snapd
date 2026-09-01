@@ -16,7 +16,6 @@ on:
         description: Job to run
         options:
           - spread-nightly
-          - spread-nightly-openstack
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
