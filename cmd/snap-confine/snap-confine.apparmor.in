@@ -135,6 +135,9 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     # For detecting if we're in a container
     /run/systemd/container r,
 
+    # For detecting whether /etc/ssl/certs is managed
+    /etc/ssl/certs/ r,
+
     # Don't allow changing profile to unconfined or profiles that start with
     # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
     # the environment for determining the capabilities of the architecture.
