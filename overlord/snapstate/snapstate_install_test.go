@@ -4033,6 +4033,7 @@ func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation)
 	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
