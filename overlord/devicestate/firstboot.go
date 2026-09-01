@@ -332,7 +332,7 @@ func (m *DeviceManager) populateStateFromSeedImpl(tm timings.Measurer) ([]*state
 			return nil, err
 		}
 		if info.Type() == snap.TypeKernel || info.Type() == snap.TypeGadget {
-			configTs := snapstate.ConfigureSnap(st, info.SnapName(), snapstate.UseConfigDefaults)
+			configTs := snapstate.ConfigureSnap(st, info.SnapName().String(), snapstate.UseConfigDefaults)
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)
 		}

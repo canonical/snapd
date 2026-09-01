@@ -107,12 +107,12 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Assert(appSets, HasLen, 2)
-			c.Check(appSets[0].Info().SnapName(), Equals, "some-snap")
-			c.Check(appSets[1].Info().SnapName(), Equals, "other-snap")
+			c.Check(appSets[0].Info().SnapName().String(), Equals, "some-snap")
+			c.Check(appSets[1].Info().SnapName().String(), Equals, "other-snap")
 			c.Assert(sctx, NotNil)
-			c.Check(sctx(appSets[0].Info().SnapName()),
+			c.Check(sctx(appSets[0].Info().SnapName().String()),
 				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
-			c.Check(sctx(appSets[1].Info().SnapName()),
+			c.Check(sctx(appSets[1].Info().SnapName().String()),
 				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 			setupManyCalls++
 			return nil

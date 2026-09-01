@@ -37,7 +37,7 @@ func whichModelSnap(modSnap *asserts.ModelSnap, model *asserts.Model) string {
 		return "core snap"
 	case "base":
 		what := fmt.Sprintf("base %q", modSnap.SnapName())
-		if modSnap.SnapName() == model.Base() {
+		if modSnap.SnapName().String() == model.Base() {
 			what = "boot " + what
 		}
 		return what

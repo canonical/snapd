@@ -203,7 +203,7 @@ func checkSnap(st *state.State, snapFilePath, instanceName string, si *snap.Side
 		}
 	}
 
-	if snapName != s.SnapName() {
+	if snapName != s.SnapName().String() {
 		return fmt.Errorf("cannot install snap %q using instance name %q", s.SnapName(), instanceName)
 	}
 

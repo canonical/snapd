@@ -105,7 +105,7 @@ func (s *SnapSet) Lookup(which SnapRef) SnapRef {
 			return ref
 		}
 	}
-	ref := s.byName[name]
+	ref := s.byName[name.String()]
 	if ref == nil || (ref.ID() != "" && whichID != "") {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (s *SnapSet) Add(ref SnapRef) {
 		inc = 1
 	}
 	if name := ref.SnapName(); name != "" {
-		s.byName[name] = ref
+		s.byName[name.String()] = ref
 		inc = 1
 	}
 	s.n += inc

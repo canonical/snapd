@@ -3019,7 +3019,7 @@ func (m *DeviceManager) loadSystemAndEssentialSnaps(wantedSystemLabel string, ty
 			return nil, fmt.Errorf("cannot use snap info, expected %s but got %s", typ, snapInfo.SnapType)
 		}
 		// Read components in the seed too, for the mode we are interested in
-		snapForMode, err := s.ModeSnap(seedSnap.SnapName(), modeForComps)
+		snapForMode, err := s.ModeSnap(seedSnap.SnapName().String(), modeForComps)
 		if err != nil {
 			return nil, fmt.Errorf("internal error while retrieving %s for %s mode: %v",
 				seedSnap.SnapName(), modeForComps, err)

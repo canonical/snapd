@@ -277,7 +277,7 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState, model *asserts.Model) (bo
 func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.Info, error) {
 	seedSnap := sysSnaps[snapType]
 	mountPoint := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snapType])
-	info, err := snap.ReadInfoFromMountPoint(seedSnap.SnapName(), mountPoint, seedSnap.Path, seedSnap.SideInfo)
+	info, err := snap.ReadInfoFromMountPoint(seedSnap.SnapName().String(), mountPoint, seedSnap.Path, seedSnap.SideInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -577,7 +577,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	// initrd-parse-etc.service does the reload, as it detects entries with the
 	// x-initrd.mount option.
 	hasDriversTree, err := createKernelMounts(
-		rootfsDir, kernelSnap.SnapName(), kernelSnap.Revision, !isCore)
+		rootfsDir, kernelSnap.SnapName().String(), kernelSnap.Revision, !isCore)
 	if err != nil {
 		return err
 	}
@@ -644,7 +644,7 @@ func generateMountsModeInstall(mst *initramfsMountsState) error {
 		// TODO when running normal install or recover/factory-reset,
 		// we would need also this if we want the modules to be
 		// available early.
-		kernSnap, err = theSeed.ModeSnap(kernSnap.SnapName(), "run")
+		kernSnap, err = theSeed.ModeSnap(kernSnap.SnapName().String(), "run")
 		if err != nil {
 			return err
 		}
@@ -2395,7 +2395,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// InitramfsRunModeSelectSnapsToMount guarantees we do have a kernel in the map.
 	kernPlaceInfo := mounts[snap.TypeKernel]
 	hasDriversTree, err := createKernelMounts(
-		rootfsDir, kernPlaceInfo.SnapName(), kernPlaceInfo.SnapRevision(), isClassic)
+		rootfsDir, kernPlaceInfo.SnapName().String(), kernPlaceInfo.SnapRevision(), isClassic)
 	if err != nil {
 		return err
 	}

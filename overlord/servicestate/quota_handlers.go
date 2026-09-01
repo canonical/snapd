@@ -193,7 +193,7 @@ func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), s
 		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
 		setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
-				RealName: info.SnapName(),
+				RealName: info.SnapName().String(),
 				Revision: info.Revision,
 			},
 		})

@@ -4830,7 +4830,7 @@ func (s *snapmgrTestSuite) TestFinishRestartGeneratesSnapdWrappersOnCore(c *C) {
 
 	var generateWrappersCalled bool
 	restore := snapstate.MockGenerateSnapdWrappers(func(snapInfo *snap.Info, opts *backend.GenerateSnapdWrappersOptions) error {
-		c.Assert(snapInfo.SnapName(), Equals, "snapd")
+		c.Assert(snapInfo.SnapName().String(), Equals, "snapd")
 		c.Assert(opts, IsNil)
 		generateWrappersCalled = true
 		return nil
@@ -4885,7 +4885,7 @@ type: snapd
 			snapstate.FinishRestartOptions{FinishRestartDefault: true}), IsNil)
 		c.Check(generateWrappersCalled, Equals, tc.expectedWrappersCall, Commentf("#%d: %v", i, tc))
 
-		c.Assert(os.RemoveAll(filepath.Join(snap.BaseDir(snapInfo.SnapName()), "current")), IsNil)
+		c.Assert(os.RemoveAll(filepath.Join(snap.BaseDir(snapInfo.SnapName().String()), "current")), IsNil)
 	}
 }
 
@@ -5427,7 +5427,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(info13.InstanceName(), Equals, "name1_instance")
-	c.Check(info13.SnapName(), Equals, "name1")
+	c.Check(info13.SnapName().String(), Equals, "name1")
 	c.Check(info13.Revision, Equals, snap.R(13))
 	c.Check(info13.Summary(), Equals, "s13 instance")
 	c.Check(info13.Version, Equals, "1.3")
@@ -10330,7 +10330,7 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 
 	essentials := []string{"snapd"}
 	for _, sn := range deviceCtx.Model().EssentialSnaps() {
-		essentials = append(essentials, sn.SnapName())
+		essentials = append(essentials, sn.SnapName().String())
 	}
 
 	type snapTaskSet struct {
@@ -10555,7 +10555,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 
 	for _, sn := range opts.expected {
 		var got snapstate.SnapState
-		err := snapstate.Get(s.state, sn.SnapName(), &got)
+		err := snapstate.Get(s.state, sn.SnapName().String(), &got)
 		c.Assert(err, IsNil)
 		c.Check(got.Current, Equals, sn.Revision)
 

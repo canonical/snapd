@@ -632,7 +632,7 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
-				RealName: snapInfo.SnapName(),
+				RealName: snapInfo.SnapName().String(),
 				Revision: snapInfo.Revision,
 				SnapID:   "ididid",
 			},

@@ -426,7 +426,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 			}
 		} else {
 			comp, err := snapst.CurrentComponentInfo(naming.ComponentRef{
-				SnapName:      info.SnapName(),
+				SnapName:      info.SnapName().String(),
 				ComponentName: hooksup.Component,
 			})
 			if err != nil {

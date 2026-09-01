@@ -516,7 +516,7 @@ func (s *Info) Provenance() string {
 // InstanceName returns the blessed name of the snap decorated with instance
 // key, if any.
 func (s *Info) InstanceName() string {
-	return InstanceName(s.SnapName(), s.InstanceKey)
+	return InstanceName(s.SnapName().String(), s.InstanceKey)
 }
 
 // ContainerName returns the name of the container, which is the instance name
@@ -783,7 +783,7 @@ const (
 // while being expanded for use in the context of the plug, special variables
 // may mean instance-specific value.
 func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, expandFor ExpandSnapPerspective) string {
-	name := s.SnapName()
+	name := s.SnapName().String()
 
 	if expandFor == PerspectiveOther {
 		name = s.InstanceName()
@@ -931,7 +931,7 @@ func BadInterfacesSummary(snapInfo *Info) string {
 // and desktop filename.
 func (s *Info) DesktopPrefix() string {
 	if s.InstanceKey == "" {
-		return s.SnapName()
+		return s.SnapName().String()
 	}
 	// we cannot use the usual "_" separator because that is also used
 	// to separate "$snap_$desktopfile"
@@ -1534,7 +1534,7 @@ func (app *AppInfo) launcherCommand(command string) string {
 	if command != "" {
 		command = " " + command
 	}
-	if app.Name == app.Snap.SnapName() {
+	if app.Name == app.Snap.SnapName().String() {
 		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Snap.InstanceName())
 	}
 	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.InstanceName(), app.Name)
@@ -1803,7 +1803,7 @@ func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, err
 
 	return ReadComponentInfoFromContainer(container, info, &ComponentSideInfo{
 		Revision:  revision,
-		Component: naming.NewComponentRef(info.SnapName(), component),
+		Component: naming.NewComponentRef(info.SnapName().String(), component),
 	})
 }
 

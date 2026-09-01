@@ -105,7 +105,7 @@ func shouldCopySnap(target *Snap, model *asserts.Model, modelSnaps map[string]*a
 		return true
 	}
 
-	modelSnap, ok := modelSnaps[target.SnapName()]
+	modelSnap, ok := modelSnaps[target.SnapName().String()]
 	if ok && modelSnap.Presence == "required" {
 		return true
 	}
@@ -117,7 +117,7 @@ func shouldCopySnap(target *Snap, model *asserts.Model, modelSnaps map[string]*a
 		return false
 	}
 
-	return strutil.ListContains(oc.Snaps, target.SnapName())
+	return strutil.ListContains(oc.Snaps, target.SnapName().String())
 }
 
 func shouldCopyComponent(target Component, snapName string, model *asserts.Model, modelSnaps map[string]*asserts.ModelSnap, oc *OptionalContainers) bool {
@@ -379,11 +379,11 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 
 func snapInModel(cref naming.SnapRef, modelSnaps map[string]*asserts.ModelSnap) bool {
 	// snapd is implicitly in the model
-	if cref.SnapName() == "snapd" {
+	if cref.SnapName().String() == "snapd" {
 		return true
 	}
 
-	_, ok := modelSnaps[cref.SnapName()]
+	_, ok := modelSnaps[cref.SnapName().String()]
 	return ok
 }
 
@@ -433,7 +433,7 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 
 	var optSnap *internal.Snap20
 	for _, os := range s.optSnaps {
-		if os.Name == sn.SnapName() {
+		if os.Name == sn.SnapName().String() {
 			cp := *os
 			optSnap = &cp
 
@@ -461,7 +461,7 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 	}
 
 	for _, comp := range sn.Components {
-		if !shouldCopyComponent(comp, sn.SnapName(), s.model, s.modelSnaps, opts.OptionalContainers) {
+		if !shouldCopyComponent(comp, sn.SnapName().String(), s.model, s.modelSnaps, opts.OptionalContainers) {
 			continue
 		}
 
@@ -724,7 +724,7 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 
 	modelSnaps := make(map[string]*asserts.ModelSnap, len(modelAssertion.AllSnaps()))
 	for _, sn := range modelAssertion.AllSnaps() {
-		modelSnaps[sn.SnapName()] = sn
+		modelSnaps[sn.SnapName().String()] = sn
 	}
 
 	// remember db for later use
@@ -939,7 +939,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 		if s.model.Grade() != asserts.ModelDangerous {
 			return "", nil, nil, fmt.Errorf("all system snaps must be identified by snap-id, missing for %q", snapRef.SnapName())
 		}
-		snapName := snapRef.SnapName()
+		snapName := snapRef.SnapName().String()
 		snapDecl = s.snapDeclsByName[snapName]
 		if snapDecl == nil {
 			return "", nil, nil, &noSnapDeclarationError{snapRef}
@@ -999,11 +999,11 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 		return Component{}, fmt.Errorf("cannot read unasserted component: %v", err)
 	}
 	compName := cinfo.Component.ComponentName
-	cref := naming.NewComponentRef(info.SnapName(), compName)
+	cref := naming.NewComponentRef(info.SnapName().String(), compName)
 	// Unasserted components from the seed will have an x1 revision when installed
 	csi := snap.NewComponentSideInfo(cref, snap.R(-1))
 	cpi := snap.MinimalComponentContainerPlaceInfo(
-		compName, snap.R(-1), info.SnapName())
+		compName, snap.R(-1), info.SnapName().String())
 	newCompPath, err := handler.HandleUnassertedContainer(cpi, compPath, tm)
 	if err != nil {
 		return Component{}, err
@@ -1101,7 +1101,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 			seedComps = append(seedComps, comp)
 		}
 
-		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName(), snap.R(-1))
+		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName().String(), snap.R(-1))
 		newPath, err := handler.HandleUnassertedContainer(pinfo, path, tm)
 		if err != nil {
 			return nil, err
@@ -1110,7 +1110,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 			path = newPath
 		}
 		// Unasserted snaps from the seed will have an x1 revision when installed
-		sideInfo = &snap.SideInfo{RealName: info.SnapName(), Revision: snap.R(-1)}
+		sideInfo = &snap.SideInfo{RealName: info.SnapName().String(), Revision: snap.R(-1)}
 		// suppress channel
 		channel = ""
 	} else {
@@ -1531,7 +1531,7 @@ func (s *seed20) ModeSnaps(mode string) ([]*Snap, error) {
 
 func (s *seed20) modeSnap(sn *Snap, mode string) *Snap {
 	copied := *sn
-	ms, ok := s.modelSnaps[sn.SnapName()]
+	ms, ok := s.modelSnaps[sn.SnapName().String()]
 	if !ok {
 		// snaps not in the model will be considered as run mode, and so
 		// will all of its components
@@ -1576,7 +1576,7 @@ func (s *seed20) ModeSnap(snapName, mode string) (*Snap, error) {
 	}
 
 	for _, sn := range s.snaps {
-		if sn.SnapName() != snapName {
+		if sn.SnapName().String() != snapName {
 			continue
 		}
 

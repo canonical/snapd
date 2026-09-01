@@ -906,7 +906,7 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 		optSnap = sn.optionSnap
 	}
 
-	channel, err := w.resolveChannel(modSnap.SnapName(), modSnap, optSnap)
+	channel, err := w.resolveChannel(modSnap.SnapName().String(), modSnap, optSnap)
 	if err != nil {
 		return nil, err
 	}
@@ -1013,7 +1013,7 @@ func (w *Writer) extraSnapToSeed(optSnap *OptionsSnap) (*SeedSnap, error) {
 		return nil, fmt.Errorf("internal error: option extra snap has no associated name: %#v %#v", optSnap, sn)
 	}
 
-	channel, err := w.resolveChannel(sn.SnapName(), nil, optSnap)
+	channel, err := w.resolveChannel(sn.SnapName().String(), nil, optSnap)
 	if err != nil {
 		return nil, err
 	}
@@ -1159,7 +1159,7 @@ func (w *Writer) recordUsageWithThePolicy(modSnaps []*asserts.ModelSnap) {
 		snapName := optSnap.Name
 		sn := w.localSnaps[optSnap]
 		if sn != nil {
-			snapName = sn.Info.SnapName()
+			snapName = sn.Info.SnapName().String()
 		}
 		w.policy.recordSnapNameUsage(snapName)
 	}
@@ -1575,7 +1575,7 @@ func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
 
 func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
 	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
-		return snapasserts.NewInstalledSnap(snap.SnapName(), snap.ID(), snap.Info.Revision, nil)
+		return snapasserts.NewInstalledSnap(snap.SnapName().String(), snap.ID(), snap.Info.Revision, nil)
 	}
 
 	// TODO:COMPS: add components
@@ -1663,7 +1663,7 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				if err != nil {
 					return err
 				}
-				if err := copySnap(info.SnapName(), sn.Path, dst); err != nil {
+				if err := copySnap(info.SnapName().String(), sn.Path, dst); err != nil {
 					return err
 				}
 				// copy components
@@ -1682,7 +1682,7 @@ func (w *Writer) SeedSnaps(copySnap func(name, src, dst string) error) error {
 				sn.Path = dst
 			}
 			if !info.Revision.Unset() {
-				if err := w.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName(), sn.Info.Revision); err != nil {
+				if err := w.manifest.MarkSnapRevisionSeeded(sn.Info.SnapName().String(), sn.Info.Revision); err != nil {
 					return fmt.Errorf("cannot record snap for manifest: %s", err)
 				}
 			}

@@ -560,7 +560,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Assert(prqt.infos, HasLen, 1)
-	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.infos[0].SnapName().String(), Equals, "some-snap")
 	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 

@@ -407,7 +407,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().String() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName().String() != current.SnapName().String() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -995,7 +995,7 @@ func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
-	if info.SnapName() != snapName {
+	if info.SnapName().String() != snapName {
 		return nil, fmt.Errorf("cannot install snap %q: instance name prefix does not match snap name: %s != %s", instanceName, snapName, info.SnapName())
 	}
 	info.InstanceKey = instanceKey

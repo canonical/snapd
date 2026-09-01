@@ -621,7 +621,7 @@ func readInfoAndDeriveSideInfo(st *state.State, tempPath string, origPath string
 		if err != nil {
 			return nil, BadRequest("cannot read snap file: %v", err)
 		}
-		info.SideInfo = snap.SideInfo{RealName: info.SnapName()}
+		info.SideInfo = snap.SideInfo{RealName: info.SnapName().String()}
 		return info, nil
 	}
 
@@ -652,7 +652,7 @@ func readInfoAndDeriveSideInfo(st *state.State, tempPath string, origPath string
 	if si != nil {
 		info.SideInfo = *si
 	} else {
-		info.SideInfo = snap.SideInfo{RealName: info.SnapName()}
+		info.SideInfo = snap.SideInfo{RealName: info.SnapName().String()}
 	}
 
 	return info, nil
