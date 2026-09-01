@@ -392,7 +392,7 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 	} {
 		s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.imageError, tc.errorBootImage)
 
-		bootImageFiles, err := install.OrderedCurrentBootImages(install.UbuntuISOBootMode)
+		bootImageFiles, err := install.OrderedCurrentBootImages(nil, install.UbuntuISOBootMode)
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
@@ -407,10 +407,6 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 }
 
 func (s *installSuite) TestOrderedCurrentBootImagesRunMode(c *C) {
-	defer install.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
-		return nil, nil
-	})()
-
 	defer install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return []bootloader.BootFile{
 			bootloader.NewBootFile("", "/some/boot/loader.efi", bootloader.RoleRecovery),
@@ -419,7 +415,7 @@ func (s *installSuite) TestOrderedCurrentBootImagesRunMode(c *C) {
 		}, nil
 	})()
 
-	bootImageFiles, err := install.OrderedCurrentBootImages(install.RunBootMode)
+	bootImageFiles, err := install.OrderedCurrentBootImages(&boot.Modeenv{}, install.RunBootMode)
 	c.Assert(err, IsNil)
 
 	c.Assert(bootImageFiles, HasLen, 3)
@@ -429,15 +425,11 @@ func (s *installSuite) TestOrderedCurrentBootImagesRunMode(c *C) {
 }
 
 func (s *installSuite) TestOrderedCurrentBootImagesRunModeError(c *C) {
-	defer install.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
-		return nil, nil
-	})()
-
 	defer install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return nil, fmt.Errorf("boom")
 	})()
 
-	_, err := install.OrderedCurrentBootImages(install.RunBootMode)
+	_, err := install.OrderedCurrentBootImages(&boot.Modeenv{}, install.RunBootMode)
 	c.Assert(err, ErrorMatches, `boom`)
 }
 

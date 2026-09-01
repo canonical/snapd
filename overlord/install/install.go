@@ -525,7 +525,7 @@ func encryptionAvailabilityCheck(
 
 	if supported {
 		// use comprehensive preinstall check
-		images, err := orderedCurrentBootImages(currentBootMode)
+		images, err := orderedCurrentBootImages(modeenv, currentBootMode)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
@@ -608,7 +608,7 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 	return cmp >= 0, nil
 }
 
-func orderedCurrentBootImages(currentBootMode bootMode) ([]bootloader.BootFile, error) {
+func orderedCurrentBootImages(modeenv *boot.Modeenv, currentBootMode bootMode) ([]bootloader.BootFile, error) {
 	// Note that currentBootMode is the boot mode of what we have booted, not what we are installing.
 	switch currentBootMode {
 	case ubuntuISOBootMode:
@@ -618,9 +618,8 @@ func orderedCurrentBootImages(currentBootMode bootMode) ([]bootloader.BootFile, 
 		}
 		return images, nil
 	case runBootMode:
-		modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
-		if err != nil {
-			return nil, err
+		if modeenv == nil {
+			return nil, fmt.Errorf("internal error: missing modeenv when looking for run boot chain")
 		}
 		return bootGetRunBootChain(modeenv)
 	case ephemeralBootMode:
