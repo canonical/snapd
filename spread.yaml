@@ -45,11 +45,9 @@ environment:
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
     OLD_UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/beta"
     SNAPCRAFT_SNAP_CHANNEL: "latest/stable"
-    # controls whether ubuntu-image is built using the current snapd tree as a
-    # dependency or the one listed in its go.mod
-    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
+    # controls whether ubuntu-image is built using the current snapd tree
+    UBUNTU_IMAGE_USE_LOCAL_SNAPD: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_USE_LOCAL_SNAPD:-false}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     # Channel for kernel cannot be edge as that one is not signed with Canonical keys
@@ -1536,7 +1534,6 @@ suites:
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 if os.query is-arm; then
@@ -1545,7 +1542,7 @@ suites:
 
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+                prepare_ubuntu_image
             fi
 
 
@@ -1621,7 +1618,6 @@ suites:
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 if os.query is-arm; then
@@ -1630,7 +1626,7 @@ suites:
 
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+                prepare_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1700,7 +1696,6 @@ suites:
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 if os.query is-arm; then
@@ -1709,7 +1704,7 @@ suites:
 
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+                prepare_ubuntu_image
             fi
 
             # Install the snapd built
@@ -1790,14 +1785,11 @@ suites:
             if os.query is-xenial; then
                 # the new ubuntu-image expects mkfs to support -d option, which was not
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+                prepare_ubuntu_image
             fi
 
             # Install the snapd built
