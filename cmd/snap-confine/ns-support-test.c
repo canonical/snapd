@@ -387,7 +387,7 @@ static void test_managed_ca_cert_db_changed__generation_unchanged_missing_mount(
 }
 
 // When the base rootfs has no /etc/ssl/certs mount target, a preserved
-// namespace without the managed CA overlay can still be reused.
+// namespace without the managed CA overlay will be marked as changed.
 static void test_managed_ca_cert_db_changed__generation_unchanged_missing_target(void) {
     const char *ns_dir = sc_test_use_fake_ns_dir();
     const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
@@ -408,7 +408,7 @@ static void test_managed_ca_cert_db_changed__generation_unchanged_missing_target
     sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
     bool expect_managed_ca_certs_mount = managed_ca_certs_mount_supported(&inv, SC_DISTRO_CORE_OTHER);
     g_assert_false(expect_managed_ca_certs_mount);
-    g_assert_false(managed_ca_cert_db_changed(&inv, expect_managed_ca_certs_mount));
+    g_assert_true(managed_ca_cert_db_changed(&inv, expect_managed_ca_certs_mount));
 }
 
 // When the host generation differs from what was recorded, the function
