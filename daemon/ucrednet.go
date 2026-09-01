@@ -42,6 +42,10 @@ func ucrednetWithCredentials(ctx context.Context, ucred *ucrednet) context.Conte
 	return context.WithValue(ctx, ucrednetContextKey{}, *ucred)
 }
 
+// ucrednetConnContext is provided as snapd's [http.Server.ConnContext]. If the
+// connection if of type [ucrednetConn], then we attach a [ucrednet] to the
+// connection's [context.Context]. Each HTTP request context is dervived from
+// this context.
 func ucrednetConnContext(ctx context.Context, conn net.Conn) context.Context {
 	uconn, ok := conn.(*ucrednetConn)
 	if !ok {
@@ -50,6 +54,9 @@ func ucrednetConnContext(ctx context.Context, conn net.Conn) context.Context {
 	return ucrednetWithCredentials(ctx, uconn.ucrednet)
 }
 
+// ucrednetGet attempts to read the [ucrednet] associated with an HTTP request's
+// context. This will be attached to each HTTP request that is served by a
+// [ucrednetListener] [net.Listener].
 func ucrednetGet(ctx context.Context) (*ucrednet, error) {
 	ucred, ok := ctx.Value(ucrednetContextKey{}).(ucrednet)
 	if !ok {
