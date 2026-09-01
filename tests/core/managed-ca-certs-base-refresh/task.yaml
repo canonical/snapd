@@ -6,9 +6,11 @@ details: |
     still sees the managed bundle before and after a rebooting model base
     refresh and the subsequent revert.
 
-# Let's just run this on a single system for now as it's a slow test
+# Let's just run this on a couple of systems for now as it's a slow test
+# Include UC26 due to the general change of building with chisel
 systems:
   - ubuntu-core-24-*
+  - ubuntu-core-26-*
 
 environment:
     CERT_NAME: spread-managed-ca-base-refresh

@@ -373,7 +373,7 @@ static char *managed_ca_cert_generation(void) {
         die("cannot read %s", sc_managed_ca_certs_dir);
     }
 
-    // Though we initialized target to NULs and passed one less to
+    // Though we initialized target to NULLs and passed one less to
     // readlink, therefore guaranteeing that target is
     // zero-terminated, perform an explicit assignment to make
     // Coverity happy.
@@ -423,7 +423,7 @@ static bool namespace_uses_managed_ca_certs(void) {
 // Core and a base rootfs that actually provides /etc/ssl/certs as a
 // mount target.
 static bool managed_ca_certs_mount_supported(const sc_invocation *inv, sc_distro distro) {
-    if (distro != SC_DISTRO_CORE16 && distro != SC_DISTRO_CORE_OTHER) {
+    if (distro != SC_DISTRO_CORE_OTHER) {
         return false;
     }
 
@@ -486,7 +486,9 @@ static bool managed_ca_cert_db_changed(const sc_invocation *inv, sc_distro distr
               current_generation);
         return true;
     } else if (!mount_supported) {
-        return false;
+        // If the namespace recorded a generation but the host no longer exposes one, 
+        // then the preserved namespace is stale.
+        return current_generation != NULL;
     }
 
     // Okay, a previous generation was recorded, now we check for changes

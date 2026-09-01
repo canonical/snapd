@@ -62,7 +62,7 @@ execute: |
 
     echo "Ensure TLS request from confinement fails before CA is trusted"
     not network-consumer-core24.network-consumer "https://localhost:${HTTPS_PORT}" >before-ca.log 2>&1
-    grep -Eiq 'error|certificate|verify|tls|ssl|x509' before-ca.log
+    grep -Eiq 'certificate verify failed' before-ca.log
 
     echo "Inject custom CA certificate into managed database"
     snap unset system "pki.certs.custom.${CERT_NAME}" || true
@@ -95,4 +95,4 @@ execute: |
     # This also checks that the next launch does not keep trusting the previous
     # managed CA generation via a stale preserved namespace.
     not network-consumer-core24.network-consumer "https://localhost:${HTTPS_PORT}" >after-unset-ca.log 2>&1
-    grep -Eiq 'error|certificate|verify|tls|ssl|x509' after-unset-ca.log
+    grep -Eiq 'certificate verify failed' after-unset-ca.log
