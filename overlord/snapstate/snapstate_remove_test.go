@@ -194,6 +194,7 @@ func (s *snapmgrTestSuite) testRemoveDiskSpaceCheck(c *C, featureFlag, automatic
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", featureFlag)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -235,6 +236,43 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
 	c.Check(diskSpaceErr.ChangeKind, Equals, "remove")
+}
+
+func (s *snapmgrTestSuite) TestRemoveDiskSpaceCheckSkippedIfReservationUnset(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapshotSizeCalls int
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
+		snapshotSizeCalls++
+		return 1, nil
+	}
+
+	var checkFreeSpaceCalls int
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		checkFreeSpaceCalls++
+		return nil
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-remove", true), IsNil)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		}),
+		Current: snap.R(11),
+	})
+
+	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	c.Assert(ts, NotNil)
+	c.Check(snapshotSizeCalls, Equals, 1)
+	c.Check(checkFreeSpaceCalls, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
@@ -1593,7 +1631,7 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, required uint64) error {
 		checkFreeSpaceCall++
 		// required size is the sum of snapshot sizes of test snaps
-		c.Check(required, Equals, uint64(30)+snapstate.DefaultDiskSpaceReservation)
+		c.Check(required, Equals, uint64(30)+snapstate.FallbackDiskSpaceReservation)
 		if freeSpaceCheckFail {
 			return &osutil.NotEnoughDiskSpaceError{}
 		}
@@ -1615,6 +1653,7 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, featureFlag, autom
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", featureFlag)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	tr.Commit()
 
 	snapstate.Set(s.state, "one", &snapstate.SnapState{
@@ -1732,6 +1771,44 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	freeSpaceCheckFail := false
 	err := s.testRemoveManyDiskSpaceCheck(c, featureFlag, automaticSnapshot, freeSpaceCheckFail)
 	c.Check(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckSkippedIfReservationUnset(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapshotSizeCalls int
+	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
+		snapshotSizeCalls++
+		return 1, nil
+	}
+
+	var checkFreeSpaceCalls int
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		checkFreeSpaceCalls++
+		return nil
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-remove", true), IsNil)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+		}),
+		Current: snap.R(11),
+	})
+
+	removed, tasksets, err := snapstate.RemoveMany(s.state, []string{"some-snap"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(removed, DeepEquals, []string{"some-snap"})
+	c.Assert(tasksets, HasLen, 1)
+	c.Check(snapshotSizeCalls, Equals, 1)
+	c.Check(checkFreeSpaceCalls, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceReservationZeroChecksSnapshotSize(c *C) {

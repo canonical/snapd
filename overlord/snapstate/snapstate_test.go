@@ -509,9 +509,7 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 }
 
-func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
-	const operationSize = uint64(1024)
-
+func (s *snapmgrTestSuite) TestDiskSpaceReservation(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -519,33 +517,53 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
 		description string
 		configured  bool
 		value       any
-		size        uint64
 		expected    uint64
-		err         string
+		err         error
 	}{
-		{description: "unset", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "nil", configured: true, value: nil, size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "invalid", configured: true, value: "invalid", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "numeric bytes", configured: true, value: 2048, size: operationSize, expected: operationSize + 2048},
-		{description: "string bytes", configured: true, value: "4096", size: operationSize, expected: operationSize + 4096},
-		{description: "quantity", configured: true, value: "1G", size: operationSize, expected: operationSize + 1024*1024*1024},
-		{description: "zero", configured: true, value: 0, size: operationSize, expected: operationSize},
-		{description: "configured overflow", configured: true, value: "1", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
-		{description: "default overflow", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+		{description: "unset", err: snapstate.DiskSpaceUnsetError},
+		{description: "nil", configured: true, value: nil, err: snapstate.DiskSpaceUnsetError},
+		{description: "invalid", configured: true, value: "invalid", expected: snapstate.FallbackDiskSpaceReservation},
+		{description: "numeric bytes", configured: true, value: 2048, expected: 2048},
+		{description: "string bytes", configured: true, value: "4096", expected: 4096},
+		{description: "quantity", configured: true, value: "1G", expected: 1024 * 1024 * 1024},
+		{description: "zero", configured: true, value: 0, expected: 0},
 	} {
 		tr := config.NewTransaction(s.state)
 		if tc.configured {
 			c.Assert(tr.Set("core", "disk-reservation.size", tc.value), IsNil)
 		}
 
-		reservation, err := snapstate.DiskSpaceReservation(tc.size, tr)
+		reservation, err := snapstate.DiskSpaceReservation(tr)
+		if tc.err != nil {
+			c.Check(err, testutil.ErrorIs, tc.err, Commentf(tc.description))
+			continue
+		}
+
+		c.Check(err, IsNil, Commentf(tc.description))
+		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
+	}
+}
+
+func (s *snapmgrTestSuite) TestCalculateRequiredSpace(c *C) {
+	for _, tc := range []struct {
+		description string
+		totalSize   uint64
+		reservation uint64
+		expected    uint64
+		err         string
+	}{
+		{description: "reservation", totalSize: 1024, reservation: 2048, expected: 3072},
+		{description: "zero reservation", totalSize: 1024, expected: 1024},
+		{description: "overflow", totalSize: ^uint64(0), reservation: 1, err: "cannot calculate required disk space: size overflow"},
+	} {
+		requiredSpace, err := snapstate.CalculateRequiredSpace(tc.totalSize, tc.reservation)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
 			continue
 		}
 
 		c.Check(err, IsNil, Commentf(tc.description))
-		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
+		c.Check(requiredSpace, Equals, tc.expected, Commentf(tc.description))
 	}
 }
 
@@ -12022,6 +12040,10 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation), IsNil)
+	tr.Commit()
 
 	downloadDir := c.MkDir()
 	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{

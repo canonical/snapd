@@ -3951,6 +3951,7 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -3959,6 +3960,27 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestInstallDiskSpaceCheckSkippedIfReservationUnset(c *C) {
+	var checkFreeSpaceCalls int
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		checkFreeSpaceCalls++
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(checkFreeSpaceCalls, Equals, 0)
 }
 
 func (s *snapmgrTestSuite) TestInstallConfigureDiskSpaceReservation(c *C) {
@@ -4011,6 +4033,7 @@ func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -4578,6 +4601,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	tr.Commit()
 
 	_, _, err := snapstate.InstallMany(s.state, []string{"one", "two"}, nil, 0, nil)
@@ -6151,6 +6175,7 @@ epoch: 1
 	}
 	tr := config.NewTransaction(s.state)
 	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation), IsNil)
 	tr.Commit()
 
 	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)

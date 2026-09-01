@@ -54,16 +54,19 @@ type (
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
 var DiskSpaceReservation = diskSpaceReservation
+var CalculateRequiredSpace = calculateRequiredSpace
+
+var DiskSpaceUnsetError = diskSpaceUnsetError
 
 const (
-	None                        = none
-	Full                        = full
-	Hidden                      = hidden
-	Home                        = home
-	RevertHidden                = revertHidden
-	DisableHome                 = disableHome
-	RevertFull                  = revertFull
-	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
+	None                         = none
+	Full                         = full
+	Hidden                       = hidden
+	Home                         = home
+	RevertHidden                 = revertHidden
+	DisableHome                  = disableHome
+	RevertFull                   = revertFull
+	FallbackDiskSpaceReservation = fallbackDiskSpaceReservation
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
