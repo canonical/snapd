@@ -3217,6 +3217,9 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 
 	removals := map[string]bool{snapst.InstanceName().String(): true}
 	ts, snapshotSize, err := removeTasks(st, &snapst, removals, revision, flags)
+	if err != nil {
+		return nil, err
+	}
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
