@@ -319,6 +319,14 @@ func resolveComponentSource(snapInfo *snap.Info, compInfo *snap.ComponentInfo, s
 	return source, sourceName
 }
 
+// exportUnderPlugTarget returns true when the content exposed by the slot
+// should be placed under the target location named by the plug. This is
+// indicated by presence of the 'source' attribute on the slot side.
+func exportUnderPlugTarget(slot *interfaces.ConnectedSlot) bool {
+	var unused map[string]any
+	return slot.Attr("source", &unused) == nil
+}
+
 // sourceTarget resolves the source and target paths for a given read/write
 // slot path and indicates whether the source of the mount is available.
 //
@@ -330,11 +338,10 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
 
-	// sourceName, when non-empty, overrides the basename of source used to
-	// derive the target when a "source" section is present. This is used for
-	// whole-component sharing where the basename of the component mount
-	// directory is the (uninteresting) revision.
-	var sourceName string
+	// sourceNameOverride, when non-empty, overrides the default name used in the case
+	// we're exporting the source location beneath the target path prescribed in
+	// the plug attributes.
+	var sourceNameOverride string
 
 	if compName, subPath, isComp, err := parseComponentPath(relSrc); isComp && err == nil {
 		ci := slot.AppSet().Component(compName)
@@ -343,7 +350,7 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 			return "", "", false
 		}
 
-		source, sourceName = resolveComponentSource(slot.Snap(), ci, subPath)
+		source, sourceNameOverride = resolveComponentSource(slot.Snap(), ci, subPath)
 	} else {
 		// Regular (non-component) $SNAP/$SNAP_DATA/$SNAP_COMMON path.
 		source = resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther)
@@ -351,11 +358,19 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 	// Target uses PerspectiveSelf as the consumer sees its own snap name.
 	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf)
 
-	// Check if the "source" section is present.
-	var unused map[string]any
-	if err := slot.Attr("source", &unused); err == nil {
-		if sourceName == "" {
-			_, sourceName = filepath.Split(source)
+	// Figure out the target path if the source is supposed to be exported on a
+	// path beneath the target prescribed in the plug.
+	if exportUnderPlugTarget(slot) {
+		// unless there's an override, as it is in the case of components, we
+		// use the basename by default, e.g.
+		// source:
+		//   - $SNAP/foo                 -> $TARGET/foo
+		//   - $SNAP                     -> $TARGET/<snap-name>
+		//   - $SNAP_COMPONENT(bar)/foo  -> $TARGET/foo
+		//   - $SNAP_COMPONENT(bar)      -> $TARGET/bar
+		sourceName := filepath.Base(source)
+		if sourceNameOverride != "" {
+			sourceName = sourceNameOverride
 		}
 		target = filepath.Join(target, sourceName)
 	}
