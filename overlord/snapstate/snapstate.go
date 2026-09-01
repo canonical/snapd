@@ -96,6 +96,8 @@ var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
 const defaultDiskSpaceReservation = 5 * 1024 * 1024
 
+var diskSpaceUnsetError = errors.New("disk space reservation is not set in the state")
+
 // TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
 // from a broken snapd that does not generate a "update-gadget-assets" task.
 // See LP:#1940553
@@ -195,7 +197,7 @@ func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
 	var reservation any
 	err := tr.Get("core", "disk-reservation.size", &reservation)
 	if config.IsNoOption(err) {
-		return addReservation(defaultDiskSpaceReservation)
+		return 0, diskSpaceUnsetError
 	}
 	if err != nil {
 		return addReservation(defaultDiskSpaceReservation)
@@ -2599,6 +2601,11 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, infos []minimalInstallInfo, changeKind string, rootDir string) error {
 	requiredSpace, err := diskSpaceReservation(totalSize, transaction)
 	if err != nil {
+		// if the option is unset, we don't want to fail the operation, so we just return nil
+		if errors.Is(err, diskSpaceUnsetError) {
+			return nil
+		}
+
 		return err
 	}
 
@@ -3201,6 +3208,10 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	if snapshotSize > 0 {
 		requiredSpace, err := diskSpaceReservation(snapshotSize, config.NewTransaction(st))
 		if err != nil {
+			// if the option is unset, we don't want to fail the operation, so we just return nil
+			if errors.Is(err, diskSpaceUnsetError) {
+				return ts, nil
+			}
 			return nil, err
 		}
 
@@ -3640,6 +3651,10 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	if totalSnapshotsSize > 0 {
 		requiredSpace, err := diskSpaceReservation(totalSnapshotsSize, config.NewTransaction(st))
 		if err != nil {
+			// if the disk space reservation is not set, we can proceed with the removal without doing the checks
+			if errors.Is(err, diskSpaceUnsetError) {
+				return removed, tasksets, nil
+			}
 			return nil, nil, err
 		}
 

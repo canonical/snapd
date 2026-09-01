@@ -523,15 +523,14 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
 		expected    uint64
 		err         string
 	}{
-		{description: "unset", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "nil", configured: true, value: nil, size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "unset", size: operationSize, err: snapstate.DiskSpaceUnsetError.Error()},
+		{description: "nil", configured: true, value: nil, size: operationSize, err: snapstate.DiskSpaceUnsetError.Error()},
 		{description: "invalid", configured: true, value: "invalid", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
 		{description: "numeric bytes", configured: true, value: 2048, size: operationSize, expected: operationSize + 2048},
 		{description: "string bytes", configured: true, value: "4096", size: operationSize, expected: operationSize + 4096},
 		{description: "quantity", configured: true, value: "1G", size: operationSize, expected: operationSize + 1024*1024*1024},
 		{description: "zero", configured: true, value: 0, size: operationSize, expected: operationSize},
 		{description: "configured overflow", configured: true, value: "1", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
-		{description: "default overflow", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
 	} {
 		tr := config.NewTransaction(s.state)
 		if tc.configured {
@@ -12022,6 +12021,10 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation), IsNil)
+	tr.Commit()
 
 	downloadDir := c.MkDir()
 	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{
