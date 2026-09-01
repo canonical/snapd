@@ -1149,6 +1149,11 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePINChangeAuthError(c *
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePINThrottled(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for PIN validation
+		c.Skip("secboot is not available")
+	}
+
 	s.daemon(c)
 	s.mockHybridSystem()
 
