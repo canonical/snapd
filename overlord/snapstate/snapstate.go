@@ -407,7 +407,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().String() != current.SnapName().String() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName().String() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
