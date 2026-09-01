@@ -170,8 +170,6 @@ execute: |
   # $2: credential field name (passphrase or pin)
   # $3: current credential value
   # $4: printf format used to derive each new credential from the attempt index
-  #
-  # On return, RATE_LIMIT_CRED holds the credential the system is booted with.
   check_change_auth_rate_limit()
   {
     local action="$1"
@@ -188,11 +186,11 @@ execute: |
     local i=0
     local new
     while true; do
-      i=$((i + 1))
       if [ "$i" -gt 16 ]; then
         echo "change-auth rate limiting was not enforced after $i attempts"
         exit 1
       fi
+      i=$((i + 1))
       # shellcheck disable=SC2059
       new="$(printf "$new_fmt" "$i")"
       remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
