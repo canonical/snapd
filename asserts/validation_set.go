@@ -73,7 +73,7 @@ func checkPresence(headers map[string]any, which string, valid []string) (Presen
 
 // ValidationSetSnap holds the details about a snap constrained by a validation-set assertion.
 type ValidationSetSnap struct {
-	Name   string
+	Name   naming.SnapName
 	SnapID string
 
 	Presence Presence
@@ -88,8 +88,8 @@ type ValidationSetComponent struct {
 }
 
 // SnapName implements naming.SnapRef.
-func (s *ValidationSetSnap) SnapName() string {
-	return s.Name
+func (s *ValidationSetSnap) SnapName() naming.SnapName {
+	return naming.SnapName(s.Name)
 }
 
 // ID implements naming.SnapRef.

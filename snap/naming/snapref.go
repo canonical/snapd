@@ -21,15 +21,15 @@ package naming
 
 // A SnapRef references a snap by name and/or id.
 type SnapRef interface {
-	SnapName() string
+	SnapName() SnapName
 	ID() string
 }
 
 // Snap references a snap by name only.
 type Snap string
 
-func (s Snap) SnapName() string {
-	return string(s)
+func (s Snap) SnapName() SnapName {
+	return SnapName(s)
 }
 
 func (s Snap) ID() string {
@@ -46,8 +46,8 @@ func NewSnapRef(name, id string) SnapRef {
 	return &snapRef{name: name, id: id}
 }
 
-func (r *snapRef) SnapName() string {
-	return r.name
+func (r *snapRef) SnapName() SnapName {
+	return SnapName(r.name)
 }
 
 func (r *snapRef) ID() string {

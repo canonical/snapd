@@ -98,8 +98,8 @@ type OptionsSnap struct {
 	Components []OptionsComponent
 }
 
-func (s *OptionsSnap) SnapName() string {
-	return s.Name
+func (s *OptionsSnap) SnapName() naming.SnapName {
+	return naming.SnapName(s.Name)
 }
 
 func (s *OptionsSnap) ID() string {

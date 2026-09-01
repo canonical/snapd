@@ -86,7 +86,7 @@ type PlaceInfo interface {
 	InstanceName() string
 
 	// SnapName returns the name of the snap.
-	SnapName() string
+	SnapName() naming.SnapName
 
 	// SnapRevision returns the revision of the snap.
 	SnapRevision() Revision
@@ -526,11 +526,11 @@ func (s *Info) ContainerName() string {
 }
 
 // SnapName returns the global blessed name of the snap.
-func (s *Info) SnapName() string {
+func (s *Info) SnapName() naming.SnapName {
 	if s.RealName != "" {
-		return s.RealName
+		return naming.SnapName(s.RealName)
 	}
-	return s.SuggestedName
+	return naming.SnapName(s.SuggestedName)
 }
 
 // Filename returns the name of the snap with the revision number,

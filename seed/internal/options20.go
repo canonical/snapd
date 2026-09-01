@@ -60,8 +60,8 @@ type Snap20 struct {
 }
 
 // SnapName implements naming.SnapRef.
-func (sn *Snap20) SnapName() string {
-	return sn.Name
+func (sn *Snap20) SnapName() naming.SnapName {
+	return naming.SnapName(sn.Name)
 }
 
 // ID implements naming.SnapRef.
