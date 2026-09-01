@@ -522,7 +522,7 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservation(c *C) {
 	}{
 		{description: "unset", err: snapstate.DiskSpaceUnsetError},
 		{description: "nil", configured: true, value: nil, err: snapstate.DiskSpaceUnsetError},
-		{description: "invalid", configured: true, value: "invalid", expected: snapstate.DefaultDiskSpaceReservation},
+		{description: "invalid", configured: true, value: "invalid", expected: snapstate.FallbackDiskSpaceReservation},
 		{description: "numeric bytes", configured: true, value: 2048, expected: 2048},
 		{description: "string bytes", configured: true, value: "4096", expected: 4096},
 		{description: "quantity", configured: true, value: "1G", expected: 1024 * 1024 * 1024},
@@ -12042,7 +12042,7 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.DefaultDiskSpaceReservation), IsNil)
+	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation), IsNil)
 	tr.Commit()
 
 	downloadDir := c.MkDir()
