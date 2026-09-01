@@ -3226,7 +3226,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		reservation, err := diskSpaceReservation(config.NewTransaction(st))
 		if err != nil {
 			if errors.Is(err, diskSpaceUnsetError) {
-				return ts, err
+				return ts, nil
 			}
 			return nil, err
 		}
