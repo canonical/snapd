@@ -94,7 +94,7 @@ var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
-const defaultDiskSpaceReservation = 5 * 1024 * 1024
+const fallbackDiskSpaceReservation = 5 * 1024 * 1024
 
 var diskSpaceUnsetError = errors.New("disk space reservation is not set in the state")
 
@@ -194,12 +194,12 @@ func diskSpaceReservation(tr *config.Transaction) (uint64, error) {
 		return 0, diskSpaceUnsetError
 	}
 	if err != nil {
-		return defaultDiskSpaceReservation, nil
+		return fallbackDiskSpaceReservation, nil
 	}
 
 	parsedReservation, err := quantity.ParseSize(fmt.Sprintf("%v", reservation))
 	if err != nil {
-		return defaultDiskSpaceReservation, nil
+		return fallbackDiskSpaceReservation, nil
 	}
 
 	return uint64(parsedReservation), nil
@@ -2617,10 +2617,11 @@ func diskSpaceCheckNames(infos []minimalInstallInfo) []string {
 }
 
 func checkForAvailableSpace(totalSize, reservation uint64, snaps []string, changeKind, rootDir, messagePrefix string) error {
-	requiredSpace, err := calculateRequiredSpace(totalSize, reservation)
-	if err != nil {
-		return err
+	if totalSize > math.MaxUint64-reservation {
+		return fmt.Errorf("cannot calculate required disk space: size overflow")
 	}
+
+	requiredSpace := totalSize + reservation
 
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -4566,13 +4567,4 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 	}
 
 	return append(tss, pde)
-}
-
-func calculateRequiredSpace(totalSize, reservation uint64) (uint64, error) {
-	if totalSize > math.MaxUint64-reservation {
-		return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
-	}
-
-	requiredSpace := totalSize + reservation
-	return requiredSpace, nil
 }
