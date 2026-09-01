@@ -139,6 +139,9 @@ jobs:
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
           fi
+          if grep -q '^ubuntu-image update required$' <<<$labels; then
+            echo "SPREAD_UBUNTU_IMAGE_USE_LOCAL_SNAPD=true" >> $GITHUB_ENV
+          fi
 
     - name: Get previous attempt
       id: get-previous-attempt
