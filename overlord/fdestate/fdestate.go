@@ -305,6 +305,16 @@ func ResetDALockoutRateLimit(st *state.State) error {
 	return nil
 }
 
+func MockSecbootGetDALockoutCounter(f func() (int, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking GetDALockoutCounter can be done only from tests")
+
+	old := secbootGetDALockoutCounter
+	secbootGetDALockoutCounter = f
+	return func() {
+		secbootGetDALockoutCounter = old
+	}
+}
+
 const fdeStateKey = "fde"
 
 // InitialState creates an initial state containing only information

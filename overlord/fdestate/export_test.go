@@ -237,7 +237,3 @@ func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore
 func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
 	return testutil.Mock(&secbootPostinstallCheck, f)
 }
-
-func MockSecbootGetDALockoutCounter(f func() (int, error)) (restore func()) {
-	return testutil.Mock(&secbootGetDALockoutCounter, f)
-}

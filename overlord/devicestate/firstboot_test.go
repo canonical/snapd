@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -131,6 +132,10 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		// no reason for devicestate to set up tasks for delayed effects
 		panic("unexpected call")
+	}))
+
+	t.AddCleanup(fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
+		return 0, nil
 	}))
 }
 
