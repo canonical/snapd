@@ -7345,7 +7345,11 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, checkEnabled, failInst
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationError(c *C) {
+<<<<<<< HEAD
 	checkEnabled := true
+=======
+	featureFlag := true
+>>>>>>> ca0122541a (overlord, tests/main/disk-reservation-size: fix default behavior when disk-reservation.size is unset)
 	failInstallSize := false
 	failDiskCheck := true
 	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
@@ -7356,10 +7360,17 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationHappy(c *C) {
+<<<<<<< HEAD
 	checkEnabled := true
 	failInstallSize := false
 	failDiskCheck := false
 	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
+=======
+	featureFlag := true
+	failInstallSize := false
+	failDiskCheck := false
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+>>>>>>> ca0122541a (overlord, tests/main/disk-reservation-size: fix default behavior when disk-reservation.size is unset)
 	c.Check(err, IsNil)
 }
 

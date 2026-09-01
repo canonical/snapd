@@ -58,6 +58,8 @@ var CheckForAvailableSpace = checkForAvailableSpace
 
 var DiskSpaceUnsetError = diskSpaceUnsetError
 
+var DiskSpaceUnsetError = diskSpaceUnsetError
+
 const (
 	None                         = none
 	Full                         = full
