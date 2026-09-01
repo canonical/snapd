@@ -3962,6 +3962,27 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
 }
 
+func (s *snapmgrTestSuite) TestInstallDiskSpaceCheckSkippedIfReservationUnset(c *C) {
+	var checkFreeSpaceCalls int
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		checkFreeSpaceCalls++
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(checkFreeSpaceCalls, Equals, 0)
+}
+
 func (s *snapmgrTestSuite) TestInstallConfigureDiskSpaceReservation(c *C) {
 	const freeDiskSpace = uint64(1500)
 	var requiredSizes []uint64
