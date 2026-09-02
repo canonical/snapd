@@ -8,15 +8,21 @@ import (
 )
 
 type SnapQuery struct {
-	InstanceName   string
-	ComponentName  string
-	HookName       string
+	SnapTaskInfo
 	ComponentsOnly bool
 	TaskQuery      TaskQuery
 }
 
+type SnapTaskInfo struct {
+	InstanceName  string
+	ComponentName string
+	HookName      string
+}
+
 func Snap(instanceName string) SnapQuery {
-	return SnapQuery{InstanceName: instanceName}
+	return SnapQuery{
+		SnapTaskInfo: SnapTaskInfo{InstanceName: instanceName},
+	}
 }
 
 func (q SnapQuery) WithKind(kind string) SnapQuery {
@@ -67,124 +73,97 @@ func (q SnapQuery) Query(selection Selection) (Selection, error) {
 		return Selection{}, err
 	}
 
-	tasks := cache.snaps[q.InstanceName]
-	if q.ComponentName != "" {
-		tasks = cache.components[q.InstanceName][q.ComponentName]
-	} else if q.ComponentsOnly {
-		tasks = nil
-		for _, componentTasks := range cache.components[q.InstanceName] {
-			tasks = append(tasks, componentTasks...)
+	var matches []*state.Task
+	for _, task := range selection.selected {
+		info, ok := cache[task.ID()]
+		if !ok || info.InstanceName != q.InstanceName {
+			continue
 		}
+		if q.ComponentName != "" && info.ComponentName != q.ComponentName {
+			continue
+		}
+		if q.ComponentsOnly && info.ComponentName == "" {
+			continue
+		}
+		if q.HookName != "" && info.HookName != q.HookName {
+			continue
+		}
+		matches = append(matches, task)
 	}
 
-	if q.HookName != "" {
-		var hookTasks []*state.Task
-		for _, task := range tasks {
-			if !task.Has("hook-setup") {
-				continue
-			}
-
-			var hooksup hookSetup
-			if err := task.Get("hook-setup", &hooksup); err != nil {
-				return Selection{}, fmt.Errorf("cannot resolve hook setup for task %s (%s): %v", task.ID(), task.Kind(), err)
-			}
-			if hooksup.Hook == q.HookName {
-				hookTasks = append(hookTasks, task)
-			}
-		}
-		tasks = hookTasks
-	}
-
-	return q.TaskQuery.Query(selection.subset(tasks))
+	return q.TaskQuery.Query(selection.subset(matches))
 }
 
 type snapQueryCacheKey struct{}
 
-type snapQueryCache struct {
-	snaps      map[string][]*state.Task
-	components map[string]map[string][]*state.Task
-}
-
-func loadSnapQueryCache(selection Selection) (snapQueryCache, error) {
+func loadSnapQueryCache(selection Selection) (map[string]SnapTaskInfo, error) {
 	if value, ok := selection.Cached(snapQueryCacheKey{}); ok {
-		return value.(snapQueryCache), nil
+		return value.(map[string]SnapTaskInfo), nil
 	}
 
-	cache, err := buildSnapQueryCache(selection)
+	cache, err := buildSnapQueryCache(selection.universe)
 	if err != nil {
-		return snapQueryCache{}, err
+		return nil, err
 	}
 	selection.Cache(snapQueryCacheKey{}, cache)
 
 	return cache, nil
 }
 
-func buildSnapQueryCache(selection Selection) (snapQueryCache, error) {
-	cache := snapQueryCache{
-		snaps:      make(map[string][]*state.Task),
-		components: make(map[string]map[string][]*state.Task),
-	}
+func buildSnapQueryCache(universe []*state.Task) (map[string]SnapTaskInfo, error) {
+	cache := make(map[string]SnapTaskInfo, len(universe))
 
-	tasks := make(map[string]*state.Task, len(selection.tasks))
-	for _, task := range selection.tasks {
+	tasks := make(map[string]*state.Task, len(universe))
+	for _, task := range universe {
 		tasks[task.ID()] = task
 	}
 
-	for _, task := range selection.tasks {
+	for _, task := range universe {
+		var info SnapTaskInfo
+		var err error
 		switch {
 		case task.Has("hook-setup"):
-			if err := cacheHookTask(cache, task); err != nil {
-				return snapQueryCache{}, err
-			}
+			info, err = snapTaskInfoForHook(task)
 		case task.Has("component-setup") || task.Has("component-setup-task"):
-			if err := cacheComponentTask(cache, task, tasks); err != nil {
-				return snapQueryCache{}, err
-			}
+			info, err = snapTaskInfoForComponent(task, tasks)
 		case task.Has("snap-setup") || task.Has("snap-setup-task"):
-			if err := cacheSnapTask(cache, task, tasks); err != nil {
-				return snapQueryCache{}, err
-			}
+			info, err = snapTaskInfoForSnap(task, tasks)
+		default:
+			continue
 		}
+		if err != nil {
+			return nil, err
+		}
+		cache[task.ID()] = info
 	}
 
 	return cache, nil
 }
 
-func cacheSnapTask(cache snapQueryCache, task *state.Task, tasksByID map[string]*state.Task) error {
-	snapsup, err := resolveSnapSetup(task, tasksByID)
+func snapTaskInfoForSnap(task *state.Task, tasks map[string]*state.Task) (SnapTaskInfo, error) {
+	snapsup, err := resolveSnapSetup(task, tasks)
 	if err != nil {
-		return fmt.Errorf("cannot resolve snap setup for task %s (%s): %v", task.ID(), task.Kind(), err)
+		return SnapTaskInfo{}, fmt.Errorf("cannot resolve snap setup for task %s (%s): %v", task.ID(), task.Kind(), err)
 	}
 
-	instanceName := snapsup.InstanceName().String()
-	cache.snaps[instanceName] = append(cache.snaps[instanceName], task)
-
-	return nil
+	return SnapTaskInfo{InstanceName: snapsup.InstanceName().String()}, nil
 }
 
-func cacheComponentTask(cache snapQueryCache, task *state.Task, tasksByID map[string]*state.Task) error {
+func snapTaskInfoForComponent(task *state.Task, tasksByID map[string]*state.Task) (SnapTaskInfo, error) {
 	snapsup, err := resolveSnapSetup(task, tasksByID)
 	if err != nil {
-		return fmt.Errorf("cannot resolve snap setup for task %s (%s): %v", task.ID(), task.Kind(), err)
+		return SnapTaskInfo{}, fmt.Errorf("cannot resolve snap setup for task %s (%s): %v", task.ID(), task.Kind(), err)
 	}
 
 	compsup, err := resolveComponentSetup(task, tasksByID)
 	if err != nil {
-		return fmt.Errorf("cannot resolve component setup for task %s (%s): %v", task.ID(), task.Kind(), err)
+		return SnapTaskInfo{}, fmt.Errorf("cannot resolve component setup for task %s (%s): %v", task.ID(), task.Kind(), err)
 	}
 
-	instanceName := snapsup.InstanceName().String()
-	componentName := compsup.ComponentName()
-
-	cache.snaps[instanceName] = append(cache.snaps[instanceName], task)
-	components := cache.components[instanceName]
-	if components == nil {
-		components = make(map[string][]*state.Task)
-		cache.components[instanceName] = components
-	}
-	components[componentName] = append(components[componentName], task)
-
-	return nil
+	return SnapTaskInfo{
+		InstanceName:  snapsup.InstanceName().String(),
+		ComponentName: compsup.ComponentName(),
+	}, nil
 }
 
 type hookSetup struct {
@@ -193,23 +172,17 @@ type hookSetup struct {
 	Component string `json:"component,omitempty"`
 }
 
-func cacheHookTask(cache snapQueryCache, task *state.Task) error {
+func snapTaskInfoForHook(task *state.Task) (SnapTaskInfo, error) {
 	var hooksup hookSetup
 	if err := task.Get("hook-setup", &hooksup); err != nil {
-		return fmt.Errorf("cannot resolve hook setup for task %s (%s): %v", task.ID(), task.Kind(), err)
+		return SnapTaskInfo{}, fmt.Errorf("cannot resolve hook setup for task %s (%s): %v", task.ID(), task.Kind(), err)
 	}
 
-	cache.snaps[hooksup.Snap] = append(cache.snaps[hooksup.Snap], task)
-	if hooksup.Component != "" {
-		components := cache.components[hooksup.Snap]
-		if components == nil {
-			components = make(map[string][]*state.Task)
-			cache.components[hooksup.Snap] = components
-		}
-		components[hooksup.Component] = append(components[hooksup.Component], task)
-	}
-
-	return nil
+	return SnapTaskInfo{
+		InstanceName:  hooksup.Snap,
+		ComponentName: hooksup.Component,
+		HookName:      hooksup.Hook,
+	}, nil
 }
 
 func resolveSnapSetup(task *state.Task, tasks map[string]*state.Task) (snapstate.SnapSetup, error) {

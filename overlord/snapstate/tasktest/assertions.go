@@ -8,7 +8,7 @@ import (
 
 func validateNonEmpty(selections ...Selection) error {
 	for i, selection := range selections {
-		if len(selection.tasks) == 0 {
+		if len(selection.selected) == 0 {
 			return fmt.Errorf("selection %d is empty", i+1)
 		}
 	}
@@ -23,8 +23,8 @@ func AssertSequenced(selections ...Selection) error {
 	for i := 0; i+1 < len(selections); i++ {
 		before := selections[i]
 		after := selections[i+1]
-		for _, beforeTask := range before.tasks {
-			for _, afterTask := range after.tasks {
+		for _, beforeTask := range before.selected {
+			for _, afterTask := range after.selected {
 				if !before.reachability[beforeTask][afterTask] {
 					return fmt.Errorf("task %s (%s) is not sequenced before task %s (%s)", beforeTask.ID(), beforeTask.Kind(), afterTask.ID(), afterTask.Kind())
 				}
@@ -39,8 +39,8 @@ func AssertNotSequenced(first, second Selection) error {
 		return err
 	}
 
-	for _, firstTask := range first.tasks {
-		for _, secondTask := range second.tasks {
+	for _, firstTask := range first.selected {
+		for _, secondTask := range second.selected {
 			if first.reachability[firstTask][secondTask] {
 				return fmt.Errorf("task %s (%s) is sequenced before task %s (%s)", firstTask.ID(), firstTask.Kind(), secondTask.ID(), secondTask.Kind())
 			}
@@ -64,7 +64,7 @@ func AssertCommonLane(selections ...Selection) error {
 
 	var common map[int]bool
 	for _, selection := range selections {
-		for _, task := range selection.tasks {
+		for _, task := range selection.selected {
 			if common == nil {
 				common = laneSet(task)
 				continue
@@ -89,9 +89,9 @@ func AssertLaneSuperset(superset, subset Selection) error {
 		return err
 	}
 
-	for _, supersetTask := range superset.tasks {
+	for _, supersetTask := range superset.selected {
 		supersetLanes := laneSet(supersetTask)
-		for _, subsetTask := range subset.tasks {
+		for _, subsetTask := range subset.selected {
 			for _, lane := range subsetTask.Lanes() {
 				if !supersetLanes[lane] {
 					return fmt.Errorf("task %s (%s) with lanes %v is not a lane superset of task %s (%s) with lanes %v", supersetTask.ID(), supersetTask.Kind(), supersetTask.Lanes(), subsetTask.ID(), subsetTask.Kind(), subsetTask.Lanes())
@@ -107,9 +107,9 @@ func AssertDoesNotShareLane(first, second Selection) error {
 		return err
 	}
 
-	for _, firstTask := range first.tasks {
+	for _, firstTask := range first.selected {
 		firstLanes := laneSet(firstTask)
-		for _, secondTask := range second.tasks {
+		for _, secondTask := range second.selected {
 			for _, lane := range secondTask.Lanes() {
 				if firstLanes[lane] {
 					return fmt.Errorf("task %s (%s) and task %s (%s) share lane %d", firstTask.ID(), firstTask.Kind(), secondTask.ID(), secondTask.Kind(), lane)
@@ -128,7 +128,7 @@ func AssertSameLanes(selections ...Selection) error {
 	var reference *state.Task
 	var referenceLanes map[int]bool
 	for _, selection := range selections {
-		for _, task := range selection.tasks {
+		for _, task := range selection.selected {
 			if reference == nil {
 				reference = task
 				referenceLanes = laneSet(task)

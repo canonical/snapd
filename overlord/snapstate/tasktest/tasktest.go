@@ -15,7 +15,7 @@ type TaskQuery struct {
 
 func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	var matches []*state.Task
-	for _, task := range selection.tasks {
+	for _, task := range selection.selected {
 		if q.Kind != "" && task.Kind() != q.Kind {
 			continue
 		}
@@ -69,7 +69,9 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 }
 
 type Selection struct {
-	tasks        []*state.Task
+	selected []*state.Task
+
+	universe     []*state.Task
 	cache        map[any]any
 	reachability map[*state.Task]map[*state.Task]bool
 }
@@ -77,7 +79,8 @@ type Selection struct {
 func NewSelection(tasks []*state.Task) Selection {
 	tasks = append([]*state.Task(nil), tasks...)
 	return Selection{
-		tasks:        tasks,
+		selected:     tasks,
+		universe:     tasks,
 		cache:        make(map[any]any),
 		reachability: reachability(tasks),
 	}
@@ -85,8 +88,9 @@ func NewSelection(tasks []*state.Task) Selection {
 
 func (s Selection) subset(tasks []*state.Task) Selection {
 	return Selection{
-		tasks:        append([]*state.Task(nil), tasks...),
-		cache:        make(map[any]any),
+		selected:     append([]*state.Task(nil), tasks...),
+		universe:     s.universe,
+		cache:        s.cache,
 		reachability: s.reachability,
 	}
 }
@@ -115,7 +119,7 @@ func reachability(tasks []*state.Task) map[*state.Task]map[*state.Task]bool {
 }
 
 func (s Selection) Tasks() []*state.Task {
-	return append([]*state.Task(nil), s.tasks...)
+	return append([]*state.Task(nil), s.selected...)
 }
 
 func (s Selection) Cached(key any) (any, bool) {
@@ -148,10 +152,10 @@ func (s Selection) SelectErr(query Querier) (Selection, error) {
 }
 
 func (s Selection) Heads() Selection {
-	heads := make([]*state.Task, 0, len(s.tasks))
-	for _, candidate := range s.tasks {
+	heads := make([]*state.Task, 0, len(s.selected))
+	for _, candidate := range s.selected {
 		head := true
-		for _, other := range s.tasks {
+		for _, other := range s.selected {
 			if s.reachability[other][candidate] {
 				head = false
 				break
@@ -165,10 +169,10 @@ func (s Selection) Heads() Selection {
 }
 
 func (s Selection) Tails() Selection {
-	tails := make([]*state.Task, 0, len(s.tasks))
-	for _, candidate := range s.tasks {
+	tails := make([]*state.Task, 0, len(s.selected))
+	for _, candidate := range s.selected {
 		tail := true
-		for _, other := range s.tasks {
+		for _, other := range s.selected {
 			if s.reachability[candidate][other] {
 				tail = false
 				break
@@ -183,8 +187,8 @@ func (s Selection) Tails() Selection {
 
 func (s Selection) Predecessors(of Selection) Selection {
 	var predecessors []*state.Task
-	for _, candidate := range s.tasks {
-		for _, task := range of.tasks {
+	for _, candidate := range s.selected {
+		for _, task := range of.selected {
 			if s.reachability[candidate][task] {
 				predecessors = append(predecessors, candidate)
 				break
