@@ -98,7 +98,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	}
 	if connectedPlugCallback != nil {
 		// Set the contextual information
-		spec.slotSnapName = slot.Snap().SnapName().String()
+		spec.slotSnapName = slot.Snap().InstanceName()
 		spec.slotName = slot.Name()
 		return connectedPlugCallback.LdconfigConnectedPlug(spec, plug, slot)
 	}
