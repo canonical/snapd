@@ -730,7 +730,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 			// explicit revision update. InstallPathMany intentionally does not
 			// do this, so same-revision local snaps can be handled differently
 			// by the two API entrypoints
-			Revision: si.Revision,
+			Revision:           si.Revision,
+			IsExplicitChannel:  channel != "",
+			IsExplicitRevision: !si.Revision.Unset(),
 		},
 	})
 
@@ -777,6 +779,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.snapshotExplicitRequest()
 
 	target := StoreInstallGoal(StoreSnap{
 		InstanceName: name,
@@ -858,6 +861,13 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
+	// Do not call snapshotExplicitRequest: this helper injects a default
+	// channel and is used by internal planners (recovery-system creation)
+	// that copy a model DefaultChannel or the installed revision. Those
+	// are not a user --channel= / --revision=. Callers that mean an
+	// explicit request must set IsExplicitChannel / IsExplicitRevision
+	// on RevOpts themselves.
+
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
 	}
@@ -903,6 +913,9 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		IsExplicitChannel:           revOpts.IsExplicitChannel,
+		IsExplicitRevision:          revOpts.IsExplicitRevision,
+		ValidationSets:              revOpts.snapSetupValidationSets(),
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1078,6 +1091,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		}
 		if len(revOpts) > 0 && revOpts[i] != nil {
 			sn.RevOpts = *revOpts[i]
+			sn.RevOpts.snapshotExplicitRequest()
 		}
 		snaps = append(snaps, sn)
 	}
@@ -1315,6 +1329,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		if len(revOpts) > 0 {
 			opts = *revOpts[i]
 		}
+		opts.snapshotExplicitRequest()
 
 		updates = append(updates, StoreUpdate{
 			InstanceName: name,
@@ -2167,6 +2182,27 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// IsExplicitChannel is set when the caller requested a channel
+	// (--channel= / API "channel") rather than inheriting tracking
+	// or a default. LTS policy must not override it.
+	IsExplicitChannel bool
+	// IsExplicitRevision is set when the caller requested a revision
+	// (--revision= / API "revision"). LTS policy must not override it.
+	IsExplicitRevision bool
+}
+
+// snapshotExplicitRequest records whether Channel or Revision were
+// supplied by the caller, before defaults and channel resolution fill
+// those fields. Internal planners that copy tracking or inject a
+// default channel must not call this.
+func (r *RevisionOptions) snapshotExplicitRequest() {
+	if r.Channel != "" {
+		r.IsExplicitChannel = true
+	}
+	if !r.Revision.Unset() {
+		r.IsExplicitRevision = true
+	}
 }
 
 func firstNonEmpty(strs ...string) string {
@@ -2225,6 +2261,16 @@ func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, o
 	return nil
 }
 
+// snapSetupValidationSets returns the planned validation-set keys for
+// SnapSetup. Always a non-nil slice: empty means this operation has no
+// constraints.
+func (r *RevisionOptions) snapSetupValidationSets() []snapasserts.ValidationSetKey {
+	if r.ValidationSets == nil {
+		return []snapasserts.ValidationSetKey{}
+	}
+	return r.ValidationSets.Keys()
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 //
@@ -2248,6 +2294,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.snapshotExplicitRequest()
 
 	// this is to maintain backwards compatibility with the old behavior
 	if flags.Transaction == "" {
@@ -2279,6 +2326,7 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.snapshotExplicitRequest()
 
 	// this is to maintain backwards compatibility with the old behavior
 	if flags.Transaction == "" {

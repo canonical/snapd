@@ -393,6 +393,8 @@ func delayedCrossMgrInit() {
 	snapstate.AutoAliases = AutoAliases
 	// hook the helper for getting enforced validation sets
 	snapstate.EnforcedValidationSets = TrackedEnforcedValidationSets
+	// hook the helper for rebuilding validation sets from planned keys
+	snapstate.ValidationSetsFromKeys = ValidationSetsFromKeys
 	// hook the helper for saving current validation sets to the stack
 	snapstate.AddCurrentTrackingToValidationSetsStack = addCurrentTrackingToValidationSetsHistory
 	// hook the helper for restoring validation sets tracking from the stack
@@ -1049,6 +1051,31 @@ func commitValidationSetPrerequisites(db, source *asserts.Database, valsets []*a
 	}
 
 	return nil
+}
+
+// ValidationSetsFromKeys rebuilds a ValidationSets object from assertion
+// primary keys. Empty keys return an empty ValidationSets without consulting
+// the database. The assertions must already be in the database.
+func ValidationSetsFromKeys(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error) {
+	sets := snapasserts.NewValidationSets()
+	if len(keys) == 0 {
+		return sets, nil
+	}
+
+	vsKeys := make(map[string][]string, len(keys))
+	for _, key := range keys {
+		vsKeys[key.String()] = key.Components()
+	}
+	valsets, err := resolveValidationSetPrimaryKeys(st, vsKeys)
+	if err != nil {
+		return nil, err
+	}
+	for _, vs := range valsets {
+		if err := sets.Add(vs); err != nil {
+			return nil, err
+		}
+	}
+	return sets, nil
 }
 
 func resolveValidationSetPrimaryKeys(st *state.State, vsKeys map[string][]string) (map[string]*asserts.ValidationSet, error) {

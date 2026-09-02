@@ -1,0 +1,252 @@
+summary: Redirect snapd onto the LTS track during an asserted auto-refresh
+
+details: |
+    Garden UC images typically carry an unasserted snapd, so auto-refresh
+    never hits LTS intercept there. This nested fakestore image seeds an
+    asserted snapd, switches tracking to latest/stable, then forces an
+    auto-refresh (aged last-refresh, hold cleared) with no --channel.
+
+    Pin variants ack a developer1 validation-set and record it as enforced
+    in state before the auto-refresh. snap validate --enforce cannot be used
+    first: the pin is not the currently installed revision. Intercept reads
+    EnforcedValidationSets, so tracking must already be enforce.
+
+    no-vset: intercept moves tracking to <base>/stable at the LTS revision.
+    pin-lts: the set pins that LTS revision; intercept matches and succeeds.
+    pin-mismatch: the set pins the latest/stable candidate; intercept fails
+    and must not link the LTS tip.
+
+systems:
+    - ubuntu-20*
+    - ubuntu-22*
+    - ubuntu-24*
+
+kill-timeout: 30m
+
+environment:
+    VARIANT/no_vset: no-vset
+    VARIANT/pin_lts: pin-lts
+    VARIANT/pin_mismatch: pin-mismatch
+    INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-lts-remodel-initial-pc-VERSION.json
+    NESTED_IMAGE_ID: snapd-lts-auto-refresh
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_REPACK_GADGET_SNAP: true
+    NESTED_REPACK_KERNEL_SNAP: true
+    NESTED_REPACK_BASE_SNAP: true
+    NESTED_REPACK_FOR_FAKESTORE: true
+    NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+    NESTED_SIGN_SNAPS_FAKESTORE: true
+    NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+    SNAPD_SNAP_ID: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    CANDIDATE_REV: 200000
+    LTS_REV: 200001
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+    VERSION="$(tests.nested show version)"
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+    gendeveloper1 sign-model < "${INITIAL_MODEL_JSON/VERSION/${VERSION}}" > initial-model.assert
+
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp initial-model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    tests.nested prepare-essential-snaps
+
+    orig_snapd=
+    for f in "${NESTED_FAKESTORE_BLOB_DIR}"/snapd_*.snap; do
+        orig_snapd=$f
+        break
+    done
+    if [ -z "$orig_snapd" ] || [ ! -f "$orig_snapd" ]; then
+        echo "cannot find snapd snap in fakestore blob dir"
+        ls -l "${NESTED_FAKESTORE_BLOB_DIR}" || true
+        exit 1
+    fi
+    cp "$orig_snapd" original-snapd.snap
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" original-snapd.snap latest/stable
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" original-snapd.snap latest/edge
+
+    export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+    ubuntu-image snap --image-size 10G ./initial-model.assert
+
+    image_dir=$(tests.nested get images-path)
+    image_name=$(tests.nested get image-name core)
+    cp ./pc.img "${image_dir}/${image_name}"
+    tests.nested configure-default-user
+
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    remote.wait-for device-initialized
+
+    remote.exec 'sudo systemctl stop snapd snapd.socket'
+
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon"="fake-session"' > state.json
+    remote.push state.json
+    remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+    remote.exec 'sudo systemctl start snapd snapd.socket'
+
+    remote.refresh disable-refreshes
+
+restore: |
+    systemctl stop fakedevicesvc || true
+    "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
+
+debug: |
+    remote.exec snap version || true
+    remote.exec snap model --assertion || true
+    remote.exec snap info snapd || true
+    remote.exec snap changes || true
+    if [ -f change.id ]; then
+        chg=
+        IFS= read -r chg < change.id
+        remote.exec snap tasks "$chg" || true
+    fi
+    remote.exec "sudo journalctl -u snapd -n 120" || true
+    remote.exec "sudo snap validate" || true
+
+execute: |
+    VERSION="$(tests.nested show version)"
+    lts_channel="${VERSION}/stable"
+
+    echo "Precondition: snapd is asserted"
+    remote.exec "snap list snapd" | awk 'NR==2 { print $3 }' | NOMATCH '^x'
+    orig_rev="$(remote.exec "snap list snapd" | awk 'NR==2 { print $3 }')"
+    test -n "$orig_rev"
+
+    echo "Switch tracking to latest/stable so auto-refresh store-updates without --channel"
+    remote.exec "sudo snap switch snapd --channel=latest/stable"
+    remote.exec "snap info snapd" | MATCH '^tracking:.*latest/stable'
+
+    unpack="$PWD/snapd-unpack"
+    rm -rf "$unpack"
+    unsquashfs -no-progress -d "$unpack" original-snapd.snap
+
+    info_file="$unpack/usr/lib/snapd/info"
+    if [ ! -f "$info_file" ]; then
+        echo "unpacked snapd is missing $info_file"
+        exit 1
+    fi
+    sed -i '/^SNAPD_LTS_TRACKS=/d' "$info_file"
+    printf "SNAPD_LTS_TRACKS='{\"%s\":{\"latest\":\"%s\"}}'\n" "$VERSION" "$VERSION" >> "$info_file"
+
+    sed -i 's/^version:[[:space:]].*/version: 1.0+lts-latest/' "$unpack/meta/snap.yaml"
+    snap pack --filename=snapd-latest.snap "$unpack"
+
+    "$TESTSTOOLS"/store-state make-snap-installable --noack --revision "$CANDIDATE_REV" "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-latest.snap" "$SNAPD_SNAP_ID"
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-latest.snap" latest/stable
+
+    sed -i 's/^version:[[:space:]].*/version: 1.0+lts-target/' "$unpack/meta/snap.yaml"
+    printf 'lts-target\n' > "$unpack/lts-target-marker"
+    snap pack --filename=snapd-lts.snap "$unpack"
+
+    "$TESTSTOOLS"/store-state make-snap-installable --noack --revision "$LTS_REV" "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-lts.snap" "$SNAPD_SNAP_ID"
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-lts.snap" "$lts_channel"
+    rm -rf "$unpack"
+
+    pin_rev=
+    case "$VARIANT" in
+        pin-lts)
+            pin_rev="$LTS_REV"
+            ;;
+        pin-mismatch)
+            pin_rev="$CANDIDATE_REV"
+            ;;
+    esac
+
+    if [ -n "$pin_rev" ]; then
+        echo "Ack and record an enforced validation-set pinning snapd at $pin_rev"
+        cat > vset.json <<EOF
+{
+  "type": "validation-set",
+  "series": "16",
+  "account-id": "developer1",
+  "authority-id": "developer1",
+  "name": "snapd-lts-pin",
+  "sequence": "1",
+  "timestamp": "2024-04-24T00:00:00+00:00",
+  "snaps": [{
+      "id": "${SNAPD_SNAP_ID}",
+      "name": "snapd",
+      "presence": "required",
+      "revision": "${pin_rev}"
+  }]
+}
+EOF
+        gendeveloper1 sign-model < vset.json > vset.assert
+        cp vset.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+        remote.push vset.assert
+        remote.exec 'sudo snap ack vset.assert'
+    fi
+
+    echo "Clear refresh hold and age last-refresh so auto-refresh runs"
+    remote.exec 'sudo snap set system refresh.hold!' || true
+    remote.exec 'sudo systemctl stop snapd snapd.socket'
+    remote.exec 'sudo cat /var/lib/snapd/state.json' > state.json
+    if [ -n "$pin_rev" ]; then
+        gojq '
+          .data["validation-sets"]["developer1/snapd-lts-pin"] = {
+            "account-id": "developer1",
+            "name": "snapd-lts-pin",
+            "mode": 1,
+            "current": 1
+          }
+          | .data["last-refresh"] = "2007-08-22T09:30:44.449455783+01:00"
+        ' state.json > state.json.new
+    else
+        gojq '.data["last-refresh"] = "2007-08-22T09:30:44.449455783+01:00"' state.json > state.json.new
+    fi
+    remote.push state.json.new
+    remote.exec 'sudo mv state.json.new /var/lib/snapd/state.json'
+    remote.exec 'sudo systemctl start snapd snapd.socket'
+
+    boot_id="$(tests.nested boot-id)"
+
+    echo "Wait for an auto-refresh change"
+    change_id=
+    for _ in $(seq 60); do
+        remote.exec 'sudo snap debug ensure-state-soon' || true
+        change_id="$(remote.exec 'sudo snap changes' | awk '/Auto-refresh/{print $1; exit}')"
+        if [ -n "$change_id" ]; then
+            break
+        fi
+        sleep 2
+    done
+    test -n "$change_id"
+    printf '%s\n' "$change_id" > change.id
+
+    if [ "$VARIANT" = pin-mismatch ]; then
+        echo "Pin of latest/stable must not be treated as on the LTS track"
+        retry -n 120 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}[[:space:]]+Error'"
+        remote.exec "snap tasks ${change_id}" | MATCH 'not available on that track'
+        remote.exec "snap info snapd" | MATCH '^tracking:.*latest/stable'
+        remote.exec "snap list snapd" | awk 'NR==2 { print $3 }' | MATCH "^${orig_rev}$"
+        remote.exec "snap list snapd" | awk 'NR==2 { print $3 }' | NOMATCH "^${LTS_REV}$"
+        exit 0
+    fi
+
+    echo "Wait for the snapd auto-refresh (may reboot)"
+    remote.wait-for reboot "${boot_id}" || true
+    remote.wait-for snap-command
+    retry -n 120 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}[[:space:]]+(Done|Undone|Error)'"
+    remote.exec "sudo snap changes" | MATCH "^${change_id}[[:space:]]+Done"
+
+    echo "Snapd must track the LTS channel at the LTS revision"
+    remote.exec "snap info snapd" | MATCH "^tracking:.*${lts_channel}"
+    remote.exec "snap list snapd" | awk 'NR==2 { print $3 }' | MATCH "^${LTS_REV}$"
+
+    echo "The download task must have logged the LTS redirect"
+    remote.exec "snap tasks ${change_id}" | MATCH 'LTS track'
+    remote.exec "sudo journalctl -u snapd --no-pager" | MATCH 'snapd LTS redirect'
