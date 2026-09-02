@@ -223,7 +223,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 
 	var globs []string
-	for _, g := range interfaces.SecurityTagGlobs(instanceName.TODOInstanceName()) {
+	for _, g := range interfaces.SecurityTagGlobs(instanceName.String()) {
 		globs = append(globs, fmt.Sprintf("%s.src", g))
 	}
 

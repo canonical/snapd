@@ -2441,7 +2441,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 		// snap must be installed at this point, either just installed by a
 		// previous link-snap task, or it was already installed.
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err = snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil {
 			return err
 		}
@@ -2457,7 +2457,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 			return fmt.Errorf("internal error while linking component: %w", err)
 		}
 
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
@@ -2470,7 +2470,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 		}
 
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err = snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil {
 			return err
 		}
@@ -2486,7 +2486,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 
 		c.Check(removed, NotNil)
 
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 
 		return nil
 	})
@@ -2501,7 +2501,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 
 	// snap should already be installed if calling this function
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+	err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 	c.Assert(err, IsNil)
 
 	change := s.state.NewChange("test", "")
@@ -2537,7 +2537,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 
 	if !opts.install {
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		c.Assert(err, IsNil)
 		csis = append(csis, snapst.CurrentComponentSideInfos()...)
 	}
@@ -2551,7 +2551,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		s.state.Lock()
 		defer s.state.Unlock()
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -2565,28 +2565,28 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			c.Check(snapst.PendingSecurity.SideInfo, DeepEquals, snapsup.SideInfo)
 			c.Check(snapst.PendingSecurity.Components, DeepEquals, csis)
 		}
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
 
 		if opts.linkSnapRestarts {
 			c.Log("requesting restart in link-snap")
-			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
 		}
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
 		s.state.Lock()
 		defer s.state.Unlock()
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if opts.install {
 			// unlink completely
-			snapstate.Set(s.state, snapsup.InstanceName(), nil)
+			snapstate.Set(s.state, snapsup.InstanceName().String(), nil)
 		} else {
 			snapst.Active = false
-			snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+			snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 		}
 		// this is realistic and will move PendingSecurity.SideInfo
 		// on undo already to the previous revision, this should
@@ -2596,9 +2596,9 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		if !opts.install {
 			// perturb things to make sure undo-setup-profiles
 			// sets the right value
-			c.Assert(snapstate.Get(s.state, snapsup.InstanceName(), &snapst), IsNil)
+			c.Assert(snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst), IsNil)
 			snapst.PendingSecurity.SideInfo = &snap.SideInfo{}
-			snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+			snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 		}
 		return nil
 	})
@@ -2606,13 +2606,13 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	s.mockLinkComponent(c)
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+	err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic(err)
 	}
 	if snapst.IsInstalled() {
 		snapst.Active = opts.active
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 	}
 
 	change := s.state.NewChange("test", "")
@@ -6419,8 +6419,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(err, IsNil)
 
 	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: siC.InstanceName().TODOInstanceName(), Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: siP.InstanceName().TODOInstanceName(), Name: "slot"},
+		PlugRef: interfaces.PlugRef{Snap: siC.InstanceName().String(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: siP.InstanceName().String(), Name: "slot"},
 	}
 	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
@@ -7032,7 +7032,7 @@ apps:
 `, 2)
 
 	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
-		if appSet.InstanceName().TODOInstanceName() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
+		if appSet.InstanceName().String() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
 			return fmt.Errorf("fail setup consumer rev 2")
 		}
 		return nil
@@ -7120,7 +7120,7 @@ apps:
 `, 2)
 
 	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
-		if appSet.InstanceName().TODOInstanceName() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
+		if appSet.InstanceName().String() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
 			return fmt.Errorf("fail setup consumer rev 2")
 		}
 		return nil
@@ -11277,14 +11277,14 @@ func (s *interfaceManagerSuite) TestShouldUndoSetupProfiles(c *C) {
 
 	// Legacy/component-only style change has no prepare-profiles task.
 	// In that case, undo should run for setup-profiles tasks.
-	c.Check(ifacestate.ShouldUndoSetupProfiles(setupBeforeLink, snapsup.InstanceName()), Equals, true)
-	c.Check(ifacestate.ShouldUndoSetupProfiles(setupAfterAutoConnect, snapsup.InstanceName()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(setupBeforeLink, snapsup.InstanceName().String()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(setupAfterAutoConnect, snapsup.InstanceName().String()), Equals, true)
 
 	// The prepare-profiles task for a different snap must not affect the result
 	// for this snap. For the other snap itself, setup-profiles should not undo
 	// because prepare-profiles exists for that same snap.
-	c.Check(ifacestate.ShouldUndoSetupProfiles(otherPrepareProfiles, otherSnapsup.InstanceName()), Equals, true)
-	c.Check(ifacestate.ShouldUndoSetupProfiles(otherSetupProfiles, otherSnapsup.InstanceName()), Equals, false)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(otherPrepareProfiles, otherSnapsup.InstanceName().String()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(otherSetupProfiles, otherSnapsup.InstanceName().String()), Equals, false)
 }
 
 // Tests for ResolveDisconnect()
@@ -12480,9 +12480,9 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			// expecting 2 calls, first from manager startup, 2nd from handler
 			c.Check(appSets, HasLen, 2)
 			for _, appSet := range appSets {
-				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName().TODOInstanceName()))
+				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName().String()))
 				c.Assert(err, IsNil)
-				c.Check(sctx(appSet.InstanceName().TODOInstanceName()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx(appSet.InstanceName().String()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			}
 
 			if setupCalls == 2 {
@@ -13859,20 +13859,20 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 	chg := s.state.NewChange("test", "")
 
 	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
-		name := snapsup.InstanceName()
-		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("prepare profiles for %q", name))
+		instanceName := snapsup.InstanceName()
+		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("prepare profiles for %q", instanceName))
 		setupProfiles.Set("prepare-profiles", true)
 		setupProfiles.Set("snap-setup", snapsup)
 
-		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
+		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", instanceName))
 		linkSnap.Set("snap-setup-task", setupProfiles.ID())
 		linkSnap.WaitFor(setupProfiles)
 
-		autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", name))
+		autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", instanceName))
 		autoconnect.Set("snap-setup", snapsup)
 		autoconnect.WaitFor(linkSnap)
 
-		inject := s.state.NewTask("inject-err", fmt.Sprintf("maybe inject error for %q", name))
+		inject := s.state.NewTask("inject-err", fmt.Sprintf("maybe inject error for %q", instanceName))
 		inject.Set("snap-setup", snapsup)
 		inject.WaitFor(autoconnect)
 		return state.NewTaskSet(setupProfiles, linkSnap, autoconnect, inject)
@@ -14217,16 +14217,16 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 	chg := s.state.NewChange("test", "")
 
 	tasksForOne := func(snapsup *snapstate.SnapSetup) *state.TaskSet {
-		name := snapsup.InstanceName()
-		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("prepare profiles for %q", name))
+		instanceName := snapsup.InstanceName()
+		setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("prepare profiles for %q", instanceName))
 		setupProfiles.Set("prepare-profiles", true)
 		setupProfiles.Set("snap-setup", snapsup)
 
-		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
+		linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", instanceName))
 		linkSnap.Set("snap-setup-task", setupProfiles.ID())
 		linkSnap.WaitFor(setupProfiles)
 
-		autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", name))
+		autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", instanceName))
 		autoconnect.Set("snap-setup", snapsup)
 		autoconnect.WaitFor(linkSnap)
 		return state.NewTaskSet(setupProfiles, linkSnap, autoconnect)
@@ -14944,25 +14944,25 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 
 	chg := s.state.NewChange("test", "")
 
-	name := snapsup.InstanceName()
-	prepare := s.state.NewTask("prepare", fmt.Sprintf("prepare %q", name))
+	instanceName := snapsup.InstanceName()
+	prepare := s.state.NewTask("prepare", fmt.Sprintf("prepare %q", instanceName))
 	prepare.Set("snap-setup", snapsup)
 
-	errInject := s.state.NewTask("error-trigger", fmt.Sprintf("inject error for %q", name))
+	errInject := s.state.NewTask("error-trigger", fmt.Sprintf("inject error for %q", instanceName))
 
-	unlinkSnap := s.state.NewTask("unlink-current-snap", fmt.Sprintf("unlink current for %q", name))
+	unlinkSnap := s.state.NewTask("unlink-current-snap", fmt.Sprintf("unlink current for %q", instanceName))
 	unlinkSnap.Set("snap-setup-task", prepare.ID())
 	unlinkSnap.WaitFor(prepare)
 
-	setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles for %q", name))
+	setupProfiles := s.state.NewTask("setup-profiles", fmt.Sprintf("setup profiles for %q", instanceName))
 	setupProfiles.Set("snap-setup-task", prepare.ID())
 	setupProfiles.WaitFor(unlinkSnap)
 
-	linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", name))
+	linkSnap := s.state.NewTask("link-snap", fmt.Sprintf("link for %q", instanceName))
 	linkSnap.Set("snap-setup-task", prepare.ID())
 	linkSnap.WaitFor(setupProfiles)
 
-	autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", name))
+	autoconnect := s.state.NewTask("auto-connect", fmt.Sprintf("auto connect for %q", instanceName))
 	autoconnect.Set("snap-setup-task", prepare.ID())
 	autoconnect.WaitFor(linkSnap)
 
@@ -14996,7 +14996,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 		defer st.Unlock()
 
 		c.Log("requesting restart in link-snap")
-		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
 	}, func(task *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	})
@@ -15013,7 +15013,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 
 		c.Log("requesting restart in undo unlink-current-snap")
 		// undo handler requests a restart in order to reach undo
-		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
 	})
 	s.o.TaskRunner().AddHandler("error-trigger", func(task *state.Task, tomb *tomb.Tomb) error {
 		return errors.New("mock error")

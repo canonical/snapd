@@ -5,53 +5,12 @@ environment:
     PATH: $PROJECT_PATH/tools:$PROJECT_PATH/utils:$PROJECT_PATH/remote:$PATH
     
 backends:
-    google:
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-            - ubuntu-16.04-64:
-            - ubuntu-18.04-64:
-            - ubuntu-20.04-64:
-                image: ubuntu-2004-64
-                storage: 16G
-            - ubuntu-22.04-64:
-                image: ubuntu-2204-64
-            - ubuntu-24.04-64:
-                image: ubuntu-2404-64
-            - debian-11-64:
-            - debian-12-64:
-            - debian-sid-64:
-            - arch-linux-64:
-            - amazon-linux-2023-64:
-                storage: preserve-size
-            - centos-9-64:
-                storage: preserve-size
-            - opensuse-15.5-64:
-            - opensuse-15.6-64:
-
-    google-nested:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-east1-b
-        plan: n2-standard-2
-        halt-timeout: 2h
-        cpu-family: "Intel Cascade Lake"
-        systems:
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
-                  storage: 20G
-
     openstack:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
         halt-timeout: 2h
         wait-timeout: 10m
         groups: [default]
-        proxy: ingress-haproxy.ps7.canonical.com
-        cidr-port-rel: [10.151.96.0/21:5000]
-        volume-auto-delete: true
         environment: &openstack-env
             SNAPD_USE_PROXY: 'true'
             HTTP_PROXY: 'http://egress.ps7.internal:3128'
@@ -61,7 +20,7 @@ backends:
             no_proxy: '127.0.0.1,127.0.0.53,localhost'
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
             NTP_SERVER: 'ntp.ps7.internal'
-        systems:
+        systems: &openstack-systems
             - ubuntu-16.04-64:
                 image: snapd-spread/ubuntu-16.04-64
             - ubuntu-18.04-64:
@@ -77,14 +36,62 @@ backends:
 
             - fedora-44-64:
                 image: snapd-spread/fedora-44-64
-            - opensuse-15.6-64:
-                image: snapd-spread/opensuse-15.6-64
+            - opensuse-16.0-64:
+                image: snapd-spread/opensuse-16.0-64
             - opensuse-tumbleweed-64:
                 image: snapd-spread/opensuse-tumbleweed-64
             - centos-9-64:
                 image: snapd-spread/centos-9-64
             - debian-sid-64:
                 image: snapd-spread/debian-sid-64
+
+    openstack-ext:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
+        plan: shared.medium
+        storage: 30G
+        halt-timeout: 2h
+        wait-timeout: 10m
+        groups: [default]
+        environment: *openstack-env
+        systems: &openstack-nested-systems
+            - ubuntu-16.04-64:
+                  image: snapd-spread/ubuntu-16.04-64
+                  storage: 20G
+                  workers: 4
+            - ubuntu-18.04-64:
+                  image: snapd-spread/ubuntu-18.04-64
+                  storage: 20G
+                  workers: 4
+            - ubuntu-20.04-64:
+                  image: snapd-spread/ubuntu-20.04-64-hwe
+                  storage: 20G
+                  workers: 12
+            - ubuntu-22.04-64:
+                  image: snapd-spread/ubuntu-22.04-64
+                  storage: 25G
+                  workers: 12
+            - ubuntu-24.04-64:
+                  image: snapd-spread/ubuntu-24.04-64
+                  storage: 30G
+                  workers: 12
+            - ubuntu-26.04-64:
+                  image: snapd-spread/ubuntu-26.04-64
+                  storage: 30G
+                  workers: 12
+
+    openstack-dev:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_AMD64_PS7")'
+        plan: shared.xsmall
+        halt-timeout: 2h
+        wait-timeout: 10m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.54.0/24:4000]
+        volume-auto-delete: true
+        environment: *openstack-env
+        systems: *openstack-systems
 
     openstack-arm:
         type: openstack
@@ -93,11 +100,8 @@ backends:
         halt-timeout: 2h
         wait-timeout: 10m
         groups: [default]
-        proxy: ingress-haproxy.ps7.canonical.com
-        cidr-port-rel: [10.151.89.0/24:8000]
-        volume-auto-delete: true
         environment: *openstack-env
-        systems:
+        systems: &openstack-arm-systems
             - ubuntu-20.04-arm-64:
                 image: snapd-spread/ubuntu-20.04-arm-64
             - ubuntu-22.04-arm-64:
@@ -106,6 +110,20 @@ backends:
                 image: snapd-spread/ubuntu-24.04-arm-64
             - ubuntu-26.04-arm-64:
                 image: snapd-spread/ubuntu-26.04-arm-64
+
+    openstack-arm-dev:
+        type: openstack
+        key: '$(HOST: echo "$OS_CREDENTIALS_STG_ARM64_PS7")'
+        plan: shared.xsmall.arm64
+        halt-timeout: 2h
+        wait-timeout: 10m
+        groups: [default]
+        proxy: ingress-haproxy.ps7.canonical.com
+        cidr-port-rel: [10.151.53.0/24:3000]
+        volume-auto-delete: true
+        environment: *openstack-env
+        systems: *openstack-arm-systems
+
 
     testflinger:
         wait-timeout: 30m

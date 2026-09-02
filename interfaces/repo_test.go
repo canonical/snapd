@@ -357,8 +357,8 @@ func (s *RepositorySuite) TestAddAppSetParallelInstance(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 2)
 
-	c.Assert(s.testRepo.Plug(s.consumer.InstanceName().TODOInstanceName(), s.consumerPlug.Name), DeepEquals, s.consumerPlug)
-	c.Assert(s.testRepo.Plug(consumer.InstanceName().TODOInstanceName(), "plug"), DeepEquals, consumer.Info().Plugs["plug"])
+	c.Assert(s.testRepo.Plug(s.consumer.InstanceName().String(), s.consumerPlug.Name), DeepEquals, s.consumerPlug)
+	c.Assert(s.testRepo.Plug(consumer.InstanceName().String(), "plug"), DeepEquals, consumer.Info().Plugs["plug"])
 }
 
 // Tests for Repository.AddSlot()
@@ -441,7 +441,7 @@ func (s *RepositorySuite) TestAddSlotClashingPlug(c *C) {
 
 	c.Assert(err, ErrorMatches, `snap "consumer" has plug and slot conflicting on name "plug"`)
 	c.Assert(s.testRepo.AllPlugs(""), HasLen, 1)
-	c.Assert(s.testRepo.Plug(s.consumer.InstanceName().TODOInstanceName(), "plug"), DeepEquals, s.consumerPlug)
+	c.Assert(s.testRepo.Plug(s.consumer.InstanceName().String(), "plug"), DeepEquals, s.consumerPlug)
 }
 
 func (s *RepositorySuite) TestAddSlotStoresCorrectData(c *C) {

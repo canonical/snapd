@@ -87,7 +87,9 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 	err = spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "\n\"/run/systemd/notify\" w,")
+	snippet := spec.SnippetForTag("snap.consumer.app")
+	c.Assert(snippet, testutil.Contains, "\n\"/run/systemd/notify\" w,")
+	c.Assert(snippet, testutil.Contains, "\n\"/systemd/notify\" w,")
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {

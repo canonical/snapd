@@ -226,7 +226,7 @@ func (c *modelCommand) Execute([]string) error {
 	// We only return an error in case we could not the get the snap.Info
 	// structure, and 'ignore' any error that caused us not to get the store
 	// account publisher
-	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName())
+	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName().String())
 	if snapInfo == nil {
 		return err
 	}

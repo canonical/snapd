@@ -19,7 +19,7 @@ remap_one() {
             echo "python3-gobject"
             ;;
         test-snapd-pkg-1)
-            echo "nudoku"
+            echo "w3m"
             ;;
         test-snapd-pkg-2)
             echo "system-user-games"

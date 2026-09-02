@@ -375,7 +375,7 @@ type testLinkParticipant struct {
 
 func (lp *testLinkParticipant) SnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 	lp.callCount++
-	lp.instanceNames = append(lp.instanceNames, snapsup.InstanceName())
+	lp.instanceNames = append(lp.instanceNames, snapsup.InstanceName().String())
 	if lp.linkageChanged != nil {
 		return lp.linkageChanged(st, snapsup)
 	}
@@ -395,7 +395,7 @@ func (s *handlersSuite) TestAddLinkParticipant(c *C) {
 	lp := &testLinkParticipant{
 		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			c.Assert(st, NotNil)
-			c.Check(snapsup.InstanceName(), Equals, "snap-name")
+			c.Check(snapsup.InstanceName().String(), Equals, "snap-name")
 			return nil
 		},
 	}
