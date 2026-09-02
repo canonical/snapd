@@ -194,8 +194,12 @@ func (s *store) initFdstore() {
 			logger.Noticef("removing unexpected fdstore entry %q", name)
 			if err := s.remove(name); err != nil {
 				logger.Noticef("internal error: cannot remove fdstore entry %q: %v", name, err)
-				continue
 			}
+			// Always close and forget the local entry, even when notifying
+			// systemd failed, otherwise the descriptor stays reachable through
+			// Get/ActivationListeners with FD_CLOEXEC possibly unset and can
+			// leak into an executed child.
+			s.removeLocal(name)
 		}
 	}
 }
@@ -247,11 +251,19 @@ func (s *store) remove(name FdName) error {
 		return err
 	}
 
+	s.removeLocal(name)
+	return nil
+}
+
+// removeLocal closes the file descriptors associated with name and forgets
+// the entry from the local fdstore map, without notifying systemd.
+//
+// Caller must hold the fdstore lock.
+func (s *store) removeLocal(name FdName) {
 	for _, f := range fdstore[name] {
 		osFileClose(f)
 	}
 	delete(fdstore, name)
-	return nil
 }
 
 func duplicateFile(name FdName, f *os.File) (*os.File, error) {
