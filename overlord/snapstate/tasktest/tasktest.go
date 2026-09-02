@@ -68,10 +68,6 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	return selection.subset(matches), nil
 }
 
-type Querier interface {
-	Query(Selection) (Selection, error)
-}
-
 type Selection struct {
 	tasks        []*state.Task
 	cache        map[any]any
@@ -130,6 +126,10 @@ func (s Selection) Cache(key, value any) {
 	} else {
 		s.cache[key] = value
 	}
+}
+
+type Querier interface {
+	Query(Selection) (Selection, error)
 }
 
 func (s Selection) Select(query Querier) Selection {
