@@ -53,6 +53,9 @@ func SdNotify(notifyState string) error {
 	}
 
 	if _, err := conn.Write([]byte(notifyState)); err != nil {
+		// UNIXGRAM sockets are connectionless, so an error here likely indicates
+		// that the socket is no longer valid. We drop the cached connection to
+		// ensure the next call reconnects.
 		// drop the cached connection so the next call reconnects
 		conn.Close()
 		sdNotifyConnCache = nil
@@ -113,7 +116,9 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 	}
 
 	if sendMsgErr != nil {
-		// drop the cached connection so the next call reconnects
+		// UNIXGRAM sockets are connectionless, so an error here likely indicates
+		// that the socket is no longer valid. We drop the cached connection to
+		// ensure the next call reconnects.
 		conn.Close()
 		sdNotifyConnCache = nil
 	}
