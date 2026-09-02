@@ -368,6 +368,27 @@ class TestTaskTitles(unittest.TestCase):
             else:
                 self.assertFalse(has_milestone)
 
+    def test_beta_snaps_requires_fips_provider_verification(self):
+        plan = sample_plan()
+        beta = next(
+            task
+            for task in plan.tasks
+            if task.summary == "Build and upload BETA snapd snaps"
+        )
+        checklist = list(beta.checklist)
+        verify = (
+            "Verify the FIPS snap loads the FIPS provider on a FIPS-enabled system"
+        )
+        self.assertIn(verify, checklist)
+        self.assertLess(
+            checklist.index("Build snapd snaps on Launchpad (including FIPS)"),
+            checklist.index(verify),
+        )
+        self.assertLess(
+            checklist.index(verify),
+            checklist.index("Promote FIPS revisions to fips-updates/beta"),
+        )
+
     def test_candidate_promotion_gates_and_comms(self):
         plan = sample_plan()
         checklist = list(plan.tasks[3].checklist)
@@ -405,16 +426,19 @@ class TestTaskTitles(unittest.TestCase):
         self.assertEqual(teams[:-2], [crt.AMER_TEAM] * 7)
         self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
 
-    def test_parse_team_maps_short_names(self):
+    def test_parse_team_maps_short_and_full_names(self):
         self.assertEqual(crt.parse_team(None), crt.DEFAULT_TEAM)
         self.assertEqual(crt.parse_team("EMEA"), crt.DEFAULT_TEAM)
         self.assertEqual(crt.parse_team("AMER"), crt.AMER_TEAM)
         self.assertEqual(crt.parse_team("Cross-distro"), crt.CROSS_DISTRO_TEAM)
         self.assertEqual(crt.parse_team("amer"), crt.AMER_TEAM)
         self.assertEqual(crt.parse_team("cross-distro"), crt.CROSS_DISTRO_TEAM)
+        self.assertEqual(crt.parse_team("SnapD AMER"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("snapd emea"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("SnapD Cross-distro"), crt.CROSS_DISTRO_TEAM)
 
-    def test_parse_team_rejects_unknown_and_full_names(self):
-        for raw in ("SRE", "SnapD AMER", "SnapD"):
+    def test_parse_team_rejects_unknown_names(self):
+        for raw in ("SRE", "SnapD"):
             with self.assertRaises(crt.UsageError) as cm:
                 crt.parse_team(raw)
             message = str(cm.exception)
@@ -1370,6 +1394,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--lts-targets strings", out)
         self.assertIn("--Team string", out)
         self.assertIn("script-generated", out)
+        self.assertIn("preexisting, matching, script-generated", out)
         self.assertLess(out.find("--Team string"), out.find("--lts-targets strings"))
         self.assertLess(
             out.find("--lts-targets strings"), out.find("--dev-target string")
@@ -1459,6 +1484,28 @@ class TestCLI(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertIn(f"Team: {crt.AMER_TEAM}", out)
+
+    def test_team_flag_accepts_full_jira_name(self):
+        rc, out, _err = run_main(
+            [
+                "2.78",
+                "--Team",
+                "SnapD AMER",
+                "--dev-target",
+                "resolute",
+                "--lts-targets",
+                "jammy,noble,plucky",
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(f"Team: {crt.AMER_TEAM}", out)
+
+    def test_abbreviated_flags_are_rejected(self):
+        for flag in ("--app", "--for", "--create-v"):
+            rc, out, err = run_main(["2.78", flag])
+            self.assertEqual(rc, 2, flag)
+            self.assertEqual(out, "")
+            self.assertIn(f"Error: unknown flag: {flag}", err)
 
     def test_unknown_flag_is_cobra_style(self):
         rc, out, err = run_main(["2.78", "--variant", "major"])

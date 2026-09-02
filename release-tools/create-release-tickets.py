@@ -16,8 +16,8 @@ only on labeled tasks; unlabeled tasks with a matching title are listed as
 placeholders but never modified.
 
 The epic and non-cross-distro tasks use team SnapD EMEA unless --Team is
-set to AMER or Cross-distro. Cross-distro tasks always use SnapD
-Cross-distro.
+set to a short name (AMER, Cross-distro) or the full Jira team name.
+Cross-distro tasks always use SnapD Cross-distro.
 """
 
 # Hyphenated filename; this is a script, not a library.
@@ -75,7 +75,7 @@ TARGET_STATUS = "Triaged"
 DEFAULT_TEAM = "SnapD EMEA"
 CROSS_DISTRO_TEAM = "SnapD Cross-distro"
 AMER_TEAM = "SnapD AMER"
-# --Team takes the short name; Jira needs the full team name. Cross-distro
+# --Team accepts a short name or the full Jira team name. Cross-distro
 # tasks ignore --Team and always use CROSS_DISTRO_TEAM.
 TEAM_NAMES = {
     "EMEA": DEFAULT_TEAM,
@@ -131,11 +131,11 @@ def new_local_id():
 
 
 def parse_team(raw):
-    """Map a --Team short name to its Jira team, or DEFAULT_TEAM when empty."""
+    """Map a --Team short or full name to its Jira team, or DEFAULT_TEAM when empty."""
     if not raw:
         return DEFAULT_TEAM
     for short_name, team in TEAM_NAMES.items():
-        if raw.lower() == short_name.lower():
+        if raw.lower() in (short_name.lower(), team.lower()):
             return team
     allowed = ", ".join(f'"{name}"' for name in TEAM_NAMES)
     raise UsageError(f'invalid --Team "{raw}", expected one of {allowed}')
@@ -256,6 +256,7 @@ def task_beta_snaps():
             "Push the version git tag",
             "Open and merge the changelog PR against master",
             "Build snapd snaps on Launchpad (including FIPS)",
+            "Verify the FIPS snap loads the FIPS provider on a FIPS-enabled system",
             "Promote revisions to latest/beta",
             "Promote FIPS revisions to fips-updates/beta",
             "Close the GitHub milestone for this release",
@@ -1309,7 +1310,10 @@ def print_help(out=None):
     flags = (
         ("      --apply", "Create issues in Jira (default is dry-run)"),
         ("      --create-version", "Create the Jira version if missing (major only)"),
-        ("      --force", "Rewrite script-generated task descriptions and criteria"),
+        (
+            "      --force",
+            "Rewrite preexisting, matching, script-generated task descriptions and criteria",
+        ),
         ("      --security", "Treat a patch version as a security release"),
         (
             "      --Team string",
@@ -1354,7 +1358,7 @@ def parse_arguments(argv=None):
     """Parse argv. Unknown flags and invalid --Team raise UsageError."""
     if argv is None:
         argv = sys.argv[1:]
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     parser.add_argument("version", nargs="?")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--create-version", action="store_true", dest="create_version")
