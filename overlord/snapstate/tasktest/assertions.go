@@ -57,7 +57,7 @@ func laneSet(task *state.Task) map[int]bool {
 	return lanes
 }
 
-func AssertSharesLane(selections ...Selection) error {
+func AssertCommonLane(selections ...Selection) error {
 	if err := validateNonEmpty(selections...); err != nil {
 		return err
 	}
