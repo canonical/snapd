@@ -99,7 +99,10 @@ func reachability(tasks []*state.Task) map[*state.Task]map[*state.Task]bool {
 		for len(stack) != 0 {
 			next := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			if next == task || reachable[next] {
+			if next == task {
+				panic(fmt.Sprintf("dependency cycle involving task %s (%s)", task.ID(), task.Kind()))
+			}
+			if reachable[next] {
 				continue
 			}
 
