@@ -24,6 +24,10 @@ type TaskQuery struct {
 // Query returns a subset of the tasks in the given Selection that match this
 // TaskQuery.
 func (q TaskQuery) Query(selection Selection) (Selection, error) {
+	if q.Cardinality < -1 {
+		return Selection{}, fmt.Errorf("invalid task query cardinality %d", q.Cardinality)
+	}
+
 	matches, err := selection.Filter(func(task *state.Task) (bool, error) {
 		if q.Kind != "" && task.Kind() != q.Kind {
 			return false, nil
@@ -56,18 +60,19 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 		return Selection{}, err
 	}
 
+	if len(matches.selected) == 0 {
+		return Selection{}, fmt.Errorf("task query matched no tasks")
+	}
+
+	// by default, we treat an unset cardinality as expecting exactly one task.
+	// if we need to query for the absence of tasks, we'll rework this.
 	cardinality := q.Cardinality
 	if cardinality == 0 {
 		cardinality = 1
 	}
-	switch {
-	case cardinality == -1:
-		if len(matches.selected) == 0 {
-			return Selection{}, fmt.Errorf("task query matched no tasks")
-		}
-	case cardinality < -1:
-		return Selection{}, fmt.Errorf("invalid task query cardinality %d", cardinality)
-	case len(matches.selected) != cardinality:
+
+	// cardinality of -1 implies any non-zero number of tasks is expected
+	if cardinality != -1 && len(matches.selected) != cardinality {
 		return Selection{}, fmt.Errorf("task query matched %d tasks, expected %d", len(matches.selected), cardinality)
 	}
 
