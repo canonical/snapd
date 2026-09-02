@@ -39,6 +39,11 @@ on:
         type: boolean
         default: false
         required: false
+      run-as-root:
+        description: 'If true, run Go tests as root instead of non-root'
+        type: boolean
+        default: false
+        required: false
 
 jobs:
   unit-tests:
@@ -50,9 +55,11 @@ jobs:
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
       GOROOT: ""
+      GOMODCACHE: /tmp/snapd-go/pkg/mod
+      GOCACHE: /tmp/snapd-go/build-cache
       GO_BUILD_TAGS: ${{ inputs.go-build-tags }}
       CC: ${{ inputs.c-compiler }}
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
@@ -76,6 +83,7 @@ jobs:
     - name: Get deps
       if: ${{ inputs.code == 'go' }}
       run: |
+          mkdir -p "$GOMODCACHE" "$GOCACHE"
           ./get-deps.sh
 
     - name: Build C
@@ -146,12 +154,20 @@ jobs:
       if: ${{ inputs.code == 'go' }}
       run: |
         ./run-checks --verify-tools
+        echo "PATH=$(go env GOPATH | sed 's|:|/bin:|g')/bin:$PATH" >> "$GITHUB_ENV"
 
     - name: Test Go (with network isolation)
-      if: ${{ inputs.code == 'go' }}
+      if: ${{ inputs.code == 'go' && !inputs.run-as-root }}
       run: |
-        sudo --preserve-env=PATH,GOROOT,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE \
+        sudo --preserve-env=PATH,GOROOT,GOPATH,GOMODCACHE,GOCACHE,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE \
           unshare --net -- bash -c 'ip link set lo up && runuser -u "$1" -- ./run-checks --unit' -- "$USER"
+
+    - name: Test Go (as root, with network isolation)
+      if: ${{ inputs.code == 'go' && inputs.run-as-root }}
+      run: |
+        sudo --preserve-env=PATH,GOROOT,GOPATH,GOMODCACHE,GOCACHE,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE \
+          env -u SUDO_USER -u SUDO_UID -u SUDO_GID \
+          unshare --net -- bash -c 'ip link set lo up && ./run-checks --unit'
 
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
