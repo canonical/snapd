@@ -42,7 +42,7 @@ type Component20 struct {
 // Snap20 carries options for a model snap or an extra snap
 // in grade: dangerous.
 type Snap20 struct {
-	Name string `yaml:"name"`
+	Name naming.SnapName `yaml:"name"`
 	// id and unasserted can be both set, in which case it only
 	// cross-references the model
 	SnapID string `yaml:"id,omitempty"`
@@ -61,7 +61,7 @@ type Snap20 struct {
 
 // SnapName implements naming.SnapRef.
 func (sn *Snap20) SnapName() naming.SnapName {
-	return naming.SnapName(sn.Name)
+	return sn.Name
 }
 
 // ID implements naming.SnapRef.
@@ -94,7 +94,7 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 		}
 		// TODO: check if it's a parallel install explicitly,
 		// need to move *Instance* helpers from snap to naming
-		if err := naming.ValidateSnap(sn.Name); err != nil {
+		if err := naming.ValidateSnap(sn.Name.String()); err != nil {
 			return nil, fmt.Errorf("%s: %v", errPrefix, err)
 		}
 		if sn.SnapID == "" && sn.Channel == "" && sn.Unasserted == "" {
@@ -131,10 +131,10 @@ func ReadOptions20(optionsFn string) (*Options20, error) {
 		}
 
 		// make sure names and file names are unique
-		if seenNames[sn.Name] {
+		if seenNames[sn.Name.String()] {
 			return nil, fmt.Errorf("%s: snap name %q must be unique", errPrefix, sn.Name)
 		}
-		seenNames[sn.Name] = true
+		seenNames[sn.Name.String()] = true
 	}
 
 	return &options, nil

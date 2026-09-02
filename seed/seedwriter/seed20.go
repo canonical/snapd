@@ -451,7 +451,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		}
 
 		optionsSnaps = append(optionsSnaps, &internal.Snap20{
-			Name: sn.SnapName().String(),
+			Name: sn.SnapName(),
 			// even if unasserted != "" SnapID is useful
 			// to cross-ref the model entry
 			SnapID:     sn.modelSnap.ID(),
@@ -470,7 +470,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		}
 
 		optionsSnaps = append(optionsSnaps, &internal.Snap20{
-			Name:       sn.SnapName().String(),
+			Name:       sn.SnapName(),
 			SnapID:     sn.Info.ID(),
 			Unasserted: unasserted,
 			Channel:    channel,

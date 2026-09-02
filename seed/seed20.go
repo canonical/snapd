@@ -211,12 +211,12 @@ func (s *seed20) availableContainers() (map[string]bool, map[string]map[string]b
 		}
 
 		for _, sn := range opts.Snaps {
-			availableSnapSet[sn.Name] = true
+			availableSnapSet[sn.Name.String()] = true
 			for _, comp := range sn.Components {
-				if availableCompSets[sn.Name] == nil {
-					availableCompSets[sn.Name] = make(map[string]bool)
+				if availableCompSets[sn.Name.String()] == nil {
+					availableCompSets[sn.Name.String()] = make(map[string]bool)
 				}
-				availableCompSets[sn.Name][comp.Name] = true
+				availableCompSets[sn.Name.String()][comp.Name] = true
 			}
 		}
 	}
@@ -433,7 +433,7 @@ func (s *seed20) copySnapAndComponents(sn *Snap, destSeedDir string, opts CopyOp
 
 	var optSnap *internal.Snap20
 	for _, os := range s.optSnaps {
-		if os.Name == sn.SnapName().String() {
+		if os.Name == sn.SnapName() {
 			cp := *os
 			optSnap = &cp
 
