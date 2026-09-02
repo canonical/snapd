@@ -199,16 +199,16 @@ backends:
                 image: snapd-spread/ubuntu-18.04-64
                 workers: 8
             - ubuntu-core-20-64:
-                image: snapd-spread/ubuntu-20.04-64-uefi
+                image: snapd-spread/ubuntu-20.04-64
                 workers: 8
             - ubuntu-core-22-64:
-                image: snapd-spread/ubuntu-22.04-64-uefi
+                image: snapd-spread/ubuntu-22.04-64
                 workers: 8
             - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
+                image: snapd-spread/ubuntu-24.04-64
                 workers: 8
             - ubuntu-core-26-64:
-                image: snapd-spread/ubuntu-26.04-64-uefi
+                image: snapd-spread/ubuntu-26.04-64
                 workers: 8
 
             - debian-12-64:
