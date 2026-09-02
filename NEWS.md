@@ -1,3 +1,7 @@
+# New in snapd 2.77.1
+* Fix undo of unlink-component after its snap revision was discarded
+* interfaces: power-control | allow reading all battery state files
+
 # New in snapd 2.77
 * Account for differences in names of the binaries in the snapd FIPS build
 * Add code to calculate canonical subject name hash
