@@ -527,7 +527,7 @@ prepare_classic() {
         fi
     fi
 
-    # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
+    # Some systems ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
     # Some other (debian-sid) fail in fwupd-refresh.service
@@ -1704,17 +1704,17 @@ EOF
         # nice to have this on
 
         cmdlinefeat=""
-        if [ -n "$TAG_FEATURES" ]; then
-            cmdlinefeat=" tag.features=1"
-            cat >> pc-gadget/meta/gadget.yaml << EOF
+        if [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
+            if [ -n "$TAG_FEATURES" ]; then
+                cmdlinefeat=" tag.features=1"
+                cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
   system:
     journal:
       persistent: true
 EOF
-        fi
+            fi
 
-        if [[ "$SPREAD_BACKEND" =~ google ]] || [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example

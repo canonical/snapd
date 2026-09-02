@@ -4,7 +4,7 @@ details: |
     Check the spread-manager tool allows setting a list of tests as manual.
     Also checks manual tag can be removed for a list of tests.
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 
