@@ -137,7 +137,7 @@ func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*aut
 
 	// first remove the system user
 	delUseropts := &osutil.DelUserOptions{
-		ExtraUsers: !release.OnClassic,
+		ExtraUsers: !release.OnClassic || release.OnTouch,
 		Force:      opts.Force,
 	}
 	if err := osutilDelUser(username, delUseropts); err != nil {
