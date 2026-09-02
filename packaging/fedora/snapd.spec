@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.77
+Version:        2.77.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1025,6 +1025,11 @@ fi
 %endif
 
 %changelog
+* Wed Sep 02 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.77.1
+ - Fix undo of unlink-component after its snap revision was discarded
+ - interfaces: power-control | allow reading all battery state files
+
 * Fri Jul 24 2026 Sergio Cazzolato <sergio.cazzolato@canonical.com>
 - New upstream release 2.77
  - Account for differences in names of the binaries in the snapd FIPS
