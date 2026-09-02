@@ -1322,7 +1322,9 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadSignature(c *C) {
 	c.Assert(err, IsNil)
 
 	// tamper the raw assertion body
-	reqMsg.RawAssertion = bytes.Replace(reqMsg.RawAssertion, []byte("get"), []byte("set"), 1)
+	c.Assert(bytes.Contains(reqMsg.RawAssertion, []byte(testRequestBody)), Equals, true)
+	tamperedBody := strings.Replace(testRequestBody, `"get"`, `"set"`, 1)
+	reqMsg.RawAssertion = bytes.Replace(reqMsg.RawAssertion, []byte(testRequestBody), []byte(tamperedBody), 1)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{

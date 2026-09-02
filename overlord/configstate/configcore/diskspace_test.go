@@ -23,6 +23,8 @@ package configcore_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
@@ -61,4 +63,58 @@ func (s *diskSpaceSuite) TestConfigureDiskSpaceReservation(c *C) {
 			c.Check(err, IsNil)
 		}
 	}
+}
+
+func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationFeatureFlags(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, feature := range []features.SnapdFeature{
+		features.CheckDiskSpaceInstall,
+		features.CheckDiskSpaceRefresh,
+		features.CheckDiskSpaceRemove,
+	} {
+		tr := config.NewTransaction(s.state)
+		snapName, confName := feature.ConfigOption()
+		c.Assert(tr.Set(snapName, confName, true), IsNil)
+
+		runTr := configcore.NewRunTransaction(tr, nil)
+		c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
+
+		var reservation uint64
+		c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
+		c.Check(reservation, Equals, uint64(5*1024*1024))
+
+		c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
+		c.Assert(tr.Set(snapName, confName, nil), IsNil)
+		tr.Commit()
+	}
+}
+
+func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationPreservesConfiguredValue(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	c.Assert(tr.Set("core", "disk-reservation.size", 0), IsNil)
+
+	runTr := configcore.NewRunTransaction(tr, nil)
+	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
+
+	var reservation uint64
+	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
+	c.Check(reservation, Equals, uint64(0))
+}
+
+func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationDoesNothingWhenFeaturesDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	runTr := configcore.NewRunTransaction(tr, nil)
+	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
+
+	var reservation any
+	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }

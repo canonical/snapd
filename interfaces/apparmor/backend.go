@@ -546,7 +546,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
-		opts := confinement(set.InstanceName().TODOInstanceName())
+		opts := confinement(set.InstanceName().String())
 		prof, err := b.prepareProfiles(set, opts, repo)
 		if err != nil {
 			fallback = true
@@ -595,7 +595,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	// if an error was encountered when processing all profiles at once, re-try them one by one
 	if fallback {
 		for _, set := range appSets {
-			instanceName := set.InstanceName().TODOInstanceName()
+			instanceName := set.InstanceName().String()
 			opts := confinement(instanceName)
 			if err := b.Setup(set, opts, sctx(instanceName), repo, tm); err != nil {
 				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))

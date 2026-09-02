@@ -132,7 +132,7 @@ func targetFromLocalSnapWithStoreComponents(
 		si = snapst.CurrentSideInfo()
 	}
 
-	info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
+	info, err := readInfo(snapst.InstanceName().String(), si, errorOnBroken)
 	if err != nil {
 		return target{}, err
 	}
@@ -1121,7 +1121,7 @@ func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Inf
 			continue
 		}
 
-		t, ok := targetByName[up.SnapState.InstanceName()]
+		t, ok := targetByName[up.SnapState.InstanceName().String()]
 		// this should never happen
 		if !ok {
 			return nil, fmt.Errorf("internal error: update %q not found in targets", up.SnapState.InstanceName())
@@ -1507,8 +1507,8 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 
 	updates := make(map[string]StoreUpdate, len(allSnaps))
 	for _, snapst := range allSnaps {
-		updates[snapst.InstanceName()] = StoreUpdate{
-			InstanceName: snapst.InstanceName(),
+		updates[snapst.InstanceName().String()] = StoreUpdate{
+			InstanceName: snapst.InstanceName().String(),
 
 			// default the channel and cohort key to the existing values,
 			RevOpts: RevisionOptions{

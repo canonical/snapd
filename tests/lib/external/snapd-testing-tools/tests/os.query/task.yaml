@@ -4,7 +4,7 @@ details: |
     Check the os.query tool properly detects the current system. Also
     verify the version comparison works.
 
-backends: [google, openstack]
+backends: [openstack*]
 
 execute: |
     os.query --help | MATCH 'usage: os.query is-core, is-classic'
@@ -252,15 +252,9 @@ execute: |
             os.query is-centos
             ! os.query is-core
             ;;
-        opensuse-15.5-64)
+        opensuse-16.0-64)
             os.query is-opensuse
-            os.query is-opensuse 15.5
-            os.query is-classic
-            ! os.query is-core
-            ;;
-        opensuse-15.6-64)
-            os.query is-opensuse
-            os.query is-opensuse 15.6
+            os.query is-opensuse 16.0
             os.query is-classic
             ! os.query is-core
             ;;

@@ -261,7 +261,7 @@ func installComponentAction(snapst SnapState, revOpts RevisionOptions, opts Opti
 	action := &store.SnapAction{
 		Action:          "refresh",
 		SnapID:          si.SnapID,
-		InstanceName:    snapst.InstanceName(),
+		InstanceName:    snapst.InstanceName().String(),
 		ResourceInstall: true,
 	}
 
@@ -429,7 +429,7 @@ func newComponentInstallChoreographer(
 	}
 
 	// we consider the same conflicts as if the component was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, copts); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName().String(), snapst, copts); err != nil {
 		return nil, err
 	}
 
@@ -594,7 +594,7 @@ func (cc *componentInstallChoreographer) BeforeLink(st *state.State, s *taskChai
 	}
 
 	if !cc.snapsup.Revert && cc.installed() {
-		preRefreshHook := SetupPreRefreshComponentHook(st, cc.snapsup.InstanceName(), csi.Component.ComponentName)
+		preRefreshHook := SetupPreRefreshComponentHook(st, cc.snapsup.InstanceName().String(), csi.Component.ComponentName)
 		s.Append(preRefreshHook)
 	}
 
@@ -631,10 +631,10 @@ func (cc *componentInstallChoreographer) PostHookToBeforeDiscard(st *state.State
 	csi := cc.compsup.CompSideInfo
 
 	if !cc.installed() {
-		hook := SetupInstallComponentHook(st, cc.snapsup.InstanceName(), csi.Component.ComponentName)
+		hook := SetupInstallComponentHook(st, cc.snapsup.InstanceName().String(), csi.Component.ComponentName)
 		s.Append(hook)
 	} else {
-		hook := SetupPostRefreshComponentHook(st, cc.snapsup.InstanceName(), csi.Component.ComponentName)
+		hook := SetupPostRefreshComponentHook(st, cc.snapsup.InstanceName().String(), csi.Component.ComponentName)
 		s.Append(hook)
 	}
 

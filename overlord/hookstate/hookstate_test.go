@@ -262,7 +262,7 @@ func (s *hookManagerSuite) TestHookTaskEnsure(c *C) {
 	defer s.state.Unlock()
 
 	c.Assert(s.context, NotNil, Commentf("Expected handler generator to be called with a valid context"))
-	c.Check(s.context.InstanceName(), Equals, "test-snap")
+	c.Check(s.context.InstanceName().String(), Equals, "test-snap")
 	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
 	c.Check(s.context.HookName(), Equals, "configure")
 
@@ -343,7 +343,7 @@ func (s *hookManagerSuite) TestHookHijackingHappy(c *C) {
 	c.Check(s.command.Calls(), HasLen, 0)
 
 	c.Assert(s.context, NotNil)
-	c.Check(s.context.InstanceName(), Equals, "test-snap")
+	c.Check(s.context.InstanceName().String(), Equals, "test-snap")
 	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
 	c.Check(s.context.HookName(), Equals, "configure")
 
@@ -370,7 +370,7 @@ func (s *hookManagerSuite) TestHookHijackingUnHappy(c *C) {
 	c.Check(s.command.Calls(), HasLen, 0)
 
 	c.Assert(s.context, NotNil)
-	c.Check(s.context.InstanceName(), Equals, "test-snap")
+	c.Check(s.context.InstanceName().String(), Equals, "test-snap")
 	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
 	c.Check(s.context.HookName(), Equals, "configure")
 
@@ -1423,7 +1423,7 @@ func (s *parallelInstancesHookManagerSuite) TestHookTaskEnsureHookRan(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(s.context.InstanceName(), Equals, "test-snap_instance")
+	c.Check(s.context.InstanceName().String(), Equals, "test-snap_instance")
 	c.Check(s.context.SnapRevision(), Equals, snap.R(1))
 	c.Check(s.context.HookName(), Equals, "configure")
 

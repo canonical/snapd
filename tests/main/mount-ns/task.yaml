@@ -23,7 +23,7 @@ details: |
     --rename and --renumber, along with sorting options that combat
     non-deterministic mount order.
 
-    Unfortunately this test need separate data sets for google compute engine
+    Unfortunately this test need separate data sets for openstack
     and for qemu. The images are just slightly different, containing small
     tweaks that result in different initial host mount table. Such changes are
     further reflected in per-snap and per-user mount namespaces, since they
@@ -46,7 +46,7 @@ details: |
 
 # The test is sensitive to backend type, which designates the used image.
 # Backends are enabled one-by-one along with the matching data set.
-backends: [google]
+backends: [openstack]
 
 # Temporary, exclude on ubuntu-16.04-64 until mount ns changes on 16.04 are understood/fixed
 systems: [ubuntu-18.04-64]

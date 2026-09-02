@@ -163,11 +163,13 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	}
 
 	snapSizes := map[string]uint64{}
+	targetRevisions := make(map[string]snap.Revision, len(snaps))
 	for _, inst := range snaps {
 		if inst.DownloadSize() == 0 {
 			return 0, fmt.Errorf("internal error: download info missing for %q", inst.InstanceName())
 		}
 		snapSizes[inst.InstanceName()] = uint64(inst.DownloadSize())
+		targetRevisions[inst.InstanceName()] = inst.Revision()
 		resolveBaseAndContentProviders(inst)
 	}
 
@@ -210,14 +212,30 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 	// state is locked at this point
 
 	// since we unlock state above when querying store, other changes may affect
-	// same snaps, therefore obtain current snaps again and only compute total
-	// size of snaps that would actually need to be installed.
-	curSnaps, err = currentSnaps(st)
+	// the same snaps. obtain their state again and only compute the total size
+	// of snaps that still need to be installed.
+	snapStates, err := All(st)
 	if err != nil {
 		return 0, err
 	}
-	for _, snap := range curSnaps {
-		delete(snapSizes, snap.InstanceName)
+
+	for instanceName, snapst := range snapStates {
+		if _, ok := snapSizes[instanceName]; !ok {
+			continue
+		}
+
+		targetRevision, ok := targetRevisions[instanceName]
+
+		// if we don't know the target revision, then this snap is a
+		// prerequisite. since it is already installed, we can exclude it from
+		// the size calculation.
+		//
+		// if we do know the target revision, then we should check to see if it
+		// is in the sequence. if it is, then we can exclude it from the size
+		// calculation.
+		if !ok || snapst.LastIndex(targetRevision) >= 0 {
+			delete(snapSizes, instanceName)
+		}
 	}
 
 	var total uint64
@@ -275,7 +293,7 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 
 	var names []string
 	for _, snapst := range snapStates {
-		names = append(names, snapst.InstanceName())
+		names = append(names, snapst.InstanceName().String())
 	}
 
 	holds, err := SnapHolds(st, names)
@@ -706,7 +724,7 @@ func collectCurrentSnapsAndActions(
 		}
 
 		if !req.RevOpts.Revision.Unset() && snapst.LastIndex(req.RevOpts.Revision) != -1 {
-			hasLocalRevision[snapst.InstanceName()] = snapst
+			hasLocalRevision[snapst.InstanceName().String()] = snapst
 			return nil
 		}
 
@@ -814,7 +832,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 		// we allow changing snap revisions of a local-only snap without the
 		// --amend flag as long as we already have had the revision installed
 		if !up.RevOpts.Revision.Unset() && snapst.LastIndex(up.RevOpts.Revision) != -1 {
-			localAmends = append(localAmends, snapst.InstanceName())
+			localAmends = append(localAmends, snapst.InstanceName().String())
 			continue
 		}
 
