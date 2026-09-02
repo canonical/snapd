@@ -61,6 +61,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 	} {
 		os.Setenv("NOTIFY_SOCKET", t.env)
 		defer os.Unsetenv("NOTIFY_SOCKET")
+		systemd.ResetSdNotify()
 
 		if withFds {
 			f, err := os.OpenFile(filepath.Join(c.MkDir(), "test"), os.O_RDWR|os.O_CREATE, 0644)
@@ -83,17 +84,14 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsWrongNotifySocket(c *C) {
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
-	fakeEnv := map[string]string{}
-	restore := systemd.MockOsGetenv(func(k string) string {
-		return fakeEnv[k]
-	})
-	defer restore()
+	defer os.Unsetenv("NOTIFY_SOCKET")
 
 	for _, sockPath := range []string{
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		fakeEnv["NOTIFY_SOCKET"] = sockPath
+		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.ResetSdNotify()
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
 			Name: sockPath,
@@ -123,17 +121,14 @@ func panicOnErr(err error) {
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
-	fakeEnv := map[string]string{}
-	restore := systemd.MockOsGetenv(func(k string) string {
-		return fakeEnv[k]
-	})
-	defer restore()
+	defer os.Unsetenv("NOTIFY_SOCKET")
 
 	for _, sockPath := range []string{
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		fakeEnv["NOTIFY_SOCKET"] = sockPath
+		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.ResetSdNotify()
 
 		tmpdir := c.MkDir()
 

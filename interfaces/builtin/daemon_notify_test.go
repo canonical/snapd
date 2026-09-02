@@ -20,12 +20,15 @@
 package builtin_test
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -74,11 +77,8 @@ func (s *daemoNotifySuite) TestBeforePreparePlug(c *C) {
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
-	restore := builtin.MockOsGetenv(func(what string) string {
-		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return ""
-	})
-	defer restore()
+	os.Unsetenv("NOTIFY_SOCKET")
+	systemd.ResetNotifySocket()
 
 	// connected plugs have a non-nil security snippet for apparmor
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
@@ -93,11 +93,9 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {
-	restore := builtin.MockOsGetenv(func(what string) string {
-		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return "@/org/freedesktop/systemd1/notify/13334051644891137417"
-	})
-	defer restore()
+	os.Setenv("NOTIFY_SOCKET", "@/org/freedesktop/systemd1/notify/13334051644891137417")
+	defer os.Unsetenv("NOTIFY_SOCKET")
+	systemd.ResetNotifySocket()
 
 	// connected plugs have a non-nil security snippet for apparmor
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
@@ -111,11 +109,9 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpeci
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {
-	restore := builtin.MockOsGetenv(func(what string) string {
-		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return "@foo/bar"
-	})
-	defer restore()
+	os.Setenv("NOTIFY_SOCKET", "@foo/bar")
+	defer os.Unsetenv("NOTIFY_SOCKET")
+	systemd.ResetNotifySocket()
 
 	// connected plugs have a non-nil security snippet for apparmor
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
@@ -129,11 +125,9 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) {
-	restore := builtin.MockOsGetenv(func(what string) string {
-		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return "/foo/bar"
-	})
-	defer restore()
+	os.Setenv("NOTIFY_SOCKET", "/foo/bar")
+	defer os.Unsetenv("NOTIFY_SOCKET")
+	systemd.ResetNotifySocket()
 
 	// connected plugs have a non-nil security snippet for apparmor
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
@@ -146,12 +140,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) 
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *C) {
-	var socketPath string
-	restore := builtin.MockOsGetenv(func(what string) string {
-		c.Assert(what, Equals, "NOTIFY_SOCKET")
-		return socketPath
-	})
-	defer restore()
+	defer os.Unsetenv("NOTIFY_SOCKET")
 
 	for idx, tc := range []struct {
 		format string
@@ -163,7 +152,8 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *
 		{`/foo/bar"[]`, `cannot use \".*\" as notify socket path: \".*\" contains a reserved apparmor char from .*`},
 	} {
 		c.Logf("trying %d: %v", idx, tc)
-		socketPath = tc.format
+		os.Setenv("NOTIFY_SOCKET", tc.format)
+		systemd.ResetNotifySocket()
 		// connected plugs have a non-nil security snippet for apparmor
 		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 		c.Assert(err, IsNil)

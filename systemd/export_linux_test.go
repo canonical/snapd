@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !linux
+//go:build linux
 
 /*
  * Copyright (C) 2017-2026 Canonical Ltd
@@ -20,17 +20,16 @@
 
 package systemd
 
-import (
-	"errors"
-	"os"
-)
+import "sync"
 
-var errUnsupported = errors.New("unsupported on non-Linux systems")
+func ResetSdNotify() {
+	sdNotifyOnce = sync.Once{}
+	sdNotifySocket = ""
 
-func SdNotify(notifyState string) error {
-	return errUnsupported
-}
-
-func SdNotifyWithFds(notifyState string, files ...*os.File) error {
-	return errUnsupported
+	sdNotifyMu.Lock()
+	defer sdNotifyMu.Unlock()
+	if sdNotifyConnCache != nil {
+		sdNotifyConnCache.Close()
+		sdNotifyConnCache = nil
+	}
 }

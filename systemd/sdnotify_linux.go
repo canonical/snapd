@@ -26,8 +26,14 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 
 	"golang.org/x/sys/unix"
+)
+
+var (
+	sdNotifyMu        sync.Mutex
+	sdNotifyConnCache *net.UnixConn
 )
 
 // SdNotify sends the given state string notification to systemd.
@@ -38,15 +44,21 @@ func SdNotify(notifyState string) error {
 		return fmt.Errorf("invalid empty notify state")
 	}
 
+	sdNotifyMu.Lock()
+	defer sdNotifyMu.Unlock()
+
 	conn, err := sdNotifyConn()
 	if err != nil {
 		return err
 	}
-	// TODO: keep it open to avoid re-opening and make sure to have O_CLOEXEC
-	defer conn.Close()
 
-	_, err = conn.Write([]byte(notifyState))
-	return err
+	if _, err := conn.Write([]byte(notifyState)); err != nil {
+		// drop the cached connection so the next call reconnects
+		conn.Close()
+		sdNotifyConnCache = nil
+		return err
+	}
+	return nil
 }
 
 // SdNotifyWithFds sends the given state string notification and file
@@ -64,12 +76,13 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 		return fmt.Errorf("at least one file is required")
 	}
 
+	sdNotifyMu.Lock()
+	defer sdNotifyMu.Unlock()
+
 	conn, err := sdNotifyConn()
 	if err != nil {
 		return err
 	}
-	// TODO: keep it open to avoid re-opening and make sure to have O_CLOEXEC
-	defer conn.Close()
 
 	rawConn, err := conn.SyscallConn()
 	if err != nil {
@@ -99,13 +112,21 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 		return err
 	}
 
+	if sendMsgErr != nil {
+		// drop the cached connection so the next call reconnects
+		conn.Close()
+		sdNotifyConnCache = nil
+	}
 	return sendMsgErr
 }
 
-var osGetenv = os.Getenv
-
+// sdNotifyConn should be called with sdNotifyMu locked.
 func sdNotifyConn() (*net.UnixConn, error) {
-	notifySocket := osGetenv("NOTIFY_SOCKET")
+	if sdNotifyConnCache != nil {
+		return sdNotifyConnCache, nil
+	}
+
+	notifySocket := NotifySocket()
 	if notifySocket == "" {
 		return nil, fmt.Errorf("cannot find NOTIFY_SOCKET environment variable")
 	}
@@ -117,5 +138,11 @@ func sdNotifyConn() (*net.UnixConn, error) {
 		Name: notifySocket,
 		Net:  "unixgram",
 	}
-	return net.DialUnix("unixgram", nil, raddr)
+	// net.DialUnix opens the socket with SOCK_CLOEXEC.
+	conn, err := net.DialUnix("unixgram", nil, raddr)
+	if err != nil {
+		return nil, err
+	}
+	sdNotifyConnCache = conn
+	return conn, nil
 }
