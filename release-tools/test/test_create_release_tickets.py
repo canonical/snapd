@@ -12,8 +12,10 @@ import inspect
 import os
 import sys
 import unittest
+import urllib.error
 from contextlib import contextmanager
 from io import StringIO
+from unittest.mock import patch
 
 
 def load_module():
@@ -107,8 +109,8 @@ class FakeJiraClient:  # pylint: disable=too-many-instance-attributes
                 results.append({"value": team_id, "displayName": name})
         return {"results": results}
 
-    def search_jql(self, jql, fields, max_results=50):
-        del jql, fields, max_results
+    def search_jql(self, jql, fields, limit=50):
+        del jql, fields, limit
         return []
 
     def create_version(self, name):
@@ -137,21 +139,23 @@ class FakeJiraClient:  # pylint: disable=too-many-instance-attributes
                 children.append(issue)
         return children
 
-    def find_issues_by_summary(self, summary, fix_version, fields=None):
+    def find_generated_issues(self, fix_version, fields=None):
         del fields
         matches = []
         for issue in self.issues.values():
             issue_fields = issue.get("fields", {})
             if issue_fields.get("issuetype", {}).get("name") == "Epic":
                 continue
-            if issue_fields.get("summary") != summary:
+            if not crt.is_generated_issue(issue):
                 continue
             versions = issue_fields.get("fixVersions") or []
             names = {
                 item.get("name") if isinstance(item, dict) else item
                 for item in versions
             }
-            if names and fix_version not in names:
+            # Mirrors the fixVersion = "..." JQL clause, which skips issues
+            # without a fix version.
+            if fix_version not in names:
                 continue
             matches.append(issue)
         return matches
@@ -344,6 +348,55 @@ class TestTaskTitles(unittest.TestCase):
         self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
         self.assertTrue(plan.tasks[-1].cross_distro)
         self.assertFalse(plan.tasks[0].cross_distro)
+        self.assertIn(
+            "Publish the GitHub release created when uploading tarballs",
+            plan.tasks[3].checklist,
+        )
+        self.assertTrue(
+            any("snapd QA tests" in item for item in plan.tasks[5].checklist)
+        )
+        self.assertTrue(
+            any("snapd QA tests" in item for item in plan.tasks[6].checklist)
+        )
+
+    def test_beta_snaps_closes_github_milestone(self):
+        plan = sample_plan()
+        for task in plan.tasks:
+            has_milestone = any("GitHub milestone" in item for item in task.checklist)
+            if task.summary == "Build and upload BETA snapd snaps":
+                self.assertTrue(has_milestone)
+            else:
+                self.assertFalse(has_milestone)
+
+    def test_candidate_promotion_gates_and_comms(self):
+        plan = sample_plan()
+        checklist = list(plan.tasks[3].checklist)
+        self.assertEqual(
+            checklist[-6:],
+            [
+                "Obtain QA sign-off to promote to candidate",
+                "Confirm the certification team beta sign-off",
+                "Promote snapd snap revisions to candidate",
+                "Update the snapd roadmap for candidate",
+                "Create the release forum post and publicize the move to candidate",
+                "Publish the GitHub release created when uploading tarballs",
+            ],
+        )
+
+    def test_stable_release_follows_documented_order(self):
+        plan = sample_plan()
+        checklist = list(plan.tasks[6].checklist)
+        self.assertEqual(
+            checklist[-5:],
+            [
+                "Confirm the candidate soak week, the WSL smoke tests, "
+                "and that no stable-stopper bugs are open",
+                "Request progressive stable promotion of the snapd snap",
+                "Update the snapd roadmap once the progressive release completes",
+                "Request the move to -updates",
+                "Mark milestone bugs as Fix released",
+            ],
+        )
 
     def test_amer_team_does_not_override_cross_distro(self):
         plan = sample_plan(team=crt.AMER_TEAM)
@@ -352,12 +405,21 @@ class TestTaskTitles(unittest.TestCase):
         self.assertEqual(teams[:-2], [crt.AMER_TEAM] * 7)
         self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
 
-    def test_parse_team_default_and_invalid(self):
+    def test_parse_team_maps_short_names(self):
         self.assertEqual(crt.parse_team(None), crt.DEFAULT_TEAM)
-        self.assertEqual(crt.parse_team(crt.AMER_TEAM), crt.AMER_TEAM)
-        with self.assertRaises(crt.UsageError) as cm:
-            crt.parse_team("SRE")
-        self.assertIn("invalid --Team", str(cm.exception))
+        self.assertEqual(crt.parse_team("EMEA"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("AMER"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("Cross-distro"), crt.CROSS_DISTRO_TEAM)
+        self.assertEqual(crt.parse_team("amer"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("cross-distro"), crt.CROSS_DISTRO_TEAM)
+
+    def test_parse_team_rejects_unknown_and_full_names(self):
+        for raw in ("SRE", "SnapD AMER", "SnapD"):
+            with self.assertRaises(crt.UsageError) as cm:
+                crt.parse_team(raw)
+            message = str(cm.exception)
+            self.assertIn(f'invalid --Team "{raw}"', message)
+            self.assertIn('expected one of "EMEA", "AMER", "Cross-distro"', message)
 
     def test_parse_targets_strips_whitespace(self):
         self.assertEqual(
@@ -635,6 +697,34 @@ class TestDryRunAndApply(unittest.TestCase):
         crt.apply_plan(plan, client)
         self.assertEqual(len(client.transitioned), 10)
 
+    def test_rerun_does_not_reset_in_progress_status(self):
+        plan = sample_plan()
+        client = FakeJiraClient(versions=["snapd 2.78"])
+        first = crt.apply_plan(plan, client)
+        key = first.tasks[0][0]
+        client.issues[key]["fields"]["status"] = {"name": "In Progress"}
+        client.issues[first.epic_key]["fields"]["status"] = {"name": "In Progress"}
+        crt.apply_plan(plan, client)
+        self.assertEqual(client.issues[key]["fields"]["status"]["name"], "In Progress")
+        self.assertEqual(
+            client.issues[first.epic_key]["fields"]["status"]["name"],
+            "In Progress",
+        )
+
+    def test_rerun_triages_generated_todo_after_partial_apply(self):
+        plan = sample_plan()
+        client = FakeJiraClient(versions=["snapd 2.78"])
+        first = crt.apply_plan(plan, client)
+        key = first.tasks[0][0]
+        client.issues[key]["fields"]["status"] = {"name": "To Do"}
+        client.issues[first.epic_key]["fields"]["status"] = {"name": "To Do"}
+        crt.apply_plan(plan, client)
+        self.assertEqual(client.issues[key]["fields"]["status"]["name"], "Triaged")
+        self.assertEqual(
+            client.issues[first.epic_key]["fields"]["status"]["name"],
+            "Triaged",
+        )
+
     def test_missing_triaged_transition(self):
         plan = sample_plan()
         client = FakeJiraClient(versions=["snapd 2.78"])
@@ -642,6 +732,23 @@ class TestDryRunAndApply(unittest.TestCase):
         with self.assertRaises(RuntimeError) as cm:
             crt.apply_plan(plan, client)
         self.assertIn('cannot move SNAPDENG-1001 to "Triaged"', str(cm.exception))
+
+    def test_empty_transitions_payload(self):
+        plan = sample_plan()
+        client = FakeJiraClient(versions=["snapd 2.78"])
+        client.get_transitions = lambda _key: None
+        with self.assertRaises(RuntimeError) as cm:
+            crt.apply_plan(plan, client)
+        self.assertIn('cannot move SNAPDENG-1001 to "Triaged"', str(cm.exception))
+
+    def test_unstarted_statuses(self):
+        for name in ("To Do", "to do", "TODO", "Open", ""):
+            issue = {"fields": {"status": {"name": name}}}
+            self.assertTrue(crt.is_unstarted_status(issue), name)
+        for name in ("In Progress", "Triaged", "Done"):
+            issue = {"fields": {"status": {"name": name}}}
+            self.assertFalse(crt.is_unstarted_status(issue), name)
+        self.assertTrue(crt.is_unstarted_status({"fields": {"status": None}}))
 
     def test_idempotent_rerun_reuses_epic_and_tasks(self):
         plan = sample_plan()
@@ -743,6 +850,30 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertIsNone(crt.issue_parent_key(client.issues["SNAPDENG-20"]))
         self.assertEqual(len(result.created_keys), 9)
 
+    def test_matching_unlinked_task_filters_candidates(self):
+        def issue(key, summary, labels, parent=None):
+            fields = {"summary": summary, "labels": labels}
+            if parent is not None:
+                fields["parent"] = {"key": parent}
+            return {"key": key, "fields": fields}
+
+        summary = "Cut release 2.78"
+        issues = [
+            issue("SNAPDENG-1", "Cut release 2.78.1", [crt.GENERATED_LABEL]),
+            issue("SNAPDENG-2", summary, []),
+            issue("SNAPDENG-3", summary, [crt.GENERATED_LABEL], parent="SNAPDENG-99"),
+            issue("SNAPDENG-4", summary, [crt.GENERATED_LABEL]),
+        ]
+        found = crt.matching_unlinked_task(issues, summary, "SNAPDENG-9")
+        self.assertEqual(found["key"], "SNAPDENG-4")
+        # A task already under this epic is reusable, one under another is not.
+        owned = issue("SNAPDENG-5", summary, [crt.GENERATED_LABEL], parent="SNAPDENG-9")
+        self.assertEqual(
+            crt.matching_unlinked_task([owned], summary, "SNAPDENG-9")["key"],
+            "SNAPDENG-5",
+        )
+        self.assertIsNone(crt.matching_unlinked_task(issues[:3], summary, "SNAPDENG-9"))
+
     def test_existing_task_keeps_epic_parent(self):
         plan = sample_plan()
         client = FakeJiraClient(versions=["snapd 2.78"])
@@ -794,15 +925,45 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertEqual(
             result.unexpected, (("SNAPDENG-50", "Investigate beta flake"),)
         )
-        self.assertIn(
-            crt.UNEXPECTED_LABEL,
-            client.issues["SNAPDENG-50"]["fields"]["labels"],
-        )
+        self.assertEqual(client.issues["SNAPDENG-50"]["fields"]["labels"], [])
+        self.assertNotIn("fixVersions", client.issues["SNAPDENG-50"]["fields"])
         patched_key, patched_fields = client.updated[-1]
         self.assertEqual(patched_key, "SNAPDENG-9")
         texts = crt.task_item_texts(patched_fields[AC_FIELD])
         self.assertIn("UNEXPECTED: SNAPDENG-50 Investigate beta flake", texts)
         self.assertEqual(len(result.tasks), 9)
+
+    def test_generated_unexpected_child_is_labeled(self):
+        plan = sample_plan()
+        extra = {
+            "key": "SNAPDENG-50",
+            "fields": {
+                "summary": "Investigate beta flake",
+                "parent": {"key": "SNAPDENG-9"},
+                "labels": [crt.GENERATED_LABEL],
+            },
+        }
+        client = FakeJiraClient(
+            versions=["snapd 2.78"],
+            epics=[
+                {
+                    "key": "SNAPDENG-9",
+                    "fields": {
+                        "summary": "Snapd Major Release 2.78",
+                        "description": None,
+                    },
+                }
+            ],
+            issues=[extra],
+        )
+        result = crt.apply_plan(plan, client)
+        self.assertEqual(
+            result.unexpected, (("SNAPDENG-50", "Investigate beta flake"),)
+        )
+        self.assertIn(
+            crt.UNEXPECTED_LABEL,
+            client.issues["SNAPDENG-50"]["fields"]["labels"],
+        )
 
     def test_expected_task_loses_unexpected_label(self):
         plan = sample_plan()
@@ -895,6 +1056,10 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertEqual(client.issues["SNAPDENG-20"]["fields"]["labels"], [])
         self.assertNotIn("fixVersions", client.issues["SNAPDENG-20"]["fields"])
         self.assertNotIn(TEAM_FIELD, client.issues["SNAPDENG-20"]["fields"])
+        self.assertNotIn(
+            "SNAPDENG-20",
+            [key for key, _tid in client.transitioned],
+        )
 
     def test_missing_jira_version(self):
         plan = sample_plan()
@@ -907,6 +1072,14 @@ class TestDryRunAndApply(unittest.TestCase):
             "create it in Jira first or pass --create-version",
         )
 
+    def test_empty_versions_payload(self):
+        plan = sample_plan()
+        client = FakeJiraClient(versions=[])
+        client.get_versions = lambda: None
+        with self.assertRaises(RuntimeError) as cm:
+            crt.apply_plan(plan, client)
+        self.assertIn('cannot find Jira version "snapd 2.78"', str(cm.exception))
+
     def test_create_version_for_major(self):
         plan = sample_plan()
         client = FakeJiraClient(versions=[])
@@ -914,16 +1087,184 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertEqual(client.created_versions, ["snapd 2.78"])
         self.assertEqual(result.epic_key, "SNAPDENG-1001")
 
-    def test_create_version_rejected_for_bugfix(self):
-        plan = sample_plan(variant="bugfix", version="2.78.1")
-        client = FakeJiraClient(versions=[])
-        with self.assertRaises(RuntimeError) as cm:
-            crt.apply_plan(plan, client, create_version=True)
+    def test_create_version_posts_numeric_project_id(self):
+        calls = []
+
+        class RecordingClient(crt.JiraClient):
+            def request(self, method, path, body=None, query=None):
+                del query
+                calls.append((method, path, body))
+                if method == "GET" and path == "/rest/api/3/project/SNAPDENG":
+                    return {"id": "10000", "key": "SNAPDENG"}
+                return {"id": "1", "name": body["name"]}
+
+        client = RecordingClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+        client.create_version("snapd 2.78")
         self.assertEqual(
-            str(cm.exception),
-            'cannot use --create-version with variant "bugfix", '
-            "Jira versions exist only for major releases",
+            calls,
+            [
+                ("GET", "/rest/api/3/project/SNAPDENG", None),
+                (
+                    "POST",
+                    "/rest/api/3/version",
+                    {"name": "snapd 2.78", "projectId": 10000},
+                ),
+            ],
         )
+
+    def test_create_version_requires_project_id(self):
+        class ProjectClient(crt.JiraClient):
+            payload = None
+
+            def request(self, method, path, body=None, query=None):
+                del method, path, body, query
+                return self.payload
+
+        for payload in ({"key": "SNAPDENG"}, {"id": "not-a-number"}, None):
+            client = ProjectClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+            client.payload = payload
+            with self.assertRaises(RuntimeError) as cm:
+                client.create_version("snapd 2.78")
+            self.assertEqual(
+                str(cm.exception),
+                "cannot find Jira project id for SNAPDENG",
+            )
+
+    def test_search_helpers_handle_empty_payload(self):
+        calls = []
+
+        class EmptySearchClient(crt.JiraClient):
+            def request(self, method, path, body=None, query=None):
+                del query
+                calls.append((method, path, body))
+                return None
+
+        client = EmptySearchClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+        self.assertIsNone(client.find_epic("Snapd Major Release 2.78"))
+        self.assertEqual(client.list_children("SNAPDENG-9"), [])
+        self.assertEqual(client.find_generated_issues("snapd 2.78"), [])
+        self.assertEqual(
+            [(method, path) for method, path, _body in calls],
+            [("POST", "/rest/api/3/search/jql")] * 3,
+        )
+        self.assertEqual(
+            [body["jql"] for _method, _path, body in calls],
+            [
+                "project = SNAPDENG AND issuetype = Epic "
+                'AND summary ~ "Snapd Major Release 2.78"',
+                "parent = SNAPDENG-9 ORDER BY created ASC",
+                "project = SNAPDENG AND issuetype != Epic "
+                f'AND labels = "{crt.GENERATED_LABEL}" '
+                'AND fixVersion = "snapd 2.78"',
+            ],
+        )
+        self.assertEqual(calls[1][2]["fields"], ["summary", "labels", "parent"])
+
+    def test_find_epic_filters_fuzzy_summary_matches(self):
+        """summary ~ is a text match, so only an exact summary may be reused."""
+
+        class FuzzySearchClient(crt.JiraClient):
+            def request(self, method, path, body=None, query=None):
+                del method, path, body, query
+                return {
+                    "issues": [
+                        {
+                            "key": "SNAPDENG-8",
+                            "fields": {"summary": "Snapd Major Release 2.78.1"},
+                        },
+                        {
+                            "key": "SNAPDENG-9",
+                            "fields": {"summary": "Snapd Major Release 2.78"},
+                        },
+                    ]
+                }
+
+        client = FuzzySearchClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+        found = client.find_epic("Snapd Major Release 2.78")
+        self.assertEqual(found["key"], "SNAPDENG-9")
+        self.assertIsNone(client.find_epic("Snapd Major Release 2.7"))
+
+    def test_jql_string_escapes_quotes_and_backslashes(self):
+        self.assertEqual(crt.jql_string("snapd 2.78"), '"snapd 2.78"')
+        self.assertEqual(crt.jql_string('a"b'), '"a\\"b"')
+        self.assertEqual(crt.jql_string("a\\b"), '"a\\\\b"')
+
+    def test_search_follows_next_page_token(self):
+        bodies = []
+
+        class PagedClient(crt.JiraClient):
+            def request(self, method, path, body=None, query=None):
+                del method, path, query
+                bodies.append(body)
+                if "nextPageToken" not in body:
+                    return {
+                        "issues": [{"key": "SNAPDENG-1"}],
+                        "nextPageToken": "page-2",
+                    }
+                return {"issues": [{"key": "SNAPDENG-2"}]}
+
+        client = PagedClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+        issues = client.search_jql("parent = SNAPDENG-9", ["summary"], limit=10)
+        self.assertEqual(
+            [issue["key"] for issue in issues],
+            ["SNAPDENG-1", "SNAPDENG-2"],
+        )
+        self.assertEqual(bodies[1]["nextPageToken"], "page-2")
+        self.assertEqual([body["maxResults"] for body in bodies], [10, 9])
+
+    def test_search_stops_at_limit(self):
+        bodies = []
+
+        class EndlessClient(crt.JiraClient):
+            def request(self, method, path, body=None, query=None):
+                del method, path, query
+                bodies.append(body)
+                return {
+                    "issues": [{"key": f"SNAPDENG-{len(bodies)}"}],
+                    "nextPageToken": "more",
+                }
+
+        client = EndlessClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+        issues = client.search_jql('Team = "SnapD EMEA"', ["summary"], limit=1)
+        self.assertEqual([issue["key"] for issue in issues], ["SNAPDENG-1"])
+        self.assertEqual(len(bodies), 1)
+
+    def test_list_children_pages_to_the_search_bound(self):
+        bodies = []
+
+        class PagedClient(crt.JiraClient):
+            def request(self, method, path, body=None, query=None):
+                del method, path, query
+                bodies.append(body)
+                page = len(bodies)
+                issues = [{"key": f"SNAPDENG-{page}"}]
+                if page < 3:
+                    return {"issues": issues, "nextPageToken": f"page-{page + 1}"}
+                return {"issues": issues}
+
+        client = PagedClient("https://jira.example", "a@b.c", "token", "SNAPDENG")
+        children = client.list_children("SNAPDENG-9")
+        self.assertEqual(len(children), 3)
+        self.assertEqual(bodies[0]["maxResults"], crt.SEARCH_PAGE_SIZE)
+        self.assertEqual(
+            [body.get("nextPageToken") for body in bodies],
+            [None, "page-2", "page-3"],
+        )
+
+    def test_create_version_rejected_for_bugfix(self):
+        # Rejected on the variant alone, whether or not the version exists.
+        for versions in ([], ["snapd 2.78"]):
+            plan = sample_plan(variant="bugfix", version="2.78.1")
+            client = FakeJiraClient(versions=versions)
+            with self.assertRaises(RuntimeError) as cm:
+                crt.apply_plan(plan, client, create_version=True)
+            self.assertEqual(
+                str(cm.exception),
+                'cannot use --create-version with variant "bugfix", '
+                "Jira versions exist only for major releases",
+            )
+            self.assertEqual(client.created, [])
+            self.assertEqual(client.created_versions, [])
 
     def test_acceptance_criteria_field_id_from_name(self):
         self.assertEqual(crt.acceptance_criteria_field_id(FakeJiraClient()), AC_FIELD)
@@ -964,6 +1305,42 @@ class TestDryRunAndApply(unittest.TestCase):
             if original_token is not None:
                 os.environ["JIRA_API_TOKEN"] = original_token
 
+    def test_urlerror_becomes_runtime_error(self):
+        client = crt.JiraClient(
+            "https://example.invalid", "user@example.com", "token", "SNAPDENG"
+        )
+        err = urllib.error.URLError("name or service not known")
+        with patch("urllib.request.urlopen", side_effect=err):
+            with self.assertRaises(RuntimeError) as cm:
+                client.get_fields()
+        self.assertIn("cannot GET /rest/api/3/field:", str(cm.exception))
+        self.assertIn("name or service not known", str(cm.exception))
+
+    def test_timeout_becomes_runtime_error(self):
+        client = crt.JiraClient(
+            "https://example.invalid", "user@example.com", "token", "SNAPDENG"
+        )
+        with patch("urllib.request.urlopen", side_effect=TimeoutError("timed out")):
+            with self.assertRaises(RuntimeError) as cm:
+                client.get_fields()
+        self.assertEqual(
+            str(cm.exception),
+            "cannot GET /rest/api/3/field: "
+            f"timed out after {crt.REQUEST_TIMEOUT_SECONDS}s",
+        )
+
+    def test_requests_are_bounded_by_a_timeout(self):
+        client = crt.JiraClient(
+            "https://example.invalid", "user@example.com", "token", "SNAPDENG"
+        )
+        with patch("urllib.request.urlopen") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = b""
+            self.assertIsNone(client.get_fields())
+        self.assertEqual(
+            urlopen.call_args.kwargs["timeout"],
+            crt.REQUEST_TIMEOUT_SECONDS,
+        )
+
 
 class TestCLI(unittest.TestCase):
     def test_main_no_args_prints_cobra_help(self):
@@ -994,7 +1371,9 @@ class TestCLI(unittest.TestCase):
         self.assertIn("--Team string", out)
         self.assertIn("script-generated", out)
         self.assertLess(out.find("--Team string"), out.find("--lts-targets strings"))
-        self.assertLess(out.find("--lts-targets strings"), out.find("--dev-target string"))
+        self.assertLess(
+            out.find("--lts-targets strings"), out.find("--dev-target string")
+        )
         self.assertLess(out.find("--dev-target string"), out.find("-h, --help"))
         self.assertIn("  create-release-tickets.py <version> [flags]", out)
         for removed in (
@@ -1046,15 +1425,16 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn('invalid --Team "SRE"', err)
-        self.assertIn("SnapD EMEA", err)
-        self.assertIn("SnapD AMER", err)
+        self.assertIn('"EMEA"', err)
+        self.assertIn('"AMER"', err)
+        self.assertIn('"Cross-distro"', err)
 
     def test_amer_team_printed_in_dry_run(self):
         rc, out, _err = run_main(
             [
                 "2.78",
                 "--Team",
-                "SnapD AMER",
+                "AMER",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1070,7 +1450,7 @@ class TestCLI(unittest.TestCase):
             [
                 "2.78",
                 "--team",
-                crt.AMER_TEAM,
+                "AMER",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1099,6 +1479,32 @@ class TestCLI(unittest.TestCase):
             devel, targets = crt.default_ubuntu_series()
         self.assertEqual(devel, "resolute")
         self.assertEqual(targets, ["jammy", "noble", "plucky"])
+
+    def test_explicit_dev_target_is_not_an_sru_target(self):
+        def fake(args):
+            if list(args) == ["--devel", "-c"]:
+                return "resolute\n"
+            if list(args) == ["--supported", "-c"]:
+                return "jammy\nnoble\nplucky\nresolute\n"
+            raise AssertionError(args)
+
+        with ubuntu_distro_info_stub(fake):
+            devel, targets = crt.resolve_ubuntu_series("noble", None)
+        self.assertEqual(devel, "noble")
+        self.assertEqual(targets, ["jammy", "plucky"])
+
+    def test_explicit_lts_targets_are_used_verbatim(self):
+        def fake(args):
+            if list(args) == ["--devel", "-c"]:
+                return "resolute\n"
+            if list(args) == ["--supported", "-c"]:
+                return "jammy\nnoble\nplucky\nresolute\n"
+            raise AssertionError(args)
+
+        with ubuntu_distro_info_stub(fake):
+            devel, targets = crt.resolve_ubuntu_series(None, "jammy,noble")
+        self.assertEqual(devel, "resolute")
+        self.assertEqual(targets, ["jammy", "noble"])
 
     def test_default_ubuntu_series_missing_tool(self):
         def fake(_args):

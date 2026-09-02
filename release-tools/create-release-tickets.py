@@ -10,12 +10,14 @@ LTS series default from ubuntu-distro-info.
 
 Created issues are labeled snapd-release-tickets. Re-running --apply reuses
 the matching epic and expected tasks (by summary), creates anything missing,
-and marks extra epic children as unexpected. --force rewrites Description
-and Acceptance Criteria only on labeled tasks. Unlabeled issues with a
-matching title are reused as placeholders but never modified.
+and lists extra epic children as unexpected. The epic is always updated with
+the current task list. --force rewrites Description and Acceptance Criteria
+only on labeled tasks; unlabeled tasks with a matching title are listed as
+placeholders but never modified.
 
 The epic and non-cross-distro tasks use team SnapD EMEA unless --Team is
-set. Cross-distro tasks always use SnapD Cross-distro.
+set to AMER or Cross-distro. Cross-distro tasks always use SnapD
+Cross-distro.
 """
 
 # Hyphenated filename; this is a script, not a library.
@@ -40,6 +42,10 @@ from typing import NamedTuple
 DEFAULT_JIRA_URL = "https://warthogs.atlassian.net"
 DEFAULT_PROJECT = "SNAPDENG"
 DEFAULT_PARENT_EPIC = "SNAPDENG-34819"
+REQUEST_TIMEOUT_SECONDS = 30
+SEARCH_PAGE_SIZE = 100
+# Bound for searches that must be complete, such as the children of an epic.
+MAX_SEARCH_ISSUES = 1000
 
 RELEASE_MD_URL = "https://github.com/canonical/snapd/blob/master/RELEASE.md"
 SRU_PACKAGE_NOTES_URL = (
@@ -69,13 +75,13 @@ TARGET_STATUS = "Triaged"
 DEFAULT_TEAM = "SnapD EMEA"
 CROSS_DISTRO_TEAM = "SnapD Cross-distro"
 AMER_TEAM = "SnapD AMER"
-# Allowed --Team values. Cross-distro tasks ignore this and always use
-# CROSS_DISTRO_TEAM.
-ALLOWED_TEAMS = (
-    DEFAULT_TEAM,
-    CROSS_DISTRO_TEAM,
-    AMER_TEAM,
-)
+# --Team takes the short name; Jira needs the full team name. Cross-distro
+# tasks ignore --Team and always use CROSS_DISTRO_TEAM.
+TEAM_NAMES = {
+    "EMEA": DEFAULT_TEAM,
+    "AMER": AMER_TEAM,
+    "Cross-distro": CROSS_DISTRO_TEAM,
+}
 TEAM_FIELD_NAME = "Team"
 
 PROG_NAME = "create-release-tickets.py"
@@ -125,13 +131,14 @@ def new_local_id():
 
 
 def parse_team(raw):
-    """Return an allowed --Team value, or DEFAULT_TEAM when raw is empty."""
+    """Map a --Team short name to its Jira team, or DEFAULT_TEAM when empty."""
     if not raw:
         return DEFAULT_TEAM
-    if raw not in ALLOWED_TEAMS:
-        allowed = ", ".join(f'"{name}"' for name in ALLOWED_TEAMS)
-        raise UsageError(f'invalid --Team "{raw}", expected one of {allowed}')
-    return raw
+    for short_name, team in TEAM_NAMES.items():
+        if raw.lower() == short_name.lower():
+            return team
+    allowed = ", ".join(f'"{name}"' for name in TEAM_NAMES)
+    raise UsageError(f'invalid --Team "{raw}", expected one of {allowed}')
 
 
 def task_team(plan, task):
@@ -170,16 +177,17 @@ def default_ubuntu_series():
 
 
 def resolve_ubuntu_series(devel, targets_raw):
-    """Resolve devel and LTS series from flags, filling gaps via distro-info."""
+    """Resolve devel and SRU series from flags, filling gaps via distro-info."""
     if devel and targets_raw:
         return devel, parse_targets(targets_raw)
     auto_devel, auto_targets = default_ubuntu_series()
     if not devel:
         devel = auto_devel
     if targets_raw:
-        targets = parse_targets(targets_raw)
-    else:
-        targets = auto_targets
+        return devel, parse_targets(targets_raw)
+    targets = [name for name in auto_targets if name != devel]
+    if not targets:
+        raise RuntimeError(DISTRO_SERIES_ERROR)
     return devel, targets
 
 
@@ -250,6 +258,7 @@ def task_beta_snaps():
             "Build snapd snaps on Launchpad (including FIPS)",
             "Promote revisions to latest/beta",
             "Promote FIPS revisions to fips-updates/beta",
+            "Close the GitHub milestone for this release",
             "Notify snapd QA and the certification tester",
             "Update the snapd roadmap for beta",
         ),
@@ -277,7 +286,11 @@ def task_qa_beta():
             "Coordinate snapd team QA beta validation",
             "Review known issues from beta testing",
             "Obtain QA sign-off to promote to candidate",
+            "Confirm the certification team beta sign-off",
             "Promote snapd snap revisions to candidate",
+            "Update the snapd roadmap for candidate",
+            "Create the release forum post and publicize the move to candidate",
+            "Publish the GitHub release created when uploading tarballs",
         ),
     )
 
@@ -301,6 +314,10 @@ def task_devel_upload(*, devel):
         checklist=(
             f"Request sponsorship for upload to {devel}-proposed",
             f"Ensure autopkgtests pass on {devel}-proposed",
+            (
+                f"Request snapd QA tests on {devel}-proposed debs "
+                "and record the result on the SRU bug"
+            ),
             f"Verify Launchpad bugs for {devel}",
         ),
     )
@@ -315,10 +332,19 @@ def task_sru_upload(*, targets):
         checklist=(
             f"Request sponsorship for upload to {targets_proposed}",
             f"Ensure autopkgtests pass on {targets_proposed}",
+            (
+                f"Request snapd QA tests on {targets_proposed} debs "
+                "and record the result on the SRU bug"
+            ),
             "Perform distro-upgrade testing",
             "Verify Launchpad bugs for each target series",
-            "Request the move to -updates",
+            (
+                "Confirm the candidate soak week, the WSL smoke tests, "
+                "and that no stable-stopper bugs are open"
+            ),
             "Request progressive stable promotion of the snapd snap",
+            "Update the snapd roadmap once the progressive release completes",
+            "Request the move to -updates",
             "Mark milestone bugs as Fix released",
         ),
     )
@@ -693,8 +719,15 @@ def issue_parent_key(issue):
     return None
 
 
+def jql_string(value):
+    """Quote a value as a JQL string literal."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 class JiraClient:
     """Jira Cloud REST v3 client using HTTP Basic (email + API token)."""
+
     def __init__(self, url, email, token, project):
         self.url = url.rstrip("/")
         self.project = project
@@ -715,7 +748,7 @@ class JiraClient:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
                 raw = resp.read()
                 if not raw:
                     return None
@@ -725,6 +758,12 @@ class JiraClient:
             raise RuntimeError(
                 f"cannot {method} {path}: HTTP {err.code}: {err_body}"
             ) from err
+        except TimeoutError as err:
+            raise RuntimeError(
+                f"cannot {method} {path}: timed out after {REQUEST_TIMEOUT_SECONDS}s"
+            ) from err
+        except urllib.error.URLError as err:
+            raise RuntimeError(f"cannot {method} {path}: {err.reason}") from err
 
     def get_versions(self):
         return self.request("GET", f"/rest/api/3/project/{self.project}/versions")
@@ -740,39 +779,52 @@ class JiraClient:
         )
         return payload or {}
 
-    def search_jql(self, jql, fields, max_results=50):
-        payload = self.request(
-            "POST",
-            "/rest/api/3/search/jql",
-            body={
+    def search_jql(self, jql, fields, limit=50):
+        """Search, following nextPageToken until limit issues are collected."""
+        issues = []
+        token = None
+        while len(issues) < limit:
+            body = {
                 "jql": jql,
-                "maxResults": max_results,
+                "maxResults": min(limit - len(issues), SEARCH_PAGE_SIZE),
                 "fields": list(fields),
-            },
-        )
-        return (payload or {}).get("issues") or []
+            }
+            if token is not None:
+                body["nextPageToken"] = token
+            payload = self.request("POST", "/rest/api/3/search/jql", body=body) or {}
+            issues.extend(payload.get("issues") or [])
+            token = payload.get("nextPageToken")
+            if not token:
+                break
+        return issues[:limit]
+
+    def get_project(self):
+        return self.request("GET", f"/rest/api/3/project/{self.project}")
 
     def create_version(self, name):
+        # The version API takes the numeric project id, not the project key.
+        project = self.get_project() or {}
+        try:
+            project_id = int(project["id"])
+        except (KeyError, TypeError, ValueError) as err:
+            raise RuntimeError(
+                f"cannot find Jira project id for {self.project}"
+            ) from err
         return self.request(
             "POST",
             "/rest/api/3/version",
-            body={"name": name, "project": self.project},
+            body={"name": name, "projectId": project_id},
         )
 
     def find_epic(self, summary):
-        payload = self.request(
-            "POST",
-            "/rest/api/3/search/jql",
-            body={
-                "jql": (
-                    f"project = {self.project} AND issuetype = Epic "
-                    f'AND summary ~ "{summary}"'
-                ),
-                "maxResults": 50,
-                "fields": ["summary", "description"],
-            },
+        # Epic summaries are built from fixed words and a validated version,
+        # so they carry no characters the text search would treat specially.
+        issues = self.search_jql(
+            f"project = {self.project} AND issuetype = Epic "
+            f"AND summary ~ {jql_string(summary)}",
+            fields=["summary", "description"],
         )
-        for issue in payload.get("issues", []):
+        for issue in issues:
             if issue.get("fields", {}).get("summary") == summary:
                 return issue
         return None
@@ -786,37 +838,27 @@ class JiraClient:
     def list_children(self, epic_key, fields=None):
         if fields is None:
             fields = ["summary", "labels", "parent"]
-        payload = self.request(
-            "POST",
-            "/rest/api/3/search/jql",
-            body={
-                "jql": f"parent = {epic_key} ORDER BY created ASC",
-                "maxResults": 100,
-                "fields": list(fields),
-            },
+        return self.search_jql(
+            f"parent = {epic_key} ORDER BY created ASC",
+            fields=fields,
+            limit=MAX_SEARCH_ISSUES,
         )
-        return payload.get("issues", [])
 
-    def find_issues_by_summary(self, summary, fix_version, fields=None):
+    def find_generated_issues(self, fix_version, fields=None):
+        """Return the tasks this script created for a Fix Version.
+
+        Summaries are matched by the caller: label and Fix Version are
+        exact-match fields, so the query needs no text search.
+        """
         if fields is None:
             fields = ["summary", "labels", "parent"]
-        payload = self.request(
-            "POST",
-            "/rest/api/3/search/jql",
-            body={
-                "jql": (
-                    f"project = {self.project} AND issuetype != Epic "
-                    f'AND summary ~ "{summary}" AND fixVersion = "{fix_version}"'
-                ),
-                "maxResults": 50,
-                "fields": list(fields),
-            },
+        return self.search_jql(
+            f"project = {self.project} AND issuetype != Epic "
+            f"AND labels = {jql_string(GENERATED_LABEL)} "
+            f"AND fixVersion = {jql_string(fix_version)}",
+            fields=fields,
+            limit=MAX_SEARCH_ISSUES,
         )
-        matches = []
-        for issue in payload.get("issues", []):
-            if issue.get("fields", {}).get("summary") == summary:
-                matches.append(issue)
-        return matches
 
     def create_issue(self, fields):
         return self.request("POST", "/rest/api/3/issue", body={"fields": fields})
@@ -945,9 +987,9 @@ def find_team_id(client, team_name):
     field_id = team_field_id(client)
     try:
         issues = client.search_jql(
-            f'Team = "{team_name}"',
+            f"Team = {jql_string(team_name)}",
             fields=[field_id],
-            max_results=1,
+            limit=1,
         )
     except RuntimeError:
         issues = []
@@ -976,19 +1018,22 @@ def ensure_team(client, key, team_field, team_id):
 
 def ensure_fix_version(client, plan, create_version):
     """Require Fix Version to exist; create it only for a major --create-version."""
-    versions = client.get_versions()
-    names = {item["name"] for item in versions}
+    if create_version and plan.variant != "major":
+        raise RuntimeError(
+            f'cannot use --create-version with variant "{plan.variant}", '
+            "Jira versions exist only for major releases"
+        )
+    names = {
+        item.get("name")
+        for item in client.get_versions() or []
+        if isinstance(item, dict)
+    }
     if plan.jira_version in names:
         return
     if not create_version:
         raise RuntimeError(
             f'cannot find Jira version "{plan.jira_version}" in {client.project}; '
             "create it in Jira first or pass --create-version"
-        )
-    if plan.variant != "major":
-        raise RuntimeError(
-            f'cannot use --create-version with variant "{plan.variant}", '
-            "Jira versions exist only for major releases"
         )
     client.create_version(plan.jira_version)
 
@@ -1011,13 +1056,17 @@ def issue_status_name(issue):
     return status.get("name") or ""
 
 
+def is_unstarted_status(issue):
+    return issue_status_name(issue).lower() in {"", "to do", "todo", "open"}
+
+
 def ensure_status(client, key, status_name=TARGET_STATUS):
     """Move the issue to status_name when it is not already there."""
     issue = client.get_issue(key, fields=["status"])
     current = issue_status_name(issue)
     if current.lower() == status_name.lower():
         return
-    payload = client.get_transitions(key)
+    payload = client.get_transitions(key) or {}
     for trans in payload.get("transitions") or []:
         dest = ((trans.get("to") or {}).get("name")) or ""
         if dest.lower() == status_name.lower():
@@ -1025,6 +1074,15 @@ def ensure_status(client, key, status_name=TARGET_STATUS):
             return
     extra = f' from "{current}"' if current else ""
     raise RuntimeError(f'cannot move {key} to "{status_name}"{extra}')
+
+
+def triage_if_needed(client, key, created):
+    """Triage newly created issues, and recover generated ones still in To Do."""
+    if not created:
+        issue = client.get_issue(key, fields=["status"])
+        if not is_unstarted_status(issue):
+            return
+    ensure_status(client, key)
 
 
 def issue_labels(issue):
@@ -1036,9 +1094,11 @@ def is_generated_issue(issue):
     return GENERATED_LABEL in issue_labels(issue)
 
 
-def matching_unlinked_task(client, plan, summary, epic_key):
-    """Find a labeled task with this summary that is not under another epic."""
-    for issue in client.find_issues_by_summary(summary, plan.jira_version):
+def matching_unlinked_task(issues, summary, epic_key):
+    """Find a generated task with this summary not owned by another epic."""
+    for issue in issues:
+        if issue.get("fields", {}).get("summary") != summary:
+            continue
         if not is_generated_issue(issue):
             continue
         parent = issue_parent_key(issue)
@@ -1053,7 +1113,10 @@ def apply_plan(plan, client, force=False, create_version=False):
     Script-generated tasks (labeled snapd-release-tickets) are linked, given
     the plan team and Fix Version, and rewritten with --force. Unlabeled
     issues that match a planned summary are listed on the epic but not
-    changed. Extra children of the epic are labeled not-in-release-plan.
+    changed. Extra children of the epic are listed as unexpected; only
+    generated extras are labeled not-in-release-plan. Newly created issues
+    and generated issues still in To Do are moved to Triaged; In Progress
+    and Done are left unchanged.
     """
     ensure_fix_version(client, plan, create_version)
     ac_field = acceptance_criteria_field_id(client)
@@ -1083,12 +1146,16 @@ def apply_plan(plan, client, force=False, create_version=False):
     by_summary, unexpected_children = classify_children(plan, children)
     created_keys = []
     tasks = []
+    owned_keys = []
+    generated_issues = None
     for task in plan.tasks:
         child = by_summary.get(task.summary)
         if child is None:
-            child = matching_unlinked_task(client, plan, task.summary, epic_key)
-            if child is not None:
-                child = client.get_issue(child["key"], fields=child_fields)
+            if generated_issues is None:
+                generated_issues = client.find_generated_issues(
+                    plan.jira_version, fields=child_fields
+                )
+            child = matching_unlinked_task(generated_issues, task.summary, epic_key)
         assigned_team = team_ids[task_team(plan, task)]
         if child is None:
             issue = client.create_issue(
@@ -1104,12 +1171,14 @@ def apply_plan(plan, client, force=False, create_version=False):
             )
             key = issue["key"]
             created_keys.append(key)
+            owned_keys.append(key)
             tasks.append((key, task.summary))
             continue
         key = child["key"]
         tasks.append((key, task.summary))
         if not is_generated_issue(child):
             continue
+        owned_keys.append(key)
         client.ensure_parent(key, epic_key)
         client.ensure_fix_versions(key, plan.jira_version)
         ensure_team(client, key, team_field, assigned_team)
@@ -1127,9 +1196,10 @@ def apply_plan(plan, client, force=False, create_version=False):
     for child in unexpected_children:
         key = child["key"]
         summary = child.get("fields", {}).get("summary", "")
-        client.ensure_parent(key, epic_key)
-        client.ensure_fix_versions(key, plan.jira_version)
-        client.ensure_label(key, UNEXPECTED_LABEL, True)
+        if is_generated_issue(child):
+            client.ensure_parent(key, epic_key)
+            client.ensure_fix_versions(key, plan.jira_version)
+            client.ensure_label(key, UNEXPECTED_LABEL, True)
         unexpected.append((key, summary))
 
     progress_items = [progress_item(key, summary) for key, summary in tasks]
@@ -1151,9 +1221,10 @@ def apply_plan(plan, client, force=False, create_version=False):
     if GENERATED_LABEL not in epic_labels:
         epic_update["labels"] = epic_labels + [GENERATED_LABEL]
     client.update_issue(epic_key, epic_update)
-    ensure_status(client, epic_key)
-    for key, _summary in tasks:
-        ensure_status(client, key)
+    created = set(created_keys)
+    triage_if_needed(client, epic_key, epic_created)
+    for key in owned_keys:
+        triage_if_needed(client, key, key in created)
     return ApplyResult(
         epic_key=epic_key,
         tasks=tuple(tasks),
@@ -1242,7 +1313,7 @@ def print_help(out=None):
         ("      --security", "Treat a patch version as a security release"),
         (
             "      --Team string",
-            "Non-cross-distro team: SnapD EMEA (default), SnapD AMER, SnapD Cross-distro",
+            "Non-cross-distro team: EMEA (default), AMER, Cross-distro",
         ),
         (
             "      --lts-targets strings",
@@ -1272,7 +1343,7 @@ def print_help(out=None):
     print(f"  {prog} 2.77.1", file=out)
     print(f"  {prog} 2.77.1 --security", file=out)
     print(f"  {prog} 2.78 --apply", file=out)
-    print(f'  {prog} 2.78 --Team "SnapD AMER"', file=out)
+    print(f"  {prog} 2.78 --Team AMER", file=out)
     print(file=out)
     print("Flags:", file=out)
     for name, desc in flags:
