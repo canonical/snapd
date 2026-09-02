@@ -45,10 +45,12 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 				return false, nil
 			}
 
-			actual := reflect.New(reflect.TypeOf(expected))
+			expectedType := reflect.TypeOf(expected)
+			actual := reflect.New(expectedType)
 			if err := task.Get(field, actual.Interface()); err != nil {
-				return false, fmt.Errorf("cannot query task %s field %q: %v", task.ID(), field, err)
+				return false, fmt.Errorf("cannot read field %q of task %s (%s) as %v", field, task.ID(), task.Kind(), expectedType)
 			}
+
 			if !reflect.DeepEqual(actual.Elem().Interface(), expected) {
 				return false, nil
 			}
