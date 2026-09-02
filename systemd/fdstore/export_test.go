@@ -30,12 +30,8 @@ func MockOsGetpid(f func() int) (restore func()) {
 	return testutil.Mock(&osGetpid, f)
 }
 
-func MockUnixCloseOnExec(f func(fd int)) (restore func()) {
-	return testutil.Mock(&unixCloseOnExec, f)
-}
-
-func MockUnixDup(f func(oldfd int) (fd int, err error)) (restore func()) {
-	return testutil.Mock(&unixDup, f)
+func MockFcntl(f func(fd uintptr, cmd, arg int) (int, error)) (restore func()) {
+	return testutil.Mock(&fcntl, f)
 }
 
 func MockSdNotify(f func(notifyState string) error) (restore func()) {

@@ -97,8 +97,7 @@ func New() Store {
 var (
 	osGetpid        = os.Getpid
 	osFileClose     = (*os.File).Close
-	unixCloseOnExec = unix.CloseOnExec
-	unixDup         = unix.Dup
+	fcntl           = unix.FcntlInt
 	sdNotify        = systemd.SdNotify
 	sdNotifyWithFds = systemd.SdNotifyWithFds
 	netFileListener = net.FileListener
@@ -164,13 +163,16 @@ func (s *store) initFdstore() {
 		return
 	}
 
+	failedCloseOnExec := make(map[FdName]bool)
 	for i := 0; i < nfds; i++ {
 		fd := sd_LISTEN_FDS_START + i
 		name := FdName(names[i])
 		fdstore[name] = append(fdstore[name], os.NewFile(uintptr(fd), string(name)))
 
-		// TODO: Use raw fcntl and check for errors.
-		unixCloseOnExec(fd)
+		if _, err := fcntl(uintptr(fd), unix.F_SETFD, unix.FD_CLOEXEC); err != nil {
+			logger.Noticef("cannot set close-on-exec on fd %d (%q): %v", fd, name, err)
+			failedCloseOnExec[name] = true
+		}
 	}
 
 	// Prune unexpected file descriptors
@@ -183,6 +185,9 @@ func (s *store) initFdstore() {
 		// We only allow activation sockets to be associated with multiple fds.
 		if !name.isSocket() && len(fds) != 1 {
 			logger.Noticef("unexpected fdstore entry %[1]q found: %[1]q has more than one fd", name)
+			shouldRemove = true
+		}
+		if failedCloseOnExec[name] {
 			shouldRemove = true
 		}
 		if shouldRemove {
@@ -250,12 +255,11 @@ func (s *store) remove(name FdName) error {
 }
 
 func duplicateFile(name FdName, f *os.File) (*os.File, error) {
-	duplicatedFd, err := unixDup(int(f.Fd()))
+	// F_DUPFD_CLOEXEC duplicates the fd with close-on-exec set atomically.
+	duplicatedFd, err := fcntl(f.Fd(), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Use raw fcntl and check for errors.
-	unixCloseOnExec(duplicatedFd)
 
 	// Wrapping fd with os.File is a safety measure so that the finalizer
 	// would close the duplicated fd implicitly if it goes out of scope.
