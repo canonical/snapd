@@ -102,21 +102,17 @@ func AssertContainsLanes(container, contained Selection) error {
 	return nil
 }
 
-func AssertDoesNotShareLane(selections ...Selection) error {
-	if err := validateNonEmpty(selections...); err != nil {
+func AssertDoesNotShareLane(first, second Selection) error {
+	if err := validateNonEmpty(first, second); err != nil {
 		return err
 	}
 
-	for i, first := range selections {
-		for _, second := range selections[i+1:] {
-			for _, firstTask := range first.tasks {
-				firstLanes := laneSet(firstTask)
-				for _, secondTask := range second.tasks {
-					for _, lane := range secondTask.Lanes() {
-						if firstLanes[lane] {
-							return fmt.Errorf("task %s (%s) and task %s (%s) share lane %d", firstTask.ID(), firstTask.Kind(), secondTask.ID(), secondTask.Kind(), lane)
-						}
-					}
+	for _, firstTask := range first.tasks {
+		firstLanes := laneSet(firstTask)
+		for _, secondTask := range second.tasks {
+			for _, lane := range secondTask.Lanes() {
+				if firstLanes[lane] {
+					return fmt.Errorf("task %s (%s) and task %s (%s) share lane %d", firstTask.ID(), firstTask.Kind(), secondTask.ID(), secondTask.Kind(), lane)
 				}
 			}
 		}
