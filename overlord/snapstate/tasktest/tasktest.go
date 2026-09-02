@@ -173,11 +173,7 @@ func (s Selection) Cached(key any) (any, bool) {
 // Cache stores an arbitrary value in the cache of this Selection. Should be
 // used by Querier implementations.
 func (s Selection) Cache(key, value any) {
-	if value == nil {
-		delete(s.cache, key)
-	} else {
-		s.cache[key] = value
-	}
+	s.cache[key] = value
 }
 
 // Querier is the interface that enables a type to narrow a Selection.
