@@ -51,8 +51,13 @@ func (q SnapQuery) WithHook(hookName string) SnapQuery {
 	return q
 }
 
-func (q SnapQuery) WithCardinality(cardinality int) SnapQuery {
-	q.TaskQuery.Cardinality = cardinality
+func (q SnapQuery) TaskCount(count int) SnapQuery {
+	q.TaskQuery.Cardinality = count
+	return q
+}
+
+func (q SnapQuery) All() SnapQuery {
+	q.TaskQuery.Cardinality = -1
 	return q
 }
 
