@@ -506,6 +506,8 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
+	defer m.setState(ms)
+
 	// Reject oldest sequences when the LRU exceeds capacity.
 	rejected := make(map[string]bool)
 	excess := len(ms.SequenceLRU) - maxSequences
@@ -536,8 +538,6 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 			}
 		}
 	}
-
-	m.setState(ms)
 
 	return nil
 }
