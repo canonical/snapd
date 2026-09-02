@@ -20,16 +20,19 @@
 
 package systemd
 
-import "sync"
+import "net"
 
 func ResetSdNotify() {
-	sdNotifyOnce = sync.Once{}
-	sdNotifySocket = ""
-
 	sdNotifyMu.Lock()
 	defer sdNotifyMu.Unlock()
 	if sdNotifyConnCache != nil {
 		sdNotifyConnCache.Close()
 		sdNotifyConnCache = nil
 	}
+}
+
+func SdNotifyConnCache() *net.UnixConn {
+	sdNotifyMu.Lock()
+	defer sdNotifyMu.Unlock()
+	return sdNotifyConnCache
 }

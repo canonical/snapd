@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -59,8 +60,8 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 		{"", "cannot find NOTIFY_SOCKET environment variable"},
 		{"xxx", `cannot use NOTIFY_SOCKET "xxx"`},
 	} {
-		os.Setenv("NOTIFY_SOCKET", t.env)
-		defer os.Unsetenv("NOTIFY_SOCKET")
+		restore := systemd.MockNotifySocket(t.env)
+		defer restore()
 		systemd.ResetSdNotify()
 
 		if withFds {
@@ -84,13 +85,12 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsWrongNotifySocket(c *C) {
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
-	defer os.Unsetenv("NOTIFY_SOCKET")
-
 	for _, sockPath := range []string{
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		os.Setenv("NOTIFY_SOCKET", sockPath)
+		restore := systemd.MockNotifySocket(sockPath)
+		defer restore()
 		systemd.ResetSdNotify()
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
@@ -114,6 +114,83 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 	}
 }
 
+func (sd *sdNotifyTestSuite) testSdNotifyReconnectsAfterWriteError(c *C, withFds bool) {
+	notify := systemd.SdNotify
+	if withFds {
+		f, err := os.OpenFile(filepath.Join(c.MkDir(), "fd"), os.O_RDWR|os.O_CREATE, 0644)
+		c.Assert(err, IsNil)
+		defer f.Close()
+
+		notify = func(state string) error {
+			return systemd.SdNotifyWithFds(state, f)
+		}
+	}
+
+	for _, sockPath := range []string{
+		filepath.Join(c.MkDir(), "socket"),
+		"@socket",
+	} {
+		restore := systemd.MockNotifySocket(sockPath)
+		defer restore()
+		systemd.ResetSdNotify()
+
+		addr := &net.UnixAddr{
+			Name: sockPath,
+			Net:  "unixgram",
+		}
+
+		readOne := func(conn *net.UnixConn) string {
+			var buf [128]byte
+			n, err := conn.Read(buf[:])
+			c.Assert(err, IsNil)
+			return string(buf[:n])
+		}
+
+		// initial notification connects and caches the connection
+		conn1, err := net.ListenUnixgram("unixgram", addr)
+		c.Assert(err, IsNil)
+
+		err = notify("first")
+		c.Assert(err, IsNil)
+		c.Check(readOne(conn1), Equals, "first")
+		c.Check(systemd.SdNotifyConnCache(), NotNil)
+
+		// closing the listener makes subsequent writes fail, which
+		// should drop the cached connection
+		conn1.Close()
+
+		err = notify("second")
+		c.Assert(err, ErrorMatches, ".*connection refused")
+		c.Check(systemd.SdNotifyConnCache(), IsNil)
+
+		// a new listener at the same address receives notifications
+		// again, proving the next call reconnected
+		if !strings.HasPrefix(sockPath, "@") {
+			// closing the listener leaves the socket file behind
+			c.Assert(os.Remove(sockPath), IsNil)
+		}
+		conn2, err := net.ListenUnixgram("unixgram", addr)
+		c.Assert(err, IsNil)
+
+		err = notify("third")
+		c.Assert(err, IsNil)
+		c.Check(readOne(conn2), Equals, "third")
+		c.Check(systemd.SdNotifyConnCache(), NotNil)
+
+		conn2.Close()
+	}
+}
+
+func (sd *sdNotifyTestSuite) TestSdNotifyReconnectsAfterWriteError(c *C) {
+	const withFds = false
+	sd.testSdNotifyReconnectsAfterWriteError(c, withFds)
+}
+
+func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsReconnectsAfterWriteError(c *C) {
+	const withFds = true
+	sd.testSdNotifyReconnectsAfterWriteError(c, withFds)
+}
+
 func panicOnErr(err error) {
 	if err != nil {
 		panic(err)
@@ -121,13 +198,12 @@ func panicOnErr(err error) {
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
-	defer os.Unsetenv("NOTIFY_SOCKET")
-
 	for _, sockPath := range []string{
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		os.Setenv("NOTIFY_SOCKET", sockPath)
+		restore := systemd.MockNotifySocket(sockPath)
+		defer restore()
 		systemd.ResetSdNotify()
 
 		tmpdir := c.MkDir()

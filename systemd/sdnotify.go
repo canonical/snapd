@@ -21,32 +21,31 @@ package systemd
 
 import (
 	"os"
-	"sync"
 
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	sdNotifyOnce   sync.Once
-	sdNotifySocket string
-)
+var sdNotifySocket string
 
-// NotifySocket returns the value of the NOTIFY_SOCKET environment variable.
-// It is read and cached once on first access, and the variable is unset.
+func init() {
+	sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
+	os.Unsetenv("NOTIFY_SOCKET")
+}
+
+// NotifySocket returns the cached value of the NOTIFY_SOCKET environment
+// variable, which is read and unset during package initialization.
 func NotifySocket() string {
-	sdNotifyOnce.Do(func() {
-		sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
-		os.Unsetenv("NOTIFY_SOCKET")
-	})
 	return sdNotifySocket
 }
 
-// ResetNotifySocket resets the cached NOTIFY_SOCKET value so that the next call
-// to NotifySocket re-reads it from the environment. It is meant to be used in
-// tests together with os.Setenv/os.Unsetenv.
-func ResetNotifySocket() {
-	osutil.MustBeTestBinary("cannot use ResetNotifySocket outside of tests")
+// MockNotifySocket overrides the cached NOTIFY_SOCKET value. It is meant to be
+// used in tests.
+func MockNotifySocket(socket string) (restore func()) {
+	osutil.MustBeTestBinary("cannot use MockNotifySocket outside of tests")
 
-	sdNotifyOnce = sync.Once{}
-	sdNotifySocket = ""
+	old := sdNotifySocket
+	sdNotifySocket = socket
+	return func() {
+		sdNotifySocket = old
+	}
 }
