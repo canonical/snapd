@@ -21104,7 +21104,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBeforeLocalModifications
 	), IsNil)
 
 	// early non-seed prerequisites join the seed transaction because they can add candidates.
-	c.Assert(tasktest.AssertContainsLanes(otherAppEarlyPrerequisites, seedCreate), IsNil)
+	c.Assert(tasktest.AssertLaneSuperset(otherAppEarlyPrerequisites, seedCreate), IsNil)
 
 	// later non-seed work stays independent so its failures cannot undo the seed.
 	c.Assert(tasktest.AssertDoesNotShareLane(seedCreate, otherAppSyncPrerequisites), IsNil)

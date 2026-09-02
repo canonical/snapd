@@ -84,17 +84,17 @@ func AssertCommonLane(selections ...Selection) error {
 	return nil
 }
 
-func AssertContainsLanes(container, contained Selection) error {
-	if err := validateNonEmpty(container, contained); err != nil {
+func AssertLaneSuperset(superset, subset Selection) error {
+	if err := validateNonEmpty(superset, subset); err != nil {
 		return err
 	}
 
-	for _, containerTask := range container.tasks {
-		containerLanes := laneSet(containerTask)
-		for _, containedTask := range contained.tasks {
-			for _, lane := range containedTask.Lanes() {
-				if !containerLanes[lane] {
-					return fmt.Errorf("task %s (%s) with lanes %v does not contain lane %d from task %s (%s)", containerTask.ID(), containerTask.Kind(), containerTask.Lanes(), lane, containedTask.ID(), containedTask.Kind())
+	for _, supersetTask := range superset.tasks {
+		supersetLanes := laneSet(supersetTask)
+		for _, subsetTask := range subset.tasks {
+			for _, lane := range subsetTask.Lanes() {
+				if !supersetLanes[lane] {
+					return fmt.Errorf("task %s (%s) with lanes %v is not a lane superset of task %s (%s) with lanes %v", supersetTask.ID(), supersetTask.Kind(), supersetTask.Lanes(), subsetTask.ID(), subsetTask.Kind(), subsetTask.Lanes())
 				}
 			}
 		}
