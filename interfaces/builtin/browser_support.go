@@ -54,11 +54,6 @@ const browserSupportConnectedPlugAppArmor = `
 # This allows raising the OOM score of other processes owned by the user.
 owner @{PROC}/@{pid}/oom_score_adj rw,
 
-# Chrome/Chromium should be fixed to honor TMPDIR or the snap packaging
-# adjusted to use LD_PRELOAD technique from LP: #1577514
-/var/tmp/ r,
-owner /var/tmp/etilqs_* rw,
-
 # Chrome/Chromium should be modified to use snap.$SNAP_INSTANCE_NAME.* or
 # the snap packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /{dev,run}/shm/{,.}org.chromium.* mrw,
