@@ -24,40 +24,36 @@ type TaskQuery struct {
 // Query returns a subset of the tasks in the given Selection that match this
 // TaskQuery.
 func (q TaskQuery) Query(selection Selection) (Selection, error) {
-	var matches []*state.Task
-	for _, task := range selection.selected {
+	matches, err := selection.Filter(func(task *state.Task) (bool, error) {
 		if q.Kind != "" && task.Kind() != q.Kind {
-			continue
+			return false, nil
 		}
 
-		matched := true
 		for field, expected := range q.Fields {
 			if expected == nil {
 				if task.Has(field) {
-					matched = false
-					break
+					return false, nil
 				}
 				continue
 			}
 
 			if !task.Has(field) {
-				matched = false
-				break
+				return false, nil
 			}
 
 			actual := reflect.New(reflect.TypeOf(expected))
 			if err := task.Get(field, actual.Interface()); err != nil {
-				return Selection{}, fmt.Errorf("cannot query task %s field %q: %v", task.ID(), field, err)
+				return false, fmt.Errorf("cannot query task %s field %q: %v", task.ID(), field, err)
 			}
 			if !reflect.DeepEqual(actual.Elem().Interface(), expected) {
-				matched = false
-				break
+				return false, nil
 			}
 		}
 
-		if matched {
-			matches = append(matches, task)
-		}
+		return true, nil
+	})
+	if err != nil {
+		return Selection{}, err
 	}
 
 	cardinality := q.Cardinality
@@ -66,16 +62,16 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	}
 	switch {
 	case cardinality == -1:
-		if len(matches) == 0 {
+		if len(matches.selected) == 0 {
 			return Selection{}, fmt.Errorf("task query matched no tasks")
 		}
 	case cardinality < -1:
 		return Selection{}, fmt.Errorf("invalid task query cardinality %d", cardinality)
-	case len(matches) != cardinality:
-		return Selection{}, fmt.Errorf("task query matched %d tasks, expected %d", len(matches), cardinality)
+	case len(matches.selected) != cardinality:
+		return Selection{}, fmt.Errorf("task query matched %d tasks, expected %d", len(matches.selected), cardinality)
 	}
 
-	return selection.subset(matches), nil
+	return matches, nil
 }
 
 // Selection represents a fixed selection set of tasks. A root Selection will be
@@ -107,16 +103,27 @@ func NewSelection(tasks []*state.Task) Selection {
 	}
 }
 
-// subset returns a new Selection that shares the same universe, cache, and
-// reachability table as the parent Selection. The given tasks must be a subset
-// of the current Selection.
-func (s Selection) subset(tasks []*state.Task) Selection {
+// Filter returns a new Selection containing the tasks for which predicate
+// returns true. The new Selection shares the same universe, cache, and
+// reachability table as the original Selection.
+func (s Selection) Filter(predicate func(*state.Task) (bool, error)) (Selection, error) {
+	selected := make([]*state.Task, 0, len(s.selected))
+	for _, task := range s.selected {
+		matches, err := predicate(task)
+		if err != nil {
+			return Selection{}, err
+		}
+		if matches {
+			selected = append(selected, task)
+		}
+	}
+
 	return Selection{
-		selected:     append([]*state.Task(nil), tasks...),
+		selected:     selected,
 		universe:     s.universe,
 		cache:        s.cache,
 		reachability: s.reachability,
-	}
+	}, nil
 }
 
 // reachability returns a mapping of each task to the tasks that transitively
@@ -191,52 +198,50 @@ func (s Selection) SelectErr(query Querier) (Selection, error) {
 // Heads returns the subset of tasks in this Selection that are not blocked by
 // any other tasks in this Selection.
 func (s Selection) Heads() Selection {
-	heads := make([]*state.Task, 0, len(s.selected))
-	for _, candidate := range s.selected {
-		head := true
+	heads, err := s.Filter(func(candidate *state.Task) (bool, error) {
 		for _, other := range s.selected {
 			if s.reachability[other][candidate] {
-				head = false
-				break
+				return false, nil
 			}
 		}
-		if head {
-			heads = append(heads, candidate)
-		}
+		return true, nil
+	})
+	if err != nil {
+		panic(fmt.Sprintf("infallible call failed: %v", err))
 	}
-	return s.subset(heads)
+	return heads
 }
 
 // Tails returns the subset of tasks in this Selection that do not block any
 // other tasks in this Selection.
 func (s Selection) Tails() Selection {
-	tails := make([]*state.Task, 0, len(s.selected))
-	for _, candidate := range s.selected {
-		tail := true
+	tails, err := s.Filter(func(candidate *state.Task) (bool, error) {
 		for _, other := range s.selected {
 			if s.reachability[candidate][other] {
-				tail = false
-				break
+				return false, nil
 			}
 		}
-		if tail {
-			tails = append(tails, candidate)
-		}
+		return true, nil
+	})
+	if err != nil {
+		panic(fmt.Sprintf("infallible call failed: %v", err))
 	}
-	return s.subset(tails)
+	return tails
 }
 
 // Predecessors returns the subset of tasks in this Selection that block at
 // least one task in the given Selection.
 func (s Selection) Predecessors(of Selection) Selection {
-	var predecessors []*state.Task
-	for _, candidate := range s.selected {
+	predecessors, err := s.Filter(func(candidate *state.Task) (bool, error) {
 		for _, task := range of.selected {
 			if s.reachability[candidate][task] {
-				predecessors = append(predecessors, candidate)
-				break
+				return true, nil
 			}
 		}
+		return false, nil
+	})
+	if err != nil {
+		panic(fmt.Sprintf("infallible call failed: %v", err))
 	}
-	return s.subset(predecessors)
+	return predecessors
 }

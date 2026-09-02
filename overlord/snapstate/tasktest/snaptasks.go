@@ -108,25 +108,27 @@ func (q SnapQuery) Query(selection Selection) (Selection, error) {
 		return Selection{}, err
 	}
 
-	var matches []*state.Task
-	for _, task := range selection.selected {
+	matches, err := selection.Filter(func(task *state.Task) (bool, error) {
 		info, ok := cache[task.ID()]
 		if !ok || info.InstanceName != q.InstanceName {
-			continue
+			return false, nil
 		}
 		if q.ComponentName != "" && info.ComponentName != q.ComponentName {
-			continue
+			return false, nil
 		}
 		if q.ComponentsOnly && info.ComponentName == "" {
-			continue
+			return false, nil
 		}
 		if q.HookName != "" && info.HookName != q.HookName {
-			continue
+			return false, nil
 		}
-		matches = append(matches, task)
+		return true, nil
+	})
+	if err != nil {
+		return Selection{}, err
 	}
 
-	return q.TaskQuery.Query(selection.subset(matches))
+	return q.TaskQuery.Query(matches)
 }
 
 type snapQueryCacheKey struct{}
