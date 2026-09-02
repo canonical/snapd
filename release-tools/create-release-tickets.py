@@ -1,0 +1,1354 @@
+#!/usr/bin/env python3
+"""Create the SNAPDENG Jira epic and tasks for a snapd release.
+
+Dry-run is the default. Pass --apply to create or update issues on
+warthogs.atlassian.net using JIRA_EMAIL and an unscoped JIRA_API_TOKEN.
+
+Version X.YY is a major release; X.YY.Z is a bugfix, or a security release
+with --security. Jira Fix Version is always "snapd X.YY". Ubuntu devel and
+LTS series default from ubuntu-distro-info.
+
+Created issues are labeled snapd-release-tickets. Re-running --apply reuses
+the matching epic and expected tasks (by summary), creates anything missing,
+and marks extra epic children as unexpected. --force rewrites Description
+and Acceptance Criteria only on labeled tasks. Unlabeled issues with a
+matching title are reused as placeholders but never modified.
+
+The epic and non-cross-distro tasks use team SnapD EMEA unless --Team is
+set. Cross-distro tasks always use SnapD Cross-distro.
+"""
+
+# Hyphenated filename; this is a script, not a library.
+# pylint: disable=invalid-name,missing-function-docstring
+# pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+# pylint: disable=too-many-lines
+
+import argparse
+import base64
+import inspect
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from typing import NamedTuple
+
+DEFAULT_JIRA_URL = "https://warthogs.atlassian.net"
+DEFAULT_PROJECT = "SNAPDENG"
+DEFAULT_PARENT_EPIC = "SNAPDENG-34819"
+
+RELEASE_MD_URL = "https://github.com/canonical/snapd/blob/master/RELEASE.md"
+SRU_PACKAGE_NOTES_URL = (
+    "https://ubuntu.com/project/docs/SRU/reference/package-specific/#snapd"
+)
+SRU_SNAPD_UPDATES_URL = (
+    "https://documentation.ubuntu.com/project/SRU/reference/exception-Snapd-Updates/"
+)
+
+VARIANT_LABELS = {
+    "major": "Major",
+    "bugfix": "Bugfix",
+    "security": "Security",
+}
+
+VERSION_MAJOR_RE = re.compile(r"^\d+\.\d+$")
+VERSION_PATCH_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+ISSUE_KEY_RE = re.compile(r"^([A-Z][A-Z0-9]+-\d+)\s+")
+
+UNEXPECTED_LABEL = "not-in-release-plan"
+UNEXPECTED_PREFIX = "UNEXPECTED: "
+# Marks issues this script created so --force never rewrites manual tickets.
+GENERATED_LABEL = "snapd-release-tickets"
+SECURITY_TITLE_PREFIX = "Security: "
+TARGET_STATUS = "Triaged"
+
+DEFAULT_TEAM = "SnapD EMEA"
+CROSS_DISTRO_TEAM = "SnapD Cross-distro"
+AMER_TEAM = "SnapD AMER"
+# Allowed --Team values. Cross-distro tasks ignore this and always use
+# CROSS_DISTRO_TEAM.
+ALLOWED_TEAMS = (
+    DEFAULT_TEAM,
+    CROSS_DISTRO_TEAM,
+    AMER_TEAM,
+)
+TEAM_FIELD_NAME = "Team"
+
+PROG_NAME = "create-release-tickets.py"
+JIRA_API_TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens"
+DISTRO_SERIES_ERROR = (
+    "cannot determine Ubuntu series, "
+    "install distro-info-data or pass --dev-target and --lts-targets"
+)
+
+
+class UsageError(Exception):
+    """Invalid CLI usage; main() prints this and exits 2."""
+
+
+class TaskSpec(NamedTuple):
+    """One planned Jira task: summary, Acceptance Criteria, and team kind."""
+
+    summary: str
+    checklist: tuple
+    cross_distro: bool = False
+
+
+class PlannedRelease(NamedTuple):
+    """Epic and tasks ready for dry-run printing or Jira apply."""
+
+    variant: str
+    version: str
+    jira_version: str
+    parent_epic: str
+    epic_summary: str
+    tasks: tuple
+    team: str
+
+
+class ApplyResult(NamedTuple):
+    """Issue keys created or reused by apply_plan."""
+
+    epic_key: str
+    tasks: tuple
+    created_keys: tuple
+    unexpected: tuple
+    epic_created: bool
+
+
+def new_local_id():
+    return str(uuid.uuid4())
+
+
+def parse_team(raw):
+    """Return an allowed --Team value, or DEFAULT_TEAM when raw is empty."""
+    if not raw:
+        return DEFAULT_TEAM
+    if raw not in ALLOWED_TEAMS:
+        allowed = ", ".join(f'"{name}"' for name in ALLOWED_TEAMS)
+        raise UsageError(f'invalid --Team "{raw}", expected one of {allowed}')
+    return raw
+
+
+def task_team(plan, task):
+    """Team name for a task: Cross-distro tasks ignore plan.team."""
+    if task.cross_distro:
+        return CROSS_DISTRO_TEAM
+    return plan.team
+
+
+def parse_targets(raw):
+    targets = [part.strip() for part in raw.split(",") if part.strip()]
+    if not targets:
+        raise RuntimeError(
+            "cannot parse --lts-targets, expected a comma-separated list of series"
+        )
+    return targets
+
+
+def ubuntu_distro_info(args):
+    return subprocess.check_output(["ubuntu-distro-info"] + list(args), text=True)
+
+
+def default_ubuntu_series():
+    """Return (devel, supported-minus-devel) from ubuntu-distro-info."""
+    try:
+        devel = ubuntu_distro_info(["--devel", "-c"]).strip()
+        supported = ubuntu_distro_info(["--supported", "-c"]).split()
+    except (OSError, subprocess.CalledProcessError) as err:
+        raise RuntimeError(DISTRO_SERIES_ERROR) from err
+    if not devel:
+        raise RuntimeError(DISTRO_SERIES_ERROR)
+    targets = [name for name in supported if name and name != devel]
+    if not targets:
+        raise RuntimeError(DISTRO_SERIES_ERROR)
+    return devel, targets
+
+
+def resolve_ubuntu_series(devel, targets_raw):
+    """Resolve devel and LTS series from flags, filling gaps via distro-info."""
+    if devel and targets_raw:
+        return devel, parse_targets(targets_raw)
+    auto_devel, auto_targets = default_ubuntu_series()
+    if not devel:
+        devel = auto_devel
+    if targets_raw:
+        targets = parse_targets(targets_raw)
+    else:
+        targets = auto_targets
+    return devel, targets
+
+
+def targets_proposed_label(targets):
+    return "{" + ",".join(targets) + "}-proposed"
+
+
+def variant_from_version(version, security=False):
+    """Map X.YY to major and X.YY.Z to bugfix, or security with --security."""
+    if VERSION_MAJOR_RE.match(version):
+        if security:
+            raise RuntimeError(
+                f'cannot use --security with version "{version}", expected X.YY.Z'
+            )
+        return "major"
+    if VERSION_PATCH_RE.match(version):
+        if security:
+            return "security"
+        return "bugfix"
+    raise RuntimeError(f'cannot use version "{version}", expected X.YY or X.YY.Z')
+
+
+def jira_version_for(variant, version):
+    """Return the X.YY used in Fix Version "snapd X.YY"."""
+    if variant == "major":
+        if not VERSION_MAJOR_RE.match(version):
+            raise RuntimeError(
+                f'cannot use version "{version}" with variant "major", expected X.YY'
+            )
+        return version
+    if variant not in VARIANT_LABELS:
+        raise RuntimeError(f'cannot use unknown variant "{variant}"')
+    match = VERSION_PATCH_RE.match(version)
+    if not match:
+        raise RuntimeError(
+            f'cannot use version "{version}" with variant "{variant}", expected X.YY.Z'
+        )
+    return f"{match.group(1)}.{match.group(2)}"
+
+
+def epic_summary_for(variant, version):
+    return f"Snapd {VARIANT_LABELS[variant]} Release {version}"
+
+
+def task_cut_release(*, version):
+    return TaskSpec(
+        summary=f"Cut release {version}",
+        checklist=(
+            f"Create the release/{version} branch "
+            "(reuse the major branch for a patch release)",
+            "Create the Launchpad SRU tracking bug "
+            "(unless this version supersedes an unreleased version)",
+            "Curate NEWS.md",
+            "Fill the SRU test template on each milestone bug",
+            "Generate changelogs with release-tools/changelog.py",
+            "Open the release PR",
+            "Analyse test results and merge release PR",
+        ),
+    )
+
+
+def task_beta_snaps():
+    return TaskSpec(
+        summary="Build and upload BETA snapd snaps",
+        checklist=(
+            "Push the version git tag",
+            "Open and merge the changelog PR against master",
+            "Build snapd snaps on Launchpad (including FIPS)",
+            "Promote revisions to latest/beta",
+            "Promote FIPS revisions to fips-updates/beta",
+            "Notify snapd QA and the certification tester",
+            "Update the snapd roadmap for beta",
+        ),
+    )
+
+
+def task_debs():
+    return TaskSpec(
+        summary="Build and upload snapd debs",
+        checklist=(
+            "Build snapd debs for each target series",
+            "Create source tarballs with release-tools/repack-debian-tarball.sh",
+            "Create a draft GitHub release and upload tarballs",
+            "Upload to a test PPA and run autopkgtests",
+            "Upload to ppa:snappy-dev/image",
+            "Set the SRU bug series status to in progress",
+        ),
+    )
+
+
+def task_qa_beta():
+    return TaskSpec(
+        summary="Complete Snapd Team QA BETA validation",
+        checklist=(
+            "Coordinate snapd team QA beta validation",
+            "Review known issues from beta testing",
+            "Obtain QA sign-off to promote to candidate",
+            "Promote snapd snap revisions to candidate",
+        ),
+    )
+
+
+def task_certification_beta():
+    return TaskSpec(
+        summary="Monitor Certification Team BETA validation",
+        checklist=(
+            "Contact the assigned certification tester",
+            "Track certification beta results",
+            "Obtain certification sign-off",
+        ),
+    )
+
+
+def task_devel_upload(*, devel):
+    return TaskSpec(
+        summary=(
+            f"Request upload to {devel}-proposed and facilitate LP bug verification"
+        ),
+        checklist=(
+            f"Request sponsorship for upload to {devel}-proposed",
+            f"Ensure autopkgtests pass on {devel}-proposed",
+            f"Verify Launchpad bugs for {devel}",
+        ),
+    )
+
+
+def task_sru_upload(*, targets):
+    targets_proposed = targets_proposed_label(targets)
+    return TaskSpec(
+        summary=(
+            f"Request upload to {targets_proposed} and facilitate LP bug verification"
+        ),
+        checklist=(
+            f"Request sponsorship for upload to {targets_proposed}",
+            f"Ensure autopkgtests pass on {targets_proposed}",
+            "Perform distro-upgrade testing",
+            "Verify Launchpad bugs for each target series",
+            "Request the move to -updates",
+            "Request progressive stable promotion of the snapd snap",
+            "Mark milestone bugs as Fix released",
+        ),
+    )
+
+
+def task_cross_distro_arch_opensuse_amazon():
+    return TaskSpec(
+        summary="Cross-distro: releases Arch, openSUSE & Amazon",
+        checklist=(
+            "Confirm snapd is in candidate and the GitHub release is public",
+            "Run WSL smoke tests on candidate",
+            "Complete the Arch Linux release",
+            "Complete the openSUSE release",
+            "Complete the Amazon Linux release",
+        ),
+        cross_distro=True,
+    )
+
+
+def task_cross_distro_fedora_debian():
+    return TaskSpec(
+        summary="Cross-distro: Fedora and Debian",
+        checklist=(
+            "Complete the Fedora release",
+            "Complete the Debian release",
+        ),
+        cross_distro=True,
+    )
+
+
+# Epic checklist order. Each builder may take version, devel, and/or targets.
+TASKS = (
+    task_cut_release,
+    task_beta_snaps,
+    task_debs,
+    task_qa_beta,
+    task_certification_beta,
+    task_devel_upload,
+    task_sru_upload,
+    task_cross_distro_arch_opensuse_amazon,
+    task_cross_distro_fedora_debian,
+)
+
+TASK_CONTEXT_KEYS = ("version", "devel", "targets")
+
+
+def call_task(fn, ctx):
+    """Call a task builder with only the ctx keys its signature accepts."""
+    names = inspect.signature(fn).parameters
+    unknown = [name for name in names if name not in ctx]
+    if unknown:
+        raise RuntimeError(f"cannot fill {fn.__name__}, unknown input {unknown[0]}")
+    return fn(**{name: ctx[name] for name in names})
+
+
+def task_summary_for(variant, summary):
+    """Prefix security-release task titles; checklists stay unprefixed."""
+    if variant == "security":
+        return SECURITY_TITLE_PREFIX + summary
+    return summary
+
+
+def build_plan(
+    variant,
+    version,
+    devel,
+    targets,
+    jira_version=None,
+    parent_epic=None,
+    team=None,
+):
+    """Build the epic summary, Fix Version, and nine TaskSpecs for a release."""
+    derived_version = jira_version_for(variant, version)
+    if jira_version is None:
+        jira_version = f"snapd {derived_version}"
+    if parent_epic is None:
+        parent_epic = DEFAULT_PARENT_EPIC
+    if team is None:
+        team = DEFAULT_TEAM
+    ctx = {
+        "version": version,
+        "devel": devel,
+        "targets": targets,
+    }
+    tasks = tuple(
+        spec._replace(summary=task_summary_for(variant, spec.summary))
+        for spec in (call_task(fn, ctx) for fn in TASKS)
+    )
+    return PlannedRelease(
+        variant=variant,
+        version=version,
+        jira_version=jira_version,
+        parent_epic=parent_epic,
+        epic_summary=epic_summary_for(variant, version),
+        tasks=tasks,
+        team=team,
+    )
+
+
+def adf_text(text, href=None):
+    node = {"type": "text", "text": text}
+    if href is not None:
+        node["marks"] = [{"type": "link", "attrs": {"href": href}}]
+    return node
+
+
+def adf_paragraph(*content):
+    return {"type": "paragraph", "content": list(content)}
+
+
+def adf_bullet_list(items):
+    return {
+        "type": "bulletList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [adf_paragraph(*item)],
+            }
+            for item in items
+        ],
+    }
+
+
+def adf_task_list(items):
+    content = []
+    for item in items:
+        if isinstance(item, tuple):
+            text, state = item
+        else:
+            text, state = item, "TODO"
+        content.append(
+            {
+                "type": "taskItem",
+                "attrs": {"localId": new_local_id(), "state": state},
+                "content": [{"type": "text", "text": text}],
+            }
+        )
+    return {
+        "type": "taskList",
+        "attrs": {"localId": new_local_id()},
+        "content": content,
+    }
+
+
+def adf_doc(*blocks):
+    return {"type": "doc", "version": 1, "content": list(blocks)}
+
+
+# Process links shared by every issue Description (ADF for Jira, text for dry-run).
+INSTRUCTION_HEADING = "Follow the snapd release process:"
+INSTRUCTION_BULLETS = (
+    (("How to release snapd", RELEASE_MD_URL),),
+    (
+        ("Snapd SRU special case: ", None),
+        ("package-specific notes", SRU_PACKAGE_NOTES_URL),
+        (" and ", None),
+        ("Snapd Updates", SRU_SNAPD_UPDATES_URL),
+    ),
+)
+
+
+def instruction_preview_lines():
+    lines = [INSTRUCTION_HEADING]
+    for bullet in INSTRUCTION_BULLETS:
+        if len(bullet) == 1 and bullet[0][1] is not None:
+            text, href = bullet[0]
+            lines.append(f"- {text}: {href}")
+            continue
+        parts = []
+        for text, href in bullet:
+            if href is None:
+                parts.append(text)
+            else:
+                parts.append(f"{text} ({href})")
+        lines.append("- " + "".join(parts))
+    return tuple(lines)
+
+
+def instruction_blocks():
+    return (
+        adf_paragraph(adf_text(INSTRUCTION_HEADING)),
+        adf_bullet_list(
+            [
+                [adf_text(text, href=href) for text, href in bullet]
+                for bullet in INSTRUCTION_BULLETS
+            ]
+        ),
+    )
+
+
+def issue_key_from_progress_text(text):
+    body = text.removeprefix(UNEXPECTED_PREFIX)
+    match = ISSUE_KEY_RE.match(body)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def task_items_with_state(adf):
+    items = []
+
+    def walk(node):
+        if not isinstance(node, dict):
+            return
+        if node.get("type") == "taskItem":
+            text = "".join(child.get("text", "") for child in node.get("content", []))
+            state = node.get("attrs", {}).get("state", "TODO")
+            items.append((text, state))
+            return
+        for child in node.get("content", []):
+            walk(child)
+
+    walk(adf)
+    return items
+
+
+def previous_task_states(adf):
+    """Map existing checklist items by full text and by leading issue key."""
+    by_text = {}
+    by_key = {}
+    for text, state in task_items_with_state(adf):
+        by_text[text] = state
+        key = issue_key_from_progress_text(text)
+        if key is not None:
+            by_key[key] = state
+    return by_text, by_key
+
+
+def item_state(text, by_text, by_key):
+    if text in by_text:
+        return by_text[text]
+    key = issue_key_from_progress_text(text)
+    if key is not None and key in by_key:
+        return by_key[key]
+    return "TODO"
+
+
+def progress_item(key, summary):
+    return f"{key} {summary}"
+
+
+def unexpected_progress_item(key, summary):
+    return f"{UNEXPECTED_PREFIX}{key} {summary}"
+
+
+def issue_description():
+    return adf_doc(*instruction_blocks())
+
+
+def acceptance_criteria(items, unexpected_items=(), previous_adf=None):
+    """ADF task list, copying DONE/TODO from previous_adf when item text matches."""
+    by_text, by_key = {}, {}
+    if previous_adf is not None:
+        by_text, by_key = previous_task_states(previous_adf)
+
+    def with_state(text):
+        return (text, item_state(text, by_text, by_key))
+
+    blocks = [adf_task_list([with_state(item) for item in items])]
+    if unexpected_items:
+        blocks.extend(
+            [
+                adf_paragraph(
+                    adf_text(
+                        "These issues are children of the epic but are not part of "
+                        "the standard release tasks."
+                    )
+                ),
+                adf_task_list([with_state(item) for item in unexpected_items]),
+            ]
+        )
+    return adf_doc(*blocks)
+
+
+def checklist_adf_from_issue(issue, acceptance_field):
+    fields = issue.get("fields") or {}
+    adf = fields.get(acceptance_field)
+    if adf:
+        return adf
+    return fields.get("description")
+
+
+def task_item_texts(adf):
+    return [text for text, _state in task_items_with_state(adf)]
+
+
+def linked_hrefs(adf):
+    hrefs = []
+
+    def walk(node):
+        if not isinstance(node, dict):
+            return
+        for mark in node.get("marks", []):
+            if mark.get("type") == "link":
+                hrefs.append(mark["attrs"]["href"])
+        for child in node.get("content", []):
+            walk(child)
+
+    walk(adf)
+    return hrefs
+
+
+def epic_fields(
+    project, plan, acceptance_field, description=None, team_field=None, team_id=None
+):
+    """Create payload for the release epic, including team when resolved."""
+    if description is None:
+        description = issue_description()
+    fields = {
+        "project": {"key": project},
+        "issuetype": {"name": "Epic"},
+        "summary": plan.epic_summary,
+        "description": description,
+        "fixVersions": [{"name": plan.jira_version}],
+        "parent": {"key": plan.parent_epic},
+        "labels": [GENERATED_LABEL],
+        acceptance_field: acceptance_criteria([task.summary for task in plan.tasks]),
+    }
+    epic_name_field = os.environ.get("JIRA_EPIC_NAME_FIELD", "")
+    if epic_name_field:
+        fields[epic_name_field] = plan.epic_summary
+    if team_field and team_id:
+        fields[team_field] = team_id
+    return fields
+
+
+def task_fields(
+    project,
+    plan,
+    task,
+    parent_key,
+    acceptance_field,
+    team_field=None,
+    team_id=None,
+):
+    """Create payload for one release task, including team when resolved."""
+    fields = {
+        "project": {"key": project},
+        "issuetype": {"name": "Task"},
+        "summary": task.summary,
+        "description": issue_description(),
+        "fixVersions": [{"name": plan.jira_version}],
+        "labels": [GENERATED_LABEL],
+        acceptance_field: acceptance_criteria(task.checklist),
+    }
+    fields.update(parent_fields(parent_key))
+    if team_field and team_id:
+        fields[team_field] = team_id
+    return fields
+
+
+def parent_fields(parent_key):
+    fields = {"parent": {"key": parent_key}}
+    epic_link_field = os.environ.get("JIRA_EPIC_LINK_FIELD", "")
+    if epic_link_field:
+        fields[epic_link_field] = parent_key
+    return fields
+
+
+def issue_parent_key(issue):
+    parent = issue.get("fields", {}).get("parent") or {}
+    key = parent.get("key")
+    if key:
+        return key
+    epic_link_field = os.environ.get("JIRA_EPIC_LINK_FIELD", "")
+    if epic_link_field:
+        link = issue.get("fields", {}).get(epic_link_field)
+        if isinstance(link, dict):
+            return link.get("key")
+        if isinstance(link, str) and link:
+            return link
+    return None
+
+
+class JiraClient:
+    """Jira Cloud REST v3 client using HTTP Basic (email + API token)."""
+    def __init__(self, url, email, token, project):
+        self.url = url.rstrip("/")
+        self.project = project
+        raw = f"{email}:{token}".encode()
+        self._auth = "Basic " + base64.b64encode(raw).decode()
+
+    def request(self, method, path, body=None, query=None):
+        url = self.url + path
+        if query:
+            url += "?" + urllib.parse.urlencode(query)
+        data = None
+        headers = {
+            "Accept": "application/json",
+            "Authorization": self._auth,
+        }
+        if body is not None:
+            data = json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                raw = resp.read()
+                if not raw:
+                    return None
+                return json.loads(raw.decode())
+        except urllib.error.HTTPError as err:
+            err_body = err.read().decode()
+            raise RuntimeError(
+                f"cannot {method} {path}: HTTP {err.code}: {err_body}"
+            ) from err
+
+    def get_versions(self):
+        return self.request("GET", f"/rest/api/3/project/{self.project}/versions")
+
+    def get_fields(self):
+        return self.request("GET", "/rest/api/3/field")
+
+    def get_jql_suggestions(self, field_name, field_value):
+        payload = self.request(
+            "GET",
+            "/rest/api/3/jql/autocompletedata/suggestions",
+            query={"fieldName": field_name, "fieldValue": field_value},
+        )
+        return payload or {}
+
+    def search_jql(self, jql, fields, max_results=50):
+        payload = self.request(
+            "POST",
+            "/rest/api/3/search/jql",
+            body={
+                "jql": jql,
+                "maxResults": max_results,
+                "fields": list(fields),
+            },
+        )
+        return (payload or {}).get("issues") or []
+
+    def create_version(self, name):
+        return self.request(
+            "POST",
+            "/rest/api/3/version",
+            body={"name": name, "project": self.project},
+        )
+
+    def find_epic(self, summary):
+        payload = self.request(
+            "POST",
+            "/rest/api/3/search/jql",
+            body={
+                "jql": (
+                    f"project = {self.project} AND issuetype = Epic "
+                    f'AND summary ~ "{summary}"'
+                ),
+                "maxResults": 50,
+                "fields": ["summary", "description"],
+            },
+        )
+        for issue in payload.get("issues", []):
+            if issue.get("fields", {}).get("summary") == summary:
+                return issue
+        return None
+
+    def get_issue(self, key, fields=None):
+        query = None
+        if fields:
+            query = {"fields": ",".join(fields)}
+        return self.request("GET", f"/rest/api/3/issue/{key}", query=query)
+
+    def list_children(self, epic_key, fields=None):
+        if fields is None:
+            fields = ["summary", "labels", "parent"]
+        payload = self.request(
+            "POST",
+            "/rest/api/3/search/jql",
+            body={
+                "jql": f"parent = {epic_key} ORDER BY created ASC",
+                "maxResults": 100,
+                "fields": list(fields),
+            },
+        )
+        return payload.get("issues", [])
+
+    def find_issues_by_summary(self, summary, fix_version, fields=None):
+        if fields is None:
+            fields = ["summary", "labels", "parent"]
+        payload = self.request(
+            "POST",
+            "/rest/api/3/search/jql",
+            body={
+                "jql": (
+                    f"project = {self.project} AND issuetype != Epic "
+                    f'AND summary ~ "{summary}" AND fixVersion = "{fix_version}"'
+                ),
+                "maxResults": 50,
+                "fields": list(fields),
+            },
+        )
+        matches = []
+        for issue in payload.get("issues", []):
+            if issue.get("fields", {}).get("summary") == summary:
+                matches.append(issue)
+        return matches
+
+    def create_issue(self, fields):
+        return self.request("POST", "/rest/api/3/issue", body={"fields": fields})
+
+    def update_issue(self, key, fields):
+        return self.request("PUT", f"/rest/api/3/issue/{key}", body={"fields": fields})
+
+    def ensure_parent(self, key, parent_key):
+        issue = self.get_issue(key, fields=["parent"])
+        if issue_parent_key(issue) == parent_key:
+            return
+        self.update_issue(key, parent_fields(parent_key))
+
+    def ensure_fix_versions(self, key, version_name):
+        issue = self.get_issue(key, fields=["fixVersions"])
+        names = {
+            item.get("name")
+            for item in issue.get("fields", {}).get("fixVersions") or []
+            if isinstance(item, dict)
+        }
+        if version_name in names and len(names) == 1:
+            return
+        self.update_issue(key, {"fixVersions": [{"name": version_name}]})
+
+    def ensure_label(self, key, label, present):
+        issue = self.get_issue(key, fields=["labels"])
+        labels = list(issue.get("fields", {}).get("labels") or [])
+        has_label = label in labels
+        if present and not has_label:
+            labels.append(label)
+            self.update_issue(key, {"labels": labels})
+        elif not present and has_label:
+            labels = [item for item in labels if item != label]
+            self.update_issue(key, {"labels": labels})
+
+    def get_transitions(self, key):
+        return self.request("GET", f"/rest/api/3/issue/{key}/transitions")
+
+    def transition_issue(self, key, transition_id):
+        self.request(
+            "POST",
+            f"/rest/api/3/issue/{key}/transitions",
+            body={"transition": {"id": str(transition_id)}},
+        )
+
+
+def credentials():
+    """Read JIRA_EMAIL and JIRA_API_TOKEN from the environment."""
+    email = os.environ.get("JIRA_EMAIL", "")
+    token = os.environ.get("JIRA_API_TOKEN", "")
+    if not email or not token:
+        raise RuntimeError(
+            "cannot find Jira credentials, please set JIRA_EMAIL and JIRA_API_TOKEN"
+        )
+    return email, token
+
+
+ACCEPTANCE_CRITERIA_FIELD_NAME = "Acceptance Criteria"
+
+
+def acceptance_criteria_field_id(client):
+    """Resolve Acceptance Criteria field id, or JIRA_ACCEPTANCE_CRITERIA_FIELD."""
+    override = os.environ.get("JIRA_ACCEPTANCE_CRITERIA_FIELD", "").strip()
+    if override:
+        return override
+    matches = [
+        field["id"]
+        for field in client.get_fields()
+        if field.get("name") == ACCEPTANCE_CRITERIA_FIELD_NAME
+    ]
+    if not matches:
+        raise RuntimeError(
+            'cannot find Jira field "Acceptance Criteria"; '
+            "set JIRA_ACCEPTANCE_CRITERIA_FIELD to the customfield id"
+        )
+    return matches[0]
+
+
+def team_field_id(client):
+    """Resolve the Team custom field id (or JIRA_TEAM_FIELD)."""
+    override = os.environ.get("JIRA_TEAM_FIELD", "").strip()
+    if override:
+        return override
+    matches = [
+        field["id"]
+        for field in client.get_fields()
+        if field.get("name") == TEAM_FIELD_NAME
+    ]
+    if not matches:
+        raise RuntimeError(
+            'cannot find Jira field "Team"; set JIRA_TEAM_FIELD to the customfield id'
+        )
+    return matches[0]
+
+
+def _plain_suggestion_text(value):
+    return re.sub(r"<[^>]+>", "", value or "").strip()
+
+
+def team_id_from_suggestions(payload, team_name):
+    for item in payload.get("results") or []:
+        display = _plain_suggestion_text(item.get("displayName") or "")
+        value = (item.get("value") or "").strip().strip('"')
+        if value and display == team_name:
+            return value
+    return None
+
+
+def issue_team_id(issue, team_field):
+    value = (issue.get("fields") or {}).get(team_field)
+    if isinstance(value, dict):
+        return value.get("id") or value.get("value")
+    return value
+
+
+def find_team_id(client, team_name):
+    """Resolve an Atlassian team name to the UUID the Team field requires.
+
+    Prefer JQL autocomplete (name -> id). Fall back to an issue search if
+    suggestions are empty; that path only works when Jira accepts the name.
+    """
+    payload = client.get_jql_suggestions("Team", team_name)
+    team_id = team_id_from_suggestions(payload, team_name)
+    if team_id:
+        return team_id
+    field_id = team_field_id(client)
+    try:
+        issues = client.search_jql(
+            f'Team = "{team_name}"',
+            fields=[field_id],
+            max_results=1,
+        )
+    except RuntimeError:
+        issues = []
+    if issues:
+        found = issue_team_id(issues[0], field_id)
+        if found:
+            return found
+    raise RuntimeError(f'cannot find Jira team "{team_name}"')
+
+
+def resolve_plan_teams(client, plan):
+    """Return (team_field_id, {team_name: team_uuid}) for the plan's teams."""
+    field_id = team_field_id(client)
+    names = {plan.team, CROSS_DISTRO_TEAM}
+    ids = {name: find_team_id(client, name) for name in names}
+    return field_id, ids
+
+
+def ensure_team(client, key, team_field, team_id):
+    """Set the Team field when it does not already match team_id."""
+    issue = client.get_issue(key, fields=[team_field])
+    if issue_team_id(issue, team_field) == team_id:
+        return
+    client.update_issue(key, {team_field: team_id})
+
+
+def ensure_fix_version(client, plan, create_version):
+    """Require Fix Version to exist; create it only for a major --create-version."""
+    versions = client.get_versions()
+    names = {item["name"] for item in versions}
+    if plan.jira_version in names:
+        return
+    if not create_version:
+        raise RuntimeError(
+            f'cannot find Jira version "{plan.jira_version}" in {client.project}; '
+            "create it in Jira first or pass --create-version"
+        )
+    if plan.variant != "major":
+        raise RuntimeError(
+            f'cannot use --create-version with variant "{plan.variant}", '
+            "Jira versions exist only for major releases"
+        )
+    client.create_version(plan.jira_version)
+
+
+def classify_children(plan, children):
+    """Split epic children into expected tasks (by summary) and extras."""
+    expected = {task.summary: None for task in plan.tasks}
+    unexpected = []
+    for child in children:
+        summary = child.get("fields", {}).get("summary", "")
+        if summary in expected and expected[summary] is None:
+            expected[summary] = child
+        else:
+            unexpected.append(child)
+    return expected, unexpected
+
+
+def issue_status_name(issue):
+    status = (issue.get("fields") or {}).get("status") or {}
+    return status.get("name") or ""
+
+
+def ensure_status(client, key, status_name=TARGET_STATUS):
+    """Move the issue to status_name when it is not already there."""
+    issue = client.get_issue(key, fields=["status"])
+    current = issue_status_name(issue)
+    if current.lower() == status_name.lower():
+        return
+    payload = client.get_transitions(key)
+    for trans in payload.get("transitions") or []:
+        dest = ((trans.get("to") or {}).get("name")) or ""
+        if dest.lower() == status_name.lower():
+            client.transition_issue(key, trans["id"])
+            return
+    extra = f' from "{current}"' if current else ""
+    raise RuntimeError(f'cannot move {key} to "{status_name}"{extra}')
+
+
+def issue_labels(issue):
+    return list((issue.get("fields") or {}).get("labels") or [])
+
+
+def is_generated_issue(issue):
+    """True when the issue was created by this script (has GENERATED_LABEL)."""
+    return GENERATED_LABEL in issue_labels(issue)
+
+
+def matching_unlinked_task(client, plan, summary, epic_key):
+    """Find a labeled task with this summary that is not under another epic."""
+    for issue in client.find_issues_by_summary(summary, plan.jira_version):
+        if not is_generated_issue(issue):
+            continue
+        parent = issue_parent_key(issue)
+        if parent in (None, epic_key):
+            return issue
+    return None
+
+
+def apply_plan(plan, client, force=False, create_version=False):
+    """Create or reuse the release epic and tasks. Idempotent without --force.
+
+    Script-generated tasks (labeled snapd-release-tickets) are linked, given
+    the plan team and Fix Version, and rewritten with --force. Unlabeled
+    issues that match a planned summary are listed on the epic but not
+    changed. Extra children of the epic are labeled not-in-release-plan.
+    """
+    ensure_fix_version(client, plan, create_version)
+    ac_field = acceptance_criteria_field_id(client)
+    team_field, team_ids = resolve_plan_teams(client, plan)
+    child_fields = ["summary", "labels", "parent", "description", ac_field]
+    existing = client.find_epic(plan.epic_summary)
+    epic_created = existing is None
+    if existing is None:
+        epic = client.create_issue(
+            epic_fields(
+                client.project,
+                plan,
+                ac_field,
+                team_field=team_field,
+                team_id=team_ids[plan.team],
+            )
+        )
+        epic_key = epic["key"]
+        previous_adf = None
+        children = []
+    else:
+        epic_key = existing["key"]
+        issue = client.get_issue(epic_key, fields=["description", ac_field])
+        previous_adf = checklist_adf_from_issue(issue, ac_field)
+        children = client.list_children(epic_key, fields=child_fields)
+
+    by_summary, unexpected_children = classify_children(plan, children)
+    created_keys = []
+    tasks = []
+    for task in plan.tasks:
+        child = by_summary.get(task.summary)
+        if child is None:
+            child = matching_unlinked_task(client, plan, task.summary, epic_key)
+            if child is not None:
+                child = client.get_issue(child["key"], fields=child_fields)
+        assigned_team = team_ids[task_team(plan, task)]
+        if child is None:
+            issue = client.create_issue(
+                task_fields(
+                    client.project,
+                    plan,
+                    task,
+                    epic_key,
+                    ac_field,
+                    team_field=team_field,
+                    team_id=assigned_team,
+                )
+            )
+            key = issue["key"]
+            created_keys.append(key)
+            tasks.append((key, task.summary))
+            continue
+        key = child["key"]
+        tasks.append((key, task.summary))
+        if not is_generated_issue(child):
+            continue
+        client.ensure_parent(key, epic_key)
+        client.ensure_fix_versions(key, plan.jira_version)
+        ensure_team(client, key, team_field, assigned_team)
+        if force:
+            client.update_issue(
+                key,
+                {
+                    "description": issue_description(),
+                    ac_field: acceptance_criteria(task.checklist),
+                },
+            )
+        client.ensure_label(key, UNEXPECTED_LABEL, False)
+
+    unexpected = []
+    for child in unexpected_children:
+        key = child["key"]
+        summary = child.get("fields", {}).get("summary", "")
+        client.ensure_parent(key, epic_key)
+        client.ensure_fix_versions(key, plan.jira_version)
+        client.ensure_label(key, UNEXPECTED_LABEL, True)
+        unexpected.append((key, summary))
+
+    progress_items = [progress_item(key, summary) for key, summary in tasks]
+    unexpected_items = [
+        unexpected_progress_item(key, summary) for key, summary in unexpected
+    ]
+    epic_update = {
+        "parent": {"key": plan.parent_epic},
+        "fixVersions": [{"name": plan.jira_version}],
+        "description": issue_description(),
+        ac_field: acceptance_criteria(
+            progress_items,
+            unexpected_items=unexpected_items,
+            previous_adf=previous_adf,
+        ),
+        team_field: team_ids[plan.team],
+    }
+    epic_labels = issue_labels(client.get_issue(epic_key, fields=["labels"]))
+    if GENERATED_LABEL not in epic_labels:
+        epic_update["labels"] = epic_labels + [GENERATED_LABEL]
+    client.update_issue(epic_key, epic_update)
+    ensure_status(client, epic_key)
+    for key, _summary in tasks:
+        ensure_status(client, key)
+    return ApplyResult(
+        epic_key=epic_key,
+        tasks=tuple(tasks),
+        created_keys=tuple(created_keys),
+        unexpected=tuple(unexpected),
+        epic_created=epic_created,
+    )
+
+
+def browse_url(key, jira_url=DEFAULT_JIRA_URL):
+    return f"{jira_url.rstrip('/')}/browse/{key}"
+
+
+def issue_link(key, jira_url=DEFAULT_JIRA_URL, hyperlinks=True):
+    """Issue key as visible text, with an OSC 8 hyperlink when hyperlinks is set."""
+    if not hyperlinks:
+        return key
+    return f"\033]8;;{browse_url(key, jira_url)}\033\\{key}\033]8;;\033\\"
+
+
+def print_apply_result(
+    plan, result, jira_url=DEFAULT_JIRA_URL, out=None, hyperlinks=None
+):
+    """Print apply_plan output. TTY stdout uses clickable issue keys."""
+    if out is None:
+        out = sys.stdout
+    if hyperlinks is None:
+        hyperlinks = bool(getattr(out, "isatty", lambda: False)())
+    created = set(result.created_keys)
+    action = "Created" if result.epic_created else "Updated"
+    epic = issue_link(result.epic_key, jira_url, hyperlinks)
+    print(f"{action} {epic}: {plan.epic_summary}", file=out)
+    for key, summary in result.tasks:
+        suffix = " [created]" if key in created else ""
+        print(f"  {issue_link(key, jira_url, hyperlinks)}: {summary}{suffix}", file=out)
+    if result.unexpected:
+        print("Not in the expected release task list:", file=out)
+        for key, summary in result.unexpected:
+            print(f"  {issue_link(key, jira_url, hyperlinks)}: {summary}", file=out)
+    print(f"Epic: {epic}", file=out)
+    print(
+        f"Parent: {issue_link(plan.parent_epic, jira_url, hyperlinks)}",
+        file=out,
+    )
+
+
+def print_description_and_objectives(out, indent, objectives):
+    prefix = " " * indent
+    print(f"{prefix}Description:", file=out)
+    for line in instruction_preview_lines():
+        print(f"{prefix}  {line}", file=out)
+    print(f"{prefix}Acceptance Criteria:", file=out)
+    for item in objectives:
+        print(f"{prefix}  [ ] {item}", file=out)
+
+
+def print_plan(plan, out=None):
+    """Print the dry-run plan (epic, tasks, teams, checklists)."""
+    if out is None:
+        out = sys.stdout
+    print("Dry-run (pass --apply to create issues)", file=out)
+    print(file=out)
+    print(f"Fix Version: {plan.jira_version}", file=out)
+    print(f"Parent: {plan.parent_epic}", file=out)
+    print(file=out)
+    print(f"Epic: {plan.epic_summary}", file=out)
+    print(f"  Team: {plan.team}", file=out)
+    print_description_and_objectives(
+        out, indent=2, objectives=[task.summary for task in plan.tasks]
+    )
+    for task in plan.tasks:
+        print(file=out)
+        print(f"Task: {task.summary}", file=out)
+        print(f"  Team: {task_team(plan, task)}", file=out)
+        print_description_and_objectives(out, indent=2, objectives=task.checklist)
+
+
+def print_help(out=None):
+    if out is None:
+        out = sys.stdout
+    prog = PROG_NAME
+    flags = (
+        ("      --apply", "Create issues in Jira (default is dry-run)"),
+        ("      --create-version", "Create the Jira version if missing (major only)"),
+        ("      --force", "Rewrite script-generated task descriptions and criteria"),
+        ("      --security", "Treat a patch version as a security release"),
+        (
+            "      --Team string",
+            "Non-cross-distro team: SnapD EMEA (default), SnapD AMER, SnapD Cross-distro",
+        ),
+        (
+            "      --lts-targets strings",
+            "SRU series, comma-separated (default supported minus devel)",
+        ),
+        (
+            "      --dev-target string",
+            "Ubuntu devel series (default from ubuntu-distro-info)",
+        ),
+        ("  -h, --help", "Help for create-release-tickets"),
+    )
+    width = max(len(name) for name, _desc in flags)
+    print("Create Jira epic and tasks for a snapd release.", file=out)
+    print(file=out)
+    print(
+        "--apply requires JIRA_EMAIL (your Atlassian account email) and JIRA_API_TOKEN.",
+        file=out,
+    )
+    print("Create an unscoped API token at:", file=out)
+    print(f"  {JIRA_API_TOKEN_URL}", file=out)
+    print(file=out)
+    print("Usage:", file=out)
+    print(f"  {prog} <version> [flags]", file=out)
+    print(file=out)
+    print("Examples:", file=out)
+    print(f"  {prog} 2.78", file=out)
+    print(f"  {prog} 2.77.1", file=out)
+    print(f"  {prog} 2.77.1 --security", file=out)
+    print(f"  {prog} 2.78 --apply", file=out)
+    print(f'  {prog} 2.78 --Team "SnapD AMER"', file=out)
+    print(file=out)
+    print("Flags:", file=out)
+    for name, desc in flags:
+        print(f"{name.ljust(width)}  {desc}", file=out)
+
+
+def parse_arguments(argv=None):
+    """Parse argv. Unknown flags and invalid --Team raise UsageError."""
+    if argv is None:
+        argv = sys.argv[1:]
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("version", nargs="?")
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--create-version", action="store_true", dest="create_version")
+    parser.add_argument("--dev-target", dest="dev_target")
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--security", action="store_true")
+    parser.add_argument("--Team", "--team", dest="team")
+    parser.add_argument("--lts-targets", dest="lts_targets")
+    parser.add_argument("-h", "--help", action="store_true")
+    args, unknown = parser.parse_known_args(argv)
+    if unknown:
+        token = unknown[0]
+        if token.startswith("-"):
+            raise UsageError(f"unknown flag: {token}")
+        raise UsageError(f'unknown command "{token}" for "{PROG_NAME}"')
+    args.team = parse_team(args.team)
+    return args
+
+
+def main(argv=None):
+    """CLI entry: dry-run the plan, or apply it when --apply is passed."""
+    if argv is None:
+        argv = sys.argv[1:]
+    try:
+        args = parse_arguments(argv)
+    except UsageError as err:
+        print(f"Error: {err}", file=sys.stderr)
+        print(f"Run '{PROG_NAME} --help' for usage.", file=sys.stderr)
+        return 2
+
+    if args.help:
+        print_help()
+        return 0
+    if not args.version:
+        print_help()
+        return 2
+
+    variant = variant_from_version(args.version, security=args.security)
+    devel, targets = resolve_ubuntu_series(args.dev_target, args.lts_targets)
+    plan = build_plan(
+        variant=variant,
+        version=args.version,
+        devel=devel,
+        targets=targets,
+        team=args.team,
+    )
+    if not args.apply:
+        print_plan(plan)
+        return 0
+
+    email, token = credentials()
+    client = JiraClient(DEFAULT_JIRA_URL, email, token, DEFAULT_PROJECT)
+    result = apply_plan(
+        plan,
+        client,
+        force=args.force,
+        create_version=args.create_version,
+    )
+    print_apply_result(plan, result)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except RuntimeError as err:
+        print(err, file=sys.stderr)
+        sys.exit(1)
