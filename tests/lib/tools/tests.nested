@@ -424,9 +424,9 @@ snap_rev() {
         show_help
         exit 1
     elif [ $# -eq 1 ]; then
-        nested_get_core_revision_installed "$@"
+        nested_get_snap_revision_installed "$@"
     else
-        nested_get_core_revision_for_channel "$@"
+        nested_get_snap_revision_for_channel "$@"
     fi
 }
 
