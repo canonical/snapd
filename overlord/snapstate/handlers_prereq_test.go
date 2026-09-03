@@ -160,6 +160,7 @@ func (s *prereqSuite) TestPrereqTaskRetriesIfBaseIsBeingRemoved(c *C) {
 
 	// mock the base removal finishing. The prereq task should unblock
 	rmChg.SetStatus(state.DoneStatus)
+	prereq.At(time.Now())
 
 	s.state.Unlock()
 	s.se.Ensure()
