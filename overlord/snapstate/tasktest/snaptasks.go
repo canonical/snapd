@@ -134,7 +134,7 @@ func (q SnapQuery) Query(selection Selection) (Selection, error) {
 type snapQueryCacheKey struct{}
 
 func loadSnapQueryCache(selection Selection) (map[string]SnapTaskAttributes, error) {
-	if value, ok := selection.Cached(snapQueryCacheKey{}); ok {
+	if value, ok := selection.cache[snapQueryCacheKey{}]; ok {
 		return value.(map[string]SnapTaskAttributes), nil
 	}
 
@@ -142,7 +142,7 @@ func loadSnapQueryCache(selection Selection) (map[string]SnapTaskAttributes, err
 	if err != nil {
 		return nil, err
 	}
-	selection.Cache(snapQueryCacheKey{}, cache)
+	selection.cache[snapQueryCacheKey{}] = cache
 
 	return cache, nil
 }

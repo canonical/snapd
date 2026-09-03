@@ -89,19 +89,6 @@ func (s Selection) Tasks() []*state.Task {
 	return append([]*state.Task(nil), s.selected...)
 }
 
-// Cached returns an arbitrary value that has been cached with this Selection.
-// Should be used by Querier implementations.
-func (s Selection) Cached(key any) (any, bool) {
-	value, ok := s.cache[key]
-	return value, ok
-}
-
-// Cache stores an arbitrary value in the cache of this Selection. Should be
-// used by Querier implementations.
-func (s Selection) Cache(key, value any) {
-	s.cache[key] = value
-}
-
 // Querier is the interface that enables a type to narrow a Selection.
 type Querier interface {
 	// Query returns a Selection that is a subset of the given Selection. The
