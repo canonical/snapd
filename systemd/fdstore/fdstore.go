@@ -113,6 +113,17 @@ var mu sync.RWMutex
 // passed from systemd.
 const sd_LISTEN_FDS_START = 3
 
+func setCloseOnExec(fd uintptr, name FdName) error {
+	flags, err := fcntl(fd, unix.F_GETFD, 0)
+	if err != nil {
+		return fmt.Errorf("cannot get fd flags on fd %d (%q): %w", fd, name, err)
+	}
+	if _, err = fcntl(fd, unix.F_SETFD, flags|unix.FD_CLOEXEC); err != nil {
+		return fmt.Errorf("cannot set close-on-exec on fd %d (%q): %w", fd, name, err)
+	}
+	return nil
+}
+
 func (s *store) initFdstore() {
 	mu.Lock()
 	defer mu.Unlock()
@@ -169,18 +180,8 @@ func (s *store) initFdstore() {
 		name := FdName(names[i])
 		fdstore[name] = append(fdstore[name], os.NewFile(uintptr(fd), string(name)))
 
-		flags, err := fcntl(uintptr(fd), unix.F_GETFD, 0)
-		if err != nil {
-			logger.Noticef("cannot get fd flags on fd %d (%q): %v", fd, name, err)
-			// A single fd whose flags cannot be read makes the whole named
-			// entry unsafe, so pruning later removes all fds associated with
-			// this name.
-			failedCloseOnExec[name] = true
-			continue
-		}
-
-		if _, err := fcntl(uintptr(fd), unix.F_SETFD, flags|unix.FD_CLOEXEC); err != nil {
-			logger.Noticef("cannot set close-on-exec on fd %d (%q): %v", fd, name, err)
+		if err := setCloseOnExec(uintptr(fd), name); err != nil {
+			logger.Noticef("%v", err)
 			// A single fd without CLOEXEC makes the whole named entry unsafe,
 			// so pruning later removes all fds associated with this name.
 			failedCloseOnExec[name] = true
