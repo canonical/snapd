@@ -86,31 +86,8 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
   rm -rf pc-gadget
 
-  # Retrieve kernel
-  snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
-
-  # THIS IS A HACK
-  # TODO: Remove when pc-kernel snapd-info includes snap-bootstrap from snapd 2.68+
-  # Inject snapd-info file to account for kernels that don't yet include snapd 2.68+
-  unsquashfs -d tmp-pc-kernel pc-kernel.snap
-  cat <<EOF > tmp-pc-kernel/snapd-info
-  VERSION=2.68
-  SNAPD_APPARMOR_REEXEC=1
-  SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
-  EOF
-  rm pc-kernel.snap
-  snap pack tmp-pc-kernel
-  rm -rf tmp-pc-kernel
-  mv pc-kernel_*.snap pc-kernel.snap
-  # HACK ENDS
-
-  # Build kernel with initramfs with the compiled snap-bootstrap
-  if os.query is-ubuntu-ge 24.04; then
-    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-  else
-    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-  fi
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+  # Retrieve kernel through repack-kernel tool
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh

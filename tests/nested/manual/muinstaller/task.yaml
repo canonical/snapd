@@ -65,14 +65,11 @@ execute: |
   . "$TESTSLIB"/nested.sh
   version="$(nested_get_version)"
   # get an updated kernel
-  snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
   if os.query is-ubuntu-ge 24.04; then
-    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
   else
-    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 20 --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
   fi
-
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # Prepare gadget with the right gadget.yaml
   snap download --basename=pc --channel="$version/edge" pc

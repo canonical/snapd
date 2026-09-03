@@ -28,28 +28,25 @@ prepare: |
   # the initramfs and rolls back to the original version
   # TODO:UC20: this doesn't work for some reason when we copy it from the 
   #            running system, we should look into that, but for now just 
-  #            re-download the snap
+  #            download the snap from the store
   version="$(tests.nested show version)"
-  snap download pc-kernel --channel="$version/beta" --basename=pc-kernel
   case "$PROBLEM_TYPE" in
       crash)
           if [ "$version" -le 22 ]; then
-            uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-after-snap-bootstrap
+            "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 20 --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap" --inject-kernel-panic-after-snap-bootstrap
           else
-            uc24_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-after-snap-bootstrap
+            "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap" --inject-kernel-panic-after-snap-bootstrap
           fi
           ;;
       nolink)
           # Failure will be forced by removing the try-kernel.efi link later,
-          # do not modify the downloaded kernel (just change name so it is picked
-          # up by the move command later)
-          mv pc-kernel.snap pc-kernel_.snap
+          # so only fetch the snap without modifying it.
+          "$TESTSTOOLS"/repack-kernel --mode download --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap"
           ;;
       *)
-          uc20_build_corrupt_kernel_snap pc-kernel.snap "$PWD" --"$PROBLEM_TYPE"
+          "$TESTSTOOLS"/repack-kernel --mode corrupt --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap" --corruption "$PROBLEM_TYPE"
           ;;
   esac
-  mv pc-kernel_*.snap panicking-initramfs-kernel.snap
 
 execute: |
   echo "Copy the broken initramfs kernel snap to the UC20 VM"
