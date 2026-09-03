@@ -1088,9 +1088,7 @@ func (s *copydataSuite) TestUndoHideDoesntRemoveIfDirHasFiles(c *C) {
 func (s *copydataSuite) TestCleanupAfterCopyAndMigration(c *C) {
 	dirs.SetSnapHomeDirs("/home")
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user")
-	usr, err := user.Current()
-	c.Assert(err, IsNil)
-	usr.HomeDir = homedir
+	usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: homedir}
 
 	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
 		return []*user.User{usr}, nil
@@ -1106,7 +1104,7 @@ func (s *copydataSuite) TestCleanupAfterCopyAndMigration(c *C) {
 	// add trashed data in hidden dir
 	s.populateHomeDataWithSnapDir(c, "user", dirs.HiddenSnapDataHomeDir, snap.R(10))
 	hiddenTrash := filepath.Join(homedir, ".snap", "data", "hello", "10.old")
-	c.Assert(os.MkdirAll(exposedTrash, 0770), IsNil)
+	c.Assert(os.MkdirAll(hiddenTrash, 0770), IsNil)
 
 	s.be.ClearTrashedData(v1)
 

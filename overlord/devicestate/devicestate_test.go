@@ -1985,7 +1985,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 			KeyName: "some-key-name",
 		})
 		ctx.Set("fde-setup-result", []byte("result"))
-		hookCalled = append(hookCalled, ctx.InstanceName())
+		hookCalled = append(hookCalled, ctx.InstanceName().String())
 		return nil, nil
 	}
 

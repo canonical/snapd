@@ -175,7 +175,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	if sc.runRefreshHooks() {
 		// run refresh hooks when updating existing snap, otherwise run install hook
 		// further down.
-		hook := SetupPreRefreshHook(st, sc.snapsup.InstanceName())
+		hook := SetupPreRefreshHook(st, sc.snapsup.InstanceName().String())
 		s.Append(hook)
 	}
 
@@ -402,13 +402,13 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	// Refreshing the model base may bring updated system certificates.
 	// Regenerate the managed certificate database as part of the post-reboot
 	// refresh stage for that base.
-	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName(), sc.snapsup.Type, ic.DeviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName().String(), sc.snapsup.Type, ic.DeviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		s.Append(updateCertDB)
 	}
 
 	if sc.snapsup.QuotaGroupName != "" {
-		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, sc.snapsup.InstanceName(), sc.snapsup.QuotaGroupName)
+		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, sc.snapsup.InstanceName().String(), sc.snapsup.QuotaGroupName)
 		if err != nil {
 			return nil, err
 		}
@@ -418,7 +418,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	// only run default-configure hook if installing the snap for the first time and
 	// default-configure is allowed
 	if !sc.snapst.IsInstalled() && isDefaultConfigureAllowed(sc.snapsup) {
-		defaultCfg := DefaultConfigure(st, sc.snapsup.InstanceName())
+		defaultCfg := DefaultConfigure(st, sc.snapsup.InstanceName().String())
 		s.AppendTSWithoutData(defaultCfg)
 	}
 
@@ -447,11 +447,11 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 
 	if isConfigureAllowed(sc.snapsup) {
 		confFlags := configureSnapFlags(sc.snapst, sc.snapsup)
-		configSet := ConfigureSnap(st, sc.snapsup.InstanceName(), confFlags)
+		configSet := ConfigureSnap(st, sc.snapsup.InstanceName().String(), confFlags)
 		s.AppendTSWithoutData(configSet)
 	}
 
-	healthCheck := CheckHealthHook(st, sc.snapsup.InstanceName(), sc.snapsup.Revision())
+	healthCheck := CheckHealthHook(st, sc.snapsup.InstanceName().String(), sc.snapsup.Revision())
 	s.Append(healthCheck)
 	s.UpdateEdge(healthCheck, EndEdge)
 
@@ -545,13 +545,13 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	}
 
 	if sc.runRefreshHooks() {
-		hook := SetupPostRefreshHook(st, sc.snapsup.InstanceName())
+		hook := SetupPostRefreshHook(st, sc.snapsup.InstanceName().String())
 		s.Append(hook)
 	}
 
 	if !sc.snapst.IsInstalled() {
 		// only run install hook if installing the snap for the first time
-		hook := SetupInstallHook(st, sc.snapsup.InstanceName())
+		hook := SetupInstallHook(st, sc.snapsup.InstanceName().String())
 		s.Append(hook)
 		s.UpdateEdge(hook, HooksEdge)
 	}
@@ -581,7 +581,7 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 			// but don't discard this one; its' the thing we're switching to!
 			continue
 		}
-		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
+		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName().String(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
 		if err != nil {
 			return err
 		}
@@ -611,10 +611,10 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 			}
 		}
 		si := seq[i]
-		if inUse(sc.snapsup.InstanceName(), si.Snap.Revision) {
+		if inUse(sc.snapsup.InstanceName().String(), si.Snap.Revision) {
 			continue
 		}
-		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
+		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName().String(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
 		if err != nil {
 			return err
 		}
@@ -745,7 +745,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 	// snap is busy, return a pre-download task set and the busyErr for the
 	// caller to handle
 	if busyErr != nil {
-		existing, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
+		existing, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName().String(), snapsup.Revision())
 		if err != nil {
 			return snapInstallTaskSet{}, err
 		}
@@ -779,7 +779,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 	}
 	if experimentalGateAutoRefreshHook && snapst.IsInstalled() {
 		// If this snap was held, then remove it from snaps-hold.
-		if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
+		if err := resetGatingForRefreshed(st, snapsup.InstanceName().String()); err != nil {
 			return snapInstallTaskSet{}, err
 		}
 	}
@@ -843,7 +843,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 	}
 
 	if !snapst.IsInstalled() {
-		if err := checkSnapAliasConflict(st, snapsup.InstanceName()); err != nil {
+		if err := checkSnapAliasConflict(st, snapsup.InstanceName().String()); err != nil {
 			return err
 		}
 	}
@@ -852,7 +852,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 		return err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.ConflictOptions); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName().String(), snapst, ic.ConflictOptions); err != nil {
 		return err
 	}
 
@@ -954,7 +954,7 @@ func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string,
 			return nil, err
 		}
 
-		if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
+		if snapsup.InstanceName().String() == snapName && snapsup.Revision() == revision {
 			tasks = append(tasks, t)
 		}
 	}
@@ -1019,7 +1019,7 @@ var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
 }
 
 func isDefaultConfigureAllowed(snapsup *SnapSetup) bool {
-	return isConfigureAllowed(snapsup) && !isCoreSnap(snapsup.InstanceName())
+	return isConfigureAllowed(snapsup) && !isCoreSnap(snapsup.InstanceName().String())
 }
 
 func isConfigureAllowed(snapsup *SnapSetup) bool {
@@ -1032,7 +1032,7 @@ func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
 	// config defaults cannot be retrieved without a snap ID
 	hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
 
-	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName()) {
+	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName().String()) {
 		// installation, run configure using the gadget defaults if available, system config defaults (attached to
 		// "core") are consumed only during seeding, via an explicit configure step separate from installing
 		confFlags |= UseConfigDefaults

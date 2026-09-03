@@ -12313,9 +12313,9 @@ base: core20
 				expectedStatus := state.DoStatus
 				snapsup, err := snapstate.TaskSnapSetup(tsk)
 				c.Assert(err, IsNil)
-				if snapsup.InstanceName() == inWait {
+				if snapsup.InstanceName().String() == inWait {
 					expectedStatus = state.DoStatus
-				} else if strutil.ListContains(done, snapsup.InstanceName()) {
+				} else if strutil.ListContains(done, snapsup.InstanceName().String()) {
 					expectedStatus = state.DoneStatus
 				}
 				c.Check(tsk.Status(), Equals, expectedStatus,
@@ -13596,7 +13596,7 @@ func snapTaskStatusForChange(chg *state.Change) map[string]state.Status {
 	taskStates := make(map[string]state.Status)
 	for _, t := range chg.Tasks() {
 		if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
-			taskStates[snapsup.SnapName()+":"+t.Kind()] = t.Status()
+			taskStates[snapsup.SnapName().String()+":"+t.Kind()] = t.Status()
 		}
 	}
 	return taskStates
@@ -15101,7 +15101,7 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsApplied(c *C) {
 			},
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
-			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName().TODOInstanceName())
+			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName().String())
 			return nil
 		},
 	}

@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build nosecboot
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2022 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,16 +18,14 @@
  *
  */
 
-package logind
+package snap_fde_keymgr
 
-func (e *Error) SetCmd(cmd []string) {
-	e.cmd = cmd
-}
+import (
+	"fmt"
+	"os"
+)
 
-func (e *Error) SetMsg(msg []byte) {
-	e.msg = msg
-}
-
-func (e *Error) SetExitCode(i int) {
-	e.exitCode = i
+func Main() {
+	fmt.Fprintln(os.Stderr, "error: snap-fde-keymgr is not supported on this system")
+	os.Exit(1)
 }

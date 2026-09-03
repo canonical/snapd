@@ -4,7 +4,7 @@ details: |
     Check the remote.exec tool is able to run commands in the
     remote instance through ssh.
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 

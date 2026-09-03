@@ -73,7 +73,7 @@ func (c *failCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("internal error: cannot get confdb transaction to fail: %v"), err)
 	}
 
-	tx.Abort(ctx.InstanceName(), c.Positional.Reason)
+	tx.Abort(ctx.InstanceName().String(), c.Positional.Reason)
 	saveChanges()
 	return nil
 }

@@ -4,7 +4,7 @@ details: |
     Check the remote.pull tool is able to retrieve files from the
     remote instance through scp
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 

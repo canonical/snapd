@@ -464,13 +464,13 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 
 	// patch service names for parallel installed snap if needed
 	var err error
-	inst.Names, _, err = maybePatchServiceNames(context.InstanceName(), inst.Names)
+	inst.Names, _, err = maybePatchServiceNames(context.InstanceName().String(), inst.Names)
 	if err != nil {
 		return err
 	}
 
 	st := context.State()
-	appInfos, err := getServiceInfos(st, context.InstanceName(), inst.Names)
+	appInfos, err := getServiceInfos(st, context.InstanceName().String(), inst.Names)
 	if err != nil {
 		return err
 	}
@@ -565,7 +565,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 
 	instanceName := hctx.InstanceName()
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+	if err := snapstate.Get(st, instanceName.String(), &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -574,7 +574,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 		return nil, nil, err
 	}
 
-	snapName := snap.InstanceSnap(instanceName)
+	snapName := snap.InstanceSnap(instanceName.String())
 	if vsets != nil {
 		// When validation sets are provided, we install all components
 		// regardless of their current installation state. thus, all components
@@ -589,7 +589,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 	}
 
 	if len(affectedComponents) == 0 {
-		return nil, nil, snap.NewAlreadyInstalledComponentsError(instanceName, cmd.components)
+		return nil, nil, snap.NewAlreadyInstalledComponentsError(instanceName.String(), cmd.components)
 	}
 
 	tss, err = snapstateInstallComponents(context.TODO(), st, affectedComponents, info, vsets,
@@ -606,7 +606,7 @@ func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (t
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstateRemoveComponents(st, hctx.InstanceName(), cmd.components,
+	return snapstateRemoveComponents(st, hctx.InstanceName().String(), cmd.components,
 		snapstate.RemoveComponentsOpts{RefreshProfile: true,
 			ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
 }
@@ -655,7 +655,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	chg := st.NewChange(changeKind,
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
-	chg.Set("initiated-by-snap", hctx.InstanceName())
+	chg.Set("initiated-by-snap", hctx.InstanceName().String())
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -711,7 +711,7 @@ type changeRateLimitKey struct {
 
 // isReady checks if the change is ready, if it is, it returns the status, otherwise state.DoingStatus.
 func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
-	callerSnapName := hctx.InstanceName()
+	callerInstanceName := hctx.InstanceName()
 
 	st := hctx.State()
 	st.Lock()
@@ -723,13 +723,13 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
-	var initiatorSnapName string
-	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	var initiatorInstanceName string
+	err := chg.Get("initiated-by-snap", &initiatorInstanceName)
 	if err != nil {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
-	if initiatorSnapName != callerSnapName {
+	if initiatorInstanceName != callerInstanceName.String() {
 		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
@@ -842,7 +842,7 @@ func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
 // getAssociatedChange returns a change associated with the snapctl context and passed change ID,
 // otherwise nil with error. This function expects the lock to be held by the caller during operation.
 func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Change, error) {
-	callerSnapName := hctx.InstanceName()
+	callerInstanceName := hctx.InstanceName()
 
 	st := hctx.State()
 
@@ -852,13 +852,13 @@ func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Chang
 		return nil, changeNotFoundError(changeID)
 	}
 
-	var initiatorSnapName string
-	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	var initiatorInstanceName string
+	err := chg.Get("initiated-by-snap", &initiatorInstanceName)
 	if err != nil {
 		return nil, changeNotFoundError(changeID)
 	}
 
-	if initiatorSnapName != callerSnapName {
+	if initiatorInstanceName != callerInstanceName.String() {
 		return nil, changeNotFoundError(changeID)
 	}
 

@@ -1,0 +1,21 @@
+name: test-snapd-content-components-provider
+version: 1.0
+base: core24
+
+slots:
+  content:
+    interface: content
+    source:
+      read:
+        - $SNAP/snap-content
+        - $SNAP_COMPONENT(comp1)/comp1-content
+        - $SNAP_COMPONENT(comp2)/comp2-content
+        - $SNAP_COMPONENT(comp3)
+
+components:
+  comp1:
+    type: standard
+  comp2:
+    type: standard
+  comp3:
+    type: standard

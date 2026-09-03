@@ -137,7 +137,7 @@ func kmodMatchConnection(attributes map[string]any, moduleName string, moduleOpt
 // is compatible with a kmod operation on the given moduleName and
 // moduleOptions. Returns an error if not found.
 var kmodCheckConnection = func(context *hookstate.Context, moduleName string, moduleOptions []string) (err error) {
-	snapName := context.InstanceName()
+	instanceName := context.InstanceName()
 
 	st := context.State()
 	st.Lock()
@@ -162,7 +162,7 @@ var kmodCheckConnection = func(context *hookstate.Context, moduleName string, mo
 			return err
 		}
 
-		if connRef.PlugRef.Snap != snapName {
+		if connRef.PlugRef.Snap != instanceName.String() {
 			continue
 		}
 
