@@ -36,6 +36,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -218,6 +220,18 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 	c.Assert(sd.Model(), DeepEquals, expectedModel)
 }
 
+func essentialSeedChannel(c *C, label, snapName string, trusted []asserts.Assertion) string {
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, label, usesSnapd, trusted)
+	for _, sn := range sd.EssentialSnaps() {
+		if sn.SnapName() == snapName {
+			return sn.Channel
+		}
+	}
+	c.Fatalf("snap %q not in seed %q", snapName, label)
+	return ""
+}
+
 func infoGetterFromMaps(c *C, snaps map[string]*snap.Info, comps map[string]*snap.ComponentInfo) testInfoGetter {
 	snapInfoFn := func(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
 		c.Logf("called for: %q", name)
@@ -252,6 +266,7 @@ func infoGetterFromMaps(c *C, snaps map[string]*snap.Info, comps map[string]*sna
 type testInfoGetter struct {
 	snapInfoFn      func(st *state.State, name string) (info *snap.Info, path string, present bool, err error)
 	componentInfoFn func(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error)
+	seedRedirectFn  func(st *state.State, name string) (string, error)
 }
 
 func (ig *testInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
@@ -260,6 +275,13 @@ func (ig *testInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Inf
 
 func (ig *testInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
 	return ig.componentInfoFn(st, cref, snapInfo)
+}
+
+func (ig *testInfoGetter) SeedRedirectChannel(st *state.State, name string) (string, error) {
+	if ig.seedRedirectFn == nil {
+		return "", nil
+	}
+	return ig.seedRedirectFn(st, name)
 }
 
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
@@ -373,6 +395,193 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	// load the seed
 	validateCore20Seed(c, "1234", model, s.storeSigning.Trusted,
 		"other-core18", "core18", "other-present", "other-required")
+}
+
+func (s *createSystemSuite) testCreateSystemSnapdSeedChannel(c *C, redirect, expected string) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bl.TrustedAssetsMap = nil
+	bl.StaticCommandLine = "mock static"
+	bl.CandidateStaticCommandLine = "unused"
+	bootloader.Force(bl)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands()
+	infos := s.makeEssentialSnapInfos(c)
+
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	infoGetter := infoGetterFromMaps(c, infos, nil)
+	if redirect != "" {
+		infoGetter.seedRedirectFn = func(st *state.State, name string) (string, error) {
+			if name == "snapd" {
+				return redirect, nil
+			}
+			return "", nil
+		}
+	}
+
+	_, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db, &infoGetter, nil)
+	c.Assert(err, IsNil)
+	c.Check(essentialSeedChannel(c, "1234", "snapd", s.storeSigning.Trusted), Equals, expected)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(infos["snapd"].MountFile())),
+		testutil.FileEquals,
+		testutil.FileContentRef(infos["snapd"].MountFile()))
+}
+
+func (s *createSystemSuite) TestCreateSystemChannelRedirectUpdatesSnapdSeedChannel(c *C) {
+	s.testCreateSystemSnapdSeedChannel(c, "18/stable", "18/stable")
+}
+
+func (s *createSystemSuite) TestCreateSystemWithoutChannelRedirectKeepsModelSnapdChannel(c *C) {
+	s.testCreateSystemSnapdSeedChannel(c, "", "latest/stable")
+}
+
+func (s *createSystemSuite) TestCreateSystemInstalledTrackingUpdatesSnapdSeedChannel(c *C) {
+	s.testCreateSystemSnapdSeedChannelFromTracking(c, "18/stable", "18/stable")
+}
+
+func (s *createSystemSuite) TestCreateSystemInstalledTrackingMatchingModelKeepsDefault(c *C) {
+	s.testCreateSystemSnapdSeedChannelFromTracking(c, "latest/stable", "latest/stable")
+}
+
+func (s *createSystemSuite) testCreateSystemSnapdSeedChannelFromTracking(c *C, tracking, expected string) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bl.TrustedAssetsMap = nil
+	bl.StaticCommandLine = "mock static"
+	bl.CandidateStaticCommandLine = "unused"
+	bootloader.Force(bl)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands()
+	infos := s.makeEssentialSnapInfos(c)
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		SnapType:        string(snap.TypeSnapd),
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&infos["snapd"].SideInfo}),
+		Current:         infos["snapd"].Revision,
+		TrackingChannel: tracking,
+		Active:          true,
+	})
+
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]any{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	infoGetter := infoGetterFromMaps(c, infos, nil)
+	infoGetter.seedRedirectFn = func(st *state.State, name string) (string, error) {
+		return devicestate.SetupInfoGetterSeedRedirectChannel(st, &devicestate.RecoverySystemSetup{}, name)
+	}
+
+	_, err := devicestate.CreateSystemForModelFromValidatedSnaps(s.state, model, "1234", s.db, &infoGetter, nil)
+	c.Assert(err, IsNil)
+	c.Check(essentialSeedChannel(c, "1234", "snapd", s.storeSigning.Trusted), Equals, expected)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(infos["snapd"].MountFile())),
+		testutil.FileEquals,
+		testutil.FileContentRef(infos["snapd"].MountFile()))
+}
+
+func (s *createSystemSuite) TestSetupInfoGetterSeedRedirectChannel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Type:    snap.TypeSnapd,
+		Channel: "18/stable",
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			SnapID:   snaptest.AssertedSnapID("snapd"),
+			Revision: snap.R(11),
+		},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	setup := &devicestate.RecoverySystemSetup{
+		SnapSetupTasks: []string{t.ID()},
+	}
+
+	ch, err := devicestate.SetupInfoGetterSeedRedirectChannel(s.state, setup, "snapd")
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "18/stable")
+
+	ch, err = devicestate.SetupInfoGetterSeedRedirectChannel(s.state, setup, "pc")
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "")
+
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Type:    snap.TypeSnapd,
+		Channel: "latest/edge",
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			SnapID:   snaptest.AssertedSnapID("snapd"),
+			Revision: snap.R(100),
+		},
+	})
+	ch, err = devicestate.SetupInfoGetterSeedRedirectChannel(s.state, setup, "snapd")
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "latest/edge")
+
+	setup.SnapSetupTasks = nil
+	ch, err = devicestate.SetupInfoGetterSeedRedirectChannel(s.state, setup, "snapd")
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "")
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		SnapType:        string(snap.TypeSnapd),
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "snapd", Revision: snap.R(11)}}),
+		Current:         snap.R(11),
+		TrackingChannel: "18/stable",
+		Active:          true,
+	})
+	ch, err = devicestate.SetupInfoGetterSeedRedirectChannel(s.state, setup, "snapd")
+	c.Assert(err, IsNil)
+	c.Check(ch, Equals, "18/stable")
 }
 
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnapsComponents(c *C) {
