@@ -81,6 +81,23 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	return matches, nil
 }
 
+// Kind creates a TaskQuery that matches tasks of the given kind.
+func Kind(kind string) TaskQuery {
+	return TaskQuery{Kind: kind}
+}
+
+// TaskCount returns a query that expects the given number of matching tasks.
+func (q TaskQuery) TaskCount(count int) TaskQuery {
+	q.Cardinality = count
+	return q
+}
+
+// All returns a query that accepts any non-zero number of matching tasks.
+func (q TaskQuery) All() TaskQuery {
+	q.Cardinality = -1
+	return q
+}
+
 // Selection represents a fixed selection set of tasks. A root Selection will be
 // created by a caller with an initial set of tasks. Each child Selection is a
 // subset of that root Selection.

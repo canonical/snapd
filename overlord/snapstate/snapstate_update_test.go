@@ -21051,8 +21051,8 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBeforeLocalModifications
 	otherAppSyncPrerequisites := tasks.Select(otherApp.WithKind("prerequisites").WithField("prerequisites-sync", true))
 	otherAppEnd := tasks.Select(otherApp.All()).Tails()
 
-	seedCreate := tasks.Select(tasktest.TaskQuery{Kind: "create-recovery-system"})
-	seedFinalize := tasks.Select(tasktest.TaskQuery{Kind: "finalize-recovery-system"})
+	seedCreate := tasks.Select(tasktest.Kind("create-recovery-system"))
+	seedFinalize := tasks.Select(tasktest.Kind("finalize-recovery-system"))
 
 	// snapd must finish first so later tasks run under the refreshed daemon.
 	c.Assert(tasktest.AssertSequenced(snapdTasks, baseTasks), IsNil)

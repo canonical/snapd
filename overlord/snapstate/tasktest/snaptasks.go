@@ -89,14 +89,14 @@ func (q SnapQuery) WithHook(hookName string) SnapQuery {
 // TaskCount enforces that this query expects the given number of tasks in a
 // resulting Selection.
 func (q SnapQuery) TaskCount(count int) SnapQuery {
-	q.TaskQuery.Cardinality = count
+	q.TaskQuery = q.TaskQuery.TaskCount(count)
 	return q
 }
 
-// TaskCount enforces that this query expects any non-zero number of tasks in a
+// All enforces that this query expects any non-zero number of tasks in a
 // resulting Selection.
 func (q SnapQuery) All() SnapQuery {
-	q.TaskQuery.Cardinality = -1
+	q.TaskQuery = q.TaskQuery.All()
 	return q
 }
 
