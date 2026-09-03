@@ -161,6 +161,13 @@ purge() {
             fi
         fi
 
+        unit_dropin_dir="/etc/systemd/system/${unit}.d"
+        if [ -d "$unit_dropin_dir" ]; then
+            echo "Removing $unit drop-ins"
+            find "$unit_dropin_dir" -name "snap.*.conf" -maxdepth 1 -delete
+            rmdir "$unit_dropin_dir" 2> /dev/null || true
+        fi
+
         echo "Removing $unit"
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
