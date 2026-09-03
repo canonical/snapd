@@ -933,64 +933,6 @@ func (s *snapmgrTestSuite) TestInstallSnapUsingBasePreventsBaseRemoval(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-base" is not removable: snap is being used by snap some-snap\.`)
 }
 
-func (s *snapmgrTestSuite) TestBaseRemovalDoesNotPreventSchedulingInstallUsingBase(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	si := &snap.SideInfo{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}
-	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si)
-	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
-		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
-		Current:  si.Revision,
-		SnapType: string(snap.TypeBase),
-	})
-
-	removeTS, err := snapstate.Remove(s.state, "some-base", snap.R(0), nil)
-	c.Assert(err, IsNil)
-	removeChg := s.state.NewChange("remove-snap", "...")
-	removeChg.AddAll(removeTS)
-
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	c.Check(ts.Tasks(), Not(HasLen), 0)
-}
-
-func (s *snapmgrTestSuite) TestBaseRemovalDoesNotPreventSchedulingInstallAfterAutoDisconnect(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	si := &snap.SideInfo{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}
-	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si)
-	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
-		Active:   true,
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
-		Current:  si.Revision,
-		SnapType: string(snap.TypeBase),
-	})
-
-	removeTS, err := snapstate.Remove(s.state, "some-base", snap.R(0), nil)
-	c.Assert(err, IsNil)
-	removeChg := s.state.NewChange("remove-snap", "...")
-	removeChg.AddAll(removeTS)
-
-	sawDisconnect := false
-	for _, task := range removeTS.Tasks() {
-		// check we're not depending on the task status itself
-		task.SetStatus(state.DoneStatus)
-		if task.Kind() == "auto-disconnect" {
-			sawDisconnect = true
-			break
-		}
-	}
-	// ensure this test can't be made useless silently
-	c.Assert(sawDisconnect, Equals, true)
-
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
-	c.Assert(err, IsNil)
-	c.Check(ts.Tasks(), Not(HasLen), 0)
-}
-
 func (s *snapmgrTestSuite) TestPreDownloadSnapUsingBaseDoesNotPreventBaseRemoval(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

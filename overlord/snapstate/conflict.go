@@ -409,8 +409,8 @@ func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (bool, error) {
 		}
 
 		// this isn't lane aware so an aborted lane could trigger a false positive.
-		// However, that seems like a very rare occurrence and could just be retried
-		// so the simpler check is fine
+		// However, that seems like a very rare occurrence and will just retry the
+		// prerequisite so the simpler check is fine
 		chg := t.Change()
 		if chg.IsReady() {
 			continue

@@ -126,7 +126,7 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *prereqSuite) TestDoPrereqRetriesWhileRequiredBaseIsBeingRemoved(c *C) {
+func (s *prereqSuite) TestPrereqTaskRetriesIfBaseIsBeingRemoved(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -137,9 +137,9 @@ func (s *prereqSuite) TestDoPrereqRetriesWhileRequiredBaseIsBeingRemoved(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)},
 	})
 	autoDisconnect.WaitFor(blocker)
-	removeChg := s.state.NewChange("remove-snap", "remove some-base")
-	removeChg.AddTask(blocker)
-	removeChg.AddTask(autoDisconnect)
+	rmChg := s.state.NewChange("remove-snap", "remove some-base")
+	rmChg.AddTask(blocker)
+	rmChg.AddTask(autoDisconnect)
 
 	prereq := s.state.NewTask("prerequisites", "foo")
 	prereq.Set("snap-setup", &snapstate.SnapSetup{
@@ -157,6 +157,16 @@ func (s *prereqSuite) TestDoPrereqRetriesWhileRequiredBaseIsBeingRemoved(c *C) {
 
 	c.Check(prereq.Status(), Equals, state.DoingStatus)
 	c.Check(prereq.AtTime().IsZero(), Equals, false)
+
+	// mock the base removal finishing. The prereq task should unblock
+	rmChg.SetStatus(state.DoneStatus)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(prereq.Status(), Equals, state.DoneStatus)
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDoOnCore(c *C) {
