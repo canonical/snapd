@@ -2075,7 +2075,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrorResult(c *C) {
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
 	st.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "op": cannot unmarshal context value for "fde-setup-result": illegal base64 data at input byte 3`)
+	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "op": cannot unmarshal context value for "fde-setup-result": .*illegal base64 data at input byte 3`)
 }
 
 type startOfOperationTimeSuite struct {
