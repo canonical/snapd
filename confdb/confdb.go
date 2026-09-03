@@ -1625,8 +1625,8 @@ func prunePathInValue(parts []Accessor, val any) (any, error) {
 
 		nested, ok := mapVal[parts[0].Name()]
 		if !ok {
-			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0].Name(), mapVal)
+			// may happen if another path already covered this branch
+			return mapVal, nil
 		}
 
 		newValue, err := prunePathInValue(parts[1:], nested)
