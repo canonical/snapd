@@ -17,29 +17,28 @@
  *
  */
 
-// info produces the SNAPD_LTS_TRACKS line for the snapd snap's info file
+// info produces the SNAPD_UC_TRACKS line for the snapd snap's info file
 // (/usr/lib/snapd/info). Distro packages do not include this key. The map is
-// the source of truth for the current snapd (snap.SnapdLTSTrackMapFromCurrentSnapd) and
-// for a candidate snapd snap (snap.SnapdLTSTrackMapFromSnapFile).
+// the source of truth for the current snapd (snap.SnapdUCTrackMapFromCurrentSnapd) and
+// for a candidate snapd snap (snap.SnapdUCTrackMapFromSnapFile).
 //
 // The map is intentionally empty in master / latest snapd until the first UC
-// version reaches LTS. Onboarding a UC version is a one-line edit here;
-// the change is backported wholesale to release/lts/* so LTS-branch snapd
-// applies the same policy.
+// version reaches year six of Standard Security Maintenance (SSM).
+// Onboarding a UC version is a one-line edit here.
 //
-// Shape: snapdLTSTracks[bootBase][inputTrack] = LTSTargetTrack
+// Shape: snapdUCTracks[bootBase][inputTrack] = TargetTrack
 //
-// Input tracks and LTS targets must be track-only names (e.g. "latest",
+// Input tracks and target tracks must be track-only names (e.g. "latest",
 // "18", "18-fips"), never a risk or full channel such as "18/stable".
 //
 // Entries are transitions only (latest → 18). If the input track already
 // equals any output of that boot-base map, Resolve keeps it (implicit
-// identity). A later onboard can remap an LTS track onward by adding an
+// identity). A later onboard can remap a track onward by adding an
 // explicit key ("18": "24"); that wins because keys are checked first.
 //
 // Example for a hypothetical onboarded UC18:
 //
-//	snapdLTSTracks = map[int]map[string]string{
+//	snapdUCTracks = map[int]map[string]string{
 //	    18: {
 //	        "latest":       "18",
 //	        "fips-updates": "18-fips",
@@ -55,33 +54,33 @@ import (
 	snapchannel "github.com/snapcore/snapd/snap/channel"
 )
 
-// snapdLTSTracks is the LTS track map this snapd build carries. Empty by
+// snapdUCTracks is the UC track map this snapd build carries. Empty by
 // design until a UC version is onboarded.
-var snapdLTSTracks = map[int]map[string]string{}
+var snapdUCTracks = map[int]map[string]string{}
 
-// renderInfoLine returns the single-line SNAPD_LTS_TRACKS entry for the snapd
+// renderInfoLine returns the single-line SNAPD_UC_TRACKS entry for the snapd
 // info file. The JSON value is single-quoted, matching the format of
-// SNAPD_ASSERTS_FORMATS produced by asserts/info. Input tracks and LTS
-// targets must be track-only channel names (no risk or branch).
+// SNAPD_ASSERTS_FORMATS produced by asserts/info. Input tracks and target
+// tracks must be track-only channel names (no risk or branch).
 func renderInfoLine(tracks map[int]map[string]string) (string, error) {
-	if err := checkLTSTracks(tracks); err != nil {
+	if err := checkUCTracks(tracks); err != nil {
 		return "", err
 	}
 	b, err := json.Marshal(tracks)
 	if err != nil {
-		return "", fmt.Errorf("cannot json marshal snapd LTS tracks: %v", err)
+		return "", fmt.Errorf("cannot json marshal snapd UC tracks: %v", err)
 	}
-	return fmt.Sprintf("SNAPD_LTS_TRACKS='%s'", b), nil
+	return fmt.Sprintf("SNAPD_UC_TRACKS='%s'", b), nil
 }
 
-func checkLTSTracks(tracks map[int]map[string]string) error {
+func checkUCTracks(tracks map[int]map[string]string) error {
 	for bootBase, rules := range tracks {
 		for input, target := range rules {
 			if !snapchannel.IsVerbatimTrackOnly(input) {
-				return fmt.Errorf("cannot encode snapd LTS tracks: input track %q for boot base %d is not a track-only channel", input, bootBase)
+				return fmt.Errorf("cannot encode snapd UC tracks: input track %q for boot base %d is not a track-only channel", input, bootBase)
 			}
 			if !snapchannel.IsVerbatimTrackOnly(target) {
-				return fmt.Errorf("cannot encode snapd LTS tracks: LTS target %q for boot base %d is not a track-only channel", target, bootBase)
+				return fmt.Errorf("cannot encode snapd UC tracks: target track %q for boot base %d is not a track-only channel", target, bootBase)
 			}
 		}
 	}
@@ -89,7 +88,7 @@ func checkLTSTracks(tracks map[int]map[string]string) error {
 }
 
 func main() {
-	line, err := renderInfoLine(snapdLTSTracks)
+	line, err := renderInfoLine(snapdUCTracks)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

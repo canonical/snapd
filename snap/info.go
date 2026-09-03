@@ -2091,10 +2091,10 @@ func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flag
 	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
 }
 
-// SnapdLTSTrackMapFromSnapFile returns the LTS track map and snapd version from
-// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_LTS_TRACKS is
+// SnapdUCTrackMapFromSnapFile returns the UC track map and snapd version from
+// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_UC_TRACKS is
 // absent or empty, trackMap is nil.
-func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]string, snapdVersion string, err error) {
+func SnapdUCTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]string, snapdVersion string, err error) {
 	snapdVersion, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
 	if err != nil {
 		return nil, "", err
@@ -2102,22 +2102,22 @@ func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]
 	if flags == nil {
 		return nil, snapdVersion, nil
 	}
-	raw, ok := flags["SNAPD_LTS_TRACKS"]
+	raw, ok := flags["SNAPD_UC_TRACKS"]
 	if !ok {
 		return nil, snapdVersion, nil
 	}
-	trackMap, err = parseSnapdLTSTracks(raw)
+	trackMap, err = parseSnapdUCTracks(raw)
 	if err != nil {
 		return nil, snapdVersion, err
 	}
 	return trackMap, snapdVersion, nil
 }
 
-// SnapdLTSTrackMapFromCurrentSnapd returns the LTS track map and snapd version from the
+// SnapdUCTrackMapFromCurrentSnapd returns the UC track map and snapd version from the
 // info file belonging to the current snapd snap. Distro packages do not ship
-// SNAPD_LTS_TRACKS; the map lives in the snapd snap. If SNAPD_LTS_TRACKS is
+// SNAPD_UC_TRACKS; the map lives in the snapd snap. If SNAPD_UC_TRACKS is
 // absent or empty, trackMap is nil.
-func SnapdLTSTrackMapFromCurrentSnapd() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+func SnapdUCTrackMapFromCurrentSnapd() (trackMap map[int]map[string]string, snapdVersion string, err error) {
 	dir, err := snapdtool.InternalLibExecDir()
 	if err != nil {
 		return nil, "", err
@@ -2126,24 +2126,24 @@ func SnapdLTSTrackMapFromCurrentSnapd() (trackMap map[int]map[string]string, sna
 	if err != nil {
 		return nil, "", err
 	}
-	raw, ok := flags["SNAPD_LTS_TRACKS"]
+	raw, ok := flags["SNAPD_UC_TRACKS"]
 	if !ok {
 		return nil, snapdVersion, nil
 	}
-	trackMap, err = parseSnapdLTSTracks(raw)
+	trackMap, err = parseSnapdUCTracks(raw)
 	if err != nil {
 		return nil, snapdVersion, err
 	}
 	return trackMap, snapdVersion, nil
 }
 
-// parseSnapdLTSTracks parses the value of the SNAPD_LTS_TRACKS key from a
+// parseSnapdUCTracks parses the value of the SNAPD_UC_TRACKS key from a
 // snapd info file. The expected JSON shape is a map of UC boot base version
-// (e.g. 18, 20) to input-track → LTS-target-track rules. An empty or
+// (e.g. 18, 20) to input-track → target-track rules. An empty or
 // whitespace-only value returns (nil, nil). Malformed JSON, non-numeric
 // boot-base keys, or input/target names that are not track-only channels
 // return an error.
-func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
+func parseSnapdUCTracks(raw string) (map[int]map[string]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, nil
@@ -2155,7 +2155,7 @@ func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
 
 	var stringKeyed map[string]map[string]string
 	if err := json.Unmarshal([]byte(raw), &stringKeyed); err != nil {
-		return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: %v", err)
+		return nil, fmt.Errorf("cannot parse SNAPD_UC_TRACKS: %v", err)
 	}
 	if len(stringKeyed) == 0 {
 		return nil, nil
@@ -2165,9 +2165,9 @@ func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
 	for bootBaseStr, rules := range stringKeyed {
 		bootBase, err := strconv.Atoi(bootBaseStr)
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS boot base %q: %v", bootBaseStr, err)
+			return nil, fmt.Errorf("cannot parse SNAPD_UC_TRACKS boot base %q: %v", bootBaseStr, err)
 		}
-		if err := checkSnapdLTSTrackRules(bootBase, rules); err != nil {
+		if err := checkSnapdUCTrackRules(bootBase, rules); err != nil {
 			return nil, err
 		}
 		tracks[bootBase] = rules
@@ -2175,13 +2175,13 @@ func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
 	return tracks, nil
 }
 
-func checkSnapdLTSTrackRules(bootBase int, rules map[string]string) error {
+func checkSnapdUCTrackRules(bootBase int, rules map[string]string) error {
 	for input, target := range rules {
 		if !channel.IsVerbatimTrackOnly(input) {
-			return fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: input track %q for boot base %d is not a track-only channel", input, bootBase)
+			return fmt.Errorf("cannot parse SNAPD_UC_TRACKS: input track %q for boot base %d is not a track-only channel", input, bootBase)
 		}
 		if !channel.IsVerbatimTrackOnly(target) {
-			return fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: LTS target %q for boot base %d is not a track-only channel", target, bootBase)
+			return fmt.Errorf("cannot parse SNAPD_UC_TRACKS: target track %q for boot base %d is not a track-only channel", target, bootBase)
 		}
 	}
 	return nil

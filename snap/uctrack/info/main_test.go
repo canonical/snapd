@@ -33,10 +33,10 @@ type infoSuite struct{}
 
 var _ = Suite(&infoSuite{})
 
-// parseInfoLineValue strips the "SNAPD_LTS_TRACKS=" prefix and surrounding
-// single quotes, mirroring how snap.parseSnapdLTSTracks handles the value.
+// parseInfoLineValue strips the "SNAPD_UC_TRACKS=" prefix and surrounding
+// single quotes, mirroring how snap.parseSnapdUCTracks handles the value.
 func parseInfoLineValue(line string) (map[string]map[string]string, error) {
-	const prefix = "SNAPD_LTS_TRACKS="
+	const prefix = "SNAPD_UC_TRACKS="
 	raw := strings.TrimPrefix(line, prefix)
 	raw = strings.Trim(raw, "'")
 	var out map[string]map[string]string
@@ -49,7 +49,7 @@ func parseInfoLineValue(line string) (map[string]map[string]string, error) {
 func (s *infoSuite) TestRenderInfoLineEmpty(c *C) {
 	line, err := renderInfoLine(map[int]map[string]string{})
 	c.Assert(err, IsNil)
-	c.Check(line, Equals, "SNAPD_LTS_TRACKS='{}'")
+	c.Check(line, Equals, "SNAPD_UC_TRACKS='{}'")
 
 	parsed, err := parseInfoLineValue(line)
 	c.Assert(err, IsNil)
@@ -57,12 +57,12 @@ func (s *infoSuite) TestRenderInfoLineEmpty(c *C) {
 }
 
 func (s *infoSuite) TestRenderInfoLineNilMarshalsToNull(c *C) {
-	// json.Marshal(nil map) is 'null', not '{}'. Production snapdLTSTracks is
+	// json.Marshal(nil map) is 'null', not '{}'. Production snapdUCTracks is
 	// a non-nil empty map, so the generator emits '{}'. The runtime parser
 	// treats absence, empty, and 'null' as no map.
 	line, err := renderInfoLine(nil)
 	c.Assert(err, IsNil)
-	c.Check(line, Equals, "SNAPD_LTS_TRACKS='null'")
+	c.Check(line, Equals, "SNAPD_UC_TRACKS='null'")
 }
 
 func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
@@ -77,7 +77,7 @@ func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
 	}
 	line, err := renderInfoLine(tracks)
 	c.Assert(err, IsNil)
-	c.Assert(strings.HasPrefix(line, "SNAPD_LTS_TRACKS='"), Equals, true,
+	c.Assert(strings.HasPrefix(line, "SNAPD_UC_TRACKS='"), Equals, true,
 		Commentf("got: %s", line))
 	c.Assert(strings.HasSuffix(line, "'"), Equals, true,
 		Commentf("got: %s", line))
@@ -96,7 +96,7 @@ func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
 
 func (s *infoSuite) TestPackageDefaultIsEmpty(c *C) {
 	// Until a UC version is onboarded the policy must ship empty.
-	c.Check(snapdLTSTracks, HasLen, 0)
+	c.Check(snapdUCTracks, HasLen, 0)
 }
 
 func (s *infoSuite) TestRenderInfoLineRejectsNonTrackOnly(c *C) {
@@ -106,31 +106,31 @@ func (s *infoSuite) TestRenderInfoLineRejectsNonTrackOnly(c *C) {
 	}{
 		{
 			tracks: map[int]map[string]string{18: {"latest": "18/stable"}},
-			err:    `cannot encode snapd LTS tracks: LTS target "18/stable" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: target track "18/stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			tracks: map[int]map[string]string{18: {"latest": "stable"}},
-			err:    `cannot encode snapd LTS tracks: LTS target "stable" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: target track "stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			tracks: map[int]map[string]string{18: {"latest/stable": "18"}},
-			err:    `cannot encode snapd LTS tracks: input track "latest/stable" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: input track "latest/stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			tracks: map[int]map[string]string{18: {"latest": ""}},
-			err:    `cannot encode snapd LTS tracks: LTS target "" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: target track "" for boot base 18 is not a track-only channel`,
 		},
 		{
 			tracks: map[int]map[string]string{18: {"": "18"}},
-			err:    `cannot encode snapd LTS tracks: input track "" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: input track "" for boot base 18 is not a track-only channel`,
 		},
 		{
 			tracks: map[int]map[string]string{18: {"stable": "18"}},
-			err:    `cannot encode snapd LTS tracks: input track "stable" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: input track "stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			tracks: map[int]map[string]string{18: {"latest": "18/stable/hotfix"}},
-			err:    `cannot encode snapd LTS tracks: LTS target "18/stable/hotfix" for boot base 18 is not a track-only channel`,
+			err:    `cannot encode snapd UC tracks: target track "18/stable/hotfix" for boot base 18 is not a track-only channel`,
 		},
 	} {
 		line, err := renderInfoLine(t.tracks)

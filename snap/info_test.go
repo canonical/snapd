@@ -2348,9 +2348,9 @@ version: 1.0`, nil)
 	c.Check(err, ErrorMatches, `cannot extract snapd information, snaps of type app do not carry snapd information`)
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksValid(c *C) {
+func (s *infoSuite) TestParseSnapdUCTracksValid(c *C) {
 	raw := `'{"18":{"latest":"18"},"20":{"latest":"20"}}'`
-	tracks, err := snap.ParseSnapdLTSTracks(raw)
+	tracks, err := snap.ParseSnapdUCTracks(raw)
 	c.Assert(err, IsNil)
 	c.Assert(tracks, DeepEquals, map[int]map[string]string{
 		18: {"latest": "18"},
@@ -2358,88 +2358,88 @@ func (s *infoSuite) TestParseSnapdLTSTracksValid(c *C) {
 	})
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksWithoutQuoteWrapper(c *C) {
+func (s *infoSuite) TestParseSnapdUCTracksWithoutQuoteWrapper(c *C) {
 	raw := `{"18":{"latest":"18"}}`
-	tracks, err := snap.ParseSnapdLTSTracks(raw)
+	tracks, err := snap.ParseSnapdUCTracks(raw)
 	c.Assert(err, IsNil)
 	c.Assert(tracks, DeepEquals, map[int]map[string]string{
 		18: {"latest": "18"},
 	})
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksEmpty(c *C) {
+func (s *infoSuite) TestParseSnapdUCTracksEmpty(c *C) {
 	for _, raw := range []string{"", "   ", "''", `""`} {
-		tracks, err := snap.ParseSnapdLTSTracks(raw)
+		tracks, err := snap.ParseSnapdUCTracks(raw)
 		c.Assert(err, IsNil, Commentf("raw=%q", raw))
 		c.Assert(tracks, IsNil, Commentf("raw=%q", raw))
 	}
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksEmptyObject(c *C) {
-	tracks, err := snap.ParseSnapdLTSTracks("{}")
+func (s *infoSuite) TestParseSnapdUCTracksEmptyObject(c *C) {
+	tracks, err := snap.ParseSnapdUCTracks("{}")
 	c.Assert(err, IsNil)
 	c.Assert(tracks, IsNil)
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksMalformedJSON(c *C) {
-	_, err := snap.ParseSnapdLTSTracks(`{not-json`)
-	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
+func (s *infoSuite) TestParseSnapdUCTracksMalformedJSON(c *C) {
+	_, err := snap.ParseSnapdUCTracks(`{not-json`)
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_UC_TRACKS:.*`)
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksInvalidBootBase(c *C) {
-	_, err := snap.ParseSnapdLTSTracks(`{"core18":{"latest":"18"}}`)
-	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS boot base "core18":.*`)
+func (s *infoSuite) TestParseSnapdUCTracksInvalidBootBase(c *C) {
+	_, err := snap.ParseSnapdUCTracks(`{"core18":{"latest":"18"}}`)
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_UC_TRACKS boot base "core18":.*`)
 }
 
-func (s *infoSuite) TestParseSnapdLTSTracksRejectsNonTrackOnly(c *C) {
+func (s *infoSuite) TestParseSnapdUCTracksRejectsNonTrackOnly(c *C) {
 	for _, t := range []struct {
 		raw string
 		err string
 	}{
 		{
 			raw: `{"18":{"latest":"18/stable"}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: target track "18/stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			raw: `{"18":{"latest":"stable"}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "stable" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: target track "stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			raw: `{"18":{"latest/stable":"18"}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: input track "latest/stable" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: input track "latest/stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			raw: `{"18":{"latest":""}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: target track "" for boot base 18 is not a track-only channel`,
 		},
 		{
 			raw: `{"18":{"":"18"}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: input track "" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: input track "" for boot base 18 is not a track-only channel`,
 		},
 		{
 			raw: `{"18":{"stable":"18"}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: input track "stable" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: input track "stable" for boot base 18 is not a track-only channel`,
 		},
 		{
 			raw: `{"18":{"latest":"18/stable/hotfix"}}`,
-			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable/hotfix" for boot base 18 is not a track-only channel`,
+			err: `cannot parse SNAPD_UC_TRACKS: target track "18/stable/hotfix" for boot base 18 is not a track-only channel`,
 		},
 	} {
-		_, err := snap.ParseSnapdLTSTracks(t.raw)
+		_, err := snap.ParseSnapdUCTracks(t.raw)
 		c.Check(err, ErrorMatches, t.err, Commentf("raw=%s", t.raw))
 	}
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFile(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromSnapFile(c *C) {
 	info := `VERSION=2.99
-SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`
+SNAPD_UC_TRACKS='{"18":{"latest":"18"}}'`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
 type: snapd
 version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	snapf, err := snapfile.Open(snapdPath)
 	c.Assert(err, IsNil)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromSnapFile(snapf)
+	trackMap, version, err := snap.SnapdUCTrackMapFromSnapFile(snapf)
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, DeepEquals, map[int]map[string]string{
@@ -2447,7 +2447,7 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	})
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFileMissingKey(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromSnapFileMissingKey(c *C) {
 	info := `VERSION=2.99`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
 type: snapd
@@ -2455,23 +2455,23 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	snapf, err := snapfile.Open(snapdPath)
 	c.Assert(err, IsNil)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromSnapFile(snapf)
+	trackMap, version, err := snap.SnapdUCTrackMapFromSnapFile(snapf)
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, IsNil)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFileMalformed(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromSnapFileMalformed(c *C) {
 	info := `VERSION=2.99
-SNAPD_LTS_TRACKS='{bad'`
+SNAPD_UC_TRACKS='{bad'`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
 type: snapd
 version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	snapf, err := snapfile.Open(snapdPath)
 	c.Assert(err, IsNil)
 
-	_, version, err := snap.SnapdLTSTrackMapFromSnapFile(snapf)
-	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
+	_, version, err := snap.SnapdUCTrackMapFromSnapFile(snapf)
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_UC_TRACKS:.*`)
 	c.Check(version, Equals, "2.99")
 }
 
@@ -2487,13 +2487,13 @@ func (s *infoSuite) mockCurrentSnapdLibExecDir(c *C, libExecDir string) (restore
 	})
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdDistro(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromCurrentSnapdDistro(c *C) {
 	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, `VERSION=2.99
-SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`)
+SNAPD_UC_TRACKS='{"18":{"latest":"18"}}'`)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
+	trackMap, version, err := snap.SnapdUCTrackMapFromCurrentSnapd()
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, DeepEquals, map[int]map[string]string{
@@ -2501,48 +2501,48 @@ SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`)
 	})
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdMissingKey(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromCurrentSnapdMissingKey(c *C) {
 	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, "VERSION=2.99\n")
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
+	trackMap, version, err := snap.SnapdUCTrackMapFromCurrentSnapd()
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, IsNil)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdMalformed(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromCurrentSnapdMalformed(c *C) {
 	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, `VERSION=2.99
-SNAPD_LTS_TRACKS='{bad'`)
+SNAPD_UC_TRACKS='{bad'`)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
-	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
+	trackMap, version, err := snap.SnapdUCTrackMapFromCurrentSnapd()
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_UC_TRACKS:.*`)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, IsNil)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdMissingInfoFile(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromCurrentSnapdMissingInfoFile(c *C) {
 	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 
-	_, _, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
+	_, _, err := snap.SnapdUCTrackMapFromCurrentSnapd()
 	c.Assert(err, ErrorMatches, `cannot open snapd info file .*`)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdReexec(c *C) {
+func (s *infoSuite) TestSnapdUCTrackMapFromCurrentSnapdReexec(c *C) {
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, `VERSION=2.70
-SNAPD_LTS_TRACKS='{"20":{"latest":"20"}}'`)
+SNAPD_UC_TRACKS='{"20":{"latest":"20"}}'`)
 
 	reexecLibExecDir := filepath.Join(dirs.SnapMountDir, "snapd/42/usr/lib/snapd")
 	restore := s.mockCurrentSnapdLibExecDir(c, reexecLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, reexecLibExecDir, `VERSION=2.99
-SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`)
+SNAPD_UC_TRACKS='{"18":{"latest":"18"}}'`)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
+	trackMap, version, err := snap.SnapdUCTrackMapFromCurrentSnapd()
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, DeepEquals, map[int]map[string]string{

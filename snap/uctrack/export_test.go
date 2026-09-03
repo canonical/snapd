@@ -17,19 +17,19 @@
  *
  */
 
-package ltstrack
+package uctrack
 
 // SystemBootBaseApplicable exposes systemBootBaseApplicable for tests.
 var SystemBootBaseApplicable = systemBootBaseApplicable
 
-// MockSnapdLTSTrackMap replaces this snapd's LTS track map for tests.
+// MockSnapdUCTrackMap replaces this snapd's UC track map for tests.
 // The mocked snapd version is 2.75.
-func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
-	restoreLoader := snapdLTSTrackMapFromCurrentSnapd
-	snapdLTSTrackMapFromCurrentSnapd = func() (map[int]map[string]string, string, error) {
+func MockSnapdUCTrackMap(tracks map[int]map[string]string) (restore func()) {
+	restoreLoader := snapdUCTrackMapFromCurrentSnapd
+	snapdUCTrackMapFromCurrentSnapd = func() (map[int]map[string]string, string, error) {
 		return tracks, "2.75", nil
 	}
 	return func() {
-		snapdLTSTrackMapFromCurrentSnapd = restoreLoader
+		snapdUCTrackMapFromCurrentSnapd = restoreLoader
 	}
 }

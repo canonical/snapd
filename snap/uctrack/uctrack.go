@@ -17,15 +17,15 @@
  *
  */
 
-// Package ltstrack implements snapd LTS track policy for Ubuntu Core models.
+// Package uctrack implements snapd track policy for Ubuntu Core models.
 //
-// An LTS-aware snapd consults this package when resolving snapd store
-// channels. LTS awareness does not imply that snapd carries an LTS track map;
+// A track-aware snapd consults this package when resolving snapd store
+// channels. Track awareness does not imply that snapd carries a UC track map;
 // maps are added incrementally as LTS branches are onboarded.
 //
-// Resolve reads the LTS track map from the running snapd, or from
+// Resolve reads the UC track map from the running snapd, or from
 // candidateSnapd when a snapd install/refresh candidate is supplied.
-package ltstrack
+package uctrack
 
 import (
 	"errors"
@@ -37,23 +37,23 @@ import (
 )
 
 var (
-	// ErrNotApplicable is returned when LTS policy does not apply to the model.
-	ErrNotApplicable = errors.New("cannot use LTS tracks")
-	// ErrBootBaseNotCovered is returned when the model's boot base has no LTS
-	// mapping yet. Callers pass through: no channel restriction applies
+	// ErrNotApplicable is returned when track policy does not apply to the model.
+	ErrNotApplicable = errors.New("cannot use UC tracks")
+	// ErrBootBaseNotCovered is returned when the model's boot base has no UC
+	// track map yet. Callers pass through: no channel restriction applies
 	// until the boot base is onboarded.
-	ErrBootBaseNotCovered = errors.New("cannot find LTS track map for boot base")
+	ErrBootBaseNotCovered = errors.New("cannot find UC track map for boot base")
 	// ErrNoTrack is returned when the boot base is covered but the input
 	// track is neither a map key nor a map value. Callers pass through.
-	ErrNoTrack = errors.New("cannot find LTS track for input track")
+	ErrNoTrack = errors.New("cannot find UC track for input track")
 )
 
-// Resolve applies LTS track policy to channel for model. On success it
-// returns the remapped channel with the LTS target track, the original risk, and
+// Resolve applies track policy to channel for model. On success it
+// returns the remapped channel with the target track, the original risk, and
 // any branch dropped. On failure it returns ("", err). Policy errors wrap
-// sentinels: ErrNotApplicable when LTS policy does not apply to the model's
+// sentinels: ErrNotApplicable when track policy does not apply to the model's
 // system type or boot base, ErrNoTrack when the boot base is covered but the
-// input track is neither a transition key nor an LTS target, and
+// input track is neither a transition key nor a target track, and
 // ErrBootBaseNotCovered when the boot base has no map entry. Channel parse and
 // map-load failures are plain errors. Programming errors (nil model,
 // undetermined boot base) are prefixed with "internal error:".
@@ -85,55 +85,55 @@ func Resolve(model *asserts.Model, channel string, candidateSnapd snap.Container
 		return "", err
 	}
 
-	trackMap, version, origin, err := loadLTSTrackMap(candidateSnapd)
+	trackMap, version, origin, err := loadUCTrackMap(candidateSnapd)
 	if err != nil {
-		return "", fmt.Errorf("cannot retrieve LTS track map from %s %s: %v", origin, version, err)
+		return "", fmt.Errorf("cannot retrieve UC track map from %s %s: %v", origin, version, err)
 	}
-	ltsTrack, err := resolveLTSTrack(trackMap, version, origin, bootBase, inputTrack)
+	ucTrack, err := resolveUCTrack(trackMap, version, origin, bootBase, inputTrack)
 	if err != nil {
 		return "", err
 	}
 
-	parsed.Track = ltsTrack
+	parsed.Track = ucTrack
 	parsed.Branch = ""
 	return parsed.Clean().String(), nil
 }
 
-var snapdLTSTrackMapFromCurrentSnapd = snap.SnapdLTSTrackMapFromCurrentSnapd
+var snapdUCTrackMapFromCurrentSnapd = snap.SnapdUCTrackMapFromCurrentSnapd
 
-func loadLTSTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string]string, version, origin string, err error) {
+func loadUCTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string]string, version, origin string, err error) {
 	if candidateSnapd != nil {
-		trackMap, version, err = snap.SnapdLTSTrackMapFromSnapFile(candidateSnapd)
+		trackMap, version, err = snap.SnapdUCTrackMapFromSnapFile(candidateSnapd)
 		return trackMap, version, "candidate snapd snap", err
 	}
-	trackMap, version, err = snapdLTSTrackMapFromCurrentSnapd()
+	trackMap, version, err = snapdUCTrackMapFromCurrentSnapd()
 	return trackMap, version, "running snapd", err
 }
 
-// resolveLTSTrack looks up the LTS target for bootBase and inputTrack in
+// resolveUCTrack looks up the target track for bootBase and inputTrack in
 // trackMap. origin labels the map source in errors ("running snapd" or
 // "candidate snapd snap").
-func resolveLTSTrack(trackMap map[int]map[string]string, version, origin string, bootBase int, inputTrack string) (string, error) {
+func resolveUCTrack(trackMap map[int]map[string]string, version, origin string, bootBase int, inputTrack string) (string, error) {
 	baseTrackMap, ok := trackMap[bootBase]
 	if !ok {
 		return "", fmt.Errorf("%w %d from %s %s", ErrBootBaseNotCovered, bootBase, origin, version)
 	}
-	ltsTrack, found := lookupLTSTrack(baseTrackMap, inputTrack)
+	ucTrack, found := lookupUCTrack(baseTrackMap, inputTrack)
 	if !found {
 		return "", fmt.Errorf("%w %s for boot base %d from %s %s", ErrNoTrack, inputTrack, bootBase, origin, version)
 	}
-	return ltsTrack, nil
+	return ucTrack, nil
 }
 
-// lookupLTSTrack returns the LTS target for inputTrack. Keys are
+// lookupUCTrack returns the target track for inputTrack. Keys are
 // transitions (latest → 18). If inputTrack already matches a target
 // (e.g. "18" after a previous jump), it is kept. An explicit key wins,
 // so a later onboard can remap onward ("18": "24").
-func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (ltsTrack string, found bool) {
-	if ltsTrack, ok := baseTrackMap[inputTrack]; ok && ltsTrack != "" {
-		return ltsTrack, true
+func lookupUCTrack(baseTrackMap map[string]string, inputTrack string) (ucTrack string, found bool) {
+	if ucTrack, ok := baseTrackMap[inputTrack]; ok && ucTrack != "" {
+		return ucTrack, true
 	}
-	// Already on an LTS target (e.g. "18" after a previous jump): keep it.
+	// Already on a target track (e.g. "18" after a previous jump): keep it.
 	for _, target := range baseTrackMap {
 		if target != "" && target == inputTrack {
 			return inputTrack, true
@@ -142,7 +142,7 @@ func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (ltsTrack
 	return "", false
 }
 
-// systemBootBaseApplicable returns the boot-base version to consult for LTS
+// systemBootBaseApplicable returns the boot-base version to consult for track
 // policy when it applies to the model's system type. It returns an error when
 // the system type or boot base is not applicable.
 func systemBootBaseApplicable(model *asserts.Model) (int, error) {
@@ -158,7 +158,7 @@ func systemBootBaseApplicable(model *asserts.Model) (int, error) {
 		return 0, fmt.Errorf("internal error: cannot determine boot base: %v", err)
 	}
 	// UC16 uses the core snap as both base and snapd, so there is no
-	// separate snapd snap to apply LTS track policy to.
+	// separate snapd snap to apply track policy to.
 	if bootBase == 16 {
 		return 0, fmt.Errorf("%w: unsupported Ubuntu Core 16 model", ErrNotApplicable)
 	}
