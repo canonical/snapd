@@ -60,6 +60,8 @@ type fdstoreTestSuite struct {
 
 var _ = Suite(&fdstoreTestSuite{})
 
+const FD_TEST_FLAG = 0x02
+
 func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.sdNotifyCalls = nil
 	s.errOn = nil
@@ -103,6 +105,15 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(fdstore.MockFcntl(func(fd uintptr, cmd, arg int) (int, error) {
 		s.fcntlCalls = append(s.fcntlCalls, fcntlCall{fd: fd, cmd: cmd, arg: arg})
 		switch cmd {
+		case unix.F_GETFD:
+			if arg != 0 {
+				return -1, fmt.Errorf("unexpected arg for F_GETFD: %d", arg)
+			}
+			call := fmt.Sprintf("fcntl-getfd-flags: %d", fd)
+			if strutil.ListContains(s.errOn, call) {
+				return -1, errors.New("boom!")
+			}
+			return FD_TEST_FLAG, nil
 		case unix.F_DUPFD_CLOEXEC:
 			if arg != 0 {
 				return -1, fmt.Errorf("unexpected arg for F_DUPFD_CLOEXEC: %d", arg)
@@ -117,7 +128,7 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 			s.closeOnExecFds = append(s.closeOnExecFds, s.lastDupFd)
 			return s.lastDupFd, nil
 		case unix.F_SETFD:
-			if arg != unix.FD_CLOEXEC {
+			if arg != (unix.FD_CLOEXEC | FD_TEST_FLAG) {
 				return -1, fmt.Errorf("unexpected arg for F_SETFD: %d", arg)
 			}
 			call := fmt.Sprintf("fcntl-setfd-cloexec: %d", fd)
@@ -521,7 +532,8 @@ func (s *fdstoreTestSuite) TestFcntlFlags(c *C) {
 	// fd 3 gets close-on-exec set during init, then is duplicated
 	// with close-on-exec set atomically on Get.
 	c.Check(s.fcntlCalls, DeepEquals, []fcntlCall{
-		{fd: 3, cmd: unix.F_SETFD, arg: unix.FD_CLOEXEC},
+		{fd: 3, cmd: unix.F_GETFD, arg: 0},
+		{fd: 3, cmd: unix.F_SETFD, arg: unix.FD_CLOEXEC | FD_TEST_FLAG},
 		{fd: 3, cmd: unix.F_DUPFD_CLOEXEC, arg: 0},
 	})
 }
@@ -547,6 +559,39 @@ func (s *fdstoreTestSuite) TestInitCloseOnExecError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot set close-on-exec on fd 3 ("memfd-secret-state"): boom!`)
+	c.Check(logbuf.String(), testutil.Contains, `removing unexpected fdstore entry "memfd-secret-state"`)
+
+	// the socket (fd 4) is unaffected
+	listeners, err := store.ActivationListeners()
+	c.Assert(err, IsNil)
+	c.Check(listeners, HasLen, 1)
+
+	c.Check(s.sdNotifyCalls, DeepEquals, []string{
+		"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state",
+	})
+}
+
+func (s *fdstoreTestSuite) TestInitGetFdFlagsError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	os.Setenv("LISTEN_FDS", "2")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state:snapd.socket")
+
+	// reading flags on fd 3 (memfd-secret-state) fails
+	s.errOn = []string{"fcntl-getfd-flags: 3"}
+
+	restore = fdstore.MockNetFileListener(func(f *os.File) (ln net.Listener, err error) {
+		return &fakeListener{f}, nil
+	})
+	defer restore()
+
+	store := fdstore.New()
+	// the entry whose flags couldn't be read is pruned
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
+
+	c.Check(logbuf.String(), testutil.Contains, `cannot get fd flags on fd 3 ("memfd-secret-state"): boom!`)
 	c.Check(logbuf.String(), testutil.Contains, `removing unexpected fdstore entry "memfd-secret-state"`)
 
 	// the socket (fd 4) is unaffected

@@ -169,8 +169,20 @@ func (s *store) initFdstore() {
 		name := FdName(names[i])
 		fdstore[name] = append(fdstore[name], os.NewFile(uintptr(fd), string(name)))
 
-		if _, err := fcntl(uintptr(fd), unix.F_SETFD, unix.FD_CLOEXEC); err != nil {
+		flags, err := fcntl(uintptr(fd), unix.F_GETFD, 0)
+		if err != nil {
+			logger.Noticef("cannot get fd flags on fd %d (%q): %v", fd, name, err)
+			// A single fd whose flags cannot be read makes the whole named
+			// entry unsafe, so pruning later removes all fds associated with
+			// this name.
+			failedCloseOnExec[name] = true
+			continue
+		}
+
+		if _, err := fcntl(uintptr(fd), unix.F_SETFD, flags|unix.FD_CLOEXEC); err != nil {
 			logger.Noticef("cannot set close-on-exec on fd %d (%q): %v", fd, name, err)
+			// A single fd without CLOEXEC makes the whole named entry unsafe,
+			// so pruning later removes all fds associated with this name.
 			failedCloseOnExec[name] = true
 		}
 	}
