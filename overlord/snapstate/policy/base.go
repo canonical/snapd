@@ -166,7 +166,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 			}
 
 			if snapsup.Base == baseName || (alsoCore16 && snapsup.Base == "core16") {
-				usedBy[snapsup.InstanceName()] = true
+				usedBy[snapsup.InstanceName().String()] = true
 			}
 		}
 	}

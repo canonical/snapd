@@ -421,7 +421,7 @@ func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (bool, error) {
 			return false, err
 		}
 
-		if tsup.InstanceName() == base {
+		if tsup.InstanceName().String() == base {
 			return true, nil
 		}
 	}
