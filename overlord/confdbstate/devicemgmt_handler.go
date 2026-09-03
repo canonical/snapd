@@ -38,14 +38,52 @@ var (
 	confdbstateWriteConfdb = WriteConfdb
 )
 
-// confdbMessageBody is the body of a confdb request message.
-type confdbMessageBody struct {
+// confdbAction describes a confdb "get" or "set" action.
+type confdbAction struct {
 	Action      string         `json:"action"`
 	Account     string         `json:"account"`
 	View        string         `json:"view"`
 	Keys        []string       `json:"keys"`
 	Constraints map[string]any `json:"constraints"`
 	Values      map[string]any `json:"values"`
+}
+
+// decodeConfdbAction decodes the JSON body of a request message into a confdbAction.
+func decodeConfdbAction(raw string) (confdbAction, error) {
+	var body confdbAction
+	err := json.Unmarshal([]byte(raw), &body)
+	if err != nil {
+		return confdbAction{}, fmt.Errorf("cannot decode message body: %v", err)
+	}
+
+	return body, nil
+}
+
+// validate checks that a confdbAction is well-formed.
+func (a confdbAction) validate() error {
+	if a.Account == "" {
+		return fmt.Errorf("account is required")
+	}
+
+	if _, _, err := parseView(a.View); err != nil {
+		return err
+	}
+
+	switch a.Action {
+	case "get":
+		err := confdb.ValidateConstraints(a.Constraints)
+		if err != nil {
+			return err
+		}
+	case "set":
+		if len(a.Values) == 0 {
+			return fmt.Errorf("body contains no values to write")
+		}
+	default:
+		return fmt.Errorf("unknown action %q", a.Action)
+	}
+
+	return nil
 }
 
 // deviceBackend fetches the device's confdb-control assertion.
@@ -58,36 +96,17 @@ type confdbMessageHandler struct {
 	device deviceBackend
 }
 
-// Validate checks that the operator sending the message has been granted
-// access to the requested confdb view in the device's confdb-control assertion.
+// Validate checks that the confdb request message is well-formed and that
+// the sending operator has been granted access to the requested view.
 func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) error {
-	var body confdbMessageBody
-	err := json.Unmarshal([]byte(msg.Body), &body)
+	action, err := decodeConfdbAction(msg.Body)
 	if err != nil {
-		return fmt.Errorf("cannot decode message body: %v", err)
+		return err
 	}
 
-	if body.Account == "" {
-		return fmt.Errorf("cannot validate message: account is required")
-	}
-
-	viewParts := strings.Split(body.View, "/")
-	if len(viewParts) != 2 {
-		return fmt.Errorf("cannot validate message: invalid view %q, expected <schema>/<view-name>", body.View)
-	}
-
-	switch body.Action {
-	case "get":
-		err := confdb.ValidateConstraints(body.Constraints)
-		if err != nil {
-			return fmt.Errorf("cannot validate message: %v", err)
-		}
-	case "set":
-		if len(body.Values) == 0 {
-			return fmt.Errorf("cannot validate message: body contains no values to write")
-		}
-	default:
-		return fmt.Errorf("cannot validate message: unknown action %q", body.Action)
+	err = action.validate()
+	if err != nil {
+		return fmt.Errorf("cannot validate message: %v", err)
 	}
 
 	cc, err := h.device.ConfdbControl()
@@ -107,7 +126,7 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 
 	ctrl := cc.Control()
 	authMethod := []string{"operator-key"}
-	delegated, err := ctrl.IsDelegated(msg.AccountID, body.Account+"/"+body.View, authMethod)
+	delegated, err := ctrl.IsDelegated(msg.AccountID, action.Account+"/"+action.View, authMethod)
 	if err != nil {
 		return fmt.Errorf("cannot validate message: %v", err)
 	}
@@ -120,26 +139,29 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 
 // Apply schedules the confdb action described in the message and returns the change ID.
 func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) (string, error) {
-	var body confdbMessageBody
-	err := json.Unmarshal([]byte(msg.Body), &body)
+	action, err := decodeConfdbAction(msg.Body)
 	if err != nil {
-		return "", fmt.Errorf("cannot decode message body: %v", err)
+		return "", err
 	}
 
-	viewParts := strings.Split(body.View, "/")
-	view, err := confdbstateGetView(st, body.Account, viewParts[0], viewParts[1])
+	schemaName, viewName, err := parseView(action.View)
+	if err != nil {
+		return "", fmt.Errorf("cannot apply message: %v", err)
+	}
+
+	view, err := confdbstateGetView(st, action.Account, schemaName, viewName)
 	if err != nil {
 		return "", err
 	}
 
 	var chgID string
-	switch body.Action {
+	switch action.Action {
 	case "get":
-		chgID, err = confdbstateReadConfdb(ctx, st, view, body.Keys, body.Constraints, confdb.AdminAccess)
+		chgID, err = confdbstateReadConfdb(ctx, st, view, action.Keys, action.Constraints, confdb.AdminAccess)
 	case "set":
-		chgID, err = confdbstateWriteConfdb(ctx, st, view, body.Values)
+		chgID, err = confdbstateWriteConfdb(ctx, st, view, action.Values)
 	default:
-		return "", fmt.Errorf("cannot apply message: unknown action %q", body.Action)
+		return "", fmt.Errorf("cannot apply message: unknown action %q", action.Action)
 	}
 	if err != nil {
 		return "", err
@@ -187,4 +209,13 @@ func (h *confdbMessageHandler) ResultFromChange(ctx context.Context, chg *state.
 	}
 
 	return nil, fmt.Errorf("%s", msg)
+}
+
+func parseView(raw string) (schemaName, viewName string, err error) {
+	parts := strings.Split(raw, "/")
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid view %q, expected <schema>/<view-name>", raw)
+	}
+
+	return parts[0], parts[1], nil
 }
