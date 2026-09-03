@@ -294,13 +294,13 @@ func init() {
 	}
 }
 
-// ConfigureTypes extends the process-wide set of assertion types. It must be
+// ConfigureExternalTypes extends the process-wide set of assertion types. It must be
 // called during application initialization and complete before concurrent
 // assertion processing can encounter the additional types. It can be
 // successfully called only once. Failed calls leave the active set unchanged
 // and may be retried. Assertion types must not be mutated after a successful
 // call.
-func ConfigureTypes(assertionTypes ...*AssertionType) error {
+func ConfigureExternalTypes(assertionTypes ...*AssertionType) error {
 	if registryConfigured {
 		return fmt.Errorf("assertion types are already configured")
 	}
