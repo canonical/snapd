@@ -609,6 +609,7 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 }
 
 func orderedCurrentBootImages(modeenv *boot.Modeenv, currentBootMode bootMode) ([]bootloader.BootFile, error) {
+	// modeenv may be nil if the current system does not have one.
 	// Note that currentBootMode is the boot mode of what we have booted, not what we are installing.
 	switch currentBootMode {
 	case ubuntuISOBootMode:
