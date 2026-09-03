@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/confdbstate"
-	"github.com/snapcore/snapd/overlord/devicemgmtstate"
+	devicemgmthandlers "github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -102,7 +102,7 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 		confdbControl: func() (*asserts.ConfdbControl, error) { return cc, nil },
 	})
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		AccountID: "alice",
 		Kind:      "confdb",
 		Body:      `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":"wlan0"}}`,
@@ -118,7 +118,7 @@ func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
 		confdbControl: func() (*asserts.ConfdbControl, error) { return cc, nil },
 	})
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		AccountID: "alice",
 		Kind:      "confdb",
 		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
@@ -126,7 +126,7 @@ func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
 	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
 
-	var authErr *devicemgmtstate.UnauthorizedError
+	var authErr *devicemgmthandlers.UnauthorizedError
 	c.Assert(errors.As(err, &authErr), Equals, true)
 	c.Check(authErr.Operator, Equals, "alice")
 }
@@ -138,7 +138,7 @@ func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
 		},
 	})
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		AccountID: "alice",
 		Kind:      "confdb",
 		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
@@ -146,7 +146,7 @@ func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
 	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
 
-	var authErr *devicemgmtstate.UnauthorizedError
+	var authErr *devicemgmthandlers.UnauthorizedError
 	c.Assert(errors.As(err, &authErr), Equals, true)
 	c.Check(authErr.Operator, Equals, "alice")
 }
@@ -215,12 +215,12 @@ func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
 	for _, tt := range tests {
 		cmt := Commentf("%s test", tt.name)
 
-		msg := &devicemgmtstate.RequestMessage{AccountID: "alice", Kind: "confdb", Body: tt.body}
+		msg := &devicemgmthandlers.RequestMessage{AccountID: "alice", Kind: "confdb", Body: tt.body}
 		err := handler.Validate(context.Background(), s.st, msg)
 		c.Assert(err, NotNil, cmt)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 
-		var authErr *devicemgmtstate.UnauthorizedError
+		var authErr *devicemgmthandlers.UnauthorizedError
 		c.Check(errors.As(err, &authErr), Equals, false, cmt)
 	}
 }
@@ -247,7 +247,7 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	})
 	defer restore()
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		BaseID: "msg-1",
 		Kind:   "confdb",
 		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
@@ -283,7 +283,7 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	})
 	defer restore()
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		BaseID: "msg-2",
 		Kind:   "confdb",
 		Body:   `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
@@ -332,7 +332,7 @@ func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
 	for _, tt := range tests {
 		cmt := Commentf("%s test", tt.name)
 
-		msg := &devicemgmtstate.RequestMessage{Kind: "confdb", Body: tt.body}
+		msg := &devicemgmthandlers.RequestMessage{Kind: "confdb", Body: tt.body}
 
 		chgID, err := handler.Apply(context.Background(), s.st, msg)
 		c.Assert(err, NotNil, cmt)
@@ -349,7 +349,7 @@ func (s *confdbHandlerSuite) TestApplyGetViewError(c *C) {
 	})
 	defer restore()
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		Kind: "confdb",
 		Body: `{"action":"get","account":"system","view":"network/wifi-who"}`,
 	}
@@ -372,7 +372,7 @@ func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
 	})
 	defer restore()
 
-	msg := &devicemgmtstate.RequestMessage{
+	msg := &devicemgmthandlers.RequestMessage{
 		Kind: "confdb",
 		Body: `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
 	}

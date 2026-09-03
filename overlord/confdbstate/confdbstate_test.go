@@ -45,7 +45,6 @@ import (
 	valset_confdb "github.com/snapcore/snapd/overlord/assertstate/confdb"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -92,7 +91,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	confdbstate.AssertstateConfdbSchema = assertstate.ConfdbSchema
 	confdbstate.AssertstateFetchConfdbSchemaAssertion = assertstate.FetchConfdbSchemaAssertion
 
-	mgr := confdbstate.Manager(s.state, hookMgr, runner, devicemgmtstate.Manager(s.state, runner, nil), nil)
+	mgr := confdbstate.Manager(s.state, hookMgr, runner, nil)
 	s.o.AddManager(mgr)
 
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)

@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
-	"github.com/snapcore/snapd/overlord/devicemgmtstate"
+	devicemgmthandlers "github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -53,14 +53,14 @@ type deviceBackend interface {
 	ConfdbControl() (*asserts.ConfdbControl, error)
 }
 
-// confdbMessageHandler implements devicemgmtstate.MessageHandler for the "confdb" message kind.
+// confdbMessageHandler implements devicemgmthandlers.MessageHandler for the "confdb" message kind.
 type confdbMessageHandler struct {
 	device deviceBackend
 }
 
 // Validate checks that the operator sending the message has been granted
 // access to the requested confdb view in the device's confdb-control assertion.
-func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) error {
+func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) error {
 	var body confdbMessageBody
 	err := json.Unmarshal([]byte(msg.Body), &body)
 	if err != nil {
@@ -93,7 +93,7 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 	cc, err := h.device.ConfdbControl()
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return &devicemgmtstate.UnauthorizedError{Operator: msg.AccountID}
+			return &devicemgmthandlers.UnauthorizedError{Operator: msg.AccountID}
 		}
 
 		return fmt.Errorf("cannot validate message: %v", err)
@@ -110,14 +110,14 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 		return fmt.Errorf("cannot validate message: %v", err)
 	}
 	if !delegated {
-		return &devicemgmtstate.UnauthorizedError{Operator: msg.AccountID}
+		return &devicemgmthandlers.UnauthorizedError{Operator: msg.AccountID}
 	}
 
 	return nil
 }
 
 // Apply schedules the confdb action described in the message and returns the change ID.
-func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) (string, error) {
 	var body confdbMessageBody
 	err := json.Unmarshal([]byte(msg.Body), &body)
 	if err != nil {
@@ -147,7 +147,7 @@ func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg *
 	if chg == nil {
 		return "", fmt.Errorf("internal error: cannot find change %q created for confdb message", chgID)
 	}
-	devicemgmtstate.MarkChangeForMessage(chg, msg)
+	devicemgmthandlers.MarkChangeForMessage(chg, msg)
 
 	return chgID, nil
 }
@@ -157,6 +157,8 @@ func (h *confdbMessageHandler) ResultFromChange(ctx context.Context, chg *state.
 	var apiData map[string]any
 	err := chg.Get("api-data", &apiData)
 	if errors.Is(err, state.ErrNoState) {
+		// A "set" change with no api-data succeeded with nothing to report.
+		// Per SD194, a successful "set" response body is an empty object {}.
 		if chg.Kind() == setConfdbChangeKind {
 			return map[string]any{}, nil
 		}

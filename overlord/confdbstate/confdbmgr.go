@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/devicemgmtstate"
+	devicemgmthandlers "github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,7 +73,7 @@ func RegisterConfdbHandler(c SystemConfdbHandler) {
 
 type ConfdbManager struct{}
 
-func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner, mgmtMgr *devicemgmtstate.DeviceMgmtManager, device deviceBackend) *ConfdbManager {
+func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner, device deviceBackend) *ConfdbManager {
 	snapstate.IsConfdbHookname = IsConfdbHookname
 	hookstate.IsConfdbHookname = IsConfdbHookname
 
@@ -103,7 +103,7 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 		return &hookstate.SnapHookHandler{}
 	})
 
-	mgmtMgr.RegisterHandler("confdb", &confdbMessageHandler{device: device})
+	devicemgmthandlers.Register("confdb", &confdbMessageHandler{device: device})
 
 	return m
 }
