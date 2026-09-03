@@ -63,12 +63,6 @@ func newExternalType(c *C, name string) *asserts.AssertionType {
 	})
 }
 
-func configureTypes(c *C, assertionTypes ...*asserts.AssertionType) func() {
-	restore := asserts.MockRegistryConfiguration()
-	c.Assert(asserts.ConfigureTypes(assertionTypes...), IsNil)
-	return restore
-}
-
 func (s *registrySuite) TestNewAssertionType(c *C) {
 	primaryKey := []string{"external-id"}
 	assertionType, err := asserts.NewAssertionType(asserts.TypeDefinition{
