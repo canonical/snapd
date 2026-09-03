@@ -49,11 +49,8 @@ prepare: |
   # Retrieve the gadget
   snap download --basename=pc --channel="$GADGET_VERSION/edge" pc
   
-  # Retrieve kernel
-  snap download --basename=pc-kernel --channel="$KERNEL_VERSION/${KERNEL_CHANNEL}" pc-kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
-  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$KERNEL_VERSION" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
 
   # Fetch model
   model_version_string="${MODEL_VERSION//\./}"

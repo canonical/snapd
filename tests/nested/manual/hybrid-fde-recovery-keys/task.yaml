@@ -49,13 +49,11 @@ prepare: |
   # Retrieve the gadget
   snap download --basename=pc --channel="$version/edge" pc
 
-  # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
-  # the fakestore needs this assertion
-  snap ack pc-kernel-from-store.assert
+  # Retrieve and repack kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
-  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel-repacked.snap"
+  # the fakestore needs this assertion
+  snap ack pc-kernel.assert
 
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
@@ -68,7 +66,7 @@ prepare: |
      --gadget pc.snap \
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
-     --kernel-assertion pc-kernel-from-store.assert \
+    --kernel-assertion pc-kernel.assert \
      --recovery-key-out "$(pwd)"/rkey-pre-install.out
 
   echo "Check recovery key is generated and stored"
