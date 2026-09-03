@@ -7,97 +7,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// TaskQuery is an implementation of Querier that enables selecting a set of tasks
-// based on generic properties of the task itself.
-type TaskQuery struct {
-	// Kind is the kind of tasks that are matched by this query.
-	Kind string
-	// Fields contains the fields that must be carried by tasks that match this
-	// query. Explicitly nil fields must be absent.
-	Fields map[string]any
-	// Cardinality defines how many tasks this query should match. A cardinality
-	// of zero indicates that exactly one task should be matched. A cardinality
-	// of -1 indicates that any non-zero number of tasks should be matched.
-	Cardinality int
-}
-
-// Query returns a subset of the tasks in the given Selection that match this
-// TaskQuery.
-func (q TaskQuery) Query(selection Selection) (Selection, error) {
-	if q.Cardinality < -1 {
-		return Selection{}, fmt.Errorf("invalid task query cardinality %d", q.Cardinality)
-	}
-
-	matches, err := selection.Filter(func(task *state.Task) (bool, error) {
-		if q.Kind != "" && task.Kind() != q.Kind {
-			return false, nil
-		}
-
-		for field, expected := range q.Fields {
-			if expected == nil {
-				if task.Has(field) {
-					return false, nil
-				}
-				continue
-			}
-
-			if !task.Has(field) {
-				return false, nil
-			}
-
-			expectedType := reflect.TypeOf(expected)
-			actual := reflect.New(expectedType)
-			if err := task.Get(field, actual.Interface()); err != nil {
-				return false, fmt.Errorf("cannot read field %q of task %s (%s) as %v", field, task.ID(), task.Kind(), expectedType)
-			}
-
-			if !reflect.DeepEqual(actual.Elem().Interface(), expected) {
-				return false, nil
-			}
-		}
-
-		return true, nil
-	})
-	if err != nil {
-		return Selection{}, err
-	}
-
-	if len(matches.selected) == 0 {
-		return Selection{}, fmt.Errorf("task query matched no tasks")
-	}
-
-	// by default, we treat an unset cardinality as expecting exactly one task.
-	// if we need to query for the absence of tasks, we'll rework this.
-	cardinality := q.Cardinality
-	if cardinality == 0 {
-		cardinality = 1
-	}
-
-	// cardinality of -1 implies any non-zero number of tasks is expected
-	if cardinality != -1 && len(matches.selected) != cardinality {
-		return Selection{}, fmt.Errorf("task query matched %d tasks, expected %d", len(matches.selected), cardinality)
-	}
-
-	return matches, nil
-}
-
-// Kind creates a TaskQuery that matches tasks of the given kind.
-func Kind(kind string) TaskQuery {
-	return TaskQuery{Kind: kind}
-}
-
-// TaskCount returns a query that expects the given number of matching tasks.
-func (q TaskQuery) TaskCount(count int) TaskQuery {
-	q.Cardinality = count
-	return q
-}
-
-// All returns a query that accepts any non-zero number of matching tasks.
-func (q TaskQuery) All() TaskQuery {
-	q.Cardinality = -1
-	return q
-}
-
 // Selection represents a fixed selection set of tasks. A root Selection will be
 // created by a caller with an initial set of tasks. Each child Selection is a
 // subset of that root Selection.
@@ -264,4 +173,95 @@ func (s Selection) Predecessors(of Selection) Selection {
 		panic(fmt.Sprintf("infallible call failed: %v", err))
 	}
 	return predecessors
+}
+
+// TaskQuery is an implementation of Querier that enables selecting a set of tasks
+// based on generic properties of the task itself.
+type TaskQuery struct {
+	// Kind is the kind of tasks that are matched by this query.
+	Kind string
+	// Fields contains the fields that must be carried by tasks that match this
+	// query. Explicitly nil fields must be absent.
+	Fields map[string]any
+	// Cardinality defines how many tasks this query should match. A cardinality
+	// of zero indicates that exactly one task should be matched. A cardinality
+	// of -1 indicates that any non-zero number of tasks should be matched.
+	Cardinality int
+}
+
+// Kind creates a TaskQuery that matches tasks of the given kind.
+func Kind(kind string) TaskQuery {
+	return TaskQuery{Kind: kind}
+}
+
+// TaskCount returns a query that expects the given number of matching tasks.
+func (q TaskQuery) TaskCount(count int) TaskQuery {
+	q.Cardinality = count
+	return q
+}
+
+// All returns a query that accepts any non-zero number of matching tasks.
+func (q TaskQuery) All() TaskQuery {
+	q.Cardinality = -1
+	return q
+}
+
+// Query returns a subset of the tasks in the given Selection that match this
+// TaskQuery.
+func (q TaskQuery) Query(selection Selection) (Selection, error) {
+	if q.Cardinality < -1 {
+		return Selection{}, fmt.Errorf("invalid task query cardinality %d", q.Cardinality)
+	}
+
+	matches, err := selection.Filter(func(task *state.Task) (bool, error) {
+		if q.Kind != "" && task.Kind() != q.Kind {
+			return false, nil
+		}
+
+		for field, expected := range q.Fields {
+			if expected == nil {
+				if task.Has(field) {
+					return false, nil
+				}
+				continue
+			}
+
+			if !task.Has(field) {
+				return false, nil
+			}
+
+			expectedType := reflect.TypeOf(expected)
+			actual := reflect.New(expectedType)
+			if err := task.Get(field, actual.Interface()); err != nil {
+				return false, fmt.Errorf("cannot read field %q of task %s (%s) as %v", field, task.ID(), task.Kind(), expectedType)
+			}
+
+			if !reflect.DeepEqual(actual.Elem().Interface(), expected) {
+				return false, nil
+			}
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return Selection{}, err
+	}
+
+	if len(matches.selected) == 0 {
+		return Selection{}, fmt.Errorf("task query matched no tasks")
+	}
+
+	// by default, we treat an unset cardinality as expecting exactly one task.
+	// if we need to query for the absence of tasks, we'll rework this.
+	cardinality := q.Cardinality
+	if cardinality == 0 {
+		cardinality = 1
+	}
+
+	// cardinality of -1 implies any non-zero number of tasks is expected
+	if cardinality != -1 && len(matches.selected) != cardinality {
+		return Selection{}, fmt.Errorf("task query matched %d tasks, expected %d", len(matches.selected), cardinality)
+	}
+
+	return matches, nil
 }
