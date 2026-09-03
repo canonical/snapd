@@ -933,7 +933,7 @@ func (s *snapmgrTestSuite) TestInstallSnapUsingBasePreventsBaseRemoval(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-base" is not removable: snap is being used by snap some-snap\.`)
 }
 
-func (s *snapmgrTestSuite) TestBaseRemovalPreventsInstallingSnapUsingBase(c *C) {
+func (s *snapmgrTestSuite) TestBaseRemovalDoesNotPreventSchedulingInstallUsingBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -951,12 +951,12 @@ func (s *snapmgrTestSuite) TestBaseRemovalPreventsInstallingSnapUsingBase(c *C) 
 	removeChg := s.state.NewChange("remove-snap", "...")
 	removeChg.AddAll(removeTS)
 
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `some-snap's base "some-base" has removal change \(1\) in progress. Please retry once it finishes`)
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
 }
 
-func (s *snapmgrTestSuite) TestBaseRemovalStillPreventsInstallAfterAutoDisconnect(c *C) {
+func (s *snapmgrTestSuite) TestBaseRemovalDoesNotPreventSchedulingInstallAfterAutoDisconnect(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -986,8 +986,9 @@ func (s *snapmgrTestSuite) TestBaseRemovalStillPreventsInstallAfterAutoDisconnec
 	// ensure this test can't be made useless silently
 	c.Assert(sawDisconnect, Equals, true)
 
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `some-snap's base "some-base" has removal change \(1\) in progress. Please retry once it finishes`)
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), Not(HasLen), 0)
 }
 
 func (s *snapmgrTestSuite) TestPreDownloadSnapUsingBaseDoesNotPreventBaseRemoval(c *C) {

@@ -52,6 +52,13 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	removingBase, err := baseRemovalInProgress(st, snapsup)
+	if err != nil {
+		return err
+	}
+	if removingBase {
+		return &state.Retry{After: prerequisitesRetryTimeout}
+	}
 
 	// snapd/os/base/kernel/gadget cannot have prerequisites other than the
 	// models default base (or core) which is installed anyway

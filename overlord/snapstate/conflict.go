@@ -372,27 +372,27 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 	return nil
 }
 
-func checkBaseRemovalConflict(st *state.State, snapsup *SnapSetup) error {
+func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (bool, error) {
 	// only apps and gadgets have bases
 	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
-		return nil
+		return false, nil
 	}
 
 	base := snapsup.Base
 	switch base {
 	case "none":
-		return nil
+		return false, nil
 	case "":
 		base = defaultCoreSnapName
 	case "core16":
 		core16Installed, err := isInstalled(st, "core16")
 		if err != nil {
-			return err
+			return false, err
 		}
 		if !core16Installed {
 			coreInstalled, err := isInstalled(st, defaultCoreSnapName)
 			if err != nil {
-				return err
+				return false, err
 			}
 			if coreInstalled {
 				base = defaultCoreSnapName
@@ -418,20 +418,15 @@ func checkBaseRemovalConflict(st *state.State, snapsup *SnapSetup) error {
 
 		tsup, err := TaskSnapSetup(t)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if tsup.InstanceName() == base {
-			return &ChangeConflictError{
-				Snap:       base,
-				ChangeKind: chg.Kind(),
-				ChangeID:   chg.ID(),
-				Message:    fmt.Sprintf("%s's base %q has removal change (%s) in progress. Please retry once it finishes", snapsup.SnapName(), base, chg.ID()),
-			}
+			return true, nil
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 var resealingTaskKindCheckers = make(map[string]func(t *state.Task) bool)

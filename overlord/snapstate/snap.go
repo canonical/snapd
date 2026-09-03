@@ -772,13 +772,6 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 		}, busyErr
 	}
 
-	// check if there's a base removal ongoing that might race against the install.
-	// Do this check after the pre-download path terminates because those don't
-	// affect base usage
-	if err := checkBaseRemovalConflict(st, snapsup); err != nil {
-		return snapInstallTaskSet{}, err
-	}
-
 	tr := config.NewTransaction(st)
 	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
 	if err != nil && !config.IsNoOption(err) {

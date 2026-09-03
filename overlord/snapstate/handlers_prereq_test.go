@@ -126,6 +126,39 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqRetriesWhileRequiredBaseIsBeingRemoved(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	blocker := s.state.NewTask("blocker", "keep removal in progress")
+	blocker.SetStatus(state.HoldStatus)
+	autoDisconnect := s.state.NewTask("auto-disconnect", "remove some-base connections")
+	autoDisconnect.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)},
+	})
+	autoDisconnect.WaitFor(blocker)
+	removeChg := s.state.NewChange("remove-snap", "remove some-base")
+	removeChg.AddTask(blocker)
+	removeChg.AddTask(autoDisconnect)
+
+	prereq := s.state.NewTask("prerequisites", "foo")
+	prereq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo", Revision: snap.R(1)},
+		Base:     "some-base",
+		Type:     snap.TypeApp,
+	})
+	installChg := s.state.NewChange("install-snap", "install foo")
+	installChg.AddTask(prereq)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(prereq.Status(), Equals, state.DoingStatus)
+	c.Check(prereq.AtTime().IsZero(), Equals, false)
+}
+
 func (s *prereqSuite) TestDoPrereqNothingToDoOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
