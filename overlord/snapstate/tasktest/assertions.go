@@ -51,14 +51,14 @@ func AssertNotSequenced(first, second Selection) error {
 // This verifies that a failure of any task in superset includes every task in
 // subset in its transactional rollback scope. The reverse is not necessarily
 // true, as tasks in superset may belong to additional lanes.
-func AssertLaneSuperset(superset, subset Selection) error {
-	if err := validateNonEmpty(superset, subset); err != nil {
+func AssertLaneSuperset(withSupersetOfLanes, withSubsetOfLanes Selection) error {
+	if err := validateNonEmpty(withSupersetOfLanes, withSubsetOfLanes); err != nil {
 		return err
 	}
 
-	for _, supersetTask := range superset.selected {
+	for _, supersetTask := range withSupersetOfLanes.selected {
 		supersetLanes := laneSet(supersetTask)
-		for _, subsetTask := range subset.selected {
+		for _, subsetTask := range withSubsetOfLanes.selected {
 			for _, lane := range subsetTask.Lanes() {
 				if !supersetLanes[lane] {
 					return fmt.Errorf("task %s (%s) with lanes %v is not a lane superset of task %s (%s) with lanes %v", supersetTask.ID(), supersetTask.Kind(), supersetTask.Lanes(), subsetTask.ID(), subsetTask.Kind(), subsetTask.Lanes())
