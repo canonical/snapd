@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -301,6 +302,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		revertReprovisionAttempt()
 	}()
 
+	osutil.MaybeInjectFault("reprovision-rename")
+
 	// Step 1. rename existing keyslots that we will overwrite
 
 	for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
@@ -343,6 +346,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	osutil.MaybeInjectFault("reprovision-re-bootstrap-containers")
+
 	dataContainer, err := convertToBootstrappedContainer(dataDisk.DevPath())
 	if err != nil {
 		return err
@@ -364,6 +369,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	osutil.MaybeInjectFault("reprovision-plainkey-and-primary-key")
 
 	// Steps:
 	//  2. Generate primary key
@@ -402,6 +409,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 	// No volumes option, we reprovision without PIN or passphrase
 	var volumesAuth *device.VolumesAuthOptions = nil
 
+	osutil.MaybeInjectFault("reprovision-post-install-check")
+
 	errorDetails, err := secbootPreinstallCheckAction(setupData.checkContext, context.Background(), &secboot.PreinstallAction{Action: secboot.ActionNone})
 	if err != nil {
 		return err
@@ -426,6 +435,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	osutil.MaybeInjectFault("reprovision-make-runnable")
+
 	// Steps:
 	//   4. Reprovision the TPM
 	//   5. Create new set of keyslots
@@ -446,6 +457,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		&fdeState,
 	)
 
+	osutil.MaybeInjectFault("reprovision-reset-state")
+
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
@@ -461,6 +474,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 	// system rebuild it on reboot instead of having a state that
 	// does not match.
 	st.Set("fde", nil)
+
+	osutil.MaybeInjectFault("reprovision-save-protector-key")
 
 	// Step 6. write the protector key
 	if err := keysSaveProtectorKey(protectorKey, saveKeyPath); err != nil {
