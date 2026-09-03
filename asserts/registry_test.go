@@ -104,33 +104,33 @@ func (s *registrySuite) TestNewAssertionTypeValidation(c *C) {
 	}
 }
 
-func (s *registrySuite) TestConfigureTypesIsAtomicAndRetryable(c *C) {
+func (s *registrySuite) TestConfigureExternalTypesIsAtomicAndRetryable(c *C) {
 	restore := asserts.MockRegistryConfiguration()
 	defer restore()
 	c.Check(asserts.Type("account"), Equals, asserts.AccountType)
 
 	externalType := newExternalType(c, "external-atomic")
 
-	err := asserts.ConfigureTypes()
+	err := asserts.ConfigureExternalTypes()
 	c.Check(err, ErrorMatches, "cannot configure assertion types: no assertion types provided")
-	err = asserts.ConfigureTypes(nil)
+	err = asserts.ConfigureExternalTypes(nil)
 	c.Check(err, ErrorMatches, "cannot configure assertion types: assertion type cannot be nil")
 
 	externalType.Name = "../renamed"
-	err = asserts.ConfigureTypes(externalType)
+	err = asserts.ConfigureExternalTypes(externalType)
 	c.Check(err, ErrorMatches, `cannot configure assertion types: invalid assertion type name: "\.\./renamed"`)
 	externalType.Name = "external-atomic"
 
-	err = asserts.ConfigureTypes(externalType, asserts.AccountType)
+	err = asserts.ConfigureExternalTypes(externalType, asserts.AccountType)
 	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "account" is already registered`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
 
-	err = asserts.ConfigureTypes(externalType)
+	err = asserts.ConfigureExternalTypes(externalType)
 	c.Assert(err, IsNil)
 	c.Check(asserts.Type("external-atomic"), Equals, externalType)
 	c.Check(asserts.Type("account"), Equals, asserts.AccountType)
 
-	err = asserts.ConfigureTypes(newExternalType(c, "another-external"))
+	err = asserts.ConfigureExternalTypes(newExternalType(c, "another-external"))
 	c.Check(err, ErrorMatches, "assertion types are already configured")
 }
 
@@ -139,7 +139,7 @@ func (s *registrySuite) TestConfiguredTypeUsesExistingPaths(c *C) {
 	defer restore()
 
 	externalType := newExternalType(c, "external-end-to-end")
-	err := asserts.ConfigureTypes(externalType)
+	err := asserts.ConfigureExternalTypes(externalType)
 	c.Assert(err, IsNil)
 
 	c.Check(asserts.Type("external-end-to-end"), Equals, externalType)
