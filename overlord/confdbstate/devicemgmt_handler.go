@@ -101,7 +101,9 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 
 	// TODO: implement store authentication method. Currently, the store doesn't
 	// support signing request messages on behalf of operators.
-	// For now, only "operator-key" is supported.
+	if msg.AuthorityID != msg.AccountID {
+		return &devicemgmthandlers.UnauthorizedError{Operator: msg.AccountID}
+	}
 
 	ctrl := cc.Control()
 	authMethod := []string{"operator-key"}

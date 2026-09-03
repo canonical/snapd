@@ -103,12 +103,39 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 	})
 
 	msg := &devicemgmthandlers.RequestMessage{
-		AccountID: "alice",
-		Kind:      "confdb",
-		Body:      `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":"wlan0"}}`,
+		AccountID:   "alice",
+		AuthorityID: "alice",
+		Kind:        "confdb",
+		Body:        `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":"wlan0"}}`,
 	}
 	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, IsNil)
+}
+
+func (s *confdbHandlerSuite) TestValidateMismatchedAuthority(c *C) {
+	cc := makeConfdbControl(c, []any{
+		map[string]any{
+			"operators":       []any{"alice"},
+			"authentications": []any{"operator-key"},
+			"views":           []any{"system/network/wifi-admin"},
+		},
+	})
+	handler := confdbstate.NewConfdbMessageHandler(&mockDeviceBackend{
+		confdbControl: func() (*asserts.ConfdbControl, error) { return cc, nil },
+	})
+
+	msg := &devicemgmthandlers.RequestMessage{
+		AccountID:   "alice",
+		AuthorityID: "mallory",
+		Kind:        "confdb",
+		Body:        `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":"wlan0"}}`,
+	}
+	err := handler.Validate(context.Background(), s.st, msg)
+	c.Assert(err, NotNil)
+
+	var authErr *devicemgmthandlers.UnauthorizedError
+	c.Assert(errors.As(err, &authErr), Equals, true)
+	c.Check(authErr.Operator, Equals, "alice")
 }
 
 func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
@@ -119,9 +146,10 @@ func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
 	})
 
 	msg := &devicemgmthandlers.RequestMessage{
-		AccountID: "alice",
-		Kind:      "confdb",
-		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
+		AccountID:   "alice",
+		AuthorityID: "alice",
+		Kind:        "confdb",
+		Body:        `{"action":"get","account":"system","view":"network/wifi-admin"}`,
 	}
 	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
