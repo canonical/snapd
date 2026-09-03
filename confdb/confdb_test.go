@@ -2744,6 +2744,27 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 	}
 }
 
+func (s *viewSuite) TestSetPathChecksValueCoveredByMultipleBranches(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.bar", "storage": "foo.bar"},
+				map[string]any{"request": "foo.bar.baz", "storage": "foo.bar.baz"},
+				map[string]any{"request": "foo.other", "storage": "foo.other"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	bag := confdb.NewJSONDatabag()
+	err = view.Set(bag, "foo", map[string]any{
+		"bar":   map[string]any{"baz": "value"},
+		"other": "value",
+	})
+	c.Assert(err, IsNil)
+}
+
 func (*viewSuite) TestViewSummaryWrongType(c *C) {
 	for _, val := range []any{
 		1,
