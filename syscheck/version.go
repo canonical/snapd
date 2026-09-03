@@ -64,7 +64,7 @@ func checkKernelVersion() error {
 			kver := osutil.KernelVersion()
 			// a kernel version looks like this: "4.4.0-112-generic" and
 			// we are only interested in the bits before the "-"
-			kver = strings.SplitN(kver, "-", 2)[0]
+			kver, _, _ = strings.Cut(kver, "-")
 			cmp, err := strutil.VersionCompare(kver, "3.13.0")
 			if err != nil {
 				logger.Noticef("cannot check kernel: %v", err)

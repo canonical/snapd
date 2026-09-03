@@ -530,7 +530,48 @@ func (s *snapAppSetSuite) TestInstanceName(c *C) {
 	set, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(set.InstanceName(), Equals, "test-snap")
+	c.Check(set.InstanceName(), Equals, naming.InstanceName("test-snap"))
+}
+
+func (s *snapAppSetSuite) TestComponents(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  app:
+    slots: [app-slot]
+hooks:
+  install:
+    slots: [hook-slot]
+components:
+  comp1:
+    type: standard
+    hooks:
+      install:
+  comp2:
+    type: standard
+    hooks:
+      install:
+slots:
+  slot:
+  hook-slot:
+  app-slot:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+
+	compInfo := snaptest.MockComponent(c, "component: name+comp1\ntype: standard\nversion: 1.0", info, snap.ComponentSideInfo{
+		Revision: snap.R(1),
+	})
+
+	set, err := interfaces.NewSnapAppSet(info, []*snap.ComponentInfo{compInfo})
+	c.Assert(err, IsNil)
+
+	comps := set.Components()
+	c.Check(comps, DeepEquals, []*snap.ComponentInfo{compInfo})
+	comp1Info := set.Component("comp1")
+	c.Check(comp1Info, DeepEquals, compInfo)
+	// The comp2 component  was not in the set
+	comp2Info := set.Component("comp2")
+	c.Check(comp2Info, IsNil)
 }
 
 func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {

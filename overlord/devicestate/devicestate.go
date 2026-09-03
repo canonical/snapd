@@ -298,7 +298,8 @@ func delayedCrossMgrInit() {
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
-	snapstate.SeedRefreshTasks = SeedRefreshTasks
+	snapstate.CreateSeedRefreshTasks = SeedRefreshTasks
+	snapstate.PendingSeedRefreshTasks = PendingSeedRefreshTasks
 	snapstate.UpdateSeedRefreshChange = UpdateSeedRefreshChange
 	snapstate.CheckSeedRefreshRemove = CheckSeedRefreshRemove
 }
@@ -771,7 +772,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			cs.SideInfo.Component.ComponentName,
 			cs.SideInfo.Revision,
-			snapst.InstanceName(),
+			snapst.InstanceName().String(),
 		)
 
 		comps = append(comps, snapstate.PathComponent{
@@ -1672,6 +1673,9 @@ type recoverySystemSetup struct {
 	// LocalComponents is a list of components that should be used to create the
 	// recovery system.
 	LocalComponents []snapstate.PathComponent `json:"local-components,omitempty"`
+	// Allowlist identifies the snaps and components that may be used to create
+	// the recovery system.
+	Allowlist *SeedAllowlist `json:"allowlist,omitempty"`
 	// TestSystem is set to true if the new recovery system should
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
@@ -1726,8 +1730,8 @@ func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 	return remove
 }
 
-// SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
-// tasks needed to refresh the seed managed by seed-refresh mode, plus the snap
+// SeedRefreshTasks returns [snapstate.SeedRefreshTasks], which carries the tasks
+// needed to refresh the seed managed by seed-refresh mode, plus the snap
 // names selected for that seed refresh. The selected setup task IDs are written
 // into the recovery-system setup payload so the new seed can consume the
 // refreshed snaps and components. Older seed-refresh systems are removed
@@ -1737,19 +1741,19 @@ func SeedRefreshTasks(
 	dctx snapstate.DeviceContext,
 	candidates []snapstate.SeedRefreshCandidate,
 	eviction snapstate.SeedRefreshEvictionPolicy,
-) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+) (*snapstate.SeedRefreshTasks, map[string]bool, error) {
 	// remodel creates its own seed creation tasks explicitly, seed-refresh
 	// should never create them.
 	if dctx.ForRemodeling() {
 		return nil, nil, nil
 	}
 
-	triggers := seedRefreshTriggers(st, dctx)
+	filter, allowlist := seedRefreshPolicy(st, dctx)
 
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		ok, err := triggers(candidate.InstanceName)
+		candidate, ok, err := filter(candidate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1759,10 +1763,17 @@ func SeedRefreshTasks(
 		added[candidate.InstanceName] = true
 
 		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
-		compsups = append(compsups, candidate.ComponentSetupTaskIDs...)
+		for _, tid := range candidate.ComponentSetupTaskIDs {
+			compsups = append(compsups, tid)
+		}
 	}
 	if len(added) == 0 {
 		return nil, nil, nil
+	}
+
+	seedAllowlist, err := allowlist()
+	if err != nil {
+		return nil, nil, err
 	}
 
 	labelBase := timeNow().Format("20060102")
@@ -1772,6 +1783,7 @@ func SeedRefreshTasks(
 	}
 
 	ts, err := createRecoverySystemTasks(st, label, snapsups, compsups, CreateRecoverySystemOptions{
+		Allowlist:   &seedAllowlist,
 		TestSystem:  true,
 		MarkDefault: true,
 		SeedRefresh: true,
@@ -1806,145 +1818,263 @@ func SeedRefreshTasks(
 		removals = append(removals, remove)
 	}
 
-	return &snapstate.SeedRefreshTaskSet{
+	return &snapstate.SeedRefreshTasks{
 		Create:   create,
 		Finalize: finalize,
 		Remove:   removals,
 	}, added, nil
 }
 
+// PendingSeedRefreshTasks returns the pending seed-refresh task set in the
+// provided task set, or nil when it has no pending seed refresh.
+func PendingSeedRefreshTasks(ts *state.TaskSet) (*snapstate.SeedRefreshTasks, error) {
+	return findSeedRefreshTasks(ts)
+}
+
 // UpdateSeedRefreshChange adds a late candidate to an existing seed-refresh
-// change when the snap should participate in the refreshed seed. Returns nil if
-// snap isn't part of the seed refresh, otherwise returns the seed refresh task
-// set.
-func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+// task set when the snap should participate in the refreshed seed. Returns
+// whether the candidate was added to the seed refresh.
+func UpdateSeedRefreshChange(seedTS *snapstate.SeedRefreshTasks, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (added bool, err error) {
 	// remodel creates its own seed creation tasks explicitly, seed-refresh
 	// should never create them.
 	if dctx.ForRemodeling() {
-		return nil, nil
+		return false, nil
 	}
 
-	triggers := seedRefreshTriggers(chg.State(), dctx)
-
-	ok, err := triggers(candidate.InstanceName)
+	setup, err := taskRecoverySystemSetup(seedTS.Create)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	if !ok {
-		return nil, nil
-	}
-
-	seedTS, err := findSeedRefreshTasks(chg)
-	if err != nil {
-		return nil, err
+	if setup.Allowlist == nil {
+		return false, errors.New("internal error: seed-refresh recovery system setup is missing seed allowlist")
 	}
 
-	if err := appendSeedRefreshCandidate(seedTS.Create, candidate.SnapSetupTaskIDs, candidate.ComponentSetupTaskIDs); err != nil {
-		return nil, err
+	// we've already calculated which candidates are allowed to go into the
+	// seed. avoid opening the seed again by using that list
+	if !strutil.ListContains(setup.Allowlist.Snaps, candidate.InstanceName) {
+		return false, nil
 	}
 
-	return seedTS, nil
+	// also filter the component setup tasks ids using the allow list
+	var compsups []string
+	for comp, tid := range candidate.ComponentSetupTaskIDs {
+		if strutil.ListContains(setup.Allowlist.Components[candidate.InstanceName], comp) {
+			compsups = append(compsups, tid)
+		}
+	}
+
+	if len(compsups) == 0 && len(candidate.SnapSetupTaskIDs) == 0 {
+		return false, nil
+	}
+
+	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, candidate.SnapSetupTaskIDs...)
+	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compsups...)
+
+	if err := setTaskRecoverySystemSetup(seedTS.Create, setup); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
-func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTasks []string) error {
-	setup, err := taskRecoverySystemSetup(create)
-	if err != nil {
-		return err
-	}
-
-	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTasks...)
-	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
-
-	return setTaskRecoverySystemSetup(create, setup)
-}
-
-// CheckSeedRefreshRemove prevents removing optional snaps that are still
-// present in the current seed while seed-refresh is enabled.
+// CheckSeedRefreshRemove prevents removing optional snaps and components that
+// are still present in the current seed while seed-refresh is enabled.
 //
 // TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
 // gaining/losing snaps
-func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
-	triggers := seedRefreshTriggers(st, dctx)
-	ok, err := triggers(si.SnapName())
+func CheckSeedRefreshRemove(st *state.State, candidate snapstate.SeedRefreshCandidate, dctx snapstate.DeviceContext) error {
+	filter, _ := seedRefreshPolicy(st, dctx)
+	_, ok, err := filter(candidate)
 	if err != nil {
 		return err
 	}
 
 	if ok {
-		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
+		return errors.New("cannot remove snaps or components present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }
 
-// seedRefreshTriggers returns a closure that reports whether the given snap
-// should trigger a seed refresh. The seed is lazily loaded, and only opened
-// when required.
-func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(string) (bool, error) {
-	required := make(map[string]bool)
-	optional := make(map[string]bool)
+// seedRefreshPolicy returns closures that define the seed refresh policy. The
+// returned filter function defines which snaps/components will trigger the
+// seed refresh as well as filtering out the component tasks that do not
+// trigger the seed refresh.
+//
+// The allowlist function returns which snaps and components are allowed in the
+// final seed. This allowlist is composed of required model snaps/components and
+// optional model snaps/components that are present in the current seed.
+//
+// This function returns closures to help avoid opening the seed in as many
+// cases as possible. The closures share the state needed from the seed, so
+// we'll open the seed at most once.
+func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error), allowlist func() (SeedAllowlist, error)) {
+	snaps := make(map[string]*asserts.ModelSnap)
+	// components is a map of component names to their model-defined presence
+	components := make(map[string]string)
+
 	for _, sn := range dctx.Model().AllSnaps() {
-		if sn.Presence == "required" {
-			required[sn.SnapName()] = true
-		} else {
-			optional[sn.SnapName()] = true
+		snaps[sn.SnapName()] = sn
+
+		for compName, comp := range sn.Components {
+			// use the snap component name to avoid collision caused by
+			// the same name for components that belong to different snaps
+			components[snap.SnapComponentName(sn.SnapName(), compName)] = comp.Presence
 		}
 	}
 
-	// snapd should always be considered a part of the model. this is really a
-	// compatibility thing, and maybe should not be here since seed-refresh
-	// isn't gonna work on old models anyways.
-	required["snapd"] = true
+	// snapd is implicitly required, including models that don't list it
+	snaps["snapd"] = &asserts.ModelSnap{
+		Presence: "required",
+	}
 
-	var optionalInSeed map[string]bool
-
-	return func(instanceName string) (bool, error) {
-		if required[instanceName] {
-			return true, nil
+	var cachedOptionalContainers *seed.OptionalContainers
+	readOptionalContainers := func() (seed.OptionalContainers, error) {
+		if cachedOptionalContainers != nil {
+			return *cachedOptionalContainers, nil
 		}
 
-		if !optional[instanceName] {
-			return false, nil
+		seedOCs, err := currentSeedOptionalContainers(st)
+		if err != nil {
+			return seed.OptionalContainers{}, err
 		}
 
-		if optionalInSeed == nil {
-			currentSystem, err := currentSeededSystem(st)
+		cachedOptionalContainers = &seedOCs
+		return *cachedOptionalContainers, nil
+	}
+
+	filter = func(candidate snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error) {
+		instanceName := candidate.InstanceName
+		sn, ok := snaps[instanceName]
+		if !ok {
+			// snaps not in the model do not trigger a seed refresh
+			return snapstate.SeedRefreshCandidate{}, false, nil
+		}
+
+		if sn.Presence != "required" {
+			optionalInSeed, err := readOptionalContainers()
 			if err != nil {
-				return false, err
+				return snapstate.SeedRefreshCandidate{}, false, err
 			}
 
-			current, err := seedOpen(dirs.SnapSeedDir, currentSystem.System)
-			if err != nil {
-				return false, err
+			if !strutil.ListContains(optionalInSeed.Snaps, instanceName) {
+				// optional snaps not in the seed do not trigger a seed refresh
+				return snapstate.SeedRefreshCandidate{}, false, nil
 			}
-			if err := current.LoadAssertions(nil, nil); err != nil {
-				return false, err
-			}
+		}
 
-			copier, ok := current.(seed.Copier)
+		candidateComponentTriggers := make(map[string]string)
+		for compName, compsupID := range candidate.ComponentSetupTaskIDs {
+			fullCompName := snap.SnapComponentName(candidate.InstanceName, compName)
+			compPresence, ok := components[fullCompName]
 			if !ok {
-				// this would only happen if the seed is pre-core20
-				return false, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
+				continue
 			}
 
-			oc, err := copier.OptionalContainers()
-			if err != nil {
-				return false, err
+			if compPresence != "required" {
+				optionalInSeed, err := readOptionalContainers()
+				if err != nil {
+					return snapstate.SeedRefreshCandidate{}, false, err
+				}
+
+				if !strutil.ListContains(optionalInSeed.Components[instanceName], compName) {
+					// optional component in the seed triggers a seed refresh
+					continue
+				}
 			}
 
-			optionalInSeed = make(map[string]bool, len(oc.Snaps))
-			for _, sn := range oc.Snaps {
-				optionalInSeed[sn] = true
+			// required and optional components in the seed trigger a seed refresh
+			candidateComponentTriggers[compName] = compsupID
+		}
+		// CheckSeedRefreshRemove passes a name-only candidate to filter and
+		// must not be classified as component exclusive because of the empty
+		// SnapSetupTaskIDs field. Otherwise the empty component triggers below would
+		// wrongly allow removing a snap that must stay seeded.
+		componentExclusive := len(candidate.SnapSetupTaskIDs) == 0 && len(candidate.ComponentSetupTaskIDs) > 0
+		if componentExclusive && len(candidateComponentTriggers) == 0 {
+			// component exclusive refresh but none of the components trigger a seed refresh
+			return snapstate.SeedRefreshCandidate{}, false, nil
+		}
+
+		return snapstate.SeedRefreshCandidate{
+			InstanceName:          candidate.InstanceName,
+			SnapSetupTaskIDs:      candidate.SnapSetupTaskIDs,
+			ComponentSetupTaskIDs: candidateComponentTriggers,
+		}, true, nil
+	}
+
+	allowlist = func() (SeedAllowlist, error) {
+		var allowedSnaps []string
+		allowedComponents := make(map[string][]string)
+
+		for snapName, modelSnap := range snaps {
+			if modelSnap.Presence == "optional" {
+				optionalInSeed, err := readOptionalContainers()
+				if err != nil {
+					return SeedAllowlist{}, err
+				}
+
+				if !strutil.ListContains(optionalInSeed.Snaps, snapName) {
+					continue
+				}
+			}
+
+			allowedSnaps = append(allowedSnaps, snapName)
+			for compName, comp := range modelSnap.Components {
+				if comp.Presence == "optional" {
+					optionalInSeed, err := readOptionalContainers()
+					if err != nil {
+						return SeedAllowlist{}, err
+					}
+
+					if !strutil.ListContains(optionalInSeed.Components[snapName], compName) {
+						continue
+					}
+				}
+
+				allowedComponents[snapName] = append(allowedComponents[snapName], compName)
 			}
 		}
 
-		return optionalInSeed[instanceName], nil
+		sort.Strings(allowedSnaps)
+		for _, comps := range allowedComponents {
+			sort.Strings(comps)
+		}
+
+		return SeedAllowlist{
+			Snaps:      allowedSnaps,
+			Components: allowedComponents,
+		}, nil
 	}
+
+	return filter, allowlist
 }
 
-func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, error) {
+func currentSeedOptionalContainers(st *state.State) (seed.OptionalContainers, error) {
+	currentSystem, err := currentSeededSystem(st)
+	if err != nil {
+		return seed.OptionalContainers{}, err
+	}
+
+	current, err := seedOpen(dirs.SnapSeedDir, currentSystem.System)
+	if err != nil {
+		return seed.OptionalContainers{}, err
+	}
+	if err := current.LoadAssertions(nil, nil); err != nil {
+		return seed.OptionalContainers{}, err
+	}
+
+	copier, ok := current.(seed.Copier)
+	if !ok {
+		return seed.OptionalContainers{}, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
+	}
+
+	return copier.OptionalContainers()
+}
+
+func findSeedRefreshTasks(ts *state.TaskSet) (*snapstate.SeedRefreshTasks, error) {
 	var finalize *state.Task
 	var removals []*state.Task
-	for _, t := range chg.Tasks() {
+	for _, t := range ts.Tasks() {
 		switch t.Kind() {
 		case "finalize-recovery-system":
 			if t.Status().Ready() {
@@ -1962,7 +2092,7 @@ func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, err
 	}
 
 	if finalize == nil {
-		return nil, errors.New("internal error: seed-refresh change is missing pending finalize-recovery-system task")
+		return nil, nil
 	}
 
 	var createID string
@@ -1970,12 +2100,24 @@ func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, err
 		return nil, err
 	}
 
-	create := chg.State().Task(createID)
-	if create == nil || create.Change().ID() != chg.ID() || create.Kind() != "create-recovery-system" {
+	var create *state.Task
+	for _, t := range ts.Tasks() {
+		if t.ID() == createID {
+			create = t
+			break
+		}
+	}
+	if create == nil || create.Kind() != "create-recovery-system" {
 		return nil, errors.New("internal error: seed-refresh change is missing paired create-recovery-system task")
 	}
 
-	return &snapstate.SeedRefreshTaskSet{
+	// attempting to inspect seed refresh tasks after creation but before
+	// finalization is always a bug in the current design
+	if create.Status() != state.DoStatus {
+		return nil, fmt.Errorf("internal error: seed-refresh creation task has already started with status %s while finalization is still pending", create.Status())
+	}
+
+	return &snapstate.SeedRefreshTasks{
 		Create:   create,
 		Finalize: finalize,
 		Remove:   removals,
@@ -2062,6 +2204,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 		ComponentSetupTasks: compSetupTasks,
 		LocalSnaps:          opts.LocalSnaps,
 		LocalComponents:     opts.LocalComponents,
+		Allowlist:           opts.Allowlist,
 		TestSystem:          opts.TestSystem,
 		MarkDefault:         opts.MarkDefault,
 		SeedRefresh:         opts.SeedRefresh,
@@ -2118,6 +2261,10 @@ type CreateRecoverySystemOptions struct {
 	// recovery system.
 	LocalComponents []snapstate.PathComponent
 
+	// Allowlist identifies the snaps and components that may be used to create
+	// the recovery system. A nil allowlist permits all containers.
+	Allowlist *SeedAllowlist
+
 	// TestSystem is set to true if the new recovery system should be verified
 	// by rebooting into the new system, prior to marking it as a valid recovery
 	// system. If false, the system will immediately be considered a valid
@@ -2135,6 +2282,13 @@ type CreateRecoverySystemOptions struct {
 	// Offline is true if the recovery system should be created without reaching
 	// out to the store. Offline must be set to true if LocalSnaps is provided.
 	Offline bool
+}
+
+// SeedAllowlist identifies the snaps and components that may be used to
+// create a recovery system.
+type SeedAllowlist struct {
+	Snaps      []string            `json:"snaps,omitempty"`
+	Components map[string][]string `json:"components,omitempty"`
 }
 
 var ErrNoRecoverySystem = errors.New("recovery system does not exist")

@@ -278,3 +278,35 @@ slots:
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
 }
+
+func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
+	// default: both sides supported
+	iface := &commonInterface{name: "common"}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, true)
+
+	// plug-side unsupported
+	iface = &commonInterface{
+		name:                             "common",
+		unsupportedParallelInstancesPlug: true,
+	}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, true)
+
+	// slot-side unsupported
+	iface = &commonInterface{
+		name:                             "common",
+		unsupportedParallelInstancesSlot: true,
+	}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, false)
+
+	// both unsupported
+	iface = &commonInterface{
+		name:                             "common",
+		unsupportedParallelInstancesPlug: true,
+		unsupportedParallelInstancesSlot: true,
+	}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, false)
+}

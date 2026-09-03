@@ -103,7 +103,10 @@ execute: |
     # (also wait until systemd cleans up the cgroup)
     retry -n 10 test ! -e "/sys/fs/cgroup/$testshcgroup"
     echo "Verify there continue to be no snap BPF programs"
-    test -z "$(dump_cgroup_device_progs)"
+    # retry as the kernel may not immediately free BPF programs after cgroup dir removal
+    export -f dump_cgroup_device_progs
+    # shellcheck disable=SC2016
+    retry -n 10 bash -c 'test -z "$(dump_cgroup_device_progs)"'
 
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_sh > device-access.map-app

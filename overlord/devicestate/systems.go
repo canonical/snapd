@@ -236,6 +236,12 @@ type setupInfoGetter struct {
 }
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
+	if allowlist := ig.setup.Allowlist; allowlist != nil {
+		if !strutil.ListContains(allowlist.Components[cref.SnapName], cref.ComponentName) {
+			return nil, "", false, nil
+		}
+	}
+
 	// components will come from one of these places:
 	//   * passed into the task via a list of side infos (these would have
 	//     come from a user posting snaps via the API)
@@ -274,7 +280,7 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 			continue
 		}
 
-		mountFile := compsup.BlobPath(snapsup.InstanceName())
+		mountFile := compsup.BlobPath(snapsup.InstanceName().String())
 
 		f, err := snapfile.Open(mountFile)
 		if err != nil {
@@ -319,6 +325,12 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 }
 
 func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
+	if allowlist := ig.setup.Allowlist; allowlist != nil {
+		if !strutil.ListContains(allowlist.Snaps, name) {
+			return nil, "", false, nil
+		}
+	}
+
 	// snaps will come from one of these places:
 	//   * passed into the task via a list of side infos (these would have
 	//     come from a user posting snaps via the API)
@@ -354,7 +366,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 		if err != nil {
 			return nil, "", false, err
 		}
-		if snapsup.SnapName() != name {
+		if snapsup.SnapName().String() != name {
 			continue
 		}
 		// local path tasks carry SnapPath until mount-snap consumes it; otherwise

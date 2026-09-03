@@ -2844,18 +2844,18 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 		{"--root", "/path", "unmask", "foo"}})
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsLoadedEmpty(c *C) {
 	s.outs = [][]byte{
 		[]byte("\n"),
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "")
+	units, err := sysd.ListMountUnits("some-snap", "", LoadedMountUnits)
 	c.Check(units, HasLen, 0)
 	c.Check(err, IsNil)
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsMalformed(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsLoadedMalformed(c *C) {
 	s.outs = [][]byte{
 		[]byte(`Description=Mount unit for some-snap, revision x1
 Where=/somewhere/here
@@ -2865,12 +2865,12 @@ HereIsOneLineWithoutAnEqualSign
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "")
+	units, err := sysd.ListMountUnits("some-snap", "", LoadedMountUnits)
 	c.Check(units, HasLen, 0)
 	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsLoadedHappy(c *C) {
 	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-*")
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(tmpDir)
@@ -2879,7 +2879,7 @@ func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
 	createFakeUnit := func(fileName, snapName, where, origin string) error {
 		path := filepath.Join(tmpDir, fileName)
 		if len(systemctlOutput) > 0 {
-			systemctlOutput += "\n\n"
+			systemctlOutput += "\n"
 		}
 		systemctlOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
 Where=%s
@@ -2915,15 +2915,223 @@ X-SnapdOrigin=%s
 	sysd := New(SystemMode, nil)
 
 	// First, get all mount units for some-snap, without filter on the origin module
-	units, err := sysd.ListMountUnits("some-snap", "")
+	units, err := sysd.ListMountUnits("some-snap", "", LoadedMountUnits)
 	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
 	c.Check(err, IsNil)
 
 	// Now repeat the same, filtering on the origin module
 	s.i = 0 // this resets the systemctl output iterator back to the beginning
-	units, err = sysd.ListMountUnits("some-snap", "module3")
+	units, err = sysd.ListMountUnits("some-snap", "module3", LoadedMountUnits)
 	c.Check(units, DeepEquals, []string{"/somewhere/there"})
 	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsInstalledEmpty(c *C) {
+	// When list-unit-files returns no mount units, ListMountUnits must return
+	// nil without issuing a second systemctl call.
+	s.outs = [][]byte{
+		[]byte("\n"),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
+	c.Check(units, IsNil)
+	c.Check(err, IsNil)
+
+	// Only one systemctl call (list-unit-files); no 'show' call.
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsInstalledWhitespaceOnly(c *C) {
+	// When list-unit-files returns only whitespace (non-empty but no real
+	// unit names), ListMountUnits must return nil without issuing a second
+	// systemctl call.
+	s.outs = [][]byte{
+		[]byte("   \n"),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
+	c.Check(units, IsNil)
+	c.Check(err, IsNil)
+
+	// Only one systemctl call (list-unit-files); no 'show' call.
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsInstalledHappy(c *C) {
+	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-all-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	// "-.mount" is a generated root mount returned by list-unit-files
+	showOutput := "Description=Root Mount\nWhere=/\nFragmentPath=/run/systemd/generator/-.mount\n"
+	createFakeUnit := func(fileName, snapName, where, origin string) error {
+		path := filepath.Join(tmpDir, fileName)
+		if len(showOutput) > 0 {
+			showOutput += "\n"
+		}
+		showOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
+Where=%s
+FragmentPath=%s
+`, snapName, where, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Mount unit for %s, revision x1
+
+[Mount]
+What=/does/not/matter
+Where=%s
+Type=doesntmatter
+Options=do,not,matter,either
+
+[Install]
+WantedBy=doesntmatter.target
+X-SnapdOrigin=%s
+`, snapName, where, origin)
+		return os.WriteFile(path, []byte(contents), 0644)
+	}
+
+	err = createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-other.mount", "some-other-snap", "/somewhere/other", "module2")
+	c.Assert(err, IsNil)
+
+	listOut := "-.mount  static   -\nsomepath-somedir.mount  enabled  enabled\nsomewhere-there.mount  enabled  -\nsomewhere-other.mount  static   disabled\n"
+
+	s.outs = [][]byte{
+		[]byte(listOut),    // first call: list-unit-files
+		[]byte(showOutput), // second call: show with explicit unit names
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
+	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
+	c.Check(err, IsNil)
+
+	// Verify the two systemctl calls
+	c.Assert(s.argses, HasLen, 2)
+	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
+	c.Check(s.argses[1], DeepEquals, []string{
+		"show", "--property=Description,Where,FragmentPath", "--",
+		"-.mount", "somepath-somedir.mount", "somewhere-there.mount", "somewhere-other.mount",
+	})
+
+	// Repeat with origin filter
+	s.i = 0
+	units, err = sysd.ListMountUnits("some-snap", "module3", InstalledMountUnits)
+	c.Check(units, DeepEquals, []string{"/somewhere/there"})
+	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsInstalledListUnitFilesMalformed(c *C) {
+	// A blank line embedded in list-unit-files output is skipped rather
+	// than causing a panic
+	s.outs = [][]byte{
+		[]byte("foo.mount  enabled  -\n\nbar.mount  static   disabled\n"),
+		{}, // show returns empty
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
+	c.Check(units, HasLen, 0)
+	c.Check(err, IsNil)
+
+	// The blank line is skipped; only the two valid unit names reach show.
+	c.Assert(s.argses, HasLen, 2)
+	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
+	c.Check(s.argses[1], DeepEquals, []string{
+		"show", "--property=Description,Where,FragmentPath", "--",
+		"foo.mount", "bar.mount",
+	})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsInstalledListUnitFilesError(c *C) {
+	s.errors = []error{fmt.Errorf("list-unit-files failed")}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
+	c.Check(units, IsNil)
+	c.Check(err, ErrorMatches, ".*list-unit-files failed.*")
+
+	// Only the first systemctl call should have been made
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsInstalledChunkBoundary(c *C) {
+	// Reduce the chunk size to 2 so that 3 units span two "show" calls
+	restore := MockMaxUnitsPerShow(2)
+	defer restore()
+
+	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-chunk-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	// chunk 1 contains units 1 and 2, chunk 2 contains unit 3
+	createFakeUnit := func(fileName, where string) (string, error) {
+		path := filepath.Join(tmpDir, fileName)
+		showBlock := fmt.Sprintf(`Description=Mount unit for some-snap, revision x1
+Where=%s
+FragmentPath=%s
+`, where, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Mount unit for some-snap, revision x1
+
+[Mount]
+What=/does/not/matter
+Where=%s
+Type=doesntmatter
+Options=do,not,matter,either
+
+[Install]
+WantedBy=doesntmatter.target
+X-SnapdOrigin=snapstate
+`, where)
+		return showBlock, os.WriteFile(path, []byte(contents), 0644)
+	}
+
+	show1, err := createFakeUnit("snap-foo-1.mount", "/snap/foo/1")
+	c.Assert(err, IsNil)
+	show2, err := createFakeUnit("snap-foo-2.mount", "/snap/foo/2")
+	c.Assert(err, IsNil)
+	show3, err := createFakeUnit("snap-foo-3.mount", "/snap/foo/3")
+	c.Assert(err, IsNil)
+
+	showChunk1 := show1 + "\n" + show2
+	showChunk2 := show3
+
+	listOut := "snap-foo-1.mount  enabled  -\nsnap-foo-2.mount  enabled  -\nsnap-foo-3.mount  enabled  -\n"
+
+	s.outs = [][]byte{
+		[]byte(listOut),    // list-unit-files
+		[]byte(showChunk1), // show chunk 1 (units 1 and 2)
+		[]byte(showChunk2), // show chunk 2 (unit 3)
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
+	c.Check(err, IsNil)
+	c.Check(units, DeepEquals, []string{"/snap/foo/1", "/snap/foo/2", "/snap/foo/3"})
+
+	// Verify three systemctl calls: list-unit-files + two show calls
+	c.Assert(s.argses, HasLen, 3)
+	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=Description,Where,FragmentPath", "--", "snap-foo-1.mount", "snap-foo-2.mount"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=Description,Where,FragmentPath", "--", "snap-foo-3.mount"})
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsUnknownFilter(c *C) {
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "", MountUnitFilter(99))
+	c.Check(units, IsNil)
+	c.Check(err, ErrorMatches, `internal error: unknown MountUnitFilter value 99`)
+
+	// No systemctl calls should have been made
+	c.Check(s.argses, HasLen, 0)
 }
 
 func (s *SystemdTestSuite) TestMountHappy(c *C) {

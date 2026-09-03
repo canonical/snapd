@@ -37,7 +37,7 @@ func notifyAgentOnLinkageChange(st *state.State, snapsup *snapstate.SnapSetup) e
 	instanceName := snapsup.InstanceName()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := snapstate.Get(st, instanceName.String(), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !snapst.IsInstalled() {
@@ -85,7 +85,7 @@ var maybeSendClientFinishRefreshNotification = func(st *state.State, snapsup *sn
 		return
 	}
 	refreshInfo := &userclient.FinishedSnapRefreshInfo{
-		InstanceName: snapsup.InstanceName(),
+		InstanceName: snapsup.InstanceName().String(),
 	}
 	asyncFinishRefreshNotification(refreshInfo)
 }

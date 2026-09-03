@@ -18,6 +18,10 @@ restore: |
     echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment
     systemctl restart snapd
 
+debug: |
+    snap info snapd || true
+    snap info core20 || true
+
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         current=$(readlink /snap/snapd/current)
@@ -33,8 +37,33 @@ execute: |
         echo "Restoring the snapd snap"
         snap revert snapd
 
+        # Refresh core20 to a different revision so the change requests a reboot.
+        # Installed rev via readlink (same pattern as snapd above). Pick first
+        # store risk (stable -> candidate -> beta -> edge) whose revision
+        # differs from installed. If none differ, skip reboot maintenance check.
+        installed_revision=$(readlink /snap/core20/current)
+        if [ -z "$installed_revision" ]; then
+            echo "cannot resolve installed core20 revision"
+            exit 1
+        fi
+
+        refresh_channel=
+        for risk in stable candidate beta edge; do
+            # snap info channel lines: <channel>: <version> <date> (<revision>) ...
+            revision=$(snap info core20 | awk -v risk="$risk" '
+                $1 == risk":" || $1 == "latest/"risk":" { print $4; exit }
+            ' | sed -e 's/[()]//g')
+            if [ -n "$revision" ] && [ "$revision" != "$installed_revision" ]; then
+                refresh_channel="$risk"
+                break
+            fi
+        done
+        if [ -z "$refresh_channel" ]; then
+            exit 0
+        fi
+
         echo "Testing maintenance message for system reboots"
-        snap refresh core20 --channel=stable --amend &
+        snap refresh core20 --channel="$refresh_channel" --amend &
         retry -n 20 --wait 0.5 sh -c 'snap debug api '/v2/changes?select=all' | gojq ".maintenance" | MATCH "system is restarting"'
         wait
 

@@ -347,7 +347,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
@@ -360,7 +360,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	lp := &testLinkParticipant{
 		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -412,7 +412,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false,"migrated-exposed-home":false}`)
 
@@ -1939,7 +1939,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 
 	// pretend we have an installed snapd with a vendored apparmor that has
 	// a version greater than the one we are going to downgrade to
-	restore = snapdtool.MockVersion("2.58")
+	restore = snapdtool.MockVersion("2.58", "")
 	defer restore()
 	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
 	defer restore()
@@ -2167,7 +2167,7 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	lp := &testLinkParticipant{
 		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -2398,12 +2398,12 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	t = chg.Tasks()[4]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.InstanceName(), Equals, "snap1")
+	c.Assert(autoconnectSup.InstanceName().String(), Equals, "snap1")
 
 	t = chg.Tasks()[5]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.InstanceName(), Equals, "snap2")
+	c.Assert(autoconnectSup.InstanceName().String(), Equals, "snap2")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {
@@ -2817,7 +2817,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 
 	// verify sequence file
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "snapd.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("snapd"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"snapd","snap-id":"snapd-snap-id","revision":"20"}],"current":"20","migrated-hidden":false,"migrated-exposed-home":false}`)
 }

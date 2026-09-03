@@ -134,6 +134,11 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		"SNAP_EUID": fmt.Sprint(sys.Geteuid()),
 	}
 
+	if len(info.Components) > 0 {
+		env["SNAP_COMPONENTS"] = filepath.Join(dirs.CoreSnapMountDir, info.SnapName(),
+			"components", info.Revision.String())
+	}
+
 	// Add the ubuntu-save specific environment variable if
 	// the snap folder exists in the save directory.
 	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName())); err == nil && exists && isDir {

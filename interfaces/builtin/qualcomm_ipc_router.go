@@ -186,7 +186,7 @@ func validateAddress(address string) error {
 		return fmt.Errorf("qualcomm-ipc-router %s attribute cannot be empty", qcipcAttrib)
 	}
 	// do not allow apparmor RE in the address
-	if err := apparmor.ValidateNoAppArmorRegexp(address); err != nil {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(address); err != nil {
 		return fmt.Errorf(`address is invalid: %v`, err)
 	}
 	return nil

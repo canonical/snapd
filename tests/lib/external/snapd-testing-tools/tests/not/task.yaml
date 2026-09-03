@@ -1,6 +1,6 @@
 summary: test for the not tool
 
-backends: [openstack]
+backends: [openstack*]
 
 details: |
     Check the not tool works the same as the logical not (!).

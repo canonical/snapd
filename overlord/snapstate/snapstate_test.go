@@ -65,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -87,7 +88,8 @@ type observedSeedRefreshCandidates struct {
 }
 
 func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, func()) {
-	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
+	oldCreateSeedRefreshTasks := snapstate.CreateSeedRefreshTasks
+	oldPendingSeedRefreshTasks := snapstate.PendingSeedRefreshTasks
 	oldUpdateSeedRefreshChange := snapstate.UpdateSeedRefreshChange
 	triggered := make(map[string]bool, len(triggers))
 	for _, instanceName := range triggers {
@@ -95,9 +97,9 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	}
 
 	var observed observedSeedRefreshCandidates
-	var currentSeedTS *snapstate.SeedRefreshTaskSet
+	var currentSeedTS *snapstate.SeedRefreshTasks
 
-	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, eviction snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	snapstate.CreateSeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, eviction snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTasks, map[string]bool, error) {
 		observed.initial = append(observed.initial, candidates)
 		observed.evictions = append(observed.evictions, eviction)
 
@@ -120,29 +122,49 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 		finalize.WaitFor(create)
 		finalize.Set("recovery-system-setup-task", create.ID())
 
-		currentSeedTS = &snapstate.SeedRefreshTaskSet{
+		currentSeedTS = &snapstate.SeedRefreshTasks{
 			Create:   create,
 			Finalize: finalize,
 		}
 		return currentSeedTS, added, nil
 	}
 
-	snapstate.UpdateSeedRefreshChange = func(chg *state.Change, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
-		observed.prerequisites = append(observed.prerequisites, candidate)
-
-		if !triggered[candidate.InstanceName] {
+	snapstate.PendingSeedRefreshTasks = func(ts *state.TaskSet) (*snapstate.SeedRefreshTasks, error) {
+		if currentSeedTS == nil {
 			return nil, nil
 		}
 
-		if currentSeedTS == nil {
-			return nil, fmt.Errorf("missing recovery-system tasks")
+		for _, t := range ts.Tasks() {
+			if t.ID() != currentSeedTS.Finalize.ID() || t.Status().Ready() {
+				continue
+			}
+
+			if currentSeedTS.Create.Status() != state.DoStatus {
+				return nil, fmt.Errorf("internal error: seed-refresh creation task has already started with status %s while finalization is still pending", currentSeedTS.Create.Status())
+			}
+			return currentSeedTS, nil
 		}
 
-		return currentSeedTS, nil
+		return nil, nil
+	}
+
+	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTasks, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (added bool, err error) {
+		observed.prerequisites = append(observed.prerequisites, candidate)
+
+		if !triggered[candidate.InstanceName] {
+			return false, nil
+		}
+
+		if seedTS == nil {
+			return false, fmt.Errorf("missing recovery-system tasks")
+		}
+
+		return true, nil
 	}
 
 	return &observed, func() {
-		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
+		snapstate.CreateSeedRefreshTasks = oldCreateSeedRefreshTasks
+		snapstate.PendingSeedRefreshTasks = oldPendingSeedRefreshTasks
 		snapstate.UpdateSeedRefreshChange = oldUpdateSeedRefreshChange
 	}
 }
@@ -303,7 +325,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
-	s.AddCleanup(snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error { return nil }))
+	s.AddCleanup(snapstate.MockCheckSeedRefreshRemove(func(*state.State, snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error { return nil }))
 	_, restore := mockSeedRefreshHooks(nil)
 	s.AddCleanup(restore)
 
@@ -485,6 +507,46 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
+}
+
+func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
+	const operationSize = uint64(1024)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, tc := range []struct {
+		description string
+		configured  bool
+		value       any
+		size        uint64
+		expected    uint64
+		err         string
+	}{
+		{description: "unset", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "nil", configured: true, value: nil, size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "invalid", configured: true, value: "invalid", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "numeric bytes", configured: true, value: 2048, size: operationSize, expected: operationSize + 2048},
+		{description: "string bytes", configured: true, value: "4096", size: operationSize, expected: operationSize + 4096},
+		{description: "quantity", configured: true, value: "1G", size: operationSize, expected: operationSize + 1024*1024*1024},
+		{description: "zero", configured: true, value: 0, size: operationSize, expected: operationSize},
+		{description: "configured overflow", configured: true, value: "1", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+		{description: "default overflow", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+	} {
+		tr := config.NewTransaction(s.state)
+		if tc.configured {
+			c.Assert(tr.Set("core", "disk-reservation.size", tc.value), IsNil)
+		}
+
+		reservation, err := snapstate.DiskSpaceReservation(tc.size, tr)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
+			continue
+		}
+
+		c.Check(err, IsNil, Commentf(tc.description))
+		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
+	}
 }
 
 type ForeignTaskTracker interface {
@@ -1763,7 +1825,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -1792,10 +1854,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -1807,7 +1865,7 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -1838,12 +1896,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			op: "update-aliases",
 		},
 	}
-	// aliases removal is skipped when refresh-app-awareness-ux is enabled
-	if refreshAppAwarenessUX {
-		// remove "remove-snap-aliases" operation
-		expected = expected[1:]
-	}
-
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -1870,15 +1922,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 	}, nil))
 	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
-}
-
-func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
-	s.testRevertRunThrough(c, false)
-}
-
-func (s *snapmgrTestSuite) TestRevertRunThroughSkipBinaries(c *C) {
-	s.enableRefreshAppAwarenessUX()
-	s.testRevertRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
@@ -2070,10 +2113,6 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 	if !failing {
 		expected := fakeOps{
 			{
-				op:   "remove-snap-aliases",
-				name: "snap-core18-to-core22",
-			},
-			{
 				op:          "run-inhibit-snap-for-unlink",
 				name:        "snap-core18-to-core22",
 				inhibitHint: "refresh",
@@ -2083,9 +2122,10 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				name: "snap-core18-to-core22",
 			},
 			{
-				op:          "unlink-snap",
-				path:        filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
-				inhibitHint: "refresh",
+				op:                 "unlink-snap",
+				path:               filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+				unlinkSkipBinaries: true,
+				inhibitHint:        "refresh",
 			},
 			{
 				op:    "setup-profiles:Doing",
@@ -2167,10 +2207,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap_instance",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap_instance",
 			inhibitHint: "refresh",
@@ -2180,10 +2216,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			name: "some-snap_instance",
 		},
 		{
-			op:             "unlink-snap",
-			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
-			inhibitHint:    "refresh",
-			otherInstances: true,
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
+			otherInstances:     true,
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2274,7 +2311,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2317,10 +2354,6 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -2330,9 +2363,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2413,10 +2447,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -2426,9 +2456,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2459,8 +2490,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		// undoing everything from here down...
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
+			op: "update-aliases",
 		},
 		{
 			op:    "auto-connect:Undoing",
@@ -2483,9 +2513,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:     "maybe-set-next-boot",
 			isUndo: true,
-		},
-		{
-			op: "update-aliases",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -2533,10 +2560,6 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -2546,9 +2569,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2583,9 +2607,6 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:     "maybe-set-next-boot",
 			isUndo: true,
-		},
-		{
-			op: "update-aliases",
 		},
 	}
 
@@ -9254,7 +9275,6 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetNoRemodelConflict(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
-	s.enableRefreshAppAwarenessUX()
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -10100,7 +10120,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSnapdAndTwoA
 			if err != nil || snapsup.ComponentExclusiveOperation {
 				continue
 			}
-			if snapsup.InstanceName() == name {
+			if snapsup.InstanceName().String() == name {
 				return ts
 			}
 		}
@@ -10363,12 +10383,12 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 
 	tasksByName := make(map[string]*state.TaskSet)
 	for _, sts := range stss {
-		tasksByName[sts.snapsup.InstanceName()] = sts.ts
+		tasksByName[sts.snapsup.InstanceName().String()] = sts.ts
 	}
 
 	// verify ordering between snaps
 	for _, sts := range stss {
-		if classic && !strutil.ListContains(essentials, sts.snapsup.InstanceName()) {
+		if classic && !strutil.ListContains(essentials, sts.snapsup.InstanceName().String()) {
 			// in the split-refresh classic case, the only direct dependency that
 			// non-essential snap tasks gain on the essential set is via snapd.
 			for _, t := range sts.begin.WaitTasks() {
@@ -10379,7 +10399,7 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 		}
 
 		switch {
-		case strutil.ListContains(essentials, sts.snapsup.InstanceName()):
+		case strutil.ListContains(essentials, sts.snapsup.InstanceName().String()):
 			// essential snap updates may depend on other essential snaps, but not
 			// on non-essential work.
 			for _, t := range sts.begin.WaitTasks() {
@@ -12987,7 +13007,7 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 }
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+	swfeatstest.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }
 
 func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {

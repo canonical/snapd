@@ -74,6 +74,10 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 }
 
 func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
+
 	// When no /proc/$pid/attr/current exists, assume unconfined
 	_, _, _, err := apparmor.SnapAppFromPid(42)
 	c.Check(err, ErrorMatches, `security label "unconfined" does not belong to a snap`)

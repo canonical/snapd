@@ -35,7 +35,8 @@ subdirs = \
 		  snapd-env-generator \
 		  snapd-generator \
 		  system-shutdown \
-		  snap-cli-wrap
+		  snap-cli-wrap \
+		  snapd-tool-wrap
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
@@ -464,6 +465,19 @@ noinst_PROGRAMS += snap-cli-wrap/snap-cli-wrap
 snap_cli_wrap_snap_cli_wrap_SOURCES = snap-cli-wrap/snap-cli-wrap.c
 snap_cli_wrap_snap_cli_wrap_CFLAGS = $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\"
 snap_cli_wrap_snap_cli_wrap_LDFLAGS = $(STATIC_LDFLAGS)
+
+##
+## snapd-tool-wrap
+##
+## A generic multi-call wrapper for internal snapd tools (e.g. snap-preseed).
+## Symlinked, hardlinked or copied under each tool name in
+## /usr/lib/snapd/<tool-name>.
+##
+
+libexec_PROGRAMS += snapd-tool-wrap/snapd-tool-wrap
+snapd_tool_wrap_snapd_tool_wrap_SOURCES = snapd-tool-wrap/snapd-tool-wrap.c
+snapd_tool_wrap_snapd_tool_wrap_CFLAGS = $(AM_CFLAGS) $(SANITIZE_CFLAGS)
+snapd_tool_wrap_snapd_tool_wrap_LDFLAGS = $(AM_LDFLAGS) $(SANITIZE_LDFLAGS)
 
 ##
 ## snap-device-helper

@@ -62,6 +62,21 @@ var mockSnapInfo = &snap.Info{
 		Revision: snap.R(17),
 	},
 }
+
+var mockSnapInfoWithComponents = &snap.Info{
+	SuggestedName: "foo",
+	Version:       "1.0",
+	SideInfo: snap.SideInfo{
+		Revision: snap.R(17),
+	},
+	Components: map[string]*snap.Component{
+		"comp1": {
+			Name: "comp1",
+			Type: "standard",
+		},
+	},
+}
+
 var mockSnapInfoWithDesktopFile = func() *snap.Info {
 	mi := *mockSnapInfo
 	mi.Plugs = map[string]*snap.PlugInfo{
@@ -137,6 +152,24 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
 		"SNAP_COMMON":        "/var/snap/foo/common",
+		"SNAP_DATA":          "/var/snap/foo/17",
+		"SNAP_NAME":          "foo",
+		"SNAP_INSTANCE_NAME": "foo",
+		"SNAP_INSTANCE_KEY":  "",
+		"SNAP_VERSION":       "1.0",
+		"SNAP_REVISION":      "17",
+		"SNAP_ARCH":          arch.DpkgArchitecture(),
+		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
+		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
+		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
+	})
+
+	envWithComps := basicEnv(mockSnapInfoWithComponents)
+	c.Assert(envWithComps, DeepEquals, osutil.Environment{
+		"SNAP":               fmt.Sprintf("%s/foo/17", dirs.CoreSnapMountDir),
+		"SNAP_COMMON":        "/var/snap/foo/common",
+		"SNAP_COMPONENTS":    fmt.Sprintf("%s/foo/components/17", dirs.CoreSnapMountDir),
 		"SNAP_DATA":          "/var/snap/foo/17",
 		"SNAP_NAME":          "foo",
 		"SNAP_INSTANCE_NAME": "foo",

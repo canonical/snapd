@@ -1,0 +1,25 @@
+summary: exercise snap hooks using system-usernames
+
+details: |
+    Exercise a scenario in which a snap that uses system-usernames carries
+    hooks. Make sure that hooks are able to exercise functionality provided by
+    system-usernames.
+
+prepare: |
+    tests.cleanup defer "$TESTSTOOLS"/user-state remove-with-group snap_daemon
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    MATCH 'running install hook' < /var/snap/test-snapd-sh/common/hook.log
+    # file is created and its ownership is set in the install hook
+    stat --printf '%U' /var/snap/test-snapd-sh/common/data/foo | MATCH snap_daemon
+
+    # this is correct but shellcheck < 0.7.2 would flag it
+    # shellcheck disable=SC1004
+    test-snapd-sh.sh -c 'setpriv --clear-groups \
+            --reuid snap_daemon \
+            --regid snap_daemon -- \
+            id'
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    MATCH 'running post-refresh hook' < /var/snap/test-snapd-sh/common/hook.log
+    MATCH 'post refresh' < /var/snap/test-snapd-sh/common/data/foo

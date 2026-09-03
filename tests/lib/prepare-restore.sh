@@ -227,6 +227,11 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if os.query is-classic && [ -n "$TAG_FEATURES" ]; then
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        add_to_grub_kernel_cmdline "tag.features=1"
+    fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh
 
@@ -371,22 +376,24 @@ prepare_project() {
         fi
     fi
 
-    # set up debian symlink as needed
+    # set up debian symlink as needed. Use "ln -sfn" so that an existing symlink
+    # is replaced rather than dereferenced, which would create a nested symlink
+    # inside it and leave the stale packaging in place.
     if os.query is-trusty; then
         # no packaging setup for 14.04, we're no longer building the packages in
         # CI
         :
     elif os.query is-ubuntu-ge 26.04; then
-        ln -sf packaging/ubuntu-26.04 debian
+        ln -sfn packaging/ubuntu-26.04 debian
     elif os.query is-ubuntu; then
         # TODO generate packaging appropriate for a given ubuntu release
-        ln -sf packaging/ubuntu-16.04 debian
+        ln -sfn packaging/ubuntu-16.04 debian
     elif os.query is-debian sid ; then
         # debian sid has special packaging
-        ln -sf packaging/debian-sid debian
+        ln -sfn packaging/debian-sid debian
     elif os.query is-debian; then
         # TODO debian reuses ubuntu 16.04 packaging
-        ln -sf packaging/ubuntu-16.04 debian
+        ln -sfn packaging/ubuntu-16.04 debian
     fi
 
     if os.query is-trusty; then
@@ -587,6 +594,17 @@ prepare_project() {
             fi
             ;;
     esac
+
+    if [ "$TAG_FEATURES" = "true" ]; then
+        go_version="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
+        if [ -n "$go_version" ] && [ "$(printf '%s\n' "$go_version" "1.21" | sort -V | head -n1)" = "1.21" ]; then
+            # slog requires go 1.21, so only add it if go >= 1.21
+            sed -i 's/withtestkeys,/withtestkeys,structuredlogging,/g' packaging/ubuntu*/rules
+        fi
+        pushd "$SPREAD_PATH"
+        go run ./tests/utils/features/instrument-funcs
+        popd
+    fi
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     # It is required in any case because the testing tools like the fakestore are always compiled
@@ -790,6 +808,10 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    if [ -n "$TAG_FEATURES" ]; then
+        "$TESTSLIB"/collect-artifacts.sh features --after-suite-prepare
+    fi
 }
 
 restore_suite_each() {
@@ -889,6 +911,10 @@ restore_suite() {
 	if tests.pkgs is-installed snap-confine; then
             distro_purge_package snap-confine
         fi
+    fi
+    if [ -n "$TAG_FEATURES" ]; then
+        journalctl --rotate || true
+        journalctl --vacuum-time=1s || true
     fi
 }
 

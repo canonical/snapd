@@ -1201,8 +1201,6 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
-	// XXX: Those are actually a globs, not directories
-	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name", "name.*"})
 }
 
@@ -1229,8 +1227,6 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name_instance/common")
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
-	// XXX: Those are actually a globs, not directories
-	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
 }
 
@@ -1256,42 +1252,6 @@ func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
 	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
-}
-
-func (s *infoSuite) TestDataHomeDirs(c *C) {
-	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
-	info := &snap.Info{SuggestedName: "name"}
-	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
-
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/1")}
-	commonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/common"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/common")}
-	c.Check(info.DataHomeDirs(nil), DeepEquals, homeDirs)
-	c.Check(info.CommonDataHomeDirs(nil), DeepEquals, commonHomeDirs)
-
-	// Same test but with a hidden snap directory
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/1")}
-	hiddenCommonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/common"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/common")}
-	c.Check(info.DataHomeDirs(opts), DeepEquals, hiddenHomeDirs)
-	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
-}
-
-func (s *infoSuite) TestBaseDataHomeDirs(c *C) {
-	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
-
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name")}
-	c.Check(snap.BaseDataHomeDirs("name", nil), DeepEquals, homeDirs)
-
-	// Same test but with a hidden snap directory
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name")}
-	c.Check(snap.BaseDataHomeDirs("name", opts), DeepEquals, hiddenHomeDirs)
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
@@ -2000,6 +1960,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.ComponentHooksDir("comp", snap.R(1), "name"), Equals, fmt.Sprintf("%s/name/components/mnt/comp/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
 	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
+	c.Check(snap.SequenceFile("name"), Equals, "/var/lib/snapd/sequence/name.json")
 	c.Check(snap.CommonDataSaveDir("name"), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1), nil), Equals, "/home/bob/snap/name/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name", nil), Equals, "/home/bob/snap/name/common")
@@ -2012,6 +1973,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.BaseDataDir("name_instance"), Equals, "/var/snap/name_instance")
 	c.Check(snap.DataDir("name_instance", snap.R(1)), Equals, "/var/snap/name_instance/1")
 	c.Check(snap.CommonDataDir("name_instance"), Equals, "/var/snap/name_instance/common")
+	c.Check(snap.SequenceFile("name_instance"), Equals, "/var/lib/snapd/sequence/name_instance.json")
 	c.Check(snap.CommonDataSaveDir("name_instance"), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1), nil), Equals, "/home/bob/snap/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance", nil), Equals, "/home/bob/snap/name_instance/common")

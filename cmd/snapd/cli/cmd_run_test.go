@@ -1868,7 +1868,7 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	})
 	defer restorer()
 
-	xauthPath, err := x11.MockXauthority(2)
+	xauthPath, err := x11.MockXauthorityAt("/tmp", 2)
 	c.Assert(err, check.IsNil)
 	defer os.Remove(xauthPath)
 
@@ -3210,7 +3210,7 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 	dirs.FeaturesDir = root
 
 	// write sequence file
-	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
+	seqFile := snap.SequenceFile("somesnap")
 	str := struct {
 		MigratedHidden        bool `json:"migrated-hidden"`
 		MigratedToExposedHome bool `json:"migrated-exposed-home"`

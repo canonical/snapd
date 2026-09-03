@@ -3067,6 +3067,10 @@ func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAsserti
 }
 
 func (s *seed20Suite) TestLoadAutoImportAssertionGradeDangerousAutoImportAssertionErrFilePerm(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
+
 	// dangerous grade, system user assertion with wrong file permissions
 	s.testLoadAutoImportAssertion(c, asserts.ModelDangerous, valid, 0222, s.commitTo, fmt.Errorf(".* permission denied"))
 }

@@ -1,0 +1,130 @@
+summary: failed recovery boots return to run mode
+
+details: |
+  Verify that a recovery kernel which cannot be loaded and a recovery initramfs
+  which panics both return the device to run mode instead of repeatedly booting
+  the failed recovery system.
+
+systems: [ubuntu-24.04-64, ubuntu-26.04-64]
+
+environment:
+  TMPDIR: /var/tmp
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+  FAILURE/bad_uki: bad-uki
+  FAILURE/initramfs_panic: initramfs-panic
+
+skip:
+  - reason: This test needs test keys to be trusted
+    if: |
+      [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  # although nested_start_core_vm_unit usually installs this, the fake store
+  # will already have been set up, so we need to install it here
+  snap install test-snapd-swtpm --edge
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+
+  # ubuntu-image embeds snapd boot assets, build the latest version against this
+  # tree instead of using the suite's prebuilt binary
+  ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
+  (
+    # go 1.22 needs an exact toolchain name for automatic toolchain selection
+    export GOTOOLCHAIN=go1.25.0
+    git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
+    cd "$ubuntu_image_dir"
+    go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
+    go build -mod=mod -tags withtestkeys -o "$GOHOME/bin/ubuntu-image" ./cmd/ubuntu-image
+  )
+
+  "${TESTSTOOLS}/store-state" setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+
+  cp "$TESTSLIB/assertions/testrootorg-store.account-key" "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB/assertions/developer1.account" "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB/assertions/developer1.account-key" "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+  snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/testrootorg-store.account-key"
+  snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account"
+  snap ack "$NESTED_FAKESTORE_BLOB_DIR/asserts/developer1.account-key"
+
+  gendeveloper1 sign-model < kernel-vset.json > validation-set.assert
+  cp validation-set.assert "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  tests.nested build-image core
+  rm -rf "$(tests.nested get extra-snaps-path)"
+  tests.nested create-vm core
+
+  remote.exec 'sudo systemctl stop snapd.service snapd.socket'
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon"="fake-session"' > state.json
+  remote.push state.json
+  remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+  remote.exec 'sudo systemctl start snapd.service snapd.socket'
+  remote.refresh disable-refreshes
+
+  unsquashfs -d repacked-kernel-snap "$NESTED_FAKESTORE_BLOB_DIR/pc-kernel.snap"
+  gojq --yaml-input --yaml-output '.version = "v2"' repacked-kernel-snap/meta/snap.yaml > snap.yaml.new
+  mv snap.yaml.new repacked-kernel-snap/meta/snap.yaml
+  snap pack --filename=pc-kernel.snap repacked-kernel-snap
+  rm -rf repacked-kernel-snap
+
+  case "$FAILURE" in
+    bad-uki)
+      uc20_build_corrupt_kernel_snap pc-kernel.snap "$PWD" --bad-linux
+      rm pc-kernel.snap
+      mv pc-kernel_*.snap pc-kernel.snap
+      ;;
+    initramfs-panic)
+      uc24_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-before-snap-bootstrap
+      rm pc-kernel.snap
+      mv pc-kernel_*.snap pc-kernel.snap
+      ;;
+  esac
+
+  "$TESTSTOOLS/store-state" make-snap-installable \
+    --revision 2 \
+    "$NESTED_FAKESTORE_BLOB_DIR" \
+    pc-kernel.snap \
+    pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+  rm pc-kernel.snap
+
+restore: |
+  "$TESTSTOOLS/store-state" teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+  systemctl stop fakedevicesvc.service || true
+
+execute: |
+  response=$(printf '%s' '{"action":"create","label":"failure-system","validation-sets":["developer1/recovery-failure-kernel"]}' | \
+    remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems")
+  change_id=$(gojq -r .change <<< "$response")
+  if [ -z "$change_id" ] || [ "$change_id" = null ]; then
+    echo "cannot get recovery-system change id from response: $response"
+    exit 1
+  fi
+  remote.exec "snap watch $change_id"
+  remote.exec 'test -d /run/mnt/ubuntu-seed/systems/failure-system'
+
+  boot_id=$(tests.nested boot-id)
+  remote.exec 'sudo snap reboot --recover failure-system' || true
+  remote.wait-for reboot "$boot_id"
+  remote.wait-for snap-command
+
+  remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run'
+  remote.exec 'sudo snap debug boot-vars --root-dir /run/mnt/ubuntu-seed' | MATCH '^snapd_recovery_mode=run$'
+  remote.exec 'sudo cat /var/lib/snapd/modeenv' | MATCH '^mode=run$'
+
+  case "$FAILURE" in
+    bad-uki)
+      MATCH 'bad shim (lock )?signature' < "$NESTED_WORK_DIR/logs/serial.log"
+      ;;
+    initramfs-panic)
+      MATCH 'Command line: snapd_recovery_mode=recover snapd_recovery_system=failure-system' < "$NESTED_WORK_DIR/logs/serial.log"
+      MATCH 'Kernel panic - not syncing: sysrq triggered crash' < "$NESTED_WORK_DIR/logs/serial.log"
+      ;;
+  esac

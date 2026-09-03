@@ -94,7 +94,7 @@ execute: |
   # So having the retries make sense.
   total_iters=5
   for iter in $(seq "$total_iters"); do
-      snapdSaysMemUsage="$(sudo snap debug api /v2/quotas/group-one | gojq -r '.result.current.memory')"
+      snapdSaysMemUsage="$(snap debug api /v2/quotas/group-one | gojq -r '.result.current.memory')"
       kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
       pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"

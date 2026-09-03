@@ -87,19 +87,52 @@ type SnapdUser struct {
 	Expiration     time.Time `json:"expiration"`
 }
 
-// Peer describes the Unix-domain peer of an API request (Socket, UID, PID).
+// LSM security label keys for [Peer.SecurityLabels].
+const (
+	PeerSecurityLabelAppArmor = "AppArmor"
+	PeerSecurityLabelSELinux  = "SELinux"
+)
+
+// Peer describes the Unix-domain peer of an API request.
+//
+// Socket, UID, and PID come from peer credentials and are expected to be
+// set when emitting AUTHZ events (the access gate is not reached without
+// them). Exe, CgroupLabel, Snap, and App are best-effort enrichment fields.
+// When unavailable, leave them empty or set them to [unknown]; [Peer.LogValue]
+// logs empty values as [unknown].
+//
+// [Peer.SecurityLabels] is also best-effort enrichment: include only the LSM
+// keys that were obtained. Do not use [unknown] as a map value; omit unavailable
+// keys instead. An empty or nil map is logged as an empty JSON object. Keys are
+// emitted in alphabetical order.
 //
 // Callers may signal "unknown" by setting UID to [peerNobody] and/or PID to
-// [peerNoProcess]. These mirror the daemon ucrednetNobody and ucrednetNoProcess
-// sentinels (see daemon/ucrednet.go).
+// [peerNoProcess] for display via [Peer.String]; these mirror the daemon
+// `ucrednetNobody` and `ucrednetNoProcess` sentinels (see daemon/ucrednet.go).
 type Peer struct {
 	Socket string `json:"socket"`
 	UID    uint32 `json:"uid"`
 	PID    int32  `json:"pid"`
+	// Exe is the executable path of the peer process, read from
+	// /proc/<pid>/exe. [unknown] when unavailable.
+	Exe string `json:"exe"`
+	// SecurityLabels holds LSM security labels keyed by [PeerSecurityLabelAppArmor]
+	// and [PeerSecurityLabelSELinux]. Omit unavailable keys.
+	SecurityLabels map[string]string `json:"security_labels"`
+	// CgroupLabel is the snap cgroup label of the peer process (e.g.
+	// snap.<instance>.<app>). [unknown] when unavailable.
+	CgroupLabel string `json:"cgroup_label"`
+	// Snap is the snap instance name of the peer process, typically derived
+	// from the AppArmor entry in [Peer.SecurityLabels]. [unknown] when unavailable.
+	Snap string `json:"snap"`
+	// App is the snap application or service name of the peer process,
+	// typically derived from the AppArmor entry in [Peer.SecurityLabels].
+	// [unknown] when unavailable.
+	App string `json:"app"`
 }
 
-// [peerNobody] and [peerNoProcess] mirror the daemon ucrednetNobody and
-// ucrednetNoProcess sentinels. They are duplicated here to keep seclog
+// [peerNobody] and [peerNoProcess] mirror the daemon `ucrednetNobody` and
+// `ucrednetNoProcess` sentinels. They are duplicated here to keep seclog
 // free of snapd package imports.
 const (
 	peerNobody    = ^uint32(0)
@@ -131,12 +164,13 @@ func (p Peer) String() string {
 }
 
 // Endpoint describes an API endpoint involved in an authorization event.
+// When unavailable, leave Method and Path empty or set them to [unknown], and
+// leave Action empty or set it to [none]; [Endpoint.LogValue] logs empty
+// method and path as [unknown] and an empty action as [none].
 type Endpoint struct {
-	Method        string `json:"method"`
-	Path          string `json:"path"`
-	Action        string `json:"action"`
-	AccessChecker string `json:"access_checker"`
-	AccessLevel   string `json:"access_level"`
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Action string `json:"action"`
 }
 
 // String returns a colon-separated representation in the form
@@ -161,45 +195,57 @@ func (e Endpoint) String() string {
 	return method + ":" + path + ":" + action
 }
 
-// AuthzCheck represents the outcome of a single authorization check.
-type AuthzCheck string
+// GrantReason identifies why access was granted for authz_admin events.
+// It is passed to [LogAdminActivity] as grantReason and emitted as
+// reason_granted.
+//
+// The base values are [GrantUserAuth], [GrantRootAuth], and
+// [GrantPolkitAuth]. When an interface connection also contributed to
+// the grant, use [GrantReason.WithInterface].
+type GrantReason string
 
-// AuthzCheck outcome values for a single authorization stage.
-// The default for a new [AuthzChecks] is [AuthzNotApplicable].
 const (
-	AuthzNotApplicable AuthzCheck = "not-applicable" // stage not used for this request
-	AuthzNotReached    AuthzCheck = "not-reached"    // applicable but not evaluated yet
-	AuthzFail          AuthzCheck = "fail"
-	AuthzPass          AuthzCheck = "pass"
+	GrantUserAuth   GrantReason = "user-auth"
+	GrantRootAuth   GrantReason = "root-auth"
+	GrantPolkitAuth GrantReason = "polkit-auth"
 )
 
-// AuthzChecks captures the outcome of each authorization stage evaluated
-// during an access check. Each field records whether that stage passed,
-// failed, or was not applicable to the request.
-type AuthzChecks struct {
-	AccessOptions AuthzCheck `json:"access_options"`
-	PeerCreds     AuthzCheck `json:"peer_credentials"`
-	Socket        AuthzCheck `json:"socket"`
-	Interface     AuthzCheck `json:"interface_requirements"`
-	OpenAccess    AuthzCheck `json:"open_access"`
-	UserAuth      AuthzCheck `json:"user_authentication"`
-	Root          AuthzCheck `json:"root"`
-	Polkit        AuthzCheck `json:"polkit"`
+// WithInterface returns a [GrantReason] that includes a snap interface
+// connection as part of why access was granted.
+//
+// The result has the form "<reason> <interface> <plug|slot>", for
+// example "root-auth desktop-launch plug".
+//
+// If iface is empty, WithInterface returns g unchanged so it can be
+// called unconditionally.
+//
+// onPlugSide is true when the requesting snap was on the plug side of
+// the connection, false for the slot side.
+func (g GrantReason) WithInterface(iface string, onPlugSide bool) GrantReason {
+	if iface == "" {
+		return g
+	}
+	side := "slot"
+	if onPlugSide {
+		side = "plug"
+	}
+	return GrantReason(string(g) + " " + iface + " " + side)
 }
 
-// NewAuthzChecks returns an [AuthzChecks] with all fields set to [AuthzNotApplicable].
-func NewAuthzChecks() AuthzChecks {
-	return AuthzChecks{
-		AccessOptions: AuthzNotApplicable,
-		PeerCreds:     AuthzNotApplicable,
-		Socket:        AuthzNotApplicable,
-		Interface:     AuthzNotApplicable,
-		OpenAccess:    AuthzNotApplicable,
-		UserAuth:      AuthzNotApplicable,
-		Root:          AuthzNotApplicable,
-		Polkit:        AuthzNotApplicable,
-	}
-}
+// DenialReason identifies why access was denied for authz_fail events.
+// It is passed to [LogUnauthorizedAccess] as denialReason and emitted as
+// reason_denied.
+type DenialReason string
+
+const (
+	DenialNoPeerCredentials    DenialReason = "no-peer-credentials"
+	DenialSocketNotPermitted   DenialReason = "socket-not-permitted"
+	DenialMissingInterfacePlug DenialReason = "missing-interface-plug"
+	DenialMissingInterfaceSlot DenialReason = "missing-interface-slot"
+	DenialUserAuth             DenialReason = "user-auth-denied"
+	DenialRootAuth             DenialReason = "root-auth-denied"
+	DenialPolkitAuth           DenialReason = "polkit-auth-denied"
+)
 
 // String returns a colon-separated description of the user in the form
 // "<ID>:<StoreUserEmail>:<StoreUserName>". Fields that are unset use

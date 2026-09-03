@@ -16,11 +16,9 @@ export DH_GOPKG := github.com/snapcore/snapd
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_BUILDPKG = $(strip $(addprefix $(DH_GOPKG)/, \
     cmd/snapd \
-    cmd/snap-exec \
     cmd/snap-seccomp \
     cmd/snap-update-ns \
     cmd/snapctl \
-    cmd/snapd-apparmor \
     ))
 # skip Go generate, all source code should have been committed
 export DH_GOLANG_GO_GENERATE=0
@@ -64,6 +62,16 @@ TAGS=nosecboot
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
 endif
+
+# Export build tags via GOFLAGS so that dh_golang's "go list" call picks them
+# up. Without this, dh_golang fails because it calls "go list" without build
+# tags and hits packages that are excluded by nosecboot (e.g. secboot/keymgr,
+# which prepare-debian-build-tree used to strip). GOFLAGS applies to every go
+# command invocation, including the one inside dh_golang.
+comma := ,
+empty :=
+space := $(empty) $(empty)
+export GOFLAGS = -tags=$(subst $(space),$(comma),$(strip $(TAGS)))
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
@@ -112,7 +120,8 @@ $(info version_from_changelog is $(version_from_changelog))
 define snapdtool__version_generated.go
 package snapdtool
 func init() {
-	Version = "$(version_from_changelog)"
+	// TODO: Stop doing this and start setting downstream version suffix later on.
+	UpstreamVersion = "$(version_from_changelog)"
 }
 endef
 
@@ -162,9 +171,6 @@ override_dh_auto_build: snapd.defines.mk
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
-	# Prepare the build tree by removing code not used for Debian builds
-	$(MAKE) -f packaging/snapd.mk prepare-debian-build-tree sourcedir=_build/src/$(DH_GOPKG) SNAPD_DEFINES_DIR=$(CURDIR)
-
 	# and build, we cannot use modules as packaging on Debian requires us to use
 	# dependencies from the distro, and this would require further updates to the
 	# go.mod file
@@ -176,10 +182,9 @@ override_dh_auto_build: snapd.defines.mk
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
-	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
-	# we must force a static build here. We need a static snap-{exec,update-ns}
+	# Generate static snapctl and snap-update-ns - it somehow includes CGO so
+	# we must force a static build here. We need a static snap-update-ns and snapctl
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 

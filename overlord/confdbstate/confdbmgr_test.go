@@ -465,7 +465,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 
 	// clearing would remove non-committed changes, so if we read the set value
 	// it's because it has been successfully committed
-	err = tx.Clear(s.state)
+	err = tx.Reset(s.state)
 	c.Assert(err, IsNil)
 
 	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)

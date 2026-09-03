@@ -136,6 +136,10 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorNoTaskSnapSetup(c *C) {
 }
 
 func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorSnapOpenLock(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -244,6 +248,10 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorKillReasonUnmarshal(c *C
 }
 
 func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorInhibitLockWithHint(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

@@ -197,6 +197,24 @@ func (*viewSuite) TestNewConfdb(c *C) {
 	}
 }
 
+func (*viewSuite) TestSchemaIsSystem(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"storage": "foo"},
+			},
+		},
+	}
+
+	db, err := confdb.NewSchema("system", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Check(db.IsSystem(), Equals, true)
+
+	db, err = confdb.NewSchema("other", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Check(db.IsSystem(), Equals, false)
+}
+
 func (s *viewSuite) TestMissingRequestDefaultsToStorage(c *C) {
 	databag := confdb.NewJSONDatabag()
 	views := map[string]any{
@@ -743,6 +761,51 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			c.Assert(err, testutil.ErrorIs, t.expectedErr, cmt)
 			c.Assert(err, ErrorMatches, t.expectedErrorMsg, cmt)
 		}
+	}
+}
+
+func (s *viewSuite) TestValidateConstraintsOK(c *C) {
+	err := confdb.ValidateConstraints(map[string]any{
+		"iface": "wlan0",
+		"count": 1,
+		"admin": true,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *viewSuite) TestValidateConstraintsEmpty(c *C) {
+	err := confdb.ValidateConstraints(nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *viewSuite) TestValidateConstraintsInvalid(c *C) {
+	tests := []struct {
+		name        string
+		constraints map[string]any
+		expectedErr string
+	}{
+		{
+			name:        "null value",
+			constraints: map[string]any{"iface": nil},
+			expectedErr: `constraint value must be non-null scalar but parameter "iface" has null constraint`,
+		},
+		{
+			name:        "array value",
+			constraints: map[string]any{"iface": []any{"wlan0", "wlan1"}},
+			expectedErr: `constraint value must be non-null scalar but parameter "iface" has array constraint`,
+		},
+		{
+			name:        "map value",
+			constraints: map[string]any{"iface": map[string]any{"name": "wlan0"}},
+			expectedErr: `constraint value must be non-null scalar but parameter "iface" has map constraint`,
+		},
+	}
+
+	for _, t := range tests {
+		cmt := Commentf("%s test", t.name)
+		err := confdb.ValidateConstraints(t.constraints)
+		c.Assert(err, NotNil, cmt)
+		c.Check(err, ErrorMatches, t.expectedErr, cmt)
 	}
 }
 

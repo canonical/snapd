@@ -726,11 +726,14 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 		}
 
 		if checkFailErrors == ErrorSecbootTimeout {
-			select {
-			case <-ctx.Done():
-				return nil, nil, ctx.Err()
-			case <-time.After(20 * time.Millisecond):
-			}
+			// Wait deterministically for the context to expire (its
+			// timeout is mocked to be very short) instead of racing
+			// it against a fixed sleep. Racing an unrelated timer is
+			// flaky on slow or heavily loaded machines, where
+			// scheduling delays can let both timers become ready by
+			// the time the select is evaluated.
+			<-ctx.Done()
+			return nil, nil, ctx.Err()
 		}
 
 		switch errorsDetected {
@@ -762,11 +765,10 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 			}
 
 			if checkFailErrors == ErrorSecbootTimeout {
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(20 * time.Millisecond):
-				}
+				// See the equivalent comment in the
+				// secboot.PreinstallCheck mock above.
+				<-ctx.Done()
+				return nil, ctx.Err()
 			}
 
 			switch errorsDetected {
@@ -2056,10 +2058,11 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
+	dataDisk := secboot.CreateMockBootstrappedContainer()
 	saveDisk := secboot.CreateMockBootstrappedContainer()
 
 	installKeyForRole := map[string]secboot.BootstrappedContainer{
-		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
+		gadget.SystemData: dataDisk,
 		gadget.SystemSave: saveDisk,
 	}
 
@@ -2091,6 +2094,9 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 
 	saveKey, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde", "ubuntu-save.key"))
 	c.Assert(err, IsNil)
+
+	c.Check(saveDisk.KeyCommitted, Equals, false)
+	c.Check(dataDisk.KeyCommitted, Equals, false)
 
 	if useTokens {
 		_, hasToken := saveDisk.Tokens["default"]

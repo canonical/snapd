@@ -87,6 +87,16 @@ func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 `)
 }
 
+func (s *systemFilesInterfaceSuite) TestAddEnsureDirMountsPathWithSpaces(c *C) {
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	apparmorSpec.AddEnsureDirMounts("system-files", []*interfaces.EnsureDirSpec{{
+		MustExistDir: "/etc",
+		EnsureDir:    "/etc/dir with spaces",
+	}})
+
+	c.Check(strings.Join(apparmorSpec.UpdateNS(), "\n"), testutil.Contains, `owner "/etc/dir with spaces/" rw,`)
+}
+
 func (s *systemFilesInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }

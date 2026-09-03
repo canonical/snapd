@@ -77,6 +77,10 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 - Release lock only for slow I/O/network operations
 - Working state + status changes must be atomic via `Task.SetStatus()` before unlock
 
+## Skills
+
+Detailed, executable workflows for common tasks live in `.agents/skills/`.
+
 ## Developer Workflows
 
 ### Building & Testing

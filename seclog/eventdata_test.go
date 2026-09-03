@@ -86,14 +86,15 @@ func (s *SecLogSuite) TestPeerString(c *C) {
 	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
 }
 
-func (s *SecLogSuite) TestNewAuthzChecks(c *C) {
-	checks := seclog.NewAuthzChecks()
-	c.Check(checks.AccessOptions, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.PeerCreds, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Socket, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Interface, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.OpenAccess, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.UserAuth, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Root, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Polkit, Equals, seclog.AuthzNotApplicable)
+func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {
+	c.Check(seclog.GrantRootAuth.WithInterface("desktop-launch", true),
+		Equals, seclog.GrantReason("root-auth desktop-launch plug"))
+	c.Check(seclog.GrantUserAuth.WithInterface("snap-themes-control", false),
+		Equals, seclog.GrantReason("user-auth snap-themes-control slot"))
+	c.Check(seclog.GrantPolkitAuth.WithInterface("snap-fde-control", true),
+		Equals, seclog.GrantReason("polkit-auth snap-fde-control plug"))
+
+	// Empty iface means no interface contributed; the base reason is unchanged.
+	c.Check(seclog.GrantRootAuth.WithInterface("", true), Equals, seclog.GrantRootAuth)
+	c.Check(seclog.GrantRootAuth.WithInterface("", false), Equals, seclog.GrantRootAuth)
 }
