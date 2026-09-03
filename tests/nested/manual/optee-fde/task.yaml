@@ -76,12 +76,9 @@ prepare: |
 
     unzstd < ../initrd.img | cpio -idmv
 
-    #shellcheck source=tests/lib/core-initrd.sh
-    . "$TESTSLIB"/core-initrd.sh
-
     # rebuild snap-bootstrap from core-initrd with test keys. shouldn't this be
     # the default?
-    DEB_BUILD_OPTIONS='testkeys' build_initramfs_deb
+    "$TESTSTOOLS"/core-initrd build-initramfs-deb --deb-build-options testkeys
     dpkg-deb --fsys-tarfile "$PROJECT_PATH"/core-initrd/ubuntu-core-initramfs_*.deb | \
       tar -xO ./usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap > ./lib/snapd/snap-bootstrap
 
