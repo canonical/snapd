@@ -267,7 +267,16 @@ uc20_build_initramfs_kernel_snap_local() {
     (
         cd repacked-kernel
         unpackeddir="$PWD"
-        kver=$(ls "config"-* | grep -Po 'config-\K.*')
+        kver=
+        for cfg in config-*; do
+            [ -e "$cfg" ] || continue
+            kver="${cfg#config-}"
+            break
+        done
+        if [ -z "$kver" ]; then
+            echo "repack-kernel: cannot determine kernel version from config-*" >&2
+            exit 1
+        fi
 
         objcopy -j .initrd -O binary kernel.efi initrd
         unmkinitramfs initrd unpacked-initrd
