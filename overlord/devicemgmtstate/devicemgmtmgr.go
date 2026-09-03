@@ -589,8 +589,8 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 	// like "seeding". For now, only the confdb subsystem is supported and
 	// no specific features need to be declared.
 
-	handler, ok := handlers.Get(msg.Kind)
-	if !ok {
+	handler := handlers.Get(msg.Kind)
+	if handler == nil {
 		rejectMsg(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
 		return nil
 	}
@@ -666,8 +666,8 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 		return nil
 	}
 
-	handler, ok := handlers.Get(msg.Kind)
-	if !ok {
+	handler := handlers.Get(msg.Kind)
+	if handler == nil {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
 		m.setState(ms)
@@ -780,8 +780,8 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(ctx context.Context, ms
 		return nil
 	}
 
-	handler, ok := handlers.Get(msg.Kind)
-	if !ok {
+	handler := handlers.Get(msg.Kind)
+	if handler == nil {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
 		return nil

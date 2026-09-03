@@ -92,7 +92,10 @@ func (msg *RequestMessage) Targets(devID asserts.DeviceID) bool {
 }
 
 // MessageHandler processes request messages of a specific kind.
-// Caller must hold state lock when using this interface.
+//
+// Implementations are always invoked with the state lock held. They are free
+// to drop and reacquire the state lock internally (e.g. around slow I/O), but
+// must always return with the state lock held.
 type MessageHandler interface {
 	// Validate checks subsystem-specific constraints.
 	Validate(ctx context.Context, st *state.State, msg *RequestMessage) error
@@ -130,7 +133,6 @@ func Register(kind string, h MessageHandler) {
 }
 
 // Get returns the MessageHandler registered for the given message kind, if any.
-func Get(kind string) (MessageHandler, bool) {
-	h, ok := registeredHandlers[kind]
-	return h, ok
+func Get(kind string) MessageHandler {
+	return registeredHandlers[kind]
 }

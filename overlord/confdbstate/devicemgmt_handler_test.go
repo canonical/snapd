@@ -30,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	devicemgmthandlers "github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -62,6 +64,14 @@ func makeConfdbControl(c *C, groups []any) *asserts.ConfdbControl {
 	return a.(*asserts.ConfdbControl)
 }
 
+func setFeatureFlag(c *C, st *state.State, feature features.SnapdFeature, enabled bool) {
+	tr := config.NewTransaction(st)
+	_, confOption := feature.ConfigOption()
+	err := tr.Set("core", confOption, enabled)
+	c.Assert(err, IsNil)
+	tr.Commit()
+}
+
 type confdbHandlerSuite struct {
 	testutil.BaseTest
 
@@ -75,6 +85,11 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.st = state.New(nil)
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	setFeatureFlag(c, s.st, features.Confdb, true)
+	setFeatureFlag(c, s.st, features.ConfdbControl, true)
 
 	views := map[string]any{
 		"wifi-admin": map[string]any{
@@ -91,6 +106,9 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestValidateOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	cc := makeConfdbControl(c, []any{
 		map[string]any{
 			"operators":       []any{"alice"},
@@ -112,7 +130,41 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *confdbHandlerSuite) TestValidateFeatureDisabled(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	handler := confdbstate.NewConfdbMessageHandler(&mockDeviceBackend{
+		confdbControl: func() (*asserts.ConfdbControl, error) { return nil, nil },
+	})
+
+	tests := []struct {
+		feature features.SnapdFeature
+	}{
+		{features.Confdb},
+		{features.ConfdbControl},
+	}
+
+	for _, t := range tests {
+		cmt := Commentf("feature: %s", t.feature)
+		expectedErr := fmt.Sprintf("cannot validate message: feature flag %q is disabled", t.feature)
+
+		setFeatureFlag(c, s.st, t.feature, false)
+
+		err := handler.Validate(context.Background(), s.st, &devicemgmthandlers.RequestMessage{})
+		c.Check(err, ErrorMatches, expectedErr, cmt)
+
+		var authErr *devicemgmthandlers.UnauthorizedError
+		c.Check(errors.As(err, &authErr), Equals, false, cmt)
+
+		setFeatureFlag(c, s.st, t.feature, true)
+	}
+}
+
 func (s *confdbHandlerSuite) TestValidateMismatchedAuthority(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	cc := makeConfdbControl(c, []any{
 		map[string]any{
 			"operators":       []any{"alice"},
@@ -139,8 +191,10 @@ func (s *confdbHandlerSuite) TestValidateMismatchedAuthority(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
-	cc := makeConfdbControl(c, []any{}) // no delegations
+	s.st.Lock()
+	defer s.st.Unlock()
 
+	cc := makeConfdbControl(c, []any{}) // no delegations
 	handler := confdbstate.NewConfdbMessageHandler(&mockDeviceBackend{
 		confdbControl: func() (*asserts.ConfdbControl, error) { return cc, nil },
 	})
@@ -160,6 +214,9 @@ func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	handler := confdbstate.NewConfdbMessageHandler(&mockDeviceBackend{
 		confdbControl: func() (*asserts.ConfdbControl, error) {
 			return nil, state.ErrNoState
@@ -167,9 +224,10 @@ func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
 	})
 
 	msg := &devicemgmthandlers.RequestMessage{
-		AccountID: "alice",
-		Kind:      "confdb",
-		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
+		AccountID:   "alice",
+		AuthorityID: "alice",
+		Kind:        "confdb",
+		Body:        `{"action":"get","account":"system","view":"network/wifi-admin"}`,
 	}
 	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
@@ -180,13 +238,10 @@ func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
-	cc := makeConfdbControl(c, []any{
-		map[string]any{
-			"operators":       []any{"alice"},
-			"authentications": []any{"operator-key"},
-			"views":           []any{"system/network/wifi-admin"},
-		},
-	})
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	cc := makeConfdbControl(c, []any{})
 	handler := confdbstate.NewConfdbMessageHandler(&mockDeviceBackend{
 		confdbControl: func() (*asserts.ConfdbControl, error) { return cc, nil },
 	})
@@ -254,6 +309,9 @@ func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	restore := confdbstate.MockConfdbstateGetView(func(_ *state.State, account, schemaName, viewName string) (*confdb.View, error) {
@@ -280,8 +338,6 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 		Kind:   "confdb",
 		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
 	}
-	s.st.Lock()
-	defer s.st.Unlock()
 
 	chgID, err := handler.Apply(context.Background(), s.st, msg)
 	c.Assert(err, IsNil)
@@ -295,6 +351,9 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	restore := confdbstate.MockConfdbstateGetView(func(_ *state.State, _, _, viewName string) (*confdb.View, error) {
@@ -316,8 +375,6 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 		Kind:   "confdb",
 		Body:   `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
 	}
-	s.st.Lock()
-	defer s.st.Unlock()
 
 	chgID, err := handler.Apply(context.Background(), s.st, msg)
 	c.Assert(err, IsNil)
@@ -331,6 +388,9 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	restore := confdbstate.MockConfdbstateGetView(func(_ *state.State, _, _, viewName string) (*confdb.View, error) {
@@ -370,6 +430,9 @@ func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestApplyGetViewError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	restore := confdbstate.MockConfdbstateGetView(func(_ *state.State, _, _, _ string) (*confdb.View, error) {
@@ -388,6 +451,9 @@ func (s *confdbHandlerSuite) TestApplyGetViewError(c *C) {
 }
 
 func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	restore := confdbstate.MockConfdbstateGetView(func(_ *state.State, _, _, viewName string) (*confdb.View, error) {

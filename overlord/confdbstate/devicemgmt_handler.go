@@ -28,6 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	devicemgmthandlers "github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -37,6 +39,23 @@ var (
 	confdbstateReadConfdb  = ReadConfdb
 	confdbstateWriteConfdb = WriteConfdb
 )
+
+// checkConfdbFeatureFlags checks that both confdb and confdb-control are enabled.
+func checkConfdbFeatureFlags(st *state.State) error {
+	tr := config.NewTransaction(st)
+	for _, feature := range []features.SnapdFeature{features.Confdb, features.ConfdbControl} {
+		enabled, err := features.Flag(tr, feature)
+		if err != nil && !config.IsNoOption(err) {
+			return fmt.Errorf("cannot check %q feature flag: %v", feature, err)
+		}
+
+		if !enabled {
+			return fmt.Errorf("feature flag %q is disabled", feature)
+		}
+	}
+
+	return nil
+}
 
 // confdbAction describes a confdb "get" or "set" action.
 type confdbAction struct {
@@ -65,7 +84,8 @@ func (a confdbAction) validate() error {
 		return fmt.Errorf("account is required")
 	}
 
-	if _, _, err := parseView(a.View); err != nil {
+	_, _, err := parseView(a.View)
+	if err != nil {
 		return err
 	}
 
@@ -99,6 +119,11 @@ type confdbMessageHandler struct {
 // Validate checks that the confdb request message is well-formed and that
 // the sending operator has been granted access to the requested view.
 func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) error {
+	err := checkConfdbFeatureFlags(st)
+	if err != nil {
+		return fmt.Errorf("cannot validate message: %v", err)
+	}
+
 	action, err := decodeConfdbAction(msg.Body)
 	if err != nil {
 		return err
