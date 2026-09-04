@@ -41,7 +41,7 @@ var (
 	secbootGetPrimaryKeyDigest    = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest = secboot.VerifyPrimaryKeyDigest
 	secbootGetPCRHandle           = secboot.GetPCRHandle
-	secbootGetDALockoutCounter    = secboot.GetDALockoutCounter
+	secbootGetDALockoutInfo       = secboot.GetDALockoutInfo
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -204,11 +204,18 @@ type daLockoutRateLimit struct {
 	Tokens     int       `json:"tokens"`
 	LastUpdate time.Time `json:"last-update"`
 
-	BootID string `json:"last-boot-id"`
+	BootID    string `json:"last-boot-id"`
+	InLockout bool   `json:"in-lockout"`
 }
 
 func (rl *daLockoutRateLimit) syncNeeded(currentBootID string) bool {
-	if elapsed := timeNow().Sub(rl.LastUpdate); elapsed >= daLockoutSyncInterval {
+	syncInterval := daLockoutSyncInterval
+	if rl.InLockout {
+		// If we are currently in lockout, we increase the sync interval to reduce
+		// the frequency of expensive TPM syncs.
+		syncInterval = daLockoutSyncInterval * 3
+	}
+	if elapsed := timeNow().Sub(rl.LastUpdate); elapsed >= syncInterval {
 		return true
 	}
 
@@ -216,13 +223,13 @@ func (rl *daLockoutRateLimit) syncNeeded(currentBootID string) bool {
 }
 
 func initDALockoutRateLimit(currentBootID string) (*daLockoutRateLimit, error) {
-	daLockoutCounter, err := secbootGetDALockoutCounter()
+	daLockoutInfo, err := secbootGetDALockoutInfo()
 	if err != nil {
 		return nil, err
 	}
 
-	tokens := daLockoutMaxTokens - daLockoutCounter
-	if tokens < 0 {
+	tokens := daLockoutMaxTokens - int(daLockoutInfo.LockoutCounter)
+	if tokens < 0 || daLockoutInfo.InLockout {
 		tokens = 0
 	}
 
@@ -230,6 +237,7 @@ func initDALockoutRateLimit(currentBootID string) (*daLockoutRateLimit, error) {
 		Tokens:     tokens,
 		LastUpdate: timeNow(),
 		BootID:     currentBootID,
+		InLockout:  daLockoutInfo.InLockout,
 	}, nil
 }
 
@@ -274,42 +282,13 @@ func consumeDALockoutToken(st *state.State) error {
 	return nil
 }
 
-// ResetDALockoutRateLimit re-synchronizes the DA lockout rate-limit token bucket
-// with the TPM DA lockout counter. It must be called with the state lock held.
-func ResetDALockoutRateLimit(st *state.State) error {
-	var s FdeState
-	err := st.Get(fdeStateKey, &s)
-	if errors.Is(err, state.ErrNoState) {
-		// no FDE state yet, nothing to reset
-		return nil
-	}
-	if err != nil {
-		return err
-	}
+func MockSecbootGetDALockoutInfo(f func() (*secboot.DALockoutInfo, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking GetDALockoutInfo can be done only from tests")
 
-	currentBootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
-
-	bucket, err := initDALockoutRateLimit(currentBootID)
-	if err != nil {
-		return err
-	}
-
-	s.DALockoutRateLimit = bucket
-	st.Set(fdeStateKey, &s)
-
-	return nil
-}
-
-func MockSecbootGetDALockoutCounter(f func() (int, error)) (restore func()) {
-	osutil.MustBeTestBinary("mocking GetDALockoutCounter can be done only from tests")
-
-	old := secbootGetDALockoutCounter
-	secbootGetDALockoutCounter = f
+	old := secbootGetDALockoutInfo
+	secbootGetDALockoutInfo = f
 	return func() {
-		secbootGetDALockoutCounter = old
+		secbootGetDALockoutInfo = old
 	}
 }
 

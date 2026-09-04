@@ -754,10 +754,6 @@ func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutReset
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
 }
 
-func MockFdestateResetDALockoutRateLimit(f func(st *state.State) error) (restore func()) {
-	return testutil.Mock(&fdestateResetDALockoutRateLimit, f)
-}
-
 func MockSecbootPostinstallCheck(f func(ctx context.Context, bootChain []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
 	old := secbootPostinstallCheck
 	secbootPostinstallCheck = f

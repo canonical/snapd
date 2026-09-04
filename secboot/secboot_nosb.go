@@ -238,6 +238,6 @@ func TestProtectorKey(ctx context.Context, devicePath, slotName string, protecto
 	return false, errBuildWithoutSecboot
 }
 
-func GetDALockoutCounter() (int, error) {
-	return 0, errBuildWithoutSecboot
+func GetDALockoutInfo() (*DALockoutInfo, error) {
+	return nil, errBuildWithoutSecboot
 }

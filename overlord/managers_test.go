@@ -7687,8 +7687,8 @@ func (s *mgrsSuiteCore) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) 
 	})
 	defer restore()
 
-	restore = fdestate.MockSecbootGetDALockoutCounter(func() (int, error) {
-		return 0, nil
+	restore = fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: 0}, nil
 	})
 	defer restore()
 

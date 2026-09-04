@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	efilib "github.com/canonical/go-efilib"
 	"github.com/canonical/go-tpm2"
@@ -75,12 +76,13 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled            = (*sb_tpm2.Connection).IsEnabled
-	lockoutAuthSet          = (*sb_tpm2.Connection).LockoutAuthSet
-	sbTPMEnsureProvisioned  = (*sb_tpm2.Connection).EnsureProvisioned
-	sbWithCustomSRKTemplate = sb_tpm2.WithCustomSRKTemplate
-	tpmReleaseResources     = tpmReleaseResourcesImpl
-	tpmGetCapabilityHandles = (*sb_tpm2.Connection).GetCapabilityHandles
+	isTPMEnabled                  = (*sb_tpm2.Connection).IsEnabled
+	lockoutAuthSet                = (*sb_tpm2.Connection).LockoutAuthSet
+	sbTPMEnsureProvisioned        = (*sb_tpm2.Connection).EnsureProvisioned
+	sbWithCustomSRKTemplate       = sb_tpm2.WithCustomSRKTemplate
+	tpmReleaseResources           = tpmReleaseResourcesImpl
+	tpmGetCapabilityHandles       = (*sb_tpm2.Connection).GetCapabilityHandles
+	tpmGetCapabilityTPMProperties = (*sb_tpm2.Connection).GetCapabilityTPMProperties
 
 	sbTPMResetDictionaryAttackLockWithAuthValue = (*sb_tpm2.Connection).ResetDictionaryAttackLockWithAuthValue
 	sbTPMResetDictionaryAttackLock              = (*sb_tpm2.Connection).ResetDictionaryAttackLock
@@ -1530,18 +1532,38 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 	return keyData.WriteTokenAtomic(devicePath, slotName)
 }
 
-func GetDALockoutCounter() (int, error) {
+// GetDALockoutInfo returns the TPM dictionary-attack lockout status and
+// related lockout parameters.
+func GetDALockoutInfo() (*DALockoutInfo, error) {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		err = fmt.Errorf("cannot connect to TPM device: %v", err)
 		logger.Noticef("%v", err)
-		return 0, err
+		return nil, err
 	}
 	defer tpm.Close()
 
-	counter, err := tpm.GetCapabilityTPMProperty(tpm2.PropertyLockoutCounter)
+	props, err := tpmGetCapabilityTPMProperties(tpm, tpm2.PropertyPermanent, tpm2.CapabilityMaxProperties)
 	if err != nil {
-		return 0, fmt.Errorf("cannot get lockout counter from TPM: %v", err)
+		return nil, fmt.Errorf("cannot request properties from TPM: %w", err)
 	}
-	return int(counter), nil
+
+	info := &DALockoutInfo{}
+
+	for _, prop := range props {
+		switch prop.Property {
+		case tpm2.PropertyPermanent:
+			info.InLockout = tpm2.PermanentAttributes(prop.Value)&tpm2.AttrInLockout != 0
+		case tpm2.PropertyLockoutCounter:
+			info.LockoutCounter = prop.Value
+		case tpm2.PropertyMaxAuthFail:
+			info.MaxTries = prop.Value
+		case tpm2.PropertyLockoutInterval:
+			info.RecoveryTime = time.Duration(prop.Value) * time.Second
+		case tpm2.PropertyLockoutRecovery:
+			info.LockoutRecovery = time.Duration(prop.Value) * time.Second
+		}
+	}
+
+	return info, nil
 }

@@ -81,7 +81,6 @@ var (
 
 	fdestateAttemptAutoRepairIfNeeded = fdestate.AttemptAutoRepairIfNeeded
 	fdestateGetRunBootChain           = fdestate.GetRunBootChain
-	fdestateResetDALockoutRateLimit   = fdestate.ResetDALockoutRateLimit
 )
 
 var (
@@ -1294,13 +1293,6 @@ func (m *DeviceManager) ensureFDE() error {
 
 	// FIXME: we should rename to something like "reset lockout"
 	lockoutResetErr := secbootMarkSuccessful()
-
-	// Sync DA lockout rate-limiter with real TPM counter.
-	if lockoutResetErr == nil {
-		if err := fdestateResetDALockoutRateLimit(m.state); err != nil {
-			return err
-		}
-	}
 
 	// TODO:FDEM: with new APIs of lockout reset we will get so
 	// more statuses that we will need to react to and
