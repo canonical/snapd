@@ -73,6 +73,7 @@ func (r *systemdAuthRequestor) RequestUserCredential(ctx context.Context, name, 
 
 	args = append(args, "--icon", "drive-harddisk")
 	args = append(args, "--id", filepath.Base(os.Args[0])+":"+path)
+	args = append(args, "--timeout=0")
 
 	if enableCredential {
 		args = append(args, "--credential=snapd.fde.password")
