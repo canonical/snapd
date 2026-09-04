@@ -20,13 +20,16 @@
 package builtin_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -206,6 +209,20 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		"/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0",
 		"/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/1",
 	})
+}
+
+func (s *OpenglesDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	lib1 := filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1")
+	target0 := "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

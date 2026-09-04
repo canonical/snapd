@@ -25,6 +25,7 @@ import (
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -116,6 +117,18 @@ func (iface *eglDriverLibsInterface) MountConnectedPlug(spec *mount.Specificatio
 	}
 	// The EGL vendor metadata is bound as files under the egl_vendor.d subtree.
 	return mountAssemblySourceFiles(spec, slot, eglDriverLibs,
+		sourceDirAttr{attrName: "icd-source"}, "egl_vendor.d", checkEglIcdFile, withPriority)
+}
+
+func (iface *eglDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Authorize snap-update-ns to construct (and eventually tear down) the
+	// assembly tree under /opt/snapd/interfaces. The default base template
+	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	const withPriority = true
+	if err := addAppArmorAssemblyLibDirs(spec, slot, eglDriverLibs); err != nil {
+		return err
+	}
+	return addAppArmorAssemblySourceFiles(spec, slot, eglDriverLibs,
 		sourceDirAttr{attrName: "icd-source"}, "egl_vendor.d", checkEglIcdFile, withPriority)
 }
 

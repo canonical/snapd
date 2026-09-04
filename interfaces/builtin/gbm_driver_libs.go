@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -132,6 +133,16 @@ func (iface *gbmDriverLibsInterface) MountConnectedPlug(spec *mount.Specificatio
 	}
 	// The client driver is bound as a file under the share/gbm subtree.
 	return mountAssemblyClientDriver(spec, slot, gbmDriverLibs)
+}
+
+func (iface *gbmDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Authorize snap-update-ns to construct (and eventually tear down) the
+	// assembly tree under /opt/snapd/interfaces. The default base template
+	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	if err := addAppArmorAssemblyLibDirs(spec, slot, gbmDriverLibs); err != nil {
+		return err
+	}
+	return addAppArmorAssemblyClientDriver(spec, slot, gbmDriverLibs)
 }
 
 var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})

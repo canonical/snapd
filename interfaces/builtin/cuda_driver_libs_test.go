@@ -22,11 +22,13 @@ package builtin_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -339,6 +341,25 @@ func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3",
 		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4",
 	})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	// The bind-mount rules for each assembly library dir, with the {,-[0-9]*}
+	// clash suffixes.
+	lib1 := filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1")
+	target0 := "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
+
+	// The writable-mimic is authorized for the target tree construction.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))
+	// No app-read /opt snippet is added (the base template handles /opt).
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

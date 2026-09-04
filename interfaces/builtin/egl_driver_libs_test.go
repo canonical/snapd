@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -526,6 +528,51 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComp2(c *C) {
 	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
 		"/etc/glvnd/egl_vendor.d": expected,
 	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	// Populate the library dirs and the ICD files (egl_empty.d adds nothing).
+	libDir1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
+	c.Assert(os.MkdirAll(libDir1, 0755), IsNil)
+	for _, icdData := range []struct {
+		subDir string
+		gpu    string
+	}{
+		{"egl.d", "mesa"},
+	} {
+		icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5", icdData.subDir)
+		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		os.WriteFile(filepath.Join(icdDir, icdData.gpu+".json"), []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_%s.so.0"
+    }
+}
+`, icdData.gpu)), 0655)
+		os.WriteFile(filepath.Join(libDir1, "libEGL_"+icdData.gpu+".so.0"), []byte{}, 0655)
+	}
+
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	// Library dir bind.
+	lib1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
+	target0 := "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+
+	// ICD file bind (file semantics, no trailing slash) with the classic
+	// priority-prefixed encoded name.
+	icdSrc := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json")
+	icdTarget := "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdTarget))
+
+	// The writable-mimic is authorized for the share/egl_vendor.d tree.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(icdTarget)))
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

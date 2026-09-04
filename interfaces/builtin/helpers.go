@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -372,6 +373,103 @@ func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.Conne
 		Dir:     target,
 		Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 	})
+}
+
+// assemblyAppArmorEntry emits the snap-update-ns apparmor rules authorizing a
+// read-only bind of source into target inside the snap-update-ns mount
+// namespace, following the pattern used by the content interface (see
+// content.go). The {,-[0-9]*} suffix grants the same permissions to the
+// unclash-renamed targets (-2, -3, ...). isDir selects the directory vs file
+// bind variant (trailing slashes and directory semantics).
+func assemblyAppArmorEntry(emit func(f string, args ...any), source, target string, isDir bool) {
+	if isDir {
+		emit("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
+		emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
+		emit("  umount \"%s{,-[0-9]*}/\",\n", target)
+	} else {
+		emit("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", source, target)
+		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", target)
+		emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}\",\n", target)
+		emit("  umount \"%s{,-[0-9]*}\",\n", target)
+	}
+	// Authorize snap-update-ns to construct the writable-mimic of the target
+	// (and of any unclash-renamed variant) at runtime; the mimic scope itself
+	// is decided by snap-update-ns.
+	apparmor.GenWritableProfile(emit, target, 1)
+	apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
+}
+
+// addAppArmorAssemblyLibDirs emits the snap-update-ns apparmor rules for the
+// library dirs bound into the assembly tree (see mountAssemblyLibDirs for the
+// mount side).
+func addAppArmorAssemblyLibDirs(spec *apparmor.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
+	libDirs := []string{}
+	if err := slot.Attr("library-source", &libDirs); err != nil {
+		return err
+	}
+
+	providerSlot := slot.Snap().InstanceName() + "_" + slot.Name()
+	emit := spec.AddUpdateNSf
+	expanded := slot.AppSet().ExpandSliceSnapVariablesWithOrder(libDirs)
+	for _, dir := range expanded {
+		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, strconv.Itoa(dir.Idx))
+		emit("  # Driver-libs assembly library dir %s\n", target)
+		assemblyAppArmorEntry(emit, dir.Path, target, true)
+	}
+	return nil
+}
+
+// addAppArmorAssemblySourceFiles emits the snap-update-ns apparmor rules for the
+// metadata source files (icd-source / *-layer-source) bound into the assembly
+// tree (see mountAssemblySourceFiles for the mount side).
+func addAppArmorAssemblySourceFiles(
+	spec *apparmor.Specification, slot *interfaces.ConnectedSlot, ifaceName string,
+	sda sourceDirAttr, subdir string,
+	checker func(slot *interfaces.ConnectedSlot, content []byte) error,
+	withPriority bool,
+) error {
+	if withPriority {
+		var priority int64
+		if err := slot.Attr("priority", &priority); err != nil {
+			return fmt.Errorf("invalid priority: %w", err)
+		}
+	}
+
+	sourcePaths, err := sourceDirsCheck(slot, sda, checker)
+	if err != nil {
+		return fmt.Errorf("invalid %s: %w", sda.attrName, err)
+	}
+
+	emit := spec.AddUpdateNSf
+	for _, pathDirIdx := range sourcePaths {
+		encodedName, err := sourceDirEncodedName(slot, pathDirIdx, withPriority)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(assemblyRoot, ifaceName, "share", subdir, encodedName)
+		emit("  # Driver-libs assembly metadata file %s\n", target)
+		assemblyAppArmorEntry(emit, pathDirIdx.path, target, false)
+	}
+	return nil
+}
+
+// addAppArmorAssemblyClientDriver emits the snap-update-ns apparmor rules for
+// the gbm client-driver file bound into the assembly tree (see
+// mountAssemblyClientDriver for the mount side).
+func addAppArmorAssemblyClientDriver(spec *apparmor.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
+	var clientDriver string
+	if err := slot.Attr("client-driver", &clientDriver); err != nil {
+		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+	path, err := filePathInLibDirs(slot, clientDriver)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(assemblyRoot, ifaceName, "share", "gbm", clientDriver)
+	spec.AddUpdateNSf("  # Driver-libs assembly client driver %s\n", target)
+	assemblyAppArmorEntry(spec.AddUpdateNSf, path, target, false)
+	return nil
 }
 
 // symlinksForSourceDir adds symlinks to be created in targetDir to spec, for the

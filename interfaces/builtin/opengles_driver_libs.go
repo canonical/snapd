@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -99,6 +100,13 @@ func (iface *openglesDriverLibsInterface) MountConnectedPlug(spec *mount.Specifi
 	// On Ubuntu Core the provider content is bound into the assembly tree under
 	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs).
 	return mountAssemblyLibDirs(spec, slot, openglesDriverLibs)
+}
+
+func (iface *openglesDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Authorize snap-update-ns to construct (and eventually tear down) the
+	// assembly tree under /opt/snapd/interfaces. The default base template
+	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	return addAppArmorAssemblyLibDirs(spec, slot, openglesDriverLibs)
 }
 
 const openglesDriverLibs = "opengles-driver-libs"

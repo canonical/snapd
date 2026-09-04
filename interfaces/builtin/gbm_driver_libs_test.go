@@ -23,11 +23,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -300,6 +302,34 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0",
 		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1",
 	})
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	// Populate the library dirs and the client driver.
+	snapSourceDir := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")
+	c.Assert(os.MkdirAll(snapSourceDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"), []byte{}, 0644), IsNil)
+
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	// Library dir bind.
+	target0 := "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
+		filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"), target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+
+	// Client driver file bind, keeping its original name.
+	clientSrc := filepath.Join(snapSourceDir, "nvidia-drm_gbm.so")
+	clientTarget := "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientSrc, clientTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientTarget))
+
+	// The writable-mimic is authorized for the share/gbm tree.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(clientTarget)))
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {

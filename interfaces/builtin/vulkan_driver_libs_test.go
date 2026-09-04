@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -348,6 +349,66 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/1",
 		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/2",
 	})
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	// Populate the library dirs, the ICD file and an implicit + explicit layer.
+	libDir2 := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2")
+	c.Assert(os.MkdirAll(libDir2, 0755), IsNil)
+	for _, lib := range []string{"libvulkan_mesa.so.0", "libvulkan_nvidia.so.0"} {
+		os.WriteFile(filepath.Join(libDir2, lib), []byte{}, 0655)
+	}
+
+	icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	os.WriteFile(filepath.Join(icdDir, "mesa.json"), []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libvulkan_mesa.so.0",
+        "api_version" : "1.4.303"
+    }
+}
+`), 0655)
+
+	implicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/implicit_layer.d")
+	c.Assert(os.MkdirAll(implicitDir, 0755), IsNil)
+	os.WriteFile(filepath.Join(implicitDir, "gpu_layer.json"), []byte(`{
+    "file_format_version" : "1.0.1",
+    "layers" : [
+       {
+         "name": "layer1",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       }
+     ]
+}
+`), 0644)
+
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	// Library dir bind.
+	target0 := "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
+		filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"), target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+
+	// ICD file bind with an unprefixed encoded name (vulkan has no priority).
+	icdSrc := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json")
+	icdTarget := "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdTarget))
+
+	// Implicit layer file bind.
+	layerSrc := filepath.Join(implicitDir, "gpu_layer.json")
+	layerTarget := "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", layerSrc, layerTarget))
+
+	// The writable-mimic is authorized for the share tree.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(icdTarget)))
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
