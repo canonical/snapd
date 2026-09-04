@@ -217,12 +217,27 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 			logger.Debugf("cannot delete bootstrap-key on %s: %v", saveDisk.DevPath(), err)
 		}
 
-		// The last clean up
-		if err := secbootDeleteContainerKey(saveDisk.DevPath(), "default"); err != nil {
-			logger.Debugf("could not remove default on %s: %v", saveDisk.DevPath(), err)
+		savePlatformKeyslots, err := secbootListContainerUnlockKeyNames(saveDisk.DevPath())
+		if err != nil {
+			logger.Debugf("cannot list keyslots on %s, ignoring disk: %v", saveDisk.DevPath(), err)
+			return
 		}
-		if err := secbootRenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
-			logger.Debugf("cannot rename snapd-reprovision-default to default on %s: %v", saveDisk.DevPath(), err)
+		for _, k := range savePlatformKeyslots {
+			if k == "snapd-reprovision-default" {
+				// The last clean up. The reason we want to do it last is because this is the key
+				// we will use to detect incomplete reprovision. It is important to do that
+				// cleanup when re executing reprovision, since all "new" are wrong and must
+				// be removed before we try to do step 1 (rename existing key slots). But those
+				// "new" keys are wrong only if the "snapd-reprovision-default" of save matches
+				// the protector key file.
+				if err := secbootDeleteContainerKey(saveDisk.DevPath(), "default"); err != nil {
+					logger.Debugf("could not remove default on %s: %v", saveDisk.DevPath(), err)
+				}
+				if err := secbootRenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
+					logger.Debugf("cannot rename snapd-reprovision-default to default on %s: %v", saveDisk.DevPath(), err)
+				}
+				break
+			}
 		}
 	}
 
