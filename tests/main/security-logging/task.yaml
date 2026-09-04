@@ -144,8 +144,7 @@ execute: |
 
         echo "Checking that create-user produces a system user creation audit event"
         journal_pin
-        create_user_output=$(snap create-user --json "$SPREAD_STORE_USER")
-        system_username=$(echo "$create_user_output" | python3 -c 'import json,sys; print(json.load(sys.stdin)["username"])')
+        system_username=$(snap create-user --json "$SPREAD_STORE_USER" | gojq -r .username)
         echo "$system_username" > system-user-name
 
         journal_match '"category":"USER","event":"user_created_system".*"description":"Created system user '"$system_username"' \(api-store-email\)"'

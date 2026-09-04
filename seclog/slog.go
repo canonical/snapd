@@ -269,15 +269,6 @@ func (r Ref) LogValue() slog.Value {
 	)
 }
 
-// LogValue implements [slog.LogValuer], allowing [Ref] to be used directly
-// as a structured log attribute value.
-func (r Ref) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.Any("primary_key", r.PrimaryKey),
-		slog.Int("revision", r.Revision),
-	)
-}
-
 // LogValue implements [slog.LogValuer], allowing [AddOptions] to be
 // used directly as a structured log attribute value.
 func (o AddOptions) LogValue() slog.Value {

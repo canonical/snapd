@@ -270,7 +270,7 @@ func (u SnapdUser) String() string {
 }
 
 // SystemUserAddReason identifies why a system user account was created.
-// Values follow {trigger}-create-user-from-{source} (with optional modifiers)
+// Values follow {trigger}-{source} (with optional modifiers)
 // and describe where account details came from, not who invoked the operation.
 // They are logged as add_reason on user_created_system events.
 type SystemUserAddReason string
