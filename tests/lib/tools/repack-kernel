@@ -13,87 +13,134 @@ usage:
     repack-kernel --mode rewrite-metadata --orig-snap <path> --output-snap <path> [--snap-version <version>]
 
 Modes:
-  prepare: used by tests/lib/prepare.sh (prints snap path).
-  nested:  used by tests/lib/nested.sh (prints path to produced kernel snap).
-  initramfs: repack an input kernel snap (local or downloaded by channel) with regenerated initramfs and print output path.
-  corrupt: repack a kernel snap with a corrupted kernel.efi and print output path.
-  download: download a kernel snap by branch/channel and print output path.
+    prepare: used by tests/lib/prepare.sh (prints snap output path).
+    nested:  used by tests/lib/nested.sh (prints snap output path).
+    initramfs: repack an input kernel snap (local or downloaded by channel) with regenerated initramfs and print output path.
+    corrupt: repack a kernel snap with a corrupted kernel.efi and print output path.
+    download: download a kernel snap by branch/channel and print output path.
     rewrite-metadata: rewrite selected snap metadata fields and print output path.
 EOF
 }
 
-MODE=
-KERNEL_CHANNEL=
-CORE_VERSION=
-KERNEL_BRANCH=
-EPOCH_BUMP_TIME=
-ORIG_SNAP=
-CORRUPTION=
-OUTPUT_SNAP=
-INJECT_KERNEL_PANIC=
-SNAP_VERSION=
-
-while [ "$#" -gt 0 ]; do
+parse_value_arg() {
     case "$1" in
-        --mode)
-            MODE="$2"
-            shift 2
-            ;;
-        --kernel-channel)
-            KERNEL_CHANNEL="$2"
-            shift 2
-            ;;
-        --core-version)
-            CORE_VERSION="$2"
-            shift 2
-            ;;
-        --kernel-branch)
-            KERNEL_BRANCH="$2"
-            shift 2
-            ;;
-        --epoch-bump-time)
-            EPOCH_BUMP_TIME="$2"
-            shift 2
-            ;;
-        --orig-snap)
-            ORIG_SNAP="$2"
-            shift 2
-            ;;
-        --corruption)
-            CORRUPTION="$2"
-            shift 2
-            ;;
-        --output-snap)
-            OUTPUT_SNAP="$2"
-            shift 2
-            ;;
-        --snap-version)
-            SNAP_VERSION="$2"
-            shift 2
-            ;;
-        --inject-kernel-panic-before-snap-bootstrap)
-            INJECT_KERNEL_PANIC="--inject-kernel-panic-before-snap-bootstrap"
-            shift
-            ;;
-        --inject-kernel-panic-after-snap-bootstrap)
-            INJECT_KERNEL_PANIC="--inject-kernel-panic-after-snap-bootstrap"
-            shift
-            ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        *)
-            echo "repack-kernel: unsupported argument: $1" >&2
-            show_help >&2
-            exit 1
-            ;;
+        --mode) MODE="$2" ;;
+        --kernel-channel) KERNEL_CHANNEL="$2" ;;
+        --core-version) CORE_VERSION="$2" ;;
+        --kernel-branch) KERNEL_BRANCH="$2" ;;
+        --epoch-bump-time) EPOCH_BUMP_TIME="$2" ;;
+        --orig-snap) ORIG_SNAP="$2" ;;
+        --corruption) CORRUPTION="$2" ;;
+        --output-snap) OUTPUT_SNAP="$2" ;;
+        --snap-version) SNAP_VERSION="$2" ;;
     esac
-done
+}
 
-if [ -z "$KERNEL_BRANCH" ] && [ -n "$CORE_VERSION" ]; then
-    KERNEL_BRANCH="$CORE_VERSION"
-fi
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --mode|--kernel-channel|--core-version|--kernel-branch|--epoch-bump-time|--orig-snap|--corruption|--output-snap|--snap-version)
+                parse_value_arg "$1" "$2"
+                shift 2
+                ;;
+            --inject-kernel-panic-before-snap-bootstrap)
+                INJECT_KERNEL_PANIC="--inject-kernel-panic-before-snap-bootstrap"
+                shift
+                ;;
+            --inject-kernel-panic-after-snap-bootstrap)
+                INJECT_KERNEL_PANIC="--inject-kernel-panic-after-snap-bootstrap"
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                echo "repack-kernel: unsupported argument: $1" >&2
+                show_help >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+validate_prepare_args() {
+    if [ -z "$KERNEL_CHANNEL" ] || [ -z "$CORE_VERSION" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode prepare" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_nested_args() {
+    if [ -z "$KERNEL_CHANNEL" ] || [ -z "$CORE_VERSION" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode nested" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_corrupt_args() {
+    if [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode corrupt" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -n "$ORIG_SNAP" ] && { [ -n "$KERNEL_BRANCH" ] || [ -n "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode corrupt expects either --orig-snap or --kernel-branch/--kernel-channel, not both" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$ORIG_SNAP" ] && { [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode corrupt requires --orig-snap or both --kernel-branch and --kernel-channel" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_initramfs_args() {
+    if [ -z "$CORE_VERSION" ]; then
+        echo "repack-kernel: missing required arguments for mode initramfs" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -n "$ORIG_SNAP" ] && { [ -n "$KERNEL_BRANCH" ] || [ -n "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode initramfs expects either --orig-snap or --kernel-branch/--kernel-channel, not both" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$ORIG_SNAP" ] && { [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode initramfs requires --orig-snap or both --kernel-branch and --kernel-channel" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: mode initramfs requires --output-snap" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_download_args() {
+    if [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode download" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_rewrite_metadata_args() {
+    if [ -z "$ORIG_SNAP" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode rewrite-metadata" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$SNAP_VERSION" ]; then
+        echo "repack-kernel: mode rewrite-metadata requires at least one metadata change" >&2
+        show_help >&2
+        exit 1
+    fi
+}
 
 validate_args() {
     if [ -z "$MODE" ]; then
@@ -103,70 +150,23 @@ validate_args() {
     fi
 
     case "$MODE" in
-        prepare|nested)
-            if [ -z "$KERNEL_CHANNEL" ] || [ -z "$CORE_VERSION" ] || [ -z "$OUTPUT_SNAP" ]; then
-                echo "repack-kernel: missing required arguments for mode $MODE" >&2
-                show_help >&2
-                exit 1
-            fi
+        prepare)
+            validate_prepare_args
+            ;;
+        nested)
+            validate_nested_args
             ;;
         corrupt)
-            if [ -z "$OUTPUT_SNAP" ]; then
-                echo "repack-kernel: missing required arguments for mode corrupt" >&2
-                show_help >&2
-                exit 1
-            fi
-            if [ -n "$ORIG_SNAP" ] && { [ -n "$KERNEL_BRANCH" ] || [ -n "$KERNEL_CHANNEL" ]; }; then
-                echo "repack-kernel: mode corrupt expects either --orig-snap or --kernel-branch/--kernel-channel, not both" >&2
-                show_help >&2
-                exit 1
-            fi
-            if [ -z "$ORIG_SNAP" ] && { [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ]; }; then
-                echo "repack-kernel: mode corrupt requires --orig-snap or both --kernel-branch and --kernel-channel" >&2
-                show_help >&2
-                exit 1
-            fi
+            validate_corrupt_args
             ;;
         initramfs)
-            if [ -z "$CORE_VERSION" ]; then
-                echo "repack-kernel: missing required arguments for mode initramfs" >&2
-                show_help >&2
-                exit 1
-            fi
-            if [ -n "$ORIG_SNAP" ] && { [ -n "$KERNEL_BRANCH" ] || [ -n "$KERNEL_CHANNEL" ]; }; then
-                echo "repack-kernel: mode initramfs expects either --orig-snap or --kernel-branch/--kernel-channel, not both" >&2
-                show_help >&2
-                exit 1
-            fi
-            if [ -z "$ORIG_SNAP" ] && { [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ]; }; then
-                echo "repack-kernel: mode initramfs requires --orig-snap or both --kernel-branch and --kernel-channel" >&2
-                show_help >&2
-                exit 1
-            fi
-            if [ -z "$OUTPUT_SNAP" ]; then
-                echo "repack-kernel: mode initramfs requires --output-snap" >&2
-                show_help >&2
-                exit 1
-            fi
+            validate_initramfs_args
             ;;
         download)
-            if [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ] || [ -z "$OUTPUT_SNAP" ]; then
-                echo "repack-kernel: missing required arguments for mode download" >&2
-                show_help >&2
-                exit 1
-            fi
+            validate_download_args
             ;;
         rewrite-metadata)
-            if [ -z "$ORIG_SNAP" ] || [ -z "$OUTPUT_SNAP" ]; then
-                echo "repack-kernel: missing required arguments for mode rewrite-metadata" >&2
-                show_help >&2
-                exit 1
-            fi
-            if [ -z "$SNAP_VERSION" ]; then
-                echo "repack-kernel: mode rewrite-metadata requires at least one metadata change" >&2
-                show_help >&2
-                exit 1
-            fi
+            validate_rewrite_metadata_args
             ;;
         *)
             echo "repack-kernel: unsupported mode: $MODE" >&2
@@ -235,6 +235,17 @@ EOF
     chmod +x "$skeleton_path"/usr/lib/snapd/snap-bootstrap
 }
 
+uc20_inject_kernel_panic_local() {
+    case "$1" in
+        --inject-kernel-panic-before-snap-bootstrap)
+            printf '%s\n' before-snap-bootstrap
+            ;;
+        --inject-kernel-panic-after-snap-bootstrap)
+            printf '%s\n' after-snap-bootstrap
+            ;;
+    esac
+}
+
 uc20_build_initramfs_kernel_snap_local() {
     quiet apt install software-properties-common -y
     retry -n 10 add-apt-repository ppa:snappy-dev/image -y
@@ -247,20 +258,13 @@ uc20_build_initramfs_kernel_snap_local() {
     local target="$2"
     local opt_arg="${3:-}"
 
-    local inject_kernel_panic=
+    local inject_kernel_panic
     local initramfs_epoch_bump_time
+    inject_kernel_panic="$(uc20_inject_kernel_panic_local "$opt_arg")"
     initramfs_epoch_bump_time=$(date '+%s')
-    case "$opt_arg" in
-        --inject-kernel-panic-before-snap-bootstrap)
-            inject_kernel_panic=before-snap-bootstrap
-            ;;
-        --inject-kernel-panic-after-snap-bootstrap)
-            inject_kernel_panic=after-snap-bootstrap
-            ;;
-        --epoch-bump-time=*)
-            initramfs_epoch_bump_time="${opt_arg#--epoch-bump-time=}"
-            ;;
-    esac
+    if [[ "$opt_arg" = --epoch-bump-time=* ]]; then
+        initramfs_epoch_bump_time="${opt_arg#--epoch-bump-time=}"
+    fi
 
     unsquashfs -d repacked-kernel "$orig_snap"
 
@@ -570,25 +574,46 @@ run_rewrite_metadata_mode() {
     printf '%s\n' "$OUTPUT_SNAP"
 }
 
-validate_args
+main() {
+    MODE=
+    KERNEL_CHANNEL=
+    CORE_VERSION=
+    KERNEL_BRANCH=
+    EPOCH_BUMP_TIME=
+    ORIG_SNAP=
+    CORRUPTION=
+    OUTPUT_SNAP=
+    INJECT_KERNEL_PANIC=
+    SNAP_VERSION=
 
-case "$MODE" in
-    prepare)
-        run_mode prepare "$CORE_VERSION"
-        ;;
-    nested)
-        run_mode nested "$CORE_VERSION"
-        ;;
-    initramfs)
-        run_initramfs_mode
-        ;;
-    corrupt)
-        run_corrupt_mode
-        ;;
-    download)
-        run_download_mode
-        ;;
-    rewrite-metadata)
-        run_rewrite_metadata_mode
-        ;;
-esac
+    parse_args "$@"
+
+    if [ -z "$KERNEL_BRANCH" ] && [ -n "$CORE_VERSION" ]; then
+        KERNEL_BRANCH="$CORE_VERSION"
+    fi
+
+    validate_args
+
+    case "$MODE" in
+        prepare)
+            run_mode prepare "$CORE_VERSION"
+            ;;
+        nested)
+            run_mode nested "$CORE_VERSION"
+            ;;
+        initramfs)
+            run_initramfs_mode
+            ;;
+        corrupt)
+            run_corrupt_mode
+            ;;
+        download)
+            run_download_mode
+            ;;
+        rewrite-metadata)
+            run_rewrite_metadata_mode
+            ;;
+    esac
+}
+
+main "$@"
