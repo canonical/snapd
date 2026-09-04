@@ -170,6 +170,38 @@ func (s *prereqSuite) TestPrereqTaskRetriesIfBaseIsBeingRemoved(c *C) {
 	c.Check(prereq.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestPrereqTaskFailsIfBaseRemovalIsInSameChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	blocker := s.state.NewTask("blocker", "keep removal in progress")
+	blocker.SetStatus(state.HoldStatus)
+	autoDisconnect := s.state.NewTask("auto-disconnect", "remove some-base connections")
+	autoDisconnect.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)},
+	})
+	autoDisconnect.WaitFor(blocker)
+
+	prereq := s.state.NewTask("prerequisites", "foo")
+	prereq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo", Revision: snap.R(1)},
+		Base:     "some-base",
+		Type:     snap.TypeApp,
+	})
+
+	chg := s.state.NewChange("install-snap", "install foo and remove some-base")
+	chg.AddTask(blocker)
+	chg.AddTask(autoDisconnect)
+	chg.AddTask(prereq)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, "(?s).*internal error: prerequisites task 3 cannot wait on auto-disconnect in same change.*")
+}
+
 func (s *prereqSuite) TestDoPrereqNothingToDoOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

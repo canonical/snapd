@@ -52,14 +52,6 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	removingBase, err := baseRemovalInProgress(st, snapsup)
-	if err != nil {
-		return err
-	}
-	if removingBase {
-		return &state.Retry{After: prerequisitesRetryTimeout}
-	}
-
 	// snapd/os/base/kernel/gadget cannot have prerequisites other than the
 	// models default base (or core) which is installed anyway
 	switch snapsup.Type {
@@ -400,6 +392,27 @@ const (
 func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, basePrerequisite bool) (prereqInFlightAction, error) {
 	st := prereqs.State()
 
+	if basePrerequisite {
+		snapsup, err := TaskSnapSetup(prereqs)
+		if err != nil {
+			return 0, err
+		}
+
+		autoDisconnect, err := baseRemovalInProgress(st, snapsup)
+		if err != nil {
+			return 0, err
+		}
+
+		if autoDisconnect != nil {
+			// TODO: consider whether we can actually wait on it without creating a loop
+			// (which currently can only happen in clustering changes)
+			if autoDisconnect.Change().ID() == prereqs.Change().ID() {
+				return 0, fmt.Errorf("internal error: prerequisites task %s cannot wait on auto-disconnect in same change", prereqs.ID())
+			}
+			return prereqRetry, nil
+		}
+	}
+
 	link, err := findLinkSnapTaskForSnap(st, prerequisiteName)
 	if err != nil {
 		return 0, err
@@ -460,6 +473,20 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 
+	// check for in-flight prerequisite work before considering whether the
+	// prerequisite is already satisfied.
+	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
+	if err != nil {
+		return nil, err
+	}
+
+	switch action {
+	case prereqSkip:
+		return nil, nil
+	case prereqRetry:
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
+	}
+
 	// as a special case, we allow the core snap to satisfy a core16 requirement
 	if sn.InstanceName == "core16" {
 		installed, err := isInstalled(st, "core")
@@ -473,18 +500,6 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 		if installed {
 			return nil, nil
 		}
-	}
-
-	// check for an existing link-snap task before creating prerequisite tasks.
-	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
-	if err != nil {
-		return nil, err
-	}
-	switch action {
-	case prereqSkip:
-		return nil, nil
-	case prereqRetry:
-		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 
 	installed, err := isInstalled(st, sn.InstanceName)
