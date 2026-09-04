@@ -106,7 +106,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // Reoccur updates the receiving notice to re-occur with the given timestamp
 // and data. Depending on its repeat after duration, the lastRepeated timestamp
 // may be updated. Returns whether the notice was repeated.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (repeated bool) {
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) (repeated bool) {
 	n.occurrences++
 	repeated = false
 	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
@@ -125,6 +125,9 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 	n.lastOccurred = now
 	n.lastData = data
 	n.repeatAfter = repeatAfter
+	if expireAfter != 0 {
+		n.expireAfter = expireAfter
+	}
 	return repeated
 }
 
@@ -433,7 +436,7 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter, expireAfter)
 	}
 
 	if newOrRepeated {
