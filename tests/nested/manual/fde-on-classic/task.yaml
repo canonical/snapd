@@ -162,9 +162,17 @@ execute: |
   # precondition, the coreXX is not a local version
   remote.exec snap list "core${VERSION}" | NOMATCH " x1 "
   # create modified coreXX
-  unsquashfs -d corebase "$CACHE_D"/core"${VERSION}"_*.snap
-  touch corebase/empty-file
-  snap pack --filename=corebase-new.snap corebase
+    base_branch=latest
+    base_channel="$(nested_get_base_channel)"
+    if [[ "$base_channel" = */* ]]; then
+      base_branch="${base_channel%/*}"
+      base_channel="${base_channel##*/}"
+    fi
+    "$TESTSTOOLS"/repack-base \
+      --base-name "core${VERSION}" \
+      --base-branch "$base_branch" \
+      --base-channel "$base_channel" \
+      --output-snap corebase-new.snap
   remote.push "corebase-new.snap"
   # install and validate it is now a local version
   remote.exec sudo snap install --dangerous "corebase-new.snap"

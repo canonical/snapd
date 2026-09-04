@@ -58,11 +58,18 @@ prepare: |
 
   mv pc-kernel-modified.snap updates/pc-kernel-22.snap
 
-  snap download --channel="latest/edge" --basename="original-core22" "core22"
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-  repack_core_snap_with_tweaks original-core22.snap updates/core22.snap
-  rm -f original-core22.{snap,assert}
+  repack_base_args=(
+    --base-name core22
+    --base-branch latest
+    --base-channel edge
+    --output-snap updates/core22.snap
+    --enable-test-logging
+    --completion-file "$SPREAD_PATH/data/completion/bash/complete.sh"
+  )
+  if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+    repack_base_args+=(--proxy-env /etc/environment)
+  fi
+  "$TESTSTOOLS"/repack-base "${repack_base_args[@]}"
 
   snap download --channel="22/edge" --basename="original-pc-22" "pc"
   unsquashfs -d pc original-pc-22.snap
