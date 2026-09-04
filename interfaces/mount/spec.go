@@ -46,6 +46,12 @@ type Specification struct {
 	general  []osutil.MountEntry
 	user     []osutil.MountEntry
 	overname []osutil.MountEntry
+
+	// libraryPathDirs collects the directories under /opt/snapd/interfaces that
+	// host driver libraries assembled from a provider snap. These dirs feed the
+	// SNAP_LIBRARY_PATH derivation (Pass 3); they are collected in-memory here and
+	// never written to the mount profile themselves.
+	libraryPathDirs []string
 }
 
 // AddMountEntry adds a new mount entry.
@@ -64,6 +70,32 @@ func (spec *Specification) AddUserMountEntry(e osutil.MountEntry) error {
 func (spec *Specification) AddOvernameMountEntry(e osutil.MountEntry) error {
 	spec.overname = append(spec.overname, e)
 	return nil
+}
+
+// AddLibraryPathDir records a directory that should be included in the
+// SNAP_LIBRARY_PATH of the snap. It is collected in-memory alongside the mount
+// entries during the same spec pass; it is not itself rendered into the mount
+// profile.
+func (spec *Specification) AddLibraryPathDir(dir string) {
+	spec.libraryPathDirs = append(spec.libraryPathDirs, dir)
+}
+
+// LibraryPathDirs returns a sorted, deduplicated copy of the directories added
+// via AddLibraryPathDir.
+func (spec *Specification) LibraryPathDirs() []string {
+	if len(spec.libraryPathDirs) == 0 {
+		return nil
+	}
+	dirs := make([]string, 0, len(spec.libraryPathDirs))
+	seen := make(map[string]bool, len(spec.libraryPathDirs))
+	for _, d := range spec.libraryPathDirs {
+		if !seen[d] {
+			seen[d] = true
+			dirs = append(dirs, d)
+		}
+	}
+	sort.Strings(dirs)
+	return dirs
 }
 
 func mountEntryFromLayout(layout *snap.Layout) osutil.MountEntry {
