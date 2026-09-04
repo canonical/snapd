@@ -11,6 +11,7 @@ environment:
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_GADGET_SNAP: true
   # store related setup
   STORE_ADDR: localhost:11028
   STORE_DIR: $(pwd)/fake-store-blobdir
@@ -22,6 +23,8 @@ environment:
   FAULT_INJECT/make_runnable: reprovision-make-runnable
   FAULT_INJECT/reset_state: reprovision-reset-state
   FAULT_INJECT/save_protector_key: reprovision-save-protector-key
+
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
 
 skip:
     - reason: This test needs test keys to be trusted
@@ -45,7 +48,16 @@ prepare: |
   version="$(nested_get_version)"
 
   # Retrieve the gadget
-  snap download --basename=pc --channel="$version/edge" pc
+  snap download --basename=pc-from-store --channel="$version/edge" pc
+  snap ack pc-from-store.assert
+  rm -rf pc
+  unsquashfs -d pc pc-from-store.snap
+  rm pc-from-store.snap
+  rm -f pc_*.snap
+  echo 'console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1' >pc/cmdline.extra
+  snap pack pc
+  rm -rf pc
+  mv pc_*.snap pc-repacked.snap
 
   # Retrieve kernel
   snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
@@ -60,8 +72,8 @@ prepare: |
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
      --model classic.model \
      --store-dir "${STORE_DIR}" \
-     --gadget pc.snap \
-     --gadget-assertion pc.assert \
+     --gadget pc-repacked.snap \
+     --gadget-assertion pc-from-store.assert \
      --kernel pc-kernel-repacked.snap \
      --kernel-assertion pc-kernel-from-store.assert \
      --recovery-key-out "$(pwd)"/rkey-pre-install.out
@@ -69,11 +81,15 @@ prepare: |
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
+debug: |
+  remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json || true
+
 execute: |
   remote.exec sudo mkdir -p /etc/systemd/system/snapd.service.d
 
   cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
   [Service]
+  Environment=SNAPD_DEBUG=1
   Environment=SNAPPY_TESTING=1
   Environment=SNAPD_FAULT_INJECT=${FAULT_INJECT}:reboot
   EOF
@@ -128,6 +144,7 @@ execute: |
 
   cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
   [Service]
+  Environment=SNAPD_DEBUG=1
   Environment=SNAPPY_TESTING=1
   Environment=SNAPD_FAULT_INJECT=${FAULT_INJECT}:panic
   EOF
@@ -147,7 +164,11 @@ execute: |
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_2}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change_2}\s+Error"
 
-  remote.exec sudo rm /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  #remote.exec sudo rm /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  [Service]
+  Environment=SNAPD_DEBUG=1
+  EOF
   remote.exec sudo systemctl daemon-reload
   remote.exec sudo systemctl restart snapd.service
 
