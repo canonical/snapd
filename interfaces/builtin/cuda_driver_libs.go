@@ -33,15 +33,17 @@ import (
 
 const cudaDriverLibsSummary = `allows exposing CUDA driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plug on classic may only be declared by the system snap (implicit plug); on
+// Ubuntu Core any snap may declare it (see allow-installation alternatives).
 const cudaDriverLibsBaseDeclarationPlugs = `
   cuda-driver-libs:
     allow-installation:
-      plug-snap-type:
-        - core
+      -
+        on-classic: true
+        plug-snap-type:
+          - core
+      -
+        on-classic: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
