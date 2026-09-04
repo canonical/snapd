@@ -56,6 +56,7 @@ var _ = Suite(&GbmDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const gbmDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   gbm:
     interface: gbm-driver-libs
@@ -246,6 +247,24 @@ slots:
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  gbm:
+    interface: gbm-driver-libs
+apps:
+  app:
+    plugs: [gbm]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "gbm")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`gbm-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {

@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -57,6 +58,13 @@ const openglesDriverLibsBaseDeclarationSlots = `
 // openglesDriverLibsInterface allows exposing OpenGLES driver libraries to the system or snaps.
 type openglesDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *openglesDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", openglesDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *openglesDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {

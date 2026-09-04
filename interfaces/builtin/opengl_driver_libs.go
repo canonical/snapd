@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -56,6 +57,13 @@ const openglDriverLibsBaseDeclarationSlots = `
 // openglDriverLibsInterface allows exposing OPENGL driver libraries to the system or snaps.
 type openglDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *openglDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", openglDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *openglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {

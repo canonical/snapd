@@ -61,6 +61,13 @@ type eglDriverLibsInterface struct {
 	commonInterface
 }
 
+func (iface *eglDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", eglDriverLibs, plug.Snap.Base)
+	}
+	return nil
+}
+
 func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// Validate attributes
 	var priority int64

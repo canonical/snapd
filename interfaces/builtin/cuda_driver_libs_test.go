@@ -53,6 +53,7 @@ var _ = Suite(&CudaDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const cudaDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   cuda:
     compatibility: cuda-(9..12)-ubuntu-2404
@@ -276,6 +277,25 @@ slots:
 func (s *CudaDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  cuda:
+    compatibility: cuda-(9..12)-ubuntu-2404
+    interface: cuda-driver-libs
+apps:
+  app:
+    plugs: [cuda]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "cuda")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`cuda-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {

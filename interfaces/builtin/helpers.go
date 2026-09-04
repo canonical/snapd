@@ -37,6 +37,20 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+// driverLibsSupported reports whether driver-libs interfaces are supported
+// on snaps using the given base snap. The direct-connection delivery model
+// requires a base snap new enough to carry the expected ld.so.cache layout.
+func driverLibsSupported(baseSnap string) bool {
+	switch baseSnap {
+	case "bare": // not yet
+	case "", "core", "core18", "core20", "core22", "core24": // TBD
+	case "core22-desktop", "core24-desktop": // TBD
+	default:
+		return true
+	}
+	return false
+}
+
 // sourceDirAttr contains information about a *-source interface attribute.
 type sourceDirAttr struct {
 	// attribute naem

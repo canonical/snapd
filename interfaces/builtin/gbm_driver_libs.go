@@ -67,6 +67,13 @@ type gbmDriverLibsInterface struct {
 
 var reClientDriver = regexp.MustCompile("^[-0-9a-zA-Z_.]+$").Match
 
+func (iface *gbmDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", gbmDriverLibs, plug.Snap.Base)
+	}
+	return nil
+}
+
 func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// Validate attributes
 	var clientDriver string

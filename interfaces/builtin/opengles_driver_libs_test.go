@@ -55,6 +55,7 @@ var _ = Suite(&OpenglesDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const openglesDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   opengles:
     interface: opengles-driver-libs
@@ -160,6 +161,25 @@ slots:
 func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  opengles:
+    compatibility: opengles-ubuntu-2510
+    interface: opengles-driver-libs
+apps:
+  app:
+    plugs: [opengles]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "opengles")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`opengles-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
