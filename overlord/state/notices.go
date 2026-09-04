@@ -129,7 +129,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // timestamp may be updated. Returns whether the notice was repeated. It is the
 // caller's responsibility to replace the receiver with the new notice in the
 // notice backend from whence it came.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) (newNotice *Notice, repeated bool) {
 	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
 	var newData map[string]string
 	if data != nil {
@@ -157,6 +157,9 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 	newNotice.lastOccurred = now
 	newNotice.lastData = newData
 	newNotice.repeatAfter = repeatAfter
+	if expireAfter != 0 {
+		n.expireAfter = expireAfter
+	}
 	return newNotice, repeated
 }
 
@@ -465,7 +468,7 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter, expireAfter)
 		s.notices[uniqueKey] = notice
 	}
 
@@ -588,7 +591,7 @@ func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := time.Now()
+	now := timeNow()
 	var toRemove []noticeKey
 	var notices []*Notice
 	for k, n := range s.notices {
@@ -660,7 +663,7 @@ func (s *State) flattenNotices() []*Notice {
 // filterNotices returns the list of notices that match the filter (if any),
 // without sorting them. The caller must hold the noticesMu for reading.
 func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
-	now := time.Now()
+	now := timeNow()
 	var notices []*Notice
 	for _, n := range s.notices {
 		if n.Expired(now) || !filter.matches(n) {
@@ -678,7 +681,7 @@ func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 func (s *State) unflattenNotices(flat []*Notice) {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
-	now := time.Now()
+	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
 		if n.Expired(now) {
@@ -749,7 +752,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// not yet been added to the notices map. Therefore, if the current
 		// time is after the BeforeOrAt filter, we know there can be no new
 		// notices which match the filter.
-		now := time.Now()
+		now := timeNow()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
 		}
