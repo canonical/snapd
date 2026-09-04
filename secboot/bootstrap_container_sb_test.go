@@ -277,6 +277,11 @@ func (*bootstrapContainerSuite) TestBootstrappedContainerKeyringHappy(c *C) {
 
 	container.RegisterKeyAsUsed([]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8})
 
+	c.Check(primaryKeyRegistered, Equals, 0)
+	c.Check(unlockKeyRegistered, Equals, 0)
+
+	container.CommitUsedKey()
+
 	c.Check(primaryKeyRegistered, Equals, 1)
 	c.Check(unlockKeyRegistered, Equals, 1)
 }

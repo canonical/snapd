@@ -64,6 +64,7 @@ execute: |
 
     # must remove refresh holds for autorefresh command to succeed
     snap set system refresh.hold!
+    systemctl stop snapd.{service,socket}
 
     # check how snap channel is changed    
     current_channel="$("$TESTSTOOLS"/snapd-state print-state '.data.snaps["test-snapd-tools"].channel')"
@@ -83,7 +84,6 @@ execute: |
     check_date "$new_refresh_date"
 
     # check wait-for-snap-autorefresh command
-    systemctl stop snapd.{service,socket}
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{socket,service}
 

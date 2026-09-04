@@ -772,7 +772,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			cs.SideInfo.Component.ComponentName,
 			cs.SideInfo.Revision,
-			snapst.InstanceName(),
+			snapst.InstanceName().String(),
 		)
 
 		comps = append(comps, snapstate.PathComponent{
@@ -1877,22 +1877,20 @@ func UpdateSeedRefreshChange(seedTS *snapstate.SeedRefreshTasks, dctx snapstate.
 	return true, nil
 }
 
-// CheckSeedRefreshRemove prevents removing optional snaps that are still
-// present in the current seed while seed-refresh is enabled.
+// CheckSeedRefreshRemove prevents removing optional snaps and components that
+// are still present in the current seed while seed-refresh is enabled.
 //
 // TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
 // gaining/losing snaps
-func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
+func CheckSeedRefreshRemove(st *state.State, candidate snapstate.SeedRefreshCandidate, dctx snapstate.DeviceContext) error {
 	filter, _ := seedRefreshPolicy(st, dctx)
-	_, ok, err := filter(snapstate.SeedRefreshCandidate{
-		InstanceName: si.SnapName(),
-	})
+	_, ok, err := filter(candidate)
 	if err != nil {
 		return err
 	}
 
 	if ok {
-		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
+		return errors.New("cannot remove snaps or components present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }

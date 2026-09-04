@@ -250,7 +250,7 @@ func (s *SnapSuite) TestVersionOnClassic(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
@@ -269,7 +269,7 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)

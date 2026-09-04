@@ -5,13 +5,10 @@ details: |
     to the snaps. Run the test on a live backend which sets instance data
     properly.
 
+backends: [openstack*]
+
 # Default track in core26 does not include cloud-init
 systems: [-ubuntu-core-26*]
-
-skip:
-    - reason: This test is only valid for google and openstack backends that provide cloud info
-      if: |
-        ! [[ "$SPREAD_BACKEND" =~ google ]] && ! [[ "$SPREAD_BACKEND" =~ openstack ]]
 
 prepare: |
     cat <<EOF > /etc/systemd/system/snapd.service.d/http-debug.conf
@@ -26,7 +23,7 @@ restore: |
 
 execute: |
     if [[ ! -e /run/cloud-init/instance-data.json ]]; then
-        # we expect the test to run on all cloud images provided by google and openstack
+        # we expect the test to run on all cloud images provided by openstack
         echo "the test expected to have cloud-init instance data on $SPREAD_SYSTEM"
         exit 1
     fi
@@ -79,42 +76,21 @@ execute: |
     # force us to talk to the store so we can inspect the journal for logs
     snap info snapd
 
-    if [[ "$SPREAD_BACKEND" =~ google ]]; then
-        # GCE sets the following in Ubuntu images:
-        # {
-        #    ...
-        #    "v1": {
-        #      "availability-zone": "us-east1-b",
-        #      "availability_zone": "us-east1-b",
-        #      "cloud-name": "gce",
-        #      "cloud_name": "gce",
-        #      "region": "us-east1"
-        #      ...
-        #   }
-        # }        
-        snap_cloud_region=$(snap get core cloud.region)
-        test "$cloud_region" = "$snap_cloud_region"
-
-        # verify that the region and availability zone is set in HTTP requests
-        journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"[a-z]+[\]*\" region=[\]*\"${cloud_region}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
-
-    elif [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-        # Openstack sets the following in Ubuntu images:
-        # {
-        #    ...
-        #    "v1": {    
-        #      "availability-zone": "availability-zone-1",
-        #      "availability_zone": "availability-zone-1",
-        #      "cloud-name": "openstack",
-        #      "cloud_name": "openstack",
-        #      "region": null
-        #      ...
-        #   }
-        # }
-        # verify that the availability zone is set in HTTP requests
-        if [ "$cloud_region" == null ]; then
-            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"${cloud_name}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
-        else
-            journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"${cloud_name}[\]*\" region=[\]*\"${cloud_region}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
-        fi
+    # Openstack sets the following in Ubuntu images:
+    # {
+    #    ...
+    #    "v1": {    
+    #      "availability-zone": "availability-zone-1",
+    #      "availability_zone": "availability-zone-1",
+    #      "cloud-name": "openstack",
+    #      "cloud_name": "openstack",
+    #      "region": null
+    #      ...
+    #   }
+    # }
+    # verify that the availability zone is set in HTTP requests
+    if [ "$cloud_region" == null ]; then
+        journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"${cloud_name}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
+    else
+        journalctl -b -u snapd | MATCH "Snap-Device-Location: cloud-name=[\]*\"${cloud_name}[\]*\" region=[\]*\"${cloud_region}[\]*\" availability-zone=[\]*\"${cloud_avzone}[\]*\""
     fi

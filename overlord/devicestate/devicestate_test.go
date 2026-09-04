@@ -1985,7 +1985,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 			KeyName: "some-key-name",
 		})
 		ctx.Set("fde-setup-result", []byte("result"))
-		hookCalled = append(hookCalled, ctx.InstanceName())
+		hookCalled = append(hookCalled, ctx.InstanceName().String())
 		return nil, nil
 	}
 
@@ -3076,10 +3076,11 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksOptionalSnapInCurrentSe
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-2", "presence": "optional"},
 	}, nil, "snap-2")
-	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
-
-	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
-	c.Assert(err, ErrorMatches, `cannot remove snap present in the current seed while seed-refresh is enabled`)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: "snap-2",
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
+	c.Assert(err, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
 }
 
 func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurrentSeed(c *C) {
@@ -3093,9 +3094,80 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurren
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-2", "presence": "optional"},
 	}, nil)
-	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: "snap-2",
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
+	c.Assert(err, IsNil)
+}
 
-	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
+func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksRequiredAndOptionalCompInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1", "presence": "required"},
+		{"name": "snap-2", "presence": "optional"},
+	}, map[string][]modelComponent{
+		"snap-1": {
+			modelComponent{Name: "comp1", Presence: "required"},
+			modelComponent{Name: "comp2", Presence: "optional"},
+		},
+		"snap-2": {
+			modelComponent{Name: "comp1", Presence: "required"},
+			modelComponent{Name: "comp2", Presence: "optional"},
+		},
+	}, "snap-2")
+
+	err := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-1",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}, dctx)
+	c.Assert(err, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+
+	err2 := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-1",
+		ComponentSetupTaskIDs: map[string]string{"comp2": ""},
+	}, dctx)
+	c.Assert(err2, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+
+	err3 := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-2",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}, dctx)
+	c.Assert(err3, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+
+	err4 := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-2",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}, dctx)
+	c.Assert(err4, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+}
+
+func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalCompNotInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-2", "presence": "optional"},
+	}, map[string][]modelComponent{
+		"snap-2": {
+			modelComponent{Name: "comp1", Presence: "optional", NotInSeed: true},
+		},
+	})
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-2",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
 	c.Assert(err, IsNil)
 }
 

@@ -9,3 +9,4 @@ usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snap-preseed
 usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snapd-apparmor
 usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snap-gpio-helper
 usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snap-recovery-chooser
+usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snap-fde-keymgr

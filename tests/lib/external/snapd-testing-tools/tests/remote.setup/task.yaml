@@ -5,7 +5,7 @@ details: |
     information required to allow connecting to the remote
     instance through ssh.
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 

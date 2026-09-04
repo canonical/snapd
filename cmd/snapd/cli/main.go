@@ -451,13 +451,10 @@ func exitCodeFromError(err error) int {
 	var mksquashfsError squashfs.MksquashfsError
 	var cmdlineFlagsError *flags.Error
 	var unknownCmdError unknownCommandError
-	var userSessionPreconditionErr *userSessionPreconditionError
 
 	switch {
 	case err == nil:
 		return 0
-	case errors.As(err, &userSessionPreconditionErr):
-		return userSessionPreconditionErr.code
 	case client.IsRetryable(err):
 		return 10
 	case errors.As(err, &mksquashfsError):
@@ -622,7 +619,7 @@ var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
+	snapdenv.SetUserAgentFromVersion(snapdtool.FullVersion(), nil, "snap")
 
 	apiClient := mkClient()
 	parser := Parser(apiClient)

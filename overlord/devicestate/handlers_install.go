@@ -725,6 +725,22 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
+	if useEncryption {
+		// Only when a system has been "made bootable" are the
+		// unlock keys all generated. So we need to wait for
+		// that moment in order to commit keys to the keyring
+
+		dataBootstrappedContainer := installedSystem.BootstrappedContainerForRole[gadget.SystemData]
+		saveBootstrappedContainer := installedSystem.BootstrappedContainerForRole[gadget.SystemSave]
+
+		if saveBootstrappedContainer != nil {
+			saveBootstrappedContainer.CommitUsedKey()
+		}
+		if dataBootstrappedContainer != nil {
+			dataBootstrappedContainer.CommitUsedKey()
+		}
+	}
+
 	// leave a marker that factory reset was performed
 	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
 	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
@@ -1219,8 +1235,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	var bootstrappedContainersForRole map[string]secboot.BootstrappedContainer
 	if useEncryption {
-		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encryptSetupData)
+		bootstrappedContainersForRole = install.BootstrappedContainersForRole(encryptSetupData)
 		if trustedInstallObserver != nil {
 			if err := installLogic.PrepareEncryptedSystemData(
 				systemAndSnaps.Model,
@@ -1318,6 +1335,22 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		trustedInstallObserver.EncryptionSetup(),
 		st.Unlocker()); err != nil {
 		return err
+	}
+
+	if useEncryption {
+		// Only when a system has been "made bootable" are the
+		// unlock keys all generated. So we need to wait for
+		// that moment in order to commit keys to the keyring
+
+		saveBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemSave]
+		dataBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemData]
+
+		if saveBootstrappedContainer != nil {
+			saveBootstrappedContainer.CommitUsedKey()
+		}
+		if dataBootstrappedContainer != nil {
+			dataBootstrappedContainer.CommitUsedKey()
+		}
 	}
 
 	return nil

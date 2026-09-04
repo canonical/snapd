@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // configureHandler is the handler for the configure hook.
@@ -63,15 +64,15 @@ func (h *configureHandler) Before() error {
 			return err
 		}
 
-		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
+		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName.String())
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		// core is handled internally and does not need a configure
 		// hook, for other snaps double check that the hook is present
-		if len(patch) != 0 && instanceName != "core" {
+		if len(patch) != 0 && instanceName != naming.Core {
 			// TODO: helper on context?
-			info, err := snapstate.CurrentInfo(st, instanceName)
+			info, err := snapstate.CurrentInfo(st, instanceName.String())
 			if err != nil {
 				return err
 			}
@@ -90,7 +91,7 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	if err := config.Patch(tr, instanceName, patch); err != nil {
+	if err := config.Patch(tr, instanceName.String(), patch); err != nil {
 		return err
 	}
 
@@ -127,7 +128,7 @@ func (h *defaultConfigureHandler) Before() error {
 
 	instanceName := h.context.InstanceName()
 	st := h.context.State()
-	info, err := snapstate.CurrentInfo(st, instanceName)
+	info, err := snapstate.CurrentInfo(st, instanceName.String())
 	if err != nil {
 		return err
 	}
@@ -148,12 +149,12 @@ func (h *defaultConfigureHandler) Before() error {
 			return err
 		}
 
-		patch, err := snapstate.ConfigDefaults(st, deviceCtx, instanceName)
+		patch, err := snapstate.ConfigDefaults(st, deviceCtx, instanceName.String())
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 
-		if err := config.Patch(tr, instanceName, patch); err != nil {
+		if err := config.Patch(tr, instanceName.String(), patch); err != nil {
 			return err
 		}
 	}
@@ -191,7 +192,7 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 
 	context.OnDone(func() error {
 		tr.Commit()
-		if context.InstanceName() == "core" {
+		if context.InstanceName() == naming.Core {
 			// make sure the Ensure logic can process
 			// system configuration changes as soon as possible
 			context.State().EnsureBefore(0)

@@ -1219,9 +1219,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	defer s.state.Unlock()
 
 	body := map[string]string{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	}
 
 	encodedBody, err := json.Marshal(body)
@@ -1293,9 +1292,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	c.Assert(err, IsNil)
 
 	c.Check(details, DeepEquals, map[string]any{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	})
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
@@ -1326,9 +1324,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationFailingPrepareSerialHoo
 	defer s.state.Unlock()
 
 	body := map[string]string{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	}
 
 	encodedBody, err := json.Marshal(body)
@@ -1425,9 +1422,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	}
 
 	body := map[string]string{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	}
 
 	encodedBody, err := json.Marshal(body)
@@ -1499,9 +1495,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	c.Assert(err, IsNil)
 
 	c.Check(details, DeepEquals, map[string]any{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	})
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
@@ -1517,13 +1512,13 @@ func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookNoOverwite(c *C) {
 }
 
 func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingHWKeyHash(c *C) {
-	body := `{"hardware-id-key":"a",  "request-id-signature":"c"}`
-	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key-sha384" in registration body`
+	body := `{"request-id-signature":"c"}`
+	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key-sha3-384" in registration body`
 	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
 }
 
 func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingReqIDSignature(c *C) {
-	body := `{"hardware-id-key":"a", "hardware-id-key-sha384":"b"}`
+	body := `{"hardware-id-key-sha3-384":"b"}`
 	expectedErr := `'prepare-serial-request' hook did not set mandatory field "request-id-signature" in registration body`
 	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
 }

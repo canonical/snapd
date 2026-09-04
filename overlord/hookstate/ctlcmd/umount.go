@@ -50,7 +50,7 @@ func (m *umountCommand) Execute([]string) error {
 		return err
 	}
 
-	snapName := context.InstanceName()
+	instanceName := context.InstanceName()
 
 	// Get the list of installed mount units to find the matching one.
 	// mount-control mounts always create a mount unit file and using
@@ -58,7 +58,7 @@ func (m *umountCommand) Execute([]string) error {
 	// corresponding mount unit even if it is not currently loaded in
 	// systemd's memory (e.g. if it was stopped and garbage-collected).
 	sysd := systemd.New(systemd.SystemMode, nil)
-	mountPoints, err := sysd.ListMountUnits(snapName, "mount-control", systemd.InstalledMountUnits)
+	mountPoints, err := sysd.ListMountUnits(instanceName.String(), "mount-control", systemd.InstalledMountUnits)
 	if err != nil {
 		return fmt.Errorf("cannot retrieve list of mount units: %v", err)
 	}

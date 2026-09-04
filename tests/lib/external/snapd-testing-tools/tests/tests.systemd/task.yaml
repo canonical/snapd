@@ -5,7 +5,7 @@ details: |
     Verify the tool is able to create units, wait for status and
     stop units.
 
-backends: [google]
+backends: [openstack*]
 
 systems: [-ubuntu-14.04-64]
 

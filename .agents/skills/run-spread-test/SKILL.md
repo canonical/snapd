@@ -43,7 +43,7 @@ Always specify `<backend>:<system>:<test-path>` — bare `./run-spread` runs eve
 
 ## Backend and system
 
-Always use `garden`. Do not use `qemu`, `google-*`, `openstack` etc. unless user explicitly says so.
+Always use `garden`. Do not use `qemu`, `openstack` etc. unless user explicitly says so.
 
 System selection:
 - AppArmor changes → recent Ubuntu LTS, optionally Debian
@@ -110,7 +110,7 @@ snap tasks <change-id>
 
 ## spread.yaml structure
 
-Key sections: `environment:` (global vars), `backends:` (garden/google/qemu configs), `backends:<backend>:systems:` (available systems), `suites:` (test suite configs). Individual tests can override settings in their `task.yaml`.
+Key sections: `environment:` (global vars), `backends:` (garden/openstack/qemu configs), `backends:<backend>:systems:` (available systems), `suites:` (test suite configs). Individual tests can override settings in their `task.yaml`.
 
 ## Rules
 
