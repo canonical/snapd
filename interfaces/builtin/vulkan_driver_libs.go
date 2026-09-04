@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -132,6 +133,33 @@ func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specifica
 		{"explicit-layer-source", true, "vulkan/explicit_layer.d", checkVulkanLayersFile},
 	} {
 		if err := mountAssemblySourceFiles(spec, slot, vulkanDriverLibs,
+			sourceDirAttr{attrName: sda.attrName, isOptional: sda.isOptional},
+			sda.subdir, sda.checker, withPriority); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *vulkanDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Authorize snap-update-ns to construct (and eventually tear down) the
+	// assembly tree under /opt/snapd/interfaces. The default base template
+	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	const withPriority = false
+	if err := addAppArmorAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
+		return err
+	}
+	for _, sda := range []struct {
+		attrName   string
+		isOptional bool
+		subdir     string
+		checker    func(slot *interfaces.ConnectedSlot, content []byte) error
+	}{
+		{"icd-source", false, "vulkan/icd.d", checkVulkanIcdFile},
+		{"implicit-layer-source", true, "vulkan/implicit_layer.d", checkVulkanLayersFile},
+		{"explicit-layer-source", true, "vulkan/explicit_layer.d", checkVulkanLayersFile},
+	} {
+		if err := addAppArmorAssemblySourceFiles(spec, slot, vulkanDriverLibs,
 			sourceDirAttr{attrName: sda.attrName, isOptional: sda.isOptional},
 			sda.subdir, sda.checker, withPriority); err != nil {
 			return err
