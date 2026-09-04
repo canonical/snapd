@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/jsonutil"
@@ -726,7 +727,19 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 		}, tm)
 		if len(errs) > 0 {
 			// SetupMany processes all profiles and returns all encountered errors; report just the first one
-			return errs[0]
+			err := errs[0]
+			// The mount backend wraps ErrSnapLockBusy as the cause when it cannot
+			// take the snap lock because a concurrently running snap-confine or
+			// snap-discard-ns is operating on the snap's mount namespace. Bounce
+			// this to the task runner as a Retry so the whole setup is re-run
+			// (and the mount profile write+apply re-attempted under the lock)
+			// rather than failing the task. See LP#2164926.
+			if errors.Is(err, mount.ErrSnapLockBusy) {
+				// TODO: this only tells us that some snap's mount namespace is
+				// busy; we would like to know which snap is affected.
+				return &state.Retry{After: mountNsLockRetryTimeout, Reason: "mount namespace of snap is locked"}
+			}
+			return err
 		}
 	}
 
