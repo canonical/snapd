@@ -43,6 +43,7 @@ var (
 	secbootGetPrimaryKeyDigest    = secboot.GetPrimaryKeyDigest
 	secbootVerifyPrimaryKeyDigest = secboot.VerifyPrimaryKeyDigest
 	secbootGetPCRHandle           = secboot.GetPCRHandle
+	secbootGetDALockoutInfo       = secboot.GetDALockoutInfo
 )
 
 // Model is a json serializable secboot.ModelForSealing
@@ -175,6 +176,122 @@ type FdeState struct {
 	// PendingExternalOperations keeps a list of changes that capture FDE
 	// related operations running outside of snapd.
 	PendingExternalOperations []externalOperation `json:"pending-external-operations"`
+
+	// DALockoutRateLimit is a token bucket that rate-limits operations
+	// which trial a credential against the sealed key (e.g. change-auth).
+	// It mirrors the TPM Dictionary Attack (DA) lockout parameters so that
+	// snapd never lets enough failed attempts through to trip actual
+	// hardware DA lockout. A zero-value bucket is treated as full.
+	DALockoutRateLimit *daLockoutRateLimit `json:"da-lockout-rate-limit"`
+}
+
+const (
+	// daLockoutMaxTokens is the maximum number of tries snapd allows before
+	// throttling. It is kept below the TPM's maximum number of tries (32)
+	// (see secboot tpm2/provisioning.go).
+	daLockoutMaxTokens = 16
+	// daLockoutRefillInterval is the TPM DA lockout recoveryTime (7200s), i.e.
+	// the interval at which the TPM lockout counter is decremented by 1 (see
+	// secboot tpm2/provisioning.go). It is only used to approximate the
+	// retry-after hint returned when throttled.
+	daLockoutRefillInterval = 2 * time.Hour
+	// daLockoutSyncInterval is the interval at which the DA lockout rate limiter is
+	// synchronized with the actual TPM DA lockout counter. This avoids an unprivileged
+	// user from spamming snapd by doing expensive syncs with the TPM.
+	daLockoutSyncInterval = 5 * time.Minute
+)
+
+// daLockoutRateLimit is a token bucket mirroring the TPM DA lockout counter.
+type daLockoutRateLimit struct {
+	Tokens     int       `json:"tokens"`
+	LastUpdate time.Time `json:"last-update"`
+
+	BootID    string `json:"last-boot-id"`
+	InLockout bool   `json:"in-lockout"`
+}
+
+func (rl *daLockoutRateLimit) syncNeeded(currentBootID string) bool {
+	syncInterval := daLockoutSyncInterval
+	if rl.InLockout {
+		// If we are currently in lockout, we increase the sync interval to reduce
+		// the frequency of expensive TPM syncs.
+		syncInterval = daLockoutSyncInterval * 3
+	}
+	if elapsed := timeNow().Sub(rl.LastUpdate); elapsed >= syncInterval {
+		return true
+	}
+
+	return rl.BootID != currentBootID
+}
+
+func initDALockoutRateLimit(currentBootID string) (*daLockoutRateLimit, error) {
+	daLockoutInfo, err := secbootGetDALockoutInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := daLockoutMaxTokens - int(daLockoutInfo.LockoutCounter)
+	if tokens < 0 || daLockoutInfo.InLockout {
+		tokens = 0
+	}
+
+	return &daLockoutRateLimit{
+		Tokens:     tokens,
+		LastUpdate: timeNow(),
+		BootID:     currentBootID,
+		InLockout:  daLockoutInfo.InLockout,
+	}, nil
+}
+
+// consumeDALockoutToken lazily synchronizes the DA lockout token bucket with
+// the TPM DA lockout counter and then consumes a single token. It must be
+// called with the state lock held.
+//
+// If the bucket is empty a *DALockoutThrottledError is returned and no token
+// is consumed.
+func consumeDALockoutToken(st *state.State) error {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return err
+	}
+
+	currentBootID, err := osutilBootID()
+	if err != nil {
+		return fmt.Errorf("cannot obtain current boot ID: %w", err)
+	}
+
+	bucket := s.DALockoutRateLimit
+	if bucket == nil || bucket.syncNeeded(currentBootID) {
+		bucket, err = initDALockoutRateLimit(currentBootID)
+		if err != nil {
+			return err
+		}
+
+		s.DALockoutRateLimit = bucket
+		st.Set(fdeStateKey, &s)
+	}
+
+	if bucket.Tokens < 1 {
+		// this is not exact retry-after time as it might be less, but a good approximation.
+		return &DALockoutThrottledError{RetryAfter: bucket.LastUpdate.Add(daLockoutRefillInterval)}
+	}
+
+	bucket.Tokens--
+	bucket.LastUpdate = timeNow()
+	s.DALockoutRateLimit = bucket
+	st.Set(fdeStateKey, &s)
+
+	return nil
+}
+
+func MockSecbootGetDALockoutInfo(f func() (*secboot.DALockoutInfo, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking GetDALockoutInfo can be done only from tests")
+
+	old := secbootGetDALockoutInfo
+	secbootGetDALockoutInfo = f
+	return func() {
+		secbootGetDALockoutInfo = old
+	}
 }
 
 const fdeStateKey = "fde"
@@ -839,6 +956,15 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 		if kd.AuthMode() != authMode {
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), authMode)
 		}
+	}
+
+	// Consume a rate-limit token as the final gate before the credentials are
+	// trialed against the sealed key. This mirrors the TPM DA lockout counter
+	// and ensures snapd never lets enough attempts through to trip actual
+	// hardware DA lockout. This is intentionally response-agnostic: every
+	// attempt consumes a token regardless of the eventual trial result.
+	if err := consumeDALockoutToken(st); err != nil {
+		return nil, err
 	}
 
 	// Auth data must be in memory to avoid leaking credentials.

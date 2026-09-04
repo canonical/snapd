@@ -237,3 +237,7 @@ func ReleasePCRResourceHandle(handle uint32) error {
 func TestProtectorKey(ctx context.Context, devicePath, slotName string, protectorKey []byte) (bool, error) {
 	return false, errBuildWithoutSecboot
 }
+
+func GetDALockoutInfo() (*DALockoutInfo, error) {
+	return nil, errBuildWithoutSecboot
+}

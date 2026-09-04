@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -59,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -131,6 +133,10 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		// no reason for devicestate to set up tasks for delayed effects
 		panic("unexpected call")
+	}))
+
+	t.AddCleanup(fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: 0}, nil
 	}))
 }
 

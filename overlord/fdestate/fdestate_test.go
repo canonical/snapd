@@ -508,6 +508,9 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	// reset the DA lockout rate limiter
+	fdestate.SetDALockoutRateLimit(s.st, fdestate.DALockoutMaxTokens, time.Now(), s.bootId)
+
 	logBuf, restore := logger.MockLogger()
 	defer restore()
 	if withWarning {
@@ -673,6 +676,244 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", []fdestate.KeyslotRef{})
 	c.Assert(err, ErrorMatches, `external EFI Secureboot Key Database update in progress, no other FDE changes allowed until this is done`)
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutToken(c *C) {
+	// initialize fde manager so that the fde state exists
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	currentDALockoutCounter := 5
+	defer fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: uint32(currentDALockoutCounter)}, nil
+	})()
+
+	now := time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// rate limiter is initialized with value from the TPM DA lockout counter
+	// consume remaining tokens
+	for i := 0; i < fdestate.DALockoutMaxTokens-currentDALockoutCounter; i++ {
+		c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	}
+
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+
+	// the next attempt is throttled
+	err = fdestate.ConsumeDALockoutToken(s.st)
+	var throttledErr *fdestate.DALockoutThrottledError
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
+
+	tokens, lastUpdate, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenLazySync(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := start
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// drain the bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start, s.bootId), IsNil)
+
+	// throttled while empty
+	c.Check(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "too many authentication attempts, try again after .*")
+
+	currentDALockoutCounter := 5
+	restore := fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: uint32(currentDALockoutCounter)}, nil
+	})
+	defer restore()
+
+	// after one sync interval, TPM is consulted for the current DA lockout counter
+	now = start.Add(fdestate.DALockoutSyncInterval)
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, fdestate.DALockoutMaxTokens-currentDALockoutCounter-1)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+
+	currentDALockoutCounter = 16
+
+	// after another sync interval, TPM is consulted again
+	now = now.Add(fdestate.DALockoutSyncInterval)
+	err = fdestate.ConsumeDALockoutToken(s.st)
+	c.Assert(err, ErrorMatches, "too many authentication attempts, try again after .*")
+	tokens, lastUpdate, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenNoSyncWithinInterval(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := start
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	// the TPM must not be consulted within the sync interval
+	defer fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		c.Fatal("unexpected TPM DA lockout counter read within the sync interval")
+		return nil, nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// seed a valid, partially-filled bucket for the current boot
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 5, start, s.bootId), IsNil)
+
+	// consume a few tokens just before the sync interval elapses
+	now = start.Add(fdestate.DALockoutSyncInterval - time.Second)
+	for i := 0; i < 3; i++ {
+		c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	}
+
+	// tokens were decremented locally without re-syncing with the TPM
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 2)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenBadBootID(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Now()
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	currentDALockoutCounter := 9
+	defer fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: uint32(currentDALockoutCounter)}, nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// full bucket, but with a bad boot ID forces a TPM counter sync.
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, fdestate.DALockoutMaxTokens, now, "bad-boot-id"), IsNil)
+
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, fdestate.DALockoutMaxTokens-currentDALockoutCounter-1)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenInLockoutZeroesTokens(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	defer fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: 0, InLockout: true}, nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	err := fdestate.ConsumeDALockoutToken(s.st)
+	var throttledErr *fdestate.DALockoutThrottledError
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
+
+	tokens, lastUpdate, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastUpdate.Equal(now), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenInLockoutUsesLongerSyncInterval(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	start := time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)
+	now := start
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	calls := 0
+	defer fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		calls++
+		return &secboot.DALockoutInfo{LockoutCounter: 0, InLockout: true}, nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// First attempt initializes state from TPM and marks it as in-lockout.
+	err := fdestate.ConsumeDALockoutToken(s.st)
+	var throttledErr *fdestate.DALockoutThrottledError
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(calls, Equals, 1)
+
+	// Within the regular sync interval, the lockout state must avoid a TPM resync.
+	now = start.Add(fdestate.DALockoutSyncInterval)
+	err = fdestate.ConsumeDALockoutToken(s.st)
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(calls, Equals, 1)
+
+	// At the extended interval (3x), TPM is consulted again.
+	now = start.Add(3 * fdestate.DALockoutSyncInterval)
+	err = fdestate.ConsumeDALockoutToken(s.st)
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(calls, Equals, 2)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthConsumesToken(c *C) {
+	keyslots := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+	}
+	s.mockCurrentKeys(c, nil, keyslots)
+
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		return &mockKeyData{authMode: device.AuthModePassphrase}, nil
+	})()
+
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// leave a single token in the bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 1, now, s.bootId), IsNil)
+
+	// first change-auth consumes the last token
+	_, err := fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)
+	c.Assert(err, IsNil)
+
+	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+
+	// the next change-auth is throttled and creates no change
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)
+	var throttledErr *fdestate.DALockoutThrottledError
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
 }
 
 func (s *fdeMgrSuite) testSystemEncryptedFromState(c *C, hasEncryptedDisks bool) {
