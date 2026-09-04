@@ -77,8 +77,12 @@ remote_exec() {
     SSH_PASS="$(_get_pass)"
     SSH_CERT="$(_get_cert)"
 
-    # shellcheck disable=SC2153,SC2086
-    $SSH_PASS ssh $SSH_CERT -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" "$@"
+    if ! [ -S /run/spread/remote.sock ]; then
+        mkdir -p /run/spread
+        # shellcheck disable=SC2153,SC2086
+        systemd-run $SSH_PASS ssh $SSH_CERT -S /run/spread/remote.sock - -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" waitpid 1
+    fi
+    ssh -S "$TESTS_REMOTE_HOST" "$@"
 }
 
 main() {    
