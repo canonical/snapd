@@ -217,12 +217,22 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 			logger.Debugf("cannot delete bootstrap-key on %s: %v", saveDisk.DevPath(), err)
 		}
 
-		// The last clean up
-		if err := secbootDeleteContainerKey(saveDisk.DevPath(), "default"); err != nil {
-			logger.Debugf("could not remove default on %s: %v", saveDisk.DevPath(), err)
+		savePlatformKeyslots, err := secbootListContainerUnlockKeyNames(saveDisk.DevPath())
+		if err != nil {
+			logger.Debugf("cannot list keyslots on %s, ignoring disk: %v", saveDisk.DevPath(), err)
+			return
 		}
-		if err := secbootRenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
-			logger.Debugf("cannot rename snapd-reprovision-default to default on %s: %v", saveDisk.DevPath(), err)
+		for _, k := range savePlatformKeyslots {
+			if k == "snapd-reprovision-default" {
+				// The last clean up
+				if err := secbootDeleteContainerKey(saveDisk.DevPath(), "default"); err != nil {
+					logger.Debugf("could not remove default on %s: %v", saveDisk.DevPath(), err)
+				}
+				if err := secbootRenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
+					logger.Debugf("cannot rename snapd-reprovision-default to default on %s: %v", saveDisk.DevPath(), err)
+				}
+				break
+			}
 		}
 	}
 
