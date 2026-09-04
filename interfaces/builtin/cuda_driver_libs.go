@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -56,6 +57,13 @@ const cudaDriverLibsBaseDeclarationSlots = `
 // cudaDriverLibsInterface allows exposing CUDA driver libraries to the system or snaps.
 type cudaDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *cudaDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", cudaDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {

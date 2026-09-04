@@ -53,6 +53,7 @@ var _ = Suite(&NvidiaVideoDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const nvidiaVideoDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   nvidia-video:
     compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2404
@@ -169,6 +170,25 @@ slots:
 func (s *NvidiaVideoDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *NvidiaVideoDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  nvidia-video:
+    compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2404
+    interface: nvidia-video-driver-libs
+apps:
+  app:
+    plugs: [nvidia-video]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "nvidia-video")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`nvidia-video-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *NvidiaVideoDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {

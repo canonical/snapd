@@ -57,6 +57,7 @@ var _ = Suite(&EglDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const eglDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   egl:
     interface: egl-driver-libs
@@ -251,6 +252,24 @@ slots:
 func (s *EglDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  egl:
+    interface: egl-driver-libs
+apps:
+  app:
+    plugs: [egl]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "egl")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`egl-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {

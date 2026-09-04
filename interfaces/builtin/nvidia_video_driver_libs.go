@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -56,6 +57,13 @@ const nvidiaVideoDriverLibsBaseDeclarationSlots = `
 // nvidiaVideoDriverLibsInterface allows exposing Nvidia video driver libraries to the system or snaps.
 type nvidiaVideoDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *nvidiaVideoDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", nvidiaVideoDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *nvidiaVideoDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {

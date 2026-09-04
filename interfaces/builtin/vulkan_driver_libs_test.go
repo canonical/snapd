@@ -58,6 +58,7 @@ var _ = Suite(&VulkanDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const vulkanDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   vulkan:
     interface: vulkan-driver-libs
@@ -228,6 +229,24 @@ slots:
 func (s *VulkanDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  vulkan:
+    interface: vulkan-driver-libs
+apps:
+  app:
+    plugs: [vulkan]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "vulkan")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`vulkan-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {

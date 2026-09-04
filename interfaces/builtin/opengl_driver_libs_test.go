@@ -55,6 +55,7 @@ var _ = Suite(&OpenglDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const openglDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   opengl:
     interface: opengl-driver-libs
@@ -159,6 +160,24 @@ slots:
 func (s *OpenglDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
+}
+
+func (s *OpenglDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  opengl:
+    interface: opengl-driver-libs
+apps:
+  app:
+    plugs: [opengl]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "opengl")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`opengl-driver-libs interface is not supported on base "core24"`)
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {

@@ -64,6 +64,13 @@ type vulkanDriverLibsInterface struct {
 	commonInterface
 }
 
+func (iface *vulkanDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", vulkanDriverLibs, plug.Snap.Base)
+	}
+	return nil
+}
+
 func (iface *vulkanDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	// Validate attributes
 

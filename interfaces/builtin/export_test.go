@@ -37,6 +37,7 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
+	DriverLibsSupported         = driverLibsSupported
 )
 
 type GbmDriverLibsInterface gbmDriverLibsInterface
