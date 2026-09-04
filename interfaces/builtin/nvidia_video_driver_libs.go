@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
@@ -95,6 +96,12 @@ func (iface *nvidiaVideoDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotIn
 func (iface *nvidiaVideoDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *nvidiaVideoDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs).
+	return mountAssemblyLibDirs(spec, slot, nvidiaVideoDriverLibs)
 }
 
 var _ = interfaces.ConfigfilesUser(&nvidiaVideoDriverLibsInterface{})

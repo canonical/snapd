@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -187,6 +188,22 @@ func (s *OpenglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		{SnapName: "opengl-provider", SlotName: "opengl-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib2")}})
+}
+
+func (s *OpenglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/1", Options: []string{"rbind", "ro"}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0",
+		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/1",
+	})
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

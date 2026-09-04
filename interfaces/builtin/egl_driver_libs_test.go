@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -282,6 +283,108 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1"),
 			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2"),
 		}})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	// Populate the library dirs and the ICD files.
+	libDir1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
+	libDir2 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
+	for _, libDir := range []string{libDir1, libDir2} {
+		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	}
+	comp1LibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1")
+	c.Assert(os.MkdirAll(comp1LibDir, 0755), IsNil)
+
+	// Write ICD files in egl.d and egl_alt.d (egl_empty.d contributes nothing).
+	for _, icdData := range []struct {
+		subDir string
+		gpu    string
+	}{
+		{"egl.d", "mesa"}, {"egl_alt.d", "radeon"},
+	} {
+		icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5", icdData.subDir)
+		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		os.WriteFile(filepath.Join(icdDir, icdData.gpu+".json"), []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_%s.so.0"
+    }
+}
+`, icdData.gpu)), 0655)
+		libPath := filepath.Join(libDir1, "libEGL_"+icdData.gpu+".so.0")
+		os.WriteFile(libPath, []byte{}, 0655)
+	}
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Library dirs, preserving the original directory order (idx).
+		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1", Options: []string{"rbind", "ro"}},
+		{Name: comp1LibDir,
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2"),
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/3", Options: []string{"rbind", "ro"}},
+		// ICD files, with the classic priority-prefixed encoded names.
+		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"),
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl_alt.d/radeon.json"),
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+	})
+
+	// The library dirs are collected for SNAP_LIBRARY_PATH derivation; the
+	// ICD file mounts are not library dirs.
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/3",
+	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugMultiComponentFilter(c *C) {
+	// Only comp1 is installed; the comp2 icd and library sources are filtered out.
+	comps := []compRawInfo{
+		{"component: egl-provider+comp1\ntype: standard", snap.R(11)}}
+	s.slot, s.slotInfo = mockConnectedSlotWithComps(c, eglDriverLibsProvider,
+		&snap.SideInfo{Revision: snap.R(5)}, comps, "egl-slot")
+
+	libDir1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
+	libDir2 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
+	comp1LibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1")
+	for _, libDir := range []string{libDir1, libDir2, comp1LibDir} {
+		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	}
+	os.WriteFile(filepath.Join(libDir1, "libEGL_mesa.so.0"), []byte{}, 0655)
+
+	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	os.WriteFile(filepath.Join(icdDir, "mesa.json"), []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_mesa.so.0"
+    }
+}
+`), 0655)
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	// comp2 entries are absent, but the original indices (0..2) are kept.
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Name: libDir1, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: libDir2, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1", Options: []string{"rbind", "ro"}},
+		{Name: comp1LibDir, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(icdDir, "mesa.json"), Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
+	})
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -189,6 +190,22 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		{SnapName: "opengles-provider", SlotName: "opengles-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2")}})
+}
+
+func (s *OpenglesDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/1", Options: []string{"rbind", "ro"}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0",
+		"/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/1",
+	})
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
