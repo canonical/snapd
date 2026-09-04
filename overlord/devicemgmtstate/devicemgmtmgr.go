@@ -506,6 +506,8 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
+	// We may have already scheduled rejection tasks and made changes
+	// to the state in rejectSequence, so persist even on error.
 	defer m.setState(ms)
 
 	// Reject oldest sequences when the LRU exceeds capacity.
