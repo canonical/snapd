@@ -115,7 +115,7 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	})
 }
 
-func (s *specSuite) TestPlugNotFromSystem(c *C) {
+func (s *specSuite) TestPlugNotFromSystemNoError(c *C) {
 	const plugYaml = `name: notsystem
 version: 1
 apps:
@@ -124,13 +124,18 @@ apps:
 `
 	s.plug, s.plugInfo = ifacetest.MockConnectedPlug(c, plugYaml, nil, "name")
 
+	// The system-snap-only guard on the plug side callbacks was removed.
+	// The discernment now lives in the backends' Backend.Setup() gate on
+	// release.OnClassic: on classic only the system snap can declare these
+	// plugs (per the base declaration), and on non-classic the backends
+	// never reach specification generation at all. So a plug from a
+	// non-system snap is no longer rejected here; if the interface
+	// implements the backend callback, it now runs like for any other snap.
 	var r interfaces.Specification = s.spec
-	c.Assert(r.AddConnectedPlug(s.iface1, s.plug, s.slot), ErrorMatches,
-		"internal error: configfiles plugs can be defined only by the system snap")
-	c.Assert(r.AddConnectedSlot(s.iface1, s.plug, s.slot), ErrorMatches,
-		"internal error: configfiles plugs can be defined only by the system snap")
-	c.Assert(r.AddPermanentPlug(s.iface1, s.plugInfo), ErrorMatches,
-		"internal error: configfiles plugs can be defined only by the system snap")
+	c.Assert(r.AddConnectedPlug(s.iface1, s.plug, s.slot), IsNil)
+	c.Assert(r.AddConnectedSlot(s.iface1, s.plug, s.slot), IsNil)
+	c.Assert(r.AddPermanentPlug(s.iface1, s.plugInfo), IsNil)
+	c.Assert(s.spec.Plugs(), DeepEquals, []string{"name"})
 }
 
 func (s *specSuite) TestAddPathContentErrors(c *C) {

@@ -79,12 +79,8 @@ type ConnectedPlugCallback interface {
 		slot *interfaces.ConnectedSlot) error
 }
 
-func getConnectedPlugCallback(iface interfaces.Interface, instanceName string) (
-	ConnectedPlugCallback, error) {
+func getConnectedPlugCallback(iface interfaces.Interface) (ConnectedPlugCallback, error) {
 	if iface, ok := iface.(ConnectedPlugCallback); ok {
-		if !interfaces.IsTheSystemSnap(instanceName) {
-			return nil, errors.New("internal error: ldconfig plugs can be defined only by the system snap")
-		}
 		return iface, nil
 	}
 	return nil, nil
@@ -92,7 +88,7 @@ func getConnectedPlugCallback(iface interfaces.Interface, instanceName string) (
 
 // AddConnectedPlug records ldconfig-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	connectedPlugCallback, err := getConnectedPlugCallback(iface, plug.Snap().InstanceName())
+	connectedPlugCallback, err := getConnectedPlugCallback(iface)
 	if err != nil {
 		return err
 	}
@@ -112,9 +108,6 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 			slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		if !interfaces.IsTheSystemSnap(plug.Snap().InstanceName()) {
-			return errors.New("internal error: ldconfig plugs can be defined only by the system snap")
-		}
 		return iface.LdconfigConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -124,7 +117,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	// Note that ConnectedPlugCallback must be implemented, so we
 	// check for it instead of using LdconfigPermanentPlug.
-	connectedPlugCallback, err := getConnectedPlugCallback(iface, plug.Snap.InstanceName())
+	connectedPlugCallback, err := getConnectedPlugCallback(iface)
 	if err != nil {
 		return err
 	}
@@ -137,9 +130,6 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		LdconfigPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		if !interfaces.IsTheSystemSnap(plug.Snap.InstanceName()) {
-			return errors.New("internal error: ldconfig plugs can be defined only by the system snap")
-		}
 		return iface.LdconfigPermanentPlug(spec, plug)
 	}
 	return nil
