@@ -13,23 +13,27 @@ prepare: |
   VERSION="$(tests.nested show version)"
   case "${VERSION}" in
     26)
-      CHANNEL="${VERSION}/edge"
+      GADGET_CHANNEL=edge
     ;;
     *)
-      CHANNEL="${VERSION}/stable"
+      GADGET_CHANNEL=stable
     ;;
   esac
-  snap download --basename=pc --channel="${CHANNEL}" pc
-  unsquashfs -d pc pc.snap
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-  tests.nested secboot-sign file pc/shim.efi.signed "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  tests.nested secboot-sign file pc/grubx64.efi "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack pc "$(tests.nested get extra-snaps-path)"
-
-  echo "some_useless_parameter" >>pc/cmdline.extra
-  snap pack pc --filename=pc_2.snap
+  gadget_args=(
+    --gadget-branch "$VERSION"
+    --gadget-channel "$GADGET_CHANNEL"
+    --sign-key "$SNAKEOIL_KEY"
+    --sign-cert "$SNAKEOIL_CERT"
+    --sign-grub
+  )
+  "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}" \
+    --output-snap "$(tests.nested get extra-snaps-path)/pc_1.snap"
+  "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}" \
+    --output-snap pc_2.snap \
+    --append-cmdline-extra some_useless_parameter
 
   tests.nested build-image core
   tests.nested create-vm core
