@@ -189,6 +189,13 @@ func (c *Channel) VerbatimTrackOnly() bool {
 	return c.Track != "" && c.Risk == "" && c.Branch == ""
 }
 
+// IsVerbatimTrackOnly reports whether s is a verbatim track-only channel name
+// (non-empty track, no risk or branch), such as "18" or "latest".
+func IsVerbatimTrackOnly(s string) bool {
+	ch, err := ParseVerbatim(s, "-")
+	return err == nil && ch.VerbatimTrackOnly()
+}
+
 // VerbatimRiskOnly returns whether the channel represents a risk only.
 func (c *Channel) VerbatimRiskOnly() bool {
 	return c.Track == "" && c.Risk != "" && c.Branch == ""
