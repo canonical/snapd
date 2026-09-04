@@ -94,6 +94,11 @@ cmd/snapd-tool-wrap/snapd-tool-wrap
 .mypy
 .mypy_cache
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Snap files
 *.snap
 

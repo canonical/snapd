@@ -1,0 +1,5 @@
+component: test-snapd-content-components-provider+comp1
+type: standard
+version: 1.0
+summary: Component with content
+description: Component providing content for the content interface

@@ -50,8 +50,10 @@ type BootstrappedContainer interface {
 	GetTokenWriter(slotName string) (KeyDataWriter, error)
 	// RemoveBootstrapKey removes the bootstrap key.
 	RemoveBootstrapKey() error
-	// RegisterKeyAsUsed registers an unlock key and its primary key in the kernel keyring.
+	// RegisterKeyAsUsed saves an unlock key and its primary key to be written to the kernel keyring.
 	RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte)
+	// CommitUsedKey writes registered keys to the kernel keyring.
+	CommitUsedKey()
 }
 
 func createBootstrappedContainerMockImpl(key DiskUnlockKey, devicePath string) BootstrappedContainer {
@@ -64,6 +66,9 @@ type MockBootstrappedContainer struct {
 	BootstrapKeyRemoved bool
 	Slots               map[string][]byte
 	Tokens              map[string][]byte
+	PrimaryKey          []byte
+	UnlockKey           []byte
+	KeyCommitted        bool
 }
 
 func CreateMockBootstrappedContainer() *MockBootstrappedContainer {
@@ -124,4 +129,10 @@ func (l *MockBootstrappedContainer) RemoveBootstrapKey() error {
 }
 
 func (l *MockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
+	l.PrimaryKey = primaryKey
+	l.UnlockKey = unlockKey
+}
+
+func (l *MockBootstrappedContainer) CommitUsedKey() {
+	l.KeyCommitted = true
 }
