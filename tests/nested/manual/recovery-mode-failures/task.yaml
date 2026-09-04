@@ -69,22 +69,14 @@ prepare: |
   remote.exec 'sudo systemctl start snapd.service snapd.socket'
   remote.refresh disable-refreshes
 
-  unsquashfs -d repacked-kernel-snap "$NESTED_FAKESTORE_BLOB_DIR/pc-kernel.snap"
-  gojq --yaml-input --yaml-output '.version = "v2"' repacked-kernel-snap/meta/snap.yaml > snap.yaml.new
-  mv snap.yaml.new repacked-kernel-snap/meta/snap.yaml
-  snap pack --filename=pc-kernel.snap repacked-kernel-snap
-  rm -rf repacked-kernel-snap
+  "$TESTSTOOLS"/repack-kernel --mode rewrite-metadata --orig-snap "$NESTED_FAKESTORE_BLOB_DIR/pc-kernel.snap" --output-snap "$PWD/pc-kernel.snap" --snap-version v2
 
   case "$FAILURE" in
     bad-uki)
-      uc20_build_corrupt_kernel_snap pc-kernel.snap "$PWD" --bad-linux
-      rm pc-kernel.snap
-      mv pc-kernel_*.snap pc-kernel.snap
+      "$TESTSTOOLS"/repack-kernel --mode corrupt --orig-snap pc-kernel.snap --output-snap "$PWD/pc-kernel.snap" --corruption bad-linux
       ;;
     initramfs-panic)
-      uc24_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-before-snap-bootstrap
-      rm pc-kernel.snap
-      mv pc-kernel_*.snap pc-kernel.snap
+      "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --orig-snap pc-kernel.snap --output-snap "$PWD/pc-kernel.snap" --inject-kernel-panic-before-snap-bootstrap
       ;;
   esac
 

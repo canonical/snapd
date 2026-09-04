@@ -61,13 +61,11 @@ execute: |
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
 
-  # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$kernel_version/edge" pc-kernel
-  # the fakestore needs this assertion
-  snap ack pc-kernel-from-store.assert
+  # Retrieve and repack kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
-  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$kernel_version" --kernel-channel edge --output-snap "$PWD/pc-kernel-repacked.snap"
+  # the fakestore needs this assertion
+  snap ack pc-kernel.assert
 
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-22-kernel-24-classic-dangerous.json > classic.model
 
@@ -83,7 +81,7 @@ execute: |
      --gadget pc.snap \
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
-     --kernel-assertion pc-kernel-from-store.assert \
+    --kernel-assertion pc-kernel.assert \
      --disk disk.img
 
   # basic things look fine

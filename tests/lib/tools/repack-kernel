@@ -1,0 +1,619 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    repack-kernel --mode prepare --core-version <16|18|20|22|24|26> [--kernel-branch <branch>] --kernel-channel <channel> --output-snap <path>
+    repack-kernel --mode nested --core-version <16|18|20|22|24|26> [--kernel-branch <branch>] --kernel-channel <channel> --output-snap <path> [--epoch-bump-time <unix-time>]
+    repack-kernel --mode initramfs --core-version <20|22|24|26> [--orig-snap <path> | [--kernel-branch <branch>] --kernel-channel <channel>] --output-snap <path> [--inject-kernel-panic-before-snap-bootstrap | --inject-kernel-panic-after-snap-bootstrap]
+    repack-kernel --mode corrupt [--orig-snap <path> | --kernel-branch <branch> --kernel-channel <channel>] --output-snap <path> [--corruption <empty|zeros|bad-SECTION>]
+    repack-kernel --mode download --kernel-branch <branch> --kernel-channel <channel> --output-snap <path>
+    repack-kernel --mode rewrite-metadata --orig-snap <path> --output-snap <path> [--snap-version <version>]
+
+Modes:
+    prepare: used by tests/lib/prepare.sh (prints snap output path).
+    nested:  used by tests/lib/nested.sh (prints snap output path).
+    initramfs: repack an input kernel snap (local or downloaded by channel) with regenerated initramfs and print output path.
+    corrupt: repack a kernel snap with a corrupted kernel.efi and print output path.
+    download: download a kernel snap by branch/channel and print output path.
+    rewrite-metadata: rewrite selected snap metadata fields and print output path.
+EOF
+}
+
+parse_value_arg() {
+    case "$1" in
+        --mode) MODE="$2" ;;
+        --kernel-channel) KERNEL_CHANNEL="$2" ;;
+        --core-version) CORE_VERSION="$2" ;;
+        --kernel-branch) KERNEL_BRANCH="$2" ;;
+        --epoch-bump-time) EPOCH_BUMP_TIME="$2" ;;
+        --orig-snap) ORIG_SNAP="$2" ;;
+        --corruption) CORRUPTION="$2" ;;
+        --output-snap) OUTPUT_SNAP="$2" ;;
+        --snap-version) SNAP_VERSION="$2" ;;
+    esac
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --mode|--kernel-channel|--core-version|--kernel-branch|--epoch-bump-time|--orig-snap|--corruption|--output-snap|--snap-version)
+                parse_value_arg "$1" "$2"
+                shift 2
+                ;;
+            --inject-kernel-panic-before-snap-bootstrap)
+                INJECT_KERNEL_PANIC="--inject-kernel-panic-before-snap-bootstrap"
+                shift
+                ;;
+            --inject-kernel-panic-after-snap-bootstrap)
+                INJECT_KERNEL_PANIC="--inject-kernel-panic-after-snap-bootstrap"
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                echo "repack-kernel: unsupported argument: $1" >&2
+                show_help >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+validate_prepare_args() {
+    if [ -z "$KERNEL_CHANNEL" ] || [ -z "$CORE_VERSION" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode prepare" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_nested_args() {
+    if [ -z "$KERNEL_CHANNEL" ] || [ -z "$CORE_VERSION" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode nested" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_corrupt_args() {
+    if [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode corrupt" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -n "$ORIG_SNAP" ] && { [ -n "$KERNEL_BRANCH" ] || [ -n "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode corrupt expects either --orig-snap or --kernel-branch/--kernel-channel, not both" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$ORIG_SNAP" ] && { [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode corrupt requires --orig-snap or both --kernel-branch and --kernel-channel" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_initramfs_args() {
+    if [ -z "$CORE_VERSION" ]; then
+        echo "repack-kernel: missing required arguments for mode initramfs" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -n "$ORIG_SNAP" ] && { [ -n "$KERNEL_BRANCH" ] || [ -n "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode initramfs expects either --orig-snap or --kernel-branch/--kernel-channel, not both" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$ORIG_SNAP" ] && { [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ]; }; then
+        echo "repack-kernel: mode initramfs requires --orig-snap or both --kernel-branch and --kernel-channel" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: mode initramfs requires --output-snap" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_download_args() {
+    if [ -z "$KERNEL_BRANCH" ] || [ -z "$KERNEL_CHANNEL" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode download" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_rewrite_metadata_args() {
+    if [ -z "$ORIG_SNAP" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode rewrite-metadata" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -z "$SNAP_VERSION" ]; then
+        echo "repack-kernel: mode rewrite-metadata requires at least one metadata change" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_args() {
+    if [ -z "$MODE" ]; then
+        echo "repack-kernel: missing required argument: --mode" >&2
+        show_help >&2
+        exit 1
+    fi
+
+    case "$MODE" in
+        prepare)
+            validate_prepare_args
+            ;;
+        nested)
+            validate_nested_args
+            ;;
+        corrupt)
+            validate_corrupt_args
+            ;;
+        initramfs)
+            validate_initramfs_args
+            ;;
+        download)
+            validate_download_args
+            ;;
+        rewrite-metadata)
+            validate_rewrite_metadata_args
+            ;;
+        *)
+            echo "repack-kernel: unsupported mode: $MODE" >&2
+            show_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+repack_kernel_snap_local() {
+    local target=$1
+
+    echo "Repacking kernel snap"
+    snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+    repack_local_kernel_snap_local pc-kernel.snap "$target"
+}
+
+repack_local_kernel_snap_local() {
+    local source="$1"
+    local target="$2"
+    local unpack_dir
+    local repacked_tmp
+
+    unpack_dir="$(mktemp -d /tmp/kernel-unpack.XXXXXXXX)"
+    repacked_tmp="${target}.tmp"
+
+    unsquashfs -no-progress -f -d "$unpack_dir" "$source"
+    touch "$unpack_dir/repacked"
+    snap pack --filename="$repacked_tmp" "$unpack_dir"
+    mv "$repacked_tmp" "$target"
+
+    rm -rf "$unpack_dir"
+}
+
+uc_write_bootstrap_wrapper_local() {
+    local skeleton_path="$1"
+    local inject_kernel_panic="${2:-}"
+
+    cp -a /usr/lib/snapd/snap-bootstrap "$skeleton_path"/usr/lib/snapd/snap-bootstrap.real
+    cat <<'EOF' >"$skeleton_path"/usr/lib/snapd/snap-bootstrap
+#!/bin/sh
+set -eux
+if [ "$1" != initramfs-mounts ]; then
+    exec /usr/lib/snapd/snap-bootstrap.real "$@"
+fi
+EOF
+    if [ "$inject_kernel_panic" = "before-snap-bootstrap" ]; then
+        echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$skeleton_path"/usr/lib/snapd/snap-bootstrap
+    fi
+    cat <<'EOF' >> "$skeleton_path"/usr/lib/snapd/snap-bootstrap
+beforeDate="$(date --utc '+%s')"
+/usr/lib/snapd/snap-bootstrap.real "$@"
+if [ -d /run/mnt/data/system-data ]; then
+    touch /run/mnt/data/system-data/the-tool-ran
+fi
+mode="$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+mode=${mode##snapd_recovery_mode=}
+mkdir -p /run/mnt/ubuntu-seed/test
+stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
+echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
+date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
+EOF
+    if [ "$inject_kernel_panic" = "after-snap-bootstrap" ]; then
+        echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$skeleton_path"/usr/lib/snapd/snap-bootstrap
+    fi
+    chmod +x "$skeleton_path"/usr/lib/snapd/snap-bootstrap
+}
+
+uc20_inject_kernel_panic_local() {
+    case "$1" in
+        --inject-kernel-panic-before-snap-bootstrap)
+            printf '%s\n' before-snap-bootstrap
+            ;;
+        --inject-kernel-panic-after-snap-bootstrap)
+            printf '%s\n' after-snap-bootstrap
+            ;;
+    esac
+}
+
+uc20_build_initramfs_kernel_snap_local() {
+    quiet apt install software-properties-common -y
+    retry -n 10 add-apt-repository ppa:snappy-dev/image -y
+    if os.query is-focal; then
+        systemctl unmask lvm2-lvmpolld.socket
+    fi
+    retry -n 10 quiet apt install ubuntu-core-initramfs linux-firmware -y
+
+    local orig_snap="$1"
+    local target="$2"
+    local opt_arg="${3:-}"
+
+    local inject_kernel_panic
+    local initramfs_epoch_bump_time
+    inject_kernel_panic="$(uc20_inject_kernel_panic_local "$opt_arg")"
+    initramfs_epoch_bump_time=$(date '+%s')
+    if [[ "$opt_arg" = --epoch-bump-time=* ]]; then
+        initramfs_epoch_bump_time="${opt_arg#--epoch-bump-time=}"
+    fi
+
+    unsquashfs -d repacked-kernel "$orig_snap"
+
+    (
+        cd repacked-kernel
+        unpackeddir="$PWD"
+        kver=
+        for cfg in config-*; do
+            [ -e "$cfg" ] || continue
+            kver="${cfg#config-}"
+            break
+        done
+        if [ -z "$kver" ]; then
+            echo "repack-kernel: cannot determine kernel version from config-*" >&2
+            exit 1
+        fi
+
+        objcopy -j .initrd -O binary kernel.efi initrd
+        unmkinitramfs initrd unpacked-initrd
+
+        cp -ar unpacked-initrd skeleton
+        skeletondir="$PWD/skeleton"
+        initrd_dir="$skeletondir/main"
+        clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
+        if os.query is-arm; then
+            initrd_dir="$skeletondir"
+            clock_epoch_file="$skeletondir/usr/lib/clock-epoch"
+        fi
+        uc_write_bootstrap_wrapper_local "$initrd_dir" "$inject_kernel_panic"
+
+        touch -t "$(date --utc "--date=@$initramfs_epoch_bump_time" '+%Y%m%d%H%M')" "$clock_epoch_file"
+
+        if [ -d ../extra-initrd/ ]; then
+            if os.query is-arm; then
+                cp -a ../extra-initrd/* "$skeletondir"
+            else
+                cp -a ../extra-initrd/* "$skeletondir"/main
+            fi
+        fi
+
+        (
+            if os.query is-arm; then
+                cd unpacked-initrd
+                feature='.'
+            else
+                cd unpacked-initrd/main
+                feature='main'
+            fi
+            ubuntu-core-initramfs create-initrd \
+                                  --kernelver "$kver" \
+                                  --skeleton "$skeletondir" \
+                                  --kerneldir "${unpackeddir}/modules/$kver" \
+                                  --firmwaredir "${unpackeddir}/firmware" \
+                                  --feature "$feature" \
+                                  --output "$unpackeddir"/repacked-initrd
+        )
+
+        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
+
+        ubuntu-core-initramfs create-efi \
+                              --kernelver "$kver" \
+                              --initrd repacked-initrd \
+                              --kernel vmlinuz \
+                              --output repacked-kernel.efi
+
+        mv "repacked-kernel.efi-$kver" kernel.efi
+        chmod +x kernel.efi
+
+        rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
+    )
+
+    rm -rf repacked-kernel/firmware/*
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./repacked-kernel
+    fi
+
+    snap pack --filename="$target" repacked-kernel
+    rm -rf repacked-kernel
+}
+
+uc24_build_initramfs_kernel_snap_local() {
+    local orig_snap="$1"
+    local target="$2"
+    local opt_arg="${3:-}"
+
+    local inject_kernel_panic=
+    case "$opt_arg" in
+        --inject-kernel-panic-before-snap-bootstrap)
+            inject_kernel_panic=before-snap-bootstrap
+            ;;
+        --inject-kernel-panic-after-snap-bootstrap)
+            inject_kernel_panic=after-snap-bootstrap
+            ;;
+    esac
+
+    unsquashfs -d pc-kernel "$orig_snap"
+    kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
+    TMPDIR=/var/tmp ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
+                          --firmwaredir pc-kernel/firmware --output initrd.img
+
+    stat manifest-initramfs.yaml-"$kernelver"
+    initrd_f=initrd.img-"$kernelver"
+    rm -rf initrd
+    unmkinitramfs "$initrd_f" initrd
+
+    if [ -d ./extra-initrd ]; then
+        if [ -d ./initrd/early ]; then
+            cp -aT ./extra-initrd ./initrd/main
+        else
+            cp -aT ./extra-initrd ./initrd
+        fi
+    fi
+
+    if [ -d ./initrd/early ]; then
+        uc_write_bootstrap_wrapper_local ./initrd/main "$inject_kernel_panic"
+
+        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >"$initrd_f"
+        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>"$initrd_f"
+    else
+        uc_write_bootstrap_wrapper_local ./initrd "$inject_kernel_panic"
+
+        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >"$initrd_f"
+    fi
+
+    objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
+    TMPDIR=/var/tmp ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+    cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
+
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./pc-kernel
+    fi
+
+    if [ -n "${NESTED_KERNEL_REMOVE_COMPONENTS-}" ]; then
+        gojq 'del(.components)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
+        gojq 'del(.slots)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
+        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
+    fi
+
+    snap pack --filename="$target" pc-kernel
+    rm -rf pc-kernel linux-* initrd initrd.img-* manifest-initramfs.yaml-*
+}
+
+build_corrupt_kernel_snap_local() {
+    local orig_snap="$1"
+    local target_snap="$2"
+    local corruption="${3:-}"
+
+    local repacked_dir
+    local kernel_efi_path
+    local section
+    local sect_offset
+    repacked_dir="$(mktemp -d /tmp/repacked-kernel.XXXXXXXX)"
+    kernel_efi_path="$repacked_dir/kernel.efi"
+
+    unsquashfs -no-progress -f -d "$repacked_dir" "$orig_snap"
+
+    case "$corruption" in
+        ""|empty)
+            : > "$kernel_efi_path"
+            ;;
+        zeros)
+            dd if=/dev/zero of="$kernel_efi_path" count=1
+            ;;
+        bad-*)
+            section="${corruption#bad-}"
+            # Corrupt the beginning of the selected EFI section.
+            sect_offset=$(objdump -w -h "$kernel_efi_path" | awk -v section="$section" '$0 ~ section { print $6; exit }')
+            if [ -z "$sect_offset" ]; then
+                echo "repack-kernel: cannot find section '$section' in $kernel_efi_path" >&2
+                rm -rf "$repacked_dir"
+                exit 1
+            fi
+            dd if=/dev/zero of="$kernel_efi_path" bs=1 seek=$((0x$sect_offset)) count=512 conv=notrunc
+            ;;
+        *)
+            echo "repack-kernel: unsupported corruption type: $corruption" >&2
+            rm -rf "$repacked_dir"
+            exit 1
+            ;;
+    esac
+
+    # Make snap smaller, we don't need firmware with qemu.
+    rm -rf "$repacked_dir/firmware"/*
+    mkdir -p "$(dirname "$target_snap")"
+    snap pack --filename="$target_snap" "$repacked_dir"
+    rm -rf "$repacked_dir"
+
+    printf '%s\n' "$target_snap"
+}
+
+run_mode() {
+    local mode="$1"
+    local core_version="$2"
+    local epoch_bump_arg=""
+    local target_snap
+
+    target_snap="$OUTPUT_SNAP"
+    mkdir -p "$(dirname "$target_snap")"
+
+    if [ "$core_version" -le 18 ]; then
+        if [ "$mode" = "prepare" ]; then
+            if [ "$core_version" -eq 18 ] && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
+                # UC18 OpenStack uses a custom kernel containing LP#1844053 fix.
+                wget -q -O pc-kernel.snap https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_5.4.0-221.241.1_amd64.snap
+            else
+                snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+            fi
+
+            repack_local_kernel_snap_local pc-kernel.snap "$target_snap"
+            chmod 0600 "$target_snap"
+        else
+            repack_kernel_snap_local "$target_snap"
+        fi
+
+        printf '%s\n' "$target_snap"
+        return
+    fi
+
+    snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+    test -e pc-kernel.snap
+
+    if [ -n "$EPOCH_BUMP_TIME" ]; then
+        epoch_bump_arg="--epoch-bump-time=$EPOCH_BUMP_TIME"
+    fi
+
+    if [ "$core_version" -ge 24 ]; then
+        if [ "$mode" = "prepare" ]; then
+            "$TESTSTOOLS"/core-initrd build-initramfs-deb --install
+        fi
+        uc24_build_initramfs_kernel_snap_local "pc-kernel.snap" "$target_snap" "$epoch_bump_arg"
+    else
+        uc20_build_initramfs_kernel_snap_local "pc-kernel.snap" "$target_snap" "$epoch_bump_arg"
+    fi
+
+    if [ "$mode" != "prepare" ]; then
+        rm -f "pc-kernel.snap" "pc-kernel.assert"
+        chmod 0600 "$target_snap"
+    fi
+
+    printf '%s\n' "$target_snap"
+}
+
+run_corrupt_mode() {
+    local orig_snap
+
+    if [ -n "$ORIG_SNAP" ]; then
+        orig_snap="$ORIG_SNAP"
+    else
+        snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+        orig_snap="$PWD/pc-kernel.snap"
+    fi
+
+    build_corrupt_kernel_snap_local "$orig_snap" "$OUTPUT_SNAP" "$CORRUPTION"
+}
+
+run_initramfs_mode() {
+    local initramfs_opt=""
+    local orig_snap
+
+    if [ -n "$INJECT_KERNEL_PANIC" ]; then
+        initramfs_opt="$INJECT_KERNEL_PANIC"
+    fi
+
+    mkdir -p "$(dirname "$OUTPUT_SNAP")"
+
+    if [ -n "$ORIG_SNAP" ]; then
+        orig_snap="$ORIG_SNAP"
+    else
+        snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+        orig_snap="$PWD/pc-kernel.snap"
+    fi
+
+    if [ "$CORE_VERSION" -ge 24 ]; then
+        uc24_build_initramfs_kernel_snap_local "$orig_snap" "$OUTPUT_SNAP" "$initramfs_opt"
+    else
+        uc20_build_initramfs_kernel_snap_local "$orig_snap" "$OUTPUT_SNAP" "$initramfs_opt"
+    fi
+
+    printf '%s\n' "$OUTPUT_SNAP"
+}
+
+run_download_mode() {
+    mkdir -p "$(dirname "$OUTPUT_SNAP")"
+    snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
+    if [ "$PWD/pc-kernel.snap" != "$OUTPUT_SNAP" ]; then
+        mv "$PWD/pc-kernel.snap" "$OUTPUT_SNAP"
+    fi
+    printf '%s\n' "$OUTPUT_SNAP"
+}
+
+run_rewrite_metadata_mode() {
+    local unpack_dir
+
+    unpack_dir="$(mktemp -d /tmp/repacked-kernel.XXXXXXXX)"
+    unsquashfs -no-progress -f -d "$unpack_dir" "$ORIG_SNAP"
+
+    if [ -n "$SNAP_VERSION" ]; then
+        gojq --yaml-input --yaml-output ".version = \"$SNAP_VERSION\"" "$unpack_dir/meta/snap.yaml" > "$unpack_dir/meta/snap.yaml.new"
+        mv "$unpack_dir/meta/snap.yaml.new" "$unpack_dir/meta/snap.yaml"
+    fi
+
+    mkdir -p "$(dirname "$OUTPUT_SNAP")"
+    snap pack --filename="$OUTPUT_SNAP" "$unpack_dir"
+    rm -rf "$unpack_dir"
+
+    printf '%s\n' "$OUTPUT_SNAP"
+}
+
+main() {
+    MODE=
+    KERNEL_CHANNEL=
+    CORE_VERSION=
+    KERNEL_BRANCH=
+    EPOCH_BUMP_TIME=
+    ORIG_SNAP=
+    CORRUPTION=
+    OUTPUT_SNAP=
+    INJECT_KERNEL_PANIC=
+    SNAP_VERSION=
+
+    parse_args "$@"
+
+    if [ -z "$KERNEL_BRANCH" ] && [ -n "$CORE_VERSION" ]; then
+        KERNEL_BRANCH="$CORE_VERSION"
+    fi
+
+    validate_args
+
+    case "$MODE" in
+        prepare)
+            run_mode prepare "$CORE_VERSION"
+            ;;
+        nested)
+            run_mode nested "$CORE_VERSION"
+            ;;
+        initramfs)
+            run_initramfs_mode
+            ;;
+        corrupt)
+            run_corrupt_mode
+            ;;
+        download)
+            run_download_mode
+            ;;
+        rewrite-metadata)
+            run_rewrite_metadata_mode
+            ;;
+    esac
+}
+
+main "$@"

@@ -404,7 +404,7 @@ main() {
 
         # if a kernel wasn't provided, download one
         if [ -z "${kernel_snap}" ]; then
-            snap download --channel="23.10/stable" --basename=pc-kernel pc-kernel
+            "$TESTSTOOLS"/repack-kernel --mode download --kernel-branch 23.10 --kernel-channel stable --output-snap "${PWD}/pc-kernel.snap"
             kernel_snap="${PWD}/pc-kernel.snap"
             kernel_assertion="${PWD}/pc-kernel.assert"
         fi

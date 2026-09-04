@@ -49,12 +49,7 @@ prepare: |
   case "${VERSION}" in
     22)
       # use 23.10 instead
-      snap download pc-kernel --channel=23.10/beta  --basename="pc-kernel-23.10"
-      rm -rf pc-kernel-repacked/
-      mkdir -p pc-kernel-repacked/
-      uc20_build_initramfs_kernel_snap pc-kernel-23.10.snap pc-kernel-repacked/
-      mv pc-kernel-repacked/pc-kernel_*.snap "${extra_snaps}/pc-kernel-23.10.snap"
-      rmdir pc-kernel-repacked
+      "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 20 --kernel-branch 23.10 --kernel-channel beta --output-snap "${extra_snaps}/pc-kernel-23.10.snap"
       pc_kernel_orig="${extra_snaps}/pc-kernel-23.10.snap"
       "${TESTSTOOLS}"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "${pc_kernel_orig}" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
     ;;

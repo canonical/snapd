@@ -89,24 +89,19 @@ execute: |
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack --filename=pc.snap pc-gadget/
 
-  # Retrieve kernel
-  snap download --basename=pc-kernel-from-store --channel="$version/edge" pc-kernel
+  # Retrieve kernel assertion and snap through repack-kernel tool
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --kernel-branch "$version" --kernel-channel edge --output-snap "$PWD/pc-kernel-from-store.snap"
   # the fakestore needs this assertion
-  snap ack pc-kernel-from-store.assert
+  snap ack pc-kernel.assert
+
   # Build kernel with initramfs with the compiled snap-bootstrap
   kmods_arg=""
   if os.query is-ubuntu-ge 24.04; then
       # split kernel into snap and kernel-modules component
       "$TESTSTOOLS"/build_kernel_with_comps.sh efi_pstore efi-pstore
       kmods_arg="--kmods-comp pc-kernel+efi-pstore.comp"
-      # build now uc24 initramfs
-      uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-  else
-      uc20_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
   fi
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
 
-  version="$(nested_get_version)"
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
   # create new disk for the installer to work on and attach to VM
@@ -132,7 +127,7 @@ execute: |
      --gadget pc.snap \
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
-     --kernel-assertion pc-kernel-from-store.assert \
+    --kernel-assertion pc-kernel.assert \
      ${preseed_rootfs_args-} \
      $kmods_arg \
      --disk disk.img

@@ -26,9 +26,7 @@ prepare: |
   # to detect any issues in the initramfs package that would affect
   # the azure cvm kernel
   if os.query is-ubuntu-ge 24.04; then
-    #shellcheck source=tests/lib/core-initrd.sh
-    . "$TESTSLIB"/core-initrd.sh
-    build_initramfs_deb
+    "$TESTSTOOLS"/core-initrd build-initramfs-deb
     remote.push "$PROJECT_PATH"/core-initrd/ubuntu-core-initramfs_*.deb
     remote.exec "sudo apt install -y ./ubuntu-core-initramfs_*.deb"
   else
