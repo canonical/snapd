@@ -966,7 +966,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseThrottled(c 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 429)
 	c.Check(rsp.Kind, Equals, client.ErrorKindFDEChangeAuthThrottled)
-	c.Check(rsp.Message, Equals, "too many authentication attempts, try again after 2025-01-01T00:00:00Z")
+	c.Check(rsp.Message, Equals, "too many authentication attempts, try again after 2025-01-01T00:00:00Z or reboot")
 	c.Check(rsp.Value, DeepEquals, map[string]any{"retry-after": "2025-01-01T00:00:00Z"})
 }
 
@@ -1170,7 +1170,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePINThrottled(c *C) {
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 429)
 	c.Check(rsp.Kind, Equals, client.ErrorKindFDEChangeAuthThrottled)
-	c.Check(rsp.Message, Equals, "too many authentication attempts, try again after 2025-01-01T00:00:00Z")
+	c.Check(rsp.Message, Equals, "too many authentication attempts, try again after 2025-01-01T00:00:00Z or reboot")
 	c.Check(rsp.Value, DeepEquals, map[string]any{"retry-after": "2025-01-01T00:00:00Z"})
 }
 

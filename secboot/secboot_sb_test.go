@@ -4676,6 +4676,51 @@ func (s *secbootSuite) TestFindFreeHandleNoneFree(c *C) {
 	c.Assert(err, ErrorMatches, `no free handle on TPM`)
 }
 
+func (s *secbootSuite) TestGetDALockoutInfo(c *C) {
+	tpm, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockTpmGetCapabilityTPMProperties(func(tpmArg *sb_tpm2.Connection, first tpm2.Property, propertyCount uint32, sessions ...tpm2.SessionContext) (tpm2.TaggedTPMPropertyList, error) {
+		c.Check(tpmArg, Equals, tpm)
+		c.Check(first, Equals, tpm2.PropertyPermanent)
+		c.Check(propertyCount, Equals, tpm2.CapabilityMaxProperties)
+		c.Check(sessions, HasLen, 0)
+
+		return tpm2.TaggedTPMPropertyList{
+			{Property: tpm2.PropertyLockoutCounter, Value: 11},
+			{Property: tpm2.PropertyMaxAuthFail, Value: 32},
+			{Property: tpm2.PropertyLockoutInterval, Value: 7200},
+			{Property: tpm2.PropertyLockoutRecovery, Value: 86400},
+			{Property: tpm2.PropertyPermanent, Value: uint32(tpm2.AttrInLockout)},
+			{Property: tpm2.Property(0x299), Value: 999}, // ignored
+		}, nil
+	})
+	defer restore()
+
+	info, err := secboot.GetDALockoutInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info, DeepEquals, &secboot.DALockoutInfo{
+		LockoutCounter:  11,
+		MaxTries:        32,
+		RecoveryTime:    2 * time.Hour,
+		LockoutRecovery: 24 * time.Hour,
+		InLockout:       true,
+	})
+}
+
+func (s *secbootSuite) TestGetDALockoutInfoGetCapabilityTPMPropertiesError(c *C) {
+	_, restore := mockSbTPMConnection(c, nil)
+	defer restore()
+
+	restore = secboot.MockTpmGetCapabilityTPMProperties(func(tpmArg *sb_tpm2.Connection, first tpm2.Property, propertyCount uint32, sessions ...tpm2.SessionContext) (tpm2.TaggedTPMPropertyList, error) {
+		return nil, errors.New("boom")
+	})
+	defer restore()
+
+	_, err := secboot.GetDALockoutInfo()
+	c.Assert(err, ErrorMatches, "cannot request properties from TPM: boom")
+}
+
 func (s *secbootSuite) TestGetPrimaryKeyDigest(c *C) {
 	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
 		c.Errorf("unexpected call")

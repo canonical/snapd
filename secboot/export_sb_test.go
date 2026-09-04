@@ -460,6 +460,10 @@ func MockTpmGetCapabilityHandles(f func(tpm *sb_tpm2.Connection, firstHandle tpm
 	}
 }
 
+func MockTpmGetCapabilityTPMProperties(f func(tpm *sb_tpm2.Connection, first tpm2.Property, propertyCount uint32, sessions ...tpm2.SessionContext) (tpmProperties tpm2.TaggedTPMPropertyList, err error)) (restore func()) {
+	return testutil.Mock(&tpmGetCapabilityTPMProperties, f)
+}
+
 func MockSbGetPrimaryKeyFromKernel(f func(prefix string, devicePath string, remove bool) (sb.PrimaryKey, error)) (restore func()) {
 	old := sbGetPrimaryKeyFromKernel
 	sbGetPrimaryKeyFromKernel = f

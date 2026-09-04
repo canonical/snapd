@@ -123,5 +123,5 @@ type DALockoutThrottledError struct {
 }
 
 func (e *DALockoutThrottledError) Error() string {
-	return fmt.Sprintf("too many authentication attempts, try again after %s", e.RetryAfter.Format(time.RFC3339))
+	return fmt.Sprintf("too many authentication attempts, try again after %s or reboot", e.RetryAfter.Format(time.RFC3339))
 }

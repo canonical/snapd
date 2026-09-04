@@ -36,6 +36,11 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
 
+  # Build a small helper that reads the TPM dictionary-attack lockout counter
+  # directly from the hardware. It is used to cross-check the change-auth rate
+  # limiter against the real TPM counter.
+  go build ./getdalockout.go
+
   # Fakestore is needed for "snap prepare-image".
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
 
@@ -91,8 +96,12 @@ prepare: |
   "${TESTSTOOLS}"/setup_nested_hybrid_system.sh "${setup_nested_args[@]}"
 
 restore: |
+  # Best-effort cleanup in case a faked boot id was left mounted in snapd's
+  # mount namespace by check_change_auth_counter_sync.
+  remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null || true" || true
+
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget getdalockout
 
 debug: |
   if [ -f containers.out ]; then
@@ -160,66 +169,183 @@ execute: |
     tests.nested vm start
   }
 
-  # Verify that change-auth rate limiting is enforced. This mirrors the TPM
-  # dictionary-attack lockout: the token bucket allows a bounded number of
-  # authentication changes before requests are throttled with HTTP 429. The
-  # bucket is refilled to the maximum whenever the DA lockout counter is reset
-  # (on reboot, via ensureFDE).
-  #
-  # $1: action (change-passphrase or change-pin)
-  # $2: credential field name (passphrase or pin)
-  # $3: current credential value
-  # $4: printf format used to derive each new credential from the attempt index
-  check_change_auth_rate_limit()
+  # Push the TPM lockout-counter helper onto the system under test. It survives
+  # subsequent reboots as it lives in the remote home directory.
+  remote.push ./getdalockout
+
+  # Read the real TPM DA lockout counter value.
+  hw_counter()
   {
-    local action="$1"
-    local field="$2"
-    local cur="$3"
-    local new_fmt="$4"
+    remote.exec sudo ./getdalockout | sed -n 's/^lockout counter value: //p'
+  }
 
-    # A freshly booted system must have a full token bucket.
-    retry -n 30 --wait 1 sh -c 'remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r ".data.fde.\"da-lockout-rate-limit\".tokens" | MATCH "^16$"'
+  # Temporarily make snapd observe a different boot id. This is done by
+  # bind-mounting a file holding a fake UUID over /proc/sys/kernel/random/boot_id
+  # inside snapd's mount namespace, so only snapd is affected. It tricks the
+  # DA-lockout rate limiter into believing the system rebooted, forcing it to
+  # re-sync its token bucket with the real TPM counter without an actual reboot
+  # (a reboot would reset the TPM counter and defeat the purpose).
+  mock_boot_id()
+  {
+    local fake="$1"
+    remote.exec "echo '$fake' | sudo tee /run/fake-boot-id >/dev/null"
+    remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- mount --bind /run/fake-boot-id /proc/sys/kernel/random/boot_id"
+  }
 
-    # Drain the bucket with successful change-auth requests using the correct
-    # current credential (so the real TPM DA counter is untouched) until a
-    # request is throttled.
-    local i=0
-    local new
-    while true; do
-      if [ "$i" -gt 16 ]; then
-        echo "change-auth rate limiting was not enforced after $i attempts"
+  unmock_boot_id()
+  {
+    remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null || true"
+  }
+
+  # Force the change-auth rate limiter to re-synchronize its token bucket with a
+  # *non-zero* real TPM DA lockout counter, exercising the code path that reads
+  # the hardware counter, then verify that requests are throttled once the
+  # bucket is drained.
+  #
+  # A reboot cannot be used to trigger the re-sync because ensureFDE resets the
+  # TPM counter on boot; instead the boot id observed by snapd is temporarily
+  # faked so that the re-sync fires while the counter is still non-zero.
+  #
+  # $1: auth type (passphrase or pin)
+  # $2: current (correct) credential value
+  check_change_auth_counter_sync()
+  {
+    local auth_type="$1"
+    local cur="$2"
+    local action field new_fmt wrong
+
+    case "$auth_type" in
+      passphrase)
+        action="change-passphrase"
+        field="passphrase"
+        new_fmt="ratelimit-%d"
+        wrong="wrong-old-passphrase"
+        ;;
+      pin)
+        action="change-pin"
+        field="pin"
+        new_fmt="%07d"
+        wrong="9999999"
+        ;;
+      *)
+        echo "unknown auth type: $auth_type"
         exit 1
-      fi
-      i=$((i + 1))
+        ;;
+    esac
+
+    # Wait for the post-reboot TPM DA lockout counter reset to complete. It is
+    # done asynchronously in secboot.MarkSuccessful, so there is a race with an
+    # early read here.
+    retry -n 10 --wait 2 sh -c 'remote.exec sudo ./getdalockout | MATCH "lockout counter value: 0"'
+
+    # (A) A handful of *successful* change-auth requests using the correct
+    # credential. These consume rate-limit tokens but do not touch the TPM DA
+    # counter, pushing snapd's bucket below (max - counter) so that the later
+    # forced re-sync produces an observable upward jump.
+    local i new
+    for i in 1 2 3 4 5; do
       # shellcheck disable=SC2059
       new="$(printf "$new_fmt" "$i")"
       remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
-      status_code="$(gojq -r '."status-code"' < resp)"
-      if [ "$status_code" = "429" ]; then
-        # Throttled: verify the error shape and that no change was created.
-        MATCH '"status": "Too Many Requests"' < resp
-        gojq -r '.result.kind' < resp | MATCH "^fde-change-auth-throttled$"
-        gojq -r '.change' < resp | MATCH "^null$"
-        break
-      fi
-      # Otherwise the request was accepted and runs asynchronously.
       change_id="$(gojq --raw-output .change < resp)"
       remote.exec sudo snap watch "$change_id"
       cur="$new"
     done
 
+    # (B) A few change-auth requests with a *wrong* old credential. Each is
+    # admitted (consuming a token) but fails inside the TPM, incrementing the
+    # real DA lockout counter by one per request.
+    for i in 1 2 3; do
+      # shellcheck disable=SC2059
+      new="$(printf "$new_fmt" "$((100 + i))")"
+      remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$wrong\", \"new-$field\": \"$new\"}"
+      change_id="$(gojq --raw-output .change < resp)"
+      # The change is expected to fail (wrong credential); wait for it either way.
+      remote.exec sudo snap watch "$change_id" || true
+    done
+
+    # Read the real TPM counter and the token bucket just before forcing a sync.
+    local hw_pre tokens_pre
+    hw_pre="$(hw_counter)"
+    test "$hw_pre" -ge 1
+    tokens_pre="$(remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens')"
+
+    # (C) Fake the boot id observed by snapd and issue one more request. The
+    # rate limiter observes a "new boot" and re-syncs its bucket from the real
+    # TPM counter (tokens = max - counter) before consuming a token for this
+    # request. The re-sync happens synchronously while the request is admitted,
+    # so the fake boot id can be dropped immediately afterwards.
+    local real_boot_id fake_boot_id
+    real_boot_id="$(remote.exec cat /proc/sys/kernel/random/boot_id)"
+    fake_boot_id="$(remote.exec cat /proc/sys/kernel/random/uuid)"
+    test "$fake_boot_id" != "$real_boot_id"
+
+    # shellcheck disable=SC2059
+    new="$(printf "$new_fmt" "200")"
+    mock_boot_id "$fake_boot_id"
+    remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$wrong\", \"new-$field\": \"$new\"}"
+    unmock_boot_id
+    change_id="$(gojq --raw-output .change < resp)"
+    remote.exec sudo snap watch "$change_id" || true
+
+    # The bucket was re-synced from the real counter (tokens = max - counter),
+    # then had one token consumed for the probe request.
+    local tokens_post hw_post
+    tokens_post="$(remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens')"
+    test "$tokens_post" = "$((16 - hw_pre - 1))"
+
+    # The re-sync recorded the faked boot id, proving the boot-id-triggered
+    # re-sync path actually ran.
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit"."last-boot-id"' | MATCH "^${fake_boot_id}$"
+
+    # The re-sync produced an observable upward jump in the bucket, ruling out a
+    # plain token consumption without a re-sync.
+    test "$tokens_post" -gt "$tokens_pre"
+
+    # Cross-check that the probe itself bumped the real TPM counter by one.
+    hw_post="$(hw_counter)"
+    test "$hw_post" = "$((hw_pre + 1))"
+
+    # (D) Drain the remaining tokens with the correct credential, then confirm
+    # the next request is throttled with HTTP 429. The first request here
+    # re-syncs the bucket once more (the faked boot id is still recorded as the
+    # last observed one) from the real TPM counter, which restores it to exactly
+    # tokens_post (max 16 minus the counter). So exactly tokens_post requests are
+    # accepted and request number tokens_post + 1 must be throttled.
+    local drain
+    for drain in $(seq 1 "$tokens_post"); do
+      # shellcheck disable=SC2059
+      new="$(printf "$new_fmt" "$((300 + drain))")"
+      remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
+      test "$(gojq -r '."status-code"' < resp)" != "429"
+      change_id="$(gojq --raw-output .change < resp)"
+      remote.exec sudo snap watch "$change_id"
+      cur="$new"
+    done
+
+    # The bucket is now empty, so the next request must be throttled.
+    # shellcheck disable=SC2059
+    new="$(printf "$new_fmt" "999")"
+    remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
+    test "$(gojq -r '."status-code"' < resp)" = "429"
+    MATCH '"status": "Too Many Requests"' < resp
+    gojq -r '.result.kind' < resp | MATCH "^fde-change-auth-throttled$"
+    gojq -r '.change' < resp | MATCH "^null$"
+
     # The bucket must now be empty.
     remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens' | MATCH "^0$"
 
-    # Rebooting the system re-runs ensureFDE, which resets the DA lockout counter
-    # and refills the token bucket back to the maximum.
+    # Rebooting the system re-runs ensureFDE, which resets the TPM DA lockout
+    # counter. The token bucket is refilled lazily: the first change-auth after
+    # reboot re-syncs it with the reset counter, so the request is accepted
+    # again and the bucket ends up at the maximum minus this one request.
     reboot_with_passphrase "$cur"
-    retry -n 30 --wait 1 sh -c 'remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r ".data.fde.\"da-lockout-rate-limit\".tokens" | MATCH "^16$"'
 
-    # change-auth requests are accepted again.
     remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
+    test "$(gojq -r '."status-code"' < resp)" != "429"
     change_id="$(gojq --raw-output .change < resp)"
     remote.exec sudo snap watch "$change_id"
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens' | MATCH "^15$"
   }
 
   # Test setting a passphrase after first boot
@@ -256,8 +382,9 @@ execute: |
 
   reboot_with_passphrase "ubuntu-2"
 
-  # Verify change-auth rate limiting is enforced for passphrase changes.
-  check_change_auth_rate_limit "change-passphrase" "passphrase" "ubuntu-2" "ratelimit-%d"
+  # Verify the rate limiter re-syncs from a non-zero real TPM DA counter and
+  # then throttles once the token bucket is drained.
+  check_change_auth_counter_sync "passphrase" "ubuntu-2"
 
   # Let's reset the passphrase as root (without providing old passphrase)
   remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-3"}'
@@ -280,8 +407,9 @@ execute: |
 
   reboot_with_passphrase "4321"
 
-  # Verify change-auth rate limiting is enforced for PIN changes.
-  check_change_auth_rate_limit "change-pin" "pin" "4321" "%07d"
+  # Verify the rate limiter re-syncs from a non-zero real TPM DA counter and
+  # then throttles once the token bucket is drained.
+  check_change_auth_counter_sync "pin" "4321"
 
   # Let's remove auth protection completely
   remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'
