@@ -153,7 +153,7 @@ func systemBootBaseApplicable(model *asserts.Model) (int, error) {
 		return 0, fmt.Errorf("%w on a classic system", ErrNotApplicable)
 	}
 
-	bootBase, err := model.CoreVersion()
+	bootBase, err := model.BaseCoreVersion()
 	if err != nil {
 		return 0, fmt.Errorf("internal error: cannot determine boot base: %v", err)
 	}

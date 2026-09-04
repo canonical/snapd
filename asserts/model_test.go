@@ -301,7 +301,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "")
 	c.Check(model.Base(), Equals, "core18")
-	coreVersion, err := model.CoreVersion()
+	coreVersion, err := model.BaseCoreVersion()
 	c.Assert(err, IsNil)
 	c.Check(coreVersion, Equals, 18)
 	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
@@ -356,7 +356,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "preseed-delegate"})
 }
 
-func (mods *modelSuite) TestCoreVersion(c *C) {
+func (mods *modelSuite) TestBaseCoreVersion(c *C) {
 	for _, tc := range []struct {
 		comment string
 		encoded string
@@ -397,7 +397,7 @@ func (mods *modelSuite) TestCoreVersion(c *C) {
 		a, err := asserts.Decode([]byte(tc.encoded))
 		c.Assert(err, IsNil, Commentf("%s", tc.comment))
 		model := a.(*asserts.Model)
-		v, err := model.CoreVersion()
+		v, err := model.BaseCoreVersion()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, Commentf("%s", tc.comment))
 			continue
