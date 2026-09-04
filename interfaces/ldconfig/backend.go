@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -57,6 +58,15 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
+	if !release.OnClassic {
+		// The ldconfig backend delivers libraries into the classic
+		// rootfs. On Core, driver-libs content is delivered via the mount
+		// backend instead, so there is nothing to do here (and we skip
+		// SnapSpecification, which would otherwise trip the
+		// system-snap-only plug guard).
+		return nil
+	}
+
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {

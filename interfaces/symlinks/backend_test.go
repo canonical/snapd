@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -135,6 +136,14 @@ type: snapd
 apps:
   app:
     plugs: [some-driver-libs, other-driver-libs]
+`
+
+const someNonSystemConsumer = `name: test-snapd-driver-libs
+version: 0
+type: app
+apps:
+  app:
+    plugs: [some-driver-libs]
 `
 
 func checkSymlink(c *C, target, name string) {
@@ -274,6 +283,45 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	// Only symlinks for the connected slots are around
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.LFileAbsent)
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo2/bar2.so")
+}
+
+func (s *backendSuite) TestSetupNoOpOnNonClassic(c *C) {
+	// On non-classic systems the symlinks backend delivers nothing into the
+	// classic rootfs (driver libraries are provided via the mount backend
+	// instead), so Backend.Setup() must be a no-op. In particular, it must not
+	// reject a non-system consumer snap that declares a driver-libs plug
+	// (regression test for the old "symlinks plugs can be defined only by the
+	// system snap" error that aborted the install of such a snap on Core).
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	iface := &ifacetest.TestSymlinksInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "some-driver-libs",
+			SymlinksConnectedPlugCallback: func(spec *symlinks.Specification,
+				plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+				return spec.AddSymlink(
+					filepath.Join(dirs.GlobalRootDir, "/snap/somesnap/1/target.so"),
+					filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"))
+			},
+		},
+		DirectoriesCallback: func() []string {
+			return []string{filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo")}
+		},
+	}
+	c.Assert(s.Repo.AddInterface(iface), IsNil)
+
+	appSet, plugInfos := s.mockPlugs(c, someNonSystemConsumer, []string{"some-driver-libs"})
+	_, slotInfo := s.mockSlot(c, someProvider1, "some-driver-libs")
+	connRef := interfaces.NewConnRef(plugInfos[0], slotInfo)
+	_, err := s.Repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{},
+		interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
+
+	// No symlink is produced on non-classic.
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/usr/lib/foo/bar.so"), testutil.LFileAbsent)
 }
 
 func (s *backendSuite) TestUnregisteredDirectory(c *C) {
