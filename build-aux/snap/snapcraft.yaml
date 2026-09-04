@@ -51,7 +51,7 @@ parts:
       - quilt
       - python3-pyelftools
       - xz-utils
-    source: https://git.launchpad.net/ubuntu/+source/glibc
+    source: https://github.com/canonical/glibc
     source-branch: ubuntu/jammy-updates
     source-type: git
     <<:
