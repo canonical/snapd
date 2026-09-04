@@ -84,59 +84,89 @@ func (s *noticesSuite) TestReoccur(c *C) {
 
 	prevTimestamp := timestamp
 	timestamp = timestamp.Add(5 * time.Second)
-	repeated := notice.Reoccur(timestamp, data, repeatAfter)
+	newExpireAfter := time.Duration(0)
+	repeated := notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, false)
 	n := noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 2.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// If total time since last repeated is greater than repeatAfter, should
 	// be repeated, even if time since last occurred is shorter.
 	timestamp = timestamp.Add(6 * time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 3.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// The repeatAfter value passed into Reoccur is used, rather than the value
 	// saved in the notice, so check that the former has precedence.
 	repeatAfter = time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 4.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// The saved repeatAfter is shorter, but the argument has precedence
 	prevTimestamp = timestamp
 	repeatAfter = 10 * time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, false)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 5.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// If the repeatAfter argument is 0, then always repeat
 	repeatAfter = 0
 	timestamp = timestamp.Add(time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 6.0)
 	c.Check(n["repeat-after"], IsNil)
+	c.Check(n["expire-after"], Equals, expireAfter.String())
+
+	// If the expireAfter argument is non-zero, update the value
+	repeatAfter = time.Second
+	timestamp = timestamp.Add(2 * time.Second)
+	newExpireAfter = time.Second
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 7.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, newExpireAfter.String())
+
+	timestamp = timestamp.Add(2 * time.Second)
+	newExpireAfter = -time.Second
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 8.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, newExpireAfter.String())
 }
 
 func (s *noticesSuite) TestDeepCopy(c *C) {
