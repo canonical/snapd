@@ -1266,11 +1266,11 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	checkLastRecordedInhibitedSnaps(c, st, nil)
 
 	now := time.Now()
+	// mock time to determine if recorded warning is recent
+	defer state.MockTime(now)()
 	// Refresh inhibit notice will get timestamp `now`, so warning notice will
 	// get the next monotonically increasing timestamp, 1ns later
 	warningTime := now.Add(time.Nanosecond)
-	// mock time to determine if recorded warning is recent
-	defer state.MockTime(now)()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{

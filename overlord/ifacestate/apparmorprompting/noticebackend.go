@@ -229,7 +229,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	var newNotice *state.Notice
 	if existingNotice != nil && !existingNotice.Expired(timestamp) {
 		newNotice = existingNotice.DeepCopy()
-		newNotice.Reoccur(timestamp, data, 0)
+		newNotice.Reoccur(timestamp, data, 0, 0)
 	} else {
 		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
