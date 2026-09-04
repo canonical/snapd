@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -197,6 +198,22 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{SnapName: "nvidia-video-provider", SlotName: "nvidia-video-slot"}: {filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2")}})
+}
+
+func (s *NvidiaVideoDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/1", Options: []string{"rbind", "ro"}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0",
+		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/1",
+	})
 }
 
 func (s *NvidiaVideoDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

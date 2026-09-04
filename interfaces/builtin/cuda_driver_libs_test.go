@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -309,6 +310,35 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2"),
 			snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"),
 		}})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Library dirs are bound into the assembly tree, preserving the
+		// original directory order (idx) and keeping the original file names.
+		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/1", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/2", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3", Options: []string{"rbind", "ro"}},
+		{Name: snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4", Options: []string{"rbind", "ro"}},
+	})
+
+	// All bound library dirs are collected for SNAP_LIBRARY_PATH derivation.
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/1",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/2",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4",
+	})
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

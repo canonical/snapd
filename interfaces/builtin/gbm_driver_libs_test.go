@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -274,6 +275,31 @@ func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		{SnapName: "gbm-provider", SlotName: "gbm-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")}})
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	// Populate the library dirs and the client driver.
+	snapSourceDir := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")
+	c.Assert(os.MkdirAll(snapSourceDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"), []byte{}, 0644), IsNil)
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Library dirs.
+		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1", Options: []string{"rbind", "ro"}},
+		// Client driver bound as a file, keeping its original name.
+		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0",
+		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1",
+	})
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {

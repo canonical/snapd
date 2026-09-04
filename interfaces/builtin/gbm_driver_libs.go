@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
@@ -121,6 +122,16 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *gbmDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs).
+	if err := mountAssemblyLibDirs(spec, slot, gbmDriverLibs); err != nil {
+		return err
+	}
+	// The client driver is bound as a file under the share/gbm subtree.
+	return mountAssemblyClientDriver(spec, slot, gbmDriverLibs)
 }
 
 var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})

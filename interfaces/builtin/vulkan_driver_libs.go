@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -107,6 +108,36 @@ func (iface *vulkanDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 func (iface *vulkanDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs). Vulkan
+	// slots have no priority attribute, so no numeric prefix is used in the
+	// encoded metadata file names.
+	const withPriority = false
+	if err := mountAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
+		return err
+	}
+	// The ICD and implicit/explicit layer metadata files are bound under the
+	// share subtrees.
+	for _, sda := range []struct {
+		attrName   string
+		isOptional bool
+		subdir     string
+		checker    func(slot *interfaces.ConnectedSlot, content []byte) error
+	}{
+		{"icd-source", false, "vulkan/icd.d", checkVulkanIcdFile},
+		{"implicit-layer-source", true, "vulkan/implicit_layer.d", checkVulkanLayersFile},
+		{"explicit-layer-source", true, "vulkan/explicit_layer.d", checkVulkanLayersFile},
+	} {
+		if err := mountAssemblySourceFiles(spec, slot, vulkanDriverLibs,
+			sourceDirAttr{attrName: sda.attrName, isOptional: sda.isOptional},
+			sda.subdir, sda.checker, withPriority); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var _ = symlinks.ConnectedPlugCallback(&vulkanDriverLibsInterface{})
