@@ -4249,6 +4249,12 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 	}
 }
 
+func (*viewSuite) TestParsePathNormalizesListIndexes(c *C) {
+	accessors, err := confdb.ParsePathIntoAccessors("foo[000][01]", confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+	c.Check(confdb.JoinAccessors(accessors), Equals, "foo[0][1]")
+}
+
 func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
 	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
@@ -5218,6 +5224,13 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 		expected := subkeyOnlyReg.FindAllString(s, -1)
 		if len(accessors) == len(expected) {
 			for i, e := range expected {
+				if accessors[i].Type() == confdb.ListIndexType {
+					index := strings.TrimLeft(e[1:len(e)-1], "0")
+					if index == "" {
+						index = "0"
+					}
+					e = "[" + index + "]"
+				}
 				if accessors[i].Access() != e {
 					t.Errorf("unexpected type of accessor %T with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
 				}
