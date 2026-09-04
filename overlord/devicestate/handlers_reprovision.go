@@ -160,7 +160,7 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
 			platformKeyslots, err := secbootListContainerUnlockKeyNames(disk)
 			if err != nil {
-				logger.Debugf("cannot list keyslots on %s, ignoring disk.", disk)
+				logger.Debugf("cannot list keyslots on %s, ignoring disk: %v", disk, err)
 				continue
 			}
 			hasPlatformKeyslot := map[string]bool{}
@@ -182,10 +182,10 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 				if hasPlatformKeyslot[rename.old] && hasPlatformKeyslot[rename.new] {
 					nv, err := secbootGetPCRHandleFromToken(disk, rename.new)
 					if err != nil {
-						logger.Debugf("cannot read nv index for %s on %s", rename.new, disk)
+						logger.Debugf("cannot read nv index for %s on %s: %v", rename.new, disk, err)
 					} else if (nv != 0) && !removedNvIndices[nv] {
 						if err := secbootReleasePCRResourceHandle(nv); err != nil {
-							logger.Debugf("cannot release nv index for %s on %s", rename.new, disk)
+							logger.Debugf("cannot release nv index for %s on %s: %v", rename.new, disk, err)
 						} else {
 							removedNvIndices[nv] = true
 						}
@@ -203,26 +203,26 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 					continue
 				}
 				if err := secbootDeleteContainerKey(disk, rename.new); err != nil {
-					logger.Debugf("cannot remove %s on %s", rename.new, disk)
+					logger.Debugf("cannot remove %s on %s: %v", rename.new, disk, err)
 				}
 				if err := secbootRenameContainerKey(disk, rename.old, rename.new); err != nil {
-					logger.Debugf("cannot rename %s to %s on %s", rename.old, rename.new, disk)
+					logger.Debugf("cannot rename %s to %s on %s: %v", rename.old, rename.new, disk, err)
 				}
 			}
 		}
 		if err := secbootDeleteContainerKey(dataDisk.DevPath(), "bootstrap-key"); err != nil {
-			logger.Debugf("cannot delete bootstrap-key on %s", dataDisk.DevPath())
+			logger.Debugf("cannot delete bootstrap-key on %s: %v", dataDisk.DevPath(), err)
 		}
 		if err := secbootDeleteContainerKey(saveDisk.DevPath(), "bootstrap-key"); err != nil {
-			logger.Debugf("cannot delete bootstrap-key on %s", saveDisk.DevPath())
+			logger.Debugf("cannot delete bootstrap-key on %s: %v", saveDisk.DevPath(), err)
 		}
 
 		// The last clean up
 		if err := secbootDeleteContainerKey(saveDisk.DevPath(), "default"); err != nil {
-			logger.Debugf("could remove default on %s", saveDisk.DevPath())
+			logger.Debugf("could not remove default on %s: %v", saveDisk.DevPath(), err)
 		}
 		if err := secbootRenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
-			logger.Debugf("cannot rename snapd-reprovision-default to default on %s", saveDisk.DevPath())
+			logger.Debugf("cannot rename snapd-reprovision-default to default on %s: %v", saveDisk.DevPath(), err)
 		}
 	}
 
@@ -244,6 +244,7 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 			// For example we could store a digest of the plainkey's primary key, and if it matches, we could
 			// just jump to after step 6.
 			if oldKeyMatches {
+				logger.Debugf("detected previous reprovision attempt was unsuccessful, reverting.")
 				// We must have been restarted in the middle, before step 6.
 				// The backed up keys are the correct ones, we need to cancel that previous
 				// attempt and then go back to expected name.
