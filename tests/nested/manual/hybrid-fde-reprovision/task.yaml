@@ -1,0 +1,177 @@
+summary: Blah
+
+details: |
+  Blah
+
+systems:
+  - ubuntu-26*
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  # store related setup
+  STORE_ADDR: localhost:11028
+  STORE_DIR: $(pwd)/fake-store-blobdir
+
+  FAULT_INJECT/rename: reprovision-rename
+  FAULT_INJECT/re_bootstrap_containers: reprovision-re-bootstrap-containers
+  FAULT_INJECT/plainkey_and_primary_key: reprovision-plainkey-and-primary-key
+  FAULT_INJECT/post_install_check: reprovision-post-install-check
+  FAULT_INJECT/make_runnable: reprovision-make-runnable
+  FAULT_INJECT/reset_state: reprovision-reset-state
+  FAULT_INJECT/save_protector_key: reprovision-save-protector-key
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+
+  "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+
+  echo "Expose the needed assertions through the fakestore"
+  cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+  export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+  version="$(nested_get_version)"
+
+  # Retrieve the gadget
+  snap download --basename=pc --channel="$version/edge" pc
+
+  # Retrieve kernel
+  snap download --basename=pc-kernel-from-store --channel="$version/${KERNEL_CHANNEL}" pc-kernel
+  # the fakestore needs this assertion
+  snap ack pc-kernel-from-store.assert
+  # Build kernel with initramfs with the compiled snap-bootstrap
+  uc24_build_initramfs_kernel_snap "$PWD/pc-kernel-from-store.snap" "$NESTED_ASSETS_DIR"
+  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel-repacked.snap
+
+  gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
+
+  "${TESTSTOOLS}"/setup_nested_hybrid_system.sh \
+     --model classic.model \
+     --store-dir "${STORE_DIR}" \
+     --gadget pc.snap \
+     --gadget-assertion pc.assert \
+     --kernel pc-kernel-repacked.snap \
+     --kernel-assertion pc-kernel-from-store.assert \
+     --recovery-key-out "$(pwd)"/rkey-pre-install.out
+
+restore: |
+  "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+
+execute: |
+  remote.exec sudo mkdir -p /etc/systemd/system/snapd.service.d
+
+  cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  [Service]
+  Environment=SNAPD_DEBUG=1
+  Environment=SNAPPY_TESTING=1
+  Environment=SNAPD_FAULT_INJECT=${FAULT_INJECT}:reboot
+  EOF
+  remote.exec sudo systemctl daemon-reload
+  remote.exec sudo systemctl restart snapd.service
+
+  api_get_v2_system_info_storage_encrypted() {
+      remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null"
+  }
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
+
+  tests.nested vm set-recovery-key "$(cat rkey-pre-install.out)"
+
+  echo "Clear TPM and reboot to force recovery key request"
+  tests.nested vm stop
+  tests.nested vm clear-tpm
+  tests.nested vm start
+
+  wait_for_auto_repair_state() {
+    save_state="${1}"
+    expected="${2}"
+    # shellcheck disable=SC2034
+    for try in {0..120}; do
+      api_get_v2_system_info_storage_encrypted >"${save_state}"
+      gojq -r '.result."auto-repair-result"' <"${save_state}" >last-autorepair-result
+      if MATCH "${expected}" <last-autorepair-result; then
+        break
+      elif MATCH not-initialized <last-autorepair-result; then
+        sleep 1
+      else
+        break
+      fi
+    done
+    MATCH "${expected}" <last-autorepair-result
+  }
+
+  wait_for_auto_repair_state autorepair-just-reboot.json not-attempted
+  api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | MATCH 'require-reprovision'
+
+  remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+
+  echo '{"action": "generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision.resp
+  cat rkey-reprovision.resp
+  gojq --raw-output '.result."recovery-key"' < rkey-reprovision.resp > rkey-reprovision.out
+
+  boot_id="$(tests.nested boot-id)"
+  echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" || true
+  remote.wait-for reboot "${boot_id}"
+
+  cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  [Service]
+  Environment=SNAPD_DEBUG=1
+  Environment=SNAPPY_TESTING=1
+  Environment=SNAPD_FAULT_INJECT=${FAULT_INJECT}:panic
+  EOF
+  remote.exec sudo systemctl daemon-reload
+  remote.exec sudo systemctl restart snapd.service
+
+  wait_for_auto_repair_state autorepair-just-reboot.json not-attempted
+  api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | MATCH 'require-reprovision'
+
+  remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+
+  echo '{"action": "generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision-2.resp
+  gojq --raw-output '.result."recovery-key"' < rkey-reprovision-2.resp > rkey-reprovision-2.out
+
+  echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" || true
+
+  #remote.exec sudo rm /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  [Service]
+  Environment=SNAPD_DEBUG=1
+  EOF
+  remote.exec sudo systemctl daemon-reload
+  remote.exec sudo systemctl restart snapd.service
+
+  wait_for_auto_repair_state autorepair-just-reboot.json not-attempted
+  api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | MATCH 'require-reprovision'
+
+  remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+
+  echo '{"action": "generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision-3.resp
+  gojq --raw-output '.result."recovery-key"' < rkey-reprovision-3.resp > rkey-reprovision-3.out
+
+  echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >reprovision-3.resp
+
+  reprovision_change_3="$(gojq --raw-output '.change' <reprovision-3.resp)"
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_3}\s+(Done|Undone|Error)'"
+  remote.exec sudo snap changes | MATCH "^${reprovision_change_3}\s+Done"
+
+  tests.nested vm set-recovery-key ""
+
+  boot_id="$(tests.nested boot-id)"
+  tests.nested vm stop
+  tests.nested vm start
+  remote.wait-for reboot "${boot_id}"
+
+  wait_for_auto_repair_state autorepair-just-reboot.json not-attempted
+  api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | NOMATCH 'require-reprovision'
