@@ -34,6 +34,15 @@ execute: |
     unshare --mount=/run/snapd/ns/testsnap.mnt --propagation unchanged ./setup_mount_namespace.sh "$MOUNT_TMPDIR"
     # Mark our rootfs, so that snap-update-ns will not destroy it
     echo 'tmpfs / tmpfs x-snapd.origin=rootfs 0 0' > /run/snapd/ns/snap.testsnap.fstab
+    # Record the base snap name and the current managed CA generation
+    {
+      echo 'base-snap-name=core20'
+      if [ -L /var/lib/snapd/pki/v1/merged ]; then
+        CURRENT_CA_GENERATION="$(readlink /var/lib/snapd/pki/v1/merged)"
+        CURRENT_CA_GENERATION="${CURRENT_CA_GENERATION##*/}"
+        echo "managed-ca-certs-generation=${CURRENT_CA_GENERATION}"
+      fi
+    } > /run/snapd/ns/snap.testsnap.info
 
     echo "Running snap application and checking that it reuses our namespace"
     # We run this with SNAPD_DEBUG because this is the first execution of the
