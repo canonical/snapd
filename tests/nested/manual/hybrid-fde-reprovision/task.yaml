@@ -74,6 +74,7 @@ execute: |
 
   cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
   [Service]
+  Environment=SNAPD_DEBUG=1
   Environment=SNAPPY_TESTING=1
   Environment=SNAPD_FAULT_INJECT=${FAULT_INJECT}:reboot
   EOF
@@ -126,6 +127,7 @@ execute: |
 
   cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
   [Service]
+  Environment=SNAPD_DEBUG=1
   Environment=SNAPPY_TESTING=1
   Environment=SNAPD_FAULT_INJECT=${FAULT_INJECT}:panic
   EOF
@@ -142,7 +144,11 @@ execute: |
 
   echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" || true
 
-  remote.exec sudo rm /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  #remote.exec sudo rm /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  cat <<EOF | remote.exec sudo tee /etc/systemd/system/snapd.service.d/snapd-fault-inject.conf
+  [Service]
+  Environment=SNAPD_DEBUG=1
+  EOF
   remote.exec sudo systemctl daemon-reload
   remote.exec sudo systemctl restart snapd.service
 
