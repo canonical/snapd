@@ -88,6 +88,21 @@ func validateBaseOnlyUsedByRemoved(st *state.State, baseName string, removals ma
 	return nil
 }
 
+func changeCannotIntroduceBaseUsage(chg *state.Change) bool {
+	// we don't strictly need to skip some of these types of changes because they
+	// require an installed snap which would then get picked up when we check
+	// snapstate for snaps that use the base. However, conceptually they still
+	// make sense to skip as they wouldn't affect base usage.
+	switch chg.Kind() {
+	case "pre-download", "remove-snap", "enable-snap", "disable-snap",
+		"switch-snap", "install-component", "snapctl-install", "snapctl-remove",
+		"migrate-home", "alias", "unalias", "prefer":
+		return true
+	default:
+		return false
+	}
+}
+
 func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 	snapStates, err := snapstate.All(st)
 	if err != nil {
@@ -109,7 +124,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 		}
 	}
 
-	var usedBy []string
+	usedBy := make(map[string]bool)
 	for name, snapst := range snapStates {
 		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
 			continue
@@ -124,11 +139,42 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 				if !(baseName == snapInfo.Base || (alsoCore16 && snapInfo.Base == "core16")) {
 					continue
 				}
-				usedBy = append(usedBy, snapInfo.InstanceName())
+				usedBy[snapInfo.InstanceName()] = true
 				break
 			}
 		}
 	}
-	sort.Strings(usedBy)
-	return usedBy, nil
+
+	for _, chg := range st.Changes() {
+		if chg.IsReady() || changeCannotIntroduceBaseUsage(chg) {
+			continue
+		}
+
+		for _, t := range chg.Tasks() {
+			if !t.Has("snap-setup") && !t.Has("snap-setup-task") {
+				continue
+			}
+
+			snapsup, err := snapstate.TaskSnapSetup(t)
+			if err != nil {
+				return nil, err
+			}
+
+			// only apps and gadgets have bases
+			if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
+				continue
+			}
+
+			if snapsup.Base == baseName || (alsoCore16 && snapsup.Base == "core16") {
+				usedBy[snapsup.InstanceName().String()] = true
+			}
+		}
+	}
+
+	usedByNames := make([]string, 0, len(usedBy))
+	for name := range usedBy {
+		usedByNames = append(usedByNames, name)
+	}
+	sort.Strings(usedByNames)
+	return usedByNames, nil
 }

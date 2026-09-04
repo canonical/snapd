@@ -372,6 +372,63 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 	return nil
 }
 
+func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Task, error) {
+	// only apps and gadgets have bases
+	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
+		return nil, nil
+	}
+
+	base := snapsup.Base
+	switch base {
+	case "none":
+		return nil, nil
+	case "":
+		base = defaultCoreSnapName
+	case "core16":
+		core16Installed, err := isInstalled(st, "core16")
+		if err != nil {
+			return nil, err
+		}
+		if !core16Installed {
+			coreInstalled, err := isInstalled(st, defaultCoreSnapName)
+			if err != nil {
+				return nil, err
+			}
+			if coreInstalled {
+				base = defaultCoreSnapName
+			}
+		}
+	}
+
+	for _, t := range st.Tasks() {
+		// auto-disconnect tasks are only created if all base revisions are being
+		// removed so we use them to skip removals of specific base revisions that
+		// are not the current revision
+		if t.Kind() != "auto-disconnect" {
+			continue
+		}
+
+		// this isn't lane aware so an aborted lane could trigger a false positive.
+		// However, that seems like a very rare occurrence and will just retry the
+		// prerequisite so the simpler check is fine
+		chg := t.Change()
+		if chg.IsReady() {
+			continue
+		}
+
+		tsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return nil, err
+		}
+
+		if tsup.InstanceName().String() == base {
+			return t, nil
+		}
+	}
+
+	return nil, nil
+}
+
 var resealingTaskKindCheckers = make(map[string]func(t *state.Task) bool)
 
 // RegisterResealingTaskKind marks a task kind as unconditionally causing a reseal.
