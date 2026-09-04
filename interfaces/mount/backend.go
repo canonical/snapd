@@ -115,7 +115,10 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	defer lock.Close()
 	if err := lock.TryLock(); err != nil {
 		if err == osutil.ErrAlreadyLocked {
-			return ErrSnapLockBusy
+			// Wrap the sentinel so the error is descriptive, keeping ErrSnapLockBusy
+			// as its cause for detection via errors.Is().
+			return fmt.Errorf("cannot obtain mount namespace lock of snap %q, it may be busy: %w",
+				instanceName, ErrSnapLockBusy)
 		}
 		return fmt.Errorf("cannot lock mount namespace of snap %q: %s", instanceName, err)
 	}
