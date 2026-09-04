@@ -130,16 +130,16 @@ func (su *SystemUser) ValidAt(when time.Time) bool {
 	return valid
 }
 
-// Implement further consistency checks.
-func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (su *SystemUser) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
-	// i.e. in the create-user code. See also Model.checkConsitency
+	// i.e. in the create-user code. See also Model.CheckConsistency.
 
 	return nil
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SystemUser)(nil)
+var _ ConsistencyChecker = (*SystemUser)(nil)
 
 type shadow struct {
 	ID     string
