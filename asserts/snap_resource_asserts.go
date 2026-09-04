@@ -306,6 +306,7 @@ var _ consistencyChecker = (*SnapResourcePair)(nil)
 func (respair *SnapResourcePair) Prerequisites() []*Ref {
 	return []*Ref{
 		{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, respair.SnapID()}},
+		{Type: AccountType, PrimaryKey: []string{respair.DeveloperID()}},
 	}
 }
 
