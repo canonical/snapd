@@ -106,7 +106,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // Reoccur updates the receiving notice to re-occur with the given timestamp
 // and data. Depending on its repeat after duration, the lastRepeated timestamp
 // may be updated. Returns whether the notice was repeated.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (repeated bool) {
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) (repeated bool) {
 	n.occurrences++
 	repeated = false
 	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
@@ -125,6 +125,9 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 	n.lastOccurred = now
 	n.lastData = data
 	n.repeatAfter = repeatAfter
+	if expireAfter != 0 {
+		n.expireAfter = expireAfter
+	}
 	return repeated
 }
 
@@ -372,6 +375,10 @@ type AddNoticeOptions struct {
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
 
+	// ExpireAfter defines how long after this notice was last repeated before
+	// it expires. If zero, a default expiration will be used.
+	ExpireAfter time.Duration
+
 	// Time, if set, overrides time.Now() as the notice occurrence time.
 	Time time.Time
 }
@@ -391,6 +398,23 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
+	notice, err := s.doAddNotice(userID, noticeType, key, options)
+	if err != nil {
+		return "", err
+	}
+	return notice.id, nil
+}
+
+// doAddNotice records an occurrence of a notice with the specified type and
+// key and options. Returns a pointer to the notice.
+//
+// The caller is responsible for ensuring that the given parameters have been
+// validated, and for holding the notices mutex for writing.
+func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
+	expireAfter := options.ExpireAfter
+	if expireAfter == 0 {
+		expireAfter = defaultNoticeExpireAfter
+	}
 	now := options.Time
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
@@ -400,22 +424,26 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
+	// XXX: do we want this to be:
+	//     if !ok || notice.Expired(now) {
+	// If so, then we won't reuse an expired notice which happens to have not
+	// yet been pruned.
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, expireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter, expireAfter)
 	}
 
 	if newOrRepeated {
 		s.noticeCond.Broadcast()
 	}
 
-	return notice.id, nil
+	return notice, nil
 }
 
 // ValidateNotice validates notice type and key before adding.
