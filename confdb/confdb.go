@@ -843,7 +843,11 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 			if opts.ForbidIndexes {
 				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
 			}
-			accessors = append(accessors, newIndex(subkey[1:len(subkey)-1], part.filters))
+			index := strings.TrimLeft(subkey[1:len(subkey)-1], "0")
+			if index == "" {
+				index = "0"
+			}
+			accessors = append(accessors, newIndex(index, part.filters))
 
 		case !opts.AllowPlaceholders:
 			// user supplied paths cannot contain placeholders
