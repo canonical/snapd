@@ -4,7 +4,7 @@ description: A test package for snapd
 version: 1.0
 architectures: ["all"]
 base: core26
-grade: devel
+grade: stable
 confinement: strict
 environment:
   EXTRA_GLOBAL: extra-global
