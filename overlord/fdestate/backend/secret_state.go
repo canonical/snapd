@@ -41,30 +41,30 @@ var (
 	// state does not fit in the fixed-size backing store.
 	ErrInsufficientCapacity = errors.New("insufficient capacity in secret state")
 
-	// ErrNoState is returned by SecretState.Get in the case of no state entry for a given key.
-	ErrNoState = errors.New("no state entry for key")
+	// ErrNoSecret is returned by SecretState.Get in the case of no secret state entry for a given key.
+	ErrNoSecret = errors.New("no secret state entry for key")
 )
 
-// NoStateError represents the case where no state could be found for a given key.
-type NoStateError struct {
+// NoSecretError represents the case where no secret state could be found for a given key.
+type NoSecretError struct {
 	// Key is the key for which no state could be found.
 	Key string
 }
 
-func (e *NoStateError) Error() string {
+func (e *NoSecretError) Error() string {
 	var keyMsg string
 	if e.Key != "" {
 		keyMsg = fmt.Sprintf(" %q", e.Key)
 	}
 
-	return fmt.Sprintf("no state entry for key%s", keyMsg)
+	return fmt.Sprintf("no secret state entry for key%s", keyMsg)
 }
 
-// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
-// NoStateError's key isn't compared between errors.
-func (e *NoStateError) Is(err error) bool {
-	_, ok := err.(*NoStateError)
-	return ok || errors.Is(err, ErrNoState)
+// Is returns true if the error is of type *NoSecretError or equal to ErrNoSecret.
+// NoSecretError's key isn't compared between errors.
+func (e *NoSecretError) Is(err error) bool {
+	_, ok := err.(*NoSecretError)
+	return ok || errors.Is(err, ErrNoSecret)
 }
 
 var (
@@ -91,7 +91,7 @@ const (
 type SecretState interface {
 	// Get unmarshals the stored value associated with the provided key
 	// into the value parameter.
-	// It returns ErrNoState if there is no entry for key.
+	// It returns ErrNoSecret if there is no entry for key.
 	Get(key string, value any) error
 
 	// Has returns whether the provided key has an associated value.
@@ -151,7 +151,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value any) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return &NoStateError{Key: key}
+		return &NoSecretError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
@@ -320,8 +320,8 @@ func openSecretStateFile() (f *os.File, retErr error) {
 			f.Close()
 		}
 	}()
-	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupportedSystemdVersion) {
-		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupportedSystemdVersion)
+	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupported) {
+		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupported)
 		fd, err := sysMemfdSecret(unix.FD_CLOEXEC)
 		if err != nil {
 			// fallback to memfd-create if memfd-secret is not supported
@@ -339,15 +339,15 @@ func openSecretStateFile() (f *os.File, retErr error) {
 		}
 
 		if fdstoreSupported {
-			// only add to the fdstore if systemd supports it. If the systemd
-			// version is too old, we will just use the memfd without adding
-			// it to the fdstore, persistence across snapd restarts will be
-			// lost but it is better than crashing.
+			// only add to the fdstore if it is supported. Otherwise we
+			// just use the memfd without adding it to the fdstore, so
+			// persistence across snapd restarts will be lost but it is
+			// better than crashing.
 			if err := fds.Add(fdstore.FdNameMemfdSecretState, f); err != nil {
 				return nil, fmt.Errorf("cannot add secret state to fdstore: %w", err)
 			}
 		} else {
-			logger.Debugf("secret state will not persist across snapd restarts: systemd version too old to support fdstore")
+			logger.Debugf("secret state will not persist across snapd restarts: fdstore is not supported")
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("cannot get secret state from fdstore: %w", err)

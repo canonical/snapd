@@ -26,12 +26,15 @@ import (
 	"crypto/hmac"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
@@ -56,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,6 +73,52 @@ type fdeMgrSuite struct {
 	st      *state.State
 	runner  *state.TaskRunner
 	o       *overlord.Overlord
+}
+
+type mockFdstore struct {
+	f *os.File
+}
+
+func dupFile(name fdstore.FdName, f *os.File) (*os.File, error) {
+	duplicatedFd, err := unix.Dup(int(f.Fd()))
+	if err != nil {
+		return nil, err
+	}
+	unix.CloseOnExec(duplicatedFd)
+
+	return os.NewFile(uintptr(duplicatedFd), string(name)), nil
+}
+
+func (m *mockFdstore) Add(name fdstore.FdName, f *os.File) error {
+	if name != fdstore.FdNameMemfdSecretState {
+		return fmt.Errorf("unexpected fdstore name: %s", name)
+	}
+
+	if m.f != nil {
+		return fmt.Errorf("fdstore already has a file for %s", name)
+	}
+	duplicatedFile, err := dupFile(name, f)
+	if err != nil {
+		return err
+	}
+	m.f = duplicatedFile
+	return nil
+}
+
+func (m *mockFdstore) Get(name fdstore.FdName) (*os.File, error) {
+	if name == fdstore.FdNameMemfdSecretState && m.f != nil {
+		// duplicate fd
+		return dupFile(name, m.f)
+	}
+	return nil, fdstore.ErrNotFound
+}
+
+func (m *mockFdstore) Remove(name fdstore.FdName) error {
+	return errors.New("mockFdstore.Remove() not implemented")
+}
+
+func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
+	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
 }
 
 var _ = Suite(&fdeMgrSuite{})
@@ -136,6 +186,10 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "mock process backend effects"))
+	}))
+
+	s.AddCleanup(backend.MockFdstoreNew(func() fdstore.Store {
+		return &mockFdstore{}
 	}))
 }
 
@@ -720,31 +774,18 @@ func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
 	})
 }
 
-type mockRecoveryKeyCache struct {
-	addRecoveryKey    func(keyID string, rkeyInfo backend.CachedRecoverKey) (err error)
-	getRecoveryKey    func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error)
-	deleteRecoveryKey func(keyID string) error
-}
+func (s *fdeMgrSuite) TestRecoveryKeyExpired(c *C) {
+	now := time.Now()
+	rkey := fdestate.RecoveryKeyInfo{Key: [16]byte{1, 2, 3, 4}}
+	rkey.Expiration = now
 
-func (s *mockRecoveryKeyCache) AddKey(keyID string, rkeyInfo backend.CachedRecoverKey) (err error) {
-	if s.addRecoveryKey == nil {
-		panic("AddKey is not implemented")
-	}
-	return s.addRecoveryKey(keyID, rkeyInfo)
-}
+	c.Check(rkey.Expired(now.Add(time.Nanosecond)), Equals, true)
+	c.Check(rkey.Expired(now.Add(-time.Nanosecond)), Equals, false)
 
-func (s *mockRecoveryKeyCache) Key(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-	if s.getRecoveryKey == nil {
-		panic("Key is not implemented")
-	}
-	return s.getRecoveryKey(keyID)
-}
-
-func (s *mockRecoveryKeyCache) RemoveKey(keyID string) error {
-	if s.deleteRecoveryKey == nil {
-		panic("RemoveKey is not implemented")
-	}
-	return s.deleteRecoveryKey(keyID)
+	// when unset, the key never expires.
+	rkey.Expiration = time.Time{}
+	c.Check(rkey.Expired(now.Add(10000*time.Hour)), Equals, false)
+	c.Check(rkey.Expired(now.Add(10000*time.Hour)), Equals, false)
 }
 
 func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
@@ -759,69 +800,30 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 		expiration time.Time
 	}{
 		{
-			id:         "F1DBNCCKlM",
+			id:         "rkey:1",
 			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
 			expiration: now.Add(5 * time.Minute),
 		},
 		{
-			id:         "2JId82xFLN",
+			id:         "rkey:2",
 			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
 			expiration: now.Add(5 * time.Minute),
 		},
 		{
-			id:         "Jk1rFMJeuo",
+			id:         "rkey:3",
 			key:        keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '3'},
 			expiration: now.Add(5 * time.Minute),
 		},
 	}
 
-	getCalled, addCalled := 0, 0
-	mockStore := &mockRecoveryKeyCache{
-		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-			defer func() { getCalled++ }()
-			switch getCalled {
-			case 0:
-				c.Check(keyID, Equals, expectedKeys[0].id)
-				// simulate collision, key exists
-				return backend.CachedRecoverKey{
-					Key:        expectedKeys[0].key,
-					Expiration: expectedKeys[0].expiration,
-				}, nil
-			case 1:
-				c.Check(keyID, Equals, expectedKeys[1].id)
-				return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-			case 2:
-				c.Check(keyID, Equals, expectedKeys[2].id)
-				return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-			default:
-				c.Error("unexpected call")
-			}
-			return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-		},
-		addRecoveryKey: func(keyID string, rkeyInfo backend.CachedRecoverKey) (err error) {
-			defer func() { addCalled++ }()
-			switch addCalled {
-			case 0:
-				c.Check(keyID, Equals, expectedKeys[1].id)
-				c.Check(rkeyInfo.Key, DeepEquals, expectedKeys[1].key)
-				c.Check(rkeyInfo.Expiration, DeepEquals, expectedKeys[1].expiration)
-				return nil
-			case 1:
-				c.Check(keyID, Equals, expectedKeys[2].id)
-				c.Check(rkeyInfo.Key, DeepEquals, expectedKeys[2].key)
-				c.Check(rkeyInfo.Expiration, DeepEquals, expectedKeys[2].expiration)
-				return nil
-			default:
-				c.Error("unexpected call")
-			}
-			return nil
-		},
-	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return mockStore
-	})()
+	called := 0
+	restore := fdestate.MockRandutilRandomString(func(length int) string {
+		called++
+		return strconv.Itoa(called) // "1", "2", "3"
+	})
+	defer restore()
 
-	nextKeyIdx := 0
+	nextKeyIdx := 1 // start from 1 because 0 is already in the state
 	defer fdestate.MockKeysNewRecoveryKey(func() (keys.RecoveryKey, error) {
 		expected := expectedKeys[nextKeyIdx]
 		nextKeyIdx++
@@ -829,111 +831,81 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 	})()
 
 	// initialize fde manager
-	_, err := fdestate.Manager(s.st, s.runner)
+	m, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	// mock existing key in the state to simulate collision
+	mockRecoveryKeyInfo := fdestate.RecoveryKeyInfo{Key: expectedKeys[0].key}
+	mockRecoveryKeyInfo.Expiration = time.Now().Add(time.Minute) // not expired
+	c.Assert(m.SecretState().Set("rkey:1", &mockRecoveryKeyInfo), IsNil)
+
 	rkey, keyID, err := fdestate.GenerateRecoveryKey(s.st)
 	c.Assert(err, IsNil)
-	c.Check(addCalled, Equals, 1)
-	c.Check(getCalled, Equals, 2)              // twice due to collision
+	c.Check(called, Equals, 2)
 	c.Check(keyID, Equals, expectedKeys[1].id) // first key collided with exisiting key
 	c.Check(rkey, DeepEquals, expectedKeys[1].key)
 
 	rkey, keyID, err = fdestate.GenerateRecoveryKey(s.st)
 	c.Assert(err, IsNil)
-	c.Check(addCalled, Equals, 2)
-	c.Check(getCalled, Equals, 3)
+	c.Check(called, Equals, 3)
 	c.Check(keyID, Equals, expectedKeys[2].id)
 	c.Check(rkey, DeepEquals, expectedKeys[2].key)
 }
 
 func (s *fdeMgrSuite) TestGenerateRecoveryKeyMaxRetriesError(c *C) {
-	called := 0
-	mockStore := &mockRecoveryKeyCache{
-		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-			called++
-			return backend.CachedRecoverKey{}, nil
-		},
-	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return mockStore
-	})()
+	restore := fdestate.MockRandutilRandomString(func(length int) string {
+		return "collision"
+	})
+	defer restore()
 
-	defer fdestate.MockKeysNewRecoveryKey(func() (keys.RecoveryKey, error) {
-		return keys.RecoveryKey{'1', '2'}, nil
-	})()
-
-	// initialize fde manager
-	_, err := fdestate.Manager(s.st, s.runner)
-	c.Assert(err, IsNil)
+	onClassic := false
+	m := s.startedManager(c, onClassic)
 
 	s.st.Lock()
 	defer s.st.Unlock()
-	_, _, err = fdestate.GenerateRecoveryKey(s.st)
-	c.Assert(err, ErrorMatches, "internal error: cannot generate recovery key: max retries reached")
-	c.Check(called, Equals, 10)
+
+	rkeyInfo := fdestate.RecoveryKeyInfo{}
+	rkeyInfo.Expiration = time.Now().Add(100 * time.Hour) // not expired
+	c.Assert(m.SecretState().Set("rkey:collision", &rkeyInfo), IsNil)
+
+	_, _, err := fdestate.GenerateRecoveryKey(s.st)
+	c.Assert(err, ErrorMatches, "internal error: cannot generate secret key: max retries reached")
 }
 
 func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
-	mockRecoveryKeyInfo := backend.CachedRecoverKey{
+	mockRecoveryKeyInfo := fdestate.RecoveryKeyInfo{
 		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
-		// not expired
-		Expiration: time.Now().Add(time.Minute),
 	}
-	mockRecoveryKeyInfoExpired := backend.CachedRecoverKey{
-		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
-		// not expired
-		Expiration: time.Now().Add(-time.Minute),
-	}
+	mockRecoveryKeyInfo.Expiration = time.Now().Add(time.Minute) // not expired
 
-	getCalled, deleteCalled := 0, 0
-	mockStore := &mockRecoveryKeyCache{
-		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-			getCalled++
-			switch keyID {
-			case "1":
-				return mockRecoveryKeyInfo, nil
-			case "2":
-				return mockRecoveryKeyInfoExpired, nil
-			default:
-				panic("unexpected key-id")
-			}
-		},
-		deleteRecoveryKey: func(keyID string) error {
-			deleteCalled++
-			switch keyID {
-			case "1", "2":
-				return nil
-			default:
-				panic("unexpected key-id")
-			}
-		},
+	mockRecoveryKeyInfoExpired := fdestate.RecoveryKeyInfo{
+		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
 	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return mockStore
-	})()
+	mockRecoveryKeyInfoExpired.Expiration = time.Now().Add(-time.Minute) // expired
 
 	// initialize fde manager
-	_, err := fdestate.Manager(s.st, s.runner)
+	m, err := fdestate.Manager(s.st, s.runner)
 	c.Assert(err, IsNil)
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	c.Assert(m.SecretState().Set("1", &mockRecoveryKeyInfo), IsNil)
+	c.Assert(m.SecretState().Set("2", &mockRecoveryKeyInfoExpired), IsNil)
 
 	rkey, err := fdestate.GetRecoveryKey(s.st, "1")
 	c.Assert(err, IsNil)
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'})
-	c.Check(getCalled, Equals, 1)
-	c.Check(deleteCalled, Equals, 1)
+	// deleted from state after retrieval
+	c.Assert(m.SecretState().Get("1", nil), testutil.ErrorIs, backend.ErrNoSecret)
 
 	rkey, err = fdestate.GetRecoveryKey(s.st, "2")
 	c.Assert(err, ErrorMatches, "recovery key has expired")
 	c.Check(rkey, DeepEquals, keys.RecoveryKey{})
-	c.Check(getCalled, Equals, 2)
-	c.Check(deleteCalled, Equals, 2)
+	c.Assert(m.SecretState().Get("2", nil), testutil.ErrorIs, backend.ErrNoSecret)
 }
 
 func (s *fdeMgrSuite) testCheckRecoveryKey(c *C, defaultContainerRoles bool) {
