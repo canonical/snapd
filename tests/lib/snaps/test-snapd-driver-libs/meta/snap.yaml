@@ -1,0 +1,42 @@
+name: test-snapd-driver-libs
+version: '1.0'
+type: app
+summary: Consumer snap with plugs for all driver-libs interfaces
+description: |
+  A consumer snap declaring a plug for every driver-libs interface. Used to
+  exercise the direct-connection delivery model on Ubuntu Core: with the
+  driver-libs connections made, the provider's libraries become available under
+  /opt/snapd/interfaces/ via SNAP_LIBRARY_PATH and the ICD/GBM metadata is
+  redistributed to the loader-scanned system locations.
+confinement: strict
+grade: stable
+base: core26
+
+apps:
+  sh:
+    command: bin/sh
+    plugs:
+      - cuda
+      - egl
+      - gbm
+      - nvidia-video
+      - opengl
+      - opengles
+      - vulkan
+
+plugs:
+  cuda:
+    interface: cuda-driver-libs
+  egl:
+    interface: egl-driver-libs
+  gbm:
+    interface: gbm-driver-libs
+  nvidia-video:
+    interface: nvidia-video-driver-libs
+  opengl:
+    interface: opengl-driver-libs
+  opengles:
+    interface: opengles-driver-libs
+  vulkan:
+    interface: vulkan-driver-libs
+

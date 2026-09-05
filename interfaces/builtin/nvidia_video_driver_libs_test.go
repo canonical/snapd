@@ -22,14 +22,17 @@ package builtin_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -53,6 +56,7 @@ var _ = Suite(&NvidiaVideoDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const nvidiaVideoDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   nvidia-video:
     compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2404
@@ -171,12 +175,61 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
 }
 
+func (s *NvidiaVideoDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  nvidia-video:
+    compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2404
+    interface: nvidia-video-driver-libs
+apps:
+  app:
+    plugs: [nvidia-video]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "nvidia-video")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`nvidia-video-driver-libs interface is not supported on base "core24"`)
+}
+
 func (s *NvidiaVideoDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
 		{SnapName: "nvidia-video-provider", SlotName: "nvidia-video-slot"}: {filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2")}})
+}
+
+func (s *NvidiaVideoDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/1", Options: []string{"rbind", "ro"}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0",
+		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/1",
+	})
+}
+
+func (s *NvidiaVideoDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	lib1 := filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1")
+	target0 := "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *NvidiaVideoDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

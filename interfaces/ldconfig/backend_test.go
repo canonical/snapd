@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -114,6 +115,16 @@ apps:
     plugs: [cuda-driver-libs]
 `
 
+const cudaNonSystemConsumer = `name: test-snapd-driver-libs
+version: 0
+type: app
+plugs:
+  cuda-driver-libs:
+apps:
+  app:
+    plugs: [cuda-driver-libs]
+`
+
 func (s *backendSuite) TestInstallingCreatesLdconf(c *C) {
 	// Default content for /etc/ld.so.conf.d/
 	confDir := filepath.Join(dirs.GlobalRootDir, "etc", "ld.so.conf.d")
@@ -185,6 +196,39 @@ func (s *backendSuite) TestInstallingCreatesLdconf(c *C) {
 
 	// libc config has not been touched
 	c.Check(libcConfPath, testutil.FilePresent)
+}
+
+func (s *backendSuite) TestSetupNoOpOnNonClassic(c *C) {
+	// On non-classic systems the ldconfig backend delivers nothing into the
+	// rootfs (driver libraries are provided via the mount backend instead), so
+	// Backend.Setup() must be a no-op. In particular, it must not reject a
+	// non-system consumer snap that declares a driver-libs plug (regression
+	// test for the old "ldconfig plugs can be defined only by the system snap"
+	// error that aborted the install of such a snap on Core).
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.Iface.InterfaceName = "cuda-driver-libs"
+	s.Iface.LdconfigConnectedPlugCallback = func(spec *ldconfig.Specification,
+		plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		spec.AddLibDirs([]string{"/dir1/lib1"})
+		return nil
+	}
+	c.Assert(s.Repo.AddInterface(s.Iface), IsNil)
+
+	appSet, plugInfo := s.mockPlug(c, cudaNonSystemConsumer, nil, "cuda-driver-libs")
+	_, slotInfo := s.mockSlot(c, cudaProvider1, nil, "cuda-driver-libs")
+	connRef := interfaces.NewConnRef(plugInfo, slotInfo)
+	_, err := s.Repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{},
+		interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
+
+	// No ldconfig configuration file is produced and ldconfig is never run.
+	confPath := filepath.Join(dirs.GlobalRootDir, "etc", "ld.so.conf.d", "snap.system.conf")
+	c.Assert(confPath, testutil.FileAbsent)
+	c.Assert(s.ldconfigCmd.Calls(), IsNil)
 }
 
 func (s *backendSuite) TestSandboxFeatures(c *C) {

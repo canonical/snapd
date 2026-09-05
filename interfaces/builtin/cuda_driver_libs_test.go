@@ -22,14 +22,17 @@ package builtin_test
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -53,6 +56,7 @@ var _ = Suite(&CudaDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const cudaDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   cuda:
     compatibility: cuda-(9..12)-ubuntu-2404
@@ -278,6 +282,25 @@ func (s *CudaDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
 }
 
+func (s *CudaDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  cuda:
+    compatibility: cuda-(9..12)-ubuntu-2404
+    interface: cuda-driver-libs
+apps:
+  app:
+    plugs: [cuda]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "cuda")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`cuda-driver-libs interface is not supported on base "core24"`)
+}
+
 func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -289,6 +312,54 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2"),
 			snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"),
 		}})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// Library dirs are bound into the assembly tree, preserving the
+		// original directory order (idx) and keeping the original file names.
+		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/1", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/2", Options: []string{"rbind", "ro"}},
+		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3", Options: []string{"rbind", "ro"}},
+		{Name: snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"),
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4", Options: []string{"rbind", "ro"}},
+	})
+
+	// All bound library dirs are collected for SNAP_LIBRARY_PATH derivation.
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/1",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/2",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3",
+		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4",
+	})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	// The bind-mount rules for each assembly library dir, with the {,-[0-9]*}
+	// clash suffixes.
+	lib1 := filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1")
+	target0 := "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
+
+	// The writable-mimic is authorized for the target tree construction.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))
+	// No app-read /opt snippet is added (the base template handles /opt).
+	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

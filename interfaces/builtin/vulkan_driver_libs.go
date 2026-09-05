@@ -28,9 +28,11 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -38,15 +40,17 @@ import (
 
 const vulkanDriverLibsSummary = `allows exposing vulkan driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plug on classic may only be declared by the system snap (implicit plug); on
+// Ubuntu Core any snap may declare it (see allow-installation alternatives).
 const vulkanDriverLibsBaseDeclarationPlugs = `
   vulkan-driver-libs:
     allow-installation:
-      plug-snap-type:
-        - core
+      -
+        on-classic: true
+        plug-snap-type:
+          - core
+      -
+        on-classic: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
@@ -62,6 +66,13 @@ const vulkanDriverLibsBaseDeclarationSlots = `
 // vulkanDriverLibsInterface allows exposing VULKAN driver libraries to the system or snaps.
 type vulkanDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *vulkanDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", vulkanDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *vulkanDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
@@ -98,6 +109,63 @@ func (iface *vulkanDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 func (iface *vulkanDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs). Vulkan
+	// slots have no priority attribute, so no numeric prefix is used in the
+	// encoded metadata file names.
+	const withPriority = false
+	if err := mountAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
+		return err
+	}
+	// The ICD and implicit/explicit layer metadata files are bound under the
+	// share subtrees.
+	for _, sda := range []struct {
+		attrName   string
+		isOptional bool
+		subdir     string
+		checker    func(slot *interfaces.ConnectedSlot, content []byte) error
+	}{
+		{"icd-source", false, "vulkan/icd.d", checkVulkanIcdFile},
+		{"implicit-layer-source", true, "vulkan/implicit_layer.d", checkVulkanLayersFile},
+		{"explicit-layer-source", true, "vulkan/explicit_layer.d", checkVulkanLayersFile},
+	} {
+		if err := mountAssemblySourceFiles(spec, slot, vulkanDriverLibs,
+			sourceDirAttr{attrName: sda.attrName, isOptional: sda.isOptional},
+			sda.subdir, sda.checker, withPriority); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *vulkanDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Authorize snap-update-ns to construct (and eventually tear down) the
+	// assembly tree under /opt/snapd/interfaces. The default base template
+	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	const withPriority = false
+	if err := addAppArmorAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
+		return err
+	}
+	for _, sda := range []struct {
+		attrName   string
+		isOptional bool
+		subdir     string
+		checker    func(slot *interfaces.ConnectedSlot, content []byte) error
+	}{
+		{"icd-source", false, "vulkan/icd.d", checkVulkanIcdFile},
+		{"implicit-layer-source", true, "vulkan/implicit_layer.d", checkVulkanLayersFile},
+		{"explicit-layer-source", true, "vulkan/explicit_layer.d", checkVulkanLayersFile},
+	} {
+		if err := addAppArmorAssemblySourceFiles(spec, slot, vulkanDriverLibs,
+			sourceDirAttr{attrName: sda.attrName, isOptional: sda.isOptional},
+			sda.subdir, sda.checker, withPriority); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var _ = symlinks.ConnectedPlugCallback(&vulkanDriverLibsInterface{})

@@ -20,28 +20,33 @@
 package builtin
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
 
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 const openglesDriverLibsSummary = `allows exposing OpenGLES driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plug on classic may only be declared by the system snap (implicit plug); on
+// Ubuntu Core any snap may declare it (see allow-installation alternatives).
 const openglesDriverLibsBaseDeclarationPlugs = `
   opengles-driver-libs:
     allow-installation:
-      plug-snap-type:
-        - core
+      -
+        on-classic: true
+        plug-snap-type:
+          - core
+      -
+        on-classic: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
@@ -57,6 +62,13 @@ const openglesDriverLibsBaseDeclarationSlots = `
 // openglesDriverLibsInterface allows exposing OpenGLES driver libraries to the system or snaps.
 type openglesDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *openglesDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", openglesDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *openglesDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
@@ -82,6 +94,19 @@ func (iface *openglesDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo)
 func (iface *openglesDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *openglesDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs).
+	return mountAssemblyLibDirs(spec, slot, openglesDriverLibs)
+}
+
+func (iface *openglesDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Authorize snap-update-ns to construct (and eventually tear down) the
+	// assembly tree under /opt/snapd/interfaces. The default base template
+	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	return addAppArmorAssemblyLibDirs(spec, slot, openglesDriverLibs)
 }
 
 const openglesDriverLibs = "opengles-driver-libs"

@@ -25,17 +25,34 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
+
+// driverLibsSupported reports whether driver-libs interfaces are supported
+// on snaps using the given base snap. The direct-connection delivery model
+// requires a base snap new enough to carry the expected ld.so.cache layout.
+func driverLibsSupported(baseSnap string) bool {
+	switch baseSnap {
+	case "bare": // not yet
+	case "", "core", "core18", "core20", "core22", "core24": // TBD
+	case "core22-desktop", "core24-desktop": // TBD
+	default:
+		return true
+	}
+	return false
+}
 
 // sourceDirAttr contains information about a *-source interface attribute.
 type sourceDirAttr struct {
@@ -216,6 +233,245 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 	return checked, nil
 }
 
+// assemblyRoot is the top-level directory under which the content of driver-libs
+// provider slots is bound into the consumer's view, one subtree per interface.
+// Libraries are bound under <assemblyRoot>/<iface>/lib/ and ICD/layer/client
+// driver metadata under <assemblyRoot>/<iface>/share/. The writable-mimic for
+// these paths is authorized via the snap-update-ns apparmor profile, see
+// AppArmorConnectedPlug of the driver-libs interfaces.
+const assemblyRoot = "/opt/snapd/interfaces"
+
+// sourceDirEncodedName returns the escaped name used to refer to a file found
+// in a *-source attribute of a driver-libs slot, in the export/assembly
+// directories. The name is derived from the snap/component instance name, the
+// slot name and the relative path of the file; when withPriority is set, it is
+// prefixed with the priority attribute plus the index of the source directory
+// in the *-source list, which determines lookup order.
+func sourceDirEncodedName(slot *interfaces.ConnectedSlot, pathDirIdx pathWithDirIdx, withPriority bool) (string, error) {
+	// First strip out mount dir
+	relPath, err := filepath.Rel(dirs.SnapMountDir, pathDirIdx.path)
+	if err != nil {
+		return "", err
+	}
+
+	// If path is in the snap, we ignore below the snap name and revision
+	// when building the name, if in component, we ignore
+	// <snap_name>/components/mnt/<comp_name>/<comp_rev>/ (5 dirs)
+	instance := slot.Snap().InstanceName()
+	splitNum := 3
+	compSuffix := ""
+	if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance)) {
+		splitNum = 6
+		compSuffix = "+"
+	}
+	dirs := strings.SplitN(relPath, "/", splitNum)
+	if len(dirs) < splitNum {
+		return "", fmt.Errorf("internal error: wrong file path: %s", relPath)
+	}
+	if compSuffix != "" {
+		compSuffix += dirs[3]
+	}
+
+	// Get last component from dirs and make path an easier to handle name
+	escapedRelPath := systemd.EscapeUnitNamePath(dirs[splitNum-1])
+	prefix := ""
+	if withPriority {
+		var priority int64
+		if err := slot.Attr("priority", &priority); err != nil {
+			return "", fmt.Errorf("invalid priority: %w", err)
+		}
+		// The priority depends on the list order of the directories
+		// in the *-source attribute.
+		prefix = fmt.Sprintf("%d_", priority+int64(pathDirIdx.idx))
+	}
+	return fmt.Sprintf("%ssnap_%s%s_%s_%s",
+		prefix, instance, compSuffix, slot.Name(), escapedRelPath), nil
+}
+
+// mountAssemblyLibDirs adds mount entries that bind each expanded library-source
+// directory of the slot into the per-interface assembly tree under
+// <assemblyRoot>/<iface>/lib/<provider>_<slot>/<idx>/, so that the libraries
+// keep their original file names (ld.so opens libraries by exact name). Each
+// target dir is also recorded via AddLibraryPathDir for the SNAP_LIBRARY_PATH
+// derivation (Pass 3).
+func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
+	libDirs := []string{}
+	if err := slot.Attr("library-source", &libDirs); err != nil {
+		return err
+	}
+
+	providerSlot := slot.Snap().InstanceName() + "_" + slot.Name()
+	expanded := slot.AppSet().ExpandSliceSnapVariablesWithOrder(libDirs)
+	for _, dir := range expanded {
+		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, strconv.Itoa(dir.Idx))
+		if err := spec.AddMountEntry(osutil.MountEntry{
+			Name:    dir.Path,
+			Dir:     target,
+			Options: []string{"rbind", "ro"},
+		}); err != nil {
+			return err
+		}
+		spec.AddLibraryPathDir(target)
+	}
+	return nil
+}
+
+// mountAssemblySourceFiles mounts each source file found by sourceDirsCheck in
+// the sda attribute (icd-source / *-layer-source) as a read-only file bind into
+// the per-interface assembly tree under
+// <assemblyRoot>/<iface>/share/<subdir>/, using the very same encoded file
+// names as the classic symlinks (sourceDirEncodedName).
+func mountAssemblySourceFiles(
+	spec *mount.Specification, slot *interfaces.ConnectedSlot, ifaceName string,
+	sda sourceDirAttr, subdir string,
+	checker func(slot *interfaces.ConnectedSlot, content []byte) error,
+	withPriority bool,
+) error {
+	if withPriority {
+		var priority int64
+		if err := slot.Attr("priority", &priority); err != nil {
+			return fmt.Errorf("invalid priority: %w", err)
+		}
+	}
+
+	sourcePaths, err := sourceDirsCheck(slot, sda, checker)
+	if err != nil {
+		return fmt.Errorf("invalid %s: %w", sda.attrName, err)
+	}
+
+	for _, pathDirIdx := range sourcePaths {
+		encodedName, err := sourceDirEncodedName(slot, pathDirIdx, withPriority)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(assemblyRoot, ifaceName, "share", subdir, encodedName)
+		if err := spec.AddMountEntry(osutil.MountEntry{
+			Name:    pathDirIdx.path,
+			Dir:     target,
+			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// mountAssemblyClientDriver binds the client-driver library of the gbm slot as a
+// file into <assemblyRoot>/<iface>/share/gbm/, keeping its original file name.
+func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
+	var clientDriver string
+	if err := slot.Attr("client-driver", &clientDriver); err != nil {
+		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+	path, err := filePathInLibDirs(slot, clientDriver)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(assemblyRoot, ifaceName, "share", "gbm", clientDriver)
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    path,
+		Dir:     target,
+		Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+	})
+}
+
+// assemblyAppArmorEntry emits the snap-update-ns apparmor rules authorizing a
+// read-only bind of source into target inside the snap-update-ns mount
+// namespace, following the pattern used by the content interface (see
+// content.go). The {,-[0-9]*} suffix grants the same permissions to the
+// unclash-renamed targets (-2, -3, ...). isDir selects the directory vs file
+// bind variant (trailing slashes and directory semantics).
+func assemblyAppArmorEntry(emit func(f string, args ...any), source, target string, isDir bool) {
+	if isDir {
+		emit("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
+		emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
+		emit("  umount \"%s{,-[0-9]*}/\",\n", target)
+	} else {
+		emit("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", source, target)
+		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", target)
+		emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}\",\n", target)
+		emit("  umount \"%s{,-[0-9]*}\",\n", target)
+	}
+	// Authorize snap-update-ns to construct the writable-mimic of the target
+	// (and of any unclash-renamed variant) at runtime; the mimic scope itself
+	// is decided by snap-update-ns.
+	apparmor.GenWritableProfile(emit, target, 1)
+	apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
+}
+
+// addAppArmorAssemblyLibDirs emits the snap-update-ns apparmor rules for the
+// library dirs bound into the assembly tree (see mountAssemblyLibDirs for the
+// mount side).
+func addAppArmorAssemblyLibDirs(spec *apparmor.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
+	libDirs := []string{}
+	if err := slot.Attr("library-source", &libDirs); err != nil {
+		return err
+	}
+
+	providerSlot := slot.Snap().InstanceName() + "_" + slot.Name()
+	emit := spec.AddUpdateNSf
+	expanded := slot.AppSet().ExpandSliceSnapVariablesWithOrder(libDirs)
+	for _, dir := range expanded {
+		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, strconv.Itoa(dir.Idx))
+		emit("  # Driver-libs assembly library dir %s\n", target)
+		assemblyAppArmorEntry(emit, dir.Path, target, true)
+	}
+	return nil
+}
+
+// addAppArmorAssemblySourceFiles emits the snap-update-ns apparmor rules for the
+// metadata source files (icd-source / *-layer-source) bound into the assembly
+// tree (see mountAssemblySourceFiles for the mount side).
+func addAppArmorAssemblySourceFiles(
+	spec *apparmor.Specification, slot *interfaces.ConnectedSlot, ifaceName string,
+	sda sourceDirAttr, subdir string,
+	checker func(slot *interfaces.ConnectedSlot, content []byte) error,
+	withPriority bool,
+) error {
+	if withPriority {
+		var priority int64
+		if err := slot.Attr("priority", &priority); err != nil {
+			return fmt.Errorf("invalid priority: %w", err)
+		}
+	}
+
+	sourcePaths, err := sourceDirsCheck(slot, sda, checker)
+	if err != nil {
+		return fmt.Errorf("invalid %s: %w", sda.attrName, err)
+	}
+
+	emit := spec.AddUpdateNSf
+	for _, pathDirIdx := range sourcePaths {
+		encodedName, err := sourceDirEncodedName(slot, pathDirIdx, withPriority)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(assemblyRoot, ifaceName, "share", subdir, encodedName)
+		emit("  # Driver-libs assembly metadata file %s\n", target)
+		assemblyAppArmorEntry(emit, pathDirIdx.path, target, false)
+	}
+	return nil
+}
+
+// addAppArmorAssemblyClientDriver emits the snap-update-ns apparmor rules for
+// the gbm client-driver file bound into the assembly tree (see
+// mountAssemblyClientDriver for the mount side).
+func addAppArmorAssemblyClientDriver(spec *apparmor.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
+	var clientDriver string
+	if err := slot.Attr("client-driver", &clientDriver); err != nil {
+		return fmt.Errorf("invalid client-driver: %w", err)
+	}
+	path, err := filePathInLibDirs(slot, clientDriver)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(assemblyRoot, ifaceName, "share", "gbm", clientDriver)
+	spec.AddUpdateNSf("  # Driver-libs assembly client driver %s\n", target)
+	assemblyAppArmorEntry(spec.AddUpdateNSf, path, target, false)
+	return nil
+}
+
 // symlinksForSourceDir adds symlinks to be created in targetDir to spec, for the
 // files in the directories found in the sda attribute of slot. The checker function
 // function ensures that the files we are going to point to have the right content.
@@ -228,8 +484,8 @@ func symlinksForSourceDir(
 	checker func(slot *interfaces.ConnectedSlot, content []byte) error,
 	withPriority bool,
 ) error {
-	var priority int64
 	if withPriority {
+		var priority int64
 		if err := slot.Attr("priority", &priority); err != nil {
 			return fmt.Errorf("invalid priority: %w", err)
 		}
@@ -242,40 +498,11 @@ func symlinksForSourceDir(
 
 	// Create symlinks to snap content (which is fine as this is for super-privileged slots)
 	for _, pathDirIdx := range sourcePaths {
-		// First strip out mount dir
-		relPath, err := filepath.Rel(dirs.SnapMountDir, pathDirIdx.path)
+		encodedName, err := sourceDirEncodedName(slot, pathDirIdx, withPriority)
 		if err != nil {
 			return err
 		}
-
-		// If path is in the snap, we ignore below the snap name and revision
-		// when building the symlink name, if in component, we ignore
-		// <snap_name>/components/mnt/<comp_name>/<comp_rev>/ (5 dirs)
-		instance := slot.Snap().InstanceName()
-		splitNum := 3
-		compSuffix := ""
-		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance)) {
-			splitNum = 6
-			compSuffix = "+"
-		}
-		dirs := strings.SplitN(relPath, "/", splitNum)
-		if len(dirs) < splitNum {
-			return fmt.Errorf("internal error: wrong file path: %s", relPath)
-		}
-		if compSuffix != "" {
-			compSuffix += dirs[3]
-		}
-
-		// Get last component from dirs and make path an easier to handle name
-		escapedRelPath := systemd.EscapeUnitNamePath(dirs[splitNum-1])
-		prefix := ""
-		if withPriority {
-			// The priority depends on the list order of the directories
-			// in the *-source attribute.
-			prefix = fmt.Sprintf("%d_", priority+int64(pathDirIdx.idx))
-		}
-		linkPath := filepath.Join(targetDir, fmt.Sprintf("%ssnap_%s%s_%s_%s",
-			prefix, instance, compSuffix, slot.Name(), escapedRelPath))
+		linkPath := filepath.Join(targetDir, encodedName)
 		if err := spec.AddSymlink(pathDirIdx.path, linkPath); err != nil {
 			return err
 		}
