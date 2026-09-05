@@ -210,7 +210,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
-	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
+	o.addManager(confdbstate.Manager(s, hookMgr, o.runner, deviceMgr))
 	o.addManager(certstate.Manager(s, o.runner))
 
 	if err := configstateInit(s, hookMgr); err != nil {

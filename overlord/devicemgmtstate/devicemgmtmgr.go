@@ -25,6 +25,7 @@
 package devicemgmtstate
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
@@ -50,8 +52,6 @@ const (
 
 	defaultExchangeLimit    = 10
 	defaultExchangeInterval = 6 * time.Hour
-
-	mgmtMessageIDKey = "mgmt-message-id"
 )
 
 var (
@@ -72,100 +72,11 @@ type deviceBackend interface {
 	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
-// MessageHandler processes request messages of a specific kind.
-// Caller must hold state lock when using this interface.
-type MessageHandler interface {
-	// Validate checks subsystem-specific constraints.
-	Validate(st *state.State, msg *RequestMessage) error
-
-	// Apply creates a change to process the message and returns its ID.
-	// Implementations must call MarkChangeForMessage on the created change before
-	// releasing the state lock.
-	Apply(st *state.State, msg *RequestMessage) (changeID string, err error)
-
-	// ResultFromChange reads the completed change and returns the full result.
-	ResultFromChange(chg *state.Change) (body map[string]any, err error)
-}
-
-// UnauthorizedError is returned by MessageHandler.Validate when the operator
-// does not have permission to perform the requested action.
-type UnauthorizedError struct {
-	Operator string
-}
-
-func (e *UnauthorizedError) Error() string {
-	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
-}
-
-// MarkChangeForMessage records the message ID on the change created by an Apply
-// implementation. It must be called after change creation and before releasing
-// the state lock, so that doApplyMessage can recover the change ID on retry
-// and not call the handler's Apply again.
-func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
-	chg.Set(mgmtMessageIDKey, msg.ID())
-}
-
-// RequestMessage represents a request-message being processed.
-// Messages remain pending until their associated change completes,
-// at which point a response is queued and the message is removed.
-type RequestMessage struct {
-	AccountID   string    `json:"account-id"`
-	AuthorityID string    `json:"authority-id"`
-	BaseID      string    `json:"base-id"`
-	SeqNum      int       `json:"seq-num"`
-	Kind        string    `json:"kind"`
-	Devices     []string  `json:"devices"`
-	ValidSince  time.Time `json:"valid-since"`
-	ValidUntil  time.Time `json:"valid-until"`
-	Assumes     []string  `json:"assumes,omitempty"`
-	Body        string    `json:"body"`
-
-	ReceiveTime time.Time `json:"receive-time"`
-	Dispatched  bool      `json:"dispatched"`
-
-	// ApplyChangeID is set when Apply schedules async work.
-	ApplyChangeID string `json:"apply-change-id,omitempty"`
-
-	// ResponseStatus and ResponseBody hold the final processing outcome.
-	// A non-empty ResponseStatus means the message has been fully processed.
-	ResponseStatus asserts.MessageStatus `json:"response-status,omitempty"`
-	ResponseBody   map[string]any        `json:"response-body,omitempty"`
-
-	// RawAssertion holds the original encoded assertion bytes.
-	RawAssertion []byte `json:"raw-assertion"`
-}
-
-// ID returns the full message identifier `BaseID[-SeqNum]`.
-func (msg *RequestMessage) ID() string {
-	if msg.SeqNum != 0 {
-		return fmt.Sprintf("%s-%d", msg.BaseID, msg.SeqNum)
-	}
-
-	return msg.BaseID
-}
-
-// ValidAt returns whether the request-message is valid at 'when' time.
-func (msg *RequestMessage) ValidAt(when time.Time) bool {
-	return (when.Equal(msg.ValidSince) || when.After(msg.ValidSince)) && when.Before(msg.ValidUntil)
-}
-
-// Targets returns whether the given device is listed in the message's devices header.
-func (msg *RequestMessage) Targets(devID asserts.DeviceID) bool {
-	target := devID.String()
-	for _, d := range msg.Devices {
-		if d == target {
-			return true
-		}
-	}
-
-	return false
-}
-
 // sequenceState holds the messages and progress for a single base ID,
 // covering both sequenced & unsequenced messages.
 type sequenceState struct {
 	// Messages holds request messages from receipt until their response is queued.
-	Messages []*RequestMessage `json:"messages"`
+	Messages []*handlers.RequestMessage `json:"messages"`
 
 	// Applied is the highest sequence number successfully applied. A sequenced
 	// message can only be applied once its predecessor has been applied.
@@ -194,7 +105,7 @@ type deviceMgmtState struct {
 }
 
 // getRequestMessage retrieves a request message from the state.
-func (ms *deviceMgmtState) getRequestMessage(id string) (*RequestMessage, error) {
+func (ms *deviceMgmtState) getRequestMessage(id string) (*handlers.RequestMessage, error) {
 	baseID, seqStr, hasSeq := strings.Cut(id, "-")
 	seqNum := 0
 	if hasSeq {
@@ -220,7 +131,7 @@ func (ms *deviceMgmtState) getRequestMessage(id string) (*RequestMessage, error)
 // removeRequestMessage removes a processed request message from its sequence.
 // For a sequenced message, the sequence entry is left in place so its Applied
 // progress is preserved for later messages in the same sequence.
-func (ms *deviceMgmtState) removeRequestMessage(msg *RequestMessage) {
+func (ms *deviceMgmtState) removeRequestMessage(msg *handlers.RequestMessage) {
 	seq := ms.Sequences[msg.BaseID]
 	if seq == nil {
 		return
@@ -309,18 +220,13 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
-	state    *state.State
-	device   deviceBackend
-	handlers map[string]MessageHandler
+	state  *state.State
+	device deviceBackend
 }
 
 // Manager creates a new DeviceMgmtManager.
 func Manager(state *state.State, runner *state.TaskRunner, backend deviceBackend) *DeviceMgmtManager {
-	m := &DeviceMgmtManager{
-		state:    state,
-		device:   backend,
-		handlers: make(map[string]MessageHandler),
-	}
+	m := &DeviceMgmtManager{state: state, device: backend}
 
 	runner.AddHandler("exchange-mgmt-messages", m.doExchangeMessages, nil)
 	runner.AddHandler("dispatch-mgmt-messages", m.doDispatchMessages, nil)
@@ -329,11 +235,6 @@ func Manager(state *state.State, runner *state.TaskRunner, backend deviceBackend
 	runner.AddHandler("queue-mgmt-response", m.doQueueResponse, nil)
 
 	return m
-}
-
-// RegisterHandler registers a MessageHandler for the given message kind.
-func (m *DeviceMgmtManager) RegisterHandler(kind string, h MessageHandler) {
-	m.handlers[kind] = h
 }
 
 // getState retrieves the current device management state, initializing if not present.
@@ -363,7 +264,7 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 }
 
 // getMessageAndState retrieves the current state along with the given message.
-func (m *DeviceMgmtManager) getMessageAndState(msgID string) (*deviceMgmtState, *RequestMessage, error) {
+func (m *DeviceMgmtManager) getMessageAndState(msgID string) (*deviceMgmtState, *handlers.RequestMessage, error) {
 	ms, err := m.getState()
 	if err != nil {
 		return nil, nil, err
@@ -562,7 +463,7 @@ func (m *DeviceMgmtManager) dispatchSequence(dispatchTask *state.Task, seq *sequ
 
 // dispatchMessage creates the task chain for a single message and returns
 // the final task so callers can chain subsequent messages after it.
-func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *RequestMessage) *state.Task {
+func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *handlers.RequestMessage) *state.Task {
 	chg := prevTask.Change()
 	lane := m.state.NewLane()
 
@@ -596,7 +497,7 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 	earliest := seq.Messages[0]
 	earliest.ResponseStatus = asserts.MessageStatusRejected
 	earliest.ResponseBody = map[string]any{"message": reason}
-	seq.Messages = []*RequestMessage{earliest}
+	seq.Messages = []*handlers.RequestMessage{earliest}
 
 	ms.removeSequenceFromLRU(baseID)
 
@@ -610,7 +511,7 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 }
 
 // doValidateMessage performs snapd-level and subsystem-level validation on a message.
-func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -688,15 +589,15 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 	// like "seeding". For now, only the confdb subsystem is supported and
 	// no specific features need to be declared.
 
-	handler, ok := m.handlers[msg.Kind]
-	if !ok {
+	handler := handlers.Get(msg.Kind)
+	if handler == nil {
 		rejectMsg(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
 		return nil
 	}
 
-	err = handler.Validate(m.state, msg)
+	err = handler.Validate(tomb.Context(nil), m.state, msg)
 	if err != nil {
-		var unauthorizedErr *UnauthorizedError
+		var unauthorizedErr *handlers.UnauthorizedError
 		status := asserts.MessageStatusRejected
 		if errors.As(err, &unauthorizedErr) {
 			status = asserts.MessageStatusUnauthorized
@@ -737,7 +638,7 @@ func (m *DeviceMgmtManager) ensureAccountKey(signKeyID string) (fetched bool, er
 }
 
 // doApplyMessage dispatches the message to its subsystem handler for processing.
-func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -765,15 +666,18 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	handler, ok := m.handlers[msg.Kind]
-	if !ok {
+	handler := handlers.Get(msg.Kind)
+	if handler == nil {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
 		m.setState(ms)
 		return nil
 	}
 
-	chgID, applyErr := handler.Apply(m.state, msg)
+	// TODO: If a shutdown terminates this context while we're waiting for
+	// another op to complete, we'll error out of this call and mark the
+	// message as failed. It would make sense to retry this task instead.
+	chgID, applyErr := handler.Apply(tomb.Context(nil), m.state, msg)
 
 	// handler.Apply may drop the state lock internally. Concurrent tasks in
 	// other lanes may have mutated the state in that window, so re-read before mutating.
@@ -795,7 +699,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 
 // doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
 // Retries until the subsystem change (if any) completes.
-func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -816,7 +720,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	err = m.setMessageResponseFromChange(msg)
+	err = m.setMessageResponseFromChange(tomb.Context(nil), msg)
 	if err != nil {
 		return err
 	}
@@ -871,27 +775,32 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // setMessageResponseFromChange populates msg's response fields from the completed apply change.
-func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) error {
+func (m *DeviceMgmtManager) setMessageResponseFromChange(ctx context.Context, msg *handlers.RequestMessage) error {
 	if msg.ResponseStatus != "" {
 		return nil
 	}
 
-	handler, ok := m.handlers[msg.Kind]
-	if !ok {
+	handler := handlers.Get(msg.Kind)
+	if handler == nil {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
 		return nil
 	}
 
-	change := m.state.Change(msg.ApplyChangeID)
-	if change == nil {
+	chg := m.state.Change(msg.ApplyChangeID)
+	if chg == nil {
 		return fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
 	}
-	if !change.Status().Ready() {
+	if !chg.Status().Ready() {
 		return &state.Retry{After: awaitSubsystemRetryInterval}
 	}
+	if chg.Status() == state.ErrorStatus {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": chg.Err().Error()}
+		return nil
+	}
 
-	body, err := handler.ResultFromChange(change)
+	body, err := handler.ResultFromChange(ctx, chg)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": err.Error()}
@@ -904,7 +813,7 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) er
 }
 
 // parseRequestMessage decodes a store message body into a RequestMessage.
-func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
+func parseRequestMessage(msg store.Message) (*handlers.RequestMessage, error) {
 	if msg.Format != "assertion" {
 		return nil, fmt.Errorf("cannot process assertion: unsupported format %q", msg.Format)
 	}
@@ -925,7 +834,7 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 		deviceIDs[i] = devID.String()
 	}
 
-	return &RequestMessage{
+	return &handlers.RequestMessage{
 		AccountID:    reqAs.AccountID(),
 		AuthorityID:  reqAs.AuthorityID(),
 		BaseID:       reqAs.ID(),
@@ -946,7 +855,7 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 func findChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
 	for _, chg := range st.Changes() {
 		var id string
-		err := chg.Get(mgmtMessageIDKey, &id)
+		err := chg.Get(handlers.MgmtMessageIDKey, &id)
 		if err != nil {
 			continue
 		}
