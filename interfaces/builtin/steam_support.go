@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -415,12 +416,14 @@ func (iface *steamSupportInterface) UDevConnectedPlug(spec *udev.Specification, 
 
 func init() {
 	registerIface(&steamSupportInterface{commonInterface{
-		name:                 "steam-support",
-		summary:              steamSupportSummary,
-		implicitOnCore:       release.OnCoreDesktop,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: steamSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: steamSupportBaseDeclarationPlugs,
-		connectedPlugSecComp: steamSupportConnectedPlugSecComp,
+		name:                     "steam-support",
+		summary:                  steamSupportSummary,
+		implicitOnCore:           release.OnCoreDesktop,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     steamSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     steamSupportBaseDeclarationPlugs,
+		connectedPlugSecComp:     steamSupportConnectedPlugSecComp,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

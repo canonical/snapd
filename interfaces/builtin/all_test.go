@@ -494,3 +494,53 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 
 	c.Assert(found, DeepEquals, found)
 }
+
+// TestParallelInstancesUnsupportedPlugAndSlotInterfaces checks interfaces that
+// unconditionally block parallel instances for plugs and slots. Interfaces
+// where the decision depends on plug/slot attributes must be tested in their
+// own test file (e.g., see shared-memory).
+func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
+	unsupportedInterfaces := []string{
+		"acrn-support",
+		"adb-support",
+		"auditd-support",
+		"checkbox-support",
+		"classic-support",
+		"core-support",
+		"cuda-driver-libs",
+		"desktop-launch",
+		"dm-crypt",
+		"dm-multipath",
+		"docker-support",
+		"egl-driver-libs",
+		"firmware-updater-support",
+		"gbm-driver-libs",
+		"greengrass-support",
+		"iscsi-initiator",
+		"kubernetes-support",
+		"lxd-support",
+		"microceph-support",
+		"microstack-support",
+		"multipass-support",
+		"nomad-support",
+		"nvidia-drivers-support",
+		"nvidia-video-driver-libs",
+		"opengl-driver-libs",
+		"opengles-driver-libs",
+		"openvswitch-support",
+		"posix-mq",
+		"ros-snapd-support",
+		"steam-support",
+		"vulkan-driver-libs",
+	}
+	for _, name := range unsupportedInterfaces {
+		iface := builtin.Interface(name)
+		c.Assert(iface, NotNil, Commentf("interface %q is not registered", name))
+		plugDefiner, ok := iface.(interfaces.ParallelInstancesPlugDefiner)
+		c.Assert(ok, Equals, true, Commentf("interface %q", name))
+		c.Check(plugDefiner.ParallelInstancesSupportedForPlug(nil), NotNil, Commentf("interface %q", name))
+		slotDefiner, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
+		c.Assert(ok, Equals, true, Commentf("interface %q", name))
+		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))
+	}
+}

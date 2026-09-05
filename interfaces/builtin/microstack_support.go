@@ -19,6 +19,7 @@
 
 package builtin
 
+import "errors"
 import "github.com/snapcore/snapd/interfaces"
 
 /*
@@ -274,5 +275,7 @@ func init() {
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{microstackSupportServiceSnippet},
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

@@ -514,10 +514,16 @@ func (s *SharedMemoryInterfaceSuite) TestParallelInstancesSupportedForPlug(c *C)
 	c.Assert(ok, Equals, true)
 
 	// private=false does not support parallel instances
-	c.Check(definer.ParallelInstancesSupportedForPlug(s.plugInfo), Equals, false)
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.plugInfo), ErrorMatches, `"private" attribute must be set to true`)
 
 	// private=true supports parallel instances
-	c.Check(definer.ParallelInstancesSupportedForPlug(s.privatePlugInfo), Equals, true)
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.privatePlugInfo), IsNil)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	definer, ok := s.iface.(interfaces.ParallelInstancesSlotDefiner)
+	c.Assert(ok, Equals, true)
+	c.Check(definer.ParallelInstancesSupportedForSlot(s.slotInfo), ErrorMatches, "todo")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {

@@ -19,6 +19,7 @@
 
 package builtin
 
+import "errors"
 import "github.com/snapcore/snapd/interfaces"
 
 // The nomad-support interface enables running Hashicorp Nomad within
@@ -96,15 +97,17 @@ type nomadSupportInterface struct {
 
 func init() {
 	registerIface(&nomadSupportInterface{commonInterface{
-		name:                  "nomad-support",
-		summary:               nomadSupportSummary,
-		implicitOnClassic:     true,
-		implicitOnCore:        true,
-		controlsDeviceCgroup:  true,
-		baseDeclarationPlugs:  nomadSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  nomadSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: nomadSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  nomadSupportConnectedPlugSecComp,
-		serviceSnippets:       []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
+		name:                     "nomad-support",
+		summary:                  nomadSupportSummary,
+		implicitOnClassic:        true,
+		implicitOnCore:           true,
+		controlsDeviceCgroup:     true,
+		baseDeclarationPlugs:     nomadSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     nomadSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:    nomadSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     nomadSupportConnectedPlugSecComp,
+		serviceSnippets:          []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

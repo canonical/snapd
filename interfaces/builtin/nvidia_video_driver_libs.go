@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -122,8 +123,10 @@ func init() {
 			baseDeclarationPlugs: nvidiaVideoDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: nvidiaVideoDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errors.New("todo"),
+			parallelInstancesSlotErr: errors.New("todo"),
 		},
 	})
 }
