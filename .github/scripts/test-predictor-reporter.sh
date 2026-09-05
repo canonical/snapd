@@ -8,6 +8,9 @@ workflow_run_attempt="$3"
 parser=".github/scripts/parse-results-predictor.py"
 test_predictor_url="${TEST_PREDICTOR_URL:-}"
 test_predictor_url="${test_predictor_url%/}"
+test_predictor_threshold="${TEST_PREDICTOR_THRESHOLD:-0.3}"
+predictor_candidates=0
+predictor_allows_rerun=false
 
 # generate report
 (
@@ -46,8 +49,8 @@ append_predictor_table() {
 		echo "|------|-----------|"
 	} >>report
 
-	printf '%s\n' "${predictor_rows[@]}" |
-		while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+	while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+			predictor_candidates=$((predictor_candidates + 1))
 			if ((occurrences > 1)); then
 				display_name+=" <kbd>${occurrences} times</kbd>"
 			fi
@@ -55,7 +58,8 @@ append_predictor_table() {
 			response='{}'
 			if [ -n "${test_predictor_url}" ]; then
 				response=$(curl -sf -G "${test_predictor_url}/predict" \
-					--max-time 10 \
+					--connect-timeout 2 \
+					--max-time 5 \
 					--data-urlencode "name=${full_name}" \
 					--data-urlencode "verb=${verb}" \
 					--data-urlencode "system=${system}" \
@@ -65,10 +69,15 @@ append_predictor_table() {
 			fi
 			probability=$(python3 "${parser}" success-probability <<<"$response")
 			if [ -z "$probability" ]; then
+				predictor_allows_rerun=true
 				probability="unavailable"
 			else
+				if awk -v probability="$probability" -v threshold="$test_predictor_threshold" \
+					'BEGIN { exit !(probability > threshold) }'; then
+					predictor_allows_rerun=true
+				fi
 				probability=$(awk -v probability="$probability" 'BEGIN {
-                    if (probability >= 0.8) marker = "🟢";
+                    if (probability >= 0.7) marker = "🟢";
                     else if (probability >= 0.3) marker = "🟡";
                     else marker = "🔴";
                     printf "%s %.1f%%", marker, probability * 100
@@ -76,7 +85,7 @@ append_predictor_table() {
 			fi
 
 			echo "| ${display_name} | ${probability} |" >>report
-		done
+		done < <(printf '%s\n' "${predictor_rows[@]}")
 
 	echo "" >>report
 }
@@ -95,6 +104,11 @@ if find . -name skipped_tests_list.txt | grep -q .; then
 		find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}'
 	} >>report
 fi
+
+if ((predictor_candidates == 0)); then
+	predictor_allows_rerun=true
+fi
+echo "<!-- test-predictor-rerun: run-id=${workflow_run_id} run-attempt=${workflow_run_attempt} allowed=${predictor_allows_rerun} -->" >>report
 
 # display the report
 grep -n '' report

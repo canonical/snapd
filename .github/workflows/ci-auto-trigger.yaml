@@ -191,6 +191,13 @@ jobs:
               continue
             fi
 
+            echo "PR #$pr_number | Step: predictor report eligibility"
+            if ! predictor_report_allows_rerun "$pr_number" "$last_run" "$run_attempt"; then
+              echo "PR #$pr_number | Skip: $NOT_RERUN_REASON"
+              echo "----- End PR #$pr_number -----"
+              continue
+            fi
+
             echo "PR #$pr_number | Action: triggering rerun workflow using run_id=$last_run (attempt $run_attempt)"
             GH_RETRY_CONTEXT="PR #$pr_number trigger rerun workflow for run_id=$last_run"
             if ! gh_retry workflow run rerun.yaml -f run_id="$last_run"; then
