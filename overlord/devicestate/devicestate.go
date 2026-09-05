@@ -259,7 +259,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
-	if snapInfo.InstanceName() != snapInfo.SnapName() {
+	if snapInfo.InstanceName() != snapInfo.SnapName().String() {
 		return fmt.Errorf("cannot install %q, parallel installation of kernel or gadget snaps is not supported", snapInfo.InstanceName())
 	}
 
@@ -873,7 +873,7 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 	if r.offline {
 		var tss []*state.TaskSet
 		for _, c := range components {
-			ref := naming.NewComponentRef(info.SnapName(), c)
+			ref := naming.NewComponentRef(info.SnapName().String(), c)
 
 			lc, ok := r.localComponents[ref.String()]
 			if !ok {
@@ -1167,7 +1167,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 
 		_, sets, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{
-			name:         modelSnap.SnapName(),
+			name:         modelSnap.SnapName().String(),
 			channel:      newModelSnapChannel,
 			newModelSnap: modelSnap,
 		})
@@ -1383,7 +1383,7 @@ func verifyModelValidationSets(st *state.State, newModel *asserts.Model, offline
 func checkForRequiredSnapsNotRequiredInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
 	snapsInModel := make(map[string]bool, len(model.RequiredWithEssentialSnaps()))
 	for _, sn := range model.RequiredWithEssentialSnaps() {
-		snapsInModel[sn.SnapName()] = true
+		snapsInModel[sn.SnapName().String()] = true
 	}
 
 	for _, sn := range vSets.RequiredSnaps() {
@@ -1913,12 +1913,12 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 	components := make(map[string]string)
 
 	for _, sn := range dctx.Model().AllSnaps() {
-		snaps[sn.SnapName()] = sn
+		snaps[sn.SnapName().String()] = sn
 
 		for compName, comp := range sn.Components {
 			// use the snap component name to avoid collision caused by
 			// the same name for components that belong to different snaps
-			components[snap.SnapComponentName(sn.SnapName(), compName)] = comp.Presence
+			components[snap.SnapComponentName(sn.SnapName().String(), compName)] = comp.Presence
 		}
 	}
 
@@ -2321,7 +2321,7 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 func checkForRequiredSnapsNotPresentInModel(model *asserts.Model, vSets *snapasserts.ValidationSets) error {
 	snapsInModel := make(map[string]bool, len(model.AllSnaps()))
 	for _, sn := range model.AllSnaps() {
-		snapsInModel[sn.SnapName()] = true
+		snapsInModel[sn.SnapName().String()] = true
 	}
 
 	for _, sn := range vSets.RequiredSnaps() {

@@ -73,7 +73,7 @@ func checkPresence(headers map[string]any, which string, valid []string) (Presen
 
 // ValidationSetSnap holds the details about a snap constrained by a validation-set assertion.
 type ValidationSetSnap struct {
-	Name   string
+	Name   naming.SnapName
 	SnapID string
 
 	Presence Presence
@@ -88,7 +88,7 @@ type ValidationSetComponent struct {
 }
 
 // SnapName implements naming.SnapRef.
-func (s *ValidationSetSnap) SnapName() string {
+func (s *ValidationSetSnap) SnapName() naming.SnapName {
 	return s.Name
 }
 
@@ -136,7 +136,7 @@ func checkValidationSetSnap(snap map[string]any) (*ValidationSetSnap, error) {
 	}
 
 	return &ValidationSetSnap{
-		Name:       snapName,
+		Name:       naming.SnapName(snapName),
 		SnapID:     snapID,
 		Presence:   presence,
 		Revision:   snapRevision,
@@ -232,15 +232,15 @@ func checkValidationSetSnaps(snapList any) ([]*ValidationSetSnap, error) {
 			return nil, err
 		}
 
-		if seen[valSetSnap.Name] {
+		if seen[valSetSnap.Name.String()] {
 			return nil, fmt.Errorf("cannot list the same snap %q multiple times", valSetSnap.Name)
 		}
-		seen[valSetSnap.Name] = true
+		seen[valSetSnap.Name.String()] = true
 		snapID := valSetSnap.SnapID
 		if underName := seenIDs[snapID]; underName != "" {
 			return nil, fmt.Errorf("cannot specify the same snap id %q multiple times, specified for snaps %q and %q", snapID, underName, valSetSnap.Name)
 		}
-		seenIDs[snapID] = valSetSnap.Name
+		seenIDs[snapID] = valSetSnap.Name.String()
 
 		if valSetSnap.Presence == "" {
 			valSetSnap.Presence = PresenceRequired

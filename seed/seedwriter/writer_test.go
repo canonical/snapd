@@ -223,53 +223,53 @@ func (s *writerSuite) fetchAsserts(c *C) seedwriter.AssertsFetchFunc {
 		if sysSn == nil {
 			c.Assert(s.expectedSysSnap, Equals, "", Commentf("no system snap should be expected"))
 		} else {
-			c.Check(sysSn.SnapName(), Equals, s.expectedSysSnap)
+			c.Check(sysSn.SnapName().String(), Equals, s.expectedSysSnap)
 			c.Check(sysSn.Path, Not(Equals), "")
 		}
 		if kSn == nil {
 			c.Assert(s.expectedKernSnap, Equals, "", Commentf("no kernel should be expected"))
 		} else {
-			c.Check(kSn.SnapName(), Equals, s.expectedKernSnap)
+			c.Check(kSn.SnapName().String(), Equals, s.expectedKernSnap)
 			c.Check(kSn.Path, Not(Equals), "")
 		}
-		aRefs := s.aRefs[sn.SnapName()]
+		aRefs := s.aRefs[sn.SnapName().String()]
 		if aRefs == nil {
 			prev := len(s.rf.Refs())
-			err := s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName()).Ref())
+			err := s.rf.Fetch(s.AssertedSnapRevision(sn.SnapName().String()).Ref())
 			if err != nil {
 				return nil, err
 			}
-			for _, a := range s.AssertedResourceRevision(sn.SnapName()) {
+			for _, a := range s.AssertedResourceRevision(sn.SnapName().String()) {
 				err := s.rf.Fetch(a.Ref())
 				if err != nil {
 					return nil, err
 				}
 			}
-			for _, a := range s.AssertedResourcePair(sn.SnapName()) {
+			for _, a := range s.AssertedResourcePair(sn.SnapName().String()) {
 				err := s.rf.Fetch(a.Ref())
 				if err != nil {
 					return nil, err
 				}
 			}
 			aRefs = s.rf.Refs()[prev:]
-			s.aRefs[sn.SnapName()] = aRefs
+			s.aRefs[sn.SnapName().String()] = aRefs
 		}
 		return aRefs, nil
 	}
 }
 
 func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwriter.SeedSnap) *snap.Info {
-	info := s.AssertedSnapInfo(sn.SnapName())
-	cinfos := s.AssertedComponentInfos(sn.SnapName())
+	info := s.AssertedSnapInfo(sn.SnapName().String())
+	cinfos := s.AssertedComponentInfos(sn.SnapName().String())
 	seedComps := make(map[string]*seedwriter.SeedComponent, len(cinfos))
 	for _, cinfo := range cinfos {
-		cref := naming.NewComponentRef(sn.SnapName(), cinfo.Component.ComponentName)
+		cref := naming.NewComponentRef(sn.SnapName().String(), cinfo.Component.ComponentName)
 		seedComps[cinfo.Component.ComponentName] = &seedwriter.SeedComponent{
 			ComponentRef: cref,
 			Info:         cinfo,
 		}
 	}
-	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
+	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName().String()))
 	err := w.SetInfo(sn, info, seedComps)
 	c.Assert(err, IsNil)
 	return info
@@ -279,7 +279,7 @@ func (s *writerSuite) fillDownloadedSnap(c *C, w *seedwriter.Writer, sn *seedwri
 	info := s.doFillMetaDownloadedSnap(c, w, sn)
 
 	c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "snaps", info.Filename()))
-	err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+	err := os.Rename(s.AssertedSnap(sn.SnapName().String()), sn.Path)
 	c.Assert(err, IsNil)
 	for _, seedComp := range sn.Components {
 		err := os.Rename(s.AssertedSnap(seedComp.String()), seedComp.Path)
@@ -1040,7 +1040,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
@@ -1159,7 +1159,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
@@ -1336,7 +1336,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info, nil)
-		s.aRefs[sn.SnapName()] = aRefs
+		s.aRefs[sn.SnapName().String()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -1396,7 +1396,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:       info.SnapName(),
+			Name:       info.SnapName().String(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
 			File:       fn,
@@ -1490,7 +1490,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 	fn := info.Filename()
 	c.Check(filepath.Join(s.opts.SeedDir, "snaps", fn), testutil.FilePresent)
 	c.Check(seedYaml.Snaps[4], DeepEquals, &seedwriter.InternalSnap16{
-		Name:    info.SnapName(),
+		Name:    info.SnapName().String(),
 		SnapID:  info.SnapID,
 		Channel: "default-track/candidate",
 		File:    fn,
@@ -1525,7 +1525,7 @@ func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
 	c.Check(snaps, HasLen, 5)
 
 	sn := snaps[4]
-	c.Assert(sn.SnapName(), Equals, "required18")
+	c.Assert(sn.SnapName().String(), Equals, "required18")
 
 	c.Check(w.SetRedirectChannel(sn, "default-track/stable"), ErrorMatches, `internal error: before using seedwriter.Writer.SetRedirectChannel snap "required18" Info should have been set`)
 
@@ -1750,7 +1750,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -1809,7 +1809,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -1882,7 +1882,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelNoSysSnap(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -1952,7 +1952,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelCore(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -2024,7 +2024,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromOptionsWins(
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -2085,7 +2085,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c 
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -2187,7 +2187,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName(),
+			Name:    info.SnapName().String(),
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
@@ -2261,7 +2261,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info, nil)
-		s.aRefs[sn.SnapName()] = aRefs
+		s.aRefs[sn.SnapName().String()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -2343,7 +2343,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:       info.SnapName(),
+			Name:       info.SnapName().String(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
 			File:       fn,
@@ -2964,11 +2964,11 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 	c.Check(err, IsNil)
 	c.Assert(snaps, HasLen, 5)
 
-	c.Assert(snaps[4].SnapName(), Equals, "my-devmode")
+	c.Assert(snaps[4].SnapName().String(), Equals, "my-devmode")
 	sn := snaps[4]
 
-	info := s.AssertedSnapInfo(sn.SnapName())
-	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName()))
+	info := s.AssertedSnapInfo(sn.SnapName().String())
+	c.Assert(info, NotNil, Commentf("%s not defined", sn.SnapName().String()))
 	err = w.SetInfo(sn, info, nil)
 	c.Assert(err, ErrorMatches, "cannot override channels, add devmode snaps, local snaps, or extra snaps/components with a model of grade higher than dangerous")
 	c.Check(sn.Info, Not(Equals), info)
@@ -3635,7 +3635,7 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 	snaps, err := w.SnapsToDownload()
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 6)
-	c.Check(snaps[5].SnapName(), Equals, "optional20-b")
+	c.Check(snaps[5].SnapName().String(), Equals, "optional20-b")
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
@@ -3741,9 +3741,9 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	snaps, err = w.SnapsToDownload()
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 3)
-	c.Check(snaps[0].SnapName(), Equals, "cont-producer")
-	c.Check(snaps[1].SnapName(), Equals, "core18")
-	c.Check(snaps[2].SnapName(), Equals, "required20")
+	c.Check(snaps[0].SnapName().String(), Equals, "cont-producer")
+	c.Check(snaps[1].SnapName().String(), Equals, "core18")
+	c.Check(snaps[2].SnapName().String(), Equals, "required20")
 
 	for _, sn := range snaps {
 		channel := "latest/stable"
@@ -3756,7 +3756,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 		info := s.doFillMetaDownloadedSnap(c, w, sn)
 
 		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
-		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+		err := os.Rename(s.AssertedSnap(sn.SnapName().String()), sn.Path)
 		c.Assert(err, IsNil)
 		for _, seedComp := range sn.Components {
 			err := os.Rename(s.AssertedSnap(seedComp.String()), seedComp.Path)
@@ -3946,7 +3946,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info, nil)
-		s.aRefs[sn.SnapName()] = aRefs
+		s.aRefs[sn.SnapName().String()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -4116,7 +4116,7 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C,
 		}
 
 		w.SetInfo(sn, info, seedComps)
-		s.aRefs[sn.SnapName()] = aRefs
+		s.aRefs[sn.SnapName().String()] = aRefs
 	}
 
 	err = w.InfoDerived()
@@ -5869,7 +5869,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20OptionsOldLatest(c *C) {
 		info := s.doFillMetaDownloadedSnap(c, w, sn)
 
 		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
-		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+		err := os.Rename(s.AssertedSnap(sn.SnapName().String()), sn.Path)
 		c.Assert(err, IsNil)
 	}
 
@@ -5989,7 +5989,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverride(c *C
 		info := s.doFillMetaDownloadedSnap(c, w, sn)
 
 		c.Assert(sn.Path, Equals, filepath.Join(s.opts.SeedDir, "systems", s.opts.Label, "snaps", info.Filename()))
-		err := os.Rename(s.AssertedSnap(sn.SnapName()), sn.Path)
+		err := os.Rename(s.AssertedSnap(sn.SnapName().String()), sn.Path)
 		c.Assert(err, IsNil)
 	}
 
@@ -6172,7 +6172,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20RequiredOldLatestOverrideLocal
 		info, err := snap.ReadInfoFromSnapFile(f, si)
 		c.Assert(err, IsNil)
 		w.SetInfo(sn, info, nil)
-		s.aRefs[sn.SnapName()] = aRefs
+		s.aRefs[sn.SnapName().String()] = aRefs
 	}
 
 	err = w.InfoDerived()

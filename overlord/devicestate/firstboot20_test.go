@@ -326,7 +326,7 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 func checkSeedSnapLanes(c *C, model *asserts.Model, tss []*state.TaskSet) {
 	isEssential := func(name string) bool {
 		for _, sn := range model.EssentialSnaps() {
-			if sn.SnapName() == name {
+			if sn.SnapName().String() == name {
 				return true
 			}
 		}

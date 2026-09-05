@@ -464,7 +464,7 @@ func (s *deviceMgrBaseSuite) setupSnapResourceRevision(c *C, file string, comp, 
 }
 
 func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
-	s.setupSnapDeclForNameAndID(c, info.SnapName(), info.SnapID, publisherID)
+	s.setupSnapDeclForNameAndID(c, info.SnapName().String(), info.SnapID, publisherID)
 }
 
 func (s *deviceMgrBaseSuite) setupSnapRevisionForFileAndID(c *C, file, snapID, publisherID string, revision snap.Revision) {

@@ -69,8 +69,8 @@ type ModelSnap struct {
 }
 
 // SnapName implements naming.SnapRef.
-func (s *ModelSnap) SnapName() string {
-	return s.Name
+func (s *ModelSnap) SnapName() naming.SnapName {
+	return naming.SnapName(s.Name)
 }
 
 // ID implements naming.SnapRef.

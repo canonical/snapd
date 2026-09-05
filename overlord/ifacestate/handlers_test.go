@@ -131,7 +131,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) *snap.Info {
 		Revision: snap.R(1),
 	})
 
-	snapName := snapInfo.SnapName()
+	snapName := snapInfo.SnapName().String()
 	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,

@@ -302,7 +302,7 @@ func InUse(typ snap.Type, dev snap.Device) (InUseFunc, error) {
 
 	return func(name string, rev snap.Revision) bool {
 		for _, cand := range cands {
-			if cand.SnapName() == name && cand.SnapRevision() == rev {
+			if cand.SnapName().String() == name && cand.SnapRevision() == rev {
 				return true
 			}
 		}

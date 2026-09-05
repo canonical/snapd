@@ -1252,7 +1252,7 @@ func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrap
 	f := func(app *snap.AppInfo, grp *quota.Group, unitType, name, old, new string) {
 		snapName := ""
 		if app != nil {
-			snapName = app.Snap.SnapName()
+			snapName = app.Snap.SnapName().String()
 		}
 		changesObserved = append(changesObserved, changesObservation{
 			snapName: snapName,

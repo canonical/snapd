@@ -461,7 +461,7 @@ func (s *seed16) ModeSnap(snapName, mode string) (*Snap, error) {
 		return nil, fmt.Errorf("internal error: Core 16/18 have only run mode, got: %s", mode)
 	}
 	for _, sn := range s.snaps {
-		if sn.SnapName() == snapName {
+		if sn.SnapName().String() == snapName {
 			return sn, nil
 		}
 	}
