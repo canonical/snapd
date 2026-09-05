@@ -57,6 +57,7 @@ package main
 //#include <xfs/xqm.h>
 //#endif
 //#include <seccomp.h>
+//#include <linux/personality.h>
 //#include <linux/sched.h>
 //#include <linux/seccomp.h>
 //#include <arpa/inet.h>
@@ -389,6 +390,10 @@ var seccompResolver = map[string]uint64{
 	"PR_GET_TSC":                  C.PR_GET_TSC,
 	"PR_SET_UNALIGN":              C.PR_SET_UNALIGN,
 	"PR_GET_UNALIGN":              C.PR_GET_UNALIGN,
+
+	// man 2 personality - security-sensitive flags
+	"ADDR_NO_RANDOMIZE": C.ADDR_NO_RANDOMIZE,
+	"READ_IMPLIES_EXEC": C.READ_IMPLIES_EXEC,
 
 	// man 2 getpriority
 	"PRIO_PROCESS": syscall.PRIO_PROCESS,
