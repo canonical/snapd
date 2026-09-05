@@ -352,7 +352,7 @@ func (s *Schema) GetViewsAffectedByPath(path []Accessor) []*View {
 
 func pathChangeAffects(modified, affected []Accessor) bool {
 	for i, affectedKey := range affected {
-		if affectedKey.Type() == IndexPlaceholderType || affectedKey.Type() == KeyPlaceholderType {
+		if isPlaceholderAccessor(affectedKey) {
 			continue
 		}
 
@@ -569,6 +569,10 @@ func newView(schema *Schema, name string, viewRules []any, paramPresence map[str
 		}
 	}
 
+	if err := checkFilteredPathConsistency(view.rules); err != nil {
+		return nil, err
+	}
+
 	return view, nil
 }
 
@@ -583,6 +587,83 @@ func getFilterParams(rule viewRule) []string {
 	}
 
 	return keys(params)
+}
+
+// checkFilteredPathConsistency checks that rules with paths covering the same
+// data have the same filters. Otherwise, requests could match both filtered and
+// unfiltered paths, resulting in an inconsistent merged value.
+func checkFilteredPathConsistency(rules []viewRule) error {
+	for i, rule := range rules {
+		for _, other := range rules[i+1:] {
+			if !storagePathsHaveConsistentFilters(rule.storage, other.storage) {
+				return fmt.Errorf("storage paths %q and %q access overlapping data with different field filters", rule.originalStorage, other.originalStorage)
+			}
+		}
+	}
+	return nil
+}
+
+func equalFieldFilters(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func accessorContainerType(acc Accessor) AccessorType {
+	if acc.Type() == KeyPlaceholderType {
+		return MapKeyType
+	}
+	if acc.Type() == IndexPlaceholderType {
+		return ListIndexType
+	}
+	return acc.Type()
+}
+
+func isPlaceholderAccessor(acc Accessor) bool {
+	return acc.Type() == KeyPlaceholderType || acc.Type() == IndexPlaceholderType
+}
+
+// storagePathsHaveConsistentFilters reports whether two storage paths either
+// cover distinct data or apply the same filters to the data they can both cover.
+func storagePathsHaveConsistentFilters(left, right []Accessor) bool {
+	commonLength := int(math.Min(float64(len(left)), float64(len(right))))
+	filtersEqual := true
+	for i := 0; i < commonLength; i++ {
+		leftAcc, rightAcc := left[i], right[i]
+		if accessorContainerType(leftAcc) != accessorContainerType(rightAcc) ||
+			(!isPlaceholderAccessor(leftAcc) && !isPlaceholderAccessor(rightAcc) && leftAcc.Name() != rightAcc.Name()) {
+			// The paths diverge, so any earlier filter difference applies to
+			// distinct data and does not make the paths inconsistent.
+			return true
+		}
+		if !equalFieldFilters(leftAcc.FieldFilters(), rightAcc.FieldFilters()) {
+			filtersEqual = false
+		}
+	}
+
+	if !filtersEqual {
+		return false
+	}
+
+	// if the longer path has any filters beyond its "equivalent prefix" then we
+	// need to fail, as the short one would read unfiltered data
+	longer := left
+	if len(right) > len(left) {
+		longer = right
+	}
+	for _, acc := range longer[commonLength:] {
+		if len(acc.FieldFilters()) != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // TODO:GOVERSION: use maps.Keys once on go 1.23
@@ -843,7 +924,11 @@ func ParsePathIntoAccessors(path string, opts ParseOptions) ([]Accessor, error) 
 			if opts.ForbidIndexes {
 				return nil, fmt.Errorf("invalid subkey %q: view paths cannot have literal indexes (only index placeholders)", subkey)
 			}
-			accessors = append(accessors, newIndex(subkey[1:len(subkey)-1], part.filters))
+			index := strings.TrimLeft(subkey[1:len(subkey)-1], "0")
+			if index == "" {
+				index = "0"
+			}
+			accessors = append(accessors, newIndex(index, part.filters))
 
 		case !opts.AllowPlaceholders:
 			// user supplied paths cannot contain placeholders
@@ -1234,8 +1319,8 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 			}
 
 			// sort placeholders before literals so the latter override the former
-			xPlaceholder := xAcc.Type() == KeyPlaceholderType || xAcc.Type() == IndexPlaceholderType
-			yPlaceholder := yAcc.Type() == KeyPlaceholderType || yAcc.Type() == IndexPlaceholderType
+			xPlaceholder := isPlaceholderAccessor(xAcc)
+			yPlaceholder := isPlaceholderAccessor(yAcc)
 			if xPlaceholder != yPlaceholder {
 				return xPlaceholder
 			}
@@ -1625,8 +1710,8 @@ func prunePathInValue(parts []Accessor, val any) (any, error) {
 
 		nested, ok := mapVal[parts[0].Name()]
 		if !ok {
-			// shouldn't happen since we already checked this
-			return nil, fmt.Errorf(`internal error: cannot use unmatched part %q as key in %v`, parts[0].Name(), mapVal)
+			// may happen if another path already covered this branch
+			return mapVal, nil
 		}
 
 		newValue, err := prunePathInValue(parts[1:], nested)
