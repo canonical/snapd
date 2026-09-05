@@ -18,9 +18,6 @@
  *
  */
 
-// AddOptions.LogValue                 → TestAddOptionsLogValue
-// Ref.LogValue                        → TestRefLogValue
-// RemoveOptions.LogValue              → TestRemoveOptionsLogValue
 package seclog_test
 
 import (

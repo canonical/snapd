@@ -147,7 +147,7 @@ execute: |
         system_username=$(snap create-user --json "$SPREAD_STORE_USER" | gojq -r .username)
         echo "$system_username" > system-user-name
 
-        journal_match '"category":"USER","event":"user_created_system".*"description":"Created system user '"$system_username"' \(api-store-email\)"'
+        journal_match '"description":"Created system user '"$system_username"' \(api-store-email\)".*"category":"USER","event":"user_created_system"'
         journal_match '"category":"USER","event":"user_created_system".*"system_user":"'"$system_username"'".*"known":false.*"add_reason":"api-store-email"'
 
         echo "Checking that remove-user produces a system user removal audit event"
@@ -155,6 +155,6 @@ execute: |
         snap remove-user "$system_username"
         rm -f system-user-name
 
-        journal_match '"category":"USER","event":"user_removed_system".*"description":"Removed system user '"$system_username"' \(api-remove-user\)"'
+        journal_match '"description":"Removed system user '"$system_username"' \(api-remove-user\)".*"category":"USER","event":"user_removed_system"'
         journal_match '"category":"USER","event":"user_removed_system".*"system_user":"'"$system_username"'".*"force":false.*"remove_reason":"api-remove-user"'
     fi
