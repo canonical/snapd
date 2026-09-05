@@ -1,4 +1,4 @@
-0:0 / / rw,relatime shared:1 - ext4 /dev/sda1 rw
+0:0 / / rw,relatime shared:1 - ext4 /dev/sda1 rw,data=ordered
 +0:+1 / /boot/efi rw,relatime shared:+1 - vfat /dev/sda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 +1:-1 / /dev rw,nosuid,relatime shared:+1 - devtmpfs udev rw,size=VARIABLE,nr_inodes=0,mode=755
 +0:+1 / /dev/hugepages rw,relatime shared:+1 - hugetlbfs hugetlbfs rw,pagesize=2M
@@ -20,7 +20,6 @@
 +0:+1 / /snap/test-snapd-mountinfo-core16/1 ro,nodev,relatime shared:+1 - squashfs /dev/loop4 ro
 +0:+1 / /snap/test-snapd-mountinfo-core18/1 ro,nodev,relatime shared:+1 - squashfs /dev/loop5 ro
 -1:+8 / /sys rw,nosuid,nodev,noexec,relatime shared:+1 - sysfs sysfs rw
-+0:+1 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:+1 - efivarfs efivarfs rw
 +0:+1 / /sys/fs/cgroup ro,nosuid,nodev,noexec shared:+1 - tmpfs tmpfs ro,mode=755
 +0:+1 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime shared:+1 - cgroup cgroup rw,blkio
 +0:+1 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime shared:+1 - cgroup cgroup rw,cpu,cpuacct
