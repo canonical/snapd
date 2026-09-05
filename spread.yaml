@@ -199,16 +199,16 @@ backends:
                 image: snapd-spread/ubuntu-18.04-64
                 workers: 8
             - ubuntu-core-20-64:
-                image: snapd-spread/ubuntu-20.04-64-uefi
+                image: snapd-spread/ubuntu-20.04-64
                 workers: 8
             - ubuntu-core-22-64:
-                image: snapd-spread/ubuntu-22.04-64-uefi
+                image: snapd-spread/ubuntu-22.04-64
                 workers: 8
             - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
+                image: snapd-spread/ubuntu-24.04-64
                 workers: 8
             - ubuntu-core-26-64:
-                image: snapd-spread/ubuntu-26.04-64-uefi
+                image: snapd-spread/ubuntu-26.04-64
                 workers: 8
 
             - debian-12-64:
@@ -272,19 +272,19 @@ backends:
         environment: *openstack-env
         systems: &openstack-nested-systems
             - ubuntu-16.04-64:
-                  image: snapd-spread/ubuntu-16.04-64
+                  image: snapd-spread/ubuntu-16.04-64-nested
                   storage: 20G
                   workers: 4
             - ubuntu-18.04-64:
-                  image: snapd-spread/ubuntu-18.04-64
+                  image: snapd-spread/ubuntu-18.04-64-nested
                   storage: 20G
                   workers: 4
             - ubuntu-20.04-64:
-                  image: snapd-spread/ubuntu-20.04-64-hwe
+                  image: snapd-spread/ubuntu-20.04-64-nested
                   storage: 20G
                   workers: 12
             - ubuntu-22.04-64:
-                  image: snapd-spread/ubuntu-22.04-64
+                  image: snapd-spread/ubuntu-22.04-64-nested
                   storage: 25G
                   workers: 12
             - ubuntu-24.04-64:
@@ -1516,8 +1516,6 @@ suites:
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Define which tests to run in the nested vm in run-spread test
             NESTED_SPREAD_TESTS: '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1601,8 +1599,6 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1680,8 +1676,6 @@ suites:
             NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1770,8 +1764,6 @@ suites:
             # Indicates the amount of memory in MB to use in the nested vm
             NESTED_MEM: '$(HOST: echo "${NESTED_MEM:-4096}")'
             SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
