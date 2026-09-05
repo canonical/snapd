@@ -120,6 +120,30 @@ func (s *installSuite) SetUpTest(c *C) {
 		return s.configureTargetSystemErr
 	})
 	s.AddCleanup(restore)
+
+	restore = install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		c.Errorf("pre install check not mocked")
+		return nil, nil, fmt.Errorf("pre install check not mocked")
+	})
+	s.AddCleanup(restore)
+
+	restore = install.MockSecbootPostinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+		c.Errorf("post install check not mocked")
+		return nil, nil, fmt.Errorf("post install check not mocked")
+	})
+	s.AddCleanup(restore)
+
+	restore = install.MockSecbootPreinstallCheckAction(func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error) {
+		c.Errorf("post install check action not mocked")
+		return nil, fmt.Errorf("post install check action not mocked")
+	})
+	s.AddCleanup(restore)
+
+	restore = install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+		c.Errorf("boot.MaybeReadModeenv not mocked")
+		return nil, fmt.Errorf("boot.MaybeReadModeenv not mocked")
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *installSuite) makeSnap(c *C, yamlKey, publisher string) {
@@ -343,59 +367,70 @@ func (s *installSuite) TestOrderedCurrentBootImagesHybrid(c *C) {
 }
 
 func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
+	defer install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})()
+
 	for _, tc := range []struct {
-		isSupportedUbuntuHybrid bool
-		imageError              ErrorsDetected
-		errorBootImage          string
+		imageError     ErrorsDetected
+		errorBootImage string
 
 		expectedBootImagePaths []string
 		expectedError          string
 	}{
 		{
-			true,
 			ErrorNone, "",
 			relBootImagePaths,
 			"",
 		},
 		{
-			true,
 			ErrorMissing, "bootXXX.efi",
 			nil,
 			`cannot locate hybrid system boot images: cannot locate installer shim using globbing pattern ".*/cdrom/EFI/boot/boot\*.efi"`,
 		},
-		{
-			false,
-			ErrorNone, "",
-			nil,
-			"",
-		},
-		{
-			false,
-			ErrorMissing, "bootXXX.efi",
-			nil,
-			"",
-		},
 	} {
 		s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.imageError, tc.errorBootImage)
 
-		modelMods := map[string]any{}
-		if tc.isSupportedUbuntuHybrid {
-			modelMods["classic"] = "true"
-			modelMods["distribution"] = "ubuntu"
-		}
-		modelMock := s.mockModel(modelMods)
-
-		bootImageFiles, err := install.OrderedCurrentBootImages(modelMock)
+		bootImageFiles, err := install.OrderedCurrentBootImages(nil, install.UbuntuISOBootMode)
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 		}
 
+		c.Assert(bootImageFiles, HasLen, len(tc.expectedBootImagePaths))
 		for i, path := range bootImageFiles {
-			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
+			c.Assert(path.Path, Matches, ".*"+tc.expectedBootImagePaths[i])
 		}
 	}
+}
+
+func (s *installSuite) TestOrderedCurrentBootImagesRunMode(c *C) {
+	defer install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
+		return []bootloader.BootFile{
+			bootloader.NewBootFile("", "/some/boot/loader.efi", bootloader.RoleRecovery),
+			bootloader.NewBootFile("", "/some/other/boot/loader.efi", bootloader.RoleRunMode),
+			bootloader.NewBootFile("/some/snap.snap", "kernel.efi", bootloader.RoleRunMode),
+		}, nil
+	})()
+
+	bootImageFiles, err := install.OrderedCurrentBootImages(&boot.Modeenv{}, install.RunBootMode)
+	c.Assert(err, IsNil)
+
+	c.Assert(bootImageFiles, HasLen, 3)
+	c.Check(bootImageFiles[0].Path, Equals, "/some/boot/loader.efi")
+	c.Check(bootImageFiles[1].Path, Equals, "/some/other/boot/loader.efi")
+	c.Check(bootImageFiles[2].Path, Equals, "kernel.efi")
+}
+
+func (s *installSuite) TestOrderedCurrentBootImagesRunModeError(c *C) {
+	defer install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := install.OrderedCurrentBootImages(&boot.Modeenv{}, install.RunBootMode)
+	c.Assert(err, ErrorMatches, `boom`)
 }
 
 func (s *installSuite) TestCheckContext(c *C) {
@@ -665,7 +700,7 @@ var preinstallAction = &secboot.PreinstallAction{
 // errorsDetected: simulate realistic encryption availability errors for both secboot.PreinstallCheck and secboot.CheckTPMKeySealingSupported (None, Single, Multiple)
 // checkFailErrors: simulate availability check unexpected behavior errors (ErrorNone, ErrorBootImages, ErrorSecbootPreinstall)
 // modelMods: model modifications to extend a model to be Ubuntu hybrid
-func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected, checkFailErrors ErrorsDetected, modelMods map[string]any) *asserts.Model {
+func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupportedUbuntuHybrid bool, errorsDetected ErrorsDetected, checkFailErrors ErrorsDetected, modelMods map[string]any, fromISO bool, provisioned bool) *asserts.Model {
 	// extend model modifications if required to indicate hybrid as required
 	var extendedModelMods map[string]any
 	if modelMods != nil || isSupportedUbuntuHybrid {
@@ -698,27 +733,68 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	}
 	s.AddCleanup(release.MockReleaseInfo(releaseInfo))
 
-	// create fake boot images for supported Ubuntu hybrid system
-	// that is required for orderedCurrentBootImagesHybrid to function
-	imageError := ErrorNone
-	errorBootImage := ""
-	if checkFailErrors == ErrorBootImages {
-		imageError = ErrorMissing
-		errorBootImage = "bootXXX.efi"
+	if fromISO {
+		// create fake boot images for supported Ubuntu hybrid system
+		// that is required for orderedCurrentBootImagesHybrid to function
+		imageError := ErrorNone
+		errorBootImage := ""
+		if checkFailErrors == ErrorBootImages {
+			imageError = ErrorMissing
+			errorBootImage = "bootXXX.efi"
+		}
+
+		s.mockHelperForOrderedCurrentBootImagesHybrid(c, isSupportedUbuntuHybrid, imageError, errorBootImage)
+		s.AddCleanup(install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected call")
+		}))
+
+		s.AddCleanup(install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+			return nil, nil
+		}))
+
+		s.AddCleanup(install.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+			c.Errorf("unexpected call")
+			return nil, fmt.Errorf("unexpected call")
+		}))
+	} else {
+		s.AddCleanup(install.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
+			if checkFailErrors == ErrorBootImages {
+				return nil, fmt.Errorf("some error")
+			}
+			return []bootloader.BootFile{
+				bootloader.NewBootFile("", "/some/boot/loader.efi", bootloader.RoleRecovery),
+				bootloader.NewBootFile("", "/some/other/boot/loader.efi", bootloader.RoleRunMode),
+				bootloader.NewBootFile("/some/snap.snap", "kernel.efi", bootloader.RoleRunMode),
+			}, nil
+		}))
+
+		s.AddCleanup(install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+			return &boot.Modeenv{Mode: "run"}, nil
+		}))
+
+		s.AddCleanup(install.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+			return &boot.Modeenv{Mode: "run"}, nil
+		}))
 	}
-	s.mockHelperForOrderedCurrentBootImagesHybrid(c, isSupportedUbuntuHybrid, imageError, errorBootImage)
 
 	if checkFailErrors == ErrorSecbootTimeout {
 		s.AddCleanup(install.MockPreinstallCheckTimeout(1 * time.Millisecond))
 	}
 
-	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
-	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	runChecks := func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		c.Assert(ctx, NotNil)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
-		c.Assert(bootImageFiles, HasLen, len(relBootImagePaths))
-		for i, path := range bootImageFiles {
-			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
+		if fromISO {
+			c.Assert(bootImageFiles, HasLen, len(relBootImagePaths))
+			for i, path := range bootImageFiles {
+				c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
+			}
+		} else {
+			c.Assert(bootImageFiles, HasLen, 3)
+			c.Check(bootImageFiles[0].Path, Equals, "/some/boot/loader.efi")
+			c.Check(bootImageFiles[1].Path, Equals, "/some/other/boot/loader.efi")
+			c.Check(bootImageFiles[2].Path, Equals, "kernel.efi")
 		}
 
 		if checkFailErrors == ErrorSecbootPreinstall {
@@ -749,11 +825,16 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 			c.Assert(false, Equals, true)
 			return nil, nil, fmt.Errorf("test error")
 		}
-	})
-	s.AddCleanup(restore)
+	}
+	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
+	if provisioned {
+		s.AddCleanup(install.MockSecbootPostinstallCheck(runChecks))
+	} else {
+		s.AddCleanup(install.MockSecbootPreinstallCheck(runChecks))
+	}
 
 	// mock secboot.PreinstallCheckAction for Supported Ubuntu hybrid systems
-	restore = install.MockSecbootPreinstallCheckAction(
+	restore := install.MockSecbootPreinstallCheckAction(
 		func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error) {
 			c.Assert(pcc, NotNil)
 			c.Assert(ctx, NotNil)
@@ -808,9 +889,12 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 
 func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 	for _, tc := range []struct {
+		fromISO                 bool
+		provisioned             bool
 		isSupportedUbuntuHybrid bool
 		detectedErrors          ErrorsDetected
 		checkFailErrors         ErrorsDetected
+		runMode                 string
 
 		expectedCheckContext      *secboot.PreinstallCheckContext
 		expectedUnavailableReason string
@@ -819,8 +903,11 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 	}{
 		{
 			true,
+			false,
+			true,
 			ErrorNone,
 			ErrorNone,
+			"",
 			preinstallCheckContext,
 			"",
 			nil,
@@ -828,26 +915,35 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		},
 		{
 			true,
+			false,
+			true,
 			ErrorsDetectedCompound,
 			ErrorNone,
+			"",
 			preinstallCheckContext,
 			"preinstall check identified 2 errors",
 			preinstallErrorDetails,
 			"",
 		},
 		{
+			true,
+			false,
 			false,
 			ErrorNone,
 			ErrorNone,
+			"",
 			nil,
 			"",
 			nil,
 			"",
 		},
 		{
+			true,
+			false,
 			false,
 			ErrorsDetectedSingle,
 			ErrorNone,
+			"",
 			nil,
 			"cannot connect to TPM device",
 			nil,
@@ -855,8 +951,11 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		},
 		{
 			true,
+			false,
+			true,
 			ErrorNone,
 			ErrorCheckSupported,
+			"",
 			nil,
 			"",
 			nil,
@@ -864,8 +963,11 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		},
 		{
 			true,
+			false,
+			true,
 			ErrorNone,
 			ErrorBootImages,
+			"",
 			nil,
 			"",
 			nil,
@@ -873,8 +975,11 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		},
 		{
 			true,
+			false,
+			true,
 			ErrorNone,
 			ErrorActionNoContext, // only applicable to preinstall check action
+			"",
 			preinstallCheckContext,
 			"",
 			nil,
@@ -882,8 +987,11 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		},
 		{
 			true,
+			false,
+			true,
 			ErrorNone,
 			ErrorSecbootPreinstall,
+			"",
 			nil,
 			"",
 			nil,
@@ -891,18 +999,82 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		},
 		{
 			true,
+			false,
+			true,
 			ErrorNone,
 			ErrorSecbootTimeout,
+			"",
 			nil,
 			"",
 			nil,
 			"preinstall check timed out: context deadline exceeded",
 		},
+		// post install case
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"run",
+			preinstallCheckContext,
+			"",
+			nil,
+			"",
+		},
+		// post install case, recover mode
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"recover",
+			nil,
+			"",
+			nil,
+			"cannot locate ordered current boot images: pre/post-install check is not yet implemented for ephemeral boot mode",
+		},
+		// post install case, factory-reset mode
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"factory-reset",
+			nil,
+			"",
+			nil,
+			"cannot locate ordered current boot images: pre/post-install check is not yet implemented for ephemeral boot mode",
+		},
+		// post install case, install mode
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"install",
+			nil,
+			"",
+			nil,
+			"cannot locate ordered current boot images: pre/post-install check is not yet implemented for ephemeral boot mode",
+		},
 	} {
-		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, tc.checkFailErrors, nil)
+		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, tc.checkFailErrors, nil, tc.fromISO, tc.provisioned)
+		if tc.runMode != "" {
+			defer install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+				return &boot.Modeenv{Mode: tc.runMode}, nil
+			})()
+
+			defer install.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+				return &boot.Modeenv{Mode: tc.runMode}, nil
+			})()
+		}
 
 		// exercise secboot.PreinstallCheck
-		newCheckContext, unavailableReason, errorDetails, err := install.EncryptionAvailabilityCheck(nil, nil, mockModel, secboot.TPMProvisionFull)
+		newCheckContext, unavailableReason, errorDetails, err := install.EncryptionAvailabilityCheck(nil, nil, mockModel)
 		c.Assert(newCheckContext, Equals, tc.expectedCheckContext)
 		c.Assert(unavailableReason, Equals, tc.expectedUnavailableReason)
 		c.Assert(errorDetails, DeepEquals, tc.expectedErrorDetails)
@@ -918,7 +1090,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 
 		// exercise secboot.PreinstallCheckAction
 		newCheckContext, unavailableReason, errorDetails, err = install.EncryptionAvailabilityCheck(
-			preinstallCheckContext, preinstallAction, mockModel, secboot.TPMProvisionFull,
+			preinstallCheckContext, preinstallAction, mockModel,
 		)
 		c.Assert(newCheckContext, Equals, tc.expectedCheckContext)
 		c.Assert(unavailableReason, Equals, tc.expectedUnavailableReason)
@@ -928,7 +1100,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		if tc.checkFailErrors == ErrorActionNoContext {
 			// exercise secboot.PreinstallCheckAction with action without context
 			newCheckContext, unavailableReason, errorDetails, err = install.EncryptionAvailabilityCheck(
-				nil, preinstallAction, mockModel, secboot.TPMProvisionFull,
+				nil, preinstallAction, mockModel,
 			)
 			c.Assert(newCheckContext, IsNil)
 			c.Assert(unavailableReason, Equals, tc.expectedUnavailableReason)
@@ -1130,10 +1302,12 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 		},
 	}
 	for i, tc := range testCases {
+		const fromISO = true
+		const provisioned = false
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
-		})
+		}, fromISO, provisioned)
 
 		mockSystemSnapdVersions := install.SystemSnapdVersions{
 			SnapdVersion:          tc.snapdVersion,
@@ -1175,10 +1349,12 @@ func (s *installSuite) TestEncryptionSupportInfoAccumulatesSeenErrors(c *C) {
 	}
 
 	const isSupportedUbuntuHybrid = true
+	const fromISO = true
+	const provisioned = false
 	model := s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedUbuntuHybrid, ErrorsDetectedCompound, ErrorNone, map[string]any{
 		"grade":          "signed",
 		"storage-safety": "prefer-encrypted",
-	})
+	}, fromISO, provisioned)
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20")
 	gadgetInfo, _ := s.mountedGadget(c)
 	constraints := install.EncryptionConstraints{
@@ -1320,6 +1496,10 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 			Gadget:  gadgetInfo,
 			TPMMode: secboot.TPMProvisionFull,
 		}
+
+		defer install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+			return nil, nil
+		})()
 
 		res, err := install.GetEncryptionSupportInfo(constraints, runHook)
 		c.Assert(err, IsNil)
@@ -1470,10 +1650,12 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 	}
 
 	for i, tc := range testCases {
+		const fromISO = true
+		const provisioned = false
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
-		})
+		}, fromISO, provisioned)
 
 		forceUnencryptedPath := filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")
 		if tc.forceUnencrypted == "" {
@@ -1631,6 +1813,10 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			TPMMode: secboot.TPMProvisionFull,
 		}
 
+		defer install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+			return nil, nil
+		})()
+
 		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
@@ -1700,7 +1886,9 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		// happy: encryption available as determined by secboot.PreinstallCheck
 		{true, ErrorNone, device.EncryptionTypeLUKS},
 	} {
-		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, nil)
+		const fromISO = true
+		const provisioned = false
+		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, nil, fromISO, provisioned)
 
 		constraints := install.EncryptionConstraints{
 			Model:   mockModel,
@@ -1812,6 +2000,10 @@ func (s *installSuite) TestInstallCheckEncryptionSupportStorageSafety(c *C) {
 			TPMMode: secboot.TPMProvisionFull,
 		}
 
+		defer install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+			return nil, nil
+		})()
+
 		encryptionType, err := install.CheckEncryptionSupport(constraints, nil)
 		c.Assert(err, IsNil)
 		encrypt := (encryptionType != device.EncryptionTypeNone)
@@ -1850,10 +2042,12 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 			"cannot encrypt device storage as mandated by model grade secured: preinstall check identified 2 errors",
 		},
 	} {
+		const fromISO = true
+		const provisioned = false
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, map[string]any{
 			"grade":          tc.grade,
 			"storage-safety": tc.storageSafety,
-		})
+		}, fromISO, provisioned)
 
 		constraints := install.EncryptionConstraints{
 			Model:   mockModel,
@@ -1895,7 +2089,9 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 		// unhappy: no hook, encryption unavailable as determined by secboot.PreinstallCheck when detecting multiple errors
 		{true, ErrorsDetectedCompound, device.EncryptionTypeNone},
 	} {
-		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, nil)
+		const fromISO = true
+		const provisioned = false
+		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, ErrorNone, nil, fromISO, provisioned)
 		constraints := install.EncryptionConstraints{
 			Model:   mockModel,
 			Kernel:  kernelInfo,
