@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 
@@ -282,31 +283,31 @@ slots:
 func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
 	// default: both sides supported
 	iface := &commonInterface{name: "common"}
-	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, true)
-	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), IsNil)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), IsNil)
 
 	// plug-side unsupported
 	iface = &commonInterface{
-		name:                             "common",
-		unsupportedParallelInstancesPlug: true,
+		name:                     "common",
+		parallelInstancesPlugErr: errors.New("custom plug reason"),
 	}
-	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, false)
-	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), ErrorMatches, "custom plug reason")
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), IsNil)
 
 	// slot-side unsupported
 	iface = &commonInterface{
-		name:                             "common",
-		unsupportedParallelInstancesSlot: true,
+		name:                     "common",
+		parallelInstancesSlotErr: errors.New("custom slot reason"),
 	}
-	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, true)
-	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), IsNil)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), ErrorMatches, "custom slot reason")
 
 	// both unsupported
 	iface = &commonInterface{
-		name:                             "common",
-		unsupportedParallelInstancesPlug: true,
-		unsupportedParallelInstancesSlot: true,
+		name:                     "common",
+		parallelInstancesPlugErr: errors.New("custom plug reason"),
+		parallelInstancesSlotErr: errors.New("custom slot reason"),
 	}
-	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, false)
-	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), ErrorMatches, "custom plug reason")
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), ErrorMatches, "custom slot reason")
 }
