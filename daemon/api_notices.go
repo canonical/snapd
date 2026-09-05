@@ -163,9 +163,9 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 
 // Get the UID of the request. If the UID is not known, return an error.
 func uidFromRequest(r *http.Request) (uint32, error) {
-	cred, err := ucrednetGet(r.RemoteAddr)
+	cred, err := ucrednetGet(r.Context())
 	if err != nil {
-		return 0, fmt.Errorf("could not parse request UID")
+		return 0, fmt.Errorf("could not determine request UID")
 	}
 	return cred.Uid, nil
 }
@@ -212,7 +212,7 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 		}
 		// No types were specified, populate with notice types snap can view
 		// with its connected interface.
-		ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
+		ucred, ifaces, err := ucrednetGetWithInterfaces(r.Context())
 		if err != nil {
 			return nil, err
 		}
@@ -307,7 +307,7 @@ func (inst *noticeInstruction) validate(r *http.Request) error {
 // It checks that the request process "/proc/PID/exe" points to one of the
 // known locations of the snap command. This not a security-oriented check.
 func isRequestFromSnapCmd(r *http.Request) (bool, error) {
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return false, err
 	}
@@ -399,7 +399,7 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 // noticeTypesViewableBySnap checks if passed interface allows the snap
 // to have read-access for the passed notice types.
 func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
-	ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
+	ucred, ifaces, err := ucrednetGetWithInterfaces(r.Context())
 	if err != nil {
 		return false
 	}

@@ -300,10 +300,10 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		matchOnSlot := req.Slot && connRef.SlotRef.Snap == snapName
 		matchOnPlug := req.Plug && connRef.PlugRef.Snap == snapName
 		if matchOnPlug || matchOnSlot {
-			r.RemoteAddr = ucrednetAttachInterface(r.RemoteAddr, connState.Interface)
+			*r = *r.WithContext(ucrednetAttachInterface(r.Context(), connState.Interface))
 			// Do not return here, but keep processing connections for the side
 			// effect of attaching all connected interfaces we asked for to the
-			// remote address.
+			// request context.
 			foundMatchingInterface = true
 		}
 	}
