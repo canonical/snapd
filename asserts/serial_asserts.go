@@ -80,7 +80,8 @@ func (ser *Serial) Timestamp() time.Time {
 	return ser.timestamp
 }
 
-func (ser *Serial) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (ser *Serial) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	if ser.AuthorityID() != ser.BrandID() {
 		// serial authority and brand do not match, check the model
 		a, err := db.Find(ModelType, map[string]string{

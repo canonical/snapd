@@ -111,8 +111,8 @@ func (r *Repair) Timestamp() time.Time {
 	return r.timestamp
 }
 
-// Implement further consistency checks.
-func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (r *Repair) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
 	// i.e. in the future repair code
 
@@ -120,7 +120,7 @@ func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*Repair)(nil)
+var _ ConsistencyChecker = (*Repair)(nil)
 
 func assembleRepair(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)

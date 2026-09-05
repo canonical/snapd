@@ -781,14 +781,14 @@ func (mod *Model) Timestamp() time.Time {
 	return mod.timestamp
 }
 
-// Implement further consistency checks.
-func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (mod *Model) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// TODO: double check trust level of authority depending on class and possibly allowed-modes
 	return nil
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*Model)(nil)
+var _ ConsistencyChecker = (*Model)(nil)
 
 // limit model to only lowercase for now
 var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")

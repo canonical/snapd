@@ -87,8 +87,8 @@ func (resrev *SnapResourceRevision) ResourceIntegrityData() []IntegrityData {
 	return resrev.resourceIntegrityData
 }
 
-// Implement further consistency checks.
-func (resrev *SnapResourceRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (resrev *SnapResourceRevision) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	otherProvenance := resrev.Provenance() != naming.DefaultProvenance
 	if !otherProvenance && !db.IsTrustedAccount(resrev.AuthorityID()) {
 		// delegating global-upload revisions is not allowed
@@ -134,7 +134,7 @@ func (resrev *SnapResourceRevision) checkConsistency(db RODatabase, acck *Accoun
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SnapResourceRevision)(nil)
+var _ ConsistencyChecker = (*SnapResourceRevision)(nil)
 
 // Prerequisites returns references to this snap-resource-revision's prerequisite assertions.
 func (resrev *SnapResourceRevision) Prerequisites() []*Ref {
@@ -252,8 +252,8 @@ func (respair *SnapResourcePair) Timestamp() time.Time {
 	return respair.timestamp
 }
 
-// Implement further consistency checks.
-func (respair *SnapResourcePair) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (respair *SnapResourcePair) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	otherProvenance := respair.Provenance() != naming.DefaultProvenance
 	if !otherProvenance && !db.IsTrustedAccount(respair.AuthorityID()) {
 		// delegating global-upload revisions is not allowed
@@ -300,7 +300,7 @@ func (respair *SnapResourcePair) checkConsistency(db RODatabase, acck *AccountKe
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SnapResourcePair)(nil)
+var _ ConsistencyChecker = (*SnapResourcePair)(nil)
 
 // Prerequisites returns references to this snap-resource-pair's prerequisite assertions.
 func (respair *SnapResourcePair) Prerequisites() []*Ref {

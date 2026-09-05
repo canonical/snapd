@@ -68,8 +68,8 @@ func (acc *Account) Timestamp() time.Time {
 	return acc.timestamp
 }
 
-// Implement further consistency checks.
-func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (acc *Account) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(acc.AuthorityID()) {
 		return fmt.Errorf("account assertion for %q is not signed by a directly trusted authority: %s", acc.AccountID(), acc.AuthorityID())
 	}
@@ -77,7 +77,7 @@ func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*Account)(nil)
+var _ ConsistencyChecker = (*Account)(nil)
 
 func assembleAccount(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "display-name")
