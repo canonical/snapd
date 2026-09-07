@@ -817,13 +817,15 @@ func (w *Writer) assignLocalComponents(sn *SeedSnap, seedComps map[string]*SeedC
 }
 
 // SetRedirectChannel sets the redirect channel for the SeedSnap
-// for the in case there is a default track for it.
+// when the store or LTS policy maps the planned channel onto another
+// track. Asserted local snaps are allowed: recovery-system creation
+// feeds already-downloaded blobs by path. Unasserted locals are not.
 func (w *Writer) SetRedirectChannel(sn *SeedSnap, redirectChannel string) error {
-	if sn.local {
-		return fmt.Errorf("internal error: cannot set redirect channel for local snap %q", sn.Path)
-	}
 	if sn.Info == nil {
 		return fmt.Errorf("internal error: before using seedwriter.Writer.SetRedirectChannel snap %q Info should have been set", sn.SnapName())
+	}
+	if sn.local && sn.Info.ID() == "" {
+		return fmt.Errorf("internal error: cannot set redirect channel for unasserted local snap %q", sn.Path)
 	}
 	if redirectChannel == "" {
 		// nothing to do

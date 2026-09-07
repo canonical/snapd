@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
@@ -226,6 +227,9 @@ type infoGetter interface {
 	// present and having an 'optional' presence in the model, will be added to
 	// the recovery system.
 	ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error)
+	// SeedRedirectChannel is the channel of the snap being copied into
+	// the seed, or empty to keep the model default-channel.
+	SeedRedirectChannel(st *state.State, name string) (string, error)
 }
 
 // setupInfoGetter is an infoGetter that uses a recoverySystemSetup to get
@@ -407,6 +411,33 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 	return nil, "", false, nil
 }
 
+func (ig *setupInfoGetter) SeedRedirectChannel(st *state.State, name string) (string, error) {
+	for _, tskID := range ig.setup.SnapSetupTasks {
+		taskWithSnapSetup := st.Task(tskID)
+		if taskWithSnapSetup == nil {
+			return "", fmt.Errorf("internal error: snap-setup task %s not found", tskID)
+		}
+		snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
+		if err != nil {
+			return "", err
+		}
+		if snapsup.SnapName() != name {
+			continue
+		}
+		return snapsup.Channel, nil
+	}
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, name, &snapst)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return "", nil
+		}
+		return "", err
+	}
+	return snapst.TrackingChannel, nil
+}
+
 // snapWriteObserveFunc is called with the recovery system directory and the
 // path to a snap file being written. The snap file may be written to a location
 // under the common snaps directory.
@@ -459,6 +490,10 @@ func createSystemForModelFromValidatedSnaps(
 	modelSnaps := make(map[string]*snap.Info)
 	// mapping of snap names to map of component names to component infos.
 	modelComponents := make(map[string]map[string]*snap.ComponentInfo)
+	// Channel of the copied snap (in-change snap-setup or installed
+	// tracking); applied after SnapsToDownload assigns the model
+	// default-channel.
+	seedRedirects := make(map[string]string)
 
 	getModelSnap := func(sn *asserts.ModelSnap, essential bool) error {
 		kind := "essential"
@@ -511,14 +546,22 @@ func createSystemForModelFromValidatedSnaps(
 			modelComponents[sn.Name][compPath] = compInfo
 		}
 
-		// present locally
-		// TODO: for grade dangerous we could have a channel here which is not
-		//       the model channel, handle that here
+		// present locally. Channel is not set here: option-channel
+		// overrides are rejected for signed/secured models.
+		// A non-model tracking or download channel is applied later
+		// via SetRedirectChannel.
 		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
 			Path:       snapPath,
 			Components: comps,
 		})
 		modelSnaps[snapPath] = snapInfo
+		redirectChannel, err := getInfo.SeedRedirectChannel(st, sn.Name)
+		if err != nil {
+			return fmt.Errorf("cannot obtain seed redirect channel for snap %q: %v", sn.Name, err)
+		}
+		if redirectChannel != "" {
+			seedRedirects[sn.Name] = redirectChannel
+		}
 		return nil
 	}
 
@@ -649,6 +692,10 @@ func createSystemForModelFromValidatedSnaps(
 			return "", fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
+		if err := applySeedRedirectChannels(w, localSnaps, seedRedirects); err != nil {
+			return "", err
+		}
+
 		complete, err := w.Downloaded(retrieveAsserts)
 		if err != nil {
 			return "", err
@@ -719,4 +766,32 @@ func createSystemForModelFromValidatedSnaps(
 	logger.Noticef("created recovery system %q", label)
 
 	return recoverySystemDir, nil
+}
+
+func seedChannelsEquivalent(a, b string) bool {
+	if a == b {
+		return true
+	}
+	fa, err1 := channel.Full(a)
+	fb, err2 := channel.Full(b)
+	if err1 != nil || err2 != nil || fa == "" || fb == "" {
+		return false
+	}
+	return fa == fb
+}
+
+func applySeedRedirectChannels(w *seedwriter.Writer, localSnaps []*seedwriter.SeedSnap, redirects map[string]string) error {
+	if len(redirects) == 0 {
+		return nil
+	}
+	for _, sn := range localSnaps {
+		ch := redirects[sn.SnapName()]
+		if ch == "" || seedChannelsEquivalent(ch, sn.Channel) {
+			continue
+		}
+		if err := w.SetRedirectChannel(sn, ch); err != nil {
+			return err
+		}
+	}
+	return nil
 }

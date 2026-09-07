@@ -356,6 +356,11 @@ var (
 	KernelCommandLineAppendArgsFromSnapd       = kernelCommandLineAppendArgsFromSnapd
 )
 
+func SetupInfoGetterSeedRedirectChannel(st *state.State, setup *recoverySystemSetup, name string) (string, error) {
+	ig := setupInfoGetter{setup: setup}
+	return ig.SeedRedirectChannel(st, name)
+}
+
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
 	r := testutil.Backup(&applyPreseededData)
 	applyPreseededData = f

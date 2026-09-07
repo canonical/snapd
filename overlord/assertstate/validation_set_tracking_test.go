@@ -285,6 +285,33 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 }
 
+func (s *validationSetTrackingSuite) TestValidationSetsFromKeys(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	empty, err := assertstate.ValidationSetsFromKeys(s.st, nil)
+	c.Assert(err, IsNil)
+	c.Check(empty.Empty(), Equals, true)
+
+	empty, err = assertstate.ValidationSetsFromKeys(s.st, []snapasserts.ValidationSetKey{})
+	c.Assert(err, IsNil)
+	c.Check(empty.Empty(), Equals, true)
+
+	vs1 := s.mockAssert(c, "foo", "2", "required")
+	c.Assert(assertstate.Add(s.st, vs1), IsNil)
+	vs2 := s.mockAssert(c, "bar", "1", "optional")
+	c.Assert(assertstate.Add(s.st, vs2), IsNil)
+
+	key1 := snapasserts.NewValidationSetKey(vs1.(*asserts.ValidationSet))
+	key2 := snapasserts.NewValidationSetKey(vs2.(*asserts.ValidationSet))
+	sets, err := assertstate.ValidationSetsFromKeys(s.st, []snapasserts.ValidationSetKey{key1, key2})
+	c.Assert(err, IsNil)
+	c.Check(sets.Keys(), testutil.DeepUnsortedMatches, []snapasserts.ValidationSetKey{key1, key2})
+
+	_, err = assertstate.ValidationSetsFromKeys(s.st, []snapasserts.ValidationSetKey{"16/missing/set/1"})
+	c.Assert(err, ErrorMatches, `.*not found.*`)
+}
+
 func (s *validationSetTrackingSuite) TestEnforcedValidationSetsWithExtraSets(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

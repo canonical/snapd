@@ -1092,6 +1092,40 @@ func (s *prereqSuite) TestDoPrereqNothingToDoForSnapdSnap(c *C) {
 	s.state.Unlock()
 }
 
+// LTS intercept rewrites snap-setup after download. That is only safe while
+// doPrerequisites is an unconditional no-op for TypeSnapd: the planned
+// revision's metadata is never used to install prereqs. If snapd ever gained
+// a base or content plug, this early return and the LTS hook both have to
+// change. Base and Prereq* below are a trap: dropping TypeSnapd from the
+// switch would install core18 / content-provider tasks.
+func (s *prereqSuite) TestDoPrereqSnapdReturnsWithoutInstallingPrereqs(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Type: snap.TypeSnapd,
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(1),
+		},
+		Base:               "core18",
+		Prereq:             []string{"some-content-provider"},
+		PrereqContentAttrs: map[string][]string{"some-content-provider": {"some-content"}},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Assert(chg.Tasks(), HasLen, 1)
+}
+
 func (s *prereqSuite) TestDoPrereqCore16WithCoreNothingToDoOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

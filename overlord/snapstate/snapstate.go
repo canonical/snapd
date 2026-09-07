@@ -730,7 +730,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 			// explicit revision update. InstallPathMany intentionally does not
 			// do this, so same-revision local snaps can be handled differently
 			// by the two API entrypoints
-			Revision: si.Revision,
+			Revision:           si.Revision,
+			IsExplicitChannel:  channel != "",
+			IsExplicitRevision: !si.Revision.Unset(),
 		},
 	})
 
@@ -777,6 +779,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.markExplicitRequest()
 
 	target := StoreInstallGoal(StoreSnap{
 		InstanceName: name,
@@ -858,6 +861,8 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
+	// Injected default, not a user --channel=. Callers that mean an
+	// explicit request must set IsExplicitChannel on RevOpts themselves.
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
 	}
@@ -903,6 +908,9 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		IsExplicitChannel:           revOpts.IsExplicitChannel,
+		IsExplicitRevision:          revOpts.IsExplicitRevision,
+		ValidationSets:              revOpts.snapSetupValidationSets(),
 	}
 
 	if sar.RedirectChannel != "" {
@@ -1078,6 +1086,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		}
 		if len(revOpts) > 0 && revOpts[i] != nil {
 			sn.RevOpts = *revOpts[i]
+			sn.RevOpts.markExplicitRequest()
 		}
 		snaps = append(snaps, sn)
 	}
@@ -1315,6 +1324,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		if len(revOpts) > 0 {
 			opts = *revOpts[i]
 		}
+		opts.markExplicitRequest()
 
 		updates = append(updates, StoreUpdate{
 			InstanceName: name,
@@ -2167,6 +2177,27 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// IsExplicitChannel is set when the caller requested a channel
+	// (--channel= / API "channel") rather than inheriting tracking
+	// or a default. LTS policy must not override it.
+	IsExplicitChannel bool
+	// IsExplicitRevision is set when the caller requested a revision
+	// (--revision= / API "revision"). LTS policy must not override it.
+	IsExplicitRevision bool
+}
+
+// markExplicitRequest sets IsExplicitChannel / IsExplicitRevision when
+// Channel or Revision were supplied by the caller, before defaults and
+// channel resolution fill those fields. Internal planners that copy
+// tracking or inject a default channel must not call this.
+func (r *RevisionOptions) markExplicitRequest() {
+	if r.Channel != "" {
+		r.IsExplicitChannel = true
+	}
+	if !r.Revision.Unset() {
+		r.IsExplicitRevision = true
+	}
 }
 
 func firstNonEmpty(strs ...string) string {
@@ -2225,6 +2256,15 @@ func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, o
 	return nil
 }
 
+// snapSetupValidationSets returns the planned validation-set keys for
+// SnapSetup. Empty means this operation has no constraints.
+func (r *RevisionOptions) snapSetupValidationSets() []snapasserts.ValidationSetKey {
+	if r.ValidationSets == nil {
+		return []snapasserts.ValidationSetKey{}
+	}
+	return r.ValidationSets.Keys()
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 //
@@ -2248,6 +2288,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.markExplicitRequest()
 
 	// this is to maintain backwards compatibility with the old behavior
 	if flags.Transaction == "" {
@@ -2279,6 +2320,7 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.markExplicitRequest()
 
 	// this is to maintain backwards compatibility with the old behavior
 	if flags.Transaction == "" {
