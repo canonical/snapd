@@ -398,15 +398,15 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 			return 0, err
 		}
 
-		autoDisconnect, err := baseRemovalInProgress(st, snapsup)
+		removeChange, err := baseRemovalInProgress(st, snapsup)
 		if err != nil {
 			return 0, err
 		}
 
-		if autoDisconnect != nil {
+		if removeChange != nil {
 			// TODO: consider whether we can actually wait on it without creating a loop
 			// (which currently can only happen in clustering changes)
-			if autoDisconnect.Change().ID() == prereqs.Change().ID() {
+			if removeChange.ID() == prereqs.Change().ID() {
 				return 0, fmt.Errorf("internal error: prerequisites task %s cannot wait on auto-disconnect in same change", prereqs.ID())
 			}
 			return prereqRetry, nil

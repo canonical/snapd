@@ -130,16 +130,10 @@ func (s *prereqSuite) TestPrereqTaskRetriesIfBaseIsBeingRemoved(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	blocker := s.state.NewTask("blocker", "keep removal in progress")
-	blocker.SetStatus(state.HoldStatus)
-	autoDisconnect := s.state.NewTask("auto-disconnect", "remove some-base connections")
-	autoDisconnect.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)},
-	})
-	autoDisconnect.WaitFor(blocker)
 	rmChg := s.state.NewChange("remove-snap", "remove some-base")
-	rmChg.AddTask(blocker)
-	rmChg.AddTask(autoDisconnect)
+	rmChg.Set("full-remove", true)
+	rmChg.Set("snap-names", []string{"some-base"})
+	rmChg.AddTask(s.state.NewTask("remove-snap", "remove some-base"))
 
 	prereq := s.state.NewTask("prerequisites", "foo")
 	prereq.Set("snap-setup", &snapstate.SnapSetup{

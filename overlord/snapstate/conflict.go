@@ -372,7 +372,7 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 	return nil
 }
 
-func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Task, error) {
+func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Change, error) {
 	// only apps and gadgets have bases
 	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
 		return nil, nil
@@ -400,29 +400,39 @@ func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Task, er
 		}
 	}
 
-	for _, t := range st.Tasks() {
-		// auto-disconnect tasks are only created if all base revisions are being
-		// removed so we use them to skip removals of specific base revisions that
-		// are not the current revision
-		if t.Kind() != "auto-disconnect" {
-			continue
-		}
-
-		// this isn't lane aware so an aborted lane could trigger a false positive.
-		// However, that seems like a very rare occurrence and will just retry the
-		// prerequisite so the simpler check is fine
-		chg := t.Change()
+	for _, chg := range st.Changes() {
 		if chg.IsReady() {
 			continue
 		}
 
-		tsup, err := TaskSnapSetup(t)
-		if err != nil {
-			return nil, err
+		if chg.Has("full-remove") {
+			var snapNames []string
+			if err := chg.Get("snap-names", &snapNames); err != nil {
+				return nil, err
+			}
+
+			if strutil.ListContains(snapNames, base) {
+				return chg, nil
+			}
+
+			continue
 		}
 
-		if tsup.InstanceName().String() == base {
-			return t, nil
+		// there may be changes in-flight that weren't marked with "full-remove", so
+		// check for an auto-disconnect task which is only set when removing all revisions
+		for _, t := range chg.Tasks() {
+			if t.Kind() != "auto-disconnect" {
+				continue
+			}
+
+			tsup, err := TaskSnapSetup(t)
+			if err != nil {
+				return nil, err
+			}
+
+			if tsup.InstanceName().String() == base {
+				return chg, nil
+			}
 		}
 	}
 
