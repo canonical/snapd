@@ -144,6 +144,8 @@ execute: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
+    libexecdir="$(os.paths libexec-dir)"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-jammy"
@@ -238,6 +240,11 @@ execute: |
     # see LP:2024637
     if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
        echo "SKIP: cannot test builtin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
+    if grep -q 'SNAPD_APPARMOR_REEXEC=0' "$libexecdir"/snapd/info; then
+       echo "SKIP: apparmor reexec disabled by distro packaging"
        exit 0
     fi
 
