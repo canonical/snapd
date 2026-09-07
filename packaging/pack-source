@@ -48,8 +48,26 @@ fi
 
 set -x
 
+# Bake the upstream version into the source tree so that downstream
+# distribution packaging does not need to invoke mkversion.sh. The generated
+# files (snapdtool/version_generated.go, cmd/VERSION and data/info) are
+# included in the tarball below and removed from the working tree afterwards
+# to avoid leaving the tree dirty. Downstream packaging only needs to set
+# DownstreamVersionSuffix (via a linker flag, see packaging/snapd.mk).
+#
+# Note: gen-version.sh computes the assertion formats in data/info by running
+# `go run ./asserts/info`, so pack-source now requires a Go toolchain. This is
+# always available in the release workflow (ci-github-release.yml installs Go)
+# and in the CI packaging builds; keep this in mind when running pack-source on
+# a minimal host.
+version_files="snapdtool/version_generated.go cmd/VERSION data/info"
 tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
+cleanup() {
+    rm -rf "$tmpdir"
+    rm -f $version_files
+}
+trap cleanup EXIT
+./packaging/gen-version.sh "$version" .
 
 if [[ "$single" == 0 ]]; then
     tar -cJf "$tmpdir"/snapd_"$version".no-vendor.tar.xz \
