@@ -1,3 +1,76 @@
+snapd (2.78) resolute; urgency=medium
+
+  * New upstream release, LP: #2166403
+    - FDE: update keyring after reprovision
+    - FDE: set new state after reprovision
+    - FDE: complete the decision for auto-repair/reprovision
+    - FDE: add memfd-secret backed state for secrets
+    - FDE: update secboot to rev dd95d85 - support thunderbolt security
+      level 0 on UC
+    - components: account for components in seed refresh triggering
+    - components: prevent components in the seed from being removed
+    - components: set $SNAP_COMPONENTS in the application's environment,
+      with the path to the snap's own components directory
+    - confdb: make error message on map keys for JSON config values more
+      specific
+    - confdb: support reading/writing to builtin confdbs
+    - confdb: enforce validation set constraints before changing state
+    - remote device management: update the prepare-serial-request
+      registration body to use hardware-id-key-sha3-384 field name
+    - packaging: introduce a downstream version suffix to manipulate
+      rather than the full version
+    - packaging: workaround dh_golang, drop prepare-debian-build-tree
+    - security logging: change LogAdminActivity and
+      LogUnauthorizedAccess api and structs to specify Who, What and
+      Why/-Not
+    - interfaces: content | support for sharing content from components
+      using the $SNAP_COMPONENT(...) syntax
+    - interfaces: shutdown | allow RebootWithFlags
+    - interfaces: daemon-notify | allow disconnected path
+      /systemd/notify
+    - interfaces: microceph-support | add user-identity-switching plug
+      attribute
+    - interfaces: u2f-devices | add Gemalto eToken Fusion to fallback
+      list
+    - interfaces: ubuntu-drivers-observe | add new interface
+    - interfaces: power-control | allow standardized charge threshold
+      sysfs attributes
+    - LP: #2161845 interfaces: fix snapd system-key comparison always
+      failing
+    - LP: #2161950 interfaces: unity7 | allow Chromium
+      StatusNotifierItem object paths
+    - LP: #2164382 interfaces: u2f-devices | use fido-id udev builtin to
+      identify devices
+    - LP: #2164689 interfaces: {personal,system}-files | fix profile if
+      path has spaces
+    - LP: #2106306 check user before deleting snap user data during snap
+      removal
+    - LP: #2082384 Remove sequence file during snap removal
+    - Pass subsystem triggers to udev during snap removal
+    - Remove unloaded mount units during snap removal
+    - Attempt to refresh just essential snaps when disk space check
+      fails
+    - Properly consider new and existing revisions during disk space
+      checks
+    - Add disk-reservation.size option and migrate experimental disk
+      space checks
+    - Optimize perl and python rules in apparmor template for core24+
+      snaps
+    - Fix same kernel occupying multiple boot partitions for Little
+      Kernel bootloader
+    - Graduate quota-groups feature
+    - Enable by default refresh-app-awareness-ux feature
+    - Ensure that reboots into recovery mode are always oneshots
+    - Hide recovery mode entries in hybrid grub menu
+    - Fix hybrid remodeling when gadget defines a partition with a
+      system-seed role
+    - Add seed allowlist to recovery-system creation
+    - Improve robustness of seed refresh prerequisites by properly
+      merging them
+    - Merge selected internal tools into the multi-entry snapd binary
+
+ -- Katie May <katie.may@canonical.com>  Fri, 04 Sep 2026 11:49:14 +0200
+
 snapd (2.77.1) resolute; urgency=medium
 
   * New upstream release, LP: #2158102
