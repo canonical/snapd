@@ -701,13 +701,29 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) error {
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) (busySnaps []string, err error) {
 	if len(appSets) != len(opts) {
-		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
+		return nil, fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
 	}
 	confOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
 	for i, set := range appSets {
 		confOpts[set.InstanceName().String()] = opts[i]
+	}
+
+	// A previous attempt of this task may have skipped applying the mount
+	// namespace of some snaps because their snap lock was busy (the desired
+	// mount profile is already committed though). Force the mount backend to
+	// (re)apply the namespace for those snaps even if the profile did not
+	// change. See LP#2164926.
+	var previousBusySnaps []string
+	if err := task.Get("snaps-needed-mount-ns-update", &previousBusySnaps); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+	for _, snapName := range previousBusySnaps {
+		if sctx, ok := sctxs[snapName]; ok {
+			sctx.ForceMountNsApply = true
+			sctxs[snapName] = sctx
+		}
 	}
 
 	st := task.State()
@@ -726,27 +742,39 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 			return interfaces.SetupContext{}
 		}, tm)
 		if len(errs) > 0 {
-			// SetupMany processes all profiles and returns all encountered errors; report just the first one
-			err := errs[0]
-			// The mount backend wraps ErrSnapLockBusy as the cause when it cannot
-			// take the snap lock because a concurrently running snap-confine or
-			// snap-discard-ns is operating on the snap's mount namespace. Bounce
-			// this to the task runner as a Retry so the whole setup is re-run
-			// (and the mount profile write+apply re-attempted under the lock)
-			// rather than failing the task. See LP#2164926.
-			if errors.Is(err, mount.ErrSnapLockBusy) {
-				// TODO: this only tells us that some snap's mount namespace is
-				// busy; we would like to know which snap is affected.
-				return &state.Retry{After: mountNsLockRetryTimeout, Reason: "mount namespace of snap is locked"}
+			// SetupMany processes all profiles and returns all encountered
+			// errors; scan all of them. The mount backend returns
+			// SnapNamespaceBusyError when it cannot take the snap lock because
+			// a concurrently running snap-confine or snap-discard-ns is
+			// operating on the snap's mount namespace. Collect the affected
+			// snap names so the caller can retry just those snaps, and return
+			// the first real (non-busy) error if there is one. See LP#2164926.
+			for _, setupErr := range errs {
+				var snapBusyErr *mount.SnapNamespaceBusyError
+				if errors.As(setupErr, &snapBusyErr) {
+					busySnaps = append(busySnaps, snapBusyErr.SnapName)
+					continue
+				}
+				return nil, setupErr
 			}
-			return err
 		}
 	}
 
-	return nil
+	// All backends processed all snaps without any real error. Busy snaps (if
+	// any) are handed to the caller, which records them for the retry via
+	// retryOnMountNsBusy(). The bookkeeping of a previous attempt is only
+	// meaningful while there are still snaps to retry, so drop it once
+	// everything was applied.
+	if len(busySnaps) == 0 {
+		st.Lock()
+		task.Set("snaps-needed-mount-ns-update", nil)
+		st.Unlock()
+	}
+
+	return busySnaps, nil
 }
 
-func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) (busySnaps []string, err error) {
 	sctxs := map[string]interfaces.SetupContext{
 		appSet.InstanceName().String(): {
 			Reason: interfaces.SnapSetupReasonOther,
@@ -756,6 +784,19 @@ func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interface
 		},
 	}
 	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
+}
+
+// retryOnMountNsBusy records the snaps whose mount namespace apply was skipped
+// because their snap lock was busy and returns a Retry so the task is re-run
+// shortly. On retry, setupSecurityByBackend() reads the bookkeeping and forces
+// the mount namespace (re)apply for those snaps via ForceMountNsApply. Returns
+// nil when there is nothing to retry. See LP#2164926.
+func retryOnMountNsBusy(task *state.Task, busySnaps []string) error {
+	if len(busySnaps) == 0 {
+		return nil
+	}
+	task.Set("snaps-needed-mount-ns-update", busySnaps)
+	return &state.Retry{After: mountNsLockRetryTimeout, Reason: "mount namespace of snap is locked"}
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {
