@@ -139,24 +139,59 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 		return err
 	}
 
-	// Copy modinfo files from the snap (these might be overwritten if
-	// kernel-modules components are installed).
-	modsGlob := kMntPts.UnderCurrentPath("modules", kversion, "modules.*")
-	modFiles, err := filepath.Glob(modsGlob)
+	// Discover the content of the modules directory of the current mount
+	// once. The target mount may not exist yet (for example, during
+	// install/preseed the target is the future runtime mount), so it must
+	// not be read for discovery; only the current mount is guaranteed to be
+	// available. The discovered directory names are reused for both the
+	// current and the target symlinks (see createKernelModulesSymlinks).
+	currentMntDir := kMntPts.UnderCurrentPath("modules", kversion)
+	entries, err := os.ReadDir(currentMntDir)
 	if err != nil {
-		// Should not really happen (only possible error is ErrBadPattern)
 		return err
 	}
-	for _, orig := range modFiles {
-		target := filepath.Join(modsRoot, filepath.Base(orig))
-		if err := osutil.CopyFile(orig, target, osutil.CopyFlagDefault); err != nil {
-			return err
+
+	// Copy modinfo files (modules.*) from the snap; these might be
+	// overwritten if kernel-modules components are installed. Collect the
+	// directories found under the modules tree, to be set up as symlinks
+	// below, skipping the ones that are either reserved or not useful in
+	// the drivers tree.
+
+	modDirs := map[string]bool{
+		"kernel": true, // the default kernel drivers tree
+		"vdso":   true, // the expected vdso libs tree
+	}
+	for _, e := range entries {
+		switch {
+		case e.Type().IsRegular():
+			// Copy modprobe artifacts (modules.*).
+			if strings.HasPrefix(e.Name(), "modules.") {
+				target := filepath.Join(modsRoot, e.Name())
+				if err := osutil.CopyFile(filepath.Join(currentMntDir, e.Name()), target, osutil.CopyFlagDefault); err != nil {
+					return err
+				}
+			}
+		case e.IsDir():
+			n := e.Name()
+			switch n {
+			// Drop and log entries which would cause conflicts. We are
+			// expecting those to have raised an error during snap pack.
+			case "updates":
+				// Reserved for modules coming from kernel-modules
+				// components; do not link it back to the kernel snap.
+				logger.Debugf("skipping directory %q in the kernel modules tree, reserved for components", n)
+			case "build":
+				// Typically a symlink to the kernel source tree; not
+				// useful in the drivers tree.
+				logger.Debugf("skipping directory %q in the kernel modules tree, typically the kernel source tree", n)
+			default:
+				modDirs[n] = true
+			}
 		}
 	}
 
 	// Symbolic links to current mount of the kernel snap
-	currentMntDir := kMntPts.UnderCurrentPath("modules", kversion)
-	if err := createKernelModulesSymlinks(modsRoot, currentMntDir); err != nil {
+	if err := createKernelModulesSymlinks(modsRoot, currentMntDir, modDirs); err != nil {
 		return err
 	}
 
@@ -165,10 +200,12 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 		return err
 	}
 
-	// Change symlinks to target ones when needed
+	// Change symlinks to target ones when needed. Reuse the directories
+	// discovered from the current mount: the target mount holds the same
+	// kernel snap content, just mounted at a different path.
 	if !kMntPts.CurrentEqualsTarget() {
 		targetMntDir := kMntPts.UnderTargetPath("modules", kversion)
-		if err := createKernelModulesSymlinks(modsRoot, targetMntDir); err != nil {
+		if err := createKernelModulesSymlinks(modsRoot, targetMntDir, modDirs); err != nil {
 			return err
 		}
 	}
@@ -176,59 +213,13 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	return nil
 }
 
-func createKernelModulesSymlinks(modsRoot, kMntPt string) error {
-	pathPair := func(dirname string) (linkName, to string) {
-		return filepath.Join(modsRoot, dirname), filepath.Join(kMntPt, dirname)
-	}
+func createKernelModulesSymlinks(modsRoot, kMntPt string, dirs map[string]bool) error {
+	for d := range dirs {
+		lname := filepath.Join(modsRoot, d)
+		to := filepath.Join(kMntPt, d)
 
-	setupOne := func(to, lname string) error {
-		// We might be re-creating, first remove
 		os.Remove(lname)
-		return osSymlink(to, lname)
-	}
-
-	// we are certain that the following directories are always present in the
-	// modules tree
-	expected := map[string]bool{
-		"kernel": true, // typical kernel modules tree
-		"vdso":   true, // virtual DSO
-	}
-	for d := range expected {
-		lname, to := pathPair(d)
-		if err := setupOne(to, lname); err != nil {
-			return err
-		}
-	}
-
-	disallowedNames := map[string]bool{
-		"updates": true, // conflicts with tree set up for modules from components
-		"build":   true, // typically points/contains the kernel source tree
-	}
-
-	// but also set up any additional directories that are found in the kernel tree
-	// TODO: maybe make this smarter and set them up only if *.ko are found inside?
-	entries, err := os.ReadDir(kMntPt)
-	if err != nil {
-		return err
-	}
-	for _, e := range entries {
-		// ignore top level files, those are modprobe artifacts
-		if e.Type().IsRegular() {
-			continue
-		}
-		if expected[e.Name()] {
-			// we've seen this one already
-			continue
-		}
-
-		if disallowedNames[e.Name()] {
-			logger.Noticef("skipping conflicting directory named %q in the kernel modules tree", e.Name())
-			continue
-		}
-
-		lname, to := pathPair(e.Name())
-
-		if err := setupOne(to, lname); err != nil {
+		if err := osSymlink(to, lname); err != nil {
 			return err
 		}
 	}
