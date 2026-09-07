@@ -913,6 +913,95 @@ func (s *fdeMgrSuite) TestChangeAuthConsumesToken(c *C) {
 	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
 }
 
+func (s *fdeMgrSuite) TestReclaimDALockoutToken(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// nil bucket: reclaim is a no-op and does not error
+	c.Assert(fdestate.ReclaimDALockoutToken(s.st), IsNil)
+
+	// seed a partially-drained bucket, reclaim returns the token
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 3, now, s.bootId), IsNil)
+	c.Assert(fdestate.ReclaimDALockoutToken(s.st), IsNil)
+
+	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 4)
+}
+
+func (s *fdeMgrSuite) TestDoChangeAuthReclaimsTokenOnSuccess(c *C) {
+	keyslots := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+	}
+	s.mockCurrentKeys(c, nil, keyslots)
+
+	var failChange bool
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		changeHandler := func(oldVal, newVal string) error {
+			if failChange {
+				return fmt.Errorf("boom")
+			}
+			return nil
+		}
+		return &mockKeyData{
+			authMode:         device.AuthModePassphrase,
+			changePassphrase: changeHandler,
+			writeTokenAtomic: func(devicePath, slotName string) error { return nil },
+		}, nil
+	})()
+
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// seed a partially-drained bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 5, now, s.bootId), IsNil)
+
+	// successful change-auth: token consumed by ChangeAuth then reclaimed by handler
+	ts, err := fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)
+	c.Assert(err, IsNil)
+	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 4) // consumed, not yet reclaimed
+
+	chg := s.st.NewChange("change-auth", "...")
+	chg.AddTask(ts.Tasks()[0])
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	tokens, _, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 5) // reclaimed on success
+
+	// failing change-auth: token consumed and NOT reclaimed
+	failChange = true
+	ts, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)
+	c.Assert(err, IsNil)
+	tokens, _, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 4)
+
+	chg = s.st.NewChange("change-auth-fail", "...")
+	chg.AddTask(ts.Tasks()[0])
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	tokens, _, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 4) // stays consumed on failure
+}
+
 func (s *fdeMgrSuite) testSystemEncryptedFromState(c *C, hasEncryptedDisks bool) {
 	onClassic := true
 	if hasEncryptedDisks {

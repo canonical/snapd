@@ -1534,6 +1534,8 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 
 // GetDALockoutInfo returns the TPM dictionary-attack lockout status and
 // related lockout parameters.
+//
+// TODO: This should really be moved to secboot.
 func GetDALockoutInfo() (*DALockoutInfo, error) {
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {

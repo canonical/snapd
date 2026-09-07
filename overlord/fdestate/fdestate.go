@@ -177,9 +177,12 @@ type FdeState struct {
 
 	// DALockoutRateLimit is a token bucket that rate-limits operations
 	// which trial a credential against the sealed key (e.g. change-auth).
-	// It mirrors the TPM Dictionary Attack (DA) lockout parameters so that
-	// snapd never lets enough failed attempts through to trip actual
-	// hardware DA lockout. A zero-value bucket is treated as full.
+	// Each token represents one permitted credential trial; a token is
+	// consumed before an attempt and reclaimed on success, so only failed
+	// attempts deplete the bucket. It mirrors the TPM Dictionary Attack (DA)
+	// lockout parameters so that snapd never lets enough failed attempts
+	// through to trip actual hardware DA lockout. A zero-value bucket is
+	// treated as full.
 	DALockoutRateLimit *daLockoutRateLimit `json:"da-lockout-rate-limit"`
 }
 
@@ -276,6 +279,28 @@ func consumeDALockoutToken(st *state.State) error {
 
 	bucket.Tokens--
 	bucket.LastUpdate = timeNow()
+	s.DALockoutRateLimit = bucket
+	st.Set(fdeStateKey, &s)
+
+	return nil
+}
+
+// reclaimDALockoutToken is called when a credential trial was successful
+// and the consumed token should be returned to the bucket. It must be
+// called with the state lock held.
+func reclaimDALockoutToken(st *state.State) error {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return err
+	}
+
+	bucket := s.DALockoutRateLimit
+	if bucket == nil {
+		// not initialized yet, do nothing
+		return nil
+	}
+
+	bucket.Tokens++
 	s.DALockoutRateLimit = bucket
 	st.Set(fdeStateKey, &s)
 
@@ -906,7 +931,9 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	// trialed against the sealed key. This mirrors the TPM DA lockout counter
 	// and ensures snapd never lets enough attempts through to trip actual
 	// hardware DA lockout. This is intentionally response-agnostic: every
-	// attempt consumes a token regardless of the eventual trial result.
+	// attempt consumes a token regardless of the eventual trial result, the
+	// fde-change-auth task handler is responsible for reclaiming the consumed
+	// token on success.
 	if err := consumeDALockoutToken(st); err != nil {
 		return nil, err
 	}

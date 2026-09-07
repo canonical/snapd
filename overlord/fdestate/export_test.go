@@ -60,6 +60,7 @@ var (
 	GetRepairAttemptResult = getRepairAttemptResult
 
 	ConsumeDALockoutToken = consumeDALockoutToken
+	ReclaimDALockoutToken = reclaimDALockoutToken
 )
 
 const (
