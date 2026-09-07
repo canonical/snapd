@@ -23,8 +23,7 @@ def main() -> None:
                 sys.stdout.buffer.write(data)
                 sys.stdout.buffer.flush()
         except Exception as exc:
-            println("exception: {}".format(exc), file=os.stderr)
-            pass
+            print("exception: {}".format(exc), file=sys.stderr)
         finally:
             s1.close()
 

@@ -144,6 +144,8 @@ execute: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
+    libexecdir="$(os.paths libexec-dir)"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-jammy"
@@ -208,6 +210,7 @@ execute: |
     echo "Check /usr/lib/snapd/info"
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
+    MATCH '^SNAPD_UC_TRACKS=' < squashfs-root/usr/lib/snapd/info
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
@@ -216,6 +219,7 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
+    MATCH '^SNAPD_UC_TRACKS=' < /snap/snapd/current/usr/lib/snapd/info
     cat >> snapd-cleanup.sh <<EOF
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then
@@ -238,6 +242,11 @@ execute: |
     # see LP:2024637
     if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
        echo "SKIP: cannot test builtin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
+    if grep -q 'SNAPD_APPARMOR_REEXEC=0' "$libexecdir"/snapd/info; then
+       echo "SKIP: apparmor reexec disabled by distro packaging"
        exit 0
     fi
 
