@@ -49,7 +49,7 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationPlugs:     coreSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     coreSupportBaseDeclarationSlots,
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("deprecated interface"),
+		parallelInstancesSlotErr: errors.New("deprecated interface"),
 	})
 }

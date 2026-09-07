@@ -92,7 +92,7 @@ func init() {
 		connectedPlugAppArmor:    checkboxSupportConnectedPlugAppArmor,
 		baseDeclarationSlots:     checkboxSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     checkboxSupportBaseDeclarationPlugs,
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("conflicting operations on system-wide transient units"),
+		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
 	})
 }

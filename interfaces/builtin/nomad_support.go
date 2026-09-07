@@ -19,8 +19,11 @@
 
 package builtin
 
-import "errors"
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"errors"
+
+	"github.com/snapcore/snapd/interfaces"
+)
 
 // The nomad-support interface enables running Hashicorp Nomad within
 // a strictly confined snap
@@ -107,7 +110,7 @@ func init() {
 		connectedPlugAppArmor:    nomadSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     nomadSupportConnectedPlugSecComp,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
+		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
 	}})
 }

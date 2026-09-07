@@ -19,8 +19,11 @@
 
 package builtin
 
-import "errors"
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"errors"
+
+	"github.com/snapcore/snapd/interfaces"
+)
 
 /*
  * Microstack is a full OpenStack in a single snap package.
@@ -275,7 +278,7 @@ func init() {
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{microstackSupportServiceSnippet},
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
+		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
 	}})
 }

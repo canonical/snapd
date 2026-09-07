@@ -188,7 +188,7 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     adbSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    adbSupportConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("conflicting operations on the same USB devices"),
+		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
 	}})
 }

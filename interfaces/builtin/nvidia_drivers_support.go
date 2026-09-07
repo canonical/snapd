@@ -81,7 +81,7 @@ func init() {
 		baseDeclarationSlots:     nvidiaDriversSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    nvidiaDriversSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     nvidiaDriversSupportConnectedPlugSecComp,
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
+		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
 	}})
 }

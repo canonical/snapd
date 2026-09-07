@@ -89,7 +89,7 @@ func init() {
 		connectedPlugAppArmor:    dmMultipathConnectedPlugAppArmor,
 		connectedPlugKModModules: dmMultipathConnectedPlugKmod,
 		connectedPlugUDev:        dmMultipathConnectedPlugUDev,
-		parallelInstancesPlugErr: errors.New("todo"),
-		parallelInstancesSlotErr: errors.New("todo"),
+		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
+		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
 	}})
 }

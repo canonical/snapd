@@ -181,8 +181,9 @@ func init() {
 			// Not supported on core yet
 			implicitPlugOnCore:       false,
 			implicitPlugOnClassic:    true,
-			parallelInstancesPlugErr: errors.New("todo"),
-			parallelInstancesSlotErr: errors.New("todo"),
+			parallelInstancesPlugErr: errors.New("system plug cannot have parallel instances"),
+			// library-source filenames also use "_" to separate instance name, slot name and interface name
+			parallelInstancesSlotErr: errors.New("client-driver symlink cannot distinguish parallel instances"),
 		},
 	})
 }
