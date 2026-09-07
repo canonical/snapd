@@ -360,6 +360,109 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsConflict(c *C) {
 	doDirChecks(c, filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion), expected)
 }
 
+// TestBuildKernelDriversOnlyModsWithTargetDir mirrors TestBuildKernelDriversOnlyMods
+// but for the install/preseed flow where the current mount (where the kernel
+// snap content is available now) differs from the target mount (the future
+// runtime mount, which does not exist yet). The created symlinks are expected
+// to point at the target mount and be dangling until the system boots into it.
+func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyModsWithTargetDir(c *C) {
+	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
+	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	kversion := "5.15.0-78-generic"
+	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
+
+	// Build the tree should not fail
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			Current: mountDir,
+			Target:  kTargetDir}, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// check created files
+	expected := []expectInode{
+		{"kernel", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "kernel")},
+		{"modules.dep.bin", 0, ""},
+		{"updates", fs.ModeDir, ""},
+		{"vdso", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "vdso")},
+	}
+
+	doDirChecks(c, filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion), expected)
+}
+
+// TestBuildKernelDriversExtraDirsWithModulesTargetDir mirrors
+// TestBuildKernelDriversExtraDirsWithModules for the install/preseed flow
+// where the target mount does not exist yet.
+func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsWithModulesTargetDir(c *C) {
+	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
+	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	kversion := "5.15.0-78-generic"
+	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
+
+	extraModDir := filepath.Join(mountDir, "modules", kversion, "ubuntu")
+	c.Assert(os.MkdirAll(extraModDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(extraModDir, "zfs.ko"), []byte("content"), 0644), IsNil)
+
+	// Build the tree should not fail
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			Current: mountDir,
+			Target:  kTargetDir}, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// check created files
+	expected := []expectInode{
+		{"kernel", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "kernel")},
+		{"modules.dep.bin", 0, ""},
+		{"ubuntu", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "ubuntu")},
+		{"updates", fs.ModeDir, ""},
+		{"vdso", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "vdso")},
+	}
+
+	doDirChecks(c, filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion), expected)
+}
+
+// TestBuildKernelDriversExtraDirsConflictTargetDir mirrors
+// TestBuildKernelDriversExtraDirsConflict for the install/preseed flow where
+// the target mount does not exist yet.
+func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsConflictTargetDir(c *C) {
+	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
+	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	kversion := "5.15.0-78-generic"
+	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
+
+	// the 'updates' directory conflicts with the name used for extra drivers from components
+	extraModDir := filepath.Join(mountDir, "modules", kversion, "updates")
+	c.Assert(os.MkdirAll(extraModDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(extraModDir, "abc.ko"), nil, 0644), IsNil)
+
+	extraBuildDir := filepath.Join(mountDir, "modules", kversion, "build")
+	c.Assert(os.MkdirAll(extraBuildDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(extraBuildDir, "main.c"), nil, 0644), IsNil)
+
+	// Build the tree should not fail
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			Current: mountDir,
+			Target:  kTargetDir}, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// check created files, no symlink to 'updates', or 'build'
+	expected := []expectInode{
+		{"kernel", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "kernel")},
+		{"modules.dep.bin", 0, ""},
+		{"updates", fs.ModeDir, ""}, // a directory, not a symlink going back to the mounted kernel tree
+		{"vdso", fs.ModeSymlink, filepath.Join(kTargetDir, "modules", kversion, "vdso")},
+	}
+
+	doDirChecks(c, filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion), expected)
+}
+
 func createKernelSnapFilesOnlyFw(c *C, kdir string) {
 	c.Assert(os.MkdirAll(kdir, 0755), IsNil)
 
