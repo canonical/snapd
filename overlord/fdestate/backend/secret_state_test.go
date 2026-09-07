@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd/fdstore"
@@ -156,7 +157,7 @@ func (s *secretStateSuite) memfdSecret(flags int) (int, error) {
 		return 0, s.failOn["memfd-secret"]
 	}
 
-	return unix.MemfdSecret(flags)
+	return sys.MemfdSecret(flags)
 }
 
 func (s *secretStateSuite) memfdCreate(name string, flags int) (int, error) {
