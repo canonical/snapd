@@ -281,12 +281,15 @@ with_vendor = 1
 EXTRA_GO_BUILD_FLAGS = -v -x
 # fix broken debuginfo bsc#1215402
 EXTRA_GO_LDFLAGS = -compressdwarf=false
+# The source tarball carries the upstream version (snapdtool/version_generated.go,
+# cmd/VERSION, data/info). Only the downstream release suffix is set here and is
+# baked into the binaries via a linker flag, without patching the source.
+downstream_version_suffix = -%{release}
 __DEFINES__
 
-# Set the version and configuration that is compiled into the various executables/
-pushd %{indigo_srcdir}
-./mkversion.sh %{version}
-popd
+# Set data/info VERSION to the full package version (upstream + release), so it
+# matches the binaries' FullVersion().
+sed -i 's/^VERSION=.*/VERSION=%{version}-%{release}/' %{indigo_srcdir}/data/info
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then

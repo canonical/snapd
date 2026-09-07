@@ -67,9 +67,15 @@ with_vendor = 1
 with_static_pie = 0
 EXTRA_GO_BUILD_FLAGS = -trimpath
 EXTRA_GO_LDFLAGS = -w -s
+# The source tarball carries the upstream version (snapdtool/version_generated.go,
+# cmd/VERSION, data/info). Only the downstream release suffix is set here and is
+# baked into the binaries via a linker flag, without patching the source.
+downstream_version_suffix = -$pkgrel
 __DEFINES__
 
-  ./mkversion.sh $pkgver-$pkgrel
+  # Set data/info VERSION to the full package version (pkgver + pkgrel), so it
+  # matches the binaries' FullVersion().
+  sed -i "s/^VERSION=.*/VERSION=$pkgver-$pkgrel/" data/info
 
   make -f packaging/snapd.mk \
        SNAPD_DEFINES_DIR="$srcdir"

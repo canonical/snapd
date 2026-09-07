@@ -68,10 +68,11 @@ The upstream version is baked into the source tarball when it is produced by
 Note that `pack-source` requires a Go toolchain: it computes the assertion
 formats recorded in `data/info` by running `go run ./asserts/info`.
 
-The Debian/Ubuntu rules assume the source tree was produced by `pack-source`
-(i.e. a release tarball). When building from a plain git checkout instead, they
-fall back to `mkversion.sh` (via `packaging/ensure-version.sh`) to generate the
-version files from git history or the Debian changelog.
+The packaging rules and spec files assume the source tree was produced by
+`pack-source` (i.e. a release tarball) and so already carries the version
+files. When building from a plain git checkout instead, generate the version
+files first by running `packaging/ensure-version.sh` (a thin wrapper around
+`mkversion.sh`), as the snapd CI test harness does.
 
 Distribution packaging only needs to provide the distribution-specific version
 suffix, which is appended to the upstream version. It is set via the

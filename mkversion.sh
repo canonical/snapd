@@ -1,4 +1,15 @@
 #!/bin/sh
+# mkversion.sh - derive a version from git history / the Debian changelog and
+# generate the version files (snapdtool/version_generated.go, cmd/VERSION and
+# data/info) from it.
+#
+# This script is intended for development and git-based builds only, that is
+# the snapcraft flow, `go generate` and direct `./mkversion.sh` invocations on
+# a git checkout. It is NOT used for downstream distribution packaging of
+# release source tarballs: those are produced by packaging/pack-source, which
+# bakes the upstream version into the tarball via packaging/gen-version.sh, and
+# downstream packaging only sets DownstreamVersionSuffix via a linker flag (see
+# packaging/snapd.mk).
 set -e
 
 # debugging if anything fails is tricky as dh-golang eats up all output

@@ -95,6 +95,11 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$newver" "testing build"
 
+    # Packaging builds from a source tarball that already carries the version
+    # files (snapdtool/version_generated.go, cmd/VERSION, data/info). Here we
+    # build from a git checkout, so generate them with mkversion.sh first.
+    ./packaging/ensure-version.sh .
+
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
