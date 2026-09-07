@@ -177,12 +177,58 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 }
 
 func createKernelModulesSymlinks(modsRoot, kMntPt string) error {
-	for _, d := range []string{"kernel", "vdso"} {
-		lname := filepath.Join(modsRoot, d)
-		to := filepath.Join(kMntPt, d)
+	pathPair := func(dirname string) (linkName, to string) {
+		return filepath.Join(modsRoot, dirname), filepath.Join(kMntPt, dirname)
+	}
+
+	setupOne := func(to, lname string) error {
 		// We might be re-creating, first remove
 		os.Remove(lname)
-		if err := osSymlink(to, lname); err != nil {
+		return osSymlink(to, lname)
+	}
+
+	// we are certain that the following directories are always present in the
+	// modules tree
+	expected := map[string]bool{
+		"kernel": true, // typical kernel modules tree
+		"vdso":   true, // virtual DSO
+	}
+	for d := range expected {
+		lname, to := pathPair(d)
+		if err := setupOne(to, lname); err != nil {
+			return err
+		}
+	}
+
+	disallowedNames := map[string]bool{
+		"updates": true, // conflicts with tree set up for modules from components
+		"build":   true, // typically points/contains the kernel source tree
+	}
+
+	// but also set up any additional directories that are found in the kernel tree
+	// TODO: maybe make this smarter and set them up only if *.ko are found inside?
+	entries, err := os.ReadDir(kMntPt)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		// ignore top level files, those are modprobe artifacts
+		if e.Type().IsRegular() {
+			continue
+		}
+		if expected[e.Name()] {
+			// we've seen this one already
+			continue
+		}
+
+		if disallowedNames[e.Name()] {
+			logger.Noticef("skipping conflicting directory named %q in the kernel modules tree", e.Name())
+			continue
+		}
+
+		lname, to := pathPair(e.Name())
+
+		if err := setupOne(to, lname); err != nil {
 			return err
 		}
 	}
