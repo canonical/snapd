@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -75,7 +74,7 @@ func (s *daemoNotifySuite) TestBeforePreparePlug(c *C) {
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
-	restore := systemd.MockNotifySocket("")
+	restore := builtin.MockSystemdNotifySocket("")
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
@@ -91,7 +90,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketDefault(c *C) {
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpecial(c *C) {
-	restore := systemd.MockNotifySocket("@/org/freedesktop/systemd1/notify/13334051644891137417")
+	restore := builtin.MockSystemdNotifySocket("@/org/freedesktop/systemd1/notify/13334051644891137417")
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
@@ -106,7 +105,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractSpeci
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c *C) {
-	restore := systemd.MockNotifySocket("@foo/bar")
+	restore := builtin.MockSystemdNotifySocket("@foo/bar")
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
@@ -121,7 +120,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvAbstractAny(c
 }
 
 func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvFsPath(c *C) {
-	restore := systemd.MockNotifySocket("/foo/bar")
+	restore := builtin.MockSystemdNotifySocket("/foo/bar")
 	defer restore()
 
 	// connected plugs have a non-nil security snippet for apparmor
@@ -145,7 +144,7 @@ func (s *daemoNotifySuite) TestAppArmorConnectedPlugNotifySocketEnvBadFormat(c *
 		{`/foo/bar"[]`, `cannot use \".*\" as notify socket path: \".*\" contains a reserved apparmor char from .*`},
 	} {
 		c.Logf("trying %d: %v", idx, tc)
-		restore := systemd.MockNotifySocket(tc.format)
+		restore := builtin.MockSystemdNotifySocket(tc.format)
 		defer restore()
 		// connected plugs have a non-nil security snippet for apparmor
 		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)

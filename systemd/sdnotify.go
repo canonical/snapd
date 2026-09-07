@@ -21,8 +21,6 @@ package systemd
 
 import (
 	"os"
-
-	"github.com/snapcore/snapd/osutil"
 )
 
 var sdNotifySocket string
@@ -36,16 +34,4 @@ func init() {
 // variable, which is read and unset during package initialization.
 func NotifySocket() string {
 	return sdNotifySocket
-}
-
-// MockNotifySocket overrides the cached NOTIFY_SOCKET value. It is meant to be
-// used in tests.
-func MockNotifySocket(socket string) (restore func()) {
-	osutil.MustBeTestBinary("cannot use MockNotifySocket outside of tests")
-
-	old := sdNotifySocket
-	sdNotifySocket = socket
-	return func() {
-		sdNotifySocket = old
-	}
 }

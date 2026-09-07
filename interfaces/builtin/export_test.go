@@ -155,3 +155,9 @@ func MockGpioCheckConfigfsSupport(fn func() error) (restore func()) {
 func AllowedKernelMountOptions() []string {
 	return allowedKernelMountOptions
 }
+
+func MockSystemdNotifySocket(socket string) (restore func()) {
+	return testutil.Mock(&systemdNotifySocket, func() string {
+		return socket
+	})
+}

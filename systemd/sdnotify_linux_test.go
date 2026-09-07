@@ -52,6 +52,18 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingFds(c *C) {
 	c.Check(systemd.SdNotifyWithFds("some-state"), ErrorMatches, "at least one file is required")
 }
 
+func (sd *sdNotifyTestSuite) TestSdNotifyCacheConnRequiresLock(c *C) {
+	c.Assert(func() {
+		_, _ = systemd.SdNotifyCache().Conn()
+	}, PanicMatches, "internal error: sdNotifyConnCache lock is not held")
+}
+
+func (sd *sdNotifyTestSuite) TestSdNotifyCacheCloseRequiresLock(c *C) {
+	c.Assert(func() {
+		systemd.SdNotifyCache().Close()
+	}, PanicMatches, "internal error: sdNotifyConnCache lock is not held")
+}
+
 func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 	for _, t := range []struct {
 		env    string
@@ -62,7 +74,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 	} {
 		restore := systemd.MockNotifySocket(t.env)
 		defer restore()
-		systemd.ResetSdNotify()
+		systemd.ResetSdNotifyConnCache()
 
 		if withFds {
 			f, err := os.OpenFile(filepath.Join(c.MkDir(), "test"), os.O_RDWR|os.O_CREATE, 0644)
@@ -91,7 +103,7 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 	} {
 		restore := systemd.MockNotifySocket(sockPath)
 		defer restore()
-		systemd.ResetSdNotify()
+		systemd.ResetSdNotifyConnCache()
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
 			Name: sockPath,
@@ -114,7 +126,7 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 	}
 }
 
-func (sd *sdNotifyTestSuite) testSdNotifyReconnectsAfterWriteError(c *C, withFds bool) {
+func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds bool) {
 	notify := systemd.SdNotify
 	if withFds {
 		f, err := os.OpenFile(filepath.Join(c.MkDir(), "fd"), os.O_RDWR|os.O_CREATE, 0644)
@@ -132,7 +144,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyReconnectsAfterWriteError(c *C, withFds
 	} {
 		restore := systemd.MockNotifySocket(sockPath)
 		defer restore()
-		systemd.ResetSdNotify()
+		systemd.ResetSdNotifyConnCache()
 
 		addr := &net.UnixAddr{
 			Name: sockPath,
@@ -153,7 +165,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyReconnectsAfterWriteError(c *C, withFds
 		err = notify("first")
 		c.Assert(err, IsNil)
 		c.Check(readOne(conn1), Equals, "first")
-		c.Check(systemd.SdNotifyConnCache(), NotNil)
+		c.Check(systemd.SdNotifyCache().Closed(), Equals, false)
 
 		// closing the listener makes subsequent writes fail, which
 		// should drop the cached connection
@@ -161,7 +173,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyReconnectsAfterWriteError(c *C, withFds
 
 		err = notify("second")
 		c.Assert(err, ErrorMatches, ".*connection refused")
-		c.Check(systemd.SdNotifyConnCache(), IsNil)
+		c.Check(systemd.SdNotifyCache().Closed(), Equals, true)
 
 		// a new listener at the same address receives notifications
 		// again, proving the next call reconnected
@@ -175,20 +187,20 @@ func (sd *sdNotifyTestSuite) testSdNotifyReconnectsAfterWriteError(c *C, withFds
 		err = notify("third")
 		c.Assert(err, IsNil)
 		c.Check(readOne(conn2), Equals, "third")
-		c.Check(systemd.SdNotifyConnCache(), NotNil)
+		c.Check(systemd.SdNotifyCache().Closed(), Equals, false)
 
 		conn2.Close()
 	}
 }
 
-func (sd *sdNotifyTestSuite) TestSdNotifyReconnectsAfterWriteError(c *C) {
+func (sd *sdNotifyTestSuite) TestSdNotifyClearsConnCacheAfterError(c *C) {
 	const withFds = false
-	sd.testSdNotifyReconnectsAfterWriteError(c, withFds)
+	sd.testSdNotifyClearsConnCacheAfterError(c, withFds)
 }
 
-func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsReconnectsAfterWriteError(c *C) {
+func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsClearsConnCacheAfterError(c *C) {
 	const withFds = true
-	sd.testSdNotifyReconnectsAfterWriteError(c, withFds)
+	sd.testSdNotifyClearsConnCacheAfterError(c, withFds)
 }
 
 func panicOnErr(err error) {
@@ -204,7 +216,7 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
 	} {
 		restore := systemd.MockNotifySocket(sockPath)
 		defer restore()
-		systemd.ResetSdNotify()
+		systemd.ResetSdNotifyConnCache()
 
 		tmpdir := c.MkDir()
 
