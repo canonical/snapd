@@ -60,11 +60,10 @@ set -x
 # always available in the release workflow (ci-github-release.yml installs Go)
 # and in the CI packaging builds; keep this in mind when running pack-source on
 # a minimal host.
-version_files="snapdtool/version_generated.go cmd/VERSION data/info"
 tmpdir=$(mktemp -d)
 cleanup() {
     rm -rf "$tmpdir"
-    rm -f $version_files
+    rm -f snapdtool/version_generated.go cmd/VERSION data/info
 }
 trap cleanup EXIT
 ./packaging/gen-version.sh "$version" .
