@@ -152,10 +152,17 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	}
 
 	// Copy modinfo files (modules.*) from the snap; these might be
-	// overwritten if kernel-modules components are installed. Collect the
-	// directories found under the modules tree, to be set up as symlinks
-	// below, skipping the ones that are either reserved or not useful in
-	// the drivers tree.
+	// overwritten if kernel-modules components are installed (see
+	// setupModsFromComp, which runs depmod). The files are copied from the
+	// current mount only: their content is path-independent (module paths
+	// are relative to the modules directory), so there is no need to
+	// re-copy them for the target mount, which in any case may not exist
+	// yet during install/preseed. Only the symlinks are re-pointed to the
+	// target mount below, since they encode absolute mount paths.
+	//
+	// While scanning the modules tree, also collect the directories found
+	// under it, to be set up as symlinks below, skipping the ones that are
+	// either reserved or not useful in the drivers tree.
 
 	modDirs := map[string]bool{
 		"kernel": true, // the default kernel drivers tree
