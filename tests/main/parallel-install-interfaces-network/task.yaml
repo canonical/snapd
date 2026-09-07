@@ -1,0 +1,82 @@
+summary: check that the network interface works with parallel instances
+
+details: |
+    Install a parallel instance of a snap declaring a plug on the network
+    interface alongside the regular (non-instance) snap, and make sure
+    connect/disconnect isolation and network access work correctly for
+    both at the same time.
+
+# amazon: uses nmap-netcat
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -amazon-*, -centos-*, -ubuntu-14.04*]
+
+environment:
+    SNAP_NAME: network-consumer
+    PORT: 8081
+    SERVICE_NAME: "test-service"
+    # snap installed as a parallel instance with the 'foo' instance key
+    INSTANCE_NAME: ${SNAP_NAME}_foo
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+    echo "Given a snap declaring the network plug is installed"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
+
+    echo "And a parallel instance of the same snap is installed alongside it"
+    "$TESTSTOOLS"/snaps-state install-local-as "$SNAP_NAME" "$INSTANCE_NAME"
+
+    echo "And a service is listening"
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+    make_network_service "$SERVICE_NAME" "$PORT"
+
+restore: |
+    systemctl stop "$SERVICE_NAME"
+
+execute: |
+    echo "Both the regular snap's and the instance's plugs are connected by default"
+    snap connections "$SNAP_NAME" | MATCH "^network +$SNAP_NAME:network +:network"
+    snap connections "$INSTANCE_NAME" | MATCH "^network +$INSTANCE_NAME:network +:network"
+
+    echo "And both can access a network service"
+    "$SNAP_NAME" http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
+    "$INSTANCE_NAME" http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the instance's plug is disconnected"
+    snap disconnect "$INSTANCE_NAME:network"
+
+    echo "The instance's plug is now shown as disconnected while the regular snap's plug remains connected"
+    snap connections "$INSTANCE_NAME" | MATCH "^network +$INSTANCE_NAME:network +-"
+    snap connections "$SNAP_NAME" | MATCH "^network +$SNAP_NAME:network +:network"
+
+    echo "Then the instance can't access a network service"
+    if "$INSTANCE_NAME" "http://127.0.0.1:$PORT"; then
+        echo "Network shouldn't be accessible"
+        exit 1
+    fi
+
+    echo "But the regular snap's connection is unaffected by disconnecting the instance"
+    "$SNAP_NAME" http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
+
+    echo "When the instance's plug is reconnected and the regular snap's plug is disconnected instead"
+    snap connect "$INSTANCE_NAME:network"
+    snap disconnect "$SNAP_NAME:network"
+
+    echo "The regular snap's plug is now shown as disconnected while the instance's plug remains connected"
+    snap connections "$SNAP_NAME" | MATCH "^network +$SNAP_NAME:network +-"
+    snap connections "$INSTANCE_NAME" | MATCH "^network +$INSTANCE_NAME:network +:network"
+
+    echo "Then the regular snap can't access a network service"
+    if "$SNAP_NAME" "http://127.0.0.1:$PORT"; then
+        echo "Network shouldn't be accessible"
+        exit 1
+    fi
+
+    echo "But the instance's connection is unaffected by disconnecting the regular snap"
+    "$INSTANCE_NAME" http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
