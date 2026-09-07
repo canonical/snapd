@@ -32,9 +32,65 @@ import (
 )
 
 var (
-	sdNotifyMu        sync.Mutex
-	sdNotifyConnCache *net.UnixConn
+	sdNotifyCache sdNotifyConnCache
 )
+
+type sdNotifyConnCache struct {
+	conn *net.UnixConn
+	mu   sync.Mutex
+}
+
+func (c *sdNotifyConnCache) Lock() {
+	c.mu.Lock()
+}
+
+func (c *sdNotifyConnCache) Unlock() {
+	c.mu.Unlock()
+}
+
+func (c *sdNotifyConnCache) assertLocked() {
+	if c.mu.TryLock() {
+		c.mu.Unlock()
+		panic("internal error: sdNotifyConnCache lock is not held")
+	}
+}
+
+func (c *sdNotifyConnCache) Close() {
+	c.assertLocked()
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
+}
+
+// Conn should be called with the lock held.
+func (c *sdNotifyConnCache) Conn() (*net.UnixConn, error) {
+	c.assertLocked()
+
+	if c.conn != nil {
+		return c.conn, nil
+	}
+
+	notifySocket := NotifySocket()
+	if notifySocket == "" {
+		return nil, fmt.Errorf("cannot find NOTIFY_SOCKET environment variable")
+	}
+	if !strings.HasPrefix(notifySocket, "@") && !strings.HasPrefix(notifySocket, "/") {
+		return nil, fmt.Errorf("cannot use NOTIFY_SOCKET %q", notifySocket)
+	}
+
+	raddr := &net.UnixAddr{
+		Name: notifySocket,
+		Net:  "unixgram",
+	}
+	// net.DialUnix opens the socket with SOCK_CLOEXEC.
+	conn, err := net.DialUnix("unixgram", nil, raddr)
+	if err != nil {
+		return nil, err
+	}
+	c.conn = conn
+	return conn, nil
+}
 
 // SdNotify sends the given state string notification to systemd.
 //
@@ -44,10 +100,10 @@ func SdNotify(notifyState string) error {
 		return fmt.Errorf("invalid empty notify state")
 	}
 
-	sdNotifyMu.Lock()
-	defer sdNotifyMu.Unlock()
+	sdNotifyCache.Lock()
+	defer sdNotifyCache.Unlock()
 
-	conn, err := sdNotifyConn()
+	conn, err := sdNotifyCache.Conn()
 	if err != nil {
 		return err
 	}
@@ -56,9 +112,7 @@ func SdNotify(notifyState string) error {
 		// UNIXGRAM sockets are connectionless, so an error here likely indicates
 		// that the socket is no longer valid. We drop the cached connection to
 		// ensure the next call reconnects.
-		// drop the cached connection so the next call reconnects
-		conn.Close()
-		sdNotifyConnCache = nil
+		sdNotifyCache.Close()
 		return err
 	}
 	return nil
@@ -79,10 +133,10 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 		return fmt.Errorf("at least one file is required")
 	}
 
-	sdNotifyMu.Lock()
-	defer sdNotifyMu.Unlock()
+	sdNotifyCache.Lock()
+	defer sdNotifyCache.Unlock()
 
-	conn, err := sdNotifyConn()
+	conn, err := sdNotifyCache.Conn()
 	if err != nil {
 		return err
 	}
@@ -119,35 +173,7 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 		// UNIXGRAM sockets are connectionless, so an error here likely indicates
 		// that the socket is no longer valid. We drop the cached connection to
 		// ensure the next call reconnects.
-		conn.Close()
-		sdNotifyConnCache = nil
+		sdNotifyCache.Close()
 	}
 	return sendMsgErr
-}
-
-// sdNotifyConn should be called with sdNotifyMu locked.
-func sdNotifyConn() (*net.UnixConn, error) {
-	if sdNotifyConnCache != nil {
-		return sdNotifyConnCache, nil
-	}
-
-	notifySocket := NotifySocket()
-	if notifySocket == "" {
-		return nil, fmt.Errorf("cannot find NOTIFY_SOCKET environment variable")
-	}
-	if !strings.HasPrefix(notifySocket, "@") && !strings.HasPrefix(notifySocket, "/") {
-		return nil, fmt.Errorf("cannot use NOTIFY_SOCKET %q", notifySocket)
-	}
-
-	raddr := &net.UnixAddr{
-		Name: notifySocket,
-		Net:  "unixgram",
-	}
-	// net.DialUnix opens the socket with SOCK_CLOEXEC.
-	conn, err := net.DialUnix("unixgram", nil, raddr)
-	if err != nil {
-		return nil, err
-	}
-	sdNotifyConnCache = conn
-	return conn, nil
 }

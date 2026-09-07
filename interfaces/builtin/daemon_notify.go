@@ -51,11 +51,13 @@ type daemoNotifyInterface struct {
 	commonInterface
 }
 
+var systemdNotifySocket = systemd.NotifySocket
+
 func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// If the system has defined it, use NOTIFY_SOCKET from the environment. Note
 	// this is safe because it is examined on snapd start and snaps cannot manipulate
 	// the environment of snapd.
-	notifySocket := systemd.NotifySocket()
+	notifySocket := systemdNotifySocket()
 	if notifySocket == "" {
 		notifySocket = "/run/systemd/notify"
 	}

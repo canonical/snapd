@@ -20,19 +20,24 @@
 
 package systemd
 
-import "net"
+import (
+	"github.com/snapcore/snapd/testutil"
+)
 
-func ResetSdNotify() {
-	sdNotifyMu.Lock()
-	defer sdNotifyMu.Unlock()
-	if sdNotifyConnCache != nil {
-		sdNotifyConnCache.Close()
-		sdNotifyConnCache = nil
-	}
+func ResetSdNotifyConnCache() {
+	sdNotifyCache.Lock()
+	defer sdNotifyCache.Unlock()
+	sdNotifyCache.Close()
 }
 
-func SdNotifyConnCache() *net.UnixConn {
-	sdNotifyMu.Lock()
-	defer sdNotifyMu.Unlock()
-	return sdNotifyConnCache
+func SdNotifyCache() *sdNotifyConnCache {
+	return &sdNotifyCache
+}
+
+func (c *sdNotifyConnCache) Closed() bool {
+	return c.conn == nil
+}
+
+func MockNotifySocket(socket string) (restore func()) {
+	return testutil.Mock(&sdNotifySocket, socket)
 }
