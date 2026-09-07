@@ -2105,8 +2105,10 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:           "some-channel",
+		UserID:            s.user.ID,
+		IsExplicitChannel: true,
+		ValidationSets:    []snapasserts.ValidationSetKey{},
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2479,8 +2481,10 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:           "some-channel",
+		UserID:            s.user.ID,
+		IsExplicitChannel: true,
+		ValidationSets:    []snapasserts.ValidationSetKey{},
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2695,8 +2699,11 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: setupChannel,
-		UserID:  s.user.ID,
+		Channel:            setupChannel,
+		UserID:             s.user.ID,
+		IsExplicitChannel:  requestedChannel != "",
+		IsExplicitRevision: true,
+		ValidationSets:     []snapasserts.ValidationSetKey{},
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2870,10 +2877,11 @@ version: 1.0`)
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SideInfo:  snapsup.SideInfo,
-		Type:      snap.TypeApp,
-		Version:   "1.0",
-		PlugsOnly: true,
+		SideInfo:       snapsup.SideInfo,
+		Type:           snap.TypeApp,
+		Version:        "1.0",
+		PlugsOnly:      true,
+		ValidationSets: []snapasserts.ValidationSetKey{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -3006,6 +3014,7 @@ epoch: 1*
 		Type:                            snap.TypeApp,
 		Version:                         "1.0",
 		PlugsOnly:                       true,
+		ValidationSets:                  []snapasserts.ValidationSetKey{},
 		PreUpdateKernelModuleComponents: []*snap.ComponentSideInfo{},
 	})
 	c.Assert(snapsup.SideInfo, DeepEquals, &snap.SideInfo{
@@ -3196,8 +3205,10 @@ version: 1.0`)
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath: someSnap,
-		SideInfo: snapsup.SideInfo,
+		SnapPath:           someSnap,
+		SideInfo:           snapsup.SideInfo,
+		IsExplicitRevision: true,
+		ValidationSets:     []snapasserts.ValidationSetKey{},
 		Flags: snapstate.Flags{
 			Required: true,
 		},
@@ -5558,8 +5569,13 @@ func (s *validationSetsSuite) TestInstallSnapWithValidationSets(c *C) {
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{ValidationSets: vsets}
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
+
+	var snapsup snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 
 	// validation sets are set on the action
 	expectedOp := fakeOp{

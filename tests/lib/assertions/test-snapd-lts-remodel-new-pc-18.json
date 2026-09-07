@@ -1,0 +1,14 @@
+{
+    "type": "model",
+    "authority-id": "developer1",
+    "series": "16",
+    "brand-id": "developer1",
+    "model": "my-model",
+    "revision": "2",
+    "architecture": "amd64",
+    "timestamp": "2024-04-24T00:00:00+00:00",
+    "base": "core18",
+    "gadget": "pc=18",
+    "kernel": "pc-kernel=18",
+    "serial-authority": ["generic"]
+}

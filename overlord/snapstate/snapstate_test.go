@@ -69,6 +69,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -330,6 +331,10 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 
 	restore = snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		return snapasserts.NewValidationSets(), nil
+	})
+	s.AddCleanup(restore)
+	restore = snapstate.MockValidationSetsFromKeys(func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
@@ -8635,6 +8640,151 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(11))
 }
 
+func (s *snapmgrTestSuite) TestUpdateSnapdRedirectsToLTSTrack(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dest, ltsDest := s.setupSnapdLTSAwareRefresh(c)
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.TrackingChannel, Equals, "18/stable")
+
+	c.Assert(s.fakeStore.downloads, HasLen, 2)
+	c.Check(s.fakeStore.downloads[0].name, Equals, "snapd")
+	c.Check(s.fakeStore.downloads[0].target, Equals, dest)
+	c.Check(s.fakeStore.downloads[0].revision(), Equals, snap.R(100))
+	c.Check(s.fakeStore.downloads[1].name, Equals, "snapd")
+	c.Check(s.fakeStore.downloads[1].target, Equals, ltsDest)
+	c.Check(s.fakeStore.downloads[1].revision(), Equals, snap.R(11))
+
+	setup := s.fakeBackend.ops.First("setup-snap")
+	c.Assert(setup, NotNil)
+	c.Check(setup.revno, Equals, snap.R(11))
+	c.Check(setup.path, Equals, ltsDest)
+
+	c.Check(osutil.FileExists(dest), Equals, false)
+}
+
+func (s *snapmgrTestSuite) setupSnapdLTSAwareRefresh(c *C) (dest, ltsDest string) {
+	s.AddCleanup(ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{}))
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core18")))
+
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`)
+	dest = filepath.Join(dirs.SnapBlobDir, "snapd_100.snap")
+	ltsDest = filepath.Join(dirs.SnapBlobDir, "snapd_11.snap")
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	s.fakeStore.refreshRevnos["snapd-snap-id"] = snap.R(100)
+	s.fakeStore.downloadCallback = func() {
+		c.Assert(osutil.CopyFile(blobPath, dest, osutil.CopyFlagOverwrite), IsNil)
+	}
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		}),
+		Current:         snap.R(1),
+		SnapType:        "snapd",
+		TrackingChannel: "latest/stable",
+	})
+
+	// SetUpTest only plants snapd info files for revisions 1 and 11.
+	infoFile := filepath.Join(dirs.SnapMountDir, "snapd", "100", dirs.CoreLibExecDir, "info")
+	c.Assert(os.MkdirAll(filepath.Dir(infoFile), 0755), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.54.3+g1.479e745-dirty\nSNAPD_APPARMOR_REEXEC=1\n"), 0644), IsNil)
+	return dest, ltsDest
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdIsExplicitChannelSkipsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dest, ltsDest := s.setupSnapdLTSAwareRefresh(c)
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{Channel: "latest/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitChannel, Equals, true)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(100))
+	c.Check(snapst.TrackingChannel, Equals, "latest/stable")
+
+	c.Assert(s.fakeStore.downloads, HasLen, 1)
+	c.Check(s.fakeStore.downloads[0].target, Equals, dest)
+	c.Check(osutil.FileExists(dest), Equals, true)
+	c.Check(osutil.FileExists(ltsDest), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdIsExplicitRevisionSkipsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dest, ltsDest := s.setupSnapdLTSAwareRefresh(c)
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{Revision: snap.R(100)}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitRevision, Equals, true)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(100))
+	c.Check(snapst.TrackingChannel, Equals, "latest/stable")
+
+	c.Assert(s.fakeStore.downloads, HasLen, 1)
+	c.Check(s.fakeStore.downloads[0].target, Equals, dest)
+	c.Check(osutil.FileExists(dest), Equals, true)
+	c.Check(osutil.FileExists(ltsDest), Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -11509,6 +11659,69 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
 
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
+
+	// Empty opts still persist a non-nil slice so LTS resolve does not
+	// fall back to currently enforced sets (nil is the old-task sentinel).
+	c.Assert(snapsup.ValidationSets, NotNil)
+	c.Check(snapsup.ValidationSets, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestDownloadDoesNotSnapshotPlannerChannelOrRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "stable")
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+	c.Assert(snapsup.ValidationSets, NotNil)
+	c.Check(snapsup.ValidationSets, HasLen, 0)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel: "some-channel",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "some-channel")
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Revision: snap.R(2),
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(2))
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestDownloadPreservesCallerExplicitFlags(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel:           "some-channel",
+		IsExplicitChannel: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitChannel, Equals, true)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Revision:           snap.R(2),
+		IsExplicitRevision: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	snapsup = snapstate.SnapSetup{}
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitRevision, Equals, true)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
@@ -11808,6 +12021,10 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 
 	const componentExclusive = false
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 }
 
 func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
@@ -11885,6 +12102,28 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 
 	const componentExclusive = true
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	ts, err = snapstate.DownloadComponents(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		downloadDir,
+		snapstate.RevisionOptions{
+			Channel:  "latest/stable",
+			Revision: snap.R(11),
+		},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+	begin = ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Check(snapsup.Revision(), Equals, snap.R(11))
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
 }
 
 func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string, componentExclusive bool) {
@@ -11892,6 +12131,9 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 	err := begin.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.DownloadBlobDir, Equals, downloadDir)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+	c.Assert(snapsup.ValidationSets, NotNil)
 
 	expectedDownloadDir := downloadDir
 	if expectedDownloadDir == "" {

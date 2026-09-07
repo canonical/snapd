@@ -75,6 +75,21 @@ func (implicitSuite) TestAddImplicitInterfacesOnCore(c *C) {
 	c.Assert(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 }
 
+func (implicitSuite) TestAddImplicitInterfacesSnapdHasNoConfdbPlug(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	info := snaptest.MockInfo(c, "{name: snapd, type: snapd, version: 0}", nil)
+	c.Assert(ifacestate.AddImplicitInterfaces(st, info), IsNil)
+	for name, plug := range info.Plugs {
+		c.Assert(plug.Interface, Not(Equals), "confdb", Commentf("implicit confdb plug %q", name))
+	}
+}
+
 func (implicitSuite) TestAddImplicitInterfacesOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()

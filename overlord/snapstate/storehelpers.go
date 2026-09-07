@@ -42,6 +42,10 @@ var currentSnaps = currentSnapsImpl
 // assertstate.
 var EnforcedValidationSets func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error)
 
+// ValidationSetsFromKeys rebuilds validation sets from assertion primary keys.
+// It is hooked from assertstate. Empty keys return an empty ValidationSets.
+var ValidationSetsFromKeys func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error)
+
 // EnforceLocalValidationSets allows to hook enforcing validation sets without
 // fetching them or their dependencies. It's hooked from assertstate.
 var EnforceLocalValidationSets func(*state.State, map[string][]string, map[string]int, []*snapasserts.InstalledSnap, map[string]bool) error

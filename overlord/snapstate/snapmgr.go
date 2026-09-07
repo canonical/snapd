@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -111,6 +112,25 @@ type SnapSetup struct {
 	Version string `json:"version,omitempty"`
 
 	CohortKey string `json:"cohort-key,omitempty"`
+
+	// IsExplicitChannel is set when the caller requested a channel
+	// (--channel= / API "channel"). LTS policy must not override it.
+	IsExplicitChannel bool `json:"is-explicit-channel,omitempty"`
+
+	// IsExplicitRevision is set when the caller requested a revision
+	// (--revision= / API "revision"). LTS policy must not override it.
+	IsExplicitRevision bool `json:"is-explicit-revision,omitempty"`
+
+	// LTSRedirected is set when download-snap rewrote this setup onto an
+	// LTS track. Recovery-system creation may then record Channel in the
+	// seed instead of the model default-channel.
+	LTSRedirected bool `json:"lts-redirected,omitempty"`
+
+	// ValidationSets is the operation's planned validation-set keys.
+	// Always a non-nil slice on newly created snap-setup (empty if this
+	// operation has no constraints). A missing/nil field is an old
+	// in-flight task and falls back to currently enforced sets.
+	ValidationSets []snapasserts.ValidationSetKey `json:"validation-sets"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717

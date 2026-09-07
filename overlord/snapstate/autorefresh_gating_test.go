@@ -90,6 +90,10 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
+	restore = snapstate.MockValidationSetsFromKeys(func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error) {
+		return snapasserts.NewValidationSets(), nil
+	})
+	s.AddCleanup(restore)
 
 	snapstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 }
@@ -997,6 +1001,11 @@ func checkGatingTask(c *C, task *state.Task, expected map[string]*snapstate.Refr
 	c.Assert(task.Kind(), Equals, "conditional-auto-refresh")
 	var snaps map[string]*snapstate.RefreshCandidate
 	c.Assert(task.Get("snaps", &snaps), IsNil)
+	for _, cand := range expected {
+		if cand.ValidationSets == nil {
+			cand.ValidationSets = []snapasserts.ValidationSetKey{}
+		}
+	}
 	c.Check(snaps, DeepEquals, expected)
 }
 

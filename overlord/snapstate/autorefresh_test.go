@@ -156,6 +156,10 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
+	restore = snapstate.MockValidationSetsFromKeys(func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error) {
+		return snapasserts.NewValidationSets(), nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {

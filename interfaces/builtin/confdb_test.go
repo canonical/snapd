@@ -76,6 +76,12 @@ func (s *confdbSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "confdb")
 }
 
+func (s *confdbSuite) TestStaticInfoNotImplicitPlug(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitPlugOnCore, Equals, false)
+	c.Check(si.ImplicitPlugOnClassic, Equals, false)
+}
+
 func (s *confdbSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
