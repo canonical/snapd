@@ -92,7 +92,7 @@ execute: |
                 CC=$VARIANT \
                 AUTO_INSTALL=0 \
                 IGNORE_MISSING=1 \
-                ./run-checks --unit"
+                ./run-checks --unit --skip-python-unit-tests"
         fi
     else
         # on 14.04 we need to use a fork of libseccomp-golang
@@ -131,6 +131,6 @@ execute: |
                 CC=$VARIANT \
                 AUTO_INSTALL=0 \
                 IGNORE_MISSING=1 \
-                ./run-checks --unit" test
+                ./run-checks --unit --skip-python-unit-tests" test
         fi
     fi

@@ -312,32 +312,42 @@ addtrap endmsg
 short=
 STATIC=
 UNIT=
+SKIP_PYTHON_UNIT_TESTS=
 VERIFY_TOOLS=
 
-case "${1:-all}" in
-all)
-    STATIC=1
-    UNIT=1
-    ;;
---static)
-    STATIC=1
-    ;;
---unit)
-    UNIT=1
-    ;;
---short-unit)
-    UNIT=1
-    short="-short"
-    ;;
---verify-tools)
-    VERIFY_TOOLS=1
-    ;;
-*)
-    echo "Wrong flag ${1}" >&2
-    echo "usage: $0 [all|--static|--unit|--short-unit|--verify-tools]" >&2
-    exit 1
-    ;;
-esac
+if [ "$#" -eq 0 ]; then
+    set -- all
+fi
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+    all)
+        STATIC=1
+        UNIT=1
+        ;;
+    --static)
+        STATIC=1
+        ;;
+    --unit)
+        UNIT=1
+        ;;
+    --short-unit)
+        UNIT=1
+        short="-short"
+        ;;
+    --skip-python-unit-tests)
+        SKIP_PYTHON_UNIT_TESTS=1
+        ;;
+    --verify-tools)
+        VERIFY_TOOLS=1
+        ;;
+    *)
+        echo "Wrong flag ${1}" >&2
+        echo "usage: $0 [all|--static|--unit|--short-unit|--skip-python-unit-tests|--verify-tools]" >&2
+        exit 1
+        ;;
+    esac
+    shift
+done
 
 echo "> Verify tool dependencies"
 verify_tools "$AUTO_INSTALL" "$IGNORE_MISSING"
@@ -684,14 +694,18 @@ if [ "$UNIT" = 1 ]; then
         GOTRACEBACK=1 go test ./... $tags $race -timeout $timeout $coverage
     fi
     # python unit test for mountinfo.query and version-compare
-    if command -v python3; then
+    if [ -n "$SKIP_PYTHON_UNIT_TESTS" ]; then
+        echo ">> [Python] Skipping python3 unit tests"
+    elif command -v python3; then
         echo ">> [Python] Running python3 unit tests for mountinfo.query and version-compare"
         python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
         python3 ./tests/lib/tools/version-compare --run-unit-tests
     else
         echo ">> [Python] Skipping python3 unit tests for mountinfo.query and version-compare"
     fi
-    if command -v pytest-3; then
+    if [ -n "$SKIP_PYTHON_UNIT_TESTS" ]; then
+        echo ">> [Python] Skipping pytest-3 test for release-tools"
+    elif command -v pytest-3; then
         echo ">> [Python] Running pytest-3 test for release-tools"
         PYTHONDONTWRITEBYTECODE=1 pytest-3 ./release-tools
     else
