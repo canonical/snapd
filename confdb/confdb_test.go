@@ -4290,148 +4290,6 @@ func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
 	c.Assert(err.Error(), Equals, `cannot define view "foo": field filters can only be applied to maps but schema at foo[{m}][.bar={bar}] expects bool`)
 }
 
-func (*viewSuite) TestOverlappingStoragePathsRequireMatchingFieldFilters(c *C) {
-	type testcase struct {
-		rules []any
-		err   string
-	}
-
-	tcs := []testcase{
-		{
-			rules: []any{
-				map[string]any{"request": "plain", "storage": "foo.bar"},
-				map[string]any{"request": "filtered", "storage": "foo.baz[.kind={kind}]"},
-			},
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar"},
-			},
-			err: `storage paths "foo.{key}[.kind={kind}]" and "foo.bar" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}].name"},
-				map[string]any{"request": "plain", "storage": "foo"},
-			},
-			err: `storage paths "foo.{key}[.kind={kind}].name" and "foo" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
-				map[string]any{"request": "other.{key}", "storage": "foo.{key}[.kind={other}]"},
-			},
-			err: `storage paths "foo.{key}[.kind={kind}]" and "foo.{key}[.kind={other}]" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered", "storage": "foo[.kind={kind}].bar"},
-				map[string]any{"request": "other", "storage": "foo.bar[.kind={kind}]"},
-			},
-			err: `storage paths "foo[.kind={kind}].bar" and "foo.bar[.kind={kind}]" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered", "storage": "foo[.kind={kind}].bar"},
-				map[string]any{"request": "other", "storage": "foo[.kind={other}].baz"},
-			},
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]", "access": "write"},
-				map[string]any{"request": "plain", "storage": "foo.bar", "access": "read"},
-			},
-			err: `storage paths "foo.{key}[.kind={kind}]" and "foo.bar" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar[.kind={kind}]"},
-			},
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar[.kind={kind}].baz"},
-			},
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar.baz"},
-			},
-			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.bar.baz" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar.bar"},
-			},
-			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.bar.bar" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
-				map[string]any{"request": "plain.{other}", "storage": "foo.{other}.{other}"},
-			},
-			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.{other}.{other}" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered[{n}]", "storage": "foo[{n}][.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo[0]"},
-			},
-			err: `storage paths "foo[{n}][.kind={kind}]" and "foo[0]" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered", "storage": "foo[0][.kind={kind}]"},
-				map[string]any{"request": "plain", "storage": "foo[00]"},
-			},
-			err: `storage paths "foo[0][.kind={kind}]" and "foo[00]" access overlapping data with different field filters`,
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
-				map[string]any{"request": "list[{n}]", "storage": "foo[{n}]"},
-			},
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}][.type={other}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar[.type={other}][.kind={kind}]"},
-			},
-		},
-		{
-			rules: []any{
-				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}][.type={other}]"},
-				map[string]any{"request": "plain", "storage": "foo.bar[.kind={other}][.type={kind}]"},
-			},
-			err: `storage paths "foo.{key}[.kind={kind}][.type={other}]" and "foo.bar[.kind={other}][.type={kind}]" access overlapping data with different field filters`,
-		},
-	}
-
-	for i, tc := range tcs {
-		views := map[string]any{
-			"foo": map[string]any{
-				"parameters": map[string]any{
-					"kind":  map[string]any{},
-					"other": map[string]any{},
-				},
-				"rules": tc.rules,
-			},
-		}
-		_, err := confdb.NewSchema("acc", "confdb", views, confdb.NewJSONSchema())
-		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
-		if tc.err == "" {
-			c.Assert(err, IsNil, cmt)
-		} else {
-			c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cannot define view "foo": `+tc.err), cmt)
-		}
-	}
-}
-
 func (*viewSuite) TestContentStoragePathsRequireMatchingFieldFilters(c *C) {
 	views := func(parentStorage, childStorage string) map[string]any {
 		return map[string]any{
@@ -4452,6 +4310,199 @@ func (*viewSuite) TestContentStoragePathsRequireMatchingFieldFilters(c *C) {
 
 	_, err = confdb.NewSchema("acc", "confdb", views("foo[.kind={kind}]", "bar"), confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
+}
+
+func (*viewSuite) TestMismatchedFiltersRejectedWhenRequestAndStoragePathsOverlap(c *C) {
+	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "results.{group}.{item}",
+					"storage": "shared.{group}.{item}[.kind={kind}]",
+				},
+				map[string]any{
+					"request": "results.all.{item}",
+					"storage": "shared.all.{item}",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, ErrorMatches, `cannot define view "foo": storage paths "shared.\{group\}.\{item\}\[.kind=\{kind\}\]" and "shared.all.\{item\}" access overlapping data with different field filters`)
+}
+
+func (*viewSuite) TestMismatchedFiltersAllowedWhenRequestPathsDiverge(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "results.filtered.{item}",
+					"storage": "shared.{item}[.kind={kind}]",
+				},
+				map[string]any{
+					"request": "results.all.{item}",
+					"storage": "shared.{item}",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "shared"), map[string]any{
+		"a": map[string]any{"kind": "wanted", "value": "A"},
+		"b": map[string]any{"kind": "other", "value": "B"},
+	})
+	c.Assert(err, IsNil)
+
+	value, err := schema.View("foo").Get(bag, "results", map[string]any{"kind": "wanted"}, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"filtered": map[string]any{
+			"a": map[string]any{"kind": "wanted", "value": "A"},
+		},
+		"all": map[string]any{
+			"a": map[string]any{"kind": "wanted", "value": "A"},
+			"b": map[string]any{"kind": "other", "value": "B"},
+		},
+	})
+}
+
+func (*viewSuite) TestFieldFilterConstraints(c *C) {
+	type testcase struct {
+		name  string
+		rules []any
+		err   string
+	}
+
+	tcs := []testcase{
+		{
+			name: "filtered child storage path overlaps unfiltered parent",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}].name"},
+				map[string]any{"request": "filtered", "storage": "foo"},
+			},
+			err: `storage paths "foo.{key}[.kind={kind}].name" and "foo" access overlapping data with different field filters`,
+		},
+		{
+			name: "same storage path uses different filter parameters",
+			rules: []any{
+				map[string]any{"request": "filtered.left.{key}", "storage": "foo.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={other}]"},
+			},
+			err: `storage paths "foo.{key}[.kind={kind}]" and "foo.{key}[.kind={other}]" access overlapping data with different field filters`,
+		},
+		{
+			name: "same storage data is filtered at different levels",
+			rules: []any{
+				map[string]any{"request": "filtered.value", "storage": "foo[.kind={kind}].bar"},
+				map[string]any{"request": "filtered", "storage": "foo.bar[.kind={kind}]"},
+			},
+			err: `storage paths "foo[.kind={kind}].bar" and "foo.bar[.kind={kind}]" access overlapping data with different field filters`,
+		},
+		{
+			name: "storage paths diverge after different filters",
+			rules: []any{
+				map[string]any{"request": "filtered", "storage": "foo[.kind={kind}].bar"},
+				map[string]any{"request": "filtered.other", "storage": "foo[.kind={other}].baz"},
+			},
+		},
+		{
+			name: "filter consistency excludes first write-only rule",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]", "access": "write"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar", "access": "read"},
+			},
+		},
+		{
+			name: "filter consistency excludes second write-only rule",
+			rules: []any{
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar", "access": "read"},
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]", "access": "write"},
+			},
+		},
+		{
+			name: "placeholder and literal storage paths use matching filters",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar[.kind={kind}]"},
+			},
+		},
+		{
+			name: "repeated placeholder overlaps different literal values",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar.baz"},
+			},
+			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.bar.baz" access overlapping data with different field filters`,
+		},
+		{
+			name: "differently named repeated placeholders overlap",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.{other}", "storage": "foo.{other}.{other}"},
+			},
+			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.{other}.{other}" access overlapping data with different field filters`,
+		},
+		{
+			name: "storage index placeholder overlaps literal index",
+			rules: []any{
+				map[string]any{"request": "filtered[{n}]", "storage": "foo[{n}][.kind={kind}]"},
+				map[string]any{"request": "filtered", "storage": "foo[0]"},
+			},
+			err: `storage paths "foo[{n}][.kind={kind}]" and "foo[0]" access overlapping data with different field filters`,
+		},
+		{
+			name: "equivalent literal storage indexes overlap",
+			rules: []any{
+				map[string]any{"request": "filtered.value", "storage": "foo[0][.kind={kind}]"},
+				map[string]any{"request": "filtered", "storage": "foo[00]"},
+			},
+			err: `storage paths "foo[0][.kind={kind}]" and "foo[00]" access overlapping data with different field filters`,
+		},
+		{
+			name: "map and list storage paths do not overlap",
+			rules: []any{
+				map[string]any{"request": "result.{key}", "storage": "foo.{key}[.kind={kind}]"},
+				map[string]any{"request": "result.items[{n}]", "storage": "foo[{n}]"},
+			},
+		},
+		{
+			name: "equivalent filters can be declared in different order",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}][.type={other}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar[.type={other}][.kind={kind}]"},
+			},
+		},
+		{
+			name: "same filter fields use swapped parameters",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}][.type={other}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar[.kind={other}][.type={kind}]"},
+			},
+			err: `storage paths "foo.{key}[.kind={kind}][.type={other}]" and "foo.bar[.kind={other}][.type={kind}]" access overlapping data with different field filters`,
+		},
+	}
+
+	for i, tc := range tcs {
+		views := map[string]any{
+			"foo": map[string]any{
+				"parameters": map[string]any{
+					"kind":  map[string]any{},
+					"other": map[string]any{},
+				},
+				"rules": tc.rules,
+			},
+		}
+		_, err := confdb.NewSchema("acc", "confdb", views, confdb.NewJSONSchema())
+		cmt := Commentf("testcase %d/%d: %s", i+1, len(tcs), tc.name)
+		if tc.err == "" {
+			c.Assert(err, IsNil, cmt)
+		} else {
+			c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cannot define view "foo": `+tc.err), cmt)
+		}
+	}
 }
 
 func (*viewSuite) TestFieldFilteringBasic(c *C) {

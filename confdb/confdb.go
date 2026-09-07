@@ -576,31 +576,72 @@ func newView(schema *Schema, name string, viewRules []any, paramPresence map[str
 	return view, nil
 }
 
-func getFilterParams(rule viewRule) []string {
-	// filter duplicates
-	params := make(map[string]struct{})
-
-	for _, acc := range rule.storage {
-		for _, param := range acc.FieldFilters() {
-			params[param] = struct{}{}
-		}
-	}
-
-	return keys(params)
-}
-
-// checkFilteredPathConsistency checks that rules with paths covering the same
-// data have the same filters. Otherwise, requests could match both filtered and
-// unfiltered paths, resulting in an inconsistent merged value.
+// checkFilteredPathConsistency checks that readable rules with overlapping
+// request and storage paths have the same filters. Otherwise, requests could
+// match both filtered and unfiltered paths, resulting in an inconsistent merged
+// value.
 func checkFilteredPathConsistency(rules []viewRule) error {
 	for i, rule := range rules {
+		if !rule.isReadable() {
+			continue
+		}
 		for _, other := range rules[i+1:] {
-			if !storagePathsHaveConsistentFilters(rule.storage, other.storage) {
+			if other.isReadable() && pathsOverlap(rule.request, other.request) &&
+				!storagePathsHaveConsistentFilters(rule.storage, other.storage) {
 				return fmt.Errorf("storage paths %q and %q access overlapping data with different field filters", rule.originalStorage, other.originalStorage)
 			}
 		}
 	}
 	return nil
+}
+
+// storagePathsHaveConsistentFilters returns true if two storage paths either
+// cover distinct data or apply the same filters to the data they can both cover.
+func storagePathsHaveConsistentFilters(left, right []Accessor) bool {
+	if !pathsOverlap(left, right) {
+		return true
+	}
+
+	commonLength := int(math.Min(float64(len(left)), float64(len(right))))
+	filtersEqual := true
+	for i := 0; i < commonLength; i++ {
+		leftAcc, rightAcc := left[i], right[i]
+		if !equalFieldFilters(leftAcc.FieldFilters(), rightAcc.FieldFilters()) {
+			filtersEqual = false
+		}
+	}
+
+	if !filtersEqual {
+		return false
+	}
+
+	// if the longer path has any filters beyond its "equivalent prefix" then we
+	// need to fail, as the short one would read unfiltered data
+	longer := left
+	if len(right) > len(left) {
+		longer = right
+	}
+	for _, acc := range longer[commonLength:] {
+		if len(acc.FieldFilters()) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// pathsOverlap reports whether two paths can cover the same data. A path that
+// is a prefix of the other overlaps it.
+func pathsOverlap[T Accessor](left, right []T) bool {
+	minLen := int(math.Min(float64(len(left)), float64(len(right))))
+	for i := 0; i < minLen; i++ {
+		leftAcc, rightAcc := left[i], right[i]
+		if accessorContainerType(leftAcc) != accessorContainerType(rightAcc) ||
+			(!isPlaceholderAccessor(leftAcc) && !isPlaceholderAccessor(rightAcc) &&
+				leftAcc.Name() != rightAcc.Name()) {
+			return false
+		}
+	}
+	return true
 }
 
 func equalFieldFilters(a, b map[string]string) bool {
@@ -630,40 +671,17 @@ func isPlaceholderAccessor(acc Accessor) bool {
 	return acc.Type() == KeyPlaceholderType || acc.Type() == IndexPlaceholderType
 }
 
-// storagePathsHaveConsistentFilters reports whether two storage paths either
-// cover distinct data or apply the same filters to the data they can both cover.
-func storagePathsHaveConsistentFilters(left, right []Accessor) bool {
-	commonLength := int(math.Min(float64(len(left)), float64(len(right))))
-	filtersEqual := true
-	for i := 0; i < commonLength; i++ {
-		leftAcc, rightAcc := left[i], right[i]
-		if accessorContainerType(leftAcc) != accessorContainerType(rightAcc) ||
-			(!isPlaceholderAccessor(leftAcc) && !isPlaceholderAccessor(rightAcc) && leftAcc.Name() != rightAcc.Name()) {
-			// The paths diverge, so any earlier filter difference applies to
-			// distinct data and does not make the paths inconsistent.
-			return true
-		}
-		if !equalFieldFilters(leftAcc.FieldFilters(), rightAcc.FieldFilters()) {
-			filtersEqual = false
+func getFilterParams(rule viewRule) []string {
+	// filter duplicates
+	params := make(map[string]struct{})
+
+	for _, acc := range rule.storage {
+		for _, param := range acc.FieldFilters() {
+			params[param] = struct{}{}
 		}
 	}
 
-	if !filtersEqual {
-		return false
-	}
-
-	// if the longer path has any filters beyond its "equivalent prefix" then we
-	// need to fail, as the short one would read unfiltered data
-	longer := left
-	if len(right) > len(left) {
-		longer = right
-	}
-	for _, acc := range longer[commonLength:] {
-		if len(acc.FieldFilters()) != 0 {
-			return false
-		}
-	}
-	return true
+	return keys(params)
 }
 
 // TODO:GOVERSION: use maps.Keys once on go 1.23
