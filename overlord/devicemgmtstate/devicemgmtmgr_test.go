@@ -1648,6 +1648,12 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Not(Equals), "")
+
+	applyChg := s.st.Change(msg.ApplyChangeID)
+	c.Assert(applyChg, Not(IsNil))
+	id, ok := handlers.ChangeMessageID(applyChg)
+	c.Check(ok, Equals, true)
+	c.Check(id, Equals, "msg1")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
@@ -1804,7 +1810,14 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
-	c.Check(ms.Sequences["msg1"].Messages[0].ApplyChangeID, Not(Equals), "")
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ApplyChangeID, Not(Equals), "")
+
+	applyChg := s.st.Change(msg.ApplyChangeID)
+	c.Assert(applyChg, Not(IsNil))
+	id, ok := handlers.ChangeMessageID(applyChg)
+	c.Check(ok, Equals, true)
+	c.Check(id, Equals, "msg1")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageRecoverExistingChange(c *C) {
@@ -1956,7 +1969,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageConcurrentWriteAfterApply(c *C) {
 
 		applyChg := s.st.Change(applyChgID)
 		c.Assert(applyChg, Not(IsNil))
-		c.Check(applyChg.Has(handlers.MgmtMessageIDKey), Equals, true)
+		_, ok := handlers.ChangeMessageID(applyChg)
+		c.Check(ok, Equals, true)
 	}
 }
 
@@ -2512,7 +2526,8 @@ func (s *deviceMgmtMgrSuite) TestMarkChangeForMessage(c *C) {
 
 	chg := s.st.NewChange("subsystem", "apply payload")
 	handlers.MarkChangeForMessage(chg, msg)
-	c.Check(chg.Has(handlers.MgmtMessageIDKey), Equals, true)
+	_, ok := handlers.ChangeMessageID(chg)
+	c.Check(ok, Equals, true)
 
 	found := devicemgmtstate.FindChangeByMgmtMessageID(s.st, "msg1")
 	c.Assert(found, NotNil)

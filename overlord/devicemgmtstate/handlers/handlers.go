@@ -31,8 +31,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-const MgmtMessageIDKey = "mgmt-message-id"
-
 var registeredHandlers = map[string]MessageHandler{}
 
 // RequestMessage represents a request-message being processed.
@@ -119,12 +117,25 @@ func (e *UnauthorizedError) Error() string {
 	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
 }
 
+const mgmtMessageIDKey = "mgmt-message-id"
+
 // MarkChangeForMessage records the message ID on the change created by an Apply
 // implementation. It must be called after change creation and before releasing
 // the state lock, so that doApplyMessage can recover the change ID on retry
 // and not call the handler's Apply again.
 func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
-	chg.Set(MgmtMessageIDKey, msg.ID())
+	chg.Set(mgmtMessageIDKey, msg.ID())
+}
+
+// ChangeMessageID returns the message ID recorded on chg by
+// MarkChangeForMessage, if any.
+func ChangeMessageID(chg *state.Change) (id string, ok bool) {
+	err := chg.Get(mgmtMessageIDKey, &id)
+	if err != nil {
+		return "", false
+	}
+
+	return id, true
 }
 
 // Register registers a MessageHandler for the given message kind.

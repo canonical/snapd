@@ -854,9 +854,8 @@ func parseRequestMessage(msg store.Message) (*handlers.RequestMessage, error) {
 // message ID via MarkChangeForMessage.
 func findChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
 	for _, chg := range st.Changes() {
-		var id string
-		err := chg.Get(handlers.MgmtMessageIDKey, &id)
-		if err != nil {
+		id, ok := handlers.ChangeMessageID(chg)
+		if !ok {
 			continue
 		}
 
