@@ -156,6 +156,12 @@ type SetupContext struct {
 	// The callback is only provided if the backend implements
 	// DelayedSideEffectsBackend.
 	DelayEffect func(backend SecurityBackend, item DelayedSideEffect)
+	// ForceMountNsApply is set to true when the mount namespace of the snap
+	// must be (re)applied even if the desired mount profile did not change. The
+	// mount backend uses it to skip its "no changes" early return, e.g. when a
+	// previous apply attempt was skipped because the snap lock was busy and the
+	// operation is being retried.
+	ForceMountNsApply bool
 }
 
 // SecurityBackend abstracts interactions between the interface system and the
