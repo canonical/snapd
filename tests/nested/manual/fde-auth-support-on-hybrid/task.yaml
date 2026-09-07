@@ -25,6 +25,8 @@ environment:
   STORE_ADDR: localhost:11028
   STORE_DIR: $(pwd)/fake-store-blobdir
 
+  DA_LOCKOUT_MAX_TOKENS: 16
+
 skip:
     - reason: This test needs test keys to be trusted
       if: |
@@ -39,7 +41,7 @@ prepare: |
   # Build a small helper that reads the TPM dictionary-attack lockout counter
   # directly from the hardware. It is used to cross-check the change-auth rate
   # limiter against the real TPM counter.
-  go build ./getdalockout.go
+  go build ./dalockout.go
 
   # Fakestore is needed for "snap prepare-image".
   "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
@@ -101,7 +103,7 @@ restore: |
   remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null || true" || true
 
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
-  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget getdalockout
+  rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget dalockout
 
 debug: |
   if [ -f containers.out ]; then
@@ -171,12 +173,12 @@ execute: |
 
   # Push the TPM lockout-counter helper onto the system under test. It survives
   # subsequent reboots as it lives in the remote home directory.
-  remote.push ./getdalockout
+  remote.push ./dalockout
 
   # Read the real TPM DA lockout counter value.
   hw_counter()
   {
-    remote.exec sudo ./getdalockout | sed -n 's/^lockout counter value: //p'
+    remote.exec sudo ./dalockout get | sed -n 's/^lockout counter value: //p'
   }
 
   # Temporarily make snapd observe a different boot id. This is done by
@@ -197,10 +199,26 @@ execute: |
     remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null || true"
   }
 
-  # Force the change-auth rate limiter to re-synchronize its token bucket with a
-  # *non-zero* real TPM DA lockout counter, exercising the code path that reads
-  # the hardware counter, then verify that requests are throttled once the
-  # bucket is drained.
+  # Read snapd's persisted token bucket.
+  read_tokens()
+  {
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens'
+  }
+
+  # Exercise the change-auth DA lockout rate limiter, verify that:
+  #
+  #   * successful change-auth requests are net-zero on the token bucket (the
+  #     consumed token is reclaimed) and never touch the real TPM DA counter;
+  #   * only *failed* change-auth requests deplete the bucket (their token is
+  #     never reclaimed) and each bumps the real TPM DA counter by one, so the
+  #     bucket keeps tracking (max - counter);
+  #   * a forced re-sync genuinely re-reads the real hardware counter: the
+  #     counter is first drifted out of band (via "dalockout bump", which
+  #     snapd is unaware of) so the cached bucket no longer matches
+  #     (max - counter), and only a real hardware read during the re-sync can
+  #     reconcile the two;
+  #   * once the bucket is drained the next request is throttled with HTTP 429;
+  #   * a reboot resets the counter and lifts the throttling.
   #
   # A reboot cannot be used to trigger the re-sync because ensureFDE resets the
   # TPM counter on boot; instead the boot id observed by snapd is temporarily
@@ -236,12 +254,12 @@ execute: |
     # Wait for the post-reboot TPM DA lockout counter reset to complete. It is
     # done asynchronously in secboot.MarkSuccessful, so there is a race with an
     # early read here.
-    retry -n 10 --wait 2 sh -c 'remote.exec sudo ./getdalockout | MATCH "lockout counter value: 0"'
+    retry -n 10 --wait 2 sh -c 'remote.exec sudo ./dalockout get | MATCH "lockout counter value: 0"'
 
     # (A) A handful of *successful* change-auth requests using the correct
-    # credential. These consume rate-limit tokens but do not touch the TPM DA
-    # counter, pushing snapd's bucket below (max - counter) so that the later
-    # forced re-sync produces an observable upward jump.
+    # credential. Each consumes a token that is reclaimed once the change
+    # succeeds, so the bucket stays full and the real TPM DA counter is never
+    # touched.
     local i new
     for i in 1 2 3 4 5; do
       # shellcheck disable=SC2059
@@ -251,10 +269,15 @@ execute: |
       remote.exec sudo snap watch "$change_id"
       cur="$new"
     done
+    # Successful requests are net-zero: the bucket is still at its maximum and
+    # the TPM counter has not moved.
+    test "$(read_tokens)" = "$DA_LOCKOUT_MAX_TOKENS"
+    test "$(hw_counter)" = "0"
 
     # (B) A few change-auth requests with a *wrong* old credential. Each is
-    # admitted (consuming a token) but fails inside the TPM, incrementing the
-    # real DA lockout counter by one per request.
+    # admitted (consuming a token that is never reclaimed) but fails inside the
+    # TPM, incrementing the real DA lockout counter by one per request. The
+    # bucket therefore keeps tracking (max - counter).
     for i in 1 2 3; do
       # shellcheck disable=SC2059
       new="$(printf "$new_fmt" "$((100 + i))")"
@@ -265,16 +288,28 @@ execute: |
     done
 
     # Read the real TPM counter and the token bucket just before forcing a sync.
+    # Only the failed requests depleted the bucket, so it exactly mirrors the
+    # real counter.
     local hw_pre tokens_pre
     hw_pre="$(hw_counter)"
-    test "$hw_pre" -ge 1
-    tokens_pre="$(remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens')"
+    test "$hw_pre" = "3"
+    tokens_pre="$(read_tokens)"
+    test "$tokens_pre" = "$((DA_LOCKOUT_MAX_TOKENS - hw_pre))"
 
-    # (C) Fake the boot id observed by snapd and issue one more request. The
-    # rate limiter observes a "new boot" and re-syncs its bucket from the real
-    # TPM counter (tokens = max - counter) before consuming a token for this
-    # request. The re-sync happens synchronously while the request is admitted,
-    # so the fake boot id can be dropped immediately afterwards.
+    # (C) Force a re-sync and prove it re-reads the hardware. First drift the
+    # real TPM DA counter out of band so snapd's cached bucket no longer matches
+    # (max - counter). Then fake the boot id and issue a request with the
+    # *correct* credential: the rate limiter sees a "new boot", re-syncs its
+    # bucket from the real counter, and reclaims the token on success. Only a
+    # genuine hardware read can reconcile the drift.
+    local drift hw_drifted
+    drift=2
+    remote.exec sudo ./dalockout bump "$drift"
+    hw_drifted="$(hw_counter)"
+    test "$hw_drifted" = "$((hw_pre + drift))"
+    # snapd is unaware of the out-of-band drift, so its cached bucket is unchanged.
+    test "$(read_tokens)" = "$tokens_pre"
+
     local real_boot_id fake_boot_id
     real_boot_id="$(remote.exec cat /proc/sys/kernel/random/boot_id)"
     fake_boot_id="$(remote.exec cat /proc/sys/kernel/random/uuid)"
@@ -283,44 +318,45 @@ execute: |
     # shellcheck disable=SC2059
     new="$(printf "$new_fmt" "200")"
     mock_boot_id "$fake_boot_id"
-    remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$wrong\", \"new-$field\": \"$new\"}"
+    remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
     unmock_boot_id
     change_id="$(gojq --raw-output .change < resp)"
-    remote.exec sudo snap watch "$change_id" || true
-
-    # The bucket was re-synced from the real counter (tokens = max - counter),
-    # then had one token consumed for the probe request.
-    local tokens_post hw_post
-    tokens_post="$(remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens')"
-    test "$tokens_post" = "$((16 - hw_pre - 1))"
+    remote.exec sudo snap watch "$change_id"
+    cur="$new"
 
     # The re-sync recorded the faked boot id, proving the boot-id-triggered
     # re-sync path actually ran.
     remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit"."last-boot-id"' | MATCH "^${fake_boot_id}$"
 
-    # The re-sync produced an observable upward jump in the bucket, ruling out a
-    # plain token consumption without a re-sync.
-    test "$tokens_post" -gt "$tokens_pre"
-
-    # Cross-check that the probe itself bumped the real TPM counter by one.
+    # The successful probe neither depleted nor bumped the real TPM counter, so
+    # it still reflects the out-of-band drift.
+    local tokens_post hw_post
+    tokens_post="$(read_tokens)"
     hw_post="$(hw_counter)"
-    test "$hw_post" = "$((hw_pre + 1))"
+    test "$hw_post" = "$hw_drifted"
 
-    # (D) Drain the remaining tokens with the correct credential, then confirm
-    # the next request is throttled with HTTP 429. The first request here
-    # re-syncs the bucket once more (the faked boot id is still recorded as the
-    # last observed one) from the real TPM counter, which restores it to exactly
-    # tokens_post (max 16 minus the counter). So exactly tokens_post requests are
-    # accepted and request number tokens_post + 1 must be throttled.
+    # The re-synced bucket matches the independently read real TPM counter...
+    test "$tokens_post" = "$((DA_LOCKOUT_MAX_TOKENS - hw_post))"
+    # ...which, thanks to the out-of-band drift, necessarily differs from the
+    # stale cached value by exactly the drift amount. This is only possible if
+    # the re-sync truly re-read the hardware counter.
+    test "$tokens_post" != "$tokens_pre"
+    test "$tokens_post" = "$((tokens_pre - drift))"
+
+    # (D) Drain the remaining tokens with *wrong* credentials, since only failed
+    # requests deplete the bucket now, then confirm the next request is throttled
+    # with HTTP 429. Each failed request also bumps the real TPM counter, which
+    # stays well below the hardware lockout limit. Exactly tokens_post requests
+    # are accepted and request number tokens_post + 1 must be throttled.
     local drain
     for drain in $(seq 1 "$tokens_post"); do
       # shellcheck disable=SC2059
       new="$(printf "$new_fmt" "$((300 + drain))")"
-      remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
+      remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$wrong\", \"new-$field\": \"$new\"}"
       test "$(gojq -r '."status-code"' < resp)" != "429"
       change_id="$(gojq --raw-output .change < resp)"
-      remote.exec sudo snap watch "$change_id"
-      cur="$new"
+      # The change is expected to fail (wrong credential); wait for it either way.
+      remote.exec sudo snap watch "$change_id" || true
     done
 
     # The bucket is now empty, so the next request must be throttled.
@@ -333,19 +369,24 @@ execute: |
     gojq -r '.change' < resp | MATCH "^null$"
 
     # The bucket must now be empty.
-    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens' | MATCH "^0$"
+    test "$(read_tokens)" = "0"
 
     # Rebooting the system re-runs ensureFDE, which resets the TPM DA lockout
     # counter. The token bucket is refilled lazily: the first change-auth after
-    # reboot re-syncs it with the reset counter, so the request is accepted
-    # again and the bucket ends up at the maximum minus this one request.
+    # reboot re-syncs it with the reset counter. Because that request uses the
+    # correct credential and succeeds, its consumed token is reclaimed and the
+    # bucket ends up back at the maximum.
     reboot_with_passphrase "$cur"
+
+    # Wait for the post-reboot TPM DA lockout counter reset to complete before
+    # probing, so the re-sync reads a zeroed counter.
+    retry -n 10 --wait 2 sh -c 'remote.exec sudo ./dalockout get | MATCH "lockout counter value: 0"'
 
     remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
     test "$(gojq -r '."status-code"' < resp)" != "429"
     change_id="$(gojq --raw-output .change < resp)"
     remote.exec sudo snap watch "$change_id"
-    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens' | MATCH "^15$"
+    test "$(read_tokens)" = "$DA_LOCKOUT_MAX_TOKENS"
   }
 
   # Test setting a passphrase after first boot
