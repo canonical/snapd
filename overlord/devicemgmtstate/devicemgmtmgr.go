@@ -307,6 +307,12 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 	}
 }
 
+// evictSequence deletes a sequence and removes it from the LRU.
+func (ms *deviceMgmtState) evictSequence(baseID string) {
+	delete(ms.Sequences, baseID)
+	ms.removeSequenceFromLRU(baseID)
+}
+
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
 	state    *state.State
@@ -356,7 +362,7 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 	}
 
 	if ms.ReadyResponses == nil {
-		ms.ReadyResponses = map[string]store.Message{}
+		ms.ReadyResponses = make(map[string]store.Message)
 	}
 
 	return &ms, nil
@@ -500,30 +506,40 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	chg := t.Change()
-	// Evict oldest sequences when the LRU exceeds capacity.
-	for len(ms.SequenceLRU) > maxSequences {
-		baseID := ms.SequenceLRU[0]
-		ms.SequenceLRU = ms.SequenceLRU[1:]
-		err = m.rejectSequence(ms, chg, baseID, "cannot process message: sequence evicted due to capacity limits")
-		if err != nil {
-			return err
+	// We may have already scheduled rejection tasks and made changes
+	// to the state in rejectSequence, so persist even on error.
+	defer m.setState(ms)
+
+	// Reject oldest sequences when the LRU exceeds capacity.
+	rejected := make(map[string]bool)
+	excess := len(ms.SequenceLRU) - maxSequences
+	if excess > 0 {
+		toReject := append([]string(nil), ms.SequenceLRU[:excess]...)
+		for _, baseID := range toReject {
+			err = m.rejectSequence(ms, t, baseID, "cannot process message: sequence evicted due to capacity limits")
+			if err != nil {
+				return err
+			}
+
+			rejected[baseID] = true
 		}
 	}
 
 	for baseID, seq := range ms.Sequences {
+		if rejected[baseID] {
+			continue
+		}
+
 		dispatched := m.dispatchSequence(t, seq)
 		// If nothing was dispatched, the sequence is stuck at a gap (one or more missing predecessors).
 		// Reject if too many messages have accumulated waiting on it.
 		if dispatched == 0 && len(seq.Messages) > maxBlockedMessagesPerSequence {
-			err = m.rejectSequence(ms, chg, baseID, "cannot process message: too many messages waiting on missing predecessors in sequence")
+			err = m.rejectSequence(ms, t, baseID, "cannot process message: too many messages waiting on missing predecessors in sequence")
 			if err != nil {
 				return err
 			}
 		}
 	}
-
-	m.setState(ms)
 
 	return nil
 }
@@ -585,26 +601,39 @@ func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *RequestMe
 	return prevTask
 }
 
-// rejectSequence rejects the earliest pending message in a sequence and discards
-// the rest. It removes the sequence from the LRU and queues a rejection response.
-func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Change, baseID, reason string) error {
+// rejectSequence queues a rejection response for the earliest pending message
+// in a sequence and discards the rest. An empty sequence is evicted.
+func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *state.Task, baseID, reason string) error {
 	seq := ms.Sequences[baseID]
-	if seq == nil || len(seq.Messages) == 0 {
-		return fmt.Errorf("internal error: rejectSequence called for baseID %q with no pending messages", baseID)
+	if seq == nil {
+		return fmt.Errorf("internal error: rejectSequence called for unknown sequence %q", baseID)
+	}
+
+	if len(seq.Messages) == 0 {
+		// When rejecting the least recently used sequence, it might be empty if
+		// all its messages have already been processed in prior changes.
+		// There's no message to reject so it's simply evicted.
+		ms.evictSequence(baseID)
+		return nil
 	}
 
 	earliest := seq.Messages[0]
+	if earliest.ResponseStatus != "" {
+		// The sequence was already rejected by a previous call and is pending
+		// eviction once its queued response is processed.
+		return nil
+	}
+
 	earliest.ResponseStatus = asserts.MessageStatusRejected
 	earliest.ResponseBody = map[string]any{"message": reason}
 	seq.Messages = []*RequestMessage{earliest}
-
-	ms.removeSequenceFromLRU(baseID)
 
 	lane := m.state.NewLane()
 	queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", earliest.ID()))
 	queue.Set("message-id", earliest.ID())
 	queue.JoinLane(lane)
-	chg.AddTask(queue)
+	queue.WaitFor(dispatchTask)
+	dispatchTask.Change().AddTask(queue)
 
 	return nil
 }
@@ -854,16 +883,21 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 		Data:   string(asserts.Encode(resAs)),
 	}
 
-	// TODO: rejecting sequences currently happens in 2 ways:
-	// 1. doDispatchMessage can evict the sequence immediately if it's rejected early.
-	// 2. If it errors elsewhere (in validate, apply, or queue-response), we end
-	//    up not advancing Applied, which means we accumulate messages until we
-	//    hit the sequence cap.
-	// Refactor sequence rejection to always evict immediately.
-	if msg.SeqNum > 0 && msg.ResponseStatus == asserts.MessageStatusSuccess {
-		ms.Sequences[msg.BaseID].Applied = msg.SeqNum
+	if msg.SeqNum > 0 {
+		if msg.ResponseStatus == asserts.MessageStatusSuccess {
+			ms.Sequences[msg.BaseID].Applied = msg.SeqNum
+			ms.removeRequestMessage(msg)
+		} else {
+			ms.evictSequence(msg.BaseID)
+			// Abort all pending tasks in the sequence from message N+1 onwards.
+			chg := t.Change()
+			for _, ht := range t.HaltTasks() {
+				chg.AbortLanes(ht.Lanes())
+			}
+		}
+	} else {
+		ms.removeRequestMessage(msg)
 	}
-	ms.removeRequestMessage(msg)
 
 	m.setState(ms)
 

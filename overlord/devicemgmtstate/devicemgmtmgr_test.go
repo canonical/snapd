@@ -280,11 +280,18 @@ func (s *deviceMgmtMgrSuite) makeStoreRequestMessage(c *C, messageID, kind, toke
 	}
 }
 
-func (s *deviceMgmtMgrSuite) makeRequestMessage(baseID, kind string) *devicemgmtstate.RequestMessage {
+func (s *deviceMgmtMgrSuite) makeRequestMessage(messageID, kind string) *devicemgmtstate.RequestMessage {
+	baseID, seqStr, hasSeq := strings.Cut(messageID, "-")
+	seqNum := 0
+	if hasSeq {
+		seqNum, _ = strconv.Atoi(seqStr)
+	}
+
 	return &devicemgmtstate.RequestMessage{
 		AccountID:   testAccountID,
 		AuthorityID: testAccountID,
 		BaseID:      baseID,
+		SeqNum:      seqNum,
 		Kind:        kind,
 		Devices:     []string{testDeviceID},
 		ValidSince:  fixedTestTime,
@@ -789,7 +796,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 2)
 
-	ti := buildTaskIndex(changes[1])
+	ti := buildTaskIndex(c, changes[1])
 	assertMessagesDispatched(c, ti, []string{"msg2", "msg3"}, "unsequenced")
 	assertMessagesNotDispatched(c, ti, []string{"msg1"}, "unsequenced")
 
@@ -802,14 +809,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 	defer s.st.Unlock()
 
 	makeRequestMessage := func(messageID, kind string, dispatched bool) *devicemgmtstate.RequestMessage {
-		baseID, seqStr, hasSeq := strings.Cut(messageID, "-")
-		seqNum := 0
-		if hasSeq {
-			seqNum, _ = strconv.Atoi(seqStr)
-		}
-
-		msg := s.makeRequestMessage(baseID, kind)
-		msg.SeqNum = seqNum
+		msg := s.makeRequestMessage(messageID, kind)
 		msg.ReceiveTime = fixedTestTime.Add(6 * time.Hour)
 		msg.Dispatched = dispatched
 		return msg
@@ -983,7 +983,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			}
 		}
 
-		ti := buildTaskIndex(chg)
+		ti := buildTaskIndex(c, chg)
 		assertMessagesDispatched(c, ti, dispatched, tt.name)
 		assertMessagesNotDispatched(c, ti, notDispatched, tt.name)
 		assertMessagesWaitOn(c, ti, tt.expectedChain, tt.name)
@@ -997,8 +997,17 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	const maxSequences = 4
 	s.AddCleanup(devicemgmtstate.MockMaxSequences(maxSequences))
 
-	// seqA and seqB are the 2 oldest in LRU and will be evicted; each gets 2
-	// messages to verify the 2nd is dropped on eviction.
+	// seq0 has already had all its messages processed in prior changes.
+	s.mgr.SetState(&devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"seq0": {Applied: 12},
+		},
+		SequenceLRU:    []string{"seq0"},
+		ReadyResponses: make(map[string]store.Message),
+	})
+
+	// seqA and seqB are the oldest sequences with pending messages.
+	// Each gets 2 messages to verify the 2nd is dropped on eviction.
 	messages := []store.MessageWithToken{
 		s.makeStoreRequestMessage(c, "seqA-1", "test-kind", "token-seqA-1"),
 		s.makeStoreRequestMessage(c, "seqA-2", "test-kind", "token-seqA-2"),
@@ -1006,7 +1015,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		s.makeStoreRequestMessage(c, "seqB-2", "test-kind", "token-seqB-2"),
 	}
 	for i := 3; i <= maxSequences+2; i++ {
-		baseID := fmt.Sprintf("seq%c", rune('A'+i-1))
+		baseID := fmt.Sprintf("seq%c", rune('A'+i-1)) // sequences seqC to seqF
 		messages = append(messages,
 			s.makeStoreRequestMessage(c, fmt.Sprintf("%s-1", baseID), "test-kind", fmt.Sprintf("token-%s-1", baseID)),
 		)
@@ -1016,32 +1025,72 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+	signed := make(map[string]asserts.MessageStatus)
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signed[messageID] = status
+
+			return s.makeResponseMessage(accountID, messageID, status, body)
+		},
+	})
+
+	var msAfterExchange, msAfterDispatch *devicemgmtstate.DeviceMgmtState
+	s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if new != state.DoneStatus {
+			return false
+		}
+
+		switch t.Kind() {
+		case "exchange-mgmt-messages":
+			msAfterExchange, _ = s.mgr.GetState()
+		case "dispatch-mgmt-messages":
+			msAfterDispatch, _ = s.mgr.GetState()
+			return true
+		}
+
+		return false
+	})
 
 	s.settle(c)
 
-	ms, err := s.mgr.GetState()
-	c.Assert(err, IsNil)
-
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
+	ti := buildTaskIndex(c, changes[0])
 
-	// seqA evicted (oldest in LRU).
-	seqA := ms.Sequences["seqA"]
+	// After exchange: nothing evicted yet, LRU reflects arrival order.
+	c.Assert(msAfterExchange, NotNil)
+	c.Check(msAfterExchange.SequenceLRU, DeepEquals, []string{"seq0", "seqA", "seqB", "seqC", "seqD", "seqE", "seqF"})
+
+	// After dispatch: seq0 evicted immediately (empty, no message to reject).
+	// seqA and seqB are rejected and trimmed.
+	c.Assert(msAfterDispatch, NotNil)
+	c.Check(msAfterDispatch.Sequences["seq0"], IsNil)
+	c.Check(ti.queue["seq0"], IsNil)
+
+	seqA := msAfterDispatch.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("the 2nd message in seqA should have been deleted"))
 	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: sequence evicted due to capacity limits")
 
-	ti := buildTaskIndex(changes[0])
 	c.Check(ti.validate["seqA-1"], IsNil)
 	c.Check(ti.apply["seqA-1"], IsNil)
 	c.Check(ti.queue["seqA-1"], NotNil)
 
-	// seqB also evicted.
-	seqB := ms.Sequences["seqB"]
+	seqB := msAfterDispatch.Sequences["seqB"]
 	c.Assert(seqB.Messages, HasLen, 1, Commentf("the 2nd message in seqB should have been deleted"))
 	c.Check(seqB.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 
+	c.Check(msAfterDispatch.SequenceLRU, DeepEquals, []string{"seqA", "seqB", "seqC", "seqD", "seqE", "seqF"})
+
+	// Eventually: rejection responses signed and both sequences evicted.
+	c.Check(signed["seqA-1"], Equals, asserts.MessageStatusRejected)
+	c.Check(signed["seqB-1"], Equals, asserts.MessageStatusRejected)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences["seqA"], IsNil)
+	c.Check(ms.Sequences["seqB"], IsNil)
 	c.Check(ms.SequenceLRU, DeepEquals, []string{"seqC", "seqD", "seqE", "seqF"})
 }
 
@@ -1063,29 +1112,59 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+	signed := make(map[string]asserts.MessageStatus)
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signed[messageID] = status
+
+			return s.makeResponseMessage(accountID, messageID, status, body)
+		},
+	})
+
+	var msAfterDispatch *devicemgmtstate.DeviceMgmtState
+	s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if t.Kind() != "dispatch-mgmt-messages" || new != state.DoneStatus {
+			return false
+		}
+
+		msAfterDispatch, _ = s.mgr.GetState()
+		return true
+	})
 
 	s.settle(c)
 
-	ms, err := s.mgr.GetState()
-	c.Assert(err, IsNil)
-
-	seqA := ms.Sequences["seqA"]
+	// After dispatch: rejected and trimmed, but not yet evicted.
+	c.Assert(msAfterDispatch, NotNil)
+	seqA := msAfterDispatch.Sequences["seqA"]
+	c.Assert(seqA, NotNil)
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("remaining messages should have been deleted"))
 	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: too many messages waiting on missing predecessors in sequence")
+	c.Check(msAfterDispatch.SequenceLRU, DeepEquals, []string{"seqA"})
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 	c.Check(ti.queue["seqA-2"], NotNil)
 	c.Check(ti.validate["seqA-2"], IsNil)
 	c.Check(ti.apply["seqA-2"], IsNil)
+
+	// Eventually: response queued and sequence evicted.
+	c.Check(signed["seqA-2"], Equals, asserts.MessageStatusRejected)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences["seqA"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	const maxBlockedMessagesPerSequence = 1
+	s.AddCleanup(devicemgmtstate.MockMaxBlockedMessagesPerSequence(maxBlockedMessagesPerSequence))
 
 	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
@@ -1097,7 +1176,14 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 			"msg2": {
 				Messages: []*devicemgmtstate.RequestMessage{s.makeRequestMessage("msg2", "test-kind")},
 			},
+			"seqA": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					s.makeRequestMessage("seqA-6", "test-kind"),
+					s.makeRequestMessage("seqA-7", "test-kind"),
+				},
+			},
 		},
+		SequenceLRU: []string{"seqA"},
 	}
 	s.mgr.SetState(ms)
 
@@ -1110,18 +1196,24 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Tasks(), HasLen, 10)
 
-	// Each message should have been dispatched exactly once:
-	// 3 dispatch tasks + 2 messages * 3 tasks each = 9 tasks.
-	c.Assert(chg.Tasks(), HasLen, 9)
-
-	ti := buildTaskIndex(chg)
+	ti := buildTaskIndex(c, chg)
+	// Successful messages have 3 tasks each
 	c.Check(ti.validate["msg1"], NotNil)
 	c.Check(ti.apply["msg1"], NotNil)
 	c.Check(ti.queue["msg1"], NotNil)
 	c.Check(ti.validate["msg2"], NotNil)
 	c.Check(ti.apply["msg2"], NotNil)
 	c.Check(ti.queue["msg2"], NotNil)
+
+	// Rejected sequence only has 1 queue-mgmt-response
+	c.Check(ti.validate["seqA-6"], IsNil)
+	c.Check(ti.apply["seqA-6"], IsNil)
+	c.Check(ti.queue["seqA-6"], NotNil)
+	c.Check(ti.validate["seqA-7"], IsNil)
+	c.Check(ti.apply["seqA-7"], IsNil)
+	c.Check(ti.queue["seqA-7"], IsNil)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesLaneIsolation(c *C) {
@@ -1158,7 +1250,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesLaneIsolation(c *C) {
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 
 	// msg1's chain is held due to the validate task's error.
 	c.Check(ti.validate["msg1"].Status(), Equals, state.ErrorStatus)
@@ -1874,16 +1966,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageMessageNotFound(c *C) {
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
 			"seqA": {
-				Messages: []*devicemgmtstate.RequestMessage{
-					{
-						AccountID:  testAccountID,
-						BaseID:     "seqA",
-						SeqNum:     1,
-						Kind:       "test-kind",
-						ValidSince: fixedTestTime,
-						ValidUntil: fixedTestTime.Add(24 * time.Hour),
-					},
-				},
+				Messages: []*devicemgmtstate.RequestMessage{s.makeRequestMessage("seqA-1", "test-kind")},
 			},
 		},
 		ReadyResponses: make(map[string]store.Message),
@@ -2075,8 +2158,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
-	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+	c.Check(ms.Sequences["mesg"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
 
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 }
@@ -2168,8 +2251,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
-	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+	c.Check(ms.Sequences["mesg"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
 
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
@@ -2342,7 +2425,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 
 	queueTask := ti.queue["mesg-1"]
 	c.Assert(queueTask, NotNil)
@@ -2405,6 +2488,81 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 	c.Assert(ms.ReadyResponses, HasLen, 2)
 	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
 	c.Check(ms.ReadyResponses["msg2"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseRejectedSequenceEvicted(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "seqA-1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "seqA-2", "test-kind", "token-2"),
+				s.makeStoreRequestMessage(c, "seqA-3", "test-kind", "token-3"),
+				s.makeStoreRequestMessage(c, "seqA-4", "test-kind", "token-4"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(_ *state.State, msg *devicemgmtstate.RequestMessage) error {
+			// The second message is rejected mid-pipeline.
+			if msg.SeqNum == 2 {
+				return fmt.Errorf("cannot validate message")
+			}
+
+			return nil
+		},
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return map[string]any{"values": "ok"}, nil
+		},
+	})
+
+	signed := make(map[string]asserts.MessageStatus)
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signed[messageID] = status
+
+			return s.makeResponseMessage(accountID, messageID, status, body)
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(signed, DeepEquals, map[string]asserts.MessageStatus{
+		"seqA-1": asserts.MessageStatusSuccess,
+		"seqA-2": asserts.MessageStatusRejected,
+	})
+	c.Assert(ms.ReadyResponses, HasLen, 2)
+	c.Check(ms.ReadyResponses["seqA-1"].Format, Equals, "assertion")
+	c.Check(ms.ReadyResponses["seqA-2"].Format, Equals, "assertion")
+
+	// The rejection evicts the sequence.
+	c.Check(ms.Sequences["seqA"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
+
+	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+	c.Assert(changes, HasLen, 1)
+	c.Check(changes[0].Status(), Equals, state.DoneStatus)
+
+	// Messages 3 & 4 aren't processed.
+	ti := buildTaskIndex(c, changes[0])
+	for _, msgID := range []string{"seqA-3", "seqA-4"} {
+		cmt := Commentf("tasks for %s should be held", msgID)
+		c.Check(ti.validate[msgID].Status(), Equals, state.HoldStatus, cmt)
+		c.Check(ti.apply[msgID].Status(), Equals, state.HoldStatus, cmt)
+		c.Check(ti.queue[msgID].Status(), Equals, state.HoldStatus, cmt)
+	}
 }
 
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
@@ -2491,7 +2649,7 @@ type taskIndex struct {
 	queue    map[string]*state.Task
 }
 
-func buildTaskIndex(chg *state.Change) *taskIndex {
+func buildTaskIndex(c *C, chg *state.Change) *taskIndex {
 	ti := &taskIndex{
 		validate: make(map[string]*state.Task),
 		apply:    make(map[string]*state.Task),
@@ -2506,10 +2664,13 @@ func buildTaskIndex(chg *state.Change) *taskIndex {
 
 		switch t.Kind() {
 		case "validate-mgmt-message":
+			c.Assert(ti.validate[id], IsNil, Commentf("duplicate validate-mgmt-message task for message %q", id))
 			ti.validate[id] = t
 		case "apply-mgmt-message":
+			c.Assert(ti.apply[id], IsNil, Commentf("duplicate apply-mgmt-message task for message %q", id))
 			ti.apply[id] = t
 		case "queue-mgmt-response":
+			c.Assert(ti.queue[id], IsNil, Commentf("duplicate queue-mgmt-response task for message %q", id))
 			ti.queue[id] = t
 		}
 	}
