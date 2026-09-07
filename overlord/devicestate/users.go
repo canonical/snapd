@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -354,33 +353,6 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 	return nil
 }
 
-func seclogAddOptions(opts *osutil.AddUserOptions, userAssertion *asserts.SystemUser) seclog.SystemUserAddOptions {
-	// RealUserName is taken from the portion of Gecos after the first comma
-	// (assertion display name or store OpenID identifier).
-	addOpts := seclog.SystemUserAddOptions{
-		Known:               userAssertion != nil,
-		Sudoer:              opts.Sudoer,
-		ExtraUsers:          opts.ExtraUsers,
-		ForcePasswordChange: opts.ForcePasswordChange,
-	}
-	if _, realUserName, ok := strings.Cut(opts.Gecos, ","); ok {
-		addOpts.RealUserName = realUserName
-	}
-	if userAssertion != nil {
-		addOpts.Assertion = seclogAssertionRef(userAssertion)
-	}
-	return addOpts
-}
-
-func seclogAssertionRef(a *asserts.SystemUser) *seclog.AssertionRef {
-	ref := a.Ref()
-	return &seclog.AssertionRef{
-		Type:       ref.Type.Name,
-		PrimaryKey: ref.PrimaryKey,
-		Revision:   a.Revision(),
-	}
-}
-
 // addUser creates the local account and records the audit event. A non-nil
 // userAssertion means the account is assertion-backed, logged as known.
 func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions, userAssertion *asserts.SystemUser, addReason seclog.SystemUserAddReason) (*CreatedUser, error) {
@@ -391,7 +363,7 @@ func addUser(state *state.State, username string, email string, expiration time.
 
 	// user_created_system records the Linux account, which exists even if
 	// setupLocalUser fails below.
-	seclog.LogSystemUserCreated(username, seclogAddOptions(opts, userAssertion), addReason)
+	seclog.LogSystemUserCreated(username, seclog.SystemUserAddOptionsFrom(opts, userAssertion), addReason)
 
 	if err := setupLocalUser(state, username, email, expiration); err != nil {
 		return nil, err

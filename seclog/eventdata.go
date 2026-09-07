@@ -27,11 +27,12 @@
 //  1. Spec alignment: field names and JSON tags match the security audit
 //     specification directly.
 //
-//  2. No imports from other snapd packages: seclog is imported by
-//     packages such as overlord/auth, so it cannot import them back.
-//     Types here must be self-contained. The translation from an
-//     internal type (e.g. [auth.UserState]) to an audit event type is
-//     the responsibility of the caller.
+//  2. Self-contained event types: seclog is imported by packages such as
+//     overlord/auth, so it cannot import them back. Event types here must
+//     not embed those packages' types; callers in such packages still
+//     translate (e.g. [auth.UserState] → [SnapdUser]). Conversion helpers
+//     may import utility packages (osutil, asserts) that will never need
+//     to log.
 //
 // When adding a new event category, define its types here.
 
@@ -39,7 +40,11 @@ package seclog
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // unknown is the placeholder for empty fields in descriptions.
@@ -318,7 +323,7 @@ const (
 )
 
 // AssertionRef identifies an assertion by type and primary key. It mirrors
-// asserts.Ref but uses plain strings so seclog stays import-free.
+// asserts.Ref but uses plain strings so the audit payload stays self-contained.
 type AssertionRef struct {
 	// Type is the assertion type name, e.g. "system-user".
 	Type string `json:"type"`
@@ -351,6 +356,41 @@ type SystemUserAddOptions struct {
 	Known bool `json:"known"`
 	// Assertion is set when Known is true; identifies the system-user assertion used.
 	Assertion *AssertionRef `json:"assertion"`
+}
+
+// AssertionRefFrom returns an [AssertionRef] for a. If a is nil,
+// AssertionRefFrom returns nil.
+func AssertionRefFrom(a asserts.Assertion) *AssertionRef {
+	if a == nil {
+		return nil
+	}
+	ref := a.Ref()
+	return &AssertionRef{
+		Type:       ref.Type.Name,
+		PrimaryKey: ref.PrimaryKey,
+		Revision:   a.Revision(),
+	}
+}
+
+// SystemUserAddOptionsFrom builds the audit payload for a system user
+// creation from the options passed to osutil.AddUser and, when known, the
+// backing system-user assertion.
+func SystemUserAddOptionsFrom(opts *osutil.AddUserOptions, userAssertion *asserts.SystemUser) SystemUserAddOptions {
+	// RealUserName is taken from the portion of Gecos after the first comma
+	// (assertion display name or store OpenID identifier).
+	addOpts := SystemUserAddOptions{
+		Known:               userAssertion != nil,
+		Sudoer:              opts.Sudoer,
+		ExtraUsers:          opts.ExtraUsers,
+		ForcePasswordChange: opts.ForcePasswordChange,
+	}
+	if _, realUserName, ok := strings.Cut(opts.Gecos, ","); ok {
+		addOpts.RealUserName = realUserName
+	}
+	if userAssertion != nil {
+		addOpts.Assertion = AssertionRefFrom(userAssertion)
+	}
+	return addOpts
 }
 
 // SystemUserRemoveOptions holds the options recorded for a system user removal
