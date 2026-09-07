@@ -42,8 +42,6 @@ import (
 
 var RunMain = run
 
-var ExitCodeFromError = exitCodeFromError
-
 var (
 	Client = mkClient
 
@@ -385,14 +383,6 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 	cgroupSnapNameFromPid = f
 	return func() {
 		cgroupSnapNameFromPid = old
-	}
-}
-
-func MockLogindSessionClass(f func(ctx context.Context) (string, error)) (restore func()) {
-	old := logindSessionClass
-	logindSessionClass = f
-	return func() {
-		logindSessionClass = old
 	}
 }
 

@@ -651,6 +651,9 @@ type handlersReprovisionSuite struct {
 
 	dataKeys *mockContainer
 	saveKeys *mockContainer
+
+	dataBootstrappedContainer *mockBootstrappedContainer
+	saveBootstrappedContainer *mockBootstrappedContainer
 }
 
 var _ = Suite(&handlersReprovisionSuite{})
@@ -779,12 +782,15 @@ func (s *handlersReprovisionSuite) SetUpTest(c *C) {
 		return nil
 	}))
 
+	s.dataBootstrappedContainer = &mockBootstrappedContainer{container: s.dataKeys}
+	s.saveBootstrappedContainer = &mockBootstrappedContainer{container: s.saveKeys}
+
 	s.AddCleanup(devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
 		switch devicePath {
 		case "/dev/data":
-			return &mockBootstrappedContainer{container: s.dataKeys}
+			return s.dataBootstrappedContainer
 		case "/dev/save":
-			return &mockBootstrappedContainer{container: s.saveKeys}
+			return s.saveBootstrappedContainer
 		default:
 			c.Errorf("unexpected disk")
 			return nil
@@ -873,7 +879,10 @@ func (m *mockKeyDataWriter) Commit() error {
 }
 
 type mockBootstrappedContainer struct {
-	container *mockContainer
+	container    *mockContainer
+	primaryKey   []byte
+	unlockKey    []byte
+	keyCommitted bool
 }
 
 func (m *mockBootstrappedContainer) AddKey(slotName string, newKey []byte) error {
@@ -905,6 +914,12 @@ func (m *mockBootstrappedContainer) RemoveBootstrapKey() error {
 }
 
 func (m *mockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
+	m.primaryKey = primaryKey
+	m.unlockKey = unlockKey
+}
+
+func (m *mockBootstrappedContainer) CommitUsedKey() {
+	m.keyCommitted = true
 }
 
 func (s *handlersReprovisionSuite) testDoReprovisionHappy(c *C) {
@@ -1191,6 +1206,12 @@ version: 1.0
 			TPM2PCRPolicyRevocationCounter: 42,
 		},
 	})
+
+	c.Check(s.dataBootstrappedContainer.keyCommitted, Equals, true)
+	// boot.MakeRunnableReprovision sets the key for data, so we do not test that here.
+	c.Check(s.saveBootstrappedContainer.keyCommitted, Equals, true)
+	c.Check(s.saveBootstrappedContainer.primaryKey, DeepEquals, []byte("new-primary-key"))
+	c.Check(s.saveBootstrappedContainer.unlockKey, DeepEquals, []byte("new-save-default"))
 }
 
 func (s *handlersReprovisionSuite) TestDoReprovisionHappy(c *C) {

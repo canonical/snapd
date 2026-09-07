@@ -856,8 +856,7 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
      *
      * For compatibility with current installations of ubuntu-core
      * distributions the legacy mode is used when: the distribution is
-     * SC_DISTRO_CORE16 or when the base snap name is not "core" or
-     * "ubuntu-core".
+     * SC_DISTRO_CORE16 and the base snap name is "core".
      *
      * The SC_DISTRO_CORE16 is applied to systems that boot with the "core",
      * "ubuntu-core" or "core16" snap. Systems using the "core18" base snap do

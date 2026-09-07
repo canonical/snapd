@@ -1,0 +1,29 @@
+#!/bin/sh -e
+
+echo "checking snap content"
+if [ -f "$SNAP/shared/snap-content/snap-file" ]; then
+    echo "snap-content: $(cat "$SNAP/shared/snap-content/snap-file")"
+else
+    echo "snap-content: <not found>"
+fi
+
+echo "checking comp1 content"
+if [ -f "$SNAP/shared/comp1-content/comp-file" ]; then
+    echo "comp1-content: $(cat "$SNAP/shared/comp1-content/comp-file")"
+else
+    echo "comp1-content: <not found>"
+fi
+
+echo "checking comp2 content"
+if [ -f "$SNAP/shared/comp2-content/comp-file" ]; then
+    echo "comp2-content: $(cat "$SNAP/shared/comp2-content/comp-file")"
+else
+    echo "comp2-content: <not found>"
+fi
+
+echo "checking comp3 content"
+if [ -f "$SNAP/shared/comp3/comp3-file" ]; then
+    echo "comp3-content: $(cat "$SNAP/shared/comp3/comp3-file")"
+else
+    echo "comp3-content: <not found>"
+fi
