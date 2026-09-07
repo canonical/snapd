@@ -40,10 +40,12 @@ type sdNotifyConnCache struct {
 	mu   sync.Mutex
 }
 
+// Lock acquires the cache lock.
 func (c *sdNotifyConnCache) Lock() {
 	c.mu.Lock()
 }
 
+// Unlock releases the cache lock.
 func (c *sdNotifyConnCache) Unlock() {
 	c.mu.Unlock()
 }
@@ -55,6 +57,7 @@ func (c *sdNotifyConnCache) assertLocked() {
 	}
 }
 
+// Close should be called with the lock held.
 func (c *sdNotifyConnCache) Close() {
 	c.assertLocked()
 	if c.conn != nil {

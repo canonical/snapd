@@ -31,10 +31,14 @@ func ResetSdNotifyConnCache() {
 }
 
 func SdNotifyCache() *sdNotifyConnCache {
+	sdNotifyCache.Lock()
+	defer sdNotifyCache.Unlock()
 	return &sdNotifyCache
 }
 
 func (c *sdNotifyConnCache) Closed() bool {
+	sdNotifyCache.Lock()
+	defer sdNotifyCache.Unlock()
 	return c.conn == nil
 }
 
