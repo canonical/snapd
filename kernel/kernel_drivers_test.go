@@ -353,7 +353,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsConflict(c *C) {
 	expected := []expectInode{
 		{"kernel", fs.ModeSymlink, filepath.Join(mountDir, "modules", kversion, "kernel")},
 		{"modules.dep.bin", 0, ""},
-		{"updates", fs.ModeDir, ""}, // a directory, not a symlinks going back to the mounted kernel tree
+		{"updates", fs.ModeDir, ""}, // a directory, not a symlink going back to the mounted kernel tree
 		{"vdso", fs.ModeSymlink, filepath.Join(mountDir, "modules", kversion, "vdso")},
 	}
 
