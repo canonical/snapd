@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -887,8 +886,8 @@ func init() {
 		baseDeclarationSlots:     dockerSupportBaseDeclarationSlots,
 		controlsDeviceCgroup:     true,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{dockerSupportServiceSnippet},
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		// docker-support also uses ptrace(trace), but it already declares this in
 		// the AppArmorConnectedPlug method
 	}})

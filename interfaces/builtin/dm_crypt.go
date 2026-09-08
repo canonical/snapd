@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 const dmCryptSummary = `allows encryption and decryption of block storage devices`
 
 const dmCryptBaseDeclarationSlots = `
@@ -95,7 +93,7 @@ func init() {
 		connectedPlugSecComp:     dmCryptConnectedPlugSecComp,
 		connectedPlugKModModules: dmCryptConnectedPlugKmod,
 		connectedPlugUDev:        dmCryptConnectedPlugUDev,
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

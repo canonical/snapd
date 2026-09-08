@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -40,6 +41,12 @@ var evalSymlinks = filepath.EvalSymlinks
 // readDir is either os.ReadDir or a mocked function applicable for
 // testing.
 var readDir = os.ReadDir
+
+var (
+	errParallelInstancesSystemPlug      = errors.New("system plug cannot have parallel instances")
+	errParallelInstancesSystemSlot      = errors.New("system slot cannot have parallel instances")
+	errParallelInstancesSharedResources = errors.New("conflicting operations on shared system resources")
+)
 
 type commonInterface struct {
 	name    string

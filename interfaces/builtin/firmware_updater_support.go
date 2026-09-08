@@ -46,6 +46,6 @@ func init() {
 		baseDeclarationPlugs:     firmwareUpdaterSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     firmwareUpdaterSupportBaseDeclarationSlots,
 		parallelInstancesPlugErr: errors.New("conflicting operations as the firmware updater"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

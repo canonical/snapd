@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 const auditdSupportSummary = `allows hosting the auditd daemon with control over the kernel audit system`
 
 const auditdSupportBaseDeclarationPlugs = `
@@ -77,7 +75,7 @@ func init() {
 		baseDeclarationSlots:     auditdSupportBaseDeclarationSlots,
 		connectedPlugSecComp:     auditdSupportConnectedPlugSecComp,
 		connectedPlugAppArmor:    auditdSupportConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

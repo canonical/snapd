@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 /*
  * Multipass is a tool to create and manage Virtual Machines and their images.
  * Each VM runs as a separate "qemu" process (on Linux). VM images are automatically
@@ -126,7 +124,7 @@ func init() {
 		baseDeclarationPlugs:     multipassSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor:    multipassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     multipassSupportConnectedPlugSecComp,
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

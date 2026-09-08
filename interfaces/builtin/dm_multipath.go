@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 /*
  * The dm-multipath interface allows snaps to manage and access device-mapper
  * multipath maps by communicating with the multipathd daemon. It is intended
@@ -89,7 +87,7 @@ func init() {
 		connectedPlugAppArmor:    dmMultipathConnectedPlugAppArmor,
 		connectedPlugKModModules: dmMultipathConnectedPlugKmod,
 		connectedPlugUDev:        dmMultipathConnectedPlugUDev,
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

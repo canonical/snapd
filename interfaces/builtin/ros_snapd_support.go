@@ -46,6 +46,6 @@ func init() {
 		baseDeclarationPlugs:     rosSnapdSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     rosSnapdSupportBaseDeclarationSlots,
 		parallelInstancesPlugErr: errors.New("conflicting operations on snap apps"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -93,6 +93,6 @@ func init() {
 		baseDeclarationSlots:     checkboxSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     checkboxSupportBaseDeclarationPlugs,
 		parallelInstancesPlugErr: errors.New("conflicting operations on system-wide transient units"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

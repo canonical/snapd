@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"errors"
-
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -278,7 +276,7 @@ func init() {
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{microstackSupportServiceSnippet},
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

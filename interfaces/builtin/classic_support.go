@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"errors"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
@@ -146,8 +144,8 @@ func init() {
 			// handled by AppArmorConnectedPlug
 			connectedPlugAppArmor:    "",
 			connectedPlugSecComp:     classicSupportPlugSecComp,
-			parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-			parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+			parallelInstancesPlugErr: errParallelInstancesSharedResources,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

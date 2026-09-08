@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"errors"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -493,7 +491,7 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     greengrassSupportBaseDeclarationPlugs,
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

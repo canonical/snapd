@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"errors"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -424,7 +422,7 @@ func init() {
 		baseDeclarationSlots:     steamSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     steamSupportBaseDeclarationPlugs,
 		connectedPlugSecComp:     steamSupportConnectedPlugSecComp,
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

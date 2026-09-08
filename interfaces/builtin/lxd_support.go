@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -131,8 +130,8 @@ func init() {
 		baseDeclarationSlots:     lxdSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     lxdSupportBaseDeclarationPlugs,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{lxdSupportServiceSnippet},
-		parallelInstancesPlugErr: errors.New("conflicting operations on shared system resources"),
-		parallelInstancesSlotErr: errors.New("system slot cannot have parallel instances"),
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	},
 	})
 }
