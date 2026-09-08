@@ -136,7 +136,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, 100, 1000, "")
 
 		rspe := s.asyncReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 202, cmt)
@@ -169,7 +169,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid,password", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, 100, 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -275,7 +275,7 @@ func (s *confdbSuite) TestGetErrorHandling(c *C) {
 		cmt := Commentf("%s test", t.name)
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, 100, 1000, "")
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, t.status, cmt)
@@ -304,7 +304,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=,foo.bar,,[1].foo,foo,", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, 100, 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -541,7 +541,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, 100, 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -575,7 +575,7 @@ func (s *confdbSuite) TestGetConstraints(c *C) {
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, 100, 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -702,7 +702,7 @@ func (s *confdbSuite) TestReadAccessTimeout(c *C) {
 	for _, tc := range tcs {
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid&access-timeout="+tc.timeout, nil)
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, 100, 1000, "")
 
 		if tc.error == "" {
 			restore = daemon.MockConfdbstateReadConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ []string, _ map[string]any, _ confdb.Access) (string, error) {
@@ -777,7 +777,7 @@ func (s *confdbSuite) TestWriteAccessTimeout(c *C) {
 		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", bytes.NewBufferString(body))
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, 100, 1000, "")
 
 		if tc.error == "" {
 			restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {

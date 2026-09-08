@@ -275,9 +275,7 @@ plugs:
 
 	// Access from snapd.socket is allowed
 	ucred := &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapdSocket}
-	req := http.Request{RemoteAddr: ucred.String()}
 	c.Check(ac.CheckAccess(d, nil, ucred, nil), IsNil)
-	c.Check(req.RemoteAddr, Equals, ucred.String())
 
 	// Access from unknown sockets is forbidden
 	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: "unknown.socket"}
@@ -303,10 +301,11 @@ plugs:
 	st.Unlock()
 
 	// Access is allowed now that the snap has the plug connected
-	req = http.Request{RemoteAddr: ucred.String()}
-	c.Check(ac.CheckAccess(s.d, &req, ucred, nil), IsNil)
-	// Interface is attached to RemoteAddr
-	c.Check(req.RemoteAddr, Equals, fmt.Sprintf("%siface=snap-themes-control;", ucred))
+	req := requestWithUcrednet(ucred)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	_, ifaces, err := daemon.UcrednetFromRequest(req)
+	c.Assert(err, IsNil)
+	c.Check(ifaces, DeepEquals, []string{"snap-themes-control"})
 
 	// Now connect both interfaces
 	st.Lock()
@@ -319,11 +318,11 @@ plugs:
 		},
 	})
 	st.Unlock()
-	req = http.Request{RemoteAddr: ucred.String()}
-	c.Check(ac.CheckAccess(s.d, &req, ucred, nil), IsNil)
-	// Check that both interfaces are attached to RemoteAddr.
-	// Since conns is a map, order is not guaranteed.
-	c.Check(req.RemoteAddr, Matches, fmt.Sprintf("^%siface=(snap-themes-control&snap-refresh-control|snap-refresh-control&snap-themes-control);$", ucred))
+	req = requestWithUcrednet(ucred)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	_, ifaces, err = daemon.UcrednetFromRequest(req)
+	c.Assert(err, IsNil)
+	c.Check(ifaces, testutil.DeepUnsortedMatches, []string{"snap-themes-control", "snap-refresh-control"})
 
 	// A left over "undesired" connection does not grant access
 	st.Lock()
@@ -334,9 +333,7 @@ plugs:
 		},
 	})
 	st.Unlock()
-	req = http.Request{RemoteAddr: ucred.String()}
 	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
-	c.Check(req.RemoteAddr, Equals, ucred.String())
 }
 
 func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
@@ -552,9 +549,7 @@ plugs:
 
 	// fwupd-app, but unconnected and over snap socket
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
-	req := &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req := requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
 
 	// Now connect both interfaces
@@ -572,30 +567,22 @@ plugs:
 
 	// fwupd-app, connected on the slot side
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
 
 	// connected-fwupd-caller, but on the plug side
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
 
 	// disconnected-fwupd-caller
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 10042, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
 
 	// normal user has no access even with a Macaroon auth
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 42, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errUnauthorized)
 
 	// Without macaroon auth, normal users are unauthorized
@@ -603,16 +590,12 @@ plugs:
 
 	// on snapd socket, non-root is unauthorized
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 123, Socket: dirs.SnapdSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
 
 	// but root is
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 123, Socket: dirs.SnapdSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
 }
 
@@ -697,9 +680,7 @@ plugs:
 
 	// connected-fwupd-caller, but unconnected and over snap socket
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
-	req := &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req := requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
 
 	// Now connect connected-fwupd-caller (plug) to fwupd-app (slot)
@@ -714,23 +695,17 @@ plugs:
 
 	// connected-fwupd-caller, connected on the plug side
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
 
 	// fwupd-app, connected on the slot side
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
 
 	// normal user has no access even with a Macaroon auth
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 1042, Socket: dirs.SnapSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errUnauthorized)
 
 	// Without macaroon auth, normal users are unauthorized
@@ -738,16 +713,12 @@ plugs:
 
 	// on snapd socket, non-root is unauthorized
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 123, Socket: dirs.SnapdSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
 
 	// but root is
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 123, Socket: dirs.SnapdSocket}
-	req = &http.Request{
-		RemoteAddr: ucred.String(),
-	}
+	req = requestWithUcrednet(ucred)
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
 }
 

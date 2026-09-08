@@ -96,7 +96,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateStartup(c *C) {
 	body := strings.NewReader(`{"action": "efi-secureboot-update-startup"}`)
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	addUcrednet(req, 100, 0, "")
 	req.Header.Add("Content-Type", "application/json")
 
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
@@ -117,7 +117,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBCleanup(c *C) {
 	body := strings.NewReader(`{"action": "efi-secureboot-update-db-cleanup"}`)
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	addUcrednet(req, 100, 0, "")
 	req.Header.Add("Content-Type", "application/json")
 
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
@@ -139,7 +139,7 @@ func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareNoDataForKind(
 }`, updateKindStr))
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	addUcrednet(req, 100, 0, "")
 	req.Header.Add("Content-Type", "application/json")
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
@@ -169,7 +169,7 @@ func (s *systemSecurebootSuite) TestEFISecurebootUpdateDBPrepareBogusDB(c *C) {
 }`)
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	addUcrednet(req, 100, 0, "")
 	req.Header.Add("Content-Type", "application/json")
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
@@ -191,7 +191,7 @@ func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareBadPayloadForKin
 }`, updateKindStr))
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	addUcrednet(req, 100, 0, "")
 	req.Header.Add("Content-Type", "application/json")
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
@@ -249,7 +249,7 @@ func (s *systemSecurebootSuite) testEFISecurebootUpdateDBPrepareHappyForKind(
 	c.Assert(err, IsNil)
 	req, err := http.NewRequest("POST", "/v2/system-secureboot", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	addUcrednet(req, 100, 0, "")
 	req.Header.Add("Content-Type", "application/json")
 
 	rsp := s.syncReq(c, req, nil, actionIsExpected)

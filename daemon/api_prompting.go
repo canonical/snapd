@@ -103,7 +103,7 @@ var (
 // If an error occurs, returns an error response, otherwise returns the user ID
 // and a nil response.
 func getUserID(r *http.Request) (uint32, Response) {
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return 0, Forbidden("cannot get remote user: %v", err)
 	}
@@ -367,7 +367,7 @@ type postRuleRequestBody struct {
 }
 
 func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) Response {
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return Forbidden("cannot get remote user: %v", err)
 	}
