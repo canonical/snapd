@@ -52,6 +52,15 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingFds(c *C) {
 	c.Check(systemd.SdNotifyWithFds("some-state"), ErrorMatches, "at least one file is required")
 }
 
+func (sd *sdNotifyTestSuite) TestInitSdNotifySocketCachesAndUnsetsEnv(c *C) {
+	os.Setenv("NOTIFY_SOCKET", "@test-socket")
+	systemd.InitSdNotifySocket()
+
+	c.Check(systemd.NotifySocket(), Equals, "@test-socket")
+	_, found := os.LookupEnv("NOTIFY_SOCKET")
+	c.Check(found, Equals, false)
+}
+
 func (sd *sdNotifyTestSuite) TestSdNotifyCacheConnRequiresLock(c *C) {
 	c.Assert(func() {
 		_, _ = systemd.SdNotifyCache().Conn()
@@ -72,8 +81,8 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 		{"", "cannot find NOTIFY_SOCKET environment variable"},
 		{"xxx", `cannot use NOTIFY_SOCKET "xxx"`},
 	} {
-		restore := systemd.MockNotifySocket(t.env)
-		defer restore()
+		os.Setenv("NOTIFY_SOCKET", t.env)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		if withFds {
@@ -101,8 +110,8 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		restore := systemd.MockNotifySocket(sockPath)
-		defer restore()
+		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
@@ -142,8 +151,8 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		restore := systemd.MockNotifySocket(sockPath)
-		defer restore()
+		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		addr := &net.UnixAddr{
@@ -214,8 +223,8 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
-		restore := systemd.MockNotifySocket(sockPath)
-		defer restore()
+		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		tmpdir := c.MkDir()
