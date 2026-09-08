@@ -55,13 +55,13 @@ type SnapSlot struct {
 
 // AddLibDirs adds dirs with libraries to the specification.
 func (spec *Specification) AddLibDirs(dirs []string) error {
-	if spec.slotSnapName == "" || spec.slotName == "" {
+	if spec.slotInstanceName == "" || spec.slotName == "" {
 		return errors.New("internal error: no contextual information while calling AddLibDirs")
 	}
 	if spec.libDirs == nil {
 		spec.libDirs = make(map[SnapSlot][]string)
 	}
-	spec.libDirs[SnapSlot{SnapName: spec.slotSnapName, SlotName: spec.slotName}] = dirs
+	spec.libDirs[SnapSlot{InstanceName: spec.slotInstanceName, SlotName: spec.slotName}] = dirs
 	return nil
 }
 
