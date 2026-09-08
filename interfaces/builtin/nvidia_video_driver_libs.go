@@ -20,7 +20,6 @@
 package builtin
 
 import (
-	"errors"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -126,8 +125,7 @@ func init() {
 			implicitPlugOnCore:       false,
 			implicitPlugOnClassic:    true,
 			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
-			// library-source filenames use "_" to separate instance name, slot name and interface name
-			parallelInstancesSlotErr: errors.New("library-source filenames cannot distinguish parallel instances"),
+			parallelInstancesSlotErr: errParallelInstancesLibrarySource,
 		},
 	})
 }

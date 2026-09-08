@@ -46,6 +46,13 @@ var (
 	errParallelInstancesSystemPlug      = errors.New("system plug cannot have parallel instances")
 	errParallelInstancesSystemSlot      = errors.New("system slot cannot have parallel instances")
 	errParallelInstancesSharedResources = errors.New("conflicting operations on shared system resources")
+	// system*.library-source files under SnapExportDir use "_" to encode the
+	// instance name, slot name and interface name in their names. Since parallel
+	// instance names also use "_" to append the instance key, some functionality
+	// may not correctly distinguish parallel instances.
+	// TODO: add tests for *-driver-libs interfaces to check if parallel instances on
+	// slot side work and remove this error if they do.
+	errParallelInstancesLibrarySource = errors.New("library-source filenames cannot distinguish parallel instances")
 )
 
 type commonInterface struct {

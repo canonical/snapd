@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 
@@ -170,8 +169,7 @@ func init() {
 			implicitPlugOnCore:       false,
 			implicitPlugOnClassic:    true,
 			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
-			// library-source filenames use "_" to separate instance name, slot name and interface name
-			parallelInstancesSlotErr: errors.New("library-source filenames cannot distinguish parallel instances"),
+			parallelInstancesSlotErr: errParallelInstancesLibrarySource,
 		},
 	})
 }
