@@ -100,7 +100,8 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	}
 	if connectedPlugCallback != nil {
 		// Set the contextual information
-		spec.slotSnapName = slot.Snap().InstanceName()
+		// TODO add a unit test to ensure this doesn't regress in the future.
+		spec.slotInstanceName = naming.InstanceName(slot.Snap().InstanceName())
 		spec.slotName = slot.Name()
 		return connectedPlugCallback.LdconfigConnectedPlug(spec, plug, slot)
 	}
