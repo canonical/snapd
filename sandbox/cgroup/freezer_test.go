@@ -357,7 +357,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	err := cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	// go 1.10+ slightly changed the order of calls in filepath.Walk(), make
 	// sure the error check matches both
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo":( cannot freeze processes of snap "foo",)? open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope(/cgroup.freeze)?: permission denied`)
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo":( cannot freeze processes of snap "foo",)? open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234.1234.scope(/cgroup.freeze)?: permission denied`)
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
@@ -367,13 +367,13 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	c.Assert(os.Chmod(g, 0000), IsNil)
 	// other group was unfrozen
 	err = cgroup.FreezeSnapProcesses(context.TODO(), "foo")
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234.1234.scope/cgroup.freeze: permission denied`)
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
 	// thawing fails likewise
 	err = cgroup.ThawSnapProcesses("foo")
-	c.Check(err, ErrorMatches, `cannot thaw processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	c.Check(err, ErrorMatches, `cannot thaw processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234.1234.scope/cgroup.freeze: permission denied`)
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
@@ -384,7 +384,7 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 
 	err = cgroup.FreezeSnapProcesses(context.TODO(), "foo")
 	// but the unfreeze errors are ignored anyuway
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes in group "snap.foo.app.1234-1234-1234.scope": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234.1234.scope/cgroup.freeze: permission denied`)
 	// the other group is unmodified
 	os.Chmod(filepath.Dir(gUnfreeze), 0755)
 	c.Check(gUnfreeze, testutil.FileEquals, "1")
