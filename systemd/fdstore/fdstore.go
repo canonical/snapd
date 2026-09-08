@@ -97,8 +97,7 @@ func New() Store {
 var (
 	osGetpid        = os.Getpid
 	osFileClose     = (*os.File).Close
-	unixCloseOnExec = unix.CloseOnExec
-	unixDup         = unix.Dup
+	fcntl           = unix.FcntlInt
 	sdNotify        = systemd.SdNotify
 	sdNotifyWithFds = systemd.SdNotifyWithFds
 	netFileListener = net.FileListener
@@ -113,6 +112,17 @@ var mu sync.RWMutex
 // sd_LISTEN_FDS_START is the starting file descriptor number for file descriptors
 // passed from systemd.
 const sd_LISTEN_FDS_START = 3
+
+func setCloseOnExec(fd uintptr, name FdName) error {
+	flags, err := fcntl(fd, unix.F_GETFD, 0)
+	if err != nil {
+		return fmt.Errorf("cannot get fd flags on fd %d (%q): %w", fd, name, err)
+	}
+	if _, err = fcntl(fd, unix.F_SETFD, flags|unix.FD_CLOEXEC); err != nil {
+		return fmt.Errorf("cannot set close-on-exec on fd %d (%q): %w", fd, name, err)
+	}
+	return nil
+}
 
 func (s *store) initFdstore() {
 	mu.Lock()
@@ -164,13 +174,18 @@ func (s *store) initFdstore() {
 		return
 	}
 
+	failedCloseOnExec := make(map[FdName]bool)
 	for i := 0; i < nfds; i++ {
 		fd := sd_LISTEN_FDS_START + i
 		name := FdName(names[i])
 		fdstore[name] = append(fdstore[name], os.NewFile(uintptr(fd), string(name)))
 
-		// TODO: Use raw fcntl and check for errors.
-		unixCloseOnExec(fd)
+		if err := setCloseOnExec(uintptr(fd), name); err != nil {
+			logger.Noticef("%v", err)
+			// A single fd without CLOEXEC makes the whole named entry unsafe,
+			// so pruning later removes all fds associated with this name.
+			failedCloseOnExec[name] = true
+		}
 	}
 
 	// Prune unexpected file descriptors
@@ -185,12 +200,19 @@ func (s *store) initFdstore() {
 			logger.Noticef("unexpected fdstore entry %[1]q found: %[1]q has more than one fd", name)
 			shouldRemove = true
 		}
+		if failedCloseOnExec[name] {
+			shouldRemove = true
+		}
 		if shouldRemove {
 			logger.Noticef("removing unexpected fdstore entry %q", name)
 			if err := s.remove(name); err != nil {
 				logger.Noticef("internal error: cannot remove fdstore entry %q: %v", name, err)
-				continue
 			}
+			// Always close and forget the local entry, even when notifying
+			// systemd failed, otherwise the descriptor stays reachable through
+			// Get/ActivationListeners with FD_CLOEXEC possibly unset and can
+			// leak into an executed child.
+			s.removeLocal(name)
 		}
 	}
 }
@@ -242,20 +264,27 @@ func (s *store) remove(name FdName) error {
 		return err
 	}
 
+	s.removeLocal(name)
+	return nil
+}
+
+// removeLocal closes the file descriptors associated with name and forgets
+// the entry from the local fdstore map, without notifying systemd.
+//
+// Caller must hold the fdstore lock.
+func (s *store) removeLocal(name FdName) {
 	for _, f := range fdstore[name] {
 		osFileClose(f)
 	}
 	delete(fdstore, name)
-	return nil
 }
 
 func duplicateFile(name FdName, f *os.File) (*os.File, error) {
-	duplicatedFd, err := unixDup(int(f.Fd()))
+	// F_DUPFD_CLOEXEC duplicates the fd with close-on-exec set atomically.
+	duplicatedFd, err := fcntl(f.Fd(), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Use raw fcntl and check for errors.
-	unixCloseOnExec(duplicatedFd)
 
 	// Wrapping fd with os.File is a safety measure so that the finalizer
 	// would close the duplicated fd implicitly if it goes out of scope.
