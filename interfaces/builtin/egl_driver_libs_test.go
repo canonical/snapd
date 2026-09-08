@@ -572,7 +572,11 @@ func (s *EglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	// The writable-mimic is authorized for the share/egl_vendor.d tree.
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(icdTarget)))
-	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
+	// The app gets read access to its own assembly subtree only (the core base
+	// template does not grant /opt/** to apps).
+	app := spec.SnippetForTag("snap.snapd.app")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/egl-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/egl-driver-libs/** mrkix,")
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

@@ -329,7 +329,11 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	// The writable-mimic is authorized for the share/gbm tree.
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(clientTarget)))
-	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
+	// The app gets read access to its own assembly subtree only (the core base
+	// template does not grant /opt/** to apps).
+	app := spec.SnippetForTag("snap.snapd.app")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/gbm-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/gbm-driver-libs/** mrkix,")
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {

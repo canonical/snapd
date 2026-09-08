@@ -142,9 +142,11 @@ func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specifica
 }
 
 func (iface *vulkanDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Authorize snap-update-ns to construct (and eventually tear down) the
-	// assembly tree under /opt/snapd/interfaces. The default base template
-	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	// Grant the app read access to its own assembly subtree under
+	// /opt/snapd/interfaces (the core base template does not grant /opt/** to
+	// apps), then authorize snap-update-ns to construct (and eventually tear
+	// down) the assembly tree.
+	addAppArmorAssemblyAccess(spec, vulkanDriverLibs)
 	const withPriority = false
 	if err := addAppArmorAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
 		return err

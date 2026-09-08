@@ -136,9 +136,11 @@ func (iface *gbmDriverLibsInterface) MountConnectedPlug(spec *mount.Specificatio
 }
 
 func (iface *gbmDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Authorize snap-update-ns to construct (and eventually tear down) the
-	// assembly tree under /opt/snapd/interfaces. The default base template
-	// already grants /opt/** mrklix to the app itself, no extra snippet needed.
+	// Grant the app read access to its own assembly subtree under
+	// /opt/snapd/interfaces (the core base template does not grant /opt/** to
+	// apps), then authorize snap-update-ns to construct (and eventually tear
+	// down) the assembly tree.
+	addAppArmorAssemblyAccess(spec, gbmDriverLibs)
 	if err := addAppArmorAssemblyLibDirs(spec, slot, gbmDriverLibs); err != nil {
 		return err
 	}

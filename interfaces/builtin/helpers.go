@@ -400,6 +400,23 @@ func assemblyAppArmorEntry(emit func(f string, args ...any), source, target stri
 	apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
 }
 
+// addAppArmorAssemblyAccess grants the application read access to the per-interface
+// driver-libs assembly tree under /opt/snapd/interfaces/<iface>/. The core base
+// template (unlike the non-core/classic template) does not grant /opt/** to apps, so
+// each driver-libs interface must grant access to its own subtree explicitly. Only the
+// library/metadata files bind-mounted by the mount backend are exposed; the app can
+// read its own interface's subtree but not other interfaces' or /opt/snapd broadly.
+func addAppArmorAssemblyAccess(spec *apparmor.Specification, ifaceName string) {
+	spec.AddSnippet(fmt.Sprintf(`
+  # Driver-libs assembly tree for %s: read the bind-mounted provider
+  # libraries and ICD/layer metadata under /opt/snapd/interfaces/%s/.
+  /opt/snapd/ r,
+  /opt/snapd/interfaces/ r,
+  /opt/snapd/interfaces/%s/ r,
+  /opt/snapd/interfaces/%s/** mrkix,
+`, ifaceName, ifaceName, ifaceName, ifaceName))
+}
+
 // addAppArmorAssemblyLibDirs emits the snap-update-ns apparmor rules for the
 // library dirs bound into the assembly tree (see mountAssemblyLibDirs for the
 // mount side).

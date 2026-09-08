@@ -408,7 +408,11 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	// The writable-mimic is authorized for the share tree.
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(icdTarget)))
-	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
+	// The app gets read access to its own assembly subtree only (the core base
+	// template does not grant /opt/** to apps).
+	app := spec.SnippetForTag("snap.snapd.app")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/vulkan-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/vulkan-driver-libs/** mrkix,")
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {

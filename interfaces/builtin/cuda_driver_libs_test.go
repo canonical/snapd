@@ -358,8 +358,11 @@ func (s *CudaDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	// The writable-mimic is authorized for the target tree construction.
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))
-	// No app-read /opt snippet is added (the base template handles /opt).
-	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
+	// The app gets read access to its own assembly subtree only (the core base
+	// template does not grant /opt/** to apps).
+	app := spec.SnippetForTag("snap.snapd.app")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/cuda-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/cuda-driver-libs/** mrkix,")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

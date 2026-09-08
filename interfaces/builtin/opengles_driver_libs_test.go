@@ -222,7 +222,11 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))
-	c.Check(spec.SnippetForTag("snap.snapd.app"), Equals, "")
+	// The app gets read access to its own assembly subtree only (the core base
+	// template does not grant /opt/** to apps).
+	app := spec.SnippetForTag("snap.snapd.app")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/opengles-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/opengles-driver-libs/** mrkix,")
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
