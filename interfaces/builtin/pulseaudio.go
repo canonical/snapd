@@ -121,6 +121,13 @@ owner /{,var/}run/pulse/** rwk,
 
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
+owner /run/user/[0-9]*/pulse/native rwk,
+owner /run/user/[0-9]*/pulse/pid rw,
+
+# snap-policy.c: aa_getpeercon() on connecting snap clients
+ptrace (read) peer=snap.*,
+# snap-policy.c: aa_getcon() to read own AppArmor label
+@{PROC}/@{pid}/attr/{apparmor/,}current r,
 `
 
 const pulseaudioPermanentSlotSecComp = `
