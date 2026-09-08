@@ -170,7 +170,7 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	}
 	for _, e := range entries {
 		switch {
-		case e.Type().IsRegular():
+		case !e.Type().IsDir(): // files & symlinks
 			// Copy modprobe artifacts (modules.*).
 			if strings.HasPrefix(e.Name(), "modules.") {
 				target := filepath.Join(modsRoot, e.Name())

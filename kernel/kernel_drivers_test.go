@@ -293,6 +293,45 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
 	doDirChecks(c, filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion), expected)
 }
 
+// TestBuildKernelDriversModinfoSymlink verifies that a modinfo file (modules.*)
+// that is a symlink in the kernel snap is still copied into the drivers tree,
+// following the symlink, just like the previous glob-based copy did.
+func (s *kernelDriversTestSuite) TestBuildKernelDriversModinfoSymlink(c *C) {
+	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	kversion := "5.15.0-78-generic"
+	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
+
+	// Add a symlinked modinfo entry pointing at the regular modules.dep.bin.
+	modDir := filepath.Join(mountDir, "modules", kversion)
+	c.Assert(os.Symlink("modules.dep.bin", filepath.Join(modDir, "modules.alias")), IsNil)
+
+	// Build the tree should not fail
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			Current: mountDir,
+			Target:  mountDir}, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	modsRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)
+
+	// The regular modinfo file is copied.
+	c.Check(osutil.FileExists(filepath.Join(modsRoot, "modules.dep.bin")), Equals, true)
+
+	// The symlinked modinfo file is copied too (its content is followed),
+	// rather than silently dropped because it is not a regular file.
+	aliasPath := filepath.Join(modsRoot, "modules.alias")
+	c.Check(osutil.FileExists(aliasPath), Equals, true)
+	// CopyFile follows the symlink, so the destination is a regular file
+	// with the same content as the link target.
+	aliasExists, aliasIsReg, err := osutil.RegularFileExists(aliasPath)
+	c.Assert(err, IsNil)
+	c.Check(aliasExists, Equals, true)
+	c.Check(aliasIsReg, Equals, true)
+	c.Check(aliasPath, testutil.FileEquals, []byte{})
+}
+
 func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsWithModules(c *C) {
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	kversion := "5.15.0-78-generic"
