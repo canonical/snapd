@@ -152,3 +152,8 @@ VERSION=$v
 SNAPD_APPARMOR_REEXEC=1
 ${fmts}
 EOF
+# SNAPD_UC_TRACKS is not shipped in distro packages. Snapcraft sets
+# CRAFT_PART_BUILD; write into the same file as VERSION.
+if [ -n "${CRAFT_PART_BUILD:-}" ]; then
+    (cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./snap/uctrack/info) >> "$PKG_BUILDDIR/data/info"
+fi
