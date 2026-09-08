@@ -154,12 +154,12 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, handler Contai
 		var newPath string
 		if sn.Unasserted {
 			var err error
-			pinfo := snap.MinimalSnapContainerPlaceInfo(sn.Name, snap.Revision{N: -1})
+			pinfo := snap.MinimalSnapContainerPlaceInfo(sn.Name.String(), snap.Revision{N: -1})
 			newPath, err = handler.HandleUnassertedContainer(pinfo, path, tm)
 			if err != nil {
 				return nil, err
 			}
-			sideInfo.RealName = sn.Name
+			sideInfo.RealName = sn.Name.String()
 		} else {
 			var si *snap.SideInfo
 			var err error
@@ -178,7 +178,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, handler Contai
 				var snapSHA3_384 string
 				var snapSize uint64
 				// NOTE: this revision is not really correct
-				cpi := snap.MinimalSnapContainerPlaceInfo(sn.Name, snap.R(0))
+				cpi := snap.MinimalSnapContainerPlaceInfo(sn.Name.String(), snap.R(0))
 				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedContainer(cpi, path, tm)
 				if err != nil {
 					return
@@ -256,7 +256,7 @@ func (s *seed16) loadEssentialMeta(essentialTypes []snap.Type, required *naming.
 
 	seeding := make(map[string]*internal.Snap16, len(s.yamlSnaps))
 	for _, sn := range s.yamlSnaps {
-		seeding[sn.Name] = sn
+		seeding[sn.Name.String()] = sn
 	}
 
 	classic := model.Classic()
@@ -426,7 +426,7 @@ func (s *seed16) LoadMeta(mode string, handler ContainerHandler, tm timings.Meas
 
 	// the rest of the snaps
 	for _, sn := range s.yamlSnaps {
-		if added[sn.Name] {
+		if added[sn.Name.String()] {
 			continue
 		}
 		seedSnap, err := s.addSnap(sn, "", handler, nil, tm)

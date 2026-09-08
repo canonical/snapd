@@ -1040,7 +1040,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
@@ -1159,7 +1159,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
@@ -1396,7 +1396,7 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:       info.SnapName().String(),
+			Name:       info.SnapName(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
 			File:       fn,
@@ -1490,7 +1490,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 	fn := info.Filename()
 	c.Check(filepath.Join(s.opts.SeedDir, "snaps", fn), testutil.FilePresent)
 	c.Check(seedYaml.Snaps[4], DeepEquals, &seedwriter.InternalSnap16{
-		Name:    info.SnapName().String(),
+		Name:    info.SnapName(),
 		SnapID:  info.SnapID,
 		Channel: "default-track/candidate",
 		File:    fn,
@@ -1750,7 +1750,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -1809,7 +1809,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -1882,7 +1882,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelNoSysSnap(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -1952,7 +1952,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelCore(c *C) {
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -2024,7 +2024,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromOptionsWins(
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -2085,7 +2085,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicMinModelSnapdFromModelWins(c 
 		c.Check(p, testutil.FilePresent)
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
@@ -2187,7 +2187,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
@@ -2343,7 +2343,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 		}
 
 		c.Check(seedYaml.Snaps[i], DeepEquals, &seedwriter.InternalSnap16{
-			Name:       info.SnapName().String(),
+			Name:       info.SnapName(),
 			SnapID:     info.SnapID,
 			Channel:    channel,
 			File:       fn,

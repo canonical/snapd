@@ -288,7 +288,7 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			channel = ""
 		}
 		seedYaml.Snaps[i] = &internal.Snap16{
-			Name:    info.SnapName().String(),
+			Name:    info.SnapName(),
 			SnapID:  info.SnapID, // cross-ref
 			Channel: channel,
 			File:    filepath.Base(sn.Path),

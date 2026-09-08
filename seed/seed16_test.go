@@ -375,16 +375,16 @@ func (s *seed16Suite) makeSeed(c *C, modelHeaders map[string]any, seedSnaps ...*
 		completeSeedSnap := *seedSnap
 		var snapFname string
 		if seedSnap.Unasserted {
-			mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml[seedSnap.Name], snapFiles[seedSnap.Name])
+			mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml[seedSnap.Name.String()], snapFiles[seedSnap.Name.String()])
 			snapFname = filepath.Base(mockSnapFile)
 			err := os.Rename(mockSnapFile, filepath.Join(s.SeedDir, "snaps", snapFname))
 			c.Assert(err, IsNil)
 		} else {
-			publisher := snapPublishers[seedSnap.Name]
+			publisher := snapPublishers[seedSnap.Name.String()]
 			if publisher == "" {
 				publisher = "canonical"
 			}
-			whichYaml := seedSnap.Name
+			whichYaml := seedSnap.Name.String()
 			if seedSnap.Channel != "stable" {
 				whichYaml = whichYaml + "=" + seedSnap.Channel
 			}
@@ -1266,7 +1266,7 @@ version: other-base
 	replaceFile := func(snapName, fname string) func([]*seed.InternalSnap16) []*seed.InternalSnap16 {
 		return func(snaps []*seed.InternalSnap16) []*seed.InternalSnap16 {
 			for i := range snaps {
-				if snaps[i].Name != snapName {
+				if snaps[i].Name.String() != snapName {
 					continue
 				}
 				sn := *snaps[i]
