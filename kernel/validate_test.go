@@ -157,3 +157,14 @@ func (s *validateKernelSuite) TestValidateModulesNoUpdates(c *C) {
 	err := kernel.Validate(mockKernelRoot)
 	c.Assert(err, IsNil)
 }
+
+func (s *validateKernelSuite) TestValidateModulesMultipleKernelVersions(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	// A modules tree with more than one kernel version directory is
+	// ambiguous; snapd cannot tell which one to use as the drivers tree root.
+	makeMockKernelModules(c, mockKernelRoot, "5.15.0-78-generic")
+	makeMockKernelModules(c, mockKernelRoot, "5.4.0-90-generic")
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, ErrorMatches, `more than one modules directory in ".*"`)
+}

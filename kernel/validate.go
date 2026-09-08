@@ -20,7 +20,9 @@
 package kernel
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,15 +64,20 @@ func validateAssetsContent(kernelRoot string, info *Info) error {
 func validateModulesTree(kernelRoot string) error {
 	// The modules directory is optional; if there is none, there is nothing
 	// to validate here.
+	if _, err := os.Stat(filepath.Join(kernelRoot, "modules")); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	// This does more checks, e.g. more than one kernel version
 	kversion, err := KernelVersionFromModulesDir(kernelRoot)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	modsDir := filepath.Join(kernelRoot, "modules", kversion)
 	entries, err := os.ReadDir(modsDir)
 	if err != nil {
-		return nil
+		return err
 	}
 	for _, e := range entries {
 		// "updates" is reserved for modules coming from kernel-modules
