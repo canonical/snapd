@@ -336,6 +336,12 @@ func MockImagePrepare(newImagePrepare func(*image.Options) error) (restore func(
 	}
 }
 
+func MockPreseedCreateSysfsOverlayFromHints(f func(hintsFile string) (string, func(), error)) (restore func()) {
+	r := testutil.Backup(&preseedCreateSysfsOverlayFromHints)
+	preseedCreateSysfsOverlayFromHints = f
+	return r
+}
+
 func MockSignalNotify(newSignalNotify func(sig ...os.Signal) (chan os.Signal, func())) (restore func()) {
 	old := signalNotify
 	signalNotify = newSignalNotify
