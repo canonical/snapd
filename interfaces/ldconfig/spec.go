@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // Specification assists in collecting library directories associated with an
@@ -38,15 +39,16 @@ type Specification struct {
 	// libDirs is the list of directories with libraries coming from
 	// different slots.
 	libDirs map[SnapSlot][]string
-	// slotSnapName and slotName are contextual information for the latest
+	// slotInstanceName and slotName are contextual information for the latest
 	// call to AddConnectedPlug.
-	slotSnapName, slotName string
+	slotInstanceName naming.InstanceName
+	slotName         string
 }
 
 // SnapSlot is the key for libDirs: directories are per snap slot.
 type SnapSlot struct {
-	SnapName string
-	SlotName string
+	InstanceName naming.InstanceName
+	SlotName     string
 }
 
 // Methods called by interfaces

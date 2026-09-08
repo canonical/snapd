@@ -35,7 +35,7 @@ import (
 // assertions (or alone if unasserted is true) it will be used to
 // drive the installation and ultimately set SideInfo/SnapState for it.
 type Snap16 struct {
-	Name string `yaml:"name"`
+	Name naming.SnapName `yaml:"name"`
 
 	// cross-reference/audit
 	SnapID string `yaml:"snap-id,omitempty"`

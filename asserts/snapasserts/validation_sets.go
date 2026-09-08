@@ -949,7 +949,7 @@ func checkManyConstraints(scs []constraints, installedRevision func(constraints)
 // PresenceConstraintError describes an error where presence of the given snap
 // has unexpected value, e.g. it's "invalid" while checking for "required".
 type PresenceConstraintError struct {
-	SnapName string
+	SnapName naming.SnapName
 	Presence asserts.Presence
 }
 

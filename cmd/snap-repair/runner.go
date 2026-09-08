@@ -504,10 +504,10 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]any, e
 
 // deviceInfo captures information about the device.
 type deviceInfo struct {
-	Brand string `json:"brand"`
-	Model string `json:"model"`
-	Base  string `json:"base"`
-	Mode  string `json:"mode"`
+	Brand string          `json:"brand"`
+	Model string          `json:"model"`
+	Base  naming.SnapName `json:"base"`
+	Mode  string          `json:"mode"`
 }
 
 // RepairStatus represents the possible statuses of a repair.
