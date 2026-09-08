@@ -208,9 +208,9 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/1", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/1", Options: []string{"bind", "ro"}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/0",

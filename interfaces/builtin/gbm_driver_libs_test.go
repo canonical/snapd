@@ -291,9 +291,9 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Library dirs.
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1", Options: []string{"bind", "ro"}},
 		// Client driver bound as a file, keeping its original name.
 		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
 			Dir: "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},

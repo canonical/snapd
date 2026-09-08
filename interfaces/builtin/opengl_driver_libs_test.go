@@ -199,9 +199,9 @@ func (s *OpenglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/1", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/1", Options: []string{"bind", "ro"}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0",

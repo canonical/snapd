@@ -327,9 +327,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Library dirs.
-		{Name: libDir1, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/0", Options: []string{"rbind", "ro"}},
-		{Name: libDir2, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/1", Options: []string{"rbind", "ro"}},
-		{Name: compLibDir, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/2", Options: []string{"rbind", "ro"}},
+		{Name: libDir1, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/0", Options: []string{"bind", "ro"}},
+		{Name: libDir2, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/1", Options: []string{"bind", "ro"}},
+		{Name: compLibDir, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/2", Options: []string{"bind", "ro"}},
 		// ICD files, without a numeric prefix (vulkan has no priority).
 		{Name: filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json"),
 			Dir: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},

@@ -201,9 +201,9 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/1", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/1", Options: []string{"bind", "ro"}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/0",

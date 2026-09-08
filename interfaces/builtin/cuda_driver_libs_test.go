@@ -322,15 +322,15 @@ func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// Library dirs are bound into the assembly tree, preserving the
 		// original directory order (idx) and keeping the original file names.
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/0", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/1", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/2", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/2", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/3", Options: []string{"bind", "ro"}},
 		{Name: snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4", Options: []string{"rbind", "ro"}},
+			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/4", Options: []string{"bind", "ro"}},
 	})
 
 	// All bound library dirs are collected for SNAP_LIBRARY_PATH derivation.
