@@ -379,7 +379,7 @@ func (s *seed20) Copy(seedDir string, opts CopyOptions, tm timings.Measurer) (er
 
 func snapInModel(cref naming.SnapRef, modelSnaps map[string]*asserts.ModelSnap) bool {
 	// snapd is implicitly in the model
-	if cref.SnapName().String() == "snapd" {
+	if cref.SnapName() == naming.Snapd.SnapName() {
 		return true
 	}
 
