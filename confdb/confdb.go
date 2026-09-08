@@ -583,8 +583,11 @@ func newView(schema *Schema, name string, viewRules []any, paramPresence map[str
 func checkFilteredPathConsistency(rules []viewRule) error {
 	for i, rule := range rules {
 		if !rule.isReadable() {
+			// TODO: take write-only rules into account once we implement filtering
+			// on write (will need to consider if rules overlap access-wise)
 			continue
 		}
+
 		for _, other := range rules[i+1:] {
 			if other.isReadable() && pathsOverlap(rule.request, other.request) &&
 				!storagePathsHaveConsistentFilters(rule.storage, other.storage) {
