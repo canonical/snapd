@@ -69,6 +69,7 @@ var (
 	syscallExec              = syscall.Exec
 	userCurrent              = user.Current
 	osGetenv                 = os.Getenv
+	systemdNotifySocket      = systemd.NotifySocket
 	timeNow                  = time.Now
 	selinuxIsEnabled         = selinux.IsEnabled
 	selinuxVerifyPathContext = selinux.VerifyPathContext
@@ -1687,6 +1688,11 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	// We have a new location for the ticket, update the environment variable.
 	if len(krb5ccnamePath) > 0 {
 		env["KRB5CCNAME"] = krb5ccnamePath
+	}
+
+	// NOTIFY_SOCKET is unset on initialization, let's add it back.
+	if systemdNotifySocket() != "" {
+		env["NOTIFY_SOCKET"] = systemdNotifySocket()
 	}
 
 	// Guarantee that XDG_RUNTIME_DIR does exist before launching the snap.

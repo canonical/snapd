@@ -254,6 +254,10 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 		defer os.Unsetenv("TMPDIR")
 	}
 
+	defer snaprun.MockSystemdNotifySocket(func() string {
+		return "/run/systemd/notify"
+	})()
+
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
 		Revision: snap.R("x2"),
@@ -283,6 +287,7 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
+	c.Check(execEnv, testutil.Contains, "NOTIFY_SOCKET=/run/systemd/notify")
 }
 
 func checkHintFileNotLocked(c *check.C, snapName string) {
@@ -1652,6 +1657,9 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 
 func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 	defer mockSnapConfine(filepath.Join(dirs.SnapMountDir, "core", "111", dirs.CoreLibExecDir))()
+	defer snaprun.MockSystemdNotifySocket(func() string {
+		return "/run/systemd/notify"
+	})()
 
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
@@ -1687,6 +1695,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Check(execEnv, testutil.Contains, "NOTIFY_SOCKET=/run/systemd/notify")
 }
 
 func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
@@ -1726,6 +1735,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
 		"snapname.app", "--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=x2")
+	c.Check(execEnv, check.Not(testutil.Contains), "NOTIFY_SOCKET=/run/systemd/notify")
 }
 
 func (s *RunSuite) TestSnapRunExposeKerberosTickets(c *check.C) {

@@ -211,6 +211,14 @@ func MockGetEnv(f func(name string) string) (restore func()) {
 	}
 }
 
+func MockSystemdNotifySocket(f func() string) (restore func()) {
+	systemdNotifySocketOrig := systemdNotifySocket
+	systemdNotifySocket = f
+	return func() {
+		systemdNotifySocket = systemdNotifySocketOrig
+	}
+}
+
 func MockOsReadlink(f func(string) (string, error)) (restore func()) {
 	osReadlinkOrig := osReadlink
 	osReadlink = f
