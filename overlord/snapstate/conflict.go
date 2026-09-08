@@ -384,20 +384,6 @@ func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Change, 
 		return nil, nil
 	case "":
 		base = defaultCoreSnapName
-	case "core16":
-		core16Installed, err := isInstalled(st, "core16")
-		if err != nil {
-			return nil, err
-		}
-		if !core16Installed {
-			coreInstalled, err := isInstalled(st, defaultCoreSnapName)
-			if err != nil {
-				return nil, err
-			}
-			if coreInstalled {
-				base = defaultCoreSnapName
-			}
-		}
 	}
 
 	for _, chg := range st.Changes() {
