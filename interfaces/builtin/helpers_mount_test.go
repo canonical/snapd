@@ -182,17 +182,17 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyLibDirs(c *C) {
 		{
 			Name:    filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
 			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
-			Options: []string{"rbind", "ro"},
+			Options: []string{"bind", "ro"},
 		},
 		{
 			Name:    filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
 			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
-			Options: []string{"rbind", "ro"},
+			Options: []string{"bind", "ro"},
 		},
 		{
 			Name:    comp1Lib1,
 			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
-			Options: []string{"rbind", "ro"},
+			Options: []string{"bind", "ro"},
 		},
 	})
 

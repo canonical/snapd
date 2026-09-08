@@ -307,7 +307,7 @@ func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedS
 		if err := spec.AddMountEntry(osutil.MountEntry{
 			Name:    dir.Path,
 			Dir:     target,
-			Options: []string{"rbind", "ro"},
+			Options: []string{"bind", "ro"},
 		}); err != nil {
 			return err
 		}
