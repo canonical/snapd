@@ -28,7 +28,7 @@ execute: |
             printf 'name: %s\n' "$snap_name"
             printf 'version: "1.0"\n'
             printf 'apps:\n  cmd:\n    command: bin/cmd\n'
-            printf '%ss:\n  iface:\n    interface: %s\n' "$side" "$iface_name"
+            printf '%ss:\n  %s-%s:\n    interface: %s\n' "$side" "$iface_name" "$side" "$iface_name"
             for attr in "${attrs[@]}"; do printf '    %s\n' "$attr"; done
         } > "$snapdir/meta/snap.yaml"
         snap pack --filename="/tmp/${snap_name}.snap" "$snapdir" >/dev/null
@@ -42,15 +42,18 @@ execute: |
         local side="$2"  # plug or slot
         shift 2
         local -a attrs=("$@")
-        local snap_name="test-${iface_name}-${side}"
+        local snap_name="reject-${iface_name}-${side}"
         make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]}"
-        echo "Snap $snap_name can be installed without an instance key"
+        echo "Try installing $snap_name without an instance key"
         if snap install --dangerous "/tmp/${snap_name}.snap" 2>install-noinstance.err; then
             tests.cleanup defer snap remove --purge "$snap_name"
             snap list | MATCH "^${snap_name} "
         else
-            # ensure the failure is not the parallel-instance check firing on a non-instanced install
-            NOMATCH "cannot install snap .* as parallel instance" < install-noinstance.err
+            # A dangerous install still performs minimal slot-side base declaration
+            # checks and also ldconfig plugs can only be defined by the system snap.
+            local exp_decl_slot_err="installation not allowed by \"${iface_name}-slot\" slot rule of interface \"${iface_name}\""
+            local exp_ldconfig_plug_err="ldconfig plugs can be defined only by the system snap"
+            tr '\n' ' ' < install-noinstance.err | tr -s ' ' | MATCH "(${exp_decl_slot_err}|${exp_ldconfig_plug_err})"
         fi
         echo "Installing $snap_name as a parallel instance is rejected"
         if snap install --dangerous --name "${snap_name}_foo" "/tmp/${snap_name}.snap" 2>install.err; then
@@ -58,7 +61,9 @@ execute: |
             snap remove --purge "${snap_name}_foo"
             exit 1
         fi
-        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "cannot install snap \"${snap_name}_foo\" as parallel instance: ${side} \"iface\" with interface \"$iface_name\""
+        # Above mentioned policy checks will also reject this snap, but the parallel-
+        # instance interface check must reject it first.
+        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "cannot install snap \"${snap_name}_foo\" as parallel instance: ${side} \"${iface_name}-${side}\" with interface \"$iface_name\""
         # cleanup now
         snap remove --purge "$snap_name"
         rm -f "/tmp/${snap_name}.snap"
@@ -194,16 +199,17 @@ execute: |
     ####################################################################
 
     check_parallel_install_allowed() {
-        local snap_name="$1"
-        local iface_name="$2"
+        local iface_name="$1"
+        local side="$2"  # plug or slot
         shift 2
         local -a attrs=("$@")
-        make_test_snap "$snap_name" "$iface_name" plug "${attrs[@]}"
-        echo "Snap $snap_name can be installed without an instance key"
+        local snap_name="allow-${iface_name}-${side}"
+        make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]}"
+        echo "Installing $snap_name without an instance key"
         snap install --dangerous "/tmp/${snap_name}.snap"
         tests.cleanup defer snap remove --purge "$snap_name"
         snap list | MATCH "^${snap_name} "
-        echo "Snap $snap_name can be installed as a parallel instance"
+        echo "Installing $snap_name as a parallel instance is allowed"
         snap install --dangerous --name "${snap_name}_foo" "/tmp/${snap_name}.snap"
         tests.cleanup defer snap remove --purge "${snap_name}_foo"
         snap list | MATCH "^${snap_name}_foo "
@@ -213,5 +219,12 @@ execute: |
         echo
     }
 
-    check_parallel_install_allowed test-shared-memory-private shared-memory \
+    check_parallel_install_plug_allowed() {
+        local iface_name="$1"
+        shift
+        local -a attrs=("$@")
+        check_parallel_install_allowed "$iface_name" plug "${attrs[@]}"
+    }
+
+    check_parallel_install_plug_allowed shared-memory \
         "private: true"
