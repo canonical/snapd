@@ -100,7 +100,7 @@ prepare: |
 restore: |
   # Best-effort cleanup in case a faked boot id was left mounted in snapd's
   # mount namespace by check_change_auth_counter_sync.
-  remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null || true" || true
+  remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null" || true
 
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
   rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget dalockout
@@ -196,7 +196,7 @@ execute: |
 
   unmock_boot_id()
   {
-    remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null || true"
+    remote.exec "sudo nsenter -t \$(pgrep -x snapd | head -1) -m -- umount /proc/sys/kernel/random/boot_id 2>/dev/null"  || true
   }
 
   # Read snapd's persisted token bucket.
@@ -319,9 +319,9 @@ execute: |
     new="$(printf "$new_fmt" "200")"
     mock_boot_id "$fake_boot_id"
     remote_action_request "{\"action\": \"$action\", \"old-$field\": \"$cur\", \"new-$field\": \"$new\"}"
-    unmock_boot_id
     change_id="$(gojq --raw-output .change < resp)"
     remote.exec sudo snap watch "$change_id"
+    unmock_boot_id
     cur="$new"
 
     # The re-sync recorded the faked boot id, proving the boot-id-triggered

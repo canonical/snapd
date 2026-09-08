@@ -1,5 +1,3 @@
-//go:build !nosecboot
-
 package main
 
 import (
