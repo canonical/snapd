@@ -25,13 +25,18 @@ import (
 
 var sdNotifySocket string
 
-func init() {
+// InitSdNotifySocket reads and unsets the NOTIFY_SOCKET environment variable.
+// It should be called once during package initialization, before any other
+// code that might use NotifySocket().
+//
+// To get the cached value, use NotifySocket().
+func InitSdNotifySocket() {
 	sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
 	os.Unsetenv("NOTIFY_SOCKET")
 }
 
 // NotifySocket returns the cached value of the NOTIFY_SOCKET environment
-// variable, which is read and unset during package initialization.
+// variable, InitSdNotifySocket() must be called first.
 func NotifySocket() string {
 	return sdNotifySocket
 }

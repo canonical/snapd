@@ -1493,6 +1493,22 @@ func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
 	c.Assert(d.Start(context.Background()), check.Equals, ErrNoFailureRecoveryNeeded)
 }
 
+func (s *daemonSuite) TestInitCallsInitSdNotifySocket(c *check.C) {
+	d, err := New()
+	c.Assert(err, check.IsNil)
+
+	systemdInitSdNotifySocket = func() {
+		// panic so rest of Init does not run, we just want to test that
+		// is systemd.InitSdNotifySocket called.
+		panic("initialized")
+	}
+	defer func() {
+		systemdInitSdNotifySocket = systemd.InitSdNotifySocket
+	}()
+
+	c.Assert(d.Init, check.PanicMatches, "initialized")
+}
+
 func clientForSnapdSocket() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{

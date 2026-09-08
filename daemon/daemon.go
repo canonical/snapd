@@ -60,6 +60,7 @@ import (
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
 var ErrNoFailureRecoveryNeeded = fmt.Errorf("no failure recovery needed")
 
+var systemdInitSdNotifySocket = systemd.InitSdNotifySocket
 var systemdSdNotify = systemd.SdNotify
 
 const (
@@ -396,6 +397,8 @@ func logit(handler http.Handler) http.Handler {
 // Init sets up the Daemon's internal workings.
 // Don't call more than once.
 func (d *Daemon) Init() error {
+	systemdInitSdNotifySocket()
+
 	listenerMap, err := netutil.ActivationListeners()
 	if err != nil {
 		return err

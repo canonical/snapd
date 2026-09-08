@@ -20,10 +20,6 @@
 
 package systemd
 
-import (
-	"github.com/snapcore/snapd/testutil"
-)
-
 func ResetSdNotifyConnCache() {
 	sdNotifyCache.Lock()
 	defer sdNotifyCache.Unlock()
@@ -40,8 +36,4 @@ func (c *sdNotifyConnCache) Closed() bool {
 	sdNotifyCache.Lock()
 	defer sdNotifyCache.Unlock()
 	return c.conn == nil
-}
-
-func MockNotifySocket(socket string) (restore func()) {
-	return testutil.Mock(&sdNotifySocket, socket)
 }
