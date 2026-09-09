@@ -34,20 +34,20 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type ucSuite struct {
+type trackredirectSuite struct {
 	brands *assertstest.SigningAccounts
 }
 
-var _ = Suite(&ucSuite{})
+var _ = Suite(&trackredirectSuite{})
 
-func (s *ucSuite) SetUpTest(c *C) {
+func (s *trackredirectSuite) SetUpTest(c *C) {
 	brandKey, _ := assertstest.GenerateKey(752)
 	store := assertstest.NewStoreStack("store", nil)
 	s.brands = assertstest.NewSigningAccounts(store)
 	s.brands.Register("my-brand", brandKey, nil)
 }
 
-func (s *ucSuite) coreModel(c *C, base, gadget, kernel string) *asserts.Model {
+func (s *trackredirectSuite) coreModel(c *C, base, gadget, kernel string) *asserts.Model {
 	headers := map[string]any{
 		"architecture": "amd64",
 		"gadget":       gadget,
@@ -59,14 +59,14 @@ func (s *ucSuite) coreModel(c *C, base, gadget, kernel string) *asserts.Model {
 	return s.brands.Model("my-brand", "my-model", headers)
 }
 
-func (s *ucSuite) classicModel(c *C) *asserts.Model {
+func (s *trackredirectSuite) classicModel(c *C) *asserts.Model {
 	return s.brands.Model("my-brand", "my-model", map[string]any{
 		"architecture": "amd64",
 		"classic":      "true",
 	})
 }
 
-func (s *ucSuite) hybridClassicModel(c *C, base string) *asserts.Model {
+func (s *trackredirectSuite) hybridClassicModel(c *C, base string) *asserts.Model {
 	return assertstest.FakeAssertion(map[string]any{
 		"type":         "model",
 		"authority-id": "my-brand",
@@ -114,26 +114,26 @@ func trackRedirectMap(bootBase int, tracks ...string) map[string]map[string]map[
 	}
 }
 
-func (s *ucSuite) TestUbuntuCoreKeyClassic(c *C) {
+func (s *trackredirectSuite) TestUbuntuCoreKeyClassic(c *C) {
 	_, err := trackredirect.UbuntuCoreKey(s.classicModel(c))
 	c.Assert(err, ErrorMatches, "cannot use UC tracks on a classic system")
 	c.Check(errors.Is(err, trackredirect.ErrNotApplicable), Equals, true)
 }
 
-func (s *ucSuite) TestUbuntuCoreKeyHybridClassic(c *C) {
+func (s *trackredirectSuite) TestUbuntuCoreKeyHybridClassic(c *C) {
 	_, err := trackredirect.UbuntuCoreKey(s.hybridClassicModel(c, "core22"))
 	c.Assert(err, ErrorMatches, "cannot use UC tracks on a hybrid classic system")
 	c.Check(errors.Is(err, trackredirect.ErrNotApplicable), Equals, true)
 }
 
-func (s *ucSuite) TestUbuntuCoreKeyUC18(c *C) {
+func (s *trackredirectSuite) TestUbuntuCoreKeyUC18(c *C) {
 	uc18 := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
 	key, err := trackredirect.UbuntuCoreKey(uc18)
 	c.Assert(err, IsNil)
 	c.Check(key, DeepEquals, ucKey("18"))
 }
 
-func (s *ucSuite) TestUbuntuCoreKeyUC16(c *C) {
+func (s *trackredirectSuite) TestUbuntuCoreKeyUC16(c *C) {
 	for _, base := range []string{"", "core", "core16"} {
 		uc16 := s.coreModel(c, base, "pc", "pc-kernel")
 		_, err := trackredirect.UbuntuCoreKey(uc16)
@@ -142,12 +142,12 @@ func (s *ucSuite) TestUbuntuCoreKeyUC16(c *C) {
 	}
 }
 
-func (s *ucSuite) TestUbuntuCoreKeyNilModel(c *C) {
+func (s *trackredirectSuite) TestUbuntuCoreKeyNilModel(c *C) {
 	_, err := trackredirect.UbuntuCoreKey(nil)
 	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
 }
 
-func (s *ucSuite) TestResolveUC18Remap(c *C) {
+func (s *trackredirectSuite) TestResolveUC18Remap(c *C) {
 	trackMap := trackRedirectMap(18, "18", "18-fips")
 
 	for _, t := range []struct {
@@ -171,7 +171,7 @@ func (s *ucSuite) TestResolveUC18Remap(c *C) {
 	}
 }
 
-func (s *ucSuite) TestResolveUC18Identity(c *C) {
+func (s *trackredirectSuite) TestResolveUC18Identity(c *C) {
 	trackMap := trackRedirectMap(18, "18", "18-fips")
 
 	for _, channel := range []string{
@@ -186,7 +186,7 @@ func (s *ucSuite) TestResolveUC18Identity(c *C) {
 	}
 }
 
-func (s *ucSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
+func (s *trackredirectSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
 	// A later onboard can remap a track onward with an explicit key.
 	trackMap := map[string]map[string]map[string]string{
 		trackredirect.UbuntuCoreID: {
@@ -207,7 +207,7 @@ func (s *ucSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
 	c.Check(resolved, Equals, "24/edge")
 }
 
-func (s *ucSuite) TestResolveUncoveredVersion(c *C) {
+func (s *trackredirectSuite) TestResolveUncoveredVersion(c *C) {
 	// Version 22 is not covered (not in the map; 18 is onboarded).
 	trackMap := trackRedirectMap(18, "18")
 
@@ -218,7 +218,7 @@ func (s *ucSuite) TestResolveUncoveredVersion(c *C) {
 	}
 }
 
-func (s *ucSuite) TestResolveEmptyMapErrors(c *C) {
+func (s *trackredirectSuite) TestResolveEmptyMapErrors(c *C) {
 	_, err := trackredirect.Resolve(ucKey("18"), "latest/stable", map[string]map[string]map[string]string{})
 	c.Assert(err, ErrorMatches, `cannot find track redirects for ubuntu-core 18`)
 	c.Check(errors.Is(err, trackredirect.ErrNotCovered), Equals, true)
@@ -228,13 +228,13 @@ func (s *ucSuite) TestResolveEmptyMapErrors(c *C) {
 	c.Check(errors.Is(err, trackredirect.ErrNotCovered), Equals, true)
 }
 
-func (s *ucSuite) TestResolveBranchDropped(c *C) {
+func (s *trackredirectSuite) TestResolveBranchDropped(c *C) {
 	resolved, err := trackredirect.Resolve(ucKey("18"), "latest/stable/mybranch", trackRedirectMap(18, "18"))
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "18/stable")
 }
 
-func (s *ucSuite) TestResolveErrors(c *C) {
+func (s *trackredirectSuite) TestResolveErrors(c *C) {
 	trackMap := trackRedirectMap(18, "18")
 
 	_, err := trackredirect.Resolve(ucKey("18"), "foo/bar/baz/quux", trackMap)
@@ -246,7 +246,7 @@ func (s *ucSuite) TestResolveErrors(c *C) {
 	c.Check(errors.Is(err, trackredirect.ErrNoTrack), Equals, true)
 }
 
-func (s *ucSuite) TestResolveEmptyKey(c *C) {
+func (s *trackredirectSuite) TestResolveEmptyKey(c *C) {
 	_, err := trackredirect.Resolve(trackredirect.Key{}, "latest/stable", trackRedirectMap(18, "18"))
 	c.Check(err, ErrorMatches, "internal error: cannot resolve track redirects with empty key")
 
@@ -257,7 +257,7 @@ func (s *ucSuite) TestResolveEmptyKey(c *C) {
 	c.Check(err, ErrorMatches, "internal error: cannot resolve track redirects with empty key")
 }
 
-func (s *ucSuite) TestResolveIgnoresUnusedID(c *C) {
+func (s *trackredirectSuite) TestResolveIgnoresUnusedID(c *C) {
 	trackMap := map[string]map[string]map[string]string{
 		trackredirect.UbuntuCoreID: {
 			"18": {"latest": "18"},
@@ -272,7 +272,7 @@ func (s *ucSuite) TestResolveIgnoresUnusedID(c *C) {
 	c.Check(resolved, Equals, "18/stable")
 }
 
-func (s *ucSuite) TestResolveUbuntuID(c *C) {
+func (s *trackredirectSuite) TestResolveUbuntuID(c *C) {
 	trackMap := map[string]map[string]map[string]string{
 		"ubuntu": {
 			"22.04": {"latest": "22.04"},
