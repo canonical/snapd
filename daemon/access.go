@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/snapcore/snapd/client"
@@ -41,8 +40,6 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 
 var checkPolkitAction = checkPolkitActionImpl
 
-var osReadlink = os.Readlink
-
 func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *apiError {
 	var flags polkit.CheckFlags
 	allowHeader := r.Header.Get(client.AllowInteractionHeader)
@@ -54,7 +51,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	switch authorized, err := polkitCheckAuthorization(ucred.Pid, ucred.Uid, action, nil, flags); err {
+	switch authorized, err := polkitCheckAuthorization(ucred.PolkitPID, ucred.Uid, action, nil, flags); err {
 	case nil:
 		if authorized {
 			// polkit says user is authorised

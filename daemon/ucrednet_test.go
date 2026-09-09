@@ -53,6 +53,14 @@ func (s *ucrednetSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAcceptConnContext(c *check.C) {
+	readlinkCalls := 0
+	restore := MockOsReadlink(func(path string) (string, error) {
+		readlinkCalls++
+		c.Check(path, check.Equals, "/proc/100/exe")
+		return "/usr/bin/snap", nil
+	})
+	defer restore()
+
 	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
@@ -72,13 +80,50 @@ func (s *ucrednetSuite) TestAcceptConnContext(c *check.C) {
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
+	c.Check(readlinkCalls, check.Equals, 1)
 
 	ctx := ucrednetConnContext(context.Background(), conn)
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.PolkitPID, check.Equals, int32(100))
+	c.Check(u.ProcessExe, check.Equals, "/usr/bin/snap")
+	c.Check(readlinkCalls, check.Equals, 1)
 	c.Check(conn.RemoteAddr().String(), check.Equals, conn.(*ucrednetConn).Conn.RemoteAddr().String())
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextUnreadableExe(c *check.C) {
+	restore := MockOsReadlink(func(path string) (string, error) {
+		c.Check(path, check.Equals, "/proc/100/exe")
+		return "", errors.New("cannot read executable")
+	})
+	defer restore()
+
+	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
+	sock := filepath.Join(c.MkDir(), "sock")
+	l, err := net.Listen("unix", sock)
+	c.Assert(err, check.IsNil)
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
+
+	go func() {
+		cli, err := net.Dial("unix", sock)
+		c.Assert(err, check.IsNil)
+		cli.Close()
+	}()
+
+	conn, err := wl.Accept()
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	ctx := ucrednetConnContext(context.Background(), conn)
+	u, err := ucrednetGet(ctx)
+	c.Assert(err, check.IsNil)
+	c.Check(u.Pid, check.Equals, int32(100))
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.PolkitPID, check.Equals, int32(100))
+	c.Check(u.ProcessExe, check.Equals, "")
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
