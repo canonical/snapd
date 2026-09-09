@@ -28,8 +28,7 @@ prepare: |
   # will already have been set up, so we need to install it here
   snap install test-snapd-swtpm --edge
 
-  . "$TESTSLIB"/nested.sh
-  version="$(nested_get_version)"
+  version="$(tests.nested show version)"
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
