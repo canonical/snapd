@@ -121,11 +121,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 	st.Lock()
 	defer st.Unlock()
 
-	secretState, err := backend.OpenSecretState(m)
-	if err != nil {
-		return nil, err
-	}
-	m.secretState = secretState
+	m.secretState = backend.NewSecretState(m)
 
 	st.Cache(fdeMgrKey{}, m)
 
