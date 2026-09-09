@@ -333,8 +333,15 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// ICD files, with the classic priority-prefixed encoded names.
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"),
 			Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+		// Pass 2: redistribution to the loader-scanned GLVND directory, re-binding
+		// the assembly target above.
+		{Name: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
+			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl_alt.d/radeon.json"),
 			Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+		// Pass 2: redistribution for the radeon ICD too.
+		{Name: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
+			Dir: "/usr/share/glvnd/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 
 	// The library dirs are collected for SNAP_LIBRARY_PATH derivation; the
@@ -381,6 +388,9 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugMultiComponentFilter
 		{Name: libDir2, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1", Options: []string{"bind", "ro"}},
 		{Name: comp1LibDir, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(icdDir, "mesa.json"), Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+		// Pass 2: redistribution to the loader-scanned GLVND directory.
+		{Name: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
+			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
@@ -570,13 +580,25 @@ func (s *EglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdTarget))
 
+	// Pass 2: redistribution authorization for the loader-scanned GLVND
+	// directory, re-binding the assembly target.
+	icdLoaderTarget := "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", icdTarget, icdLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdTarget, icdLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdLoaderTarget))
+
 	// The writable-mimic is authorized for the share/egl_vendor.d tree.
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(icdTarget)))
+	// The writable-mimic is authorized for the loader-scanned dir too.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(icdLoaderTarget)))
 	// The app gets read access to its own assembly subtree only (the core base
-	// template does not grant /opt/** to apps).
+	// template does not grant /opt/** to apps), plus the loader-scanned GLVND
+	// subtree for Pass 2 redistribution.
 	app := spec.SnippetForTag("snap.snapd.app")
 	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/egl-driver-libs/ r,")
 	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/egl-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/usr/share/glvnd/egl_vendor.d/{,**} r,")
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

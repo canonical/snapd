@@ -297,6 +297,10 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// Client driver bound as a file, keeping its original name.
 		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
 			Dir: "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+		// Pass 2: redistribution to the loader-scanned GBM directory, re-binding
+		// the assembly target above.
+		{Name: "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so",
+			Dir: fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName()), Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0",
@@ -327,13 +331,25 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientTarget))
 
+	// Pass 2: redistribution authorization for the loader-scanned GBM
+	// directory, re-binding the assembly target.
+	clientLoaderTarget := fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName())
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", clientTarget, clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientTarget, clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientLoaderTarget))
+
 	// The writable-mimic is authorized for the share/gbm tree.
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(clientTarget)))
+	// The writable-mimic is authorized for the loader-scanned gbm dir too.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(clientLoaderTarget)))
 	// The app gets read access to its own assembly subtree only (the core base
-	// template does not grant /opt/** to apps).
+	// template does not grant /opt/** to apps), plus the loader-scanned GBM
+	// subtree for Pass 2 redistribution.
 	app := spec.SnippetForTag("snap.snapd.app")
 	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/gbm-driver-libs/ r,")
 	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/gbm-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/usr/lib/@{multiarch}/gbm/{,**} r,")
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
