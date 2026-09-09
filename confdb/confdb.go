@@ -1162,7 +1162,7 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	sort.Slice(matches, byAccessor(getAccs))
 
 	var expandedMatches []expandedMatch
-	suffixes := make(map[string]struct{}, len(matches))
+	suffixes := make([]string, 0, len(matches))
 	for _, match := range matches {
 		pathValuePairs, err := getValuesThroughPaths(match.storagePath, match.unmatchedSuffix, value)
 		if err != nil {
@@ -1187,9 +1187,10 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		// store the suffix in a map so we deduplicate them before checking if the
 		// value is used in its entirety
 		suffixPath := JoinAccessors(match.unmatchedSuffix)
-		suffixes[suffixPath] = struct{}{}
+		suffixes = append(suffixes, suffixPath)
 	}
 
+	sort.Strings(suffixes)
 	// check if value is entirely used. If not, we fail so this is consistent
 	// with doing the same write individually (one branch at a time)
 	if err := checkForUnusedBranches(value, suffixes); err != nil {
@@ -1509,11 +1510,19 @@ func replaceAccessorWith(path []Accessor, keyName string, accType AccessorType, 
 }
 
 // checkForUnusedBranches checks that the value is entirely covered by the paths.
-func checkForUnusedBranches(value any, paths map[string]struct{}) error {
+func checkForUnusedBranches(value any, paths []string) error {
 	// prune each path from the value. If anything is left at the end, the paths
-	// don't collectively cover the entire value
+	// don't collectively cover the entire value and we should error so the user
+	// isn't later surprised that some of they set isn't there
+
 	copyValue := deepCopy(value)
-	for path := range paths {
+	for i, path := range paths {
+		if i > 0 && path == paths[i-1] {
+			// we don't strictly need to do this since a repeated path would just
+			// no-op, but this is cheap and saves time
+			continue
+		}
+
 		var err error
 		var pathParts []Accessor
 
