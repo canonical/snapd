@@ -89,7 +89,7 @@ slots:
     library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
-      - $SNAP_COMPONENT(comp1)/lib1
+      - $SNAP_COMPONENT(comp1)/clib1
 components:
   comp1:
     type: standard
@@ -258,7 +258,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		{SnapName: "vulkan-provider", SlotName: "vulkan-slot"}: {
 			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"),
 			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2"),
-			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1"),
+			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "clib1"),
 		}})
 }
 
@@ -266,7 +266,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	// Library dirs.
 	libDir1 := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1")
 	libDir2 := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2")
-	compLibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1")
+	compLibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "clib1")
 	for _, libDir := range []string{libDir1, libDir2, compLibDir} {
 		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 	}
@@ -327,9 +327,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Library dirs.
-		{Name: libDir1, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/0", Options: []string{"bind", "ro"}},
-		{Name: libDir2, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/1", Options: []string{"bind", "ro"}},
-		{Name: compLibDir, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/2", Options: []string{"bind", "ro"}},
+		{Name: libDir1, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1", Options: []string{"bind", "ro"}},
+		{Name: libDir2, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2", Options: []string{"bind", "ro"}},
+		{Name: compLibDir, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1", Options: []string{"bind", "ro"}},
 		// ICD files, without a numeric prefix (vulkan has no priority).
 		{Name: filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json"),
 			Dir: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
@@ -355,11 +355,11 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 			Dir: "/usr/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 
-	// Only the library dirs feed SNAP_LIBRARY_PATH.
+	// Only the library dirs feed SNAP_LIBRARY_PATH (sorted).
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/0",
-		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/1",
-		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/2",
+		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1",
+		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1",
+		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2",
 	})
 }
 
@@ -401,7 +401,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
-	target0 := "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/0"
+	target0 := "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
 		filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"), target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
@@ -549,7 +549,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksToComps(c *C) {
 `, gpu)), 0655)
 
 	// Write provider library
-	libDir := filepath.Join(compMnt, "lib1")
+	libDir := filepath.Join(compMnt, "clib1")
 	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 	libPath := filepath.Join(libDir, "libvulkan_"+gpu+".so.0")
 	os.WriteFile(libPath, []byte{}, 0655)
@@ -888,7 +888,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_vulkan-provider_vulkan-slot_vulkan-driver-libs.library-source"): &osutil.MemoryFileState{
 			Content: []byte(filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib1") + "\n" +
 				filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib2") + "\n" +
-				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1") + "\n",
+				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "clib1") + "\n",
 			), Mode: 0644},
 	})
 }

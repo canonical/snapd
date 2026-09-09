@@ -291,9 +291,9 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Library dirs.
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2", Options: []string{"bind", "ro"}},
 		// Client driver bound as a file, keeping its original name.
 		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
 			Dir: "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
@@ -303,8 +303,8 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 			Dir: fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName()), Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0",
-		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/1",
+		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1",
+		"/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2",
 	})
 }
 
@@ -319,7 +319,7 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
-	target0 := "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/0"
+	target0 := "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
 		filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"), target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))

@@ -62,8 +62,8 @@ slots:
     library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
-      - $SNAP_COMPONENT(comp1)/lib1
-      - $SNAP_COMPONENT(comp2)/lib2
+      - $SNAP_COMPONENT(comp1)/clib1
+      - $SNAP_COMPONENT(comp2)/clib2
 components:
   comp1:
     type: standard
@@ -177,30 +177,30 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyLibDirs(c *C) {
 	spec := &mount.Specification{}
 	c.Assert(mountAssemblyLibDirs(spec, slot, "egl-driver-libs"), IsNil)
 
-	comp1Lib1 := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1")
+	comp1Lib1 := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "clib1")
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
 			Name:    filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
+			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
 			Options: []string{"bind", "ro"},
 		},
 		{
 			Name:    filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
+			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
 			Options: []string{"bind", "ro"},
 		},
 		{
 			Name:    comp1Lib1,
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
+			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
 			Options: []string{"bind", "ro"},
 		},
 	})
 
-	// Library path dirs are collected for the SNAP_LIBRARY_PATH derivation.
+	// Library path dirs are collected for the SNAP_LIBRARY_PATH derivation (sorted).
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
 	})
 }
 

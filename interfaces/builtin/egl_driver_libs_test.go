@@ -85,8 +85,8 @@ slots:
     library-source:
       - $SNAP/lib1
       - ${SNAP}/lib2
-      - $SNAP_COMPONENT(comp1)/lib1
-      - $SNAP_COMPONENT(comp2)/lib2
+      - $SNAP_COMPONENT(comp1)/clib1
+      - $SNAP_COMPONENT(comp2)/clib2
 components:
   comp1:
     type: standard
@@ -282,8 +282,8 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		{SnapName: "egl-provider", SlotName: "egl-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
-			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1"),
-			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2"),
+			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "clib1"),
+			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "clib2"),
 		}})
 }
 
@@ -294,7 +294,7 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	for _, libDir := range []string{libDir1, libDir2} {
 		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 	}
-	comp1LibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1")
+	comp1LibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "clib1")
 	c.Assert(os.MkdirAll(comp1LibDir, 0755), IsNil)
 
 	// Write ICD files in egl.d and egl_alt.d (egl_empty.d contributes nothing).
@@ -321,15 +321,16 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		// Library dirs, preserving the original directory order (idx).
+		// Library dirs, pooled by path-suffix after the $SNAP/$SNAP_COMPONENT
+		// prefix (no per-index splitting).		// Library dirs, pooled by path-suffix.
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro"}},
 		{Name: comp1LibDir,
-			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2", Options: []string{"bind", "ro"}},
-		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2"),
-			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/3", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro"}},
+		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "clib2"),
+			Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib2", Options: []string{"bind", "ro"}},
 		// ICD files, with the classic priority-prefixed encoded names.
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"),
 			Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
@@ -344,13 +345,13 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 			Dir: "/usr/share/glvnd/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 
-	// The library dirs are collected for SNAP_LIBRARY_PATH derivation; the
-	// ICD file mounts are not library dirs.
+	// The library dirs are collected for SNAP_LIBRARY_PATH derivation (sorted);
+	// the ICD file mounts are not library dirs.
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/3",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib2",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
 	})
 }
 
@@ -363,7 +364,7 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugMultiComponentFilter
 
 	libDir1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
 	libDir2 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
-	comp1LibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1")
+	comp1LibDir := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "clib1")
 	for _, libDir := range []string{libDir1, libDir2, comp1LibDir} {
 		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 	}
@@ -382,20 +383,20 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugMultiComponentFilter
 	spec := &mount.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
-	// comp2 entries are absent, but the original indices (0..2) are kept.
+	// comp2 entries are absent; remaining entries keep their pooled targets.
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
-		{Name: libDir1, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0", Options: []string{"bind", "ro"}},
-		{Name: libDir2, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1", Options: []string{"bind", "ro"}},
-		{Name: comp1LibDir, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2", Options: []string{"bind", "ro"}},
+		{Name: libDir1, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro"}},
+		{Name: libDir2, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro"}},
+		{Name: comp1LibDir, Dir: "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(icdDir, "mesa.json"), Dir: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Pass 2: redistribution to the loader-scanned GLVND directory.
 		{Name: "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
 			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/1",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/2",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
+		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
 	})
 }
 
@@ -463,7 +464,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComps(c *C) {
     }
 }
 `, icdData.gpu)), 0655)
-		libDir := filepath.Join(compMnt, "lib"+icdData.compSuff)
+		libDir := filepath.Join(compMnt, "clib"+icdData.compSuff)
 		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
 		os.WriteFile(libPath, []byte{}, 0655)
@@ -515,7 +516,7 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComp2(c *C) {
     }
 }
 `, icdData.gpu)), 0655)
-		libDir := filepath.Join(compMnt, "lib"+icdData.compSuff)
+		libDir := filepath.Join(compMnt, "clib"+icdData.compSuff)
 		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
 		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
 		os.WriteFile(libPath, []byte{}, 0655)
@@ -568,7 +569,7 @@ func (s *EglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
 	lib1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
-	target0 := "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/0"
+	target0 := "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 
@@ -611,8 +612,8 @@ func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_egl-provider_egl-slot_egl-driver-libs.library-source"): &osutil.MemoryFileState{
 			Content: []byte(filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1") + "\n" +
 				filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2") + "\n" +
-				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1") + "\n" +
-				filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2") + "\n"),
+				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "clib1") + "\n" +
+				filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "clib2") + "\n"),
 			Mode: 0644},
 	})
 }

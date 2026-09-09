@@ -199,13 +199,13 @@ func (s *OpenglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/1", Options: []string{"bind", "ro"}},
+			Dir: "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib2", Options: []string{"bind", "ro"}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0",
-		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/1",
+		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1",
+		"/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib2",
 	})
 }
 
@@ -215,7 +215,7 @@ func (s *OpenglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	lib1 := filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1")
-	target0 := "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/0"
+	target0 := "/opt/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
