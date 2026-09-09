@@ -2,9 +2,10 @@ summary: check that the network interface works with parallel instances
 
 details: |
     Install a parallel instance of a snap declaring a plug on the network
-    interface alongside the regular (non-instance) snap, and make sure
+    interface alongside the regular (non-instance) snap. Check that
     connect/disconnect isolation and network access work correctly for
-    both at the same time.
+    both at the same time, and that the instance is unaffected by removing
+    the regular snap.
 
 # amazon: uses nmap-netcat
 # ubuntu-14.04: systemd-run not supported
@@ -79,4 +80,10 @@ execute: |
     fi
 
     echo "But the instance's connection is unaffected by disconnecting the regular snap"
+    "$INSTANCE_NAME" http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
+
+    echo "When the regular snap is removed"
+    snap remove --purge "$SNAP_NAME"
+
+    echo "The instance can still access a network service"
     "$INSTANCE_NAME" http://127.0.0.1:"$PORT" | grep -Pqz 'ok\n'
