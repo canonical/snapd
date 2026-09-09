@@ -288,6 +288,28 @@ func (s *canRemoveSuite) TestBaseUsageCheckIncludesOngoingChanges(c *check.C) {
 		policy.InUseByErr("install-snap", "refresh-snap", "revert-snap"))
 }
 
+func (s *canRemoveSuite) TestBaseUsageCheckIncludesOngoingKernelWithExplicitBase(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("some-task", "...")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Base:     "some-base",
+		SideInfo: &snap.SideInfo{RealName: "some-kernel"},
+		Type:     snap.TypeKernel,
+	})
+	s.st.NewChange("install-snap", "...").AddTask(t)
+
+	baseState := &snapstate.SnapState{
+		Current: snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "some-base"},
+		}),
+	}
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, baseState, snap.R(0), coreDev, nil), check.DeepEquals,
+		policy.InUseByErr("some-kernel"))
+}
+
 func (s *canRemoveSuite) TestBaseUsageCheckSkipsIrrelevantChanges(c *check.C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -454,6 +476,45 @@ func (s *canRemoveSuite) TestBaseInUse(c *check.C) {
 	// allow removing if the snap is also being removed
 	removals := map[string]bool{"some-snap": true}
 	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, removals), check.IsNil)
+}
+
+func (s *canRemoveSuite) TestPreventRemovalOfKernelBase(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-kernel", SnapID: "some-kernel-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-kernel\nversion: 1.0\ntype: kernel\nbase: some-base", si)
+	snapstate.Set(s.st, "some-kernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeKernel),
+	})
+
+	baseState := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "some-base"}}),
+	}
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, baseState, snap.R(0), coreDev, nil), check.DeepEquals,
+		policy.InUseByErr("some-kernel"))
+}
+
+func (s *canRemoveSuite) TestCoreNotInUseByKernelWithUnsetBase(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-kernel", SnapID: "some-kernel-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-kernel\nversion: 1.0\ntype: kernel", si)
+	snapstate.Set(s.st, "some-kernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeKernel),
+	})
+
+	coreState := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
+	}
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, coreState, snap.R(0), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestBaseInUseBrokenApp(c *check.C) {

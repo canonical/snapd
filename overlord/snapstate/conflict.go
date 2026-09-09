@@ -373,8 +373,9 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 }
 
 func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Change, error) {
-	// only apps and gadgets have bases
-	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
+	// Apps and gadgets have bases, and kernels may have an explicit base.
+	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget &&
+		(snapsup.Type != snap.TypeKernel || snapsup.Base == "") {
 		return nil, nil
 	}
 

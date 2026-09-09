@@ -52,11 +52,18 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	// snapd/os/base/kernel/gadget cannot have prerequisites other than the
+
+	// snapd/os/base/gadget cannot have prerequisites other than the
 	// models default base (or core) which is installed anyway
 	switch snapsup.Type {
-	case snap.TypeSnapd, snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
+	case snap.TypeSnapd, snap.TypeOS, snap.TypeBase, snap.TypeGadget:
 		return nil
+	case snap.TypeKernel:
+		// kernels used to never specify bases, so an empty base meant "unset" and
+		// not implicit dependency on core.
+		if snapsup.Base == "" {
+			return nil
+		}
 	}
 
 	dctx, err := DeviceCtx(st, t, nil)

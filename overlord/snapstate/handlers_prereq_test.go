@@ -164,6 +164,60 @@ func (s *prereqSuite) TestPrereqTaskRetriesIfBaseIsBeingRemoved(c *C) {
 	c.Check(prereq.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestPrereqTaskRetriesIfKernelBaseIsBeingRemoved(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	rmChg := s.state.NewChange("remove-snap", "remove some-base")
+	rmChg.Set("full-remove", true)
+	rmChg.Set("snap-names", []string{"some-base"})
+	rmChg.AddTask(s.state.NewTask("remove-snap", "remove some-base"))
+
+	prereq := s.state.NewTask("prerequisites", "kernel")
+	prereq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)},
+		Base:     "some-base",
+		Type:     snap.TypeKernel,
+	})
+	chg := s.state.NewChange("install-snap", "install kernel")
+	chg.AddTask(prereq)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(prereq.Status(), Equals, state.DoingStatus)
+	c.Check(prereq.AtTime().IsZero(), Equals, false)
+}
+
+func (s *prereqSuite) TestPrereqTaskSkipsRetryIfKernelHasEmptyBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	rmChg := s.state.NewChange("remove-snap", "remove core")
+	rmChg.Set("full-remove", true)
+	rmChg.Set("snap-names", []string{"core"})
+	rmChg.AddTask(s.state.NewTask("remove-snap", "remove core"))
+
+	prereq := s.state.NewTask("prerequisites", "kernel")
+	prereq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)},
+		Type:     snap.TypeKernel,
+		// no base set means there is no base, not "core" as default
+	})
+	chg := s.state.NewChange("install-snap", "install kernel")
+	chg.AddTask(prereq)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// so we don't retry
+	c.Check(prereq.Status(), Equals, state.DoneStatus)
+}
+
 func (s *prereqSuite) TestPrereqTaskFailsIfBaseRemovalIsInSameChange(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

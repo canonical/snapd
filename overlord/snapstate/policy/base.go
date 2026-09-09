@@ -126,14 +126,17 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 
 	usedBy := make(map[string]bool)
 	for name, snapst := range snapStates {
-		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget {
+		if typ, err := snapst.Type(); err == nil && typ != snap.TypeApp && typ != snap.TypeGadget && typ != snap.TypeKernel {
 			continue
 		}
 
 		for _, si := range snapst.Sequence.SideInfos() {
 			snapInfo, err := snap.ReadInfo(name, si)
 			if err == nil {
-				if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
+				if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget && typ != snap.TypeKernel {
+					continue
+				}
+				if snapInfo.Type() == snap.TypeKernel && snapInfo.Base == "" {
 					continue
 				}
 				if !(baseName == snapInfo.Base || (alsoCore16 && snapInfo.Base == "core16")) {
@@ -160,8 +163,9 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 				return nil, err
 			}
 
-			// only apps and gadgets have bases
-			if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
+			// Apps and gadgets have bases, and kernels may have an explicit base.
+			if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget &&
+				(snapsup.Type != snap.TypeKernel || snapsup.Base == "") {
 				continue
 			}
 
