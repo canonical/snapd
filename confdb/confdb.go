@@ -1245,6 +1245,14 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 				return xPlaceholder
 			}
 
+			// index literals must be sorted numerically and not lexicographically
+			if xAcc.Type() == ListIndexType && yAcc.Type() == ListIndexType {
+				xNum, _ := strconv.Atoi(xAcc.Name())
+				yNum, _ := strconv.Atoi(yAcc.Name())
+
+				return xNum < yNum
+			}
+
 			return xAcc.Access() < yAcc.Access()
 		}
 
