@@ -2161,7 +2161,7 @@ func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	c.Check(model, Equals, "my-model-2")
 
 	base, mode := runner.BaseMode()
-	c.Check(base, Equals, s.expBase)
+	c.Check(base.String(), Equals, s.expBase)
 	c.Check(mode, Equals, s.expMode)
 
 	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
