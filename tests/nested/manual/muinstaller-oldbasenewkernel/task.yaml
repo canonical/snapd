@@ -63,7 +63,7 @@ execute: |
 
   # Retrieve and repack kernel
   # Build kernel with initramfs with the compiled snap-bootstrap
-  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$kernel_version" --kernel-channel edge --output-snap "$PWD/pc-kernel-repacked.snap"
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$core_version" --kernel-branch "$kernel_version" --kernel-channel edge --output-snap "$PWD/pc-kernel-repacked.snap"
   # the fakestore needs this assertion
   snap ack pc-kernel.assert
 

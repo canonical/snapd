@@ -58,9 +58,9 @@ execute: |
   version="$(nested_get_version)"
 
   if os.query is-ubuntu-ge 24.04; then
-    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
+    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
   else
-    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 20 --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
+    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
   fi
 
   # Prepare gadget with the right gadget.yaml

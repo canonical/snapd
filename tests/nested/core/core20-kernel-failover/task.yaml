@@ -32,11 +32,7 @@ prepare: |
   version="$(tests.nested show version)"
   case "$PROBLEM_TYPE" in
       crash)
-          if [ "$version" -le 22 ]; then
-            "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 20 --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap" --inject-kernel-panic-after-snap-bootstrap
-          else
-            "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap" --inject-kernel-panic-after-snap-bootstrap
-          fi
+          "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel beta --output-snap "$PWD/panicking-initramfs-kernel.snap" --inject-kernel-panic-after-snap-bootstrap
           ;;
       nolink)
           # Failure will be forced by removing the try-kernel.efi link later,
