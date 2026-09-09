@@ -455,12 +455,12 @@ func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.Conne
 // bind variant (trailing slashes and directory semantics).
 func assemblyAppArmorEntry(emit func(f string, args ...any), source, target string, isDir bool) {
 	if isDir {
-		emit("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
+		emit("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
 		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
 		emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
 		emit("  umount \"%s{,-[0-9]*}/\",\n", target)
 	} else {
-		emit("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", source, target)
+		emit("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", source, target)
 		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", target)
 		emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}\",\n", target)
 		emit("  umount \"%s{,-[0-9]*}\",\n", target)

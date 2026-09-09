@@ -402,14 +402,14 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
 	target0 := "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
 		filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"), target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 
 	// ICD file bind with an unprefixed encoded name (vulkan has no priority).
 	icdSrc := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json")
 	icdTarget := "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdTarget))
 
@@ -417,18 +417,18 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// search directory, re-binding the assembly target.
 	icdLoaderTarget := "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", icdTarget, icdLoaderTarget))
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdTarget, icdLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdTarget, icdLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdLoaderTarget))
 
 	// Implicit layer file bind.
 	layerSrc := filepath.Join(implicitDir, "gpu_layer.json")
 	layerTarget := "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", layerSrc, layerTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", layerSrc, layerTarget))
 	// Pass 2: redistribution authorization for the implicit layer too.
 	layerLoaderTarget := "/usr/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", layerTarget, layerLoaderTarget))
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", layerTarget, layerLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", layerTarget, layerLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", layerLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", layerLoaderTarget))
 

@@ -320,14 +320,14 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
 	target0 := "/opt/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
 		filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"), target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 
 	// Client driver file bind, keeping its original name.
 	clientSrc := filepath.Join(snapSourceDir, "nvidia-drm_gbm.so")
 	clientTarget := "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientSrc, clientTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientSrc, clientTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientTarget))
 
@@ -335,7 +335,7 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// directory, re-binding the assembly target.
 	clientLoaderTarget := fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName())
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", clientTarget, clientLoaderTarget))
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientTarget, clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientTarget, clientLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientLoaderTarget))
 

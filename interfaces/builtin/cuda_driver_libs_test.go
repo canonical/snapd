@@ -353,7 +353,7 @@ func (s *CudaDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// clash suffixes.
 	lib1 := filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1")
 	target0 := "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
 

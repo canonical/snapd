@@ -218,7 +218,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	lib1 := filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1")
 	target0 := "/opt/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(target0)))

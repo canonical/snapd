@@ -570,14 +570,14 @@ func (s *EglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// Library dir bind.
 	lib1 := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1")
 	target0 := "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 
 	// ICD file bind (file semantics, no trailing slash) with the classic
 	// priority-prefixed encoded name.
 	icdSrc := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json")
 	icdTarget := "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json"
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdTarget))
 
@@ -585,7 +585,7 @@ func (s *EglDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// directory, re-binding the assembly target.
 	icdLoaderTarget := "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", icdTarget, icdLoaderTarget))
-	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdTarget, icdLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdTarget, icdLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdLoaderTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdLoaderTarget))
 
