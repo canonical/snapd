@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -13,10 +14,11 @@ class testRequestHandler(BaseHTTPRequestHandler):
         message = b"<!doctype html>ok\n"
         self.wfile.write(message)
 
-def run():
-    server_address = ('localhost', 8081)
+def run(port):
+    server_address = ('localhost', port)
     httpd = HTTPServer(server_address, testRequestHandler)
     httpd.serve_forever()
 
 if __name__ == '__main__':
-  sys.exit(run())
+    port = int(os.environ.get('PORT', '8081'))
+    sys.exit(run(port))
