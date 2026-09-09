@@ -562,7 +562,7 @@ func validateSnapdTrackRedirects(info *Info) error {
 		return nil
 	}
 	if info.Type() != TypeSnapd {
-		return fmt.Errorf("track-redirects is only allowed on snapd snaps")
+		return fmt.Errorf("cannot specify track-redirects except on snapd snaps")
 	}
 	if err := validateTrackRedirects(info.TrackRedirects); err != nil {
 		return fmt.Errorf("invalid track-redirects: %v", err)

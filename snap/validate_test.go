@@ -2920,7 +2920,7 @@ track-redirects:
       latest: "18"
 `))
 	c.Assert(err, IsNil)
-	c.Check(Validate(info), ErrorMatches, `track-redirects is only allowed on snapd snaps`)
+	c.Check(Validate(info), ErrorMatches, `cannot specify track-redirects except on snapd snaps`)
 }
 
 func (s *ValidateSuite) TestValidateTrackRedirectsConstructedInvalid(c *C) {
