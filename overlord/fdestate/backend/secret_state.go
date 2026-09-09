@@ -197,6 +197,10 @@ type secretState struct {
 	header secretStateHeader
 	mmap   []byte
 
+	// initErr holds an error that occurred while initializing the state.
+	// It is checked lazily by Get, Has and Set.
+	initErr error
+
 	closed       bool
 	stateChecker StateLockChecker
 }
@@ -214,6 +218,9 @@ func (s *secretState) ensureLocked() {
 
 func (s *secretState) Get(key string, value any) error {
 	s.ensureLocked()
+	if s.initErr != nil {
+		return s.initErr
+	}
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to get key %q from closed state", key)
 	}
@@ -223,6 +230,9 @@ func (s *secretState) Get(key string, value any) error {
 
 func (s *secretState) Has(key string) bool {
 	s.ensureLocked()
+	if s.initErr != nil {
+		return false
+	}
 	if s.closed {
 		return false
 	}
@@ -232,6 +242,9 @@ func (s *secretState) Has(key string) bool {
 
 func (s *secretState) Set(key string, value any) error {
 	s.ensureLocked()
+	if s.initErr != nil {
+		return s.initErr
+	}
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to set key %q on closed state", key)
 	}
@@ -355,7 +368,7 @@ func openSecretStateFile() (f *os.File, retErr error) {
 	return f, nil
 }
 
-// OpenSecretState returns the memfd-secret backed state used to store
+// NewSecretState returns the memfd-secret backed state used to store
 // secrets that can persist through snapd restarts. If memfd-secret is
 // not supported, it fallbacks to using memfd-create. In that fallback,
 // secret data lives in regular process memory and is not protected from
@@ -368,12 +381,30 @@ func openSecretStateFile() (f *os.File, retErr error) {
 // at a time.
 //
 // The caller must hold the state lock.
-func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retErr error) {
+func NewSecretState(stateChecker StateLockChecker) SecretState {
 	stateChecker.EnsureLocked()
 
+	s := &secretState{
+		stateChecker: stateChecker,
+		data:         make(customData),
+	}
+	if err := s.init(); err != nil {
+		s.initErr = fmt.Errorf("cannot initialize secret state: %w", err)
+		logger.Debugf("cannot initialize secret state: %v", s.initErr)
+	}
+
+	// The finalizer runs on the GC goroutine without holding the state lock.
+	// It only runs once the state is unreachable, so no other goroutine can
+	// be accessing it and it can release the resources directly.
+	runtime.SetFinalizer(s, (*secretState).closeLocked)
+	return s
+}
+
+// init initializes the backing store for the secret state.
+func (s *secretState) init() (retErr error) {
 	f, err := openSecretStateFile()
 	if err != nil {
-		return nil, fmt.Errorf("cannot open secret state file: %w", err)
+		return fmt.Errorf("cannot open secret state file: %w", err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -383,13 +414,13 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 
 	finfo, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("cannot stat memfd-secret state: %w", err)
+		return fmt.Errorf("cannot stat memfd-secret state: %w", err)
 	}
 
 	if finfo.Size() < secretStateHeaderSize {
 		// XXX: file does not even fit the header, consider removing the file
 		// and creating a new one with the correct size.
-		return nil, fmt.Errorf("secret state file size %d is too small", finfo.Size())
+		return fmt.Errorf("secret state file size %d is too small", finfo.Size())
 	}
 
 	size := finfo.Size()
@@ -399,7 +430,7 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 	}
 	mmap, err := unixMmap(int(f.Fd()), 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
-		return nil, fmt.Errorf("cannot mmap memfd-secret state: %w", err)
+		return fmt.Errorf("cannot mmap memfd-secret state: %w", err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -410,31 +441,25 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 		}
 	}()
 
-	s := &secretState{
-		f:            f,
-		stateChecker: stateChecker,
-		data:         make(customData),
-		header:       initSecretStateHeader(mmap),
-		mmap:         mmap,
+	header := initSecretStateHeader(mmap)
+	if header.version != 1 {
+		return fmt.Errorf("unsupported memfd-secret state version %d", header.version)
 	}
-
-	if s.header.version != 1 {
-		return nil, fmt.Errorf("unsupported memfd-secret state version %d", s.header.version)
-	}
-	if s.header.size > s.capacity() {
-		return nil, fmt.Errorf("invalid header size %d for capacity %d", s.header.size, s.capacity())
+	// capacity available for data after the fixed-size header.
+	capacity := uint64(len(mmap)) - secretStateHeaderSize
+	if header.size > capacity {
+		return fmt.Errorf("invalid header size %d for capacity %d", header.size, capacity)
 	}
 
 	// load the existing state from the mmaped file.
-	if err := s.data.load(s.header, mmap); err != nil {
-		return nil, fmt.Errorf("cannot load memfd-secret state: %w", err)
+	if err := s.data.load(header, mmap); err != nil {
+		return fmt.Errorf("cannot load memfd-secret state: %w", err)
 	}
 
-	// The finalizer runs on the GC goroutine without holding the state lock.
-	// It only runs once the state is unreachable, so no other goroutine can
-	// be accessing it and it can release the resources directly.
-	runtime.SetFinalizer(s, (*secretState).closeLocked)
-	return s, nil
+	s.f = f
+	s.header = header
+	s.mmap = mmap
+	return nil
 }
 
 // MockFdstoreNew mocks the returned fdstore instance for testing.
