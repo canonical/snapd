@@ -65,17 +65,6 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
-
-	// DmVerityFile returns the name of the dm-verity hash file computed by the container's name
-	// and the digest.
-	// If the container doesn't contain integrity data or contains integrity data but not of type
-	// "dm-verity", this will return an error.
-	DmVerityFile() (string, error)
-
-	// DmVerityDigest returns the dm-verity digest of the integrity data associated with the container.
-	// If the container doesn't contain integrity data or contains integrity data but not of type
-	// "dm-verity", this will return an error.
-	DmVerityDigest() (string, error)
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -2166,26 +2155,4 @@ type IntegrityDataInfo struct {
 	integrity.IntegrityDataParams `json:"params"`
 
 	DownloadInfo `json:"download-info,omitempty"`
-}
-
-// DmVerityFile returns the name of the dm-verity hash file computed by the snap name and the digest.
-// If the snap doesn't contain integrity data or contains integrity data but not of type
-// "dm-verity", this will return an error.
-func (s *Info) DmVerityFile() (string, error) {
-	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
-		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
-	}
-
-	return s.IntegrityData.IntegrityFile(s.MountFile())
-}
-
-// DmVerityDigest returns the dm-verity digest of the integrity data associated with the snap.
-// If the snap doesn't contain integrity data or contains integrity data but not of type
-// "dm-verity", this will return an error.
-func (s *Info) DmVerityDigest() (string, error) {
-	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
-		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
-	}
-
-	return s.IntegrityData.Digest, nil
 }
