@@ -2047,13 +2047,17 @@ func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flag
 	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
 }
 
-func validateTrackRedirectRules(osID, version string, rules map[string]string) error {
-	for input, target := range rules {
-		if !channel.IsVerbatimTrackOnly(input) {
-			return fmt.Errorf("input track %q for %s %s is not a track-only channel", input, osID, version)
-		}
-		if !channel.IsVerbatimTrackOnly(target) {
-			return fmt.Errorf("target track %q for %s %s is not a track-only channel", target, osID, version)
+func validateTrackRedirects(trackRedirects map[string]map[string]map[string]string) error {
+	for osID, versions := range trackRedirects {
+		for version, redirects := range versions {
+			for input, target := range redirects {
+				if !channel.IsVerbatimTrackOnly(input) {
+					return fmt.Errorf("input track %q for %s %s is not a track-only channel", input, osID, version)
+				}
+				if !channel.IsVerbatimTrackOnly(target) {
+					return fmt.Errorf("target track %q for %s %s is not a track-only channel", target, osID, version)
+				}
+			}
 		}
 	}
 	return nil

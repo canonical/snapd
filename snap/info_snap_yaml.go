@@ -665,12 +665,8 @@ func setTrackRedirectsFromSnapYaml(y snapYaml, snap *Info) error {
 	if len(y.TrackRedirects) == 0 {
 		return nil
 	}
-	for osID, versions := range y.TrackRedirects {
-		for version, rules := range versions {
-			if err := validateTrackRedirectRules(osID, version, rules); err != nil {
-				return fmt.Errorf("cannot parse snap.yaml: invalid track-redirects: %v", err)
-			}
-		}
+	if err := validateTrackRedirects(y.TrackRedirects); err != nil {
+		return fmt.Errorf("cannot parse snap.yaml: invalid track-redirects: %v", err)
 	}
 	snap.TrackRedirects = y.TrackRedirects
 	return nil
