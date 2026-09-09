@@ -112,8 +112,8 @@ type apiBaseSuite struct {
 	missingChangeRegistrations sync.Map
 }
 
-func addUcrednet(r *http.Request, pid int32, uid uint32, socket string, ifaces ...string) {
-	daemon.AddUcrednetToRequest(r, &daemon.Ucrednet{Pid: pid, Uid: uid, Socket: socket}, ifaces...)
+func addUcrednet(r *http.Request, snapName string, uid uint32, socket string, ifaces ...string) {
+	daemon.AddUcrednetToRequest(r, &daemon.Ucrednet{SnapName: snapName, Uid: uid, Socket: socket}, ifaces...)
 }
 
 func requestWithUcrednet(ucred *daemon.Ucrednet, ifaces ...string) *http.Request {
@@ -548,7 +548,7 @@ func (s *apiBaseSuite) daemonWithOverlordMockAndStore() *daemon.Daemon {
 
 // asUserAuth fakes authorization into the request as for root
 func (s *apiBaseSuite) asRootAuth(req *http.Request) {
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Pid: 100, Uid: 0, Socket: dirs.SnapdSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{SnapName: "some-snap", Uid: 0, Socket: dirs.SnapdSocket})
 }
 
 // asUserAuth adds authorization to the request as for a logged in user
@@ -570,7 +570,7 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 		s.authUser = u
 	}
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Pid: 100, Uid: 1000, Socket: dirs.SnapdSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{SnapName: "some-snap", Uid: 1000, Socket: dirs.SnapdSocket})
 }
 
 type fakeSnapManager struct{}

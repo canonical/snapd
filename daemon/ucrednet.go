@@ -28,10 +28,11 @@ import (
 	"sync"
 	sys "syscall"
 
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var errNoID = errors.New("no pid/uid found")
+var errNoID = errors.New("no peer credentials found")
 
 type ucrednetContextKey struct{}
 type ucrednetInterfacesContextKey struct{}
@@ -87,22 +88,26 @@ func ucrednetAttachInterface(ctx context.Context, iface string) context.Context 
 }
 
 type ucrednet struct {
-	Pid    int32
-	Uid    uint32
+	// SnapName is the peer snap instance name, or empty if unresolved.
+	SnapName string
+	// Uid is the peer user ID obtained from the socket credentials.
+	Uid uint32
+	// Socket is the local Unix socket path on which the connection was
+	// accepted.
 	Socket string
 
 	// ProcessExe is the peer executable path at acceptance, or empty if
 	// unreadable.
 	ProcessExe string
-	// PolkitPID is the peer PID, retained only for polkit authorization.
+	// PolkitPID is the peer PID, should only be used for polkit authorization.
 	PolkitPID int32
 }
 
 func (un *ucrednet) String() string {
 	if un == nil {
-		return "pid=;uid=;socket=;"
+		return "snap=;uid=;socket=;"
 	}
-	return fmt.Sprintf("pid=%d;uid=%d;socket=%s;", un.Pid, un.Uid, un.Socket)
+	return fmt.Sprintf("snap=%s;uid=%d;socket=%s;", un.SnapName, un.Uid, un.Socket)
 }
 
 type ucrednetConn struct {
@@ -119,6 +124,7 @@ type ucrednetListener struct {
 
 var getUcred = sys.GetsockoptUcred
 var osReadlink = os.Readlink
+var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
 
 func (wl *ucrednetListener) Accept() (net.Conn, error) {
 	con, err := wl.Listener.Accept()
@@ -145,11 +151,12 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		}
 
 		unet = &ucrednet{
-			Pid:       ucred.Pid,
 			Uid:       ucred.Uid,
 			Socket:    ucon.LocalAddr().String(),
 			PolkitPID: ucred.Pid,
 		}
+		// non-snap clients and failed lookups must not prevent serving the connection.
+		unet.SnapName, _ = cgroupSnapNameFromPid(int(ucred.Pid))
 		// an unreadable executable must not prevent the connection from being served.
 		unet.ProcessExe, _ = osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
 	}
