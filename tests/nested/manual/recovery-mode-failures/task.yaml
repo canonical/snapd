@@ -28,6 +28,9 @@ prepare: |
   # will already have been set up, so we need to install it here
   snap install test-snapd-swtpm --edge
 
+  . "$TESTSLIB"/nested.sh
+  version="$(nested_get_version)"
+
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
 
@@ -76,7 +79,7 @@ prepare: |
       "$TESTSTOOLS"/repack-kernel --mode corrupt --orig-snap pc-kernel.snap --output-snap "$PWD/pc-kernel.snap" --corruption bad-linux
       ;;
     initramfs-panic)
-      "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 24 --orig-snap pc-kernel.snap --output-snap "$PWD/pc-kernel.snap" --inject-kernel-panic-before-snap-bootstrap
+      "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --orig-snap pc-kernel.snap --output-snap "$PWD/pc-kernel.snap" --inject-kernel-panic-before-snap-bootstrap
       ;;
   esac
 

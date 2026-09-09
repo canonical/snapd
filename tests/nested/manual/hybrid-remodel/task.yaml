@@ -49,7 +49,7 @@ prepare: |
   case "${VERSION}" in
     22)
       # use 23.10 instead
-      "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version 20 --kernel-branch 23.10 --kernel-channel beta --output-snap "${extra_snaps}/pc-kernel-23.10.snap"
+      "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "${VERSION}" --kernel-branch 23.10 --kernel-channel beta --output-snap "${extra_snaps}/pc-kernel-23.10.snap"
       pc_kernel_orig="${extra_snaps}/pc-kernel-23.10.snap"
       "${TESTSTOOLS}"/store-state make-snap-installable --noack --revision 2 "${NESTED_FAKESTORE_BLOB_DIR}" "${pc_kernel_orig}" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
     ;;
