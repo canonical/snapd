@@ -304,37 +304,38 @@ func (inst *noticeInstruction) validate(r *http.Request) error {
 
 // isRequestFromSnapCmd checks that the request is coming from snap command.
 //
-// It checks that the request process "/proc/PID/exe" points to one of the
-// known locations of the snap command. This not a security-oriented check.
+// It checks that the executable path captured when accepting the connection
+// is one of the known locations of the snap command. This is not a
+// security-oriented check.
 func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return false, err
 	}
-	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
-	if err != nil {
-		return false, err
+
+	if ucred.ProcessExe == "" {
+		return false, errors.New("cannot determine executable of calling process")
 	}
 
 	// There aren't too many options, but overall possibilities are:
 	// - we are re-executed and the client isn't
 	// - the client re-executed but we did not
 
-	switch filepath.Base(exe) {
+	switch filepath.Base(ucred.ProcessExe) {
 	case "snap", "snap-fips": // the standalone snap binary, or its FIPS build variant
 	case "snapd", "snapd-fips": // the merged snap binary
 	default:
 		return false, nil
 	}
 
-	if strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
-		strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
+	if strings.HasPrefix(ucred.ProcessExe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
+		strings.HasPrefix(ucred.ProcessExe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
 		// client with expected name from snap or core snap
 		return true, nil
 	}
 
-	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
-		strings.HasPrefix(exe, dirs.DistroLibExecDir+"/") {
+	if strings.HasPrefix(ucred.ProcessExe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
+		strings.HasPrefix(ucred.ProcessExe, dirs.DistroLibExecDir+"/") {
 		// client with expected name from one of the system locations
 		return true, nil
 	}

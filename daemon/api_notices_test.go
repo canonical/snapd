@@ -838,13 +838,6 @@ func (s *noticesSuite) TestNoticeTypesViewableBySnap(c *C) {
 func (s *noticesSuite) TestAddNotice(c *C) {
 	s.daemon(c)
 
-	// mock request coming from snap command
-	restore := daemon.MockOsReadlink(func(path string) (string, error) {
-		c.Check(path, Equals, "/proc/100/exe")
-		return filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), nil
-	})
-	defer restore()
-
 	st := s.d.Overlord().State()
 	st.Lock()
 	// mock existing snap
@@ -862,7 +855,7 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 	}`)
 	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 1000, ProcessExe: filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap")})
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
@@ -952,16 +945,9 @@ func (s *noticesSuite) TestAddNoticeInvalidSnapName(c *C) {
 func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
 	s.daemon(c)
 
-	// mock request coming from snap command
-	restore := daemon.MockOsReadlink(func(path string) (string, error) {
-		c.Check(path, Equals, "/proc/100/exe")
-		return filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), nil
-	})
-	defer restore()
-
 	req, err := http.NewRequest("POST", "/v2/notices", strings.NewReader(body))
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 1000, ProcessExe: filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap")})
 	rsp := s.errorReq(c, req, nil, actionExpectedBool(!strings.Contains(errorMatch, "invalid action")))
 	c.Check(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Matches, errorMatch)
@@ -1009,13 +995,6 @@ func (s *noticesSuite) TestAddNoticesSnapCmdMergedSnapdAltLibexecdir(c *C) {
 func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bool) {
 	s.daemon(c)
 
-	// mock request coming from snap command
-	restore := daemon.MockOsReadlink(func(path string) (string, error) {
-		c.Check(path, Equals, "/proc/100/exe")
-		return exePath, nil
-	})
-	defer restore()
-
 	st := s.d.Overlord().State()
 	st.Lock()
 	// mock existing snap
@@ -1032,7 +1011,7 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 	}`)
 	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 1000, ProcessExe: exePath})
 
 	if shouldFail {
 		rsp := s.errorReq(c, req, nil, actionIsExpected)
@@ -1248,7 +1227,11 @@ func addNotice(c *C, st *state.State, userID *uint32, noticeType state.NoticeTyp
 func (s *noticesSuite) TestIsFromSnapCmd(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-volumes", nil)
 	c.Assert(err, IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket})
+	restore := daemon.MockOsReadlink(func(string) (string, error) {
+		c.Error("request handling must not look up the executable")
+		return "", nil
+	})
+	defer restore()
 
 	for _, tc := range []struct {
 		exe string
@@ -1267,16 +1250,28 @@ func (s *noticesSuite) TestIsFromSnapCmd(c *C) {
 		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/not-a-snap"), false},
 	} {
 		c.Logf("tc: %+v", tc)
-		func() {
-			restore := daemon.MockOsReadlink(func(p string) (string, error) {
-				c.Check(p, Equals, "/proc/100/exe")
-				return tc.exe, nil
-			})
-			defer restore()
-
-			res, err := daemon.IsRequestFromSnapCmd(req)
-			c.Check(err, IsNil)
-			c.Check(res, Equals, tc.res)
-		}()
+		daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 42, Socket: dirs.SnapSocket, ProcessExe: tc.exe})
+		res, err := daemon.IsRequestFromSnapCmd(req)
+		c.Check(err, IsNil)
+		c.Check(res, Equals, tc.res)
 	}
+}
+
+func (s *noticesSuite) TestIsFromSnapCmdMissingExe(c *C) {
+	req, err := http.NewRequest("GET", "/", nil)
+	c.Assert(err, IsNil)
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket})
+	res, err := daemon.IsRequestFromSnapCmd(req)
+	c.Check(err, ErrorMatches, "cannot determine executable of calling process")
+	c.Check(res, Equals, false)
+}
+
+func (s *noticesSuite) TestAddNoticeMissingExe(c *C) {
+	s.daemon(c)
+	req, err := http.NewRequest("POST", "/v2/notices", strings.NewReader(`{"action":"add","type":"snap-run-inhibit","key":"snap-name"}`))
+	c.Assert(err, IsNil)
+	addUcrednet(req, 100, 1000, "")
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, Equals, 400)
+	c.Check(rsp.Message, Equals, `internal error: cannot check request source: cannot determine executable of calling process (can only record notices from the "snap" command)`)
 }

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	sys "syscall"
 
@@ -89,6 +90,12 @@ type ucrednet struct {
 	Pid    int32
 	Uid    uint32
 	Socket string
+
+	// ProcessExe is the peer executable path at acceptance, or empty if
+	// unreadable.
+	ProcessExe string
+	// PolkitPID is the peer PID, retained only for polkit authorization.
+	PolkitPID int32
 }
 
 func (un *ucrednet) String() string {
@@ -111,6 +118,7 @@ type ucrednetListener struct {
 }
 
 var getUcred = sys.GetsockoptUcred
+var osReadlink = os.Readlink
 
 func (wl *ucrednetListener) Accept() (net.Conn, error) {
 	con, err := wl.Listener.Accept()
@@ -137,10 +145,13 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		}
 
 		unet = &ucrednet{
-			Pid:    ucred.Pid,
-			Uid:    ucred.Uid,
-			Socket: ucon.LocalAddr().String(),
+			Pid:       ucred.Pid,
+			Uid:       ucred.Uid,
+			Socket:    ucon.LocalAddr().String(),
+			PolkitPID: ucred.Pid,
 		}
+		// an unreadable executable must not prevent the connection from being served.
+		unet.ProcessExe, _ = osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
 	}
 
 	return &ucrednetConn{con, unet}, nil
