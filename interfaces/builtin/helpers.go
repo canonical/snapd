@@ -316,6 +316,26 @@ func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedS
 	return nil
 }
 
+// loaderScannedTarget returns the canonical loader-scanned system path that
+// the given assembly share/ subdir is redistributed to (Pass 2), or "" if the
+// subdir is not redistributed (e.g. library dirs, which are discovered via
+// SNAP_LIBRARY_PATH in Pass 3).
+func loaderScannedTarget(subdir string) string {
+	switch subdir {
+	case "egl_vendor.d":
+		return "/usr/share/glvnd/egl_vendor.d"
+	case "vulkan/icd.d":
+		return "/usr/share/vulkan/icd.d"
+	case "vulkan/implicit_layer.d":
+		return "/usr/share/vulkan/implicit_layer.d"
+	case "vulkan/explicit_layer.d":
+		return "/usr/share/vulkan/explicit_layer.d"
+	case "gbm":
+		return fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())
+	}
+	return ""
+}
+
 // mountAssemblySourceFiles mounts each source file found by sourceDirsCheck in
 // the sda attribute (icd-source / *-layer-source) as a read-only file bind into
 // the per-interface assembly tree under
@@ -352,6 +372,20 @@ func mountAssemblySourceFiles(
 		}); err != nil {
 			return err
 		}
+		// Pass 2: the metadata is also redistributed to the canonical
+		// loader-scanned system location, re-binding the assembly target above
+		// (single source of truth) so the Vulkan/GLVND/GBM loaders discover it
+		// env-free.
+		if loaderDir := loaderScannedTarget(subdir); loaderDir != "" {
+			loaderTarget := filepath.Join(loaderDir, encodedName)
+			if err := spec.AddMountEntry(osutil.MountEntry{
+				Name:    target, // source = assembly target (bound above)
+				Dir:     loaderTarget,
+				Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+			}); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -368,9 +402,19 @@ func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.Conne
 		return err
 	}
 	target := filepath.Join(assemblyRoot, ifaceName, "share", "gbm", clientDriver)
-	return spec.AddMountEntry(osutil.MountEntry{
+	if err := spec.AddMountEntry(osutil.MountEntry{
 		Name:    path,
 		Dir:     target,
+		Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+	}); err != nil {
+		return err
+	}
+	// Pass 2: the client-driver metadata is also redistributed to the
+	// loader-scanned GBM directory, re-binding the assembly target above.
+	loaderTarget := filepath.Join(loaderScannedTarget("gbm"), clientDriver)
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    target, // source = assembly target (bound above)
+		Dir:     loaderTarget,
 		Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 	})
 }
