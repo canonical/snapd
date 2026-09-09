@@ -19,6 +19,17 @@ grade: stable
 license: GPL-3.0
 confinement: strict
 
+# Empty until a UC version is onboarded. Onboarding is a yaml edit here, e.g.:
+#   track-redirects:
+#     ubuntu-core:
+#       "18":
+#         latest: "18"
+#         fips-updates: "18-fips"
+# TODO: add track-redirects to the store/review-tools snap.yaml schema;
+# passthrough only skips Snapcraft validation.
+passthrough:
+  track-redirects: {}
+
 # Note that this snap is unusual in that it has no "apps" section.
 #
 # It is started via re-exec on classic systems and via special
@@ -298,8 +309,6 @@ parts:
       fi
       # make sure to set the version we declared in pull
       ./mkversion.sh "$VERSION"
-      # SNAPD_UC_TRACKS is not shipped in distro packages.
-      go run -mod=vendor ./snap/uctrack/info >> data/info
 
       # double check the toolchain
       echo "--- go version $(go version)"

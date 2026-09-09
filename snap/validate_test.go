@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022-2023 Canonical Ltd
+ * Copyright (C) 2022-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2885,4 +2885,61 @@ slots:
 
 	err = Validate(info)
 	c.Check(err, ErrorMatches, strings.Join(expectedErrs, "\n"))
+}
+
+func (s *ValidateSuite) TestValidateTrackRedirectsOnSnapd(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateTrackRedirectsEmptyOnApp(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: foo
+version: 1.0
+track-redirects: {}
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateTrackRedirectsRejectedOnApp(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: foo
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), ErrorMatches, `cannot specify track-redirects except on snapd snaps`)
+}
+
+func (s *ValidateSuite) TestValidateTrackRedirectsConstructedInvalid(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	info.TrackRedirects = TrackRedirects{
+		"ubuntu-core": {
+			"18": {"latest": "18/stable"},
+		},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid track-redirects: target track "18/stable" for ubuntu-core 18 is not a track-only channel`)
+
+	info.TrackRedirects = TrackRedirects{
+		"ubuntu-core": {
+			"18": {},
+		},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid track-redirects: empty track map for ubuntu-core 18`)
 }

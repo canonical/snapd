@@ -211,6 +211,10 @@ execute: |
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
 
+    echo "Check meta/snap.yaml carries track-redirects"
+    test -f squashfs-root/meta/snap.yaml
+    MATCH '^track-redirects:' < squashfs-root/meta/snap.yaml
+
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
     echo "Ensure we have apparmor_parser"
@@ -218,6 +222,7 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
+    MATCH '^track-redirects:' < /snap/snapd/current/meta/snap.yaml
     cat >> snapd-cleanup.sh <<EOF
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then

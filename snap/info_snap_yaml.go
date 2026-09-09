@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,6 +29,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -57,6 +58,7 @@ type snapYaml struct {
 	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
 	Links           map[string][]string      `yaml:"links,omitempty"`
 	Components      map[string]componentYaml `yaml:"components,omitempty"`
+	TrackRedirects  TrackRedirects           `yaml:"track-redirects,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -249,6 +251,10 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	if err := setLinksFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
+	if err := setTrackRedirectsFromSnapYaml(y, snap); err != nil {
 		return nil, err
 	}
 
@@ -651,6 +657,42 @@ func setLinksFromSnapYaml(y snapYaml, snap *Info) error {
 			return fmt.Errorf("links key is invalid: %s", linksKey)
 		}
 		snap.OriginalLinks[linksKey] = links
+	}
+	return nil
+}
+
+func setTrackRedirectsFromSnapYaml(y snapYaml, snap *Info) error {
+	if len(y.TrackRedirects) == 0 {
+		return nil
+	}
+	if err := validateTrackRedirects(y.TrackRedirects); err != nil {
+		return fmt.Errorf("cannot parse snap.yaml: invalid track-redirects: %v", err)
+	}
+	snap.TrackRedirects = y.TrackRedirects
+	return nil
+}
+
+func validateTrackRedirects(trackRedirects TrackRedirects) error {
+	for osID, versions := range trackRedirects {
+		if osID == "" {
+			return fmt.Errorf("empty os-release ID")
+		}
+		for version, redirects := range versions {
+			if version == "" {
+				return fmt.Errorf("empty version for %s", osID)
+			}
+			if len(redirects) == 0 {
+				return fmt.Errorf("empty track map for %s %s", osID, version)
+			}
+			for input, target := range redirects {
+				if !channel.IsVerbatimTrackOnly(input) {
+					return fmt.Errorf("input track %q for %s %s is not a track-only channel", input, osID, version)
+				}
+				if !channel.IsVerbatimTrackOnly(target) {
+					return fmt.Errorf("target track %q for %s %s is not a track-only channel", target, osID, version)
+				}
+			}
+		}
 	}
 	return nil
 }

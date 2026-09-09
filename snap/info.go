@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2024 Canonical Ltd
+ * Copyright (C) 2014-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -435,7 +435,15 @@ type Info struct {
 
 	// IntegrityData available for this snap
 	IntegrityData *IntegrityDataInfo
+
+	// TrackRedirects comes from snap.yaml; nil if omitted or empty.
+	TrackRedirects TrackRedirects
 }
+
+// TrackRedirects is the optional track-redirects map from snap.yaml:
+// os-release ID → VERSION_ID → input track → target track.
+// Extra IDs in the map are unused until a matching Key is resolved.
+type TrackRedirects map[string]map[string]map[string]string
 
 // StoreAccount holds information about a store account, for example of snap
 // publisher.

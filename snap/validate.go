@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022-2023 Canonical Ltd
+ * Copyright (C) 2022-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -550,7 +550,24 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	if err := validateSnapdTrackRedirects(info); err != nil {
+		return err
+	}
+
 	return ValidateLayoutAll(info)
+}
+
+func validateSnapdTrackRedirects(info *Info) error {
+	if len(info.TrackRedirects) == 0 {
+		return nil
+	}
+	if info.Type() != TypeSnapd {
+		return fmt.Errorf("cannot specify track-redirects except on snapd snaps")
+	}
+	if err := validateTrackRedirects(info.TrackRedirects); err != nil {
+		return fmt.Errorf("invalid track-redirects: %v", err)
+	}
+	return nil
 }
 
 // ValidateBase validates the base field.
