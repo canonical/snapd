@@ -606,16 +606,11 @@ func storagePathsHaveConsistentFilters(left, right []Accessor) bool {
 	}
 
 	commonLength := int(math.Min(float64(len(left)), float64(len(right))))
-	filtersEqual := true
 	for i := 0; i < commonLength; i++ {
 		leftAcc, rightAcc := left[i], right[i]
 		if !equalFieldFilters(leftAcc.FieldFilters(), rightAcc.FieldFilters()) {
-			filtersEqual = false
+			return false
 		}
-	}
-
-	if !filtersEqual {
-		return false
 	}
 
 	// if the longer path has any filters beyond its "equivalent prefix" then we
