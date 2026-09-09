@@ -454,6 +454,14 @@ func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.Conne
 // unclash-renamed targets (-2, -3, ...). isDir selects the directory vs file
 // bind variant (trailing slashes and directory semantics).
 func assemblyAppArmorEntry(emit func(f string, args ...any), source, target string, isDir bool) {
+	// Escape backslashes for AppArmor double-quoted strings. Metadata file
+	// targets use systemd.EscapeUnitNamePath for their filenames, which
+	// produces literal \xNN sequences (e.g. hyphen becomes \x2d). Inside
+	// AppArmor double quotes, \xNN is interpreted as a hex escape, so the
+	// literal \xNN in the path must be escaped as \\xNN to match the actual
+	// filesystem path.
+	source = strings.ReplaceAll(source, "\\", "\\\\")
+	target = strings.ReplaceAll(target, "\\", "\\\\")
 	if isDir {
 		emit("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
 		emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
