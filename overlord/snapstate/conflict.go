@@ -372,60 +372,6 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 	return nil
 }
 
-func baseRemovalInProgress(st *state.State, snapsup *SnapSetup) (*state.Change, error) {
-	// Apps and gadgets have bases, and kernels may have an explicit base.
-	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget &&
-		(snapsup.Type != snap.TypeKernel || snapsup.Base == "") {
-		return nil, nil
-	}
-
-	base := snapsup.Base
-	switch base {
-	case "none":
-		return nil, nil
-	case "":
-		base = defaultCoreSnapName
-	}
-
-	for _, chg := range st.Changes() {
-		if chg.IsReady() {
-			continue
-		}
-
-		if chg.Has("full-remove") {
-			var snapNames []string
-			if err := chg.Get("snap-names", &snapNames); err != nil {
-				return nil, err
-			}
-
-			if strutil.ListContains(snapNames, base) {
-				return chg, nil
-			}
-
-			continue
-		}
-
-		// there may be changes in-flight that weren't marked with "full-remove", so
-		// check for an auto-disconnect task which is only set when removing all revisions
-		for _, t := range chg.Tasks() {
-			if t.Kind() != "auto-disconnect" {
-				continue
-			}
-
-			tsup, err := TaskSnapSetup(t)
-			if err != nil {
-				return nil, err
-			}
-
-			if tsup.InstanceName().String() == base {
-				return chg, nil
-			}
-		}
-	}
-
-	return nil, nil
-}
-
 var resealingTaskKindCheckers = make(map[string]func(t *state.Task) bool)
 
 // RegisterResealingTaskKind marks a task kind as unconditionally causing a reseal.

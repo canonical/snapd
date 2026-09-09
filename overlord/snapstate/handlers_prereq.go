@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 	"gopkg.in/tomb.v2"
 )
@@ -134,6 +135,8 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 		transaction = client.TransactionPerSnap
 	}
 
+	// we don't need to handle kernel's unset base meaning "none" unlike the
+	// usual "core" because we only get here if the kernel has an explicit base
 	base := defaultCoreSnapName
 	if snapsup.Base != "" {
 		base = snapsup.Base
@@ -400,12 +403,7 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 	st := prereqs.State()
 
 	if basePrerequisite {
-		snapsup, err := TaskSnapSetup(prereqs)
-		if err != nil {
-			return 0, err
-		}
-
-		removeChange, err := baseRemovalInProgress(st, snapsup)
+		removeChange, err := removalInProgress(st, prerequisiteName)
 		if err != nil {
 			return 0, err
 		}
@@ -475,6 +473,46 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 	}
 
 	return prereqRetry, nil
+}
+
+func removalInProgress(st *state.State, snapName string) (*state.Change, error) {
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		if chg.Has("full-remove") {
+			var snapNames []string
+			if err := chg.Get("snap-names", &snapNames); err != nil {
+				return nil, err
+			}
+
+			if strutil.ListContains(snapNames, snapName) {
+				return chg, nil
+			}
+
+			continue
+		}
+
+		// there may be changes in-flight that weren't marked with "full-remove", so
+		// check for an auto-disconnect task which is only set when removing all revisions
+		for _, t := range chg.Tasks() {
+			if t.Kind() != "auto-disconnect" {
+				continue
+			}
+
+			tsup, err := TaskSnapSetup(t)
+			if err != nil {
+				return nil, err
+			}
+
+			if tsup.InstanceName().String() == snapName {
+				return chg, nil
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
