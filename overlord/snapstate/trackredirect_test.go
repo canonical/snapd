@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-var uc18SnapdTracks = map[string]map[string]map[string]string{
+var uc18SnapdTracks = snap.TrackRedirects{
 	"ubuntu-core": {
 		"18": {
 			"latest":       "18",
@@ -41,7 +41,7 @@ var uc18SnapdTracks = map[string]map[string]map[string]string{
 	},
 }
 
-func (s *targetTestSuite) prepareSnapdUCTracks(c *C, model *asserts.Model, tracks map[string]map[string]map[string]string) {
+func (s *targetTestSuite) prepareSnapdUCTracks(c *C, model *asserts.Model, tracks snap.TrackRedirects) {
 	s.AddCleanup(release.MockOnClassic(false))
 	if model != nil {
 		s.AddCleanup(snapstatetest.MockDeviceModel(model))
