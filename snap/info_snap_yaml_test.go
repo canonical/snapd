@@ -2575,6 +2575,16 @@ track-redirects:
 `,
 			err: `cannot parse snap.yaml: invalid track-redirects: empty version for ubuntu-core`,
 		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18": {}
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: empty track map for ubuntu-core 18`,
+		},
 	} {
 		_, err := snap.InfoFromSnapYaml([]byte(t.yaml))
 		c.Check(err, ErrorMatches, t.err, Commentf("yaml=%s", t.yaml))

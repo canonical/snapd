@@ -2935,4 +2935,11 @@ version: 1.0
 		},
 	}
 	c.Check(Validate(info), ErrorMatches, `invalid track-redirects: target track "18/stable" for ubuntu-core 18 is not a track-only channel`)
+
+	info.TrackRedirects = TrackRedirects{
+		"ubuntu-core": {
+			"18": {},
+		},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid track-redirects: empty track map for ubuntu-core 18`)
 }

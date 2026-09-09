@@ -681,6 +681,9 @@ func validateTrackRedirects(trackRedirects TrackRedirects) error {
 			if version == "" {
 				return fmt.Errorf("empty version for %s", osID)
 			}
+			if len(redirects) == 0 {
+				return fmt.Errorf("empty track map for %s %s", osID, version)
+			}
 			for input, target := range redirects {
 				if !channel.IsVerbatimTrackOnly(input) {
 					return fmt.Errorf("input track %q for %s %s is not a track-only channel", input, osID, version)
