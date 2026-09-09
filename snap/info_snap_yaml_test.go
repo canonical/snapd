@@ -2553,6 +2553,28 @@ track-redirects:
 `,
 			err: `cannot parse snap.yaml: invalid track-redirects: input track "stable" for ubuntu-core 18 is not a track-only channel`,
 		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  "":
+    "18":
+      latest: "18"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: empty os-release ID`,
+		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "":
+      latest: "18"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: empty version for ubuntu-core`,
+		},
 	} {
 		_, err := snap.InfoFromSnapYaml([]byte(t.yaml))
 		c.Check(err, ErrorMatches, t.err, Commentf("yaml=%s", t.yaml))

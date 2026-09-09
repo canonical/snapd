@@ -17,15 +17,11 @@
  *
  */
 
-// Package trackredirect implements snapd track-redirects policy from snap.yaml.
+// Package trackredirect applies snap.yaml track-redirects to snapd store channels.
 //
-// A track-aware snapd consults this package when resolving snapd store
-// channels. Track awareness does not imply that snapd carries a populated
-// map; maps are added incrementally as LTS branches are onboarded.
-//
-// UbuntuCoreKey selects the ubuntu-core os-release ID and version from a model.
-// Resolve looks up that (or any other) key in snap.Info.TrackRedirects and
-// rewrites the channel.
+// UbuntuCoreKey builds a Key from an Ubuntu Core model. Resolve rewrites a
+// planned channel using snap.Info.TrackRedirects. An empty map is valid;
+// versions are onboarded incrementally.
 package trackredirect
 
 import (
@@ -42,22 +38,20 @@ const (
 	UbuntuCoreID = "ubuntu-core"
 )
 
-// Key identifies a slice of the track-redirects map: ID → version
-// (os-release ID and VERSION_ID).
+// Key selects a slice of the track-redirects map: os-release ID, then
+// VERSION_ID. UbuntuCoreKey sets Version from the model boot base (e.g. "18").
 type Key struct {
 	ID      string
 	Version string
 }
 
 var (
-	// ErrNotApplicable is returned when a selector does not apply to the system.
+	// ErrNotApplicable is returned when a Key cannot be selected for the model.
 	ErrNotApplicable = errors.New("cannot use UC tracks")
-	// ErrNotCovered is returned when the key's ID or version is missing
-	// from the map. Callers pass through: no channel restriction applies
-	// until that version is onboarded.
+	// ErrNotCovered is returned when the key's ID or version is not in the map.
 	ErrNotCovered = errors.New("cannot find track redirects")
-	// ErrNoTrack is returned when the version is covered but the input
-	// track is neither a map key nor a map value. Store callers refuse.
+	// ErrNoTrack is returned when the version is in the map but the input
+	// track is neither a key nor a value.
 	ErrNoTrack = errors.New("cannot find track redirect for input track")
 )
 
@@ -77,7 +71,7 @@ func UbuntuCoreKey(model *asserts.Model) (Key, error) {
 
 	bootBase, err := model.BaseCoreVersion()
 	if err != nil {
-		return Key{}, fmt.Errorf("internal error: cannot determine boot base: %v", err)
+		return Key{}, fmt.Errorf("cannot determine boot base: %v", err)
 	}
 	// UC16 uses the core snap as both base and snapd, so there is no
 	// separate snapd snap to apply track policy to.
@@ -87,19 +81,19 @@ func UbuntuCoreKey(model *asserts.Model) (Key, error) {
 	return Key{ID: UbuntuCoreID, Version: strconv.Itoa(bootBase)}, nil
 }
 
-// Resolve applies track-redirects policy to channel using the map slice for
-// key. On success it returns the remapped channel with the target track, the
-// original risk, and any branch dropped. On failure it returns ("", err).
+// Resolve applies track-redirects for key to channel. On success it returns
+// the remapped channel with the target track, the original risk, and any
+// branch dropped.
 //
-// Policy errors wrap sentinels: ErrNotCovered when key.ID or key.Version
-// is missing from the map, and ErrNoTrack when the slice exists but the input
-// track is neither a transition key nor a target track. Channel parse
-// failures are plain errors. Empty ID or version is an internal error.
+// Policy errors wrap ErrNotCovered when key.ID or key.Version is missing
+// from the map, and ErrNoTrack when the slice exists but the input track
+// is neither a map key nor a map value. Channel parse failures are plain
+// errors. Empty ID or version is an internal error.
 //
-// Channel is the planned store channel (typically SnapSetup.Channel after
-// resolveChannel). Risk-only names are interpreted as the store does: a
-// missing track means latest, so "stable" is latest/stable. This function
-// does not inherit a tracking track; that merge must already have happened.
+// Channel is the planned store channel (typically after resolveChannel).
+// Risk-only names are interpreted as the store does: a missing track means
+// latest, so "stable" is latest/stable. This function does not inherit
+// SnapState tracking; resolveChannel must already have run.
 func Resolve(key Key, channel string, trackRedirects map[string]map[string]map[string]string) (string, error) {
 	if key.ID == "" || key.Version == "" {
 		return "", fmt.Errorf("internal error: cannot resolve track redirects with empty key")
@@ -129,11 +123,11 @@ func resolveTrack(key Key, trackRedirects map[string]map[string]map[string]strin
 	if !ok {
 		return "", fmt.Errorf("%w for %s %s", ErrNotCovered, key.ID, key.Version)
 	}
-	rules, ok := byID[key.Version]
+	redirects, ok := byID[key.Version]
 	if !ok {
 		return "", fmt.Errorf("%w for %s %s", ErrNotCovered, key.ID, key.Version)
 	}
-	targetTrack, found := lookupTrack(rules, inputTrack)
+	targetTrack, found := lookupTrack(redirects, inputTrack)
 	if !found {
 		return "", fmt.Errorf("%w %s for %s %s", ErrNoTrack, inputTrack, key.ID, key.Version)
 	}
@@ -144,12 +138,12 @@ func resolveTrack(key Key, trackRedirects map[string]map[string]map[string]strin
 // transitions (latest → 18). If inputTrack already matches a target
 // (e.g. "18" after a previous jump), it is kept. An explicit key wins,
 // so a later onboard can remap onward ("18": "24").
-func lookupTrack(rules map[string]string, inputTrack string) (targetTrack string, found bool) {
-	if targetTrack, ok := rules[inputTrack]; ok && targetTrack != "" {
-		return targetTrack, true
+func lookupTrack(redirects map[string]string, inputTrack string) (string, bool) {
+	if target, ok := redirects[inputTrack]; ok && target != "" {
+		return target, true
 	}
 	// Already on a target track (e.g. "18" after a previous jump): keep it.
-	for _, target := range rules {
+	for _, target := range redirects {
 		if target != "" && target == inputTrack {
 			return inputTrack, true
 		}

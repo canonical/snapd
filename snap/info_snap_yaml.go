@@ -29,36 +29,36 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
 
 type snapYaml struct {
-	Name            string                   `yaml:"name"`
-	Version         string                   `yaml:"version"`
-	Type            Type                     `yaml:"type"`
-	Architectures   []string                 `yaml:"architectures,omitempty"`
-	Assumes         []string                 `yaml:"assumes"`
-	Title           string                   `yaml:"title"`
-	Description     string                   `yaml:"description"`
-	Summary         string                   `yaml:"summary"`
-	Provenance      string                   `yaml:"provenance"`
-	License         string                   `yaml:"license,omitempty"`
-	Epoch           Epoch                    `yaml:"epoch,omitempty"`
-	Base            string                   `yaml:"base,omitempty"`
-	Confinement     ConfinementType          `yaml:"confinement,omitempty"`
-	Grade           GradeType                `yaml:"grade,omitempty"`
-	Environment     strutil.OrderedMap       `yaml:"environment,omitempty"`
-	Plugs           map[string]any           `yaml:"plugs,omitempty"`
-	Slots           map[string]any           `yaml:"slots,omitempty"`
-	Apps            map[string]appYaml       `yaml:"apps,omitempty"`
-	Hooks           map[string]hookYaml      `yaml:"hooks,omitempty"`
-	Layout          map[string]layoutYaml    `yaml:"layout,omitempty"`
-	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
-	Links           map[string][]string      `yaml:"links,omitempty"`
-	Components      map[string]componentYaml `yaml:"components,omitempty"`
-	// TrackRedirects is snapd-only; Validate rejects it on other snap types.
-	TrackRedirects map[string]map[string]map[string]string `yaml:"track-redirects,omitempty"`
+	Name            string                                  `yaml:"name"`
+	Version         string                                  `yaml:"version"`
+	Type            Type                                    `yaml:"type"`
+	Architectures   []string                                `yaml:"architectures,omitempty"`
+	Assumes         []string                                `yaml:"assumes"`
+	Title           string                                  `yaml:"title"`
+	Description     string                                  `yaml:"description"`
+	Summary         string                                  `yaml:"summary"`
+	Provenance      string                                  `yaml:"provenance"`
+	License         string                                  `yaml:"license,omitempty"`
+	Epoch           Epoch                                   `yaml:"epoch,omitempty"`
+	Base            string                                  `yaml:"base,omitempty"`
+	Confinement     ConfinementType                         `yaml:"confinement,omitempty"`
+	Grade           GradeType                               `yaml:"grade,omitempty"`
+	Environment     strutil.OrderedMap                      `yaml:"environment,omitempty"`
+	Plugs           map[string]any                          `yaml:"plugs,omitempty"`
+	Slots           map[string]any                          `yaml:"slots,omitempty"`
+	Apps            map[string]appYaml                      `yaml:"apps,omitempty"`
+	Hooks           map[string]hookYaml                     `yaml:"hooks,omitempty"`
+	Layout          map[string]layoutYaml                   `yaml:"layout,omitempty"`
+	SystemUsernames map[string]any                          `yaml:"system-usernames,omitempty"`
+	Links           map[string][]string                     `yaml:"links,omitempty"`
+	Components      map[string]componentYaml                `yaml:"components,omitempty"`
+	TrackRedirects  map[string]map[string]map[string]string `yaml:"track-redirects,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -669,6 +669,28 @@ func setTrackRedirectsFromSnapYaml(y snapYaml, snap *Info) error {
 		return fmt.Errorf("cannot parse snap.yaml: invalid track-redirects: %v", err)
 	}
 	snap.TrackRedirects = y.TrackRedirects
+	return nil
+}
+
+func validateTrackRedirects(trackRedirects map[string]map[string]map[string]string) error {
+	for osID, versions := range trackRedirects {
+		if osID == "" {
+			return fmt.Errorf("empty os-release ID")
+		}
+		for version, redirects := range versions {
+			if version == "" {
+				return fmt.Errorf("empty version for %s", osID)
+			}
+			for input, target := range redirects {
+				if !channel.IsVerbatimTrackOnly(input) {
+					return fmt.Errorf("input track %q for %s %s is not a track-only channel", input, osID, version)
+				}
+				if !channel.IsVerbatimTrackOnly(target) {
+					return fmt.Errorf("target track %q for %s %s is not a track-only channel", target, osID, version)
+				}
+			}
+		}
+	}
 	return nil
 }
 

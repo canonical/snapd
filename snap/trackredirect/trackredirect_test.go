@@ -147,6 +147,12 @@ func (s *trackredirectSuite) TestUbuntuCoreKeyNilModel(c *C) {
 	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
 }
 
+func (s *trackredirectSuite) TestUbuntuCoreKeyNonCoreBase(c *C) {
+	model := s.coreModel(c, "bare", "pc", "pc-kernel")
+	_, err := trackredirect.UbuntuCoreKey(model)
+	c.Check(err, ErrorMatches, "cannot determine boot base: not a core base")
+}
+
 func (s *trackredirectSuite) TestResolveUC18Remap(c *C) {
 	trackMap := trackRedirectMap(18, "18", "18-fips")
 
@@ -161,6 +167,8 @@ func (s *trackredirectSuite) TestResolveUC18Remap(c *C) {
 		{"stable", "18/stable"},
 		{"candidate", "18/candidate"},
 		{"beta", "18/beta"},
+		{"latest", "18/stable"},
+		{"edge", "18/edge"},
 		// fips-updates variant -> 18-fips track
 		{"fips-updates/stable", "18-fips/stable"},
 		{"fips-updates/candidate", "18-fips/candidate"},

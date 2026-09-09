@@ -37,7 +37,6 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
@@ -437,9 +436,10 @@ type Info struct {
 	// IntegrityData available for this snap
 	IntegrityData *IntegrityDataInfo
 
-	// TrackRedirects is the optional track-redirects map from snap.yaml.
-	// Shape: os-release ID → VERSION_ID → input-track → target-track.
-	// Nil if omitted or empty. Unknown IDs are stored and ignored at resolve time.
+	// TrackRedirects is the optional track-redirects map from snap.yaml:
+	// os-release ID → VERSION_ID → input track → target track.
+	// Nil if omitted or empty. Extra IDs in the map are unused until a
+	// matching Key is resolved.
 	TrackRedirects map[string]map[string]map[string]string
 }
 
@@ -2045,22 +2045,6 @@ func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flag
 		return "", nil, err
 	}
 	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
-}
-
-func validateTrackRedirects(trackRedirects map[string]map[string]map[string]string) error {
-	for osID, versions := range trackRedirects {
-		for version, redirects := range versions {
-			for input, target := range redirects {
-				if !channel.IsVerbatimTrackOnly(input) {
-					return fmt.Errorf("input track %q for %s %s is not a track-only channel", input, osID, version)
-				}
-				if !channel.IsVerbatimTrackOnly(target) {
-					return fmt.Errorf("target track %q for %s %s is not a track-only channel", target, osID, version)
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // SnapdAssertionMaxFormatsFromSnapFile returns the supported assertion max
