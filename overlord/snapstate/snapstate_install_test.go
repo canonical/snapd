@@ -5104,6 +5104,102 @@ func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevis
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at revision 2 without --ignore-validation, revision 3 is required by validation sets: 16/foo/bar/1`)
 }
 
+func (s *validationSetsSuite) TestInstallSnapdUCTrackPinnedRevisionNotOnMappedTrack(c *C) {
+	s.AddCleanup(release.MockOnClassic(false))
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core18")))
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapType == snap.TypeSnapd {
+			info.TrackRedirects = uc18SnapdTracks
+		}
+		return nil
+	}
+	s.fakeStore.revisionNotAvailableOnChannel = map[string]bool{
+		"18/stable": true,
+	}
+	s.AddCleanup(func() {
+		s.fakeStore.mutateSnapInfo = nil
+		s.fakeStore.revisionNotAvailableOnChannel = nil
+	})
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		snapdSnap := map[string]any{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "snapd",
+			"presence": "required",
+			"revision": "7",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", snapdSnap)
+		c.Assert(vs.Add(vsa1.(*asserts.ValidationSet)), IsNil)
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", nil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	_, err := snapstate.Install(context.Background(), s.state, "snapd", &snapstate.RevisionOptions{Channel: "stable"}, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `no snap revision available as specified`)
+}
+
+func (s *validationSetsSuite) TestInstallSnapdUCTrackPinnedRevisionOnMappedTrack(c *C) {
+	s.AddCleanup(release.MockOnClassic(false))
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core18")))
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapType == snap.TypeSnapd {
+			info.TrackRedirects = uc18SnapdTracks
+		}
+		return nil
+	}
+	s.AddCleanup(func() {
+		s.fakeStore.mutateSnapInfo = nil
+	})
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		snapdSnap := map[string]any{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "snapd",
+			"presence": "required",
+			"revision": "7",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", snapdSnap)
+		c.Assert(vs.Add(vsa1.(*asserts.ValidationSet)), IsNil)
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.Set(s.state, "snapd", nil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	ts, err := snapstate.Install(context.Background(), s.state, "snapd", &snapstate.RevisionOptions{Channel: "stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Revision(), Equals, snap.R(7))
+	c.Check(snapdActionChannels(s.fakeBackend.ops), DeepEquals, []string{"", "18/stable"})
+	c.Check(snapdActionRevisions(s.fakeBackend.ops), DeepEquals, []snap.Revision{snap.R(7), snap.R(7)})
+}
+
 func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, snapOnePresence, snapOneRequiredRev, snapTwoPresence, snapTwoRequiredRev string) error {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()

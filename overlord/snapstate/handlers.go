@@ -4605,7 +4605,11 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
-	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, nil, re.UserID, reRefreshFilter, re.Flags, chg.ID())
+	revOpts := make([]*RevisionOptions, len(snaps))
+	for i := range snaps {
+		revOpts[i] = &RevisionOptions{}
+	}
+	updated, updateTss, err := reRefreshUpdateMany(tomb.Context(nil), st, snaps, revOpts, re.UserID, reRefreshFilter, re.Flags, chg.ID())
 	if err != nil {
 		return err
 	}

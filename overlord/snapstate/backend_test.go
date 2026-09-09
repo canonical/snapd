@@ -218,6 +218,18 @@ type fakeStore struct {
 	state           *state.State
 	seenPrivacyKeys map[string]bool
 
+	// redirectChannel maps a requested action channel to RedirectChannel
+	// on the SnapActionResult. Used to test UC-track remap rejection.
+	redirectChannel map[string]string
+
+	// noUpdateOnChannel makes a refresh on that channel return
+	// ErrNoUpdateAvailable (UC-track localOnly tests).
+	noUpdateOnChannel map[string]bool
+
+	// revisionNotAvailableOnChannel makes install/download/refresh on that
+	// channel return RevisionNotAvailableError.
+	revisionNotAvailableOnChannel map[string]bool
+
 	// snapResourcesFn is called for each snap that gets returned by SnapAction,
 	// it should return the resources that the snap should have.
 	snapResourcesFn func(*snap.Info) []store.SnapResourceResult
@@ -343,6 +355,9 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 
 	if spec.Name == "snap-unknown" {
 		return nil, store.ErrSnapNotFound
+	}
+	if f.revisionNotAvailableOnChannel[spec.Channel] {
+		return nil, &store.RevisionNotAvailableError{}
 	}
 
 	info := &snap.Info{
@@ -674,6 +689,13 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		info.Version = ""
 	}
 
+	if f.noUpdateOnChannel[cand.channel] {
+		return nil, store.ErrNoUpdateAvailable
+	}
+	if f.revisionNotAvailableOnChannel[cand.channel] {
+		return nil, &store.RevisionNotAvailableError{}
+	}
+
 	if name == "outdated-consumer" {
 		info.Plugs = map[string]*snap.PlugInfo{
 			"content-plug": {
@@ -864,6 +886,9 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
+			if redir, ok := f.redirectChannel[a.Channel]; ok {
+				sar.RedirectChannel = redir
+			}
 			res = append(res, sar)
 			continue
 		}
@@ -917,10 +942,14 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			info.Channel = ""
 		}
 		info.InstanceKey = instanceKey
-		res = append(res, store.SnapActionResult{
+		sar := store.SnapActionResult{
 			Info:      info,
 			Resources: f.snapResources(info),
-		})
+		}
+		if redir, ok := f.redirectChannel[a.Channel]; ok {
+			sar.RedirectChannel = redir
+		}
+		res = append(res, sar)
 	}
 
 	if len(refreshErrors)+len(installErrors)+len(downloadErrors) > 0 || len(res) == 0 {

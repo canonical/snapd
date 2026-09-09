@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -373,6 +374,10 @@ func (s *themesSuite) TestThemesCmdGet(c *C) {
 
 func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
 	d := s.apiBaseSuite.daemonWithOverlordMock()
+
+	oldDeviceCtx := snapstate.DeviceCtx
+	s.AddCleanup(func() { snapstate.DeviceCtx = oldDeviceCtx })
+	snapstate.DeviceCtx = devicestate.DeviceCtx
 
 	overlord := d.Overlord()
 	st := overlord.State()

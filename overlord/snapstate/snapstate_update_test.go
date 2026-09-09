@@ -1248,7 +1248,6 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "channel-for-components",
 		UserID:  s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -1528,7 +1527,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		Channel:   "some-channel",
 		CohortKey: "some-cohort",
 		UserID:    s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -1917,7 +1915,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "some-channel",
 		UserID:  s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -2268,7 +2265,6 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: "18/edge",
 		UserID:  s.user.ID,
-
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -15750,9 +15746,8 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -16429,9 +16424,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
@@ -16973,9 +16967,8 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
@@ -17746,9 +17739,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	c.Assert(err, IsNil)
 
 	expectedSnapsup := snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SideInfo:  snapsup.SideInfo,
 		Type:      opts.snapType,
 		Version:   snapName + "Ver",
@@ -18242,9 +18234,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 	c.Assert(err, IsNil)
 
 	expectedSnapsup := snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
-
+		Channel:   channel,
+		UserID:    s.user.ID,
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
 		Version:   "kernelVer",

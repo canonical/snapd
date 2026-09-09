@@ -352,6 +352,15 @@ func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
 	return StoreSnap{}, false
 }
 
+func (s *storeInstallGoal) snapByName(name string) (*StoreSnap, bool) {
+	for i := range s.snaps {
+		if s.snaps[i].InstanceName == name {
+			return &s.snaps[i], true
+		}
+	}
+	return nil, false
+}
+
 // StoreSnap represents a snap that is to be installed from the store.
 type StoreSnap struct {
 	// InstanceName is the name of snap to install.
@@ -422,7 +431,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName())
+		sn, ok := s.snapByName(r.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
@@ -430,6 +439,14 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		snapst, ok := allSnaps[r.InstanceName()]
 		if !ok {
 			snapst = &SnapState{}
+		}
+
+		r, localOnly, err := maybeRedirectSnapdTrack(ctx, st, r, &sn.RevOpts, snapst, opts, "install")
+		if err != nil {
+			return nil, err
+		}
+		if localOnly {
+			return nil, errors.New("internal error: snapd track redirect of uninstalled snapd returned no store revision")
 		}
 
 		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
@@ -1705,7 +1722,7 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 			Channel:   update.RevOpts.Channel,
 			CohortKey: update.RevOpts.CohortKey,
 
-			// mirror store-backed by-revision refresh: an explicit revision should
+			// mirror store-backed by-revision refresh: a requested revision should
 			// run the full update path even if the revision is already current.
 			AlwaysUpdate: !update.RevOpts.Revision.Unset(),
 		},
