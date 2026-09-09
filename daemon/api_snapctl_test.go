@@ -66,7 +66,7 @@ func (s *snapctlSuite) TestSnapctlGetFeatures(c *check.C) {
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "foo"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, SnapName: "some-snap", Socket: dirs.SnapSocket})
 
 	req.Header.Set("X-Snapctl-Features", "feat1,feat2")
 
@@ -90,7 +90,7 @@ func (s *snapctlSuite) TestSnapctlAsyncFeature(c *check.C) {
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["start", "snap.service"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, SnapName: "some-snap", Socket: dirs.SnapSocket})
 
 	req.Header.Set("X-Snapctl-Features", "async")
 
@@ -114,7 +114,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, SnapName: "some-snap", Socket: dirs.SnapSocket})
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
@@ -130,7 +130,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenErrorWithStdin(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "", "args": [%q, %q], "stdin": "MTIz"}`, "set", "foo=bar"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, SnapName: "some-snap", Socket: dirs.SnapSocket})
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
@@ -145,7 +145,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 100, SnapName: "some-snap", Socket: dirs.SnapSocket})
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 200)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindUnsuccessful)
@@ -166,7 +166,7 @@ func (s *snapctlSuite) TestSnapctlGenericError(c *check.C) {
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "foo"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 0, Pid: 9999, Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 0, SnapName: "some-snap", Socket: dirs.SnapSocket})
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Message, check.Equals, "snapctl: something broke")
