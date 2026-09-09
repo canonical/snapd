@@ -2425,7 +2425,7 @@ track-redirects:
 `))
 	c.Assert(err, IsNil)
 	c.Check(info.Type(), Equals, snap.TypeSnapd)
-	c.Check(info.TrackRedirects, DeepEquals, map[string]map[string]map[string]string{
+	c.Check(info.TrackRedirects, DeepEquals, snap.TrackRedirects{
 		"ubuntu-core": {
 			"18": {"latest": "18", "fips-updates": "18-fips"},
 			"20": {"latest": "20"},
@@ -2446,7 +2446,7 @@ track-redirects:
       latest: "18"
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.TrackRedirects, DeepEquals, map[string]map[string]map[string]string{
+	c.Check(info.TrackRedirects, DeepEquals, snap.TrackRedirects{
 		"ubuntu-core": {
 			"18": {"latest": "18"},
 		},

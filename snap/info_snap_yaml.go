@@ -35,30 +35,30 @@ import (
 )
 
 type snapYaml struct {
-	Name            string                                  `yaml:"name"`
-	Version         string                                  `yaml:"version"`
-	Type            Type                                    `yaml:"type"`
-	Architectures   []string                                `yaml:"architectures,omitempty"`
-	Assumes         []string                                `yaml:"assumes"`
-	Title           string                                  `yaml:"title"`
-	Description     string                                  `yaml:"description"`
-	Summary         string                                  `yaml:"summary"`
-	Provenance      string                                  `yaml:"provenance"`
-	License         string                                  `yaml:"license,omitempty"`
-	Epoch           Epoch                                   `yaml:"epoch,omitempty"`
-	Base            string                                  `yaml:"base,omitempty"`
-	Confinement     ConfinementType                         `yaml:"confinement,omitempty"`
-	Grade           GradeType                               `yaml:"grade,omitempty"`
-	Environment     strutil.OrderedMap                      `yaml:"environment,omitempty"`
-	Plugs           map[string]any                          `yaml:"plugs,omitempty"`
-	Slots           map[string]any                          `yaml:"slots,omitempty"`
-	Apps            map[string]appYaml                      `yaml:"apps,omitempty"`
-	Hooks           map[string]hookYaml                     `yaml:"hooks,omitempty"`
-	Layout          map[string]layoutYaml                   `yaml:"layout,omitempty"`
-	SystemUsernames map[string]any                          `yaml:"system-usernames,omitempty"`
-	Links           map[string][]string                     `yaml:"links,omitempty"`
-	Components      map[string]componentYaml                `yaml:"components,omitempty"`
-	TrackRedirects  map[string]map[string]map[string]string `yaml:"track-redirects,omitempty"`
+	Name            string                   `yaml:"name"`
+	Version         string                   `yaml:"version"`
+	Type            Type                     `yaml:"type"`
+	Architectures   []string                 `yaml:"architectures,omitempty"`
+	Assumes         []string                 `yaml:"assumes"`
+	Title           string                   `yaml:"title"`
+	Description     string                   `yaml:"description"`
+	Summary         string                   `yaml:"summary"`
+	Provenance      string                   `yaml:"provenance"`
+	License         string                   `yaml:"license,omitempty"`
+	Epoch           Epoch                    `yaml:"epoch,omitempty"`
+	Base            string                   `yaml:"base,omitempty"`
+	Confinement     ConfinementType          `yaml:"confinement,omitempty"`
+	Grade           GradeType                `yaml:"grade,omitempty"`
+	Environment     strutil.OrderedMap       `yaml:"environment,omitempty"`
+	Plugs           map[string]any           `yaml:"plugs,omitempty"`
+	Slots           map[string]any           `yaml:"slots,omitempty"`
+	Apps            map[string]appYaml       `yaml:"apps,omitempty"`
+	Hooks           map[string]hookYaml      `yaml:"hooks,omitempty"`
+	Layout          map[string]layoutYaml    `yaml:"layout,omitempty"`
+	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
+	Links           map[string][]string      `yaml:"links,omitempty"`
+	Components      map[string]componentYaml `yaml:"components,omitempty"`
+	TrackRedirects  TrackRedirects           `yaml:"track-redirects,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -672,7 +672,7 @@ func setTrackRedirectsFromSnapYaml(y snapYaml, snap *Info) error {
 	return nil
 }
 
-func validateTrackRedirects(trackRedirects map[string]map[string]map[string]string) error {
+func validateTrackRedirects(trackRedirects TrackRedirects) error {
 	for osID, versions := range trackRedirects {
 		if osID == "" {
 			return fmt.Errorf("empty os-release ID")

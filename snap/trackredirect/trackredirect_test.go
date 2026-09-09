@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/trackredirect"
 )
 
@@ -97,20 +98,20 @@ func ucKey(version string) trackredirect.Key {
 	return trackredirect.Key{ID: trackredirect.UbuntuCoreID, Version: version}
 }
 
-func trackRedirectMap(bootBase int, tracks ...string) map[string]map[string]map[string]string {
+func trackRedirectMap(bootBase int, tracks ...string) snap.TrackRedirects {
 	if len(tracks) == 0 {
-		return map[string]map[string]map[string]string{}
+		return snap.TrackRedirects{}
 	}
-	rules := map[string]string{
+	redirects := map[string]string{
 		"latest": tracks[0],
 	}
 	for _, track := range tracks {
 		if strings.HasSuffix(track, "-fips") {
-			rules["fips-updates"] = track
+			redirects["fips-updates"] = track
 		}
 	}
-	return map[string]map[string]map[string]string{
-		trackredirect.UbuntuCoreID: {strconv.Itoa(bootBase): rules},
+	return snap.TrackRedirects{
+		trackredirect.UbuntuCoreID: {strconv.Itoa(bootBase): redirects},
 	}
 }
 
@@ -196,7 +197,7 @@ func (s *trackredirectSuite) TestResolveUC18Identity(c *C) {
 
 func (s *trackredirectSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
 	// A later onboard can remap a track onward with an explicit key.
-	trackMap := map[string]map[string]map[string]string{
+	trackMap := snap.TrackRedirects{
 		trackredirect.UbuntuCoreID: {
 			"18": {"latest": "24", "18": "24"},
 		},
@@ -227,7 +228,7 @@ func (s *trackredirectSuite) TestResolveUncoveredVersion(c *C) {
 }
 
 func (s *trackredirectSuite) TestResolveEmptyMapErrors(c *C) {
-	_, err := trackredirect.Resolve(ucKey("18"), "latest/stable", map[string]map[string]map[string]string{})
+	_, err := trackredirect.Resolve(ucKey("18"), "latest/stable", snap.TrackRedirects{})
 	c.Assert(err, ErrorMatches, `cannot find track redirects for ubuntu-core 18`)
 	c.Check(errors.Is(err, trackredirect.ErrNotCovered), Equals, true)
 
@@ -266,7 +267,7 @@ func (s *trackredirectSuite) TestResolveEmptyKey(c *C) {
 }
 
 func (s *trackredirectSuite) TestResolveIgnoresUnusedID(c *C) {
-	trackMap := map[string]map[string]map[string]string{
+	trackMap := snap.TrackRedirects{
 		trackredirect.UbuntuCoreID: {
 			"18": {"latest": "18"},
 		},
@@ -281,7 +282,7 @@ func (s *trackredirectSuite) TestResolveIgnoresUnusedID(c *C) {
 }
 
 func (s *trackredirectSuite) TestResolveUbuntuID(c *C) {
-	trackMap := map[string]map[string]map[string]string{
+	trackMap := snap.TrackRedirects{
 		"ubuntu": {
 			"22.04": {"latest": "22.04"},
 		},

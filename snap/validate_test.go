@@ -2929,7 +2929,7 @@ name: snapd
 version: 1.0
 `))
 	c.Assert(err, IsNil)
-	info.TrackRedirects = map[string]map[string]map[string]string{
+	info.TrackRedirects = TrackRedirects{
 		"ubuntu-core": {
 			"18": {"latest": "18/stable"},
 		},

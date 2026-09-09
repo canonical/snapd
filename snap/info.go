@@ -436,12 +436,14 @@ type Info struct {
 	// IntegrityData available for this snap
 	IntegrityData *IntegrityDataInfo
 
-	// TrackRedirects is the optional track-redirects map from snap.yaml:
-	// os-release ID → VERSION_ID → input track → target track.
-	// Nil if omitted or empty. Extra IDs in the map are unused until a
-	// matching Key is resolved.
-	TrackRedirects map[string]map[string]map[string]string
+	// TrackRedirects comes from snap.yaml; nil if omitted or empty.
+	TrackRedirects TrackRedirects
 }
+
+// TrackRedirects is the optional track-redirects map from snap.yaml:
+// os-release ID → VERSION_ID → input track → target track.
+// Extra IDs in the map are unused until a matching Key is resolved.
+type TrackRedirects map[string]map[string]map[string]string
 
 // StoreAccount holds information about a store account, for example of snap
 // publisher.

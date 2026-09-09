@@ -30,6 +30,7 @@ import (
 	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap"
 	snapchannel "github.com/snapcore/snapd/snap/channel"
 )
 
@@ -94,7 +95,7 @@ func UbuntuCoreKey(model *asserts.Model) (Key, error) {
 // Risk-only names are interpreted as the store does: a missing track means
 // latest, so "stable" is latest/stable. This function does not inherit
 // SnapState tracking; resolveChannel must already have run.
-func Resolve(key Key, channel string, trackRedirects map[string]map[string]map[string]string) (string, error) {
+func Resolve(key Key, channel string, trackRedirects snap.TrackRedirects) (string, error) {
 	if key.ID == "" || key.Version == "" {
 		return "", fmt.Errorf("internal error: cannot resolve track redirects with empty key")
 	}
@@ -118,7 +119,7 @@ func Resolve(key Key, channel string, trackRedirects map[string]map[string]map[s
 	return parsed.Clean().String(), nil
 }
 
-func resolveTrack(key Key, trackRedirects map[string]map[string]map[string]string, inputTrack string) (string, error) {
+func resolveTrack(key Key, trackRedirects snap.TrackRedirects, inputTrack string) (string, error) {
 	byID, ok := trackRedirects[key.ID]
 	if !ok {
 		return "", fmt.Errorf("%w for %s %s", ErrNotCovered, key.ID, key.Version)
