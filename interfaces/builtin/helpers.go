@@ -241,6 +241,29 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 // AppArmorConnectedPlug of the driver-libs interfaces.
 const assemblyRoot = "/opt/snapd/interfaces"
 
+// libraryRelPath returns the path of a library/source dir relative to its
+// $SNAP or $SNAP_COMPONENT(<comp>) prefix, i.e. the path-suffix to preserve
+// when pooling under the assembly tree (mirrors classic snap-confine's
+// sc_populate_libgl_with_hostfs_symlinks). It reuses the same prefix-strip
+// logic as sourceDirEncodedName but keeps the result a real path (no
+// systemd-flatten to a single basename).
+func libraryRelPath(slot *interfaces.ConnectedSlot, path string) (string, error) {
+	relPath, err := filepath.Rel(dirs.SnapMountDir, path)
+	if err != nil {
+		return "", err
+	}
+	instance := slot.Snap().InstanceName()
+	splitNum := 3
+	if strings.HasPrefix(path, snap.ComponentsBaseDir(instance)) {
+		splitNum = 6
+	}
+	dirs := strings.SplitN(relPath, "/", splitNum)
+	if len(dirs) < splitNum {
+		return "", fmt.Errorf("internal error: wrong library path: %s", relPath)
+	}
+	return dirs[splitNum-1], nil
+}
+
 // sourceDirEncodedName returns the escaped name used to refer to a file found
 // in a *-source attribute of a driver-libs slot, in the export/assembly
 // directories. The name is derived from the snap/component instance name, the
@@ -290,9 +313,11 @@ func sourceDirEncodedName(slot *interfaces.ConnectedSlot, pathDirIdx pathWithDir
 
 // mountAssemblyLibDirs adds mount entries that bind each expanded library-source
 // directory of the slot into the per-interface assembly tree under
-// <assemblyRoot>/<iface>/lib/<provider>_<slot>/<idx>/, so that the libraries
-// keep their original file names (ld.so opens libraries by exact name). Each
-// target dir is also recorded via AddLibraryPathDir for the SNAP_LIBRARY_PATH
+// <assemblyRoot>/<iface>/lib/<provider>_<slot>/<rel-path-after-$SNAP>/, pooling
+// entries by path-suffix (mirrors classic snap-confine's
+// sc_populate_libgl_with_hostfs_symlinks), so that the libraries keep their
+// original relative layout (ld.so opens libraries by exact name). Each target
+// dir is also recorded via AddLibraryPathDir for the SNAP_LIBRARY_PATH
 // derivation (Pass 3).
 func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
 	libDirs := []string{}
@@ -303,7 +328,11 @@ func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedS
 	providerSlot := slot.Snap().InstanceName() + "_" + slot.Name()
 	expanded := slot.AppSet().ExpandSliceSnapVariablesWithOrder(libDirs)
 	for _, dir := range expanded {
-		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, strconv.Itoa(dir.Idx))
+		rel, err := libraryRelPath(slot, dir.Path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, rel)
 		if err := spec.AddMountEntry(osutil.MountEntry{
 			Name:    dir.Path,
 			Dir:     target,
