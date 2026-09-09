@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2406,4 +2406,155 @@ components:
 `))
 	c.Assert(err.Error(), Equals, `component hooks cannot have slots`)
 	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalTrackRedirects(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest: "18"
+      fips-updates: "18-fips"
+    "20":
+      latest: "20"
+  ubuntu:
+    "22.04":
+      latest: "22.04"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Type(), Equals, snap.TypeSnapd)
+	c.Check(info.TrackRedirects, DeepEquals, map[string]map[string]map[string]string{
+		"ubuntu-core": {
+			"18": {"latest": "18", "fips-updates": "18-fips"},
+			"20": {"latest": "20"},
+		},
+		"ubuntu": {
+			"22.04": {"latest": "22.04"},
+		},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalTrackRedirectsUnquotedVersion(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    18:
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.TrackRedirects, DeepEquals, map[string]map[string]map[string]string{
+		"ubuntu-core": {
+			"18": {"latest": "18"},
+		},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalTrackRedirectsOmitted(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.TrackRedirects, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalTrackRedirectsEmpty(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+track-redirects: {}
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.TrackRedirects, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalTrackRedirectsRejectsTwoLevelMap(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+track-redirects:
+  18:
+    latest: "18"
+`))
+	c.Assert(err, ErrorMatches, "(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*cannot unmarshal !!str `18` into map\\[string\\]string")
+}
+
+func (s *YamlSuite) TestUnmarshalTrackRedirectsRejectsNonTrackOnly(c *C) {
+	for _, t := range []struct {
+		yaml string
+		err  string
+	}{
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest: "18/stable"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: target track "18/stable" for ubuntu-core 18 is not a track-only channel`,
+		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest: "stable"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: target track "stable" for ubuntu-core 18 is not a track-only channel`,
+		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest/stable: "18"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: input track "latest/stable" for ubuntu-core 18 is not a track-only channel`,
+		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      latest: ""
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: target track "" for ubuntu-core 18 is not a track-only channel`,
+		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      "": "18"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: input track "" for ubuntu-core 18 is not a track-only channel`,
+		},
+		{
+			yaml: `
+name: snapd
+version: 1.0
+track-redirects:
+  ubuntu-core:
+    "18":
+      stable: "18"
+`,
+			err: `cannot parse snap.yaml: invalid track-redirects: input track "stable" for ubuntu-core 18 is not a track-only channel`,
+		},
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(t.yaml))
+		c.Check(err, ErrorMatches, t.err, Commentf("yaml=%s", t.yaml))
+	}
 }

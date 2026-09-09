@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -57,6 +57,8 @@ type snapYaml struct {
 	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
 	Links           map[string][]string      `yaml:"links,omitempty"`
 	Components      map[string]componentYaml `yaml:"components,omitempty"`
+	// TrackRedirects is snapd-only; Validate rejects it on other snap types.
+	TrackRedirects map[string]map[string]map[string]string `yaml:"track-redirects,omitempty"`
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -249,6 +251,10 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	if err := setLinksFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
+	if err := setTrackRedirectsFromSnapYaml(y, snap); err != nil {
 		return nil, err
 	}
 
@@ -652,6 +658,21 @@ func setLinksFromSnapYaml(y snapYaml, snap *Info) error {
 		}
 		snap.OriginalLinks[linksKey] = links
 	}
+	return nil
+}
+
+func setTrackRedirectsFromSnapYaml(y snapYaml, snap *Info) error {
+	if len(y.TrackRedirects) == 0 {
+		return nil
+	}
+	for osID, versions := range y.TrackRedirects {
+		for version, rules := range versions {
+			if err := validateTrackRedirectRules(osID, version, rules); err != nil {
+				return fmt.Errorf("cannot parse snap.yaml: invalid track-redirects: %v", err)
+			}
+		}
+	}
+	snap.TrackRedirects = y.TrackRedirects
 	return nil
 }
 
