@@ -25,7 +25,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -523,7 +522,11 @@ func addAppArmorAssemblyLibDirs(spec *apparmor.Specification, slot *interfaces.C
 	emit := spec.AddUpdateNSf
 	expanded := slot.AppSet().ExpandSliceSnapVariablesWithOrder(libDirs)
 	for _, dir := range expanded {
-		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, strconv.Itoa(dir.Idx))
+		rel, err := libraryRelPath(slot, dir.Path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(assemblyRoot, ifaceName, "lib", providerSlot, rel)
 		emit("  # Driver-libs assembly library dir %s\n", target)
 		assemblyAppArmorEntry(emit, dir.Path, target, true)
 	}
