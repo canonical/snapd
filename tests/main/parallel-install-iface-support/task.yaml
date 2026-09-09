@@ -16,7 +16,8 @@ execute: |
         local iface_name="$2"
         local side="$3"  # plug or slot
         shift 3
-        local -a attrs=("$@")
+        # Use nounset-safe expansions for compatibility with older bash
+        local -a attrs=("${@+$@}")
         local snapdir
         snapdir=$(mktemp -d)
         chmod 755 "$snapdir"
@@ -29,7 +30,7 @@ execute: |
             printf 'version: "1.0"\n'
             printf 'apps:\n  cmd:\n    command: bin/cmd\n'
             printf '%ss:\n  %s-%s:\n    interface: %s\n' "$side" "$iface_name" "$side" "$iface_name"
-            for attr in "${attrs[@]}"; do printf '    %s\n' "$attr"; done
+            for attr in "${attrs[@]+"${attrs[@]}"}"; do printf '    %s\n' "$attr"; done
         } > "$snapdir/meta/snap.yaml"
         snap pack --filename="/tmp/${snap_name}.snap" "$snapdir" >/dev/null
         tests.cleanup defer rm -f "/tmp/${snap_name}.snap"
@@ -41,9 +42,9 @@ execute: |
         local iface_name="$1"
         local side="$2"  # plug or slot
         shift 2
-        local -a attrs=("$@")
+        local -a attrs=("${@+$@}")
         local snap_name="reject-${iface_name}-${side}"
-        make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]}"
+        make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]+"${attrs[@]}"}"
         echo "Try installing $snap_name without an instance key"
         if snap install --dangerous "/tmp/${snap_name}.snap" 2>install-noinstance.err; then
             tests.cleanup defer snap remove --purge "$snap_name"
@@ -73,23 +74,23 @@ execute: |
     check_parallel_install_plug_rejected() {
         local iface_name="$1"
         shift
-        local -a attrs=("$@")
-        check_parallel_install_rejected "$iface_name" plug "${attrs[@]}"
+        local -a attrs=("${@+$@}")
+        check_parallel_install_rejected "$iface_name" plug "${attrs[@]+"${attrs[@]}"}"
     }
 
     check_parallel_install_slot_rejected() {
         local iface_name="$1"
         shift
-        local -a attrs=("$@")
-        check_parallel_install_rejected "$iface_name" slot "${attrs[@]}"
+        local -a attrs=("${@+$@}")
+        check_parallel_install_rejected "$iface_name" slot "${attrs[@]+"${attrs[@]}"}"
     }
 
     check_parallel_install_plug_and_slot_rejected() {
         local iface_name="$1"
         shift
-        local -a attrs=("$@")
-        check_parallel_install_rejected "$iface_name" plug "${attrs[@]}"
-        check_parallel_install_rejected "$iface_name" slot "${attrs[@]}"
+        local -a attrs=("${@+$@}")
+        check_parallel_install_rejected "$iface_name" plug "${attrs[@]+"${attrs[@]}"}"
+        check_parallel_install_rejected "$iface_name" slot "${attrs[@]+"${attrs[@]}"}"
     }
 
     ####################################################################
@@ -171,10 +172,14 @@ execute: |
         "compatibility: opengles-2-0-ubuntu-2510" \
         "library-source: [\$SNAP/lib]"
 
-    check_parallel_install_plug_rejected posix-mq
+    if snap debug sandbox-features --required apparmor:parser:mqueue-posix; then
+        check_parallel_install_plug_rejected posix-mq
 
-    check_parallel_install_slot_rejected posix-mq \
-        "path: /test-mq-slot"
+        check_parallel_install_slot_rejected posix-mq \
+            "path: /test-mq-slot"
+    else
+        echo "SKIP: AppArmor does not support POSIX message queues"
+    fi
 
     check_parallel_install_plug_and_slot_rejected ros-snapd-support
 
@@ -202,9 +207,9 @@ execute: |
         local iface_name="$1"
         local side="$2"  # plug or slot
         shift 2
-        local -a attrs=("$@")
+        local -a attrs=("${@+$@}")
         local snap_name="allow-${iface_name}-${side}"
-        make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]}"
+        make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]+"${attrs[@]}"}"
         echo "Installing $snap_name without an instance key"
         snap install --dangerous "/tmp/${snap_name}.snap"
         tests.cleanup defer snap remove --purge "$snap_name"
@@ -222,8 +227,8 @@ execute: |
     check_parallel_install_plug_allowed() {
         local iface_name="$1"
         shift
-        local -a attrs=("$@")
-        check_parallel_install_allowed "$iface_name" plug "${attrs[@]}"
+        local -a attrs=("${@+$@}")
+        check_parallel_install_allowed "$iface_name" plug "${attrs[@]+"${attrs[@]}"}"
     }
 
     check_parallel_install_plug_allowed shared-memory \
