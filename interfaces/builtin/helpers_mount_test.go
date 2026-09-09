@@ -247,9 +247,21 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFiles(c *C) {
 			Dir:     "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
+		// Pass 2: redistribution to the loader-scanned GLVND directory.
+		{
+			Name:    "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
+			Dir:     "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
+			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		},
 		{
 			Name:    radeonIcd,
 			Dir:     "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
+			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		},
+		// Pass 2: redistribution for the radeon ICD too.
+		{
+			Name:    "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
+			Dir:     "/usr/share/glvnd/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 	})
@@ -303,6 +315,12 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFilesVulkan(c *C) {
 			Dir:     "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
+		// Pass 2: redistribution to the loader-scanned Vulkan search dir.
+		{
+			Name:    "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
+			Dir:     "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
+			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		},
 	})
 
 	// An optional *-source attribute that is absent contributes nothing.
@@ -326,6 +344,12 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyClientDriver(c *C) {
 		{
 			Name:    driverPath,
 			Dir:     "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/libgallium_driver.so",
+			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		},
+		// Pass 2: redistribution to the loader-scanned GBM directory.
+		{
+			Name:    "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/libgallium_driver.so",
+			Dir:     fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/libgallium_driver.so", osutil.MachineName()),
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 	})
