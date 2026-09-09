@@ -28,7 +28,6 @@ var (
 	GetAttribute                 = getAttribute
 	EvalAndValidateSymlink       = evalAndValidateSymlink
 	ShouldValidateSymlink        = shouldValidateSymlink
-	ParseSnapdUCTracks           = parseSnapdUCTracks
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {
