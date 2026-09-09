@@ -580,14 +580,29 @@ func storeUpdatePlanCore(
 	}
 
 	for _, sar := range sars {
-		up, ok := updates[sar.InstanceName()]
+		name := sar.InstanceName()
+		up, ok := updates[name]
 		if !ok {
-			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
+			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", name)
 		}
 
-		snapst, ok := allSnaps[sar.InstanceName()]
+		snapst, ok := allSnaps[name]
 		if !ok {
 			snapst = &SnapState{}
+		}
+
+		action := "install"
+		if snapst.IsInstalled() {
+			action = "refresh"
+		}
+		sar, localOnly, err := maybeRedirectSnapdTrack(ctx, st, sar, &up.RevOpts, snapst, opts, action)
+		if err != nil {
+			return updatePlan{}, err
+		}
+		updates[name] = up
+		if localOnly {
+			hasLocalRevision[name] = snapst
+			continue
 		}
 
 		currentComps, err := snapst.CurrentComponentInfos()
@@ -1003,6 +1018,51 @@ func sendOneInstallOrDownloadAction(ctx context.Context, st *state.State, action
 	}
 	if len(results) != 1 {
 		return store.SnapActionResult{}, fmt.Errorf("expected exactly one result, got %d", len(results))
+	}
+	return results[0], nil
+}
+
+// sendOneStoreAction sends a single already-built store action. The caller
+// must hold the state lock; it is released for the store round-trip.
+//
+// If forceChannel is not empty, it is set on the action after
+// completeStoreAction so a validation-set pin cannot drop the channel.
+func sendOneStoreAction(ctx context.Context, st *state.State, action *store.SnapAction, revOpts RevisionOptions, opts Options, includeResources bool, forceChannel string) (store.SnapActionResult, error) {
+	if err := completeStoreAction(action, revOpts, opts.Flags.IgnoreValidation); err != nil {
+		return store.SnapActionResult{}, err
+	}
+	if forceChannel != "" {
+		action.Channel = forceChannel
+	}
+
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	refreshOpts, err := refreshOptions(st, &store.RefreshOptions{
+		IncludeResources: includeResources,
+	})
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	user, err := userFromUserID(st, opts.UserID)
+	if err != nil {
+		return store.SnapActionResult{}, err
+	}
+
+	str := Store(st, opts.DeviceCtx)
+
+	st.Unlock()
+	results, _, err := str.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, refreshOpts)
+	st.Lock()
+
+	if err != nil {
+		return store.SnapActionResult{}, singleActionResultErr(action.InstanceName, action.Action, err)
+	}
+	if len(results) != 1 {
+		return store.SnapActionResult{}, fmt.Errorf("internal error: expected exactly one result from store, got %d", len(results))
 	}
 	return results[0], nil
 }

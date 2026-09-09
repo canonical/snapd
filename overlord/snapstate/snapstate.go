@@ -726,9 +726,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 		RevOpts: RevisionOptions{
 			Channel: channel,
 
-			// setting the revision here makes this single-snap path install an
-			// explicit revision update. InstallPathMany intentionally does not
-			// do this, so same-revision local snaps can be handled differently
+			// setting the revision here makes this single-snap path install a
+			// by-revision update. InstallPathMany intentionally does not do
+			// this, so same-revision local snaps can be handled differently
 			// by the two API entrypoints
 			Revision: si.Revision,
 		},
@@ -858,6 +858,7 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
+	// Injected default, not a caller-requested channel.
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
 	}
@@ -877,6 +878,18 @@ func downloadTasks(
 	}, opts)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	var snapst SnapState
+	if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, nil, err
+	}
+	sar, localOnly, err := maybeRedirectSnapdTrack(ctx, st, sar, &revOpts, &snapst, opts, "download")
+	if err != nil {
+		return nil, nil, err
+	}
+	if localOnly {
+		return nil, nil, errors.New("internal error: snapd track redirect of download returned no store revision")
 	}
 
 	info := sar.Info

@@ -2017,7 +2017,7 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
 	checkOpts := func(opts *snapstate.RevisionOptions) {
-		// no channel in -> no channel out
+		// no channel in the request
 		c.Check(opts.Channel, check.Equals, "")
 	}
 	summary, systemRestartImmediate := s.testPostSnap(c, "", checkOpts)
@@ -2027,11 +2027,20 @@ func (s *snapsSuite) TestPostSnap(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
 	checkOpts := func(opts *snapstate.RevisionOptions) {
-		// channel in -> channel out
 		c.Check(opts.Channel, check.Equals, "xyzzy")
 	}
 	summary, systemRestartImmediate := s.testPostSnap(c, `"channel": "xyzzy"`, checkOpts)
 	c.Check(summary, check.Equals, `Install "foo" snap from "xyzzy" channel`)
+	c.Check(systemRestartImmediate, check.Equals, false)
+}
+
+func (s *snapsSuite) TestPostSnapWithRevision(c *check.C) {
+	checkOpts := func(opts *snapstate.RevisionOptions) {
+		c.Check(opts.Channel, check.Equals, "")
+		c.Check(opts.Revision, check.Equals, snap.R(42))
+	}
+	summary, systemRestartImmediate := s.testPostSnap(c, `"revision": 42`, checkOpts)
+	c.Check(summary, check.Equals, `Install "foo" snap`)
 	c.Check(systemRestartImmediate, check.Equals, false)
 }
 
