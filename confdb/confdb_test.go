@@ -4551,6 +4551,29 @@ func (*viewSuite) TestListFiltering(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
+func (*viewSuite) TestSetListIndexesInNumericOrder(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{
+					"request": "settings[{n}]",
+					"storage": "items[{n}]",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	// has 11 elements so we test that settings[10] sorts after settings[9]
+	// (i.e., they're not lexicographically sorted)
+	value := []any{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"}
+	err = view.Set(bag, "settings", value)
+	c.Assert(err, IsNil)
+}
+
 func (*viewSuite) TestFieldFilteringNotString(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
