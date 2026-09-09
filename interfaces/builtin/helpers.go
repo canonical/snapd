@@ -452,9 +452,13 @@ func assemblyAppArmorEntry(emit func(f string, args ...any), source, target stri
 func addAppArmorRedistributionAccess(spec *apparmor.Specification, ifaceName string) {
 	switch ifaceName {
 	case eglDriverLibs:
-		spec.AddSnippet("  /usr/share/glvnd/egl_vendor.d/{,**} r,\n")
+		spec.AddSnippet(`
+  /usr/share/glvnd/ r,
+  /usr/share/glvnd/egl_vendor.d/{,**} r,`)
 	case vulkanDriverLibs:
-		spec.AddSnippet("  /usr/share/vulkan/{,icd.d,implicit_layer.d,explicit_layer.d}/{,**} r,\n")
+		spec.AddSnippet(`
+  /usr/share/vulkan/ r,
+  /usr/share/vulkan/{,icd.d,implicit_layer.d,explicit_layer.d}/{,**} r,`)
 	case gbmDriverLibs:
 		spec.AddSnippet("  /usr/lib/@{multiarch}/gbm/{,**} r,\n")
 	}
