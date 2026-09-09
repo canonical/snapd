@@ -444,6 +444,22 @@ func assemblyAppArmorEntry(emit func(f string, args ...any), source, target stri
 	apparmor.GenWritableProfile(emit, fmt.Sprintf("%s-[0-9]*", target), 1)
 }
 
+// addAppArmorRedistributionAccess grants the application read access to the
+// loader-scanned system locations where Pass 2 redistributes this interface's
+// metadata, so the in-process loaders (Vulkan/GLVND/GBM) can discover the ICDs
+// and layers env-free. Only the specific subtrees the interface populates are
+// granted (least privilege, per-interface).
+func addAppArmorRedistributionAccess(spec *apparmor.Specification, ifaceName string) {
+	switch ifaceName {
+	case eglDriverLibs:
+		spec.AddSnippet("  /usr/share/glvnd/egl_vendor.d/{,**} r,\n")
+	case vulkanDriverLibs:
+		spec.AddSnippet("  /usr/share/vulkan/{,icd.d,implicit_layer.d,explicit_layer.d}/{,**} r,\n")
+	case gbmDriverLibs:
+		spec.AddSnippet("  /usr/lib/@{multiarch}/gbm/{,**} r,\n")
+	}
+}
+
 // addAppArmorAssemblyAccess grants the application read access to the per-interface
 // driver-libs assembly tree under /opt/snapd/interfaces/<iface>/. The core base
 // template (unlike the non-core/classic template) does not grant /opt/** to apps, so
@@ -511,6 +527,13 @@ func addAppArmorAssemblySourceFiles(
 		target := filepath.Join(assemblyRoot, ifaceName, "share", subdir, encodedName)
 		emit("  # Driver-libs assembly metadata file %s\n", target)
 		assemblyAppArmorEntry(emit, pathDirIdx.path, target, false)
+		// Pass 2: authorize snap-update-ns to redistribute the metadata to the
+		// canonical loader-scanned system location (see loaderScannedTarget).
+		if loaderDir := loaderScannedTarget(subdir); loaderDir != "" {
+			loaderTarget := filepath.Join(loaderDir, encodedName)
+			emit("  # Driver-libs redistribution %s -> %s\n", target, loaderTarget)
+			assemblyAppArmorEntry(emit, target, loaderTarget, false)
+		}
 	}
 	return nil
 }
@@ -530,6 +553,11 @@ func addAppArmorAssemblyClientDriver(spec *apparmor.Specification, slot *interfa
 	target := filepath.Join(assemblyRoot, ifaceName, "share", "gbm", clientDriver)
 	spec.AddUpdateNSf("  # Driver-libs assembly client driver %s\n", target)
 	assemblyAppArmorEntry(spec.AddUpdateNSf, path, target, false)
+	// Pass 2: authorize snap-update-ns to redistribute the client-driver
+	// metadata to the loader-scanned GBM directory.
+	loaderTarget := filepath.Join(loaderScannedTarget("gbm"), clientDriver)
+	spec.AddUpdateNSf("  # Driver-libs redistribution %s -> %s\n", target, loaderTarget)
+	assemblyAppArmorEntry(spec.AddUpdateNSf, target, loaderTarget, false)
 	return nil
 }
 

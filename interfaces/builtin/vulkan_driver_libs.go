@@ -147,6 +147,8 @@ func (iface *vulkanDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
 	addAppArmorAssemblyAccess(spec, vulkanDriverLibs)
+	// Grant read access to the loader-scanned metadata location (Pass 2).
+	addAppArmorRedistributionAccess(spec, vulkanDriverLibs)
 	const withPriority = false
 	if err := addAppArmorAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
 		return err

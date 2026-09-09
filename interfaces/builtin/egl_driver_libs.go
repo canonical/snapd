@@ -126,6 +126,8 @@ func (iface *eglDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
 	addAppArmorAssemblyAccess(spec, eglDriverLibs)
+	// Grant read access to the loader-scanned metadata location (Pass 2).
+	addAppArmorRedistributionAccess(spec, eglDriverLibs)
 	const withPriority = true
 	if err := addAppArmorAssemblyLibDirs(spec, slot, eglDriverLibs); err != nil {
 		return err
