@@ -1,5 +1,6 @@
 [Unit]
 Description=Snap Daemon
+After=network.target
 After=snapd.socket
 After=time-set.target
 After=snapd.mounts.target
