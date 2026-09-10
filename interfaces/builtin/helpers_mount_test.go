@@ -17,7 +17,7 @@
  *
  */
 
-package builtin
+package builtin_test
 
 import (
 	"fmt"
@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -134,38 +135,34 @@ func (s *mountAssemblyHelpersSuite) TestSourceDirEncodedName(c *C) {
 	slot := s.mockSlotWithComps(c, mountAssemblyEglProviderYaml, snap.R(5))
 
 	// Snap-file, with priority: name is prefixed with priority+dir index.
-	name, err := sourceDirEncodedName(slot, pathWithDirIdx{
-		path: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"), idx: 0}, true)
+	name, err := builtin.SourceDirEncodedName(slot, builtin.NewPathWithDirIdx(filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"), 0), true)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "10_snap_egl-provider_egl-slot_egl.d-mesa.json")
 
 	// A different source dir gets the next index.
-	name, err = sourceDirEncodedName(slot, pathWithDirIdx{
-		path: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl_alt.d/radeon.json"), idx: 1}, true)
+	name, err = builtin.SourceDirEncodedName(slot, builtin.NewPathWithDirIdx(filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl_alt.d/radeon.json"), 1), true)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json")
 
 	// Without priority no numeric prefix is used.
-	name, err = sourceDirEncodedName(slot, pathWithDirIdx{
-		path: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"), idx: 0}, false)
+	name, err = builtin.SourceDirEncodedName(slot, builtin.NewPathWithDirIdx(filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"), 0), false)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "snap_egl-provider_egl-slot_egl.d-mesa.json")
 
 	// Component file: the component name is embedded and the original list
 	// index (not the filtered position) is used for the priority prefix.
 	compPath := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "egl.d", "nvidia.json")
-	name, err = sourceDirEncodedName(slot, pathWithDirIdx{path: compPath, idx: 3}, true)
+	name, err = builtin.SourceDirEncodedName(slot, builtin.NewPathWithDirIdx(compPath, 3), true)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "13_snap_egl-provider+comp1_egl-slot_egl.d-nvidia.json")
 
 	// withPriority on a slot without the priority attribute errors out.
 	vulkanSlot := s.mockSlotWithComps(c, mountAssemblyVulkanProviderYaml, snap.R(4))
-	_, err = sourceDirEncodedName(vulkanSlot, pathWithDirIdx{
-		path: filepath.Join(dirs.SnapMountDir, "vulkan-provider/4/vulkan/icd.d/intel.json"), idx: 0}, true)
+	_, err = builtin.SourceDirEncodedName(vulkanSlot, builtin.NewPathWithDirIdx(filepath.Join(dirs.SnapMountDir, "vulkan-provider/4/vulkan/icd.d/intel.json"), 0), true)
 	c.Check(err, ErrorMatches, `invalid priority: snap "vulkan-provider" does not have attribute "priority" for interface "vulkan-driver-libs"`)
 
 	// A path that does not reach below the snap mount dir cannot be encoded.
-	_, err = sourceDirEncodedName(slot, pathWithDirIdx{path: dirs.SnapMountDir, idx: 0}, false)
+	_, err = builtin.SourceDirEncodedName(slot, builtin.NewPathWithDirIdx(dirs.SnapMountDir, 0), false)
 	c.Check(err, ErrorMatches, `internal error: wrong file path: \.`)
 }
 
@@ -175,7 +172,7 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyLibDirs(c *C) {
 	slot := s.mockSlotWithComps(c, mountAssemblyEglProviderYaml, snap.R(5), mockComp{"comp1", snap.R(11)})
 
 	spec := &mount.Specification{}
-	c.Assert(mountAssemblyLibDirs(spec, slot, "egl-driver-libs"), IsNil)
+	c.Assert(builtin.MountAssemblyLibDirs(spec, slot, "egl-driver-libs"), IsNil)
 
 	comp1Lib1 := filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "clib1")
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
@@ -238,8 +235,8 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFiles(c *C) {
 	os.WriteFile(filepath.Join(libDir, "libEGL_radeon.so.0"), []byte{}, 0644)
 
 	spec := &mount.Specification{}
-	c.Assert(mountAssemblySourceFiles(spec, slot, "egl-driver-libs",
-		sourceDirAttr{attrName: "icd-source"}, "egl_vendor.d", checkEglIcdFile, true), IsNil)
+	c.Assert(builtin.MountAssemblySourceFiles(spec, slot, "egl-driver-libs",
+		builtin.NewSourceDirAttr("icd-source", false), "egl_vendor.d", builtin.CheckEglIcdFile, true), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
@@ -270,10 +267,10 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFiles(c *C) {
 
 	// The mount names are byte-identical to the classic symlink names.
 	symlinksSpec := &symlinks.Specification{}
-	c.Assert(symlinksForSourceDir(symlinksSpec, slot,
-		sourceDirAttr{attrName: "icd-source"}, eglVendorPath, checkEglIcdFile, true), IsNil)
+	c.Assert(builtin.SymlinksForSourceDir(symlinksSpec, slot,
+		builtin.NewSourceDirAttr("icd-source", false), builtin.EglVendorPath, builtin.CheckEglIcdFile, true), IsNil)
 	expectedNames := map[string]bool{}
-	for link := range symlinksSpec.Symlinks()[eglVendorPath] {
+	for link := range symlinksSpec.Symlinks()[builtin.EglVendorPath] {
 		expectedNames[link] = true
 	}
 	c.Assert(expectedNames, DeepEquals, map[string]bool{
@@ -306,8 +303,8 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFilesVulkan(c *C) {
 	os.WriteFile(filepath.Join(libDir, "libvulkan_intel.so"), []byte{}, 0644)
 
 	spec := &mount.Specification{}
-	c.Assert(mountAssemblySourceFiles(spec, slot, "vulkan-driver-libs",
-		sourceDirAttr{attrName: "icd-source"}, "vulkan/icd.d", checkVulkanIcdFile, false), IsNil)
+	c.Assert(builtin.MountAssemblySourceFiles(spec, slot, "vulkan-driver-libs",
+		builtin.NewSourceDirAttr("icd-source", false), "vulkan/icd.d", builtin.CheckVulkanIcdFile, false), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
@@ -325,8 +322,8 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFilesVulkan(c *C) {
 
 	// An optional *-source attribute that is absent contributes nothing.
 	implicitSpec := &mount.Specification{}
-	c.Assert(mountAssemblySourceFiles(implicitSpec, slot, "vulkan-driver-libs",
-		sourceDirAttr{attrName: "implicit-layer-source", isOptional: true}, "vulkan/implicit_layer.d", checkVulkanLayersFile, false), IsNil)
+	c.Assert(builtin.MountAssemblySourceFiles(implicitSpec, slot, "vulkan-driver-libs",
+		builtin.NewSourceDirAttr("implicit-layer-source", true), "vulkan/implicit_layer.d", builtin.CheckVulkanLayersFile, false), IsNil)
 	c.Assert(implicitSpec.MountEntries(), HasLen, 0)
 }
 
@@ -339,7 +336,7 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyClientDriver(c *C) {
 	os.WriteFile(driverPath, []byte{}, 0644)
 
 	spec := &mount.Specification{}
-	c.Assert(mountAssemblyClientDriver(spec, slot, "gbm-driver-libs"), IsNil)
+	c.Assert(builtin.MountAssemblyClientDriver(spec, slot, "gbm-driver-libs"), IsNil)
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
 			Name:    driverPath,
@@ -357,6 +354,6 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyClientDriver(c *C) {
 
 	// A missing client-driver in the library dirs is an error.
 	emptySlot := s.mockSlotWithComps(c, mountAssemblyGbmProviderYaml, snap.R(7))
-	c.Assert(mountAssemblyClientDriver(&mount.Specification{}, emptySlot, "gbm-driver-libs"),
+	c.Assert(builtin.MountAssemblyClientDriver(&mount.Specification{}, emptySlot, "gbm-driver-libs"),
 		ErrorMatches, `"libgallium_driver.so" not found in the library-source directories`)
 }

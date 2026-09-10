@@ -38,7 +38,33 @@ var (
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
 	DriverLibsSupported         = driverLibsSupported
+
+	SourceDirEncodedName        = sourceDirEncodedName
+	MountAssemblyLibDirs        = mountAssemblyLibDirs
+	MountAssemblySourceFiles    = mountAssemblySourceFiles
+	MountAssemblyClientDriver   = mountAssemblyClientDriver
+	SymlinksForSourceDir        = symlinksForSourceDir
+	CheckEglIcdFile             = checkEglIcdFile
+	CheckVulkanIcdFile          = checkVulkanIcdFile
+	CheckVulkanLayersFile       = checkVulkanLayersFile
+	EglVendorPath               = eglVendorPath
 )
+
+// SourceDirAttr is the exported test alias for sourceDirAttr.
+type SourceDirAttr = sourceDirAttr
+
+// PathWithDirIdx is the exported test alias for pathWithDirIdx.
+type PathWithDirIdx = pathWithDirIdx
+
+// NewSourceDirAttr constructs a sourceDirAttr for tests.
+func NewSourceDirAttr(attrName string, isOptional bool) sourceDirAttr {
+	return sourceDirAttr{attrName: attrName, isOptional: isOptional}
+}
+
+// NewPathWithDirIdx constructs a pathWithDirIdx for tests.
+func NewPathWithDirIdx(path string, idx int) pathWithDirIdx {
+	return pathWithDirIdx{path: path, idx: idx}
+}
 
 type GbmDriverLibsInterface gbmDriverLibsInterface
 
