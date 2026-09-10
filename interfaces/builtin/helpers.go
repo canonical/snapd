@@ -238,7 +238,7 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 // driver metadata under <assemblyRoot>/<iface>/share/. The writable-mimic for
 // these paths is authorized via the snap-update-ns apparmor profile, see
 // AppArmorConnectedPlug of the driver-libs interfaces.
-const assemblyRoot = "/opt/snapd/interfaces"
+const assemblyRoot = "/run/snapd/interfaces"
 
 // libraryRelPath returns the path of a library/source dir relative to its
 // $SNAP or $SNAP_COMPONENT(<comp>) prefix, i.e. the path-suffix to preserve
@@ -501,20 +501,20 @@ func addAppArmorRedistributionAccess(spec *apparmor.Specification, ifaceName str
 }
 
 // addAppArmorAssemblyAccess grants the application read access to the per-interface
-// driver-libs assembly tree under /opt/snapd/interfaces/<iface>/. The core base
-// template (unlike the non-core/classic template) does not grant /opt/** to apps, so
-// each driver-libs interface must grant access to its own subtree explicitly. Only the
-// library/metadata files bind-mounted by the mount backend are exposed; the app can
-// read its own interface's subtree but not other interfaces' or /opt/snapd broadly.
+// driver-libs assembly tree under assemblyRoot/<iface>/. The core base
+// template (unlike the non-core/classic template) does not grant /opt/** or /run/** to
+// apps, so each driver-libs interface must grant access to its own subtree explicitly.
+// Only the library/metadata files bind-mounted by the mount backend are exposed; the
+// app can read its own interface's subtree but not other interfaces' or assemblyRoot broadly.
 func addAppArmorAssemblyAccess(spec *apparmor.Specification, ifaceName string) {
 	spec.AddSnippet(fmt.Sprintf(`
-  # Driver-libs assembly tree for %s: read the bind-mounted provider
-  # libraries and ICD/layer metadata under /opt/snapd/interfaces/%s/.
-  /opt/snapd/ r,
-  /opt/snapd/interfaces/ r,
-  /opt/snapd/interfaces/%s/ r,
-  /opt/snapd/interfaces/%s/** mrkix,
-`, ifaceName, ifaceName, ifaceName, ifaceName))
+  # Driver-libs assembly tree for %[3]s: read the bind-mounted provider
+  # libraries and ICD/layer metadata under %[2]s/%[3]s/.
+  %[1]s/ r,
+  %[2]s/ r,
+  %[2]s/%[3]s/ r,
+  %[2]s/%[3]s/** mrkix,
+`, filepath.Dir(assemblyRoot), assemblyRoot, ifaceName))
 }
 
 // addAppArmorAssemblyLibDirs emits the snap-update-ns apparmor rules for the

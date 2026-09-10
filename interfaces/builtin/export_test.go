@@ -39,15 +39,15 @@ var (
 	StringListAttribute         = stringListAttribute
 	DriverLibsSupported         = driverLibsSupported
 
-	SourceDirEncodedName        = sourceDirEncodedName
-	MountAssemblyLibDirs        = mountAssemblyLibDirs
-	MountAssemblySourceFiles    = mountAssemblySourceFiles
-	MountAssemblyClientDriver   = mountAssemblyClientDriver
-	SymlinksForSourceDir        = symlinksForSourceDir
-	CheckEglIcdFile             = checkEglIcdFile
-	CheckVulkanIcdFile          = checkVulkanIcdFile
-	CheckVulkanLayersFile       = checkVulkanLayersFile
-	EglVendorPath               = eglVendorPath
+	SourceDirEncodedName      = sourceDirEncodedName
+	MountAssemblyLibDirs      = mountAssemblyLibDirs
+	MountAssemblySourceFiles  = mountAssemblySourceFiles
+	MountAssemblyClientDriver = mountAssemblyClientDriver
+	SymlinksForSourceDir      = symlinksForSourceDir
+	CheckEglIcdFile           = checkEglIcdFile
+	CheckVulkanIcdFile        = checkVulkanIcdFile
+	CheckVulkanLayersFile     = checkVulkanLayersFile
+	EglVendorPath             = eglVendorPath
 )
 
 // SourceDirAttr is the exported test alias for sourceDirAttr.

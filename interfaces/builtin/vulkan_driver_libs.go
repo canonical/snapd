@@ -113,7 +113,7 @@ func (iface *vulkanDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Spe
 
 func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// On Ubuntu Core the provider content is bound into the assembly tree under
-	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs). Vulkan
+	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs). Vulkan
 	// slots have no priority attribute, so no numeric prefix is used in the
 	// encoded metadata file names.
 	const withPriority = false
@@ -143,7 +143,7 @@ func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specifica
 
 func (iface *vulkanDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Grant the app read access to its own assembly subtree under
-	// /opt/snapd/interfaces (the core base template does not grant /opt/** to
+	// /run/snapd/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
 	addAppArmorAssemblyAccess(spec, vulkanDriverLibs)

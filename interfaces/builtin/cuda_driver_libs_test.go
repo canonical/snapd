@@ -322,25 +322,25 @@ func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// Library dirs are bound into the assembly tree, pooled by their
 		// path-suffix after the $SNAP/$SNAP_COMPONENT prefix.
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib2", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "clib1"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "clib2"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib2", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "clib3"),
-			Dir: "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib3", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib3", Options: []string{"bind", "ro"}},
 	})
 
 	// All bound library dirs are collected for SNAP_LIBRARY_PATH derivation
 	// (sorted).
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib1",
-		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib2",
-		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib3",
-		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1",
-		"/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib2",
+		"/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib1",
+		"/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib2",
+		"/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib3",
+		"/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1",
+		"/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib2",
 	})
 }
 
@@ -352,7 +352,7 @@ func (s *CudaDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// The bind-mount rules for each assembly library dir, with the {,-[0-9]*}
 	// clash suffixes.
 	lib1 := filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1")
-	target0 := "/opt/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1"
+	target0 := "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
@@ -362,8 +362,8 @@ func (s *CudaDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// The app gets read access to its own assembly subtree only (the core base
 	// template does not grant /opt/** to apps).
 	app := spec.SnippetForTag("snap.snapd.app")
-	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/cuda-driver-libs/ r,")
-	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/cuda-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/run/snapd/interfaces/cuda-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/run/snapd/interfaces/cuda-driver-libs/** mrkix,")
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

@@ -28,8 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -178,26 +178,26 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyLibDirs(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
 			Name:    filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
+			Dir:     "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
 			Options: []string{"bind", "ro"},
 		},
 		{
 			Name:    filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
+			Dir:     "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
 			Options: []string{"bind", "ro"},
 		},
 		{
 			Name:    comp1Lib1,
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
+			Dir:     "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
 			Options: []string{"bind", "ro"},
 		},
 	})
 
 	// Library path dirs are collected for the SNAP_LIBRARY_PATH derivation (sorted).
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
-		"/opt/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
+		"/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",
+		"/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1",
+		"/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2",
 	})
 }
 
@@ -241,23 +241,23 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFiles(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
 			Name:    mesaIcd,
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
+			Dir:     "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 		// Pass 2: redistribution to the loader-scanned GLVND directory.
 		{
-			Name:    "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
+			Name:    "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
 			Dir:     "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 		{
 			Name:    radeonIcd,
-			Dir:     "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
+			Dir:     "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 		// Pass 2: redistribution for the radeon ICD too.
 		{
-			Name:    "/opt/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
+			Name:    "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
 			Dir:     "/usr/share/glvnd/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
@@ -309,12 +309,12 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblySourceFilesVulkan(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
 			Name:    intelIcd,
-			Dir:     "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
+			Dir:     "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 		// Pass 2: redistribution to the loader-scanned Vulkan search dir.
 		{
-			Name:    "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
+			Name:    "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
 			Dir:     "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-intel.json",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
@@ -340,12 +340,12 @@ func (s *mountAssemblyHelpersSuite) TestMountAssemblyClientDriver(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{
 			Name:    driverPath,
-			Dir:     "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/libgallium_driver.so",
+			Dir:     "/run/snapd/interfaces/gbm-driver-libs/share/gbm/libgallium_driver.so",
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},
 		// Pass 2: redistribution to the loader-scanned GBM directory.
 		{
-			Name:    "/opt/snapd/interfaces/gbm-driver-libs/share/gbm/libgallium_driver.so",
+			Name:    "/run/snapd/interfaces/gbm-driver-libs/share/gbm/libgallium_driver.so",
 			Dir:     fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/libgallium_driver.so", osutil.MachineName()),
 			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
 		},

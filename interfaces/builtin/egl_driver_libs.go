@@ -110,7 +110,7 @@ func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 
 func (iface *eglDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// On Ubuntu Core the provider content is bound into the assembly tree under
-	// the /opt/snapd/interfaces directory (see mountAssemblyLibDirs).
+	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs).
 	const withPriority = true
 	if err := mountAssemblyLibDirs(spec, slot, eglDriverLibs); err != nil {
 		return err
@@ -122,7 +122,7 @@ func (iface *eglDriverLibsInterface) MountConnectedPlug(spec *mount.Specificatio
 
 func (iface *eglDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Grant the app read access to its own assembly subtree under
-	// /opt/snapd/interfaces (the core base template does not grant /opt/** to
+	// /run/snapd/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
 	addAppArmorAssemblyAccess(spec, eglDriverLibs)

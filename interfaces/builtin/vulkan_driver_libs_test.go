@@ -327,39 +327,39 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// Library dirs.
-		{Name: libDir1, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1", Options: []string{"bind", "ro"}},
-		{Name: libDir2, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2", Options: []string{"bind", "ro"}},
-		{Name: compLibDir, Dir: "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1", Options: []string{"bind", "ro"}},
+		{Name: libDir1, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1", Options: []string{"bind", "ro"}},
+		{Name: libDir2, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2", Options: []string{"bind", "ro"}},
+		{Name: compLibDir, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1", Options: []string{"bind", "ro"}},
 		// ICD files, without a numeric prefix (vulkan has no priority).
 		{Name: filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json"),
-			Dir: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Pass 2: redistribution to the loader-scanned Vulkan search dir.
-		{Name: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json",
+		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json",
 			Dir: "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		{Name: filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan_alt.d/radeon.json"),
-			Dir: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Pass 2: redistribution for the radeon ICD too.
-		{Name: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json",
+		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json",
 			Dir: "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Implicit layer.
 		{Name: filepath.Join(implicitDir, "gpu_layer.json"),
-			Dir: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Pass 2: redistribution for the implicit layer.
-		{Name: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json",
+		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json",
 			Dir: "/usr/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Explicit layer.
 		{Name: filepath.Join(explicitDir, "exp_layer.json"),
-			Dir: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 		// Pass 2: redistribution for the explicit layer.
-		{Name: "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json",
+		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json",
 			Dir: "/usr/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
 	})
 
 	// Only the library dirs feed SNAP_LIBRARY_PATH (sorted).
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1",
-		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1",
-		"/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2",
+		"/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1",
+		"/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1",
+		"/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2",
 	})
 }
 
@@ -401,14 +401,14 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
-	target0 := "/opt/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1"
+	target0 := "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
 		filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"), target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 
 	// ICD file bind with an unprefixed encoded name (vulkan has no priority).
 	icdSrc := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json")
-	icdTarget := "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json"
+	icdTarget := "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", icdSrc, icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", icdTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", icdTarget))
@@ -423,7 +423,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	// Implicit layer file bind.
 	layerSrc := filepath.Join(implicitDir, "gpu_layer.json")
-	layerTarget := "/opt/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json"
+	layerTarget := "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", layerSrc, layerTarget))
 	// Pass 2: redistribution authorization for the implicit layer too.
 	layerLoaderTarget := "/usr/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json"
@@ -441,8 +441,8 @@ func (s *VulkanDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// template does not grant /opt/** to apps), plus the loader-scanned Vulkan
 	// search dirs for Pass 2 redistribution.
 	app := spec.SnippetForTag("snap.snapd.app")
-	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/vulkan-driver-libs/ r,")
-	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/vulkan-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/run/snapd/interfaces/vulkan-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/run/snapd/interfaces/vulkan-driver-libs/** mrkix,")
 	c.Check(app, testutil.Contains, "/usr/share/vulkan/{,icd.d,implicit_layer.d,explicit_layer.d}/{,**} r,")
 }
 

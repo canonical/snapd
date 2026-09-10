@@ -208,13 +208,13 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
-			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2"),
-			Dir: "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib2", Options: []string{"bind", "ro"}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib1",
-		"/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib2",
+		"/run/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib1",
+		"/run/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib2",
 	})
 }
 
@@ -224,7 +224,7 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	lib1 := filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1")
-	target0 := "/opt/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib1"
+	target0 := "/run/snapd/interfaces/nvidia-video-driver-libs/lib/nvidia-video-provider_nvidia-video-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
@@ -232,8 +232,8 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C
 	// The app gets read access to its own assembly subtree only (the core base
 	// template does not grant /opt/** to apps).
 	app := spec.SnippetForTag("snap.snapd.app")
-	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/nvidia-video-driver-libs/ r,")
-	c.Check(app, testutil.Contains, "/opt/snapd/interfaces/nvidia-video-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/run/snapd/interfaces/nvidia-video-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/run/snapd/interfaces/nvidia-video-driver-libs/** mrkix,")
 }
 
 func (s *NvidiaVideoDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
