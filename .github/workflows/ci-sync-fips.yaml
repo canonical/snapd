@@ -1,8 +1,8 @@
-name: sync master into fips
+name: sync test-fips-master into test-fips
 
 on:
   push:
-    branches: ["master"]
+    branches: ["test-fips-master"]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: sync-master-to-fips
+  group: test-fips-sync
   cancel-in-progress: false
 
 jobs:
@@ -33,27 +33,27 @@ jobs:
         shell: bash
         run: |
           git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
-          fips_sha="$(git rev-parse origin/fips)"
+          fips_sha="$(git rev-parse origin/test-fips)"
 
-          if git merge-base --is-ancestor origin/master "$fips_sha"; then
+          if git merge-base --is-ancestor origin/test-fips-master "$fips_sha"; then
             exit 0
           fi
 
           git switch --detach "$fips_sha"
-          if ! git merge --no-ff --no-commit origin/master; then
+          if ! git merge --no-ff --no-commit origin/test-fips-master; then
             git rev-parse --verify MERGE_HEAD >/dev/null
           fi
-          git show origin/master:build-aux/snap/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
+          git show origin/test-fips-master:build-aux/snap/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
           git add build-aux/snap/snapcraft.yaml
 
-          git commit -m "Merge master into fips, using snapcraft-fips.yaml"
+          git commit -m "Merge test-fips-master into test-fips, using snapcraft-fips.yaml"
 
-          git push --force-with-lease origin HEAD:refs/heads/sync-master-to-fips
+          git push --force-with-lease origin HEAD:refs/heads/test-fips-sync
 
-          existing_pr="$(gh pr list --base fips --head sync-master-to-fips \
+          existing_pr="$(gh pr list --base test-fips --head test-fips-sync \
             --limit 1 --json url --jq '.[0].url // empty')"
           if [[ -z "$existing_pr" ]]; then
-            gh pr create --base fips --head sync-master-to-fips \
-              --title "Synchronize fips with master" \
-              --body 'Synchronize fips with master, using snapcraft-fips.yaml from master as snapcraft.yaml. Merge using "Create a merge commit".'
+            gh pr create --base test-fips --head test-fips-sync \
+              --title "Synchronize test-fips with test-fips-master" \
+              --body 'Synchronize test-fips with test-fips-master, using snapcraft-fips.yaml from test-fips-master as snapcraft.yaml. Merge using "Create a merge commit".'
           fi
