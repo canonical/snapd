@@ -81,6 +81,8 @@ confirmation by passing --classic.
 var longRemoveHelp = i18n.G(`
 The remove command removes the named snap instance from the system.
 
+Existing runtime dependencies are not removed.
+
 By default all the snap revisions are removed, including their data and the
 common data directory. When a --revision option is passed only the specified
 revision is removed.
