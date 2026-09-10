@@ -2568,19 +2568,51 @@ func (s *secbootSuite) testSealKeysWithProtectorHappy(c *C, useKeyFiles bool) {
 	tmpDir := c.MkDir()
 	auxKeyFn := filepath.Join(tmpDir, "aux-key")
 	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      fakeModel,
 		AuxKeyFile: auxKeyFn,
 	}
 	containerA := secboot.CreateMockBootstrappedContainer()
 	containerB := secboot.CreateMockBootstrappedContainer()
+
 	myKeys := []secboot.SealKeyRequest{
-		{BootstrappedContainer: containerA, KeyName: "key1", SlotName: "foo1"},
-		{BootstrappedContainer: containerB, KeyName: "key2", SlotName: "foo2"},
+		{
+			BootstrappedContainer: containerA,
+			KeyName:               "key1",
+			SlotName:              "foo1",
+			Models: []secboot.ModelForSealing{
+				&testModel{
+					name: "model1",
+				},
+			},
+		},
+		{
+			BootstrappedContainer: containerB,
+			KeyName:               "key2",
+			SlotName:              "foo2",
+			Models: []secboot.ModelForSealing{
+				&testModel{
+					name: "model2",
+				},
+			},
+		},
 	}
 	if useKeyFiles {
 		myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
 		myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
 	}
+
+	defer secboot.MockSbHooksNewProtectedKey(func(rand io.Reader, params *sb_hooks.KeyParams) (protectedKey *sb.KeyData, primaryKeyOut sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
+		switch params.Role {
+		case "key1":
+			c.Assert(params.AuthorizedSnapModels, HasLen, 1)
+			c.Check(params.AuthorizedSnapModels[0].Model(), Equals, "model1")
+		case "key2":
+			c.Assert(params.AuthorizedSnapModels, HasLen, 1)
+			c.Check(params.AuthorizedSnapModels[0].Model(), Equals, "model2")
+		default:
+			c.Errorf("unexpected call")
+		}
+		return sb_hooks.NewProtectedKey(rand, params)
+	})()
 
 	factory := secboot.FDESetupHookKeyProtectorFactory(runFDESetupHook)
 	err := secboot.SealKeysWithProtector(factory, myKeys, &params)
@@ -2704,7 +2736,6 @@ func (s *secbootSuite) sealKeysWithOPTEE(c *C) (key []byte, keyPath string) {
 
 	root := c.MkDir()
 	params := secboot.SealKeysWithFDESetupHookParams{
-		Model:      fakeModel,
 		AuxKeyFile: filepath.Join(root, "aux-key"),
 	}
 	container := secboot.CreateMockBootstrappedContainer()
