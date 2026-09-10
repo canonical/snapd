@@ -476,6 +476,10 @@ func MockAutostartSessionApps(f func(string) error) func() {
 	}
 }
 
+func MockSystemdInitSdNotifySocket(f func()) (restore func()) {
+	return testutil.Mock(&systemdInitSdNotifySocket, f)
+}
+
 func ParseQuotaValues(maxMemory, cpuMax, cpuSet, threadsMax, journalSizeMax, journalRateLimit string) (*client.QuotaValues, error) {
 	var quotas cmdSetQuota
 
