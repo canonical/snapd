@@ -112,7 +112,8 @@ func (s *registrySuite) TestConfigureExternalTypesIsAtomicAndRetryable(c *C) {
 	externalType := newExternalType(c, "external-atomic")
 
 	err := asserts.ConfigureExternalTypes()
-	c.Check(err, ErrorMatches, "cannot configure assertion types: no assertion types provided")
+	c.Assert(err, IsNil)
+	c.Check(asserts.Type("external-atomic"), IsNil)
 	err = asserts.ConfigureExternalTypes(nil)
 	c.Check(err, ErrorMatches, "cannot configure assertion types: assertion type cannot be nil")
 
@@ -132,6 +133,8 @@ func (s *registrySuite) TestConfigureExternalTypesIsAtomicAndRetryable(c *C) {
 
 	err = asserts.ConfigureExternalTypes(newExternalType(c, "another-external"))
 	c.Check(err, ErrorMatches, "assertion types are already configured")
+	err = asserts.ConfigureExternalTypes()
+	c.Assert(err, IsNil)
 }
 
 func (s *registrySuite) TestConfiguredTypeUsesExistingPaths(c *C) {
