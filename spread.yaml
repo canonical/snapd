@@ -1514,6 +1514,8 @@ suites:
             NESTED_IMAGE_ID: "unset"
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Define which tests to run in the nested vm in run-spread test
             NESTED_SPREAD_TESTS: '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
             # Use the specified username or certificate for ssh connections to the nested vm
@@ -1599,6 +1601,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1676,6 +1680,8 @@ suites:
             NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
+            # Indicates that by default snapd pkg is built from current
+            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
