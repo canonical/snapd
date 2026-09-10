@@ -296,16 +296,16 @@ func init() {
 
 // ConfigureExternalTypes extends the process-wide set of assertion types. It must be
 // called during application initialization and complete before concurrent
-// assertion processing can encounter the additional types. It can be
-// successfully called only once. Failed calls leave the active set unchanged
-// and may be retried. Assertion types must not be mutated after a successful
-// call.
+// assertion processing can encounter the additional types. A non-empty
+// configuration can be successfully applied only once. Empty calls are no-ops.
+// Failed calls leave the active set unchanged and may be retried. Assertion
+// types must not be mutated after a successful non-empty call.
 func ConfigureExternalTypes(assertionTypes ...*AssertionType) error {
+	if len(assertionTypes) == 0 {
+		return nil
+	}
 	if registryConfigured {
 		return fmt.Errorf("assertion types are already configured")
-	}
-	if len(assertionTypes) == 0 {
-		return fmt.Errorf("cannot configure assertion types: no assertion types provided")
 	}
 
 	types := make(map[string]*AssertionType, len(typeRegistry)+len(assertionTypes))
