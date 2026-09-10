@@ -53,11 +53,18 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingFds(c *C) {
 }
 
 func (sd *sdNotifyTestSuite) TestInitSdNotifySocketCachesAndUnsetsEnv(c *C) {
+	systemd.ResetSdNotifySocketCache()
 	os.Setenv("NOTIFY_SOCKET", "@test-socket")
 	systemd.InitSdNotifySocket()
 
 	c.Check(systemd.NotifySocket(), Equals, "@test-socket")
 	_, found := os.LookupEnv("NOTIFY_SOCKET")
+	c.Check(found, Equals, false)
+
+	// re-running is a no-op
+	systemd.InitSdNotifySocket()
+	c.Check(systemd.NotifySocket(), Equals, "@test-socket")
+	_, found = os.LookupEnv("NOTIFY_SOCKET")
 	c.Check(found, Equals, false)
 }
 
@@ -81,8 +88,8 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 		{"", "cannot find NOTIFY_SOCKET environment variable"},
 		{"xxx", `cannot use NOTIFY_SOCKET "xxx"`},
 	} {
+		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", t.env)
-		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		if withFds {
@@ -110,8 +117,8 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
+		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", sockPath)
-		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
@@ -151,8 +158,8 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
+		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", sockPath)
-		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		addr := &net.UnixAddr{
@@ -223,8 +230,8 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
 		filepath.Join(c.MkDir(), "socket"),
 		"@socket",
 	} {
+		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", sockPath)
-		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		tmpdir := c.MkDir()

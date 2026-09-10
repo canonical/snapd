@@ -21,22 +21,26 @@ package systemd
 
 import (
 	"os"
+	"sync"
 )
 
 var sdNotifySocket string
+var sdNotifySocketOnce sync.Once
 
 // InitSdNotifySocket reads and unsets the NOTIFY_SOCKET environment variable.
-// It should be called once during package initialization, before any other
-// code that might use NotifySocket().
 //
 // To get the cached value, use NotifySocket().
 func InitSdNotifySocket() {
-	sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
-	os.Unsetenv("NOTIFY_SOCKET")
+	sdNotifySocketOnce.Do(func() {
+		sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
+		os.Unsetenv("NOTIFY_SOCKET")
+	})
 }
 
 // NotifySocket returns the cached value of the NOTIFY_SOCKET environment
-// variable, InitSdNotifySocket() must be called first.
+// variable.
 func NotifySocket() string {
+	// ensure the NOTIFY_SOCKET environment variable is read and unset before returning the cached value
+	InitSdNotifySocket()
 	return sdNotifySocket
 }

@@ -65,6 +65,9 @@ func Main() {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
+	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
+	systemd.InitSdNotifySocket()
+
 	// Set up security logging via the audit subsystem.
 	teardownSecurityLogging := setupSecurityLogging()
 
