@@ -1378,7 +1378,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c 
 	}
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c *C) {
@@ -1414,7 +1414,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c 
 	}
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances: slot rejected`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySupportedInterface(c *C) {
@@ -1530,8 +1530,8 @@ func (t *testParallelInstancesPlugRejectingInterface) Name() string {
 	return "pi-nok-plug-iface"
 }
 
-func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
-	return false
+func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errors.New("plug rejected")
 }
 
 // testParallelInstancesSlotRejectingInterface is a test interface that
@@ -1544,8 +1544,8 @@ func (t *testParallelInstancesSlotRejectingInterface) Name() string {
 	return "pi-nok-slot-iface"
 }
 
-func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
-	return false
+func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return errors.New("slot rejected")
 }
 
 // testParallelInstancesSupportedInterface is a test interface that
@@ -1558,12 +1558,12 @@ func (t *testParallelInstancesSupportedInterface) Name() string {
 	return "pi-ok-iface"
 }
 
-func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
-	return true
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return nil
 }
 
-func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
-	return true
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return nil
 }
 
 func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
