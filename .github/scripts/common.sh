@@ -244,6 +244,7 @@ predictor_report_allows_rerun() {
     local pr_number="$1"
     local workflow_run_id="$2"
     local workflow_run_attempt="$3"
+    local execution_id="$4"
     local marker_prefix="<!-- test-predictor-rerun: run-id=$workflow_run_id run-attempt=$workflow_run_attempt"
     local allowed_marker="$marker_prefix allowed=true -->"
     local denied_marker="$marker_prefix allowed=false -->"
@@ -253,7 +254,7 @@ predictor_report_allows_rerun() {
     if ! comments_json=$(gh_retry api --paginate --slurp \
         "repos/$GH_REPO/issues/$pr_number/comments?per_page=100"); then
         GH_RETRY_CONTEXT=""
-        NOT_RERUN_REASON="could not fetch predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt"
+        NOT_RERUN_REASON="could not fetch predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt execution_id=$execution_id"
         return 3
     fi
     GH_RETRY_CONTEXT=""
@@ -266,7 +267,7 @@ predictor_report_allows_rerun() {
           elif any($bodies[]; contains($denied_marker)) then "deny"
           else "pending"
           end' <<<"$comments_json"); then
-        NOT_RERUN_REASON="could not parse predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt"
+        NOT_RERUN_REASON="could not parse predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt execution_id=$execution_id"
         return 3
     fi
 
@@ -275,11 +276,11 @@ predictor_report_allows_rerun() {
             return 0
             ;;
         deny)
-            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt does not allow a rerun"
+            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt does not allow a rerun for execution_id=$execution_id"
             return 1
             ;;
         *)
-            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt is not available yet"
+            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt is not available yet for execution_id=$execution_id"
             return 2
             ;;
     esac

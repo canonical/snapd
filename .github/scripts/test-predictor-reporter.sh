@@ -72,8 +72,8 @@ append_predictor_table() {
 				predictor_allows_rerun=true
 				probability="unavailable"
 			else
-				if awk -v probability="$probability" -v threshold="$test_predictor_threshold" \
-					'BEGIN { exit !(probability > threshold) }'; then
+				if awk -v probability="$probability" -v rerun_threshold="$test_predictor_threshold" \
+					'BEGIN { exit (probability <= rerun_threshold) }'; then
 					predictor_allows_rerun=true
 				fi
 				probability=$(awk -v probability="$probability" 'BEGIN {

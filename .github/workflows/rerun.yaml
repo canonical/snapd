@@ -34,6 +34,7 @@ jobs:
     env:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
+      EXECUTION_ID: ${{ github.run_id }}
       MAX_FAILED_TASKS: 30
       PREDICTOR_REPORT_MAX_POLLS: 20
       PREDICTOR_REPORT_POLL_SECONDS: 30
@@ -120,11 +121,13 @@ jobs:
         run: |
           source .github/scripts/common.sh
 
+          # We poll because the test predictor report (from spread-results-reporter.yaml) may not be immediately available
           for ((poll = 1; poll <= PREDICTOR_REPORT_MAX_POLLS; poll++)); do
             if predictor_report_allows_rerun \
               "$PR_NUMBER" \
               "$RUN_ID" \
-              "${{ github.event.workflow_run.run_attempt }}"; then
+              "${{ github.event.workflow_run.run_attempt }}" \
+              "$EXECUTION_ID"; then
               echo "predictor_ok=true" >> "$GITHUB_OUTPUT"
               exit 0
             else

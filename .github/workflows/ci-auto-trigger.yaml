@@ -16,6 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      EXECUTION_ID: ${{ github.run_id }}
       MAX_RUN_ATTEMPTS: 5
       MAX_FAILED_TASKS: 30
     steps:
@@ -192,7 +193,7 @@ jobs:
             fi
 
             echo "PR #$pr_number | Step: predictor report eligibility"
-            if ! predictor_report_allows_rerun "$pr_number" "$last_run" "$run_attempt"; then
+            if ! predictor_report_allows_rerun "$pr_number" "$last_run" "$run_attempt" "$EXECUTION_ID"; then
               echo "PR #$pr_number | Skip: $NOT_RERUN_REASON"
               echo "----- End PR #$pr_number -----"
               continue
