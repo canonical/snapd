@@ -1,0 +1,2 @@
+subdir('bash')
+subdir('zsh')
