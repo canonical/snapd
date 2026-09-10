@@ -1,0 +1,11 @@
+cmd/libsnap-confine-private/*
+cmd/snap-confine/*
+cmd/snap-device-helper/*
+cmd/snap-discard-ns/*
+cmd/snap-gdb-shim/*
+cmd/snap-update-ns/*
+cmd/snapd-env-generator/*
+cmd/snapd-generator/*
+cmd/system-shutdown/*
+cmd/snap-cli-wrap/*
+cmd/snapd-tool-wrap/*

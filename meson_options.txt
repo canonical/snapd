@@ -1,0 +1,83 @@
+option('libselinux', type : 'feature',
+       description : 'build against libselinux')
+option('selinux', type : 'feature',
+       description : 'build and install selinux profiles for snapd')
+
+option('libapparmor', type : 'feature',
+       description : 'build against apparmor')
+option('apparmor', type : 'feature',
+       description : 'install apparmor profiles for snapd')
+option('apparmorconfigdir', type : 'string', value : '/etc/apparmor.d',
+       description : 'apparmor profiles path')
+
+option('dracut', type : 'feature',
+       description : 'install dracut configuration')
+option('bpf', type : 'feature',
+       description : 'use BPF')
+
+option('snapmountdir', type : 'string', value : '/snap',
+       description : 'alternate static snap mount directory')
+option('snap-symlink', type : 'boolean', value : false,
+       description : 'create a symlink from /snap to snapmountdir')
+
+option('snapd_environment_file', type : 'string', value : '/etc/environment',
+       description : 'path to global environment')
+option('envd', type : 'string', value : '/usr/lib/environment.d',
+       description : 'path to user service environment')
+
+option('core', type : 'boolean', value : false,
+       description : 'install parts needed for Ubuntu Core')
+
+option('secboot', type : 'boolean', value : false,
+       description : 'enable secboot (TPM/FDE)')
+
+option('optee', type : 'boolean', value : false,
+       description : 'enable FDE using OPTee')
+
+option('usergo', type : 'boolean', value : false,
+       description : 'disable glibc NSS in Go programs')
+
+option('unit-tests', type : 'feature',
+       description : 'enable unit tests, depends on glib')
+
+option('test-keys', type : 'boolean', value : false,
+       description : 'inject test keys')
+
+option('static-checks', type : 'boolean', value : true,
+       description : 'enable static checks, only useful for development')
+option('shellcheck', type : 'feature',
+       description : 'enable shellcheck static checks')
+option('clang_format', type : 'feature',
+       description : 'enable clang-format static checks')
+
+option('vendor-dist', type : 'boolean', value : true,
+       description : 'vendor when generating distribution')
+option('vendored', type : 'feature',
+       description : 'build with vendored sources')
+
+option('setcap', type : 'boolean', value : false,
+       description : 'setcap on install')
+option('set-perms', type : 'boolean', value : false,
+       description : 'set proper permissions, may break "dist" command')
+
+option('gopath', type : 'string',
+       description : 'set as GOPATH when running Go')
+option('downstream_version_suffix', type : 'string',
+       description : 'add downstream suffix in the build version')
+
+option('gotags', type : 'string',
+       description : 'add extra tags to go build')
+option('goldflags', type : 'string',
+       description : 'add extra link flags to go build')
+
+option('nvidia-biarch', type : 'boolean', value : false,
+       description : 'enable multilib support for nvidia drivers')
+option('32bit-libdir', type : 'string',
+       description : '32-bits library path for multilib mode')
+
+option('nvidia-multiarch', type : 'boolean', value : false,
+       description : 'enable multiarch support for nvidia drivers')
+option('host-arch-triplet', type : 'string',
+       description : 'main library path for multiarch mode')
+option('host-arch-32bit-triplet', type : 'string',
+       description : '32-bits library path for multiarch mode')
