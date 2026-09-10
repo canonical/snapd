@@ -75,6 +75,9 @@ jobs:
           - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
             variant: pristine
 
+  ubuntu-image-build-not-required:
+    uses: ./.github/workflows/ubuntu-image-build.yaml
+
   create-vendor-dir:
     runs-on: ubuntu-latest
     name: Create go vendor
