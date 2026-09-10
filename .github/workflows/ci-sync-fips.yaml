@@ -1,20 +1,16 @@
-name: sync master into fips
+name: sync test-fips-master into test-fips
 
 on:
   push:
-    branches: ["master"]
-  # allow for manual invocations
+    branches: ["test-fips-master"]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
-# serialize runs without cancelling an in-progress operation. github can replace
-# older pending runs, which is safe because the latest run compares the current
-# master and fips branch state.
 concurrency:
-  group: sync-master-to-fips
+  group: test-fips-sync
   cancel-in-progress: false
 
 jobs:
@@ -23,61 +19,41 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      GIT_AUTHOR_NAME: github-actions[bot]
+      GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+      GIT_COMMITTER_NAME: github-actions[bot]
+      GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
     steps:
-      - name: open synchronization PR
+      - name: checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: prepare synchronization PR
         shell: bash
         run: |
-          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          fips_sha="$(git rev-parse origin/test-fips)"
 
-          open_pr_url() {
-            gh pr list \
-              --repo "$GH_REPO" \
-              --state open \
-              --base fips \
-              --head master \
-              --limit 1 \
-              --json url \
-              --jq '.[0].url // empty'
-          }
-
-          master_ahead_by() {
-            gh api \
-              "repos/${GH_REPO}/compare/fips...master" \
-              --jq '.ahead_by'
-          }
-
-          existing_pr="$(open_pr_url)"
-          if [[ -n "$existing_pr" ]]; then
-            echo "synchronization PR already open: $existing_pr"
+          if git merge-base --is-ancestor origin/test-fips-master "$fips_sha"; then
             exit 0
           fi
 
-          ahead_by="$(master_ahead_by)"
-          if [[ "$ahead_by" == "0" ]]; then
-            echo "master is not ahead of fips"
-            exit 0
+          git switch --detach "$fips_sha"
+          if ! git merge --no-ff --no-commit origin/test-fips-master; then
+            git rev-parse --verify MERGE_HEAD >/dev/null
           fi
+          git show origin/test-fips-master:build-aux/snap/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
+          git add build-aux/snap/snapcraft.yaml
 
-          if ! create_output="$(gh pr create \
-            --repo "$GH_REPO" \
-            --base fips \
-            --head master \
-            --title "Synchronize fips with master" \
-            --body 'Synchronize fips with master. Merge using "Create a merge commit".' 2>&1)"; then
-            existing_pr="$(open_pr_url)"
-            if [[ -n "$existing_pr" ]]; then
-              echo "synchronization PR was created concurrently: $existing_pr"
-              exit 0
-            fi
+          git commit -m "Merge test-fips-master into test-fips, using snapcraft-fips.yaml"
 
-            ahead_by="$(master_ahead_by)"
-            if [[ "$ahead_by" == "0" ]]; then
-              echo "master was synchronized concurrently"
-              exit 0
-            fi
+          git push --force-with-lease origin HEAD:refs/heads/test-fips-sync
 
-            echo "$create_output" >&2
-            exit 1
+          existing_pr="$(gh pr list --base test-fips --head test-fips-sync \
+            --limit 1 --json url --jq '.[0].url // empty')"
+          if [[ -z "$existing_pr" ]]; then
+            gh pr create --base test-fips --head test-fips-sync \
+              --title "Synchronize test-fips with test-fips-master" \
+              --body 'Synchronize test-fips with test-fips-master, using snapcraft-fips.yaml from test-fips-master as snapcraft.yaml. Merge using "Create a merge commit".'
           fi
-
-          echo "created synchronization PR: $create_output"
