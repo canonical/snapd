@@ -1,0 +1,83 @@
+name: sync master into fips
+
+on:
+  push:
+    branches: ["master"]
+  # allow for manual invocations
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# serialize runs without cancelling an in-progress operation. github can replace
+# older pending runs, which is safe because the latest run compares the current
+# master and fips branch state.
+concurrency:
+  group: sync-master-to-fips
+  cancel-in-progress: false
+
+jobs:
+  open-sync-pr:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: open synchronization PR
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          open_pr_url() {
+            gh pr list \
+              --repo "$GH_REPO" \
+              --state open \
+              --base fips \
+              --head master \
+              --limit 1 \
+              --json url \
+              --jq '.[0].url // empty'
+          }
+
+          master_ahead_by() {
+            gh api \
+              "repos/${GH_REPO}/compare/fips...master" \
+              --jq '.ahead_by'
+          }
+
+          existing_pr="$(open_pr_url)"
+          if [[ -n "$existing_pr" ]]; then
+            echo "synchronization PR already open: $existing_pr"
+            exit 0
+          fi
+
+          ahead_by="$(master_ahead_by)"
+          if [[ "$ahead_by" == "0" ]]; then
+            echo "master is not ahead of fips"
+            exit 0
+          fi
+
+          if ! create_output="$(gh pr create \
+            --repo "$GH_REPO" \
+            --base fips \
+            --head master \
+            --title "Synchronize fips with master" \
+            --body 'Synchronize fips with master. Merge using "Create a merge commit".' 2>&1)"; then
+            existing_pr="$(open_pr_url)"
+            if [[ -n "$existing_pr" ]]; then
+              echo "synchronization PR was created concurrently: $existing_pr"
+              exit 0
+            fi
+
+            ahead_by="$(master_ahead_by)"
+            if [[ "$ahead_by" == "0" ]]; then
+              echo "master was synchronized concurrently"
+              exit 0
+            fi
+
+            echo "$create_output" >&2
+            exit 1
+          fi
+
+          echo "created synchronization PR: $create_output"

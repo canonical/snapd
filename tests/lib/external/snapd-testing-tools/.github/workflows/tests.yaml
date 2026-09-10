@@ -85,7 +85,7 @@ jobs:
 
     - name: Run test
       run: |
-          RUN_TESTS="google:tests/ google-nested:tests/ openstack:tests/"
+          RUN_TESTS="openstack:tests/"
           if [ -n "$FAILED_TESTS" ]; then
               RUN_TESTS="$FAILED_TESTS"
           fi
@@ -115,7 +115,7 @@ jobs:
               ./utils/log-parser spread.log --output spread-results.json
     
               echo "Determining which tests were executed"
-              RUN_TESTS="google:tests/ google-nested:tests/"
+              RUN_TESTS="openstack:tests/"
               if [ -n "$FAILED_TESTS" ]; then
                   RUN_TESTS="$FAILED_TESTS"
               fi

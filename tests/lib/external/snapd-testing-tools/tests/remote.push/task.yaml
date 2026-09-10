@@ -4,7 +4,7 @@ details: |
     Check the remote.push tool is able to send files from
     localhost to the remote instance through scp
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 

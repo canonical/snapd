@@ -91,6 +91,47 @@ func validatePath(path string) error {
 	return nil
 }
 
+// componentPrefix is the marker introducing a component-relative path in a
+// content slot attribute, e.g. $SNAP_COMPONENT(mycomp)/share. The same
+// constant is also defined in interfaces/builtin/helpers.go (for
+// validateSourceDirs) and interfaces/snap_app_set.go (for
+// ExpandSliceSnapVariablesWithOrder); keep them in sync.
+const componentPrefix = "$SNAP_COMPONENT("
+
+// parseComponentPath decomposes a $SNAP_COMPONENT(<name>)[/<sub>] path.
+//
+// If the path is not a component path (does not start with componentPrefix),
+// isComponent is false and the other return values are empty.
+//
+// If it is a component path, compName holds the component name and subPath
+// holds the remainder (possibly empty, meaning the whole component is shared).
+// err is set when the path is malformed, or when the subpath (when present)
+// does not pass the same validation as ordinary paths. Whole-component
+// sharing is allowed: both $SNAP_COMPONENT(foo) and $SNAP_COMPONENT(foo)/
+// resolve with subPath == "".
+func parseComponentPath(path string) (compName, subPath string, isComponent bool, err error) {
+	if !strings.HasPrefix(path, componentPrefix) {
+		return "", "", false, nil
+	}
+	rest := path[len(componentPrefix):]
+	compName, tail, had := strings.Cut(rest, ")")
+	if !had || compName == "" || (tail != "" && !strings.HasPrefix(tail, "/")) {
+		return "", "", true, fmt.Errorf("invalid format in path %q", path)
+	}
+	if tail == "" || tail == "/" {
+		// Whole-component sharing: $SNAP_COMPONENT(foo) or $SNAP_COMPONENT(foo)/
+		return compName, "", true, nil
+	}
+
+	// $SNAP_COMPONENT(foo)/bar -> bar
+	subPath = tail[1:]
+	if err := validatePath(subPath); err != nil {
+		return "", "", true, err
+	}
+
+	return compName, subPath, true, nil
+}
+
 func checkLabelAttributes(attrs map[string]any, nameDef string) error {
 	// The ContentCompatLabel feature is checked only at matching time,
 	// here we allow the compatibility labels to exist in any case as it
@@ -147,10 +188,29 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return fmt.Errorf("read or write path must be set")
 	}
 
-	// go over both paths
-	paths := rpath
-	paths = append(paths, wpath...)
-	for _, p := range paths {
+	for _, p := range wpath {
+		if _, _, isComp, _ := parseComponentPath(p); isComp {
+			// $SNAP_COMPONENT(...) are not allowed for write.
+			return fmt.Errorf("component paths can only be used with read, not write: %q", p)
+		}
+
+		if err := validatePath(p); err != nil {
+			return err
+		}
+	}
+	for _, p := range rpath {
+		if compName, _, isComp, err := parseComponentPath(p); isComp {
+			// Looks like a $SNAP_COMPONENT(...)
+			if err != nil {
+				// Which is invalid
+				return err
+			}
+			if _, ok := slot.Snap.Components[compName]; !ok {
+				return fmt.Errorf("component %s specified in path %q is not defined in the snap", compName, p)
+			}
+			continue
+		}
+
 		if err := validatePath(p); err != nil {
 			return err
 		}
@@ -232,37 +292,112 @@ func resolveSpecialVariable(path string, snapInfo *snap.Info, perspective snap.E
 	return snapInfo.ExpandSnapVariablesSetSnapMountDir(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, perspective)
 }
 
-func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
-	var target string
+// resolveComponentSource resolves the source path and the basename to use for
+// target derivation for an installed component.
+func resolveComponentSource(snapInfo *snap.Info, compInfo *snap.ComponentInfo, subPath string) (
+	source, sourceName string,
+) {
+	compName := compInfo.Component.ComponentName
+	// Content-interface paths must be rooted at dirs.CoreSnapMountDir (/snap)
+	// so they are accessible inside the snap mount namespace, where /snap is
+	// always the bind-mount point regardless of the host's SnapMountDir.
+	// TODO this could use a helper in 'snap'
+	source = filepath.Clean(filepath.Join(
+		dirs.CoreSnapMountDir,
+		snapInfo.InstanceName(),
+		"components", "mnt",
+		compName, compInfo.Revision.String(),
+		subPath,
+	))
+	if subPath == "" {
+		// Whole-component sharing: use the component name as the
+		// basename so that, with a "source" section present, the target
+		// resolves to <target>/<compName> rather than the revision
+		// directory.
+		sourceName = compName
+	}
+	return source, sourceName
+}
+
+// exportUnderPlugTarget returns true when the content exposed by the slot
+// should be placed under the target location named by the plug. This is
+// indicated by presence of the 'source' attribute on the slot side.
+func exportUnderPlugTarget(slot *interfaces.ConnectedSlot) bool {
+	var unused map[string]any
+	return slot.Attr("source", &unused) == nil
+}
+
+// sourceTarget resolves the source and target paths for a given read/write
+// slot path and indicates whether the source of the mount is available.
+//
+// Specifically in the case of $SNAP_COMPONENT(...) entries, if the component is
+// not installed, available is false.
+func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (
+	source, target string, available bool,
+) {
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
-	// Source uses PerspectiveOther to resolve $SNAP to the provider's instance
-	// name, ensuring we mount content from the exact connected instance (which
-	// could be parallel installed) rather than a default instance without the
-	// instance key.
-	source := resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther)
+
+	// sourceNameOverride, when non-empty, overrides the default name used in the case
+	// we're exporting the source location beneath the target path prescribed in
+	// the plug attributes.
+	var sourceNameOverride string
+
+	if compName, subPath, isComp, err := parseComponentPath(relSrc); isComp && err == nil {
+		ci := slot.AppSet().Component(compName)
+		if ci == nil {
+			// Component declared but not installed.
+			return "", "", false
+		}
+
+		source, sourceNameOverride = resolveComponentSource(slot.Snap(), ci, subPath)
+	} else {
+		// Regular (non-component) $SNAP/$SNAP_DATA/$SNAP_COMMON path.
+		source = resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther)
+	}
 	// Target uses PerspectiveSelf as the consumer sees its own snap name.
 	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf)
 
-	// Check if the "source" section is present.
-	var unused map[string]any
-	if err := slot.Attr("source", &unused); err == nil {
-		_, sourceName := filepath.Split(source)
+	// Figure out the target path if the source is supposed to be exported on a
+	// path beneath the target prescribed in the plug.
+	if exportUnderPlugTarget(slot) {
+		// unless there's an override, as it is in the case of components, we
+		// use the basename by default, e.g.
+		// source:
+		//   - $SNAP/foo                 -> $TARGET/foo
+		//   - $SNAP                     -> $TARGET/<snap-name>
+		//   - $SNAP_COMPONENT(bar)/foo  -> $TARGET/foo
+		//   - $SNAP_COMPONENT(bar)      -> $TARGET/bar
+		sourceName := filepath.Base(source)
+		if sourceNameOverride != "" {
+			sourceName = sourceNameOverride
+		}
 		target = filepath.Join(target, sourceName)
 	}
-	return source, target
+	return source, target, true
 }
 
-func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string, extraOptions ...string) osutil.MountEntry {
+// mountEntry builds the bind-mount entry for a read/write slot path.
+//
+// available is false if the path references a component that is declared in the
+// snap but not installed; the caller should then skip the entry.
+func mountEntry(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string, extraOptions ...string) (
+	entry osutil.MountEntry, available bool,
+) {
 	options := make([]string, 0, len(extraOptions)+1)
 	options = append(options, "bind")
 	options = append(options, extraOptions...)
-	source, target := sourceTarget(plug, slot, relSrc)
+	source, target, sourceAvailable := sourceTarget(plug, slot, relSrc)
+	if !sourceAvailable {
+		// unavailable, e.g. could be a component which is not installed
+		return osutil.MountEntry{}, false
+	}
+
 	return osutil.MountEntry{
 		Name:    source,
 		Dir:     target,
 		Options: options,
-	}
+	}, true
 }
 
 func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -282,7 +417,9 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 				// Use PerspectiveOther: resolve to provider's precise instance
 				// name
 				resolveSpecialVariable(w, slot.Snap(), snap.PerspectiveOther))
-			source, target := sourceTarget(plug, slot, w)
+			// Write paths can never reference components (rejected in
+			// BeforePrepareSlot), so ok is always true here.
+			source, target, _ := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind, rw) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
 			emit("  mount options=(rprivate) -> \"%s{,-[0-9]*}/\",\n", target)
@@ -305,11 +442,13 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 # read-only.
 `)
 		for i, r := range readPaths {
-			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n",
-				// Use PerspectiveOther: resolve to provider's precise instance name
-				resolveSpecialVariable(r, slot.Snap(), snap.PerspectiveOther))
+			source, target, ok := sourceTarget(plug, slot, r)
+			if !ok {
+				// Component declared but not installed: skip this path.
+				continue
+			}
+			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n", source)
 
-			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
 			emit("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target)
@@ -337,7 +476,7 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 # tells the slotting app about files to share.
 `)
 		for _, w := range writePaths {
-			_, target := sourceTarget(plug, slot, w)
+			_, target, _ := sourceTarget(plug, slot, w)
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				target)
 		}
@@ -356,14 +495,21 @@ func (iface *contentInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotI
 
 func (iface *contentInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	for _, r := range iface.path(slot, "read") {
-		err := spec.AddMountEntry(mountEntry(plug, slot, r, "ro"))
-		if err != nil {
+		me, ok := mountEntry(plug, slot, r, "ro")
+		if !ok {
+			// Could be a not-installed component entry
+			continue
+		}
+		if err := spec.AddMountEntry(me); err != nil {
 			return err
 		}
 	}
 	for _, w := range iface.path(slot, "write") {
-		err := spec.AddMountEntry(mountEntry(plug, slot, w))
-		if err != nil {
+		me, ok := mountEntry(plug, slot, w)
+		if !ok {
+			return fmt.Errorf("internal error: unexpected incomplete write mount entry")
+		}
+		if err := spec.AddMountEntry(me); err != nil {
 			return err
 		}
 	}

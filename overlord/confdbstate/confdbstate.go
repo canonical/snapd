@@ -435,7 +435,7 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 		chg = task.Change()
 	}
 
-	ts, commitTask, clearTxTask, err := createChangeConfdbTasks(st, tx, view, hookCtx.InstanceName())
+	ts, commitTask, clearTxTask, err := createChangeConfdbTasks(st, tx, view, hookCtx.InstanceName().String())
 	if err != nil {
 		return err
 	}

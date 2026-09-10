@@ -176,7 +176,7 @@ func (m *mountCommand) matchConnection(attributes map[string]any) bool {
 // checkConnections checks whether the established connections give the snap
 // permission to execute the mount command
 func (m *mountCommand) checkConnections(context *hookstate.Context) error {
-	snapName := context.InstanceName()
+	instanceName := context.InstanceName()
 
 	st := context.State()
 	st.Lock()
@@ -187,7 +187,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
-	m.snapInfo, err = snapstate.CurrentInfo(st, snapName)
+	m.snapInfo, err = snapstate.CurrentInfo(st, instanceName.String())
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get snap info: %s", err)
 	}
@@ -206,7 +206,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			return err
 		}
 
-		if connRef.PlugRef.Snap != snapName {
+		if connRef.PlugRef.Snap != instanceName.String() {
 			continue
 		}
 
@@ -225,7 +225,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 }
 
 func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
-	snapName := m.snapInfo.InstanceName()
+	instanceName := m.snapInfo.InstanceName()
 	revision := m.snapInfo.SnapRevision().String()
 	lifetime := systemd.Transient
 	if m.Persistent {
@@ -233,7 +233,7 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 	}
 	unitName, err := sysd.EnsureMountUnitFile(&systemd.MountUnitOptions{
 		Lifetime:               lifetime,
-		Description:            fmt.Sprintf("Mount unit for %s, revision %s via mount-control", snapName, revision),
+		Description:            fmt.Sprintf("Mount unit for %s, revision %s via mount-control", instanceName, revision),
 		What:                   m.Positional.What,
 		Where:                  m.Positional.Where,
 		Fstype:                 m.Type,
@@ -261,8 +261,8 @@ func (m *mountCommand) Execute([]string) error {
 	}
 
 	if err := m.checkConnections(context); err != nil {
-		snapName := context.InstanceName()
-		return fmt.Errorf("snap %q lacks permissions to create the requested mount: %v", snapName, err)
+		instanceName := context.InstanceName()
+		return fmt.Errorf("snap %q lacks permissions to create the requested mount: %v", instanceName, err)
 	}
 
 	sysd := systemd.New(systemd.SystemMode, nil)

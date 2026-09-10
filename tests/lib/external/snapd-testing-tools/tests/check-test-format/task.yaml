@@ -4,7 +4,7 @@ details: |
     Verify that the check-test-format tool checks properly the desired
     order and mandatory keys in spread tasks.
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 

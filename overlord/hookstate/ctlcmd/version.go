@@ -46,7 +46,7 @@ func (c *versionCommand) Execute(args []string) error {
 	// same as snap command
 	w := tabwriter.NewWriter(c.stdout, 5, 3, 2, ' ', 0)
 
-	fmt.Fprintf(w, "snapd\t%s\n", snapdtool.Version)
+	fmt.Fprintf(w, "snapd\t%s\n", snapdtool.FullVersion())
 	fmt.Fprintf(w, "series\t%s\n", release.Series)
 
 	return w.Flush()

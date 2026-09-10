@@ -106,13 +106,13 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		return err
 	}
 
-	snapName := context.InstanceName()
+	instanceName := context.InstanceName()
 
 	st := context.State()
 	st.Lock()
 	defer st.Unlock()
 
-	info, err := snapstate.CurrentInfo(st, snapName)
+	info, err := snapstate.CurrentInfo(st, instanceName.String())
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get snap info: %s", err)
 	}
@@ -122,7 +122,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	// context.  That snap does not have any hooks using
 	// is-connected, so the limitation is probably moot.
 	if plugOrSlot != "" && info.Plugs[plugOrSlot] == nil && info.Slots[plugOrSlot] == nil {
-		return fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlot)
+		return fmt.Errorf("snap %q has no plug or slot named %q", instanceName, plugOrSlot)
 	}
 
 	conns, err := ifacestate.ConnectionStates(st)
@@ -136,7 +136,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 			return fmt.Errorf("cannot use --apparmor-label check without plug/slot")
 		}
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
-			return fmt.Errorf("cannot use --apparmor-label check with %s:%s", snapName, plugOrSlot)
+			return fmt.Errorf("cannot use --apparmor-label check with %s:%s", instanceName, plugOrSlot)
 		}
 		name, _, _, err := apparmor.DecodeLabel(c.AppArmorLabel)
 		if err != nil {
@@ -151,7 +151,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 			return fmt.Errorf("cannot use --pid check without plug/slot")
 		}
 		if !isConnectedPidCheckAllowed(info, plugOrSlot) {
-			return fmt.Errorf("cannot use --pid check with %s:%s", snapName, plugOrSlot)
+			return fmt.Errorf("cannot use --pid check with %s:%s", instanceName, plugOrSlot)
 		}
 		name, err := cgroupSnapNameFromPid(c.Pid)
 		if err != nil {
@@ -175,10 +175,10 @@ func (c *isConnectedCommand) Execute(args []string) error {
 				return fmt.Errorf("internal error: %s", err)
 			}
 
-			if connRef.PlugRef.Snap == snapName {
+			if connRef.PlugRef.Snap == instanceName.String() {
 				nameSet[connRef.PlugRef.Name] = struct{}{}
 			}
-			if connRef.SlotRef.Snap == snapName {
+			if connRef.SlotRef.Snap == instanceName.String() {
 				nameSet[connRef.SlotRef.Name] = struct{}{}
 			}
 		}
@@ -208,8 +208,8 @@ func (c *isConnectedCommand) Execute(args []string) error {
 			return fmt.Errorf("internal error: %s", err)
 		}
 
-		matchingPlug := connRef.PlugRef.Snap == snapName && connRef.PlugRef.Name == plugOrSlot
-		matchingSlot := connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot
+		matchingPlug := connRef.PlugRef.Snap == instanceName.String() && connRef.PlugRef.Name == plugOrSlot
+		matchingSlot := connRef.SlotRef.Snap == instanceName.String() && connRef.SlotRef.Name == plugOrSlot
 		if otherSnap != nil {
 			if matchingPlug && connRef.SlotRef.Snap == otherSnap.InstanceName() || matchingSlot && connRef.PlugRef.Snap == otherSnap.InstanceName() {
 				return nil

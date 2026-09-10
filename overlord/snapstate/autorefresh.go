@@ -111,7 +111,7 @@ func (rc *refreshCandidate) DownloadSize() int64 {
 }
 
 func (rc *refreshCandidate) InstanceName() string {
-	return rc.SnapSetup.InstanceName()
+	return rc.SnapSetup.InstanceName().String()
 }
 
 func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
@@ -454,15 +454,15 @@ func (m *autoRefresh) restoreMonitoring() error {
 	aborts := make(map[string]context.CancelFunc, len(monitored))
 	for _, snap := range monitored {
 		done := make(chan string, 1)
-		snapName := snap.InstanceName()
-		if err := cgroupMonitorSnapEnded(snapName, done); err != nil {
-			logger.Noticef("cannot restore monitoring for snap %q closure: %v", snapName, err)
+		instanceName := snap.InstanceName()
+		if err := cgroupMonitorSnapEnded(instanceName.String(), done); err != nil {
+			logger.Noticef("cannot restore monitoring for snap %q closure: %v", instanceName, err)
 			continue
 		}
 
 		refreshCtx, abort := context.WithCancel(context.Background())
-		aborts[snapName] = abort
-		go continueRefreshOnSnapClose(m.state, snap.InstanceName(), done, refreshCtx)
+		aborts[instanceName.String()] = abort
+		go continueRefreshOnSnapClose(m.state, snap.InstanceName().String(), done, refreshCtx)
 	}
 
 	m.state.Cache("monitored-snaps", aborts)
@@ -682,17 +682,17 @@ func (m *autoRefresh) launchAutoRefresh() error {
 // exist in the UpdateTaskSets and returns whether or not a change was created.
 func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, error) {
 	if updateTss != nil && len(updateTss.PreDownload) > 0 {
-		var snapNames []string
+		var instanceNames []string
 		for _, ts := range updateTss.PreDownload {
 			task := ts.Tasks()[0]
 			var snapsup *SnapSetup
 			if err := task.Get("snap-setup", &snapsup); err != nil {
 				return false, err
 			}
-			snapNames = append(snapNames, snapsup.InstanceName())
+			instanceNames = append(instanceNames, snapsup.InstanceName().String())
 		}
 
-		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(snapNames))
+		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(instanceNames))
 		preDlChg := st.NewChange(preDownloadChangeKind, chgSummary)
 		for _, ts := range updateTss.PreDownload {
 			preDlChg.AddAll(ts)
@@ -882,7 +882,7 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 		if snapst.RefreshInhibitedTime == nil {
 			continue
 		}
-		curInhibitedSnaps[snapst.InstanceName()] = true
+		curInhibitedSnaps[snapst.InstanceName().String()] = true
 	}
 
 	changed := len(lastRecordedInhibitedSnaps) != len(curInhibitedSnaps)
@@ -994,7 +994,7 @@ func MockRefreshCandidate(snapSetup *SnapSetup) any {
 
 func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity snap.RefreshFailureSeverity) error {
 	var snapst SnapState
-	err := Get(st, snapsup.InstanceName(), &snapst)
+	err := Get(st, snapsup.InstanceName().String(), &snapst)
 	if err != nil {
 		return err
 	}
@@ -1011,14 +1011,14 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity 
 		}
 	}
 	snapst.RefreshFailures.LastFailureSeverity = severity
-	Set(st, snapsup.InstanceName(), &snapst)
+	Set(st, snapsup.InstanceName().String(), &snapst)
 
 	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures).Round(time.Hour)
 	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be delayed by %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
 	return nil
 }
 
-func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, snapName string) snap.RefreshFailureSeverity {
+func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, instanceName string) snap.RefreshFailureSeverity {
 	// It is ok to pass nil for the DeviceContext as the situation here is auto-refresh and not remodel.
 	bootBase, err := deviceModelBootBase(chg.State(), nil)
 	if err != nil {
@@ -1043,11 +1043,11 @@ func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task
 			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
 			continue
 		}
-		if snapsup.InstanceName() != snapName {
+		if snapsup.InstanceName().String() != instanceName {
 			continue
 		}
 
-		if isEssentialSnap(snapsup.InstanceName(), snapsup.Type, bootBase) {
+		if isEssentialSnap(snapsup.InstanceName().String(), snapsup.Type, bootBase) {
 			// Refresh failure happened after a reboot
 			return snap.RefreshFailureSeverityAfterReboot
 		}
@@ -1076,13 +1076,13 @@ func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Statu
 			continue
 		}
 
-		failureSeverity := computeSnapRefreshFailureSeverity(chg, t, snapsup.InstanceName())
+		failureSeverity := computeSnapRefreshFailureSeverity(chg, t, snapsup.InstanceName().String())
 		if err := incrementSnapRefreshFailures(t.State(), snapsup, failureSeverity); err != nil {
 			logger.Debugf("internal error: failed to increment failure count for snap %q: %v", snapsup.InstanceName(), err)
 			continue
 		}
 
-		failedSnapNames = append(failedSnapNames, snapsup.InstanceName())
+		failedSnapNames = append(failedSnapNames, snapsup.InstanceName().String())
 	}
 
 	if len(failedSnapNames) == 0 {
@@ -1186,7 +1186,7 @@ func checkSnapRefreshFailures(st *state.State, snapst *SnapState, targetRevision
 			// Snap has new target revision not known to fail, let's reset RefreshFailures
 			// and continue refresh normally.
 			snapst.RefreshFailures = nil
-			Set(st, snapst.InstanceName(), snapst)
+			Set(st, snapst.InstanceName().String(), snapst)
 		} else if shouldSkipSnapRefresh(snapst, targetRevision, opts) {
 			return errKnownBadRevision
 		}

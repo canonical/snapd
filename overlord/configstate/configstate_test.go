@@ -137,7 +137,7 @@ func (s *tasksetsSuite) TestConfigureInstalled(c *C) {
 
 		context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
 		c.Check(err, IsNil)
-		c.Check(context.InstanceName(), Equals, "test-snap")
+		c.Check(context.InstanceName().String(), Equals, "test-snap")
 		c.Check(context.SnapRevision(), Equals, snap.Revision{})
 		c.Check(context.HookName(), Equals, "configure")
 
@@ -265,7 +265,7 @@ func (s *tasksetsSuite) TestDefaultConfigure(c *C) {
 
 	context, err := hookstate.NewContext(task, task.State(), &hooksup, nil, "")
 	c.Check(err, IsNil)
-	c.Check(context.InstanceName(), Equals, "test-snap")
+	c.Check(context.InstanceName().String(), Equals, "test-snap")
 	c.Check(context.SnapRevision(), Equals, snap.Revision{})
 	c.Check(context.HookName(), Equals, "default-configure")
 
@@ -347,6 +347,29 @@ func (s *configcoreHijackSuite) TestConfigMngrInitPrunesGraduatedExperimentalFea
 	var value any
 	err = t.Get("core", "experimental."+feature, &value)
 	c.Check(config.IsNoOption(err), Equals, true)
+}
+
+func (s *configcoreHijackSuite) TestConfigMngrInitMigratesDiskSpaceReservation(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	t := config.NewTransaction(s.state)
+	c.Assert(t.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	t.Commit()
+	s.state.Unlock()
+
+	c.Assert(configstate.Init(s.state, hookMgr), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t = config.NewTransaction(s.state)
+	var reservation uint64
+	c.Assert(t.Get("core", "disk-reservation.size", &reservation), IsNil)
+	c.Check(reservation, Equals, uint64(5*1024*1024))
 }
 
 type witnessManager struct {

@@ -10,6 +10,9 @@ set -eux
 . "$TESTSLIB/state.sh"
 #shellcheck source=tests/lib/core-initrd.sh
 . "$TESTSLIB"/core-initrd.sh
+#shellcheck source=tests/lib/systems.sh
+. "$TESTSLIB"/systems.sh
+
 
 disable_kernel_rate_limiting() {
     # kernel rate limiting hinders debugging security policy so turn it off
@@ -347,6 +350,10 @@ prepare_memory_limit_override() {
     # or the system is known to be problematic
     local set_limit=1
 
+    memlimit="200M"
+    # soft limit which applies to v2 and controls when the kernel will apply
+    # throttling, normally unset
+    memsoftlimit=""
     case "$SPREAD_SYSTEM" in
         ubuntu-core-16-*|ubuntu-core-18-*|ubuntu-16.04-*|ubuntu-18.04-*)
             # the tests on UC16, UC18 and correspondingly 16.04 and 18.04 have
@@ -358,6 +365,15 @@ prepare_memory_limit_override() {
         amazon-linux-*)
             # similar issues have been observed on Amazon Linux 2
             set_limit=0
+            ;;
+        centos-*)
+            # try to workaround xfs doing weird things with the page cache
+            # which is counted towards the cgroup memory limits
+            memlimit="600M"
+            # we also need to apply soft limit to throttle snapd or its child
+            # processes within the same cgroup, such that a lot of cached,
+            # unflushed I/O will not exhaust the hard limit
+            memsoftlimit="300M"
             ;;
         *)
             if [ "$SNAPD_NO_MEMORY_LIMIT" = 1 ]; then
@@ -389,13 +405,20 @@ prepare_memory_limit_override() {
         # oom-killer which will be caught in restore_project_each in
         # prepare-restore.sh.
         #
-        # This ought to set MemoryMax, but on systems with older systemd we need to
-        # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
-        # systemd is backwards compatible so the limit is still set.
-        cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+        # MeoryMax was added in systemd 231 ~2016, so it's safe to assume all
+        # cgroup v2 systems should be using it.
+        if is_cgroupv2; then
+            cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
-MemoryLimit=200M
+MemoryMax=${memlimit}
+MemoryHigh=${memsoftlimit}
 EOF
+        else
+            cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+[Service]
+MemoryLimit=${memlimit}
+EOF
+        fi
     fi
     # the service setting may have changed in the service so we need
     # to ensure snapd is reloaded
@@ -504,7 +527,7 @@ prepare_classic() {
         fi
     fi
 
-    # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
+    # Some systems ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
     # Some other (debian-sid) fail in fwupd-refresh.service
@@ -1681,17 +1704,17 @@ EOF
         # nice to have this on
 
         cmdlinefeat=""
-        if [ -n "$TAG_FEATURES" ]; then
-            cmdlinefeat=" tag.features=1"
-            cat >> pc-gadget/meta/gadget.yaml << EOF
+        if [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
+            if [ -n "$TAG_FEATURES" ]; then
+                cmdlinefeat=" tag.features=1"
+                cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
   system:
     journal:
       persistent: true
 EOF
-        fi
+            fi
 
-        if [[ "$SPREAD_BACKEND" =~ google ]] || [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example

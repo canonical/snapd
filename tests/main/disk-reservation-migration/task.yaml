@@ -1,0 +1,29 @@
+summary: Migrate experimental disk space checks to disk reservation
+
+details: |
+  Verify that snapd startup migrates each legacy experimental disk space check
+  flag to the disk-reservation.size system option. Disk reservation behavior is
+  covered separately by the disk-reservation-size test.
+
+environment:
+  FEATURE/install: check-disk-space-install
+  FEATURE/refresh: check-disk-space-refresh
+  FEATURE/remove: check-disk-space-remove
+
+restore: |
+  snap unset system experimental."$FEATURE" || true
+  snap unset system disk-reservation.size || true
+
+execute: |
+  echo "Enable the legacy experimental $FEATURE feature"
+  snap set system experimental."$FEATURE"=true
+
+  echo "Verify setting the feature does not immediately create the new option"
+  not snap get system disk-reservation.size
+
+  echo "Restart snapd to run startup configuration migrations"
+  systemctl restart snapd.service
+  snap version
+
+  echo "Verify the default reservation was persisted"
+  test "$(snap get system disk-reservation.size)" = 5242880

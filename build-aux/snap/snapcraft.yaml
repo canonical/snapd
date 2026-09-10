@@ -298,6 +298,8 @@ parts:
       fi
       # make sure to set the version we declared in pull
       ./mkversion.sh "$VERSION"
+      # SNAPD_UC_TRACKS is not shipped in distro packages.
+      go run -mod=vendor ./snap/uctrack/info >> data/info
 
       # double check the toolchain
       echo "--- go version $(go version)"
@@ -338,7 +340,6 @@ parts:
             # and fixes that were not yet backported
             lib/snapd/snap-bootstrap
             lib/snapd/snap-failure
-            lib/snapd/snap-fde-keymgr
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
             lib/snapd/snap-update-ns
@@ -468,6 +469,9 @@ parts:
       # link snap-recovery-chooser -> snapd-tool-wrap (C tool wrapper multi-call)
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-recovery-chooser"
+      # link snap-fde-keymgr -> snapd-tool-wrap (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fde-keymgr"
 
       if [ -f fips-build ]; then
         # Set up FIPS dispatch: replace each original binary with a symlink

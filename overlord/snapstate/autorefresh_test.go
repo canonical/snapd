@@ -1034,14 +1034,6 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationCount := 0
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationCount++
-		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
-	})
-	defer restore()
-
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 
@@ -1054,7 +1046,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	defer restore()
@@ -1062,7 +1054,6 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err == nil, Equals, true)
 	c.Check(inhibitionTimeout, Equals, true)
-	c.Check(notificationCount, Equals, 1)
 }
 
 func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
@@ -1168,7 +1159,7 @@ func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revis
 
 	var snapsup snapstate.SnapSetup
 	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
-	c.Assert(snapsup.InstanceName(), Equals, name)
+	c.Assert(snapsup.InstanceName().String(), Equals, name)
 	c.Assert(snapsup.Revision(), Equals, rev)
 
 	var refreshInfo userclient.PendingSnapRefreshInfo
@@ -1418,7 +1409,6 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 }
 
 func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNotice(c *C) {
-	s.enableRefreshAppAwarenessUX()
 	const markerInterfaceConnected = true
 	const warningFallback = false
 	s.testMaybeAddRefreshInhibitNotice(c, markerInterfaceConnected, warningFallback)
@@ -1464,9 +1454,9 @@ func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallbackEr
 	})
 	defer restore()
 
-	st.Unlock()
-	s.enableRefreshAppAwarenessUX()
-	st.Lock()
+	// unset the invalid value so the default-enabled path reaches the connection check
+	tr.Set("core", "experimental.refresh-app-awareness-ux", nil)
+	tr.Commit()
 	err = snapstate.MaybeAddRefreshInhibitNotice(st)
 	// warning fallback error is not propagated, only logged
 	c.Assert(err, IsNil)
@@ -1480,24 +1470,21 @@ func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallbackEr
 }
 
 func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallback(c *C) {
-	s.enableRefreshAppAwarenessUX()
 	const markerInterfaceConnected = false
 	const warningFallback = true
 	s.testMaybeAddRefreshInhibitNotice(c, markerInterfaceConnected, warningFallback)
 }
 
 func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallbackNoRAAUX(c *C) {
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
+	tr.Commit()
+	s.state.Unlock()
+
 	const markerInterfaceConnected = false
 	const warningFallback = false // because refresh-app-awareness-ux is disabled
 	s.testMaybeAddRefreshInhibitNotice(c, markerInterfaceConnected, warningFallback)
-}
-
-func (s *autoRefreshTestSuite) enableRefreshAppAwarenessUX() {
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-	s.state.Unlock()
 }
 
 func checkNoRefreshInhibitWarning(c *C, st *state.State) {
@@ -1569,16 +1556,13 @@ func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotification(c *C) {
 	})
 	defer restore()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-
 	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, expectedInfo)
 	// no notification as refresh-appawareness-ux is enabled
 	// i.e. notices + warnings fallback is used instead
 	c.Check(connCheckCalled, Equals, 0)
 	c.Check(notificationCalled, Equals, 0)
 
+	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
 	tr.Commit()
 

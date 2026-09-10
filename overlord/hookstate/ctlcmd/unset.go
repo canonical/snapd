@@ -86,7 +86,7 @@ func (s *unsetCommand) Execute(args []string) error {
 
 		// unsetting options
 		for _, confKey := range s.Positional.ConfKeys {
-			tr.Set(context.InstanceName(), confKey, nil)
+			tr.Set(context.InstanceName().String(), confKey, nil)
 		}
 		return nil
 	}

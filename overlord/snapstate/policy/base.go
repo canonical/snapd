@@ -42,11 +42,11 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 		return errEphemeralSnapsNotRemovable
 	}
 
-	if p.modelBase == name {
+	if p.modelBase == name.String() {
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
 			// it unconditionally as an extra precaution
-			if err := inUse(name, rev, snap.TypeBase, dev); err != nil {
+			if err := inUse(name.String(), rev, snap.TypeBase, dev); err != nil {
 				return err
 			}
 			return nil
@@ -64,7 +64,7 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 
 	// here we use that bases can't be instantiated (InstanceName == SnapName always)
-	return validateBaseOnlyUsedByRemoved(st, name, removals)
+	return validateBaseOnlyUsedByRemoved(st, name.String(), removals)
 }
 
 // validateBaseOnlyUsedByRemoved checks that the base is only used by snaps

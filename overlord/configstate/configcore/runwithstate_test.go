@@ -112,7 +112,7 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 	task := r.state.NewTask("configure", "configure")
 	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
 
-	c.Assert(tr.Set("core", "experimental.quota-groups", true), IsNil)
+	c.Assert(tr.Set("core", "experimental.refresh-app-awareness-ux", true), IsNil)
 
 	r.state.Unlock()
 	c.Assert(configcore.Run(coreDev, tr), IsNil)
@@ -120,10 +120,10 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 
 	tr.Commit()
 
-	msg := "feature quota-groups is enabled by default and will be permanently enabled in a future release"
+	msg := "feature refresh-app-awareness-ux is enabled by default and will be permanently enabled in a future release"
 
 	var enabled bool
-	err := tr.Get("core", "experimental.quota-groups", &enabled)
+	err := tr.Get("core", "experimental.refresh-app-awareness-ux", &enabled)
 	c.Check(err, IsNil)
 	c.Check(enabled, Equals, true)
 

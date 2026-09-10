@@ -94,8 +94,8 @@ type commonInterface struct {
 
 	conflictingConnectedInterfaces []string
 
-	unsupportedParallelInstancesPlug bool
-	unsupportedParallelInstancesSlot bool
+	parallelInstancesPlugErr error
+	parallelInstancesSlotErr error
 }
 
 var _ = interfaces.ConflictingConnectedInterfacesDefiner(&commonInterface{})
@@ -233,14 +233,14 @@ func (iface *commonInterface) ConflictsWithOtherConnectedInterfaces() []string {
 	return iface.conflictingConnectedInterfaces
 }
 
-// ParallelInstancesSupportedForPlug returns false if unsupportedParallelInstancesPlug
-// is set, ignoring plug attributes.
-func (iface *commonInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) bool {
-	return !iface.unsupportedParallelInstancesPlug
+// ParallelInstancesSupportedForPlug returns parallelInstancesPlugErr, ignoring
+// plug attributes.
+func (iface *commonInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) error {
+	return iface.parallelInstancesPlugErr
 }
 
-// ParallelInstancesSupportedForSlot returns false if unsupportedParallelInstancesSlot
-// is set, ignoring slot attributes.
-func (iface *commonInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) bool {
-	return !iface.unsupportedParallelInstancesSlot
+// ParallelInstancesSupportedForSlot returns parallelInstancesSlotErr, ignoring
+// slot attributes.
+func (iface *commonInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return iface.parallelInstancesSlotErr
 }

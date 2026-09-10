@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var autoRefreshForGatingSnap = snapstate.AutoRefreshForGatingSnap
@@ -205,17 +206,17 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var base, restart bool
-	if affectedInfo, ok := affected[context.InstanceName()]; ok {
+	if affectedInfo, ok := affected[context.InstanceName().String()]; ok {
 		base = affectedInfo.Base
 		restart = affectedInfo.Restart
 	}
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, context.InstanceName().String(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
 	}
 
-	var candidates map[string]*refreshCandidate
+	var candidates map[naming.InstanceName]*refreshCandidate
 	if err := st.Get("refresh-candidates", &candidates); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
@@ -236,7 +237,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 		Pending: pending,
 	}
 
-	hasRefreshControl, err := hasSnapRefreshControlInterface(st, context.InstanceName())
+	hasRefreshControl, err := hasSnapRefreshControlInterface(st, context.InstanceName().String())
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +267,7 @@ func (c *refreshCommand) printTrackingInfo(context *hookstate.Context) error {
 
 	st := context.State()
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, context.InstanceName(), &snapst)
+	err := snapstate.Get(st, context.InstanceName().String(), &snapst)
 	if err != nil {
 		return fmt.Errorf("internal error: %v", err)
 	}
@@ -313,7 +314,7 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName().String())
 	if err != nil {
 		return err
 	}
@@ -328,7 +329,7 @@ func (c *refreshCommand) hold() error {
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
 	// XXX for now snaps hold other snaps only for auto-refreshes
-	remaining, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, ctx.InstanceName(), holdDuration, affecting...)
+	remaining, err := snapstate.HoldRefresh(st, snapstate.HoldAutoRefresh, ctx.InstanceName().String(), holdDuration, affecting...)
 	if err != nil {
 		// TODO: let a snap hold again once for 1h.
 		return err
@@ -353,7 +354,7 @@ func (c *refreshCommand) proceed() error {
 	// running outside of hook
 	if ctx.IsEphemeral() {
 		st := ctx.State()
-		hasRefreshControl, err := hasSnapRefreshControlInterface(st, ctx.InstanceName())
+		hasRefreshControl, err := hasSnapRefreshControlInterface(st, ctx.InstanceName().String())
 		if err != nil {
 			return err
 		}
@@ -372,7 +373,7 @@ func (c *refreshCommand) proceed() error {
 			return fmt.Errorf("cannot proceed without experimental.gate-auto-refresh feature enabled")
 		}
 
-		return autoRefreshForGatingSnap(st, ctx.InstanceName())
+		return autoRefreshForGatingSnap(st, ctx.InstanceName().String())
 	}
 
 	// cache the action, hook handler will trigger proceed logic; we cannot
@@ -406,11 +407,11 @@ func hasSnapRefreshControlInterface(st *state.State, snapName string) (bool, err
 func (c *refreshCommand) printInhibitLockHint() error {
 	ctx := c.context()
 	ctx.Lock()
-	snapName := ctx.InstanceName()
+	instanceName := ctx.InstanceName()
 	ctx.Unlock()
 
 	// obtain snap lock before manipulating runinhibit lock.
-	lock, err := snaplock.OpenLock(snapName)
+	lock, err := snaplock.OpenLock(instanceName.String())
 	if err != nil {
 		return err
 	}
@@ -419,7 +420,7 @@ func (c *refreshCommand) printInhibitLockHint() error {
 	}
 	defer lock.Unlock()
 
-	hint, _, err := runinhibit.IsLocked(snapName, nil)
+	hint, _, err := runinhibit.IsLocked(instanceName.String(), nil)
 	if err != nil {
 		return err
 	}

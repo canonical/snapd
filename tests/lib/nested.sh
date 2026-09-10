@@ -1311,13 +1311,7 @@ nested_create_vm_service() {
     # use only 2G of RAM for qemu-nested
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
-    if [ "$SPREAD_BACKEND" = "google-nested" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
-    elif [ "$SPREAD_BACKEND" = "google-nested-arm" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
-    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
+    if [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
     elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
@@ -1392,7 +1386,7 @@ nested_create_vm_service() {
     PARAM_REEXEC_ON_FAILURE=""
 
     if nested_is_core_lt 20; then
-        if [[ "$SPREAD_BACKEND" = google-nested* ]] || [[ "$SPREAD_BACKEND" = openstack* ]]; then
+        if [[ "$SPREAD_BACKEND" = openstack* ]]; then
             PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
         elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
             # check if we have nested kvm

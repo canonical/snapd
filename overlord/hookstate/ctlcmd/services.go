@@ -100,13 +100,13 @@ func (c *servicesCommand) Execute([]string) error {
 
 	serviceNames := c.Positional.ServiceNames
 
-	serviceNames, patched, err := maybePatchServiceNames(ctx.InstanceName(), serviceNames)
+	serviceNames, patched, err := maybePatchServiceNames(ctx.InstanceName().String(), serviceNames)
 	if err != nil {
 		return err
 	}
 
 	st := ctx.State()
-	svcInfos, err := getServiceInfos(st, ctx.InstanceName(), serviceNames)
+	svcInfos, err := getServiceInfos(st, ctx.InstanceName().String(), serviceNames)
 	if err != nil {
 		return err
 	}

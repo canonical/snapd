@@ -2058,10 +2058,11 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 	err = to.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir)
 	c.Assert(err, IsNil)
 
+	dataDisk := secboot.CreateMockBootstrappedContainer()
 	saveDisk := secboot.CreateMockBootstrappedContainer()
 
 	installKeyForRole := map[string]secboot.BootstrappedContainer{
-		gadget.SystemData: secboot.CreateMockBootstrappedContainer(),
+		gadget.SystemData: dataDisk,
 		gadget.SystemSave: saveDisk,
 	}
 
@@ -2093,6 +2094,9 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 
 	saveKey, err := os.ReadFile(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde", "ubuntu-save.key"))
 	c.Assert(err, IsNil)
+
+	c.Check(saveDisk.KeyCommitted, Equals, false)
+	c.Check(dataDisk.KeyCommitted, Equals, false)
 
 	if useTokens {
 		_, hasToken := saveDisk.Tokens["default"]

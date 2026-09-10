@@ -302,7 +302,7 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	task0 := ts.Tasks()[0]
 	snapsup, err := snapstate.TaskSnapSetup(task0)
 	c.Assert(err, IsNil, Commentf("%#v", task0))
-	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsup.InstanceName().String(), Equals, "some-snap")
 	c.Assert(snapsup.DevMode, Equals, true)
 	c.Assert(snapsup.ApplySnapDevMode, Equals, false)
 
@@ -1378,7 +1378,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c 
 	}
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c *C) {
@@ -1414,7 +1414,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c 
 	}
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances: slot rejected`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySupportedInterface(c *C) {
@@ -1530,8 +1530,8 @@ func (t *testParallelInstancesPlugRejectingInterface) Name() string {
 	return "pi-nok-plug-iface"
 }
 
-func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
-	return false
+func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errors.New("plug rejected")
 }
 
 // testParallelInstancesSlotRejectingInterface is a test interface that
@@ -1544,8 +1544,8 @@ func (t *testParallelInstancesSlotRejectingInterface) Name() string {
 	return "pi-nok-slot-iface"
 }
 
-func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
-	return false
+func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return errors.New("slot rejected")
 }
 
 // testParallelInstancesSupportedInterface is a test interface that
@@ -1558,12 +1558,12 @@ func (t *testParallelInstancesSupportedInterface) Name() string {
 	return "pi-ok-iface"
 }
 
-func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
-	return true
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return nil
 }
 
-func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
-	return true
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return nil
 }
 
 func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
@@ -2894,7 +2894,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -2933,13 +2933,6 @@ epoch: 1*
 			revno: snap.R("x3"),
 		},
 	}
-	// aliases removal is skipped when refresh-app-awareness-ux is enabled
-	if !refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
-			op:   "remove-snap-aliases",
-			name: "mock",
-		})
-	}
 	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
@@ -2953,7 +2946,7 @@ epoch: 1*
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -3036,12 +3029,11 @@ epoch: 1*
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
-	s.testInstallSubsequentLocalRunThrough(c, false)
+	s.testInstallSubsequentLocalRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThroughSkipBinaries(c *C) {
-	s.enableRefreshAppAwarenessUX()
-	s.testInstallSubsequentLocalRunThrough(c, true)
+	s.testInstallSubsequentLocalRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
@@ -3085,10 +3077,6 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 		{
-			op:   "remove-snap-aliases",
-			name: "mock",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "mock",
 			inhibitHint: "refresh",
@@ -3098,9 +3086,10 @@ epoch: 1*
 			name: "mock",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "mock/100001"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "mock/100001"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:   "copy-data",
@@ -4383,7 +4372,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				c.Check(sup.Version, Equals, sup.SnapName().String()+"Ver")
 			}
 		}
 	}
@@ -4413,7 +4402,7 @@ func (s *snapmgrTestSuite) TestInstallManyNoDelayed(c *C) {
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				c.Check(sup.Version, Equals, sup.SnapName().String()+"Ver")
 			}
 		}
 	}
@@ -5905,7 +5894,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}
@@ -6509,7 +6498,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}

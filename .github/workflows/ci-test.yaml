@@ -425,7 +425,24 @@ jobs:
       uses: ./.github/actions/go-fuzz
       with:
         fuzzing-search-dir: confdb	
-  
+
+  unit-tests-root:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - go-channels
+      - static-checks
+    name: "unit-tests-root (Go default ${{ matrix.gochannel }})"
+    with:
+      runs-on: ubuntu-latest
+      gochannel: ${{ matrix.gochannel }}
+      skip-coverage: true
+      code: 'go'
+      run-as-root: true
+    strategy:
+      fail-fast: false
+      matrix:
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit
   # tests. This avoids the need to update required status checks whenever the
@@ -437,6 +454,7 @@ jobs:
       - unit-tests-special
       - unit-tests-c
       - unit-tests-cross-distro
+      - unit-tests-root
     if: always()
     steps:
       - name: Checkout code

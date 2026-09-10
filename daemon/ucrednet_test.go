@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"net"
 	"path/filepath"
@@ -51,7 +52,7 @@ func (s *ucrednetSuite) TearDownSuite(c *check.C) {
 	getUcred = sys.GetsockoptUcred
 }
 
-func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
+func (s *ucrednetSuite) TestAcceptConnContext(c *check.C) {
 	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
@@ -72,12 +73,12 @@ func (s *ucrednetSuite) TestAcceptConnRemoteAddrString(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
-	remoteAddr := conn.RemoteAddr().String()
-	c.Check(remoteAddr, check.Matches, "pid=100;uid=42;.*")
-	u, err := ucrednetGet(remoteAddr)
+	ctx := ucrednetConnContext(context.Background(), conn)
+	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(conn.RemoteAddr().String(), check.Equals, conn.(*ucrednetConn).Conn.RemoteAddr().String())
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
@@ -99,9 +100,8 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
-	remoteAddr := conn.RemoteAddr().String()
-	c.Check(remoteAddr, check.Matches, "pid=;uid=;.*")
-	u, err := ucrednetGet(remoteAddr)
+	ctx := ucrednetConnContext(context.Background(), conn)
+	u, err := ucrednetGet(ctx)
 	c.Check(u, check.IsNil)
 	c.Check(err, check.Equals, errNoID)
 }
@@ -155,60 +155,37 @@ func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
 	c.Assert(wl.Close(), check.IsNil)
 }
 
-func (s *ucrednetSuite) TestGetNoUid(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=;socket=;")
-	c.Check(err, check.Equals, errNoID)
-	c.Check(u, check.IsNil)
-}
-
-func (s *ucrednetSuite) TestGetBadUid(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=4294967296;socket=;")
-	c.Check(err, check.Equals, errNoID)
-	c.Check(u, check.IsNil)
-}
-
-func (s *ucrednetSuite) TestGetNonUcrednet(c *check.C) {
-	u, err := ucrednetGet("hello")
-	c.Check(err, check.Equals, errNoID)
-	c.Check(u, check.IsNil)
-}
-
 func (s *ucrednetSuite) TestGetNothing(c *check.C) {
-	u, err := ucrednetGet("")
+	u, err := ucrednetGet(context.Background())
 	c.Check(err, check.Equals, errNoID)
 	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;")
+	original := &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"}
+	ctx := ucrednetWithCredentials(context.Background(), original)
+	original.Uid = 0
+
+	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
-
-	u, err = ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
-	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
-	c.Check(u.Uid, check.Equals, uint32(42))
-	c.Check(u.Socket, check.Equals, "/run/snap.socket")
-}
-
-func (s *ucrednetSuite) TestGetSneak(c *check.C) {
-	u, err := ucrednetGet("pid=100;uid=42;socket=/run/snap.socket;pid=0;uid=0;socket=/tmp/my.socket")
-	c.Check(err, check.Equals, errNoID)
-	c.Check(u, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
-	u, ifaces, err := ucrednetGetWithInterfaces("pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
+	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 	c.Check(ifaces, check.DeepEquals, []string{"snap-refresh-observe"})
 
-	// iface is optional
-	u, ifaces, err = ucrednetGetWithInterfaces("pid=100;uid=42;socket=/run/snap.socket;")
+	// interfaces are optional
+	ctx = ucrednetWithCredentials(context.Background(), u)
+	u, ifaces, err = ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
@@ -217,10 +194,9 @@ func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
-	remoteAddr := ucrednetAttachInterface("pid=100;uid=42;socket=/run/snap.socket;", "snap-refresh-observe")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
-
-	u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
+	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
+	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
@@ -229,12 +205,10 @@ func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
-	remoteAddr := "pid=100;uid=42;socket=/run/snap.socket;"
+	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
 	for i := 0; i < 2; i++ {
-		remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-refresh-observe")
-		c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
-
-		u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
+		ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
+		u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 		c.Assert(err, check.IsNil)
 		c.Check(u.Pid, check.Equals, int32(100))
 		c.Check(u.Uid, check.Equals, uint32(42))
@@ -244,19 +218,13 @@ func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
-	remoteAddr := ucrednetAttachInterface("pid=100;uid=42;socket=/run/snap.socket;", "snap-refresh-observe")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe;")
+	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
+	ctx = ucrednetAttachInterface(ctx, "snap-interfaces-requests-control")
+	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
+	ctx = ucrednetAttachInterface(ctx, "foo")
 
-	remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-interfaces-requests-control")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-interfaces-requests-control;")
-
-	remoteAddr = ucrednetAttachInterface(remoteAddr, "snap-refresh-observe")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-interfaces-requests-control;")
-
-	remoteAddr = ucrednetAttachInterface(remoteAddr, "foo")
-	c.Check(remoteAddr, check.Equals, "pid=100;uid=42;socket=/run/snap.socket;iface=snap-refresh-observe&snap-interfaces-requests-control&foo;")
-
-	u, ifaces, err := ucrednetGetWithInterfaces(remoteAddr)
+	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))

@@ -80,7 +80,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
-	glob := serviceName(instanceName.TODOInstanceName(), "*")
+	glob := serviceName(instanceName.String(), "*")
 
 	var systemd sysd.Systemd
 	if b.preseed {
@@ -177,7 +177,7 @@ func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[strin
 	}
 	content := make(map[string]osutil.FileState)
 	for suffix, service := range services {
-		filename := serviceName(appSet.InstanceName().TODOInstanceName(), suffix)
+		filename := serviceName(appSet.InstanceName().String(), suffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,

@@ -504,7 +504,7 @@ func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		}
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
-		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		c.Check(snapsup.InstanceName().String(), Equals, snaps[matched])
 		matched++
 	}
 	c.Check(matched, Equals, len(snaps))
@@ -935,7 +935,7 @@ snaps:
 		ok, err := snapstate.HasSnapOfType(st, snap.TypeGadget)
 		c.Check(err, IsNil)
 		c.Check(ok, Equals, true)
-		configured = append(configured, ctx.InstanceName())
+		configured = append(configured, ctx.InstanceName().String())
 		return nil, nil
 	}
 

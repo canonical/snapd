@@ -352,12 +352,28 @@ execute: |
   test "${run_pkey}" = 0
   test "${runrecover_pkey}" = 0
 
+  # We also test we can set a passphrase
+  echo '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "passphrase-1"}' |
+    remote.exec "sudo snap debug api -H 'Content-Type: application/json' -X POST /v2/system-volumes" >set-passphrase.resp
+
+  set_passphrase_change="$(gojq -r '.change' <set-passphrase.resp)"
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${set_passphrase_change}\s+(Done|Undone|Error)'"
+  remote.exec sudo snap changes | MATCH "^${set_passphrase_change}\s+Done"
+
+  tests.nested vm set-passphrase "passphrase-1"
+
   tests.nested vm stop
   tests.nested vm start
+
+  # Double check that passphrase is used.
+  remote.exec sudo snap debug api /v2/system-volumes >volumes
+  gojq '.result."by-container-role"."system-data"' <volumes >data-volume
+  gojq -r '.keyslots.default."auth-mode"' <data-volume | MATCH "^passphrase$"
 
   api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
 
   # Let's test the recovery key from reprovision
+  tests.nested vm set-passphrase ""
   tests.nested vm set-recovery-key "$(cat rkey-reprovision-2.out)"
   clear_tpm_and_reboot
 

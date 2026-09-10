@@ -145,221 +145,6 @@ environment:
     SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
 backends:
-    google:
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west2-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                  workers: 6
-            - ubuntu-16.04-64:
-                  workers: 8
-                  storage: 15G
-            - ubuntu-18.04-64:
-                  storage: 15G
-                  workers: 8
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64
-                  storage: 16G
-                  workers: 8
-            - ubuntu-secboot-20.04-64:
-                  image: ubuntu-2004-64
-                  storage: 16G
-                  workers: 1
-                  secure-boot: true
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64
-                  storage: 15G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64
-                  storage: 15G
-                  workers: 8
-
-    google-core:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-core-16-64:
-                  image: ubuntu-16.04-64
-                  workers: 6
-                  storage: 20G
-            - ubuntu-core-18-64:
-                  image: ubuntu-18.04-64
-                  workers: 6
-                  storage: 20G
-            - ubuntu-core-20-64:
-                  image: ubuntu-2004-64
-                  workers: 8
-                  storage: 20G
-            - ubuntu-core-22-64:
-                  image: ubuntu-2204-64
-                  workers: 8
-                  storage: 20G
-            - ubuntu-core-24-64:
-                  image: ubuntu-2404-64
-                  workers: 8
-                  storage: 20G
-            - ubuntu-core-26-64:
-                  image: ubuntu-2604-64
-                  workers: 8
-                  storage: 20G
-
-    google-pro:
-        type: google
-        # XXX the role assigned to the key must allow for attaching service
-        # accounts
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-pro-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-pro-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-fips-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-fips-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-fips-24.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2404-lts-amd64
-                  workers: 1
-                  attach-service-account: true
-
-    google-distro:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west3-b
-        halt-timeout: 2h
-        systems:
-            - debian-12-64:
-                  storage: 20G
-                  workers: 6
-            - debian-sid-64:
-                  storage: 20G
-                  workers: 6
-
-            - amazon-linux-2023-64:
-                  workers: 6
-                  storage: preserve-size
-
-            - arch-linux-64:
-                  workers: 6
-                  storage: 20G
-
-            - centos-9-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-9-64
-
-            - opensuse-16.0-64:
-                  workers: 6
-            - opensuse-tumbleweed-64:
-                  workers: 6
-                  storage: 12G
-            - opensuse-tumbleweed-selinux-64:
-                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
-                  workers: 6
-                  storage: 12G
-
-    google-arm:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        plan: t2a-standard-1
-        halt-timeout: 2h
-        kill-timeout: 60m
-        systems:
-            - ubuntu-20.04-arm-64:
-                  image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
-                  workers: 8
-                  storage: 15G
-            - ubuntu-22.04-arm-64:
-                  image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
-                  workers: 8
-                  storage: 15G
-            - ubuntu-24.04-arm-64:
-                  image: ubuntu-os-cloud/ubuntu-2404-lts-arm64
-                  workers: 8
-                  storage: 15G
-            - ubuntu-core-22-arm-64:
-                  image: ubuntu-22.04-arm-64
-                  workers: 6
-                  storage: 30G
-            - ubuntu-core-24-arm-64:
-                  image: ubuntu-24.04-arm-64
-                  workers: 6
-                  storage: 30G
-    # TODO add garden-sru backend
-    google-nested:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        plan: n2-standard-2
-        halt-timeout: 2h
-        environment:
-            NESTED_ARCHITECTURE: amd64
-        systems: &google-nested-systems
-            - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
-                  storage: 20G
-                  workers: 4
-            - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
-                  storage: 20G
-                  workers: 4
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
-                  storage: 20G
-                  workers: 12
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
-                  storage: 25G
-                  workers: 14
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64-virt-enabled
-                  storage: 30G
-                  workers: 14
-            - ubuntu-26.04-64:
-                  image: ubuntu-2604-64-virt-enabled
-                  storage: 30G
-                  workers: 14
-
-    google-nested-arm:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        plan: c4a-highcpu-4
-        halt-timeout: 2h
-        environment:
-            NESTED_ARCHITECTURE: arm64
-            NESTED_ENABLE_KVM: false
-            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
-            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
-        systems:
-            - ubuntu-22.04-arm-64:
-                  image: ubuntu-2204-arm-64-virt-enabled
-                  storage: 25G
-                  workers: 8
-            - ubuntu-24.04-arm-64:
-                  image: ubuntu-2404-arm-64-virt-enabled
-                  storage: 25G
-                  workers: 8
-
     openstack:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
@@ -1192,11 +977,11 @@ rename:
     - s,^,$DELTA_PREFIX,S
 
 repack: |
-    # For Linode, compute a delta based on a known git reference that can be
+    # For openstack, compute a delta based on a known git reference that can be
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo "$SPREAD_BACKENDS" | grep -e linode -e google; then
+    if ! echo "$SPREAD_BACKENDS" | grep -e openstack; then
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
@@ -1254,9 +1039,6 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
-        # refresh metadatadata
-        # Auto import gpg keys needed for could repository added to support google backend
-        zypper --gpg-auto-import-keys ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
@@ -1329,12 +1111,6 @@ prepare: |
             fi
             ;;
     esac
-
-    # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
-    # during the machine setup in google systems. For more details see lp:2011458
-    if [[ "$SPREAD_BACKEND" =~ google ]] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
-        systemctl restart ssh
-    fi
 
     # LSM correctness check
     case "$SPREAD_SYSTEM" in
@@ -1477,7 +1253,7 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
-        backends: [google, qemu, garden]
+        backends: [openstack, qemu, garden]
         prepare-each: |
             tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
@@ -1716,9 +1492,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - garden
             - openstack-ext
             - openstack-arm-ext
@@ -1813,9 +1587,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
@@ -1890,9 +1662,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
@@ -1977,9 +1747,7 @@ suites:
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev

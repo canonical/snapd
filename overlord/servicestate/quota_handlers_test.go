@@ -2173,7 +2173,7 @@ func (s *quotaHandlersSuite) TestCreateJournalQuota(c *C) {
 		snapInfo, err := snapstate.TaskSnapSetup(task)
 		task.State().Unlock()
 		c.Assert(err, IsNil)
-		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.InstanceName().String(), Equals, "test-snap")
 		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
@@ -2234,7 +2234,7 @@ func (s *quotaHandlersSuite) TestAddJournalQuota(c *C) {
 		snapInfo, err := snapstate.TaskSnapSetup(task)
 		task.State().Unlock()
 		c.Assert(err, IsNil)
-		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.InstanceName().String(), Equals, "test-snap")
 		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
@@ -2325,7 +2325,7 @@ func (s *quotaHandlersSuite) TestUpdateJournalQuota(c *C) {
 		snapInfo, err := snapstate.TaskSnapSetup(task)
 		task.State().Unlock()
 		c.Assert(err, IsNil)
-		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.InstanceName().String(), Equals, "test-snap")
 		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}
@@ -2398,7 +2398,7 @@ func (s *quotaHandlersSuite) TestRemoveJournalQuota(c *C) {
 		snapInfo, err := snapstate.TaskSnapSetup(task)
 		task.State().Unlock()
 		c.Assert(err, IsNil)
-		c.Check(snapInfo.InstanceName(), Equals, "test-snap")
+		c.Check(snapInfo.InstanceName().String(), Equals, "test-snap")
 		c.Check(snapInfo.SideInfo.Revision, Equals, s.testSnapSideInfo.Revision)
 		return err
 	}

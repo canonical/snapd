@@ -651,6 +651,9 @@ type handlersReprovisionSuite struct {
 
 	dataKeys *mockContainer
 	saveKeys *mockContainer
+
+	dataBootstrappedContainer *mockBootstrappedContainer
+	saveBootstrappedContainer *mockBootstrappedContainer
 }
 
 var _ = Suite(&handlersReprovisionSuite{})
@@ -779,12 +782,15 @@ func (s *handlersReprovisionSuite) SetUpTest(c *C) {
 		return nil
 	}))
 
+	s.dataBootstrappedContainer = &mockBootstrappedContainer{container: s.dataKeys}
+	s.saveBootstrappedContainer = &mockBootstrappedContainer{container: s.saveKeys}
+
 	s.AddCleanup(devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
 		switch devicePath {
 		case "/dev/data":
-			return &mockBootstrappedContainer{container: s.dataKeys}
+			return s.dataBootstrappedContainer
 		case "/dev/save":
-			return &mockBootstrappedContainer{container: s.saveKeys}
+			return s.saveBootstrappedContainer
 		default:
 			c.Errorf("unexpected disk")
 			return nil
@@ -873,7 +879,10 @@ func (m *mockKeyDataWriter) Commit() error {
 }
 
 type mockBootstrappedContainer struct {
-	container *mockContainer
+	container    *mockContainer
+	primaryKey   []byte
+	unlockKey    []byte
+	keyCommitted bool
 }
 
 func (m *mockBootstrappedContainer) AddKey(slotName string, newKey []byte) error {
@@ -905,6 +914,12 @@ func (m *mockBootstrappedContainer) RemoveBootstrapKey() error {
 }
 
 func (m *mockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
+	m.primaryKey = primaryKey
+	m.unlockKey = unlockKey
+}
+
+func (m *mockBootstrappedContainer) CommitUsedKey() {
+	m.keyCommitted = true
 }
 
 func (s *handlersReprovisionSuite) testDoReprovisionHappy(c *C) {
@@ -1191,6 +1206,12 @@ version: 1.0
 			TPM2PCRPolicyRevocationCounter: 42,
 		},
 	})
+
+	c.Check(s.dataBootstrappedContainer.keyCommitted, Equals, true)
+	// boot.MakeRunnableReprovision sets the key for data, so we do not test that here.
+	c.Check(s.saveBootstrappedContainer.keyCommitted, Equals, true)
+	c.Check(s.saveBootstrappedContainer.primaryKey, DeepEquals, []byte("new-primary-key"))
+	c.Check(s.saveBootstrappedContainer.unlockKey, DeepEquals, []byte("new-save-default"))
 }
 
 func (s *handlersReprovisionSuite) TestDoReprovisionHappy(c *C) {
@@ -2217,4 +2238,86 @@ func (s *handlersReprovisionSuite) TestReprovisionCreateChangeOtherFDETaskRunnin
 	c.Check(confictError.ChangeKind, Equals, "something")
 	c.Check(confictError.Message, Equals, "FDE change in progress, no other FDE changes allowed until this is done")
 	c.Check(confictError.ChangeID, Equals, conflictChg.ID())
+}
+
+func (s *handlersReprovisionSuite) testDoReprovisionRenameFailure(c *C, failedDisk, failedKey string) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.setupModel(c)
+
+	t := st.NewTask("fde-reprovision", "reprovision test")
+
+	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (keys.RecoveryKey, error) {
+		c.Check(keyID, Equals, "key-id")
+		return keys.RecoveryKey{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}, nil
+	})()
+	preinstallCheckContext := &secboot.PreinstallCheckContext{}
+	st.Cache(devicestate.ReprovisionSetupDataKey{}, devicestate.MakeReprovisionSetupData("key-id", preinstallCheckContext))
+
+	defer devicestate.MockSecbootGetPCRHandleFromToken(func(disk string, name string) (uint32, error) {
+		// Because this test will not reach further than renaming, no new key will be created,
+		// only renamed. So we will never remove new keys, thus never remove PCR handles.
+		c.Errorf("unexpected call")
+		return 0, fmt.Errorf("unexpected call")
+	})()
+
+	defer devicestate.MockSecbootReleasePCRResourceHandle(func(nv uint32) error {
+		// Because this test will not reach further than renaming, no new key will be created,
+		// only renamed. So we will never remove new keys, thus never remove PCR handles.
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	// This the same implementation as in SetupTest + injected error
+	defer devicestate.MockSecbootRenameContainerKey(func(disk string, from string, to string) error {
+		var diskKeys *mockContainer
+
+		if from == failedKey && disk == failedDisk {
+			return fmt.Errorf("injected error")
+		}
+
+		switch disk {
+		case "/dev/data":
+			diskKeys = s.dataKeys
+		case "/dev/save":
+			diskKeys = s.saveKeys
+		default:
+			c.Errorf("unexpected disk")
+			return fmt.Errorf("unexpected disk")
+		}
+
+		if _, hadKey := diskKeys.keys[to]; hadKey {
+			return fmt.Errorf("key already exists")
+		}
+
+		key, hasKey := diskKeys.keys[from]
+		if !hasKey {
+			return fmt.Errorf("key did not exist")
+		}
+
+		diskKeys.keys[to] = key
+		delete(diskKeys.keys, from)
+
+		return nil
+	})()
+
+	err := func() error {
+		st.Unlock()
+		defer st.Lock()
+		return devicestate.DoReprovision(s.mgr, t)
+	}()
+	c.Assert(err, ErrorMatches, "injected error")
+	s.verifyRollback(c)
+}
+
+func (s *handlersReprovisionSuite) TestDoReprovisionRenameFailureEarly(c *C) {
+	// Failure on first rename
+	s.testDoReprovisionRenameFailure(c, "/dev/data", "default")
+}
+
+func (s *handlersReprovisionSuite) TestDoReprovisionRenameFailureLate(c *C) {
+	// Failure late
+	s.testDoReprovisionRenameFailure(c, "/dev/save", "default-fallback")
 }

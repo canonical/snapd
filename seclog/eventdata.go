@@ -27,11 +27,12 @@
 //  1. Spec alignment: field names and JSON tags match the security audit
 //     specification directly.
 //
-//  2. No imports from other snapd packages: seclog is imported by
-//     packages such as overlord/auth, so it cannot import them back.
-//     Types here must be self-contained. The translation from an
-//     internal type (e.g. [auth.UserState]) to an audit event type is
-//     the responsibility of the caller.
+//  2. Self-contained event types: seclog is imported by packages such as
+//     overlord/auth, so it cannot import them back. Event types here must
+//     not embed those packages' types; callers in such packages still
+//     translate (e.g. [auth.UserState] → [SnapdUser]). Conversion helpers
+//     may import utility packages (osutil, asserts) that will never need
+//     to log.
 //
 // When adding a new event category, define its types here.
 
@@ -39,7 +40,11 @@ package seclog
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // unknown is the placeholder for empty fields in descriptions.
@@ -267,4 +272,130 @@ func (u SnapdUser) String() string {
 	}
 
 	return id + ":" + email + ":" + name
+}
+
+// SystemUserAddReason identifies why a system user account was created.
+// Values follow {trigger}-{source}: the subsystem that started the operation
+// and where the account details came from. They are logged as add_reason on
+// user_created_system events.
+type SystemUserAddReason string
+
+// SystemUserAddReason values for user_created_system events. The api-* values
+// are set by the user-admin API (POST /v2/users, POST /v2/create-user).
+const (
+	// AddReasonAPIStoreEmail is set when a user is created from store account
+	// details looked up by email.
+	AddReasonAPIStoreEmail SystemUserAddReason = "api-store-email"
+	// AddReasonAPIAssertion is set when a single user is created from the
+	// system-user assertion for a given email.
+	AddReasonAPIAssertion SystemUserAddReason = "api-assertion"
+	// AddReasonAPIAssertionAutomatic is like [AddReasonAPIAssertion], but the
+	// request came from automation rather than an operator.
+	AddReasonAPIAssertionAutomatic SystemUserAddReason = "api-assertion-automatic"
+	// AddReasonAPIAssertionAll is set when every user allowed by the device's
+	// system-user assertions is created.
+	AddReasonAPIAssertionAll SystemUserAddReason = "api-assertion-all"
+	// AddReasonAPIAssertionAllAutomatic is like [AddReasonAPIAssertionAll],
+	// but the request came from automation rather than an operator.
+	AddReasonAPIAssertionAllAutomatic SystemUserAddReason = "api-assertion-all-automatic"
+	// AddReasonFirstbootSeedAutoImport is set when auto-import assertions from
+	// the seed are applied during first boot, on dangerous models only.
+	AddReasonFirstbootSeedAutoImport SystemUserAddReason = "firstboot-seed-auto-import"
+	// AddReasonEnsureSerialBoundAssertion is set when the device manager
+	// applies serial-bound system-user assertions after registration.
+	AddReasonEnsureSerialBoundAssertion SystemUserAddReason = "ensure-serial-bound-assertion"
+)
+
+// SystemUserRemoveReason identifies why a system user account was removed.
+// Values follow {trigger}-remove-{target}: the subsystem that started the
+// operation and the kind of account removed. They are logged as remove_reason
+// on user_removed_system events.
+type SystemUserRemoveReason string
+
+// SystemUserRemoveReason values for user_removed_system events. The api-*
+// value is set by the user-admin API (POST /v2/users, action "remove").
+const (
+	// RemoveReasonAPI is set when an account is removed by explicit request.
+	RemoveReasonAPI SystemUserRemoveReason = "api-remove-user"
+	// RemoveReasonEnsureExpired is set when the device manager removes an
+	// account whose expiration time has passed.
+	RemoveReasonEnsureExpired SystemUserRemoveReason = "ensure-remove-expired-user"
+)
+
+// AssertionRef identifies an assertion by type and primary key. It mirrors
+// asserts.Ref but uses plain strings so the audit payload stays self-contained.
+type AssertionRef struct {
+	// Type is the assertion type name, e.g. "system-user".
+	Type string `json:"type"`
+	// PrimaryKey holds the primary key values in the order declared by Type.
+	PrimaryKey []string `json:"primary_key"`
+	// Revision is the assertion revision applied when the user was created.
+	// It supplements the ref; the ref itself is the store-shared identity.
+	Revision int `json:"revision"`
+}
+
+// SystemUserAddOptions holds the options recorded for a system user creation
+// event. JSON tags match the security audit specification field names.
+type SystemUserAddOptions struct {
+	// RealUserName is the display name recorded for the created account,
+	// taken from the account's GECOS field. For accounts created from store
+	// details (see [AddReasonAPIStoreEmail]) it holds the store account
+	// identifier rather than a person's name. It may be empty when no name
+	// is available.
+	RealUserName string `json:"real_user_name"`
+	// Sudoer is true when the account was created with sudo privileges.
+	Sudoer bool `json:"sudoer"`
+	// ExtraUsers is true when the account was created in the extrausers
+	// database (Ubuntu Core) rather than /etc/passwd.
+	ExtraUsers bool `json:"extra_users"`
+	// ForcePasswordChange is true when the user must change their password
+	// on first login.
+	ForcePasswordChange bool `json:"force_password_change"`
+	// Known is true when the account was created from a system-user assertion
+	// rather than from a store email lookup.
+	Known bool `json:"known"`
+	// Assertion is set when Known is true; identifies the system-user assertion used.
+	Assertion *AssertionRef `json:"assertion"`
+}
+
+// AssertionRefFrom returns an [AssertionRef] for a. If a is nil,
+// AssertionRefFrom returns nil.
+func AssertionRefFrom(a asserts.Assertion) *AssertionRef {
+	if a == nil {
+		return nil
+	}
+	ref := a.Ref()
+	return &AssertionRef{
+		Type:       ref.Type.Name,
+		PrimaryKey: ref.PrimaryKey,
+		Revision:   a.Revision(),
+	}
+}
+
+// SystemUserAddOptionsFrom builds the audit payload for a system user
+// creation from the options passed to osutil.AddUser and, when known, the
+// backing system-user assertion.
+func SystemUserAddOptionsFrom(opts *osutil.AddUserOptions, userAssertion *asserts.SystemUser) SystemUserAddOptions {
+	// RealUserName is taken from the portion of Gecos after the first comma
+	// (assertion display name or store OpenID identifier).
+	addOpts := SystemUserAddOptions{
+		Known:               userAssertion != nil,
+		Sudoer:              opts.Sudoer,
+		ExtraUsers:          opts.ExtraUsers,
+		ForcePasswordChange: opts.ForcePasswordChange,
+	}
+	if _, realUserName, ok := strings.Cut(opts.Gecos, ","); ok {
+		addOpts.RealUserName = realUserName
+	}
+	if userAssertion != nil {
+		addOpts.Assertion = AssertionRefFrom(userAssertion)
+	}
+	return addOpts
+}
+
+// SystemUserRemoveOptions holds the options recorded for a system user removal
+// event. JSON tags match the security audit specification field names.
+type SystemUserRemoveOptions struct {
+	// Force is true when the account was removed even if it was logged in.
+	Force bool `json:"force"`
 }

@@ -51,6 +51,17 @@ func (a *SnapAppSet) Components() []*snap.ComponentInfo {
 	return a.components
 }
 
+// Component looks up a component with a given name and returns its info, or nil
+// if the component was not set when creating the app set.
+func (a *SnapAppSet) Component(name string) *snap.ComponentInfo {
+	for _, comp := range a.Components() {
+		if comp.Component.ComponentName == name {
+			return comp
+		}
+	}
+	return nil
+}
+
 // InstanceName returns the instance name of the snap that this SnapAppSet is
 // based on.
 func (a *SnapAppSet) InstanceName() naming.InstanceName {

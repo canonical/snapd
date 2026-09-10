@@ -72,17 +72,17 @@ execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH bar
 
-    echo "Verify invalid option names are rejected"
+    echo "Verify invalid field names are rejected"
     if [ "$SNAP" == "snapctl-from-snap-core26" ]; then
-      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH "error: snapctl: invalid option name: \"Foo\""
-      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]' 2>&1 | MATCH "invalid option name: \"Bar\""
-      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo={"bar_baz":1}' 2>&1 | MATCH "invalid option name: \"bar_baz\""
+            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH 'error: snapctl: invalid option name "Foo": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
+            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]' 2>&1 | MATCH 'invalid JSON field name "Bar": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
+            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo={"bar_baz":1}' 2>&1 | MATCH 'invalid JSON field name "bar_baz": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
       # we don't need to re-run the rest of the test
       exit 0
     else
-      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH "error: snapctl: invalid option name: \"Foo\""
+            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH 'error: snapctl: invalid option name "Foo": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
       "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]'
-      snap warnings | tail -n2 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'Option value has invalid field name "Bar". For core26\+ snaps, fields must be dash separated lowercase alphanumerics.'
+            snap warnings | tail -n2 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'Option value has invalid field name "Bar". For core26\+ snaps, fields must be dash separated lowercase alphanumerics.'
       snap okay
     fi
 

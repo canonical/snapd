@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -67,6 +68,8 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -1985,7 +1988,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 			KeyName: "some-key-name",
 		})
 		ctx.Set("fde-setup-result", []byte("result"))
-		hookCalled = append(hookCalled, ctx.InstanceName())
+		hookCalled = append(hookCalled, ctx.InstanceName().String())
 		return nil, nil
 	}
 
@@ -3076,10 +3079,11 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksOptionalSnapInCurrentSe
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-2", "presence": "optional"},
 	}, nil, "snap-2")
-	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
-
-	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
-	c.Assert(err, ErrorMatches, `cannot remove snap present in the current seed while seed-refresh is enabled`)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: "snap-2",
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
+	c.Assert(err, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
 }
 
 func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurrentSeed(c *C) {
@@ -3093,9 +3097,80 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurren
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-2", "presence": "optional"},
 	}, nil)
-	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: "snap-2",
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
+	c.Assert(err, IsNil)
+}
 
-	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
+func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksRequiredAndOptionalCompInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1", "presence": "required"},
+		{"name": "snap-2", "presence": "optional"},
+	}, map[string][]modelComponent{
+		"snap-1": {
+			modelComponent{Name: "comp1", Presence: "required"},
+			modelComponent{Name: "comp2", Presence: "optional"},
+		},
+		"snap-2": {
+			modelComponent{Name: "comp1", Presence: "required"},
+			modelComponent{Name: "comp2", Presence: "optional"},
+		},
+	}, "snap-2")
+
+	err := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-1",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}, dctx)
+	c.Assert(err, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+
+	err2 := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-1",
+		ComponentSetupTaskIDs: map[string]string{"comp2": ""},
+	}, dctx)
+	c.Assert(err2, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+
+	err3 := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-2",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}, dctx)
+	c.Assert(err3, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+
+	err4 := devicestate.CheckSeedRefreshRemove(s.state, snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-2",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}, dctx)
+	c.Assert(err4, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
+}
+
+func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalCompNotInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-2", "presence": "optional"},
+	}, map[string][]modelComponent{
+		"snap-2": {
+			modelComponent{Name: "comp1", Presence: "optional", NotInSeed: true},
+		},
+	})
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName:          "snap-2",
+		ComponentSetupTaskIDs: map[string]string{"comp1": ""},
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
 	c.Assert(err, IsNil)
 }
 
@@ -3659,6 +3734,10 @@ func (s *deviceMgrSuite) mockSystemMode(c *C, mode string) {
 }
 
 func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extraUsers bool) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	// Mock the delete user callback to verify it's correctly called. On ubuntu core
 	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
 	// be set
@@ -3676,6 +3755,7 @@ func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extra
 	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(delUserCalled, Equals, true)
+	c.Check(seclogBuf.String(), testutil.Contains, `remove_reason="ensure-remove-expired-user"`)
 }
 
 func (s *deviceMgrSuite) testExpiredUserNotRemoved(c *C) {

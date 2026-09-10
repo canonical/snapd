@@ -181,7 +181,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// Get the files that this snap should have
 	content := b.deriveContent(spec.(*Specification), appSet)
 
-	globs := profileGlobs(instanceName.TODOInstanceName())
+	globs := profileGlobs(instanceName.String())
 
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {

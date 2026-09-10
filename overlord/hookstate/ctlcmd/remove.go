@@ -51,7 +51,7 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	comps, err := validateSnapAndCompsNames(c.Positional.Names, ctx.InstanceName())
+	comps, err := validateSnapAndCompsNames(c.Positional.Names, ctx.InstanceName().String())
 	if err != nil {
 		return err
 	}

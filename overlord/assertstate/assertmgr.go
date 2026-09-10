@@ -147,7 +147,7 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	db := DB(st)
-	verifiedRev, err := snapasserts.CrossCheck(snapsup.InstanceName(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
+	verifiedRev, err := snapasserts.CrossCheck(snapsup.InstanceName().String(), sha3_384, expectedProv, snapSize, snapsup.SideInfo, modelAs, db)
 	if err != nil {
 		// TODO: trigger a global validity check
 		// that will generate the changes to deal with this
@@ -208,7 +208,7 @@ func fetchAssertsAndValidateComponent(st *state.State, compsup *snapstate.Compon
 	// run this task, since we may need to download a new snap-resource-pair.
 	compPath := compsup.CompPath
 	if compPath == "" {
-		compPath = compsup.BlobPath(snapsup.InstanceName())
+		compPath = compsup.BlobPath(snapsup.InstanceName().String())
 	}
 
 	sha3_384, compSize, err := asserts.SnapFileSHA3_384(compPath)

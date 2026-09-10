@@ -250,13 +250,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 		}
 
 		instanceName := set.InstanceName()
-		optsForAppSet, err := computeConfinementOpts(instanceName.TODOInstanceName())
+		optsForAppSet, err := computeConfinementOpts(instanceName.String())
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %v", instanceName, err)
 			continue
 		}
 
-		precompOpts[instanceName.TODOInstanceName()] = optsForAppSet
+		precompOpts[instanceName.String()] = optsForAppSet
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -706,7 +706,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	}
 	confOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
 	for i, set := range appSets {
-		confOpts[set.InstanceName().TODOInstanceName()] = opts[i]
+		confOpts[set.InstanceName().String()] = opts[i]
 	}
 
 	st := task.State()
@@ -735,7 +735,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	sctxs := map[string]interfaces.SetupContext{
-		appSet.InstanceName().TODOInstanceName(): {
+		appSet.InstanceName().String(): {
 			Reason: interfaces.SnapSetupReasonOther,
 			// this is called only in the contexts where all backend effects
 			// are expected to be immediate
@@ -1371,7 +1371,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			return nil, err
 		}
 		instanceName := snapsup.InstanceName()
-		if seen[instanceName] {
+		if seen[instanceName.String()] {
 			continue
 		}
 
@@ -1392,8 +1392,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			continue
 		}
 
-		seen[instanceName] = true
-		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
+		seen[instanceName.String()] = true
+		snapInfo, err := snap.ReadInfo(instanceName.String(), snapsup.SideInfo)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue

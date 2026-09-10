@@ -42,7 +42,7 @@ func ParseKey(key string) (subkeys []string, err error) {
 	subkeys = strings.Split(key, ".")
 	for _, subkey := range subkeys {
 		if !validKey.MatchString(subkey) {
-			return nil, fmt.Errorf("invalid option name: %q", subkey)
+			return nil, fmt.Errorf(`invalid option name %q: must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`, subkey)
 		}
 	}
 	return subkeys, nil
@@ -53,7 +53,7 @@ type invalidKeyError struct {
 }
 
 func (e *invalidKeyError) Error() string {
-	return fmt.Sprintf("invalid option name: %q", e.field)
+	return fmt.Sprintf(`invalid JSON field name %q: must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`, e.field)
 }
 
 // validateMapKeys takes an unmarshalled JSON object and checks that any map

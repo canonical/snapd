@@ -265,7 +265,7 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 
 	return c.printValues(func(key string) (any, bool, error) {
 		var value any
-		err := transaction.Get(c.context().InstanceName(), key, &value)
+		err := transaction.Get(c.context().InstanceName().String(), key, &value)
 		if err == nil {
 			return value, true, nil
 		}
@@ -409,12 +409,12 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value any
-		err = getAttribute(context.InstanceName(), subkeys, 0, staticAttrs, &value)
+		err = getAttribute(context.InstanceName().String(), subkeys, 0, staticAttrs, &value)
 		if err == nil {
 			return value, true, nil
 		}
 		if isNoAttribute(err) {
-			err = getAttribute(context.InstanceName(), subkeys, 0, dynamicAttrs, &value)
+			err = getAttribute(context.InstanceName().String(), subkeys, 0, dynamicAttrs, &value)
 			if err == nil {
 				return value, true, nil
 			}
@@ -525,7 +525,7 @@ func (c *getCommand) buildDefaultOutput(request string) (map[string]any, error) 
 func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.PlugInfo, error) {
 	// TODO: this check currently doesn't support per-app plugs but it should eventually
 	repo := ifacerepo.Get(ctx.State())
-	plug := repo.Plug(ctx.InstanceName(), plugName)
+	plug := repo.Plug(ctx.InstanceName().String(), plugName)
 	if plug == nil {
 		return nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
 	}
@@ -534,7 +534,7 @@ func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.P
 		return nil, fmt.Errorf(i18n.G("cannot use --view with non-confdb plug :%s"), plugName)
 	}
 
-	conns, err := repo.Connected(ctx.InstanceName(), plugName)
+	conns, err := repo.Connected(ctx.InstanceName().String(), plugName)
 	if err != nil {
 		return nil, fmt.Errorf(i18n.G("cannot check if plug :%s is connected: %v"), plugName, err)
 	}

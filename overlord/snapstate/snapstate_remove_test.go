@@ -1361,7 +1361,7 @@ func (s *snapmgrTestSuite) TestRemoveConsultsSeedRefreshRemoveHookOnlyWhenEnable
 	})
 
 	called := false
-	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error {
+	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error {
 		called = true
 		return errors.New("blocked by test hook")
 	})
@@ -1405,7 +1405,7 @@ func (s *snapmgrTestSuite) TestRemoveSpecificRevisionDoesNotConsultSeedRefreshRe
 	tr.Commit()
 
 	called := false
-	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error {
+	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error {
 		called = true
 		return errors.New("blocked by test hook")
 	})

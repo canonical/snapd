@@ -102,14 +102,15 @@ jobs:
     - name: Prepare assets
       shell: bash
       run: |
-          mkdir $PWD/out-dir
-          ./packaging/pack-source -o $PWD/out-dir -v "$VERSION"
-          ./packaging/pack-source -o $PWD/out-dir -v "$VERSION" -s
+          outdir="$RUNNER_TEMP/out-dir"
+          mkdir $outdir
+          ./packaging/pack-source -o $outdir -v "$VERSION"
+          ./packaging/pack-source -o $outdir -v "$VERSION" -s
 
     - name: Checksums
       shell: bash
       run: |
-          cd $PWD/out-dir
+          cd "$RUNNER_TEMP/out-dir"
           for f in *.tar.xz; do
                sha256sum "$f"
           done
@@ -120,7 +121,7 @@ jobs:
       shell: bash
       run: |
           version="${{ needs.create-release.outputs.version }}"
-          cd $PWD/out-dir
+          cd "$RUNNER_TEMP/out-dir"
           for f in *.tar.xz; do
-              gh release upload "$version" "$f"
+              gh release upload --repo "${{ github.repository }}" "$version" "$f"
           done

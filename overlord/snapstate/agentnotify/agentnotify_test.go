@@ -51,7 +51,7 @@ func (s *agentNotifySuite) TestNotifyAgentOnLinkChange(c *C) {
 
 	var callCount int
 	r := agentnotify.MockMaybeSendClientFinishRefreshNotification(func(st *state.State, snapsup *snapstate.SnapSetup) {
-		c.Check(snapsup.InstanceName(), Equals, "some-snap")
+		c.Check(snapsup.InstanceName().String(), Equals, "some-snap")
 		callCount++
 	})
 	defer r()
@@ -112,16 +112,13 @@ func (s *agentNotifySuite) TestMaybeAsyncFinishedRefreshNotification(c *C) {
 	})
 	defer restore()
 
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-
 	agentnotify.MaybeSendClientFinishedRefreshNotification(s.st, sendInfo)
 	// no notification as refresh-appawareness-ux is enabled
 	// i.e. notices + warnings fallback is used instead
 	c.Check(connCheckCalled, Equals, 0)
 	c.Check(notificationCalled, Equals, 0)
 
+	tr := config.NewTransaction(s.st)
 	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
 	tr.Commit()
 

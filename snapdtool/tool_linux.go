@@ -20,6 +20,7 @@
 package snapdtool
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -54,6 +55,8 @@ var (
 
 	syscallExec = syscall.Exec
 	osReadlink  = os.Readlink
+
+	errNoInternalLibExecDir = errors.New("cannot find internal libexec directory")
 )
 
 // DistroSupportsReExec returns true if the distribution we are running on can use re-exec.
@@ -86,15 +89,43 @@ func candidateVersionNewer(coreOrSnapdPath string) (bool, error) {
 	}
 
 	// > 0 means our Version is bigger than the version of snapd in core
-	res, err := strutil.VersionCompare(Version, ver)
+	fullVer := FullVersion()
+	res, err := strutil.VersionCompare(fullVer, ver)
 	if err != nil {
-		return false, fmt.Errorf("cannot version compare %q and %q: %v", Version, ver, err)
+		return false, fmt.Errorf("cannot version compare %q and %q: %v", fullVer, ver, err)
 	}
 	if res > 0 {
-		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q) according to the info file (%q)", coreOrSnapdPath, ver, Version, filepath.Join(infoDir, "info"))
+		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q) according to the info file (%q)", coreOrSnapdPath, ver, fullVer, filepath.Join(infoDir, "info"))
 		return false, nil
 	}
 	return true, nil
+}
+
+// InternalLibExecDir returns the libexec directory for the currently executing
+// process. The return value is either the distro libexec directory or the
+// libexec directory in the core/snapd snap if the current binary is run from
+// that location.
+func InternalLibExecDir() (string, error) {
+	exe, err := osReadlink(selfExe)
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.HasPrefix(exe, dirs.DistroLibExecDir) {
+		idx := strings.LastIndex(exe, "/usr/")
+		if idx > 0 {
+			prefix := exe[:idx]
+			libExecDir := filepath.Join(prefix, dirs.CoreLibExecDir)
+			if osutil.IsDirectory(libExecDir) {
+				return libExecDir, nil
+			}
+		}
+	}
+
+	if osutil.IsDirectory(dirs.DistroLibExecDir) {
+		return dirs.DistroLibExecDir, nil
+	}
+	return "", errNoInternalLibExecDir
 }
 
 // InternalToolPath returns the path of an internal snapd tool. The tool
@@ -106,33 +137,20 @@ func candidateVersionNewer(coreOrSnapdPath string) (bool, error) {
 func InternalToolPath(tool string) (string, error) {
 	distroTool := filepath.Join(dirs.DistroLibExecDir, tool)
 
-	// find the internal path relative to the running snapd, this
-	// ensure we don't rely on the state of the system (like
-	// having a valid "current" symlink).
-	exe, err := osReadlink("/proc/self/exe")
+	libExecDir, err := InternalLibExecDir()
 	if err != nil {
+		if errors.Is(err, errNoInternalLibExecDir) {
+			return distroTool, nil
+		}
 		return "", err
 	}
-
-	if !strings.HasPrefix(exe, dirs.DistroLibExecDir) {
-		// either running from mounted location or /usr/bin/snap*
-
-		// find the local prefix to the snap:
-		// /snap/snapd/123/usr/bin/snap       -> /snap/snapd/123
-		// /snap/core/234/usr/lib/snapd/snapd -> /snap/core/234
-		idx := strings.LastIndex(exe, "/usr/")
-		if idx > 0 {
-			// only assume mounted location when path contains
-			// /usr/, but does not start with one
-			prefix := exe[:idx]
-			maybeTool := filepath.Join(prefix, "/usr/lib/snapd", tool)
-			if osutil.IsExecutable(maybeTool) {
-				return maybeTool, nil
-			}
-		}
+	if libExecDir == dirs.DistroLibExecDir {
+		return distroTool, nil
 	}
-
-	// fallback to distro tool
+	snapTool := filepath.Join(libExecDir, tool)
+	if osutil.IsExecutable(snapTool) {
+		return snapTool, nil
+	}
 	return distroTool, nil
 }
 

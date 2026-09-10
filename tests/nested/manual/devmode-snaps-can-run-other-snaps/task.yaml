@@ -61,6 +61,10 @@ prepare: |
   tests.nested create-vm core
 
 execute: |
+  profile_regeneration_change_count() {
+    remote.exec snap changes | awk '/Regenerate security profiles/ { count++ } END { print count + 0 }'
+  }
+
   # TODO: should we also just test the classic cases on the system that is 
   # driving the nested VM? That would save some time/resources
 
@@ -111,6 +115,8 @@ execute: |
     # snaps from inside the devmode non-core based snap
     remote.exec sudo snap install --devmode "$BASE_NON_CORE_DEVMODE_SNAP"
 
+    regeneration_changes_count="$(profile_regeneration_change_count)"
+
     # umask is the command we execute to avoid yet another layer of quoting
     OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
     if [ "$OUTPUT" != "0002" ]; then
@@ -123,6 +129,10 @@ execute: |
       echo "test failed"
       exit 1
     fi
+
+    # ensure running a snap from a devmode snap does not cause snapd to
+    # regenerate security profiles.
+    test "$(profile_regeneration_change_count)" = "$regeneration_changes_count"
 
   elif os.query is-bionic; then
     # on UC18, initially we will only have the snapd snap installed, run those
@@ -154,6 +164,8 @@ execute: |
     remote.exec sudo snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"
     remote.exec sudo snap install "$BASE_CORE_STRICT_SNAP"
 
+    regeneration_changes_count="$(profile_regeneration_change_count)"
+
     OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | remote.exec "snap run --shell ${BASE_CORE_DEVMODE_SNAP}")
     if [ "$OUTPUT" != "0002" ]; then
       echo "test failed"
@@ -165,6 +177,10 @@ execute: |
       echo "test failed"
       exit 1
     fi
+
+    # ensure running a snap from a devmode snap does not cause snapd to
+    # regenerate security profiles.
+    test "$(profile_regeneration_change_count)" = "$regeneration_changes_count"
 
   else
     echo "unsupported system for this test"

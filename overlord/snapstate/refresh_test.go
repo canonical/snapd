@@ -278,7 +278,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	snapst.RefreshInhibitedTime = &pastInstant
-	snapstate.Set(s.state, snapst.InstanceName(), snapst)
+	snapstate.Set(s.state, snapst.InstanceName().String(), snapst)
 
 	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {})
 	defer restore()

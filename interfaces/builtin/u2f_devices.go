@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const u2fDevicesSummary = `allows access to u2f devices`
@@ -227,6 +228,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "20a0",
 		ProductIDPattern: "42d4",
 	},
+	{
+		Name:             "Gemalto eToken Fusion",
+		VendorIDPattern:  "08e6",
+		ProductIDPattern: "34d2",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
@@ -252,8 +258,16 @@ type u2fDevicesInterface struct {
 }
 
 func (iface *u2fDevicesInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	for _, d := range u2fDevices {
-		spec.TagDevice(fmt.Sprintf("# %s\nSUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ATTRS{idVendor}==\"%s\", ATTRS{idProduct}==\"%s\"", d.Name, d.VendorIDPattern, d.ProductIDPattern))
+
+	if err := systemd.EnsureAtLeast(244); err != nil {
+		if !systemd.IsSystemdTooOld(err) {
+			return err
+		}
+		for _, d := range u2fDevices {
+			spec.TagDevice(fmt.Sprintf("# %s\nSUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ATTRS{idVendor}==\"%s\", ATTRS{idProduct}==\"%s\"", d.Name, d.VendorIDPattern, d.ProductIDPattern))
+		}
+	} else {
+		spec.TagDevice(fmt.Sprintf("SUBSYSTEM==\"hidraw\", KERNEL==\"hidraw*\", ENV{ID_SECURITY_TOKEN}==\"1\""))
 	}
 	return nil
 }

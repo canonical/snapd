@@ -5,7 +5,7 @@ details: |
     a command in the remote instance. Also verifies that on failure
     the exit code from the final attempt is returned.   
 
-backends: [openstack]
+backends: [openstack*]
 
 systems: [ubuntu-22.04-64]
 

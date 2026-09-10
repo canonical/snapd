@@ -26,18 +26,6 @@ execute: |
     "$TESTSTOOLS"/store-state -h | MATCH "usage: store-state setup-fake-store <DIR>"
     "$TESTSTOOLS"/store-state --help | MATCH "usage: store-state setup-fake-store <DIR>"
 
-    # Staging store cannot be used with snapd deb from the repository
-    # The staging keys are being checked before snapd re-exec into snapd snap
-    if not tests.info is-snapd-from-archive; then
-        # Setup staging store
-        "$TESTSTOOLS"/store-state setup-staging-store
-        snap info core | MATCH "store-url:.*https://staging-api.snapcraft.io"
-
-        # Teardown staging store
-        "$TESTSTOOLS"/store-state teardown-staging-store
-        snap info core | MATCH "store-url:.*https://snapcraft.io"
-    fi
-
     # install test snap dependency before switching to fake store
     base_dep="$(gojq -r --yaml-input '.base' < snap/meta/snap.yaml.in)"
     snap install "$base_dep"

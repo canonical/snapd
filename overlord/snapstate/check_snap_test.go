@@ -118,19 +118,20 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 	},
 	}
 
-	restore := snapdtool.MockVersion("2.15")
+	restore := snapdtool.MockVersion("2.15", "")
 	defer restore()
 
 	restore = release.MockOnClassic(false)
 	defer restore()
 
 	for _, test := range assumesTests {
-		snapdtool.Version = test.version
-		if snapdtool.Version == "" {
-			snapdtool.Version = "2.15"
+		// FIXME: This relies on eventual defer of snapdtool.MockVersion above ^^^.
+		snapdtool.UpstreamVersion = test.version
+		if snapdtool.UpstreamVersion == "" {
+			snapdtool.UpstreamVersion = "2.15"
 		}
 
-		comment := Commentf("snap assumes %q, but snapd version is %q", test.assumes, snapdtool.Version)
+		comment := Commentf("snap assumes %q, but snapd version is %q", test.assumes, snapdtool.UpstreamVersion)
 		release.OnClassic = test.classic
 
 		yaml := fmt.Sprintf("name: foo\nversion: 1.0\nassumes: %s\n", test.assumes)

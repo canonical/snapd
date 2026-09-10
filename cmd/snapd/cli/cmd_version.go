@@ -64,7 +64,7 @@ func printVersions(cli *client.Client, verbose bool) error {
 	sv := serverVersion(cli)
 	w := tabWriter()
 
-	fmt.Fprintf(w, "snap\t%s\n", snapdtool.Version)
+	fmt.Fprintf(w, "snap\t%s\n", snapdtool.FullVersion())
 	fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
 	fmt.Fprintf(w, "series\t%s\n", sv.Series)
 	if sv.OnClassic {

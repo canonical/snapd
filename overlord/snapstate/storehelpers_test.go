@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -117,9 +116,18 @@ const (
 
 type installSizeTestStore struct {
 	*fakeStore
+
+	// blockSnapAction lets tests inject a synchronization point so that state
+	// operations can be done while the lock is unlocked when interfacing with
+	// the store. Ignored if nil.
+	blockSnapAction <-chan struct{}
 }
 
 func (f installSizeTestStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if f.blockSnapAction != nil {
+		<-f.blockSnapAction
+	}
+
 	sizes := map[string]int64{
 		"some-base":               someBaseSize,
 		"other-base":              otherBaseSize,
@@ -196,6 +204,59 @@ func (s *snapmgrTestSuite) TestInstallSizeSimple(c *C) {
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap2}}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeIncludesInstalledOlderRevision(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	})
+
+	target := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	})
+	target.Size = snap1Size
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.InstallSnapInfo{Info: target},
+	}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size))
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeExcludesRetainedTargetRevision(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+		}),
+		Current: snap.R(1),
+	})
+
+	target := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	})
+	target.Size = snap1Size
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.InstallSnapInfo{Info: target},
+	}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(0))
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeWithBases(c *C) {
@@ -302,23 +363,11 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	var currentSnapsCalled int
-	restore := snapstate.MockCurrentSnaps(func(st *state.State) ([]*store.CurrentSnap, error) {
-		currentSnapsCalled++
-		// call original implementation of currentSnaps
-		curr, err := snapstate.CurrentSnaps(st)
-		if currentSnapsCalled == 1 {
-			return curr, err
-		}
-		// simulate other change that installed some-snap3 and other-base while
-		// we release the lock inside InstallSize.
-		curr = append(curr, &store.CurrentSnap{InstanceName: "some-snap3"})
-		curr = append(curr, &store.CurrentSnap{InstanceName: "other-base"})
-		return curr, nil
+	blockSnapAction := make(chan struct{})
+	snapstate.ReplaceStore(st, installSizeTestStore{
+		fakeStore:       s.fakeStore,
+		blockSnapAction: blockSnapAction,
 	})
-	defer restore()
-
-	s.setupInstallSizeStore()
 
 	snap1 := snaptest.MockSnap(c, snapYamlWithBase1, &snap.SideInfo{
 		RealName: "some-snap1",
@@ -331,14 +380,37 @@ func (s *snapmgrTestSuite) TestInstallSizeWithOtherChangeAffectingSameSnaps(c *C
 	})
 	snap3.Size = snap3Size
 
+	// this will block until the state is unlocked to talk to the store. once it
+	// is done, we unblock the request to the store. this mimics a change that
+	// completed while we talk to the store.
+	go func() {
+		st.Lock()
+		defer func() {
+			st.Unlock()
+			close(blockSnapAction)
+		}()
+
+		snapstate.Set(st, "some-snap3", &snapstate.SnapState{
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{RealName: "some-snap3", Revision: snap.R(2)},
+			}),
+			Current: snap.R(2),
+		})
+		snapstate.Set(st, "other-base", &snapstate.SnapState{
+			Active: true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{RealName: "other-base", Revision: snap.R(1)},
+			}),
+			Current: snap.R(1),
+		})
+	}()
+
 	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
 		snapstate.InstallSnapInfo{Info: snap1}, snapstate.InstallSnapInfo{Info: snap3}}, 0, nil)
 	c.Assert(err, IsNil)
 	// snap3 and its base installed by another change, not counted here
 	c.Check(sz, Equals, uint64(snap1Size+someBaseSize))
-
-	// validity
-	c.Check(currentSnapsCalled, Equals, 2)
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeErrorNoDownloadInfo(c *C) {
@@ -408,6 +480,9 @@ func (s *snapmgrTestSuite) TestInstallSizeWithPrereqAndCoreNoStore(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	// core is supplied as a target, so remove the default installed fixture.
+	snapstate.Set(st, "core", nil)
 
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(st, repo)

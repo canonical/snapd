@@ -5,7 +5,7 @@ details: |
     events in the remote instance. Supported events are:
     device-initialized, reboot, refresh, ssh, no-ssh, etc
 
-backends: [google-nested]
+backends: [openstack-ext]
 
 systems: [ubuntu-22.04-64]
 

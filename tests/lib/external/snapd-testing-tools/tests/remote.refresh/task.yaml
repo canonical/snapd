@@ -5,7 +5,7 @@ details: |
     the remote instance including the refresh for several snaps
     which trigger reboots
 
-backends: [google-nested]
+backends: [openstack-ext]
 
 systems: [ubuntu-22.04-64]
 

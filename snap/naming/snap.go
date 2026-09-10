@@ -34,12 +34,6 @@ func (n SnapName) String() string {
 	return string(n)
 }
 
-// TODOSnapName is the same as String, but marks all the places
-// that need to be updated to take SnapName type instance.
-func (n SnapName) TODOSnapName() string {
-	return string(n)
-}
-
 // InstanceName is the name of a snap decorated with an optional instance key.
 type InstanceName string
 
@@ -69,11 +63,5 @@ func (n InstanceName) InstanceKey() string {
 
 // String returns the instance name as a plain string.
 func (n InstanceName) String() string {
-	return string(n)
-}
-
-// TODOInstanceName is the same as String, but marks all the places
-// that need to be updated to take InstanceName type instance.
-func (n InstanceName) TODOInstanceName() string {
 	return string(n)
 }

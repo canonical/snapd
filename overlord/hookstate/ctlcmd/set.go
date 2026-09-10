@@ -164,7 +164,7 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	}
 
 	for _, key := range confKeys {
-		if err := tr.Set(s.context().InstanceName(), key, confValues[key]); err != nil {
+		if err := tr.Set(s.context().InstanceName().String(), key, confValues[key]); err != nil {
 			return err
 		}
 	}
@@ -191,7 +191,7 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]an
 		return fmt.Errorf("internal error: unexpected empty subkeys for key %q", key)
 	}
 	var existing any
-	err = getAttribute(context.InstanceName(), subkeys[:1], 0, staticAttrs, &existing)
+	err = getAttribute(context.InstanceName().String(), subkeys[:1], 0, staticAttrs, &existing)
 	if err == nil {
 		return fmt.Errorf(i18n.G("attribute %q cannot be overwritten"), key)
 	}
@@ -200,7 +200,7 @@ func setInterfaceAttribute(context *hookstate.Context, staticAttrs map[string]an
 		return err
 	}
 
-	_, err = config.PatchConfig(context.InstanceName(), subkeys, 0, dynamicAttrs, &raw)
+	_, err = config.PatchConfig(context.InstanceName().String(), subkeys, 0, dynamicAttrs, &raw)
 	return err
 }
 
