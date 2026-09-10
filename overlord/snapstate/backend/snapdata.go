@@ -128,7 +128,7 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts
 	if !hasOtherInstances {
 		// remove the snap base directory only if there are no other
 		// snap instances using it
-		if err := removeBaseDataDirsFor(info.SnapName()); err != nil {
+		if err := removeBaseDataDirsFor(info.SnapName().String()); err != nil {
 			return err
 		}
 	}

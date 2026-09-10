@@ -1754,7 +1754,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 			info, err := snap.ReadInfoFromSnapFile(container, nil)
 			c.Assert(err, check.IsNil)
 
-			c.Check(info.SnapName(), check.Equals, sn.SideInfo.RealName)
+			c.Check(info.SnapName().String(), check.Equals, sn.SideInfo.RealName)
 
 			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
 			tss = append(tss, ts)

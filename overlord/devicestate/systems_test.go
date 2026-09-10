@@ -205,7 +205,7 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 	c.Assert(err, IsNil)
 	seenSnaps := []string{}
 	for _, sn := range snaps {
-		seenSnaps = append(seenSnaps, sn.SnapName())
+		seenSnaps = append(seenSnaps, sn.SnapName().String())
 	}
 	sort.Strings(seenSnaps)
 	sort.Strings(runModeSnapNames)
@@ -237,7 +237,7 @@ func infoGetterFromMaps(c *C, snaps map[string]*snap.Info, comps map[string]*sna
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			cref.ComponentName,
 			info.Revision,
-			snapInfo.SnapName(),
+			snapInfo.SnapName().String(),
 		)
 
 		return info, cpi.MountFile(), true, nil

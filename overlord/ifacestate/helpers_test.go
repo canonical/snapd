@@ -340,7 +340,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 	// add "core" snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnapInstance(c, "", coreSnapYaml, sideInfo)
-	sideInfo.RealName = snapInfo.SnapName()
+	sideInfo.RealName = snapInfo.SnapName().String()
 
 	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,
@@ -370,7 +370,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 	// "snapd" snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnapInstance(c, "", snapdYaml, sideInfo)
-	sideInfo.RealName = snapInfo.SnapName()
+	sideInfo.RealName = snapInfo.SnapName().String()
 
 	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,

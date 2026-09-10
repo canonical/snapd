@@ -175,7 +175,7 @@ func (s *NvidiaVideoDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "nvidia-video-provider", SlotName: "nvidia-video-slot"}: {filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
+		{InstanceName: "nvidia-video-provider", SlotName: "nvidia-video-slot"}: {filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "nvidia-video-provider/5/lib2")}})
 }
 

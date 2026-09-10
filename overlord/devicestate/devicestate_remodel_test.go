@@ -6897,7 +6897,7 @@ func mockSnapstateInstallComponents(c *C, snaps map[string]expectedSnap) (restor
 			expected, ok := sn.components[name]
 			c.Assert(ok, Equals, true, Commentf("unexpected component installation for snap %q: %q", info.InstanceName(), name))
 
-			cref := naming.NewComponentRef(info.SnapName(), name)
+			cref := naming.NewComponentRef(info.SnapName().String(), name)
 
 			download := st.NewTask("mock-download-component", "download component")
 			download.Set("component-setup", &snapstate.ComponentSetup{

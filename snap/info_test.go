@@ -355,7 +355,7 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo2.SnapName(), Equals, "sample")
+	c.Check(snapInfo2.SnapName().String(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "instance summary")
 
@@ -422,7 +422,7 @@ func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo2.SnapName(), Equals, "sample")
+	c.Check(snapInfo2.SnapName().String(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
@@ -511,7 +511,7 @@ func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, IsNil)
-	c.Check(info.SnapName(), Equals, "test")
+	c.Check(info.SnapName().String(), Equals, "test")
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.Summary(), Equals, "esummary")
 	c.Check(info.Size, Equals, int64(0))
@@ -1289,7 +1289,7 @@ func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 		if t.expectErr != "" {
 			c.Check(err, ErrorMatches, t.expectErr)
 		} else {
-			c.Check(p.SnapName(), Equals, t.name)
+			c.Check(p.SnapName().String(), Equals, t.name)
 			c.Check(p.SnapRevision(), Equals, snap.R(t.rev))
 		}
 	}
@@ -1886,11 +1886,11 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 	}
 
 	c.Check(info.InstanceName(), Equals, "snap-name_foo")
-	c.Check(info.SnapName(), Equals, "snap-name")
+	c.Check(info.SnapName().String(), Equals, "snap-name")
 
 	info.InstanceKey = ""
 	c.Check(info.InstanceName(), Equals, "snap-name")
-	c.Check(info.SnapName(), Equals, "snap-name")
+	c.Check(info.SnapName().String(), Equals, "snap-name")
 }
 
 func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {

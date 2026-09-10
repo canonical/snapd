@@ -2639,7 +2639,7 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
@@ -2747,7 +2747,7 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	results, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 
@@ -2842,7 +2842,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
@@ -2945,7 +2945,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
@@ -3037,7 +3037,7 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
@@ -3271,7 +3271,7 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(28))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)

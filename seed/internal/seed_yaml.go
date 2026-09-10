@@ -35,7 +35,7 @@ import (
 // assertions (or alone if unasserted is true) it will be used to
 // drive the installation and ultimately set SideInfo/SnapState for it.
 type Snap16 struct {
-	Name string `yaml:"name"`
+	Name naming.SnapName `yaml:"name"`
 
 	// cross-reference/audit
 	SnapID string `yaml:"snap-id,omitempty"`
@@ -72,7 +72,7 @@ func ReadSeedYaml(fn string) (*Seed16, error) {
 		return nil, fmt.Errorf("%s: cannot unmarshal %q: %s", errPrefix, yamlData, err)
 	}
 
-	seenNames := make(map[string]bool, len(seed.Snaps))
+	seenNames := make(map[naming.SnapName]bool, len(seed.Snaps))
 	// validate
 	for _, sn := range seed.Snaps {
 		if sn == nil {
@@ -80,7 +80,7 @@ func ReadSeedYaml(fn string) (*Seed16, error) {
 		}
 		// TODO: check if it's a parallel install explicitly,
 		// need to move *Instance* helpers from snap to naming
-		if err := naming.ValidateSnap(sn.Name); err != nil {
+		if err := naming.ValidateSnap(sn.Name.String()); err != nil {
 			return nil, fmt.Errorf("%s: %v", errPrefix, err)
 		}
 		if sn.Channel != "" {

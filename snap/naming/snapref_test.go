@@ -31,17 +31,17 @@ var _ = Suite(&snapRefSuite{})
 
 func (s *snapRefSuite) TestNewSnapRef(c *C) {
 	fooRef := naming.NewSnapRef("foo", "foo-id")
-	c.Check(fooRef.SnapName(), Equals, "foo")
+	c.Check(fooRef.SnapName().String(), Equals, "foo")
 	c.Check(fooRef.ID(), Equals, "foo-id")
 
 	fooNameOnlyRef := naming.NewSnapRef("foo", "")
-	c.Check(fooNameOnlyRef.SnapName(), Equals, "foo")
+	c.Check(fooNameOnlyRef.SnapName().String(), Equals, "foo")
 	c.Check(fooNameOnlyRef.ID(), Equals, "")
 }
 
 func (s *snapRefSuite) TestSnap(c *C) {
 	fooNameOnlyRef := naming.Snap("foo")
-	c.Check(fooNameOnlyRef.SnapName(), Equals, "foo")
+	c.Check(fooNameOnlyRef.SnapName().String(), Equals, "foo")
 	c.Check(fooNameOnlyRef.ID(), Equals, "")
 }
 

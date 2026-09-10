@@ -130,7 +130,7 @@ func (ss *SeedSnaps) makeAssertedSnap(
 ) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
-	snapName := info.SnapName()
+	snapName := info.SnapName().String()
 
 	snapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, files)
 
@@ -523,7 +523,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		c.Assert(err, IsNil)
 
 		// Add components from option paths
-		compPaths := compPathsBySnap[info.SnapName()]
+		compPaths := compPathsBySnap[info.SnapName().String()]
 		seedComps := make(map[string]*seedwriter.SeedComponent, len(compPaths))
 		for _, compPath := range compPaths {
 			compf, err := snapfile.Open(compPath)
@@ -562,7 +562,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 			return aRefs, nil
 		}
 		prev := len(sf.Refs())
-		if err = sf.Save(s.snapRevs[sn.SnapName()]); err != nil {
+		if err = sf.Save(s.snapRevs[sn.SnapName().String()]); err != nil {
 			return nil, err
 		}
 
@@ -572,7 +572,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		}
 
 		// Components assertions
-		for _, resRev := range s.resRevs[sn.SnapName()] {
+		for _, resRev := range s.resRevs[sn.SnapName().String()] {
 			if _, ok := seededResources[resRev.ResourceName()]; !ok {
 				continue
 			}
@@ -581,7 +581,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 				return nil, err
 			}
 		}
-		for _, resPair := range s.resPairs[sn.SnapName()] {
+		for _, resPair := range s.resPairs[sn.SnapName().String()] {
 			if _, ok := seededResources[resPair.ResourceName()]; !ok {
 				continue
 			}
@@ -599,7 +599,7 @@ func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Mod
 		c.Assert(err, IsNil)
 
 		for _, sn := range snaps {
-			name := sn.SnapName()
+			name := sn.SnapName().String()
 
 			info := s.AssertedSnapInfo(name)
 			c.Assert(info, NotNil, Commentf("no snap info for %q", name))

@@ -475,7 +475,7 @@ components:
 			sequence.NewComponentState(csi, snap.KernelModulesComponent))
 		snaptest.MockComponent(c, compYaml, kernelInfo, *csi)
 		compFn := snaptest.MakeTestComponentWithFiles(c, comp.name, compYaml, nil)
-		cpi := snap.MinimalComponentContainerPlaceInfo(comp.name, comp.rev, kernelInfo.SnapName())
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.name, comp.rev, kernelInfo.SnapName().String())
 		err := os.Rename(compFn, cpi.MountFile())
 		c.Assert(err, IsNil)
 	}
@@ -1332,7 +1332,7 @@ func (fs *fakeSeed) ModeSnaps(mode string) ([]*seed.Snap, error) {
 
 func (fs *fakeSeed) ModeSnap(snapName, mode string) (*seed.Snap, error) {
 	for _, sn := range fs.essentialSnaps {
-		if sn.SnapName() == snapName {
+		if sn.SnapName().String() == snapName {
 			return sn, nil
 		}
 	}

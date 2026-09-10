@@ -240,13 +240,13 @@ func (sm *Manifest) MarkValidationSetSeeded(vsa *asserts.ValidationSet, pinned b
 		}
 
 		// Update allowed snaps based on the validation-set.
-		if err := sm.SetAllowedSnapRevision(sn.SnapName(), snap.R(sn.Revision)); err != nil {
+		if err := sm.SetAllowedSnapRevision(sn.SnapName().String(), snap.R(sn.Revision)); err != nil {
 			return err
 		}
 
 		// For book-keeping purposes we add the snap to the list of controlled
 		// snap revisions by the validation set.
-		vs.Snaps = append(vs.Snaps, sn.SnapName())
+		vs.Snaps = append(vs.Snaps, sn.SnapName().String())
 	}
 
 	sm.vsSeeded[vs.Unique()] = vs

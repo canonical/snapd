@@ -469,7 +469,7 @@ func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	return checkComponentsAgainstConstraints(info.SnapName(), comps, constraints, action)
+	return checkComponentsAgainstConstraints(info.SnapName().String(), comps, constraints, action)
 }
 
 func checkSnapAgainstConstraints(
@@ -616,7 +616,7 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, typ)
 	}
 
-	cref := naming.NewComponentRef(info.SnapName(), name)
+	cref := naming.NewComponentRef(info.SnapName().String(), name)
 
 	csi := snap.ComponentSideInfo{
 		Component: cref,
