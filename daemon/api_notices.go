@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
@@ -316,7 +315,6 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 
 	processExeName, err := ucred.UntrustedProcessExeName()
 	if err != nil {
-		logger.Noticef("cannot determine executable of calling process: %v", err)
 		return false, errors.New("cannot determine executable of calling process")
 	}
 
