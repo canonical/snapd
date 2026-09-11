@@ -189,3 +189,14 @@ execute: |
     MATCH '^connected-content: special content mod v1$'    < out_c2-after.4
     MATCH '^connected-content-2: <not found>$'             < out_c2-after.4
     MATCH '^connected-content-v2: special content mod v3$' < out_c2-after.4
+
+    echo "Observe parallel instances after the original snaps are removed"
+    snap remove test-snapd-content-consumer
+    snap remove test-snapd-content-provider
+
+    test-snapd-content-consumer_c2.app |& tee out_c2-after-remove
+
+    MATCH "hello from app test-snapd-content-consumer_c2" < out_c2-after-remove
+    MATCH '^connected-content: special content mod v1$'    < out_c2-after-remove
+    MATCH '^connected-content-2: <not found>$'             < out_c2-after-remove
+    MATCH '^connected-content-v2: special content mod v3$' < out_c2-after-remove
