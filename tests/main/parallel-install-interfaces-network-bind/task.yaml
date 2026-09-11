@@ -7,8 +7,8 @@ details: |
 
     The test checks that:
     - the instance's service fails to start due to the port conflict, and
-      moving it to a free port lets it work normally without affecting the
-      regular snap
+      reconfiguring it to use a free port lets it work normally without
+      affecting the regular snap
     - connecting and disconnecting the interface for either snap only
       affects that snap's own service
     - the conflicting port is not actually released when the regular snap's
@@ -72,34 +72,24 @@ execute: |
     echo "Then the regular snap's service is accessible by a client"
     check_service_accessible "$DEFAULT_PORT"
 
-    echo "And the instance's service works fine when bound to a port that isn't already in use"
+    echo "And the instance's service works fine when configured to use a port that isn't already in use"
     INST_SERVICE_UNIT="snap.$INSTANCE_NAME.$SERVICE_NAME.service"
-    INST_OVERRIDE_DIR="/etc/systemd/system/$INST_SERVICE_UNIT.d"
 
-    mkdir -p "$INST_OVERRIDE_DIR"
-    # cleanup runs LIFO: daemon-reload must be deferred before rm so it runs after it
-    tests.cleanup defer systemctl daemon-reload
-    tests.cleanup defer rm -rf "$INST_OVERRIDE_DIR"
-
-    # stops the instance, points its PORT env var at $1 and reloads systemd
-    override_instance_port() {
-        snap stop "$INSTANCE_NAME"
-        echo "[Service]" > "$INST_OVERRIDE_DIR/override.conf"
-        echo "Environment=PORT=$1" >> "$INST_OVERRIDE_DIR/override.conf"
-        systemctl daemon-reload
-        # clears the start-limit-hit state, otherwise the service may refuse to start
+    # sets the instance's port and its configure hook restarts the service
+    configure_instance_port() {
+        # clear the start-limit-hit state, otherwise the service may refuse to start
         systemctl reset-failed "$INST_SERVICE_UNIT"
+        snap set "$INSTANCE_NAME" port="$1"
     }
 
-    override_instance_port "$ALT_PORT"
-    snap start "$INSTANCE_NAME"
+    configure_instance_port "$ALT_PORT"
 
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
     wait_listen_port "$ALT_PORT"
     check_service_accessible "$ALT_PORT"
 
-    echo "And the regular snap's service is unaffected by stopping/starting the instance's service"
+    echo "And the regular snap's service is unaffected by reconfiguring the instance's service"
     check_service_accessible "$DEFAULT_PORT"
 
     if [ "$(snap debug confinement)" = partial ] ; then
@@ -134,12 +124,10 @@ execute: |
     check_service_accessible "$ALT_PORT"
 
     echo "And even with the regular snap's plug disconnected, its process still holds port $DEFAULT_PORT so the instance still can't bind it"
-    override_instance_port "$DEFAULT_PORT"
-
     # a local cursor lets us check only this attempt's log, since the same
     # failure message was already logged for this unit earlier in the test
     cursor=$("$TESTSTOOLS"/journal-state get-last-cursor)
-    snap start "$INSTANCE_NAME"
+    configure_instance_port "$DEFAULT_PORT"
 
     retry -n 15 --wait 1 sh -c "$TESTSTOOLS/journal-state get-log-from-cursor '$cursor' -u '$INST_SERVICE_UNIT' | grep -q 'Failed to start'"
 

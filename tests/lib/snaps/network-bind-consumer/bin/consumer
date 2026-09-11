@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -20,5 +20,12 @@ def run(port):
     httpd.serve_forever()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', '8081'))
+    # the port is normally set via "snap set $SNAP_INSTANCE_NAME port=<port>"
+    value = subprocess.check_output(['snapctl', 'get', 'port']).strip()
+    # default port if the snap configuration is not set or invalid
+    port = 8081
+    try:
+        port = int(value)
+    except ValueError:
+        pass
     sys.exit(run(port))
