@@ -564,22 +564,28 @@ pkg_dependencies_ubuntu_nested(){
             qemu-efi-aarch64
         "
     fi
-    if os.query is-ubuntu-ge 20.04 && ! os.query is-ubuntu-ge 24.04; then
-        add-apt-repository ppa:snappy-dev/image -y  > /dev/null 2>&1
+
+    if os.query is-ubuntu-ge 20.04; then
         echo "
-            software-properties-common
-            ubuntu-core-initramfs
-            linux-firmware
+            golang
         "
-    fi
-    if os.query is-ubuntu-ge 24.04; then
-        echo "
-            dpkg-dev
-            debhelper
-            devscripts
-            distro-info
-            linux-firmware
-        "
+        if os.query is-ubuntu-ge 24.04; then
+            echo "
+                dpkg-dev
+                debhelper
+                devscripts
+                distro-info
+                linux-firmware
+            "
+        else
+            add-apt-repository ppa:snappy-dev/image -y  > /dev/null 2>&1
+            echo "
+                software-properties-common
+                ubuntu-core-initramfs
+                linux-firmware
+            "
+        fi
+
     fi
 }
 
