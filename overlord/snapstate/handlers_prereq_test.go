@@ -131,11 +131,15 @@ func (s *prereqSuite) TestPrereqTaskRetriesIfBaseIsBeingRemoved(c *C) {
 	defer s.state.Unlock()
 
 	rmChg := s.state.NewChange("remove-snap", "remove some-base")
+	blocker := s.state.NewTask("blocker", "keep removal in progress")
+	blocker.SetStatus(state.HoldStatus)
 	autoDisconnect := s.state.NewTask("auto-disconnect", "remove some-base connections")
 	autoDisconnect.Set("full-remove", true)
 	autoDisconnect.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)},
 	})
+	autoDisconnect.WaitFor(blocker)
+	rmChg.AddTask(blocker)
 	rmChg.AddTask(autoDisconnect)
 
 	prereq := s.state.NewTask("prerequisites", "foo")
@@ -172,11 +176,15 @@ func (s *prereqSuite) TestPrereqTaskRetriesIfKernelBaseIsBeingRemoved(c *C) {
 	defer s.state.Unlock()
 
 	rmChg := s.state.NewChange("remove-snap", "remove some-base")
+	blocker := s.state.NewTask("blocker", "keep removal in progress")
+	blocker.SetStatus(state.HoldStatus)
 	autoDisconnect := s.state.NewTask("auto-disconnect", "remove some-base connections")
 	autoDisconnect.Set("full-remove", true)
 	autoDisconnect.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)},
 	})
+	autoDisconnect.WaitFor(blocker)
+	rmChg.AddTask(blocker)
 	rmChg.AddTask(autoDisconnect)
 
 	prereq := s.state.NewTask("prerequisites", "kernel")
