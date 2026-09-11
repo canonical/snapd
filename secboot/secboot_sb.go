@@ -173,7 +173,6 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 						canFixManually = false
 						canAutoRepair = false
 					}
-					continue
 				}
 				if errorType != sb.KeyslotErrorIncorrectUserAuth {
 					allKeySlotsFailWithIncorrectUserAuth = false
