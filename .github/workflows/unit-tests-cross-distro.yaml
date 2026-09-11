@@ -38,6 +38,8 @@ jobs:
             dnf upgrade -y
             dnf install -y rpmdevtools
             dnf install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
+            # TODO: use meson
+            dnf install -y make autoconf autoconf-archive automake make libtool
             # TODO these are needed only by cmd/snap-seccomp unit tests, and
             # should be added to BuildRequires
             dnf install -y glibc-devel.i686 glibc-static.i686
