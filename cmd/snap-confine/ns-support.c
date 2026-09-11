@@ -486,9 +486,10 @@ static bool managed_ca_cert_db_changed(const sc_invocation *inv, sc_distro distr
               current_generation);
         return true;
     } else if (!mount_supported) {
-        // If the namespace recorded a generation but the host no longer exposes one,
-        // then the preserved namespace is stale.
-        return current_generation != NULL;
+        // Once a namespace recorded managed CA generation metadata, any later
+        // launch that would no longer mount managed CA certs must recreate it
+        // once so the preserved namespace matches the new unsupported layout.
+        return true;
     }
 
     // Okay, a previous generation was recorded, now we check for changes
@@ -1076,7 +1077,7 @@ void sc_wait_for_helper(struct sc_mount_ns *group) {
     sc_wait_for_capture_helper(group);
 }
 
-void sc_store_ns_info(const sc_invocation *inv) {
+void sc_store_ns_info(const sc_invocation *inv, sc_distro distro) {
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     char info_path[PATH_MAX] = {0};
     sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
@@ -1095,11 +1096,13 @@ void sc_store_ns_info(const sc_invocation *inv) {
     }
     fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
 
-    // Record the selected published generation so preserved namespaces are
-    // recreated when snapd flips merged to a different generation.
-    char *generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
-    if (generation != NULL) {
-        fprintf(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY "=%s\n", generation);
+    // Only record a managed CA generation for namespaces that actually mounted
+    // it, so unsupported rootfs layouts do not churn on every reuse attempt.
+    if (managed_ca_certs_mount_supported(inv, distro)) {
+        char *generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
+        if (generation != NULL) {
+            fprintf(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY "=%s\n", generation);
+        }
     }
 
     if (ferror(stream) != 0) {
