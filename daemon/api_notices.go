@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
@@ -313,7 +314,9 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 		return false, err
 	}
 
-	if ucred.ProcessExe == "" {
+	processExeName, err := ucred.UntrustedProcessExeName()
+	if err != nil {
+		logger.Noticef("cannot determine executable of calling process: %v", err)
 		return false, errors.New("cannot determine executable of calling process")
 	}
 
@@ -321,21 +324,21 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 	// - we are re-executed and the client isn't
 	// - the client re-executed but we did not
 
-	switch filepath.Base(ucred.ProcessExe) {
+	switch filepath.Base(processExeName) {
 	case "snap", "snap-fips": // the standalone snap binary, or its FIPS build variant
 	case "snapd", "snapd-fips": // the merged snap binary
 	default:
 		return false, nil
 	}
 
-	if strings.HasPrefix(ucred.ProcessExe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
-		strings.HasPrefix(ucred.ProcessExe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
+	if strings.HasPrefix(processExeName, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
+		strings.HasPrefix(processExeName, filepath.Join(dirs.SnapMountDir, "core")+"/") {
 		// client with expected name from snap or core snap
 		return true, nil
 	}
 
-	if strings.HasPrefix(ucred.ProcessExe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
-		strings.HasPrefix(ucred.ProcessExe, dirs.DistroLibExecDir+"/") {
+	if strings.HasPrefix(processExeName, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
+		strings.HasPrefix(processExeName, dirs.DistroLibExecDir+"/") {
 		// client with expected name from one of the system locations
 		return true, nil
 	}

@@ -88,26 +88,44 @@ func ucrednetAttachInterface(ctx context.Context, iface string) context.Context 
 }
 
 type ucrednet struct {
-	// SnapName is the peer snap instance name, or empty if unresolved.
-	SnapName string
+	instanceName    string
+	instanceNameErr error
 	// Uid is the peer user ID obtained from the socket credentials.
 	Uid uint32
 	// Socket is the local Unix socket path on which the connection was
 	// accepted.
 	Socket string
 
-	// ProcessExe is the peer executable path at acceptance, or empty if
-	// unreadable.
-	ProcessExe string
+	untrustedProcessExeName    string
+	untrustedProcessExeNameErr error
 	// PolkitPID is the peer PID, should only be used for polkit authorization.
 	PolkitPID int32
+}
+
+// InstanceName returns the peer snap instance name captured at acceptance.
+// It returns an error if the name is not available.
+func (un *ucrednet) InstanceName() (string, error) {
+	if un.instanceName == "" && un.instanceNameErr == nil {
+		return "", errors.New("snap instance name is not available")
+	}
+	return un.instanceName, un.instanceNameErr
+}
+
+// UntrustedProcessExeName returns the peer executable path captured at
+// acceptance. This path must not be used for security checks.
+// It returns an error if the path is not available.
+func (un *ucrednet) UntrustedProcessExeName() (string, error) {
+	if un.untrustedProcessExeName == "" && un.untrustedProcessExeNameErr == nil {
+		return "", errors.New("process executable name is not available")
+	}
+	return un.untrustedProcessExeName, un.untrustedProcessExeNameErr
 }
 
 func (un *ucrednet) String() string {
 	if un == nil {
 		return "snap=;uid=;socket=;"
 	}
-	return fmt.Sprintf("snap=%s;uid=%d;socket=%s;", un.SnapName, un.Uid, un.Socket)
+	return fmt.Sprintf("snap=%s;uid=%d;socket=%s;", un.instanceName, un.Uid, un.Socket)
 }
 
 type ucrednetConn struct {
@@ -156,9 +174,9 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 			PolkitPID: ucred.Pid,
 		}
 		// non-snap clients and failed lookups must not prevent serving the connection.
-		unet.SnapName, _ = cgroupSnapNameFromPid(int(ucred.Pid))
+		unet.instanceName, unet.instanceNameErr = cgroupSnapNameFromPid(int(ucred.Pid))
 		// an unreadable executable must not prevent the connection from being served.
-		unet.ProcessExe, _ = osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
+		unet.untrustedProcessExeName, unet.untrustedProcessExeNameErr = osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
 	}
 
 	return &ucrednetConn{con, unet}, nil

@@ -855,7 +855,7 @@ func (s *noticesSuite) TestAddNotice(c *C) {
 	}`)
 	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 1000, ProcessExe: filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap")})
+	daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("", filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), 1000, ""))
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Assert(rsp.Status, Equals, 200)
 
@@ -947,7 +947,7 @@ func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
 
 	req, err := http.NewRequest("POST", "/v2/notices", strings.NewReader(body))
 	c.Assert(err, IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 1000, ProcessExe: filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap")})
+	daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("", filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), 1000, ""))
 	rsp := s.errorReq(c, req, nil, actionExpectedBool(!strings.Contains(errorMatch, "invalid action")))
 	c.Check(rsp.Status, Equals, 400)
 	c.Assert(rsp.Message, Matches, errorMatch)
@@ -1011,7 +1011,7 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 	}`)
 	req, err := http.NewRequest("POST", "/v2/notices", bytes.NewReader(body))
 	c.Assert(err, IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 1000, ProcessExe: exePath})
+	daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("", exePath, 1000, ""))
 
 	if shouldFail {
 		rsp := s.errorReq(c, req, nil, actionIsExpected)
@@ -1250,7 +1250,7 @@ func (s *noticesSuite) TestIsFromSnapCmd(c *C) {
 		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/not-a-snap"), false},
 	} {
 		c.Logf("tc: %+v", tc)
-		daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 42, Socket: dirs.SnapSocket, ProcessExe: tc.exe})
+		daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("", tc.exe, 42, dirs.SnapSocket))
 		res, err := daemon.IsRequestFromSnapCmd(req)
 		c.Check(err, IsNil)
 		c.Check(res, Equals, tc.res)
@@ -1260,7 +1260,7 @@ func (s *noticesSuite) TestIsFromSnapCmd(c *C) {
 func (s *noticesSuite) TestIsFromSnapCmdMissingExe(c *C) {
 	req, err := http.NewRequest("GET", "/", nil)
 	c.Assert(err, IsNil)
-	daemon.AddUcrednetToRequest(req, &daemon.Ucrednet{Uid: 42, SnapName: "some-snap", Socket: dirs.SnapSocket})
+	daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("some-snap", "", 42, dirs.SnapSocket))
 	res, err := daemon.IsRequestFromSnapCmd(req)
 	c.Check(err, ErrorMatches, "cannot determine executable of calling process")
 	c.Check(res, Equals, false)
