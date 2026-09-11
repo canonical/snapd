@@ -76,7 +76,7 @@ type daemonSuite struct {
 }
 
 func addUcrednet(r *http.Request, snapName string, uid uint32, socket string, ifaces ...string) {
-	AddUcrednetToRequest(r, &Ucrednet{SnapName: snapName, Uid: uid, Socket: socket}, ifaces...)
+	AddUcrednetToRequest(r, NewUcrednet(snapName, "", uid, socket), ifaces...)
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -394,7 +394,9 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
 		c.Check(ucred.Uid, check.Equals, uint32(42))
-		c.Check(ucred.SnapName, check.Equals, "some-snap")
+		name, err := ucred.InstanceName()
+		c.Check(err, check.IsNil)
+		c.Check(name, check.Equals, "some-snap")
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
 		return nil
@@ -431,7 +433,9 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
 		c.Check(ucred.Uid, check.Equals, uint32(42))
-		c.Check(ucred.SnapName, check.Equals, "some-snap")
+		name, err := ucred.InstanceName()
+		c.Check(err, check.IsNil)
+		c.Check(name, check.Equals, "some-snap")
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
 		return nil
@@ -484,7 +488,9 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
 		c.Check(ucred.Uid, check.Equals, uint32(1001))
-		c.Check(ucred.SnapName, check.Equals, "some-snap")
+		name, err := ucred.InstanceName()
+		c.Check(err, check.IsNil)
+		c.Check(name, check.Equals, "some-snap")
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.DeepEquals, authUser)
 		return nil
