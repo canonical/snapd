@@ -5,9 +5,10 @@ summary: Consumer snap with plugs for all driver-libs interfaces
 description: |
   A consumer snap declaring a plug for every driver-libs interface. Used to
   exercise the direct-connection delivery model on Ubuntu Core: with the
-  driver-libs connections made, the provider's libraries become available under
-  /opt/snapd/interfaces/ via SNAP_LIBRARY_PATH and the ICD/GBM metadata is
-  redistributed to the loader-scanned system locations.
+  driver-libs connections made, the provider's libraries and ICD/GBM metadata
+  are bind-mounted into this snap's own mount namespace under
+  /run/snapd/snap/interfaces/, and the ICD/GBM metadata is also redistributed
+  to the loader-scanned system locations.
 confinement: strict
 grade: stable
 base: core26
