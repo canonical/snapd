@@ -57,8 +57,8 @@ func (basedcl *BaseDeclaration) SlotRule(interfaceName string) *SlotRule {
 	return basedcl.slotRules[interfaceName]
 }
 
-// Implement further consistency checks.
-func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (basedcl *BaseDeclaration) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(basedcl.AuthorityID()) {
 		return fmt.Errorf("base-declaration assertion for series %s is not signed by a directly trusted authority: %s", basedcl.Series(), basedcl.AuthorityID())
 	}
@@ -66,7 +66,7 @@ func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*BaseDeclaration)(nil)
+var _ ConsistencyChecker = (*BaseDeclaration)(nil)
 
 func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
 	var plugRules map[string]*PlugRule

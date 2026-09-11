@@ -834,17 +834,16 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 	return nil
 }
 
-// A consistencyChecker performs further checks based on the full
-// assertion database knowledge and its own signing key.
-type consistencyChecker interface {
-	checkConsistency(roDB RODatabase, signingKey *AccountKey) error
+// A ConsistencyChecker performs further checks based on the full assertion
+// database knowledge and its own signing key.
+type ConsistencyChecker interface {
+	CheckConsistency(roDB RODatabase, signingKey *AccountKey) error
 }
 
 // CheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
 func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTimeEarliest, checkTimeLatest time.Time) error {
-	// see if the assertion requires further checks
-	if checker, ok := assert.(consistencyChecker); ok {
-		return checker.checkConsistency(roDB, signingKey)
+	if checker, ok := assert.(ConsistencyChecker); ok {
+		return checker.CheckConsistency(roDB, signingKey)
 	}
 	return nil
 }
