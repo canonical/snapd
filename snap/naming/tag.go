@@ -34,6 +34,11 @@ type SecurityTag interface {
 
 	// InstanceName returns the snap name and instance key.
 	InstanceName() string
+
+	// CommandName returns the command name encoded in this tag: the app name,
+	// hook.<name>, or <snap>+<component>.hook.<name>. For component hooks the
+	// snap name omits any instance key.
+	CommandName() string
 }
 
 // AppSecurityTag exposes details of a validated snap application security tag.
@@ -57,6 +62,10 @@ func (t appSecurityTag) InstanceName() string {
 }
 
 func (t appSecurityTag) AppName() string {
+	return t.appName
+}
+
+func (t appSecurityTag) CommandName() string {
 	return t.appName
 }
 
@@ -95,6 +104,14 @@ func (t hookSecurityTag) HookName() string {
 
 func (t hookSecurityTag) ComponentName() string {
 	return t.componentName
+}
+
+func (t hookSecurityTag) CommandName() string {
+	if t.componentName != "" {
+		snapName := InstanceName(t.instanceName).SnapName()
+		return fmt.Sprintf("%s+%s.hook.%s", snapName, t.componentName, t.hookName)
+	}
+	return fmt.Sprintf("hook.%s", t.hookName)
 }
 
 // ParseSecurityTag parses a snap security tag and returns a parsed representation or an error.

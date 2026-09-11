@@ -21,30 +21,29 @@ package apparmor
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
-func labelFromPid(pid int) (string, error) {
-	// first check new kernel path, /proc/<pid>/attr/apparmor/current, falling
-	// back to the old path if that doesn't exist
-	procFile := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/attr/apparmor/current", pid))
-	if !osutil.FileExists(procFile) {
-		// fallback
-		procFile = filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/attr/current", pid))
-	}
-	contents, err := os.ReadFile(procFile)
-	if os.IsNotExist(err) {
+var securityLabelProbeLevel = ProbedLevel
+
+// SecurityLabelFromPid returns the AppArmor security label of the process with
+// the given pid. When AppArmor is not in use, "unconfined" is returned without
+// reading /proc.
+func SecurityLabelFromPid(pid int) (string, error) {
+	if securityLabelProbeLevel() == Unsupported {
 		return "unconfined", nil
-	} else if err != nil {
+	}
+
+	label, err := osutil.ReadProcLSMCurrent(pid, "apparmor")
+	if err != nil {
 		return "", err
 	}
-	label := strings.TrimRight(string(contents), "\n")
-	// Trim off the mode
+	if label == "" {
+		return "unconfined", nil
+	}
+	// Trim off the AppArmor mode suffix.
 	if strings.HasSuffix(label, ")") {
 		if pos := strings.LastIndex(label, " ("); pos != -1 {
 			label = label[:pos]
@@ -68,7 +67,7 @@ func DecodeLabel(label string) (snap, app, hook string, err error) {
 }
 
 func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
-	label, err := labelFromPid(pid)
+	label, err := SecurityLabelFromPid(pid)
 	if err != nil {
 		return "", "", "", err
 	}

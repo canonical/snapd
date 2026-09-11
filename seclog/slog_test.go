@@ -343,14 +343,12 @@ func (s *SlogSuite) TestReasonLogValue(c *C) {
 func (s *SlogSuite) TestPeerLogValue(c *C) {
 	type peerRecord struct {
 		Peer struct {
-			Socket         string            `json:"socket"`
-			UID            int64             `json:"uid"`
-			PID            int64             `json:"pid"`
-			Exe            string            `json:"exe"`
-			SecurityLabels map[string]string `json:"security_labels"`
-			CgroupLabel    string            `json:"cgroup_label"`
-			Snap           string            `json:"snap"`
-			App            string            `json:"app"`
+			Socket   string `json:"socket"`
+			UID      int64  `json:"uid"`
+			PID      int64  `json:"pid"`
+			Exe      string `json:"exe"`
+			Snap     string `json:"snap"`
+			Runnable string `json:"runnable"`
 		} `json:"peer"`
 	}
 
@@ -360,11 +358,7 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 		"test",
 		seclog.Attr{Key: "peer", Value: seclog.Peer{
 			Socket: "/run/snapd.socket", UID: 0, PID: 4242,
-			Exe: "/usr/bin/snap", Snap: "<unknown>", App: "<unknown>",
-			SecurityLabels: map[string]string{
-				seclog.PeerSecurityLabelAppArmor: "unconfined",
-			},
-			CgroupLabel: "<unknown>",
+			Exe: "/usr/bin/snap", Snap: "<unknown>", Runnable: "<unknown>",
 		}},
 	)
 
@@ -376,36 +370,10 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 	c.Check(obtained.Peer.PID, Equals, int64(4242))
 	c.Check(obtained.Peer.Exe, Equals, "/usr/bin/snap")
 	c.Check(obtained.Peer.Snap, Equals, "<unknown>")
-	c.Check(obtained.Peer.App, Equals, "<unknown>")
-	c.Check(obtained.Peer.SecurityLabels, DeepEquals, map[string]string{
-		seclog.PeerSecurityLabelAppArmor: "unconfined",
-	})
-	c.Check(obtained.Peer.CgroupLabel, Equals, "<unknown>")
+	c.Check(obtained.Peer.Runnable, Equals, "<unknown>")
 }
 
-func (s *SlogSuite) TestPeerLogValueSecurityLabelsKeyOrder(c *C) {
-	logger := s.newLogger(c)
-	logger.LogEvent(
-		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
-		"test",
-		seclog.Attr{Key: "peer", Value: seclog.Peer{
-			Socket: "/run/snapd.socket", UID: 1000, PID: 4242,
-			SecurityLabels: map[string]string{
-				seclog.PeerSecurityLabelSELinux:  "system_u:system_r:snappy_t:s0",
-				seclog.PeerSecurityLabelAppArmor: "snap.snapd.snapd",
-			},
-		}},
-	)
-
-	// Keys are emitted in alphabetical order: AppArmor before SELinux.
-	c.Check(s.buf.String(), testutil.Contains, `"security_labels":{"AppArmor":"snap.snapd.snapd","SELinux":"system_u:system_r:snappy_t:s0"}`)
-	c.Check(s.buf.String(), testutil.Contains, `"exe":"<unknown>"`)
-	c.Check(s.buf.String(), testutil.Contains, `"cgroup_label":"<unknown>"`)
-	c.Check(s.buf.String(), testutil.Contains, `"snap":"<unknown>"`)
-	c.Check(s.buf.String(), testutil.Contains, `"app":"<unknown>"`)
-}
-
-func (s *SlogSuite) TestPeerLogValueEmptySecurityLabels(c *C) {
+func (s *SlogSuite) TestPeerLogValueEmptyFields(c *C) {
 	logger := s.newLogger(c)
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
@@ -415,11 +383,9 @@ func (s *SlogSuite) TestPeerLogValueEmptySecurityLabels(c *C) {
 		}},
 	)
 
-	c.Check(s.buf.String(), testutil.Contains, `"security_labels":{}`)
 	c.Check(s.buf.String(), testutil.Contains, `"exe":"<unknown>"`)
-	c.Check(s.buf.String(), testutil.Contains, `"cgroup_label":"<unknown>"`)
 	c.Check(s.buf.String(), testutil.Contains, `"snap":"<unknown>"`)
-	c.Check(s.buf.String(), testutil.Contains, `"app":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"runnable":"<unknown>"`)
 }
 
 func (s *SlogSuite) TestSystemUserAddOptionsLogValue(c *C) {

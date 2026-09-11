@@ -45,8 +45,9 @@ import (
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues   = createQuotaValues
+	ParseOptionalTime   = parseOptionalTime
+	SeclogPeerFromUcred = seclogPeerFromUcred
 )
 
 func APICommands() []*Command {
@@ -433,12 +434,16 @@ func MockSystemUserFromRequest(f func(r *http.Request) (*user.User, error)) (res
 	return restore
 }
 
-func MockOsReadlink(f func(string) (string, error)) func() {
-	old := osReadlink
-	osReadlink = f
-	return func() {
-		osReadlink = old
-	}
+func MockOsReadlink(f func(string) (string, error)) (restore func()) {
+	return testutil.Mock(&osReadlink, f)
+}
+
+func MockApparmorSecurityLabelFromPid(f func(int) (string, error)) (restore func()) {
+	return testutil.Mock(&apparmorSecurityLabelFromPid, f)
+}
+
+func MockCgroupPathFromPid(f func(int) (string, error)) (restore func()) {
+	return testutil.Mock(&cgroupPathFromPid, f)
 }
 
 func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid string) clientutil.StatusDecorator) (restore func()) {
