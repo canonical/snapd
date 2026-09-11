@@ -2416,6 +2416,33 @@ func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
 }
 
+func (s *storeTestSuite) TestSectionsQueryCanceledContext(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockSectionsJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	cancel()
+
+	sections, err := sto.Sections(ctx, s.user)
+	c.Check(err, testutil.ErrorIs, context.Canceled)
+	c.Check(sections, IsNil)
+	c.Check(n, Equals, 0)
+}
+
 /*
 	acquired via:
 
