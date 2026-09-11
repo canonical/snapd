@@ -828,9 +828,13 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(ctx context.Context, ms
 	if !chg.Status().Ready() {
 		return &state.Retry{After: awaitSubsystemRetryInterval}
 	}
-	if chg.Status() == state.ErrorStatus {
+	if chg.Status() != state.DoneStatus {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": chg.Err().Error()}
+		err := chg.Err()
+		if err == nil {
+			err = fmt.Errorf("cannot process message: change is in unexpected status %q", chg.Status())
+		}
+		msg.ResponseBody = map[string]any{"message": err.Error()}
 		return nil
 	}
 

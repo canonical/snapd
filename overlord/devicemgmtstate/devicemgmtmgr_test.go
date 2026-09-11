@@ -193,8 +193,9 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 			return nil
 		},
 		apply: func(ctx context.Context, st *state.State, msg *handlers.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			handlers.MarkChangeForMessage(chg, msg)
+			chg := s.newSubsystemChange(st, msg, func(t *state.Task) {
+				t.SetStatus(state.DoneStatus)
+			})
 			return chg.ID(), nil
 		},
 		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
@@ -310,6 +311,18 @@ func (s *deviceMgmtMgrSuite) makeResponseMessage(accountID, messageID string, st
 		"status":      string(status),
 		"body-length": strconv.Itoa(len(body)),
 	}).(*asserts.ResponseMessage), nil
+}
+
+func (s *deviceMgmtMgrSuite) newSubsystemChange(st *state.State, msg *handlers.RequestMessage, setTaskState func(t *state.Task)) *state.Change {
+	chg := st.NewChange("subsystem", "apply payload")
+	handlers.MarkChangeForMessage(chg, msg)
+
+	t := st.NewTask("subsys-task", "subsystem task")
+	chg.AddTask(t)
+	setTaskState(t)
+	t.SetClean()
+
+	return chg
 }
 
 func (s *deviceMgmtMgrSuite) settle(c *C) {
@@ -2240,8 +2253,9 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 
 	handlers.Register("test-kind", &mockMessageHandler{
 		apply: func(ctx context.Context, st *state.State, msg *handlers.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			handlers.MarkChangeForMessage(chg, msg)
+			chg := s.newSubsystemChange(st, msg, func(t *state.Task) {
+				t.SetStatus(state.DoneStatus)
+			})
 			return chg.ID(), nil
 		},
 		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
@@ -2311,54 +2325,74 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
-		return &store.MessageExchangeResponse{
-			Messages: []store.MessageWithToken{
-				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
+	type test struct {
+		name         string
+		setTaskState func(t *state.Task)
+		expectedBody string
+	}
+
+	tests := []test{
+		{
+			name: "error",
+			setTaskState: func(t *state.Task) {
+				t.SetStatus(state.ErrorStatus)
+				t.Errorf("an error occurred")
 			},
-		}, nil
-	})
-
-	handlers.Register("test-kind", &mockMessageHandler{
-		apply: func(ctx context.Context, st *state.State, msg *handlers.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			handlers.MarkChangeForMessage(chg, msg)
-
-			t := st.NewTask("subsys-task", "subsystem task")
-			chg.AddTask(t)
-			t.SetStatus(state.ErrorStatus)
-			t.Errorf("an error occurred")
-			t.SetClean()
-
-			return chg.ID(), nil
+			expectedBody: `{"message":"cannot perform the following tasks:\n- subsystem task (an error occurred)"}`,
 		},
-		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
-			c.Error("resultFromChange must not be called when subsystem change errored")
-			return nil, nil
+		{
+			name: "held",
+			setTaskState: func(t *state.Task) {
+				t.SetStatus(state.HoldStatus)
+			},
+			expectedBody: `{"message":"cannot process message: change is in unexpected status \"Hold\""}`,
 		},
-	})
+	}
 
-	s.mgr.MockBackend(&mockDeviceBackend{
-		serial: s.makeSerial(c, "serial-1"),
-		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
-			c.Check(messageID, Equals, "mesg-1")
-			c.Check(status, Equals, asserts.MessageStatusError)
-			c.Check(string(body), Equals, "{\"message\":\"cannot perform the following tasks:\\n- subsystem task (an error occurred)\"}")
+	for i, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
+		msgID := fmt.Sprintf("msg%d", i+1)
 
-			return s.makeResponseMessage(accountID, messageID, status, body)
-		},
-	})
+		s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+			return &store.MessageExchangeResponse{
+				Messages: []store.MessageWithToken{
+					s.makeStoreRequestMessage(c, msgID, "test-kind", fmt.Sprintf("token-%d", i+1)),
+				},
+			}, nil
+		})
 
-	s.settle(c)
+		handlers.Register("test-kind", &mockMessageHandler{
+			apply: func(ctx context.Context, st *state.State, msg *handlers.RequestMessage) (string, error) {
+				chg := s.newSubsystemChange(st, msg, tt.setTaskState)
+				return chg.ID(), nil
+			},
+			resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
+				c.Error("resultFromChange must not be called when subsystem change did not finish with DoneStatus")
+				return nil, nil
+			},
+		})
 
-	ms, err := s.mgr.GetState()
-	c.Assert(err, IsNil)
+		s.mgr.MockBackend(&mockDeviceBackend{
+			serial: s.makeSerial(c, "serial-1"),
+			sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+				c.Check(messageID, Equals, msgID, cmt)
+				c.Check(status, Equals, asserts.MessageStatusError, cmt)
+				c.Check(string(body), Equals, tt.expectedBody, cmt)
 
-	c.Check(ms.Sequences["mesg"], IsNil)
-	c.Check(ms.SequenceLRU, HasLen, 0)
+				return s.makeResponseMessage(accountID, messageID, status, body)
+			},
+		})
 
-	c.Assert(ms.ReadyResponses, HasLen, 1)
-	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
+		s.settle(c)
+
+		ms, err := s.mgr.GetState()
+		c.Assert(err, IsNil, cmt)
+
+		c.Assert(ms.ReadyResponses, HasLen, 1, cmt)
+		c.Check(ms.ReadyResponses[msgID].Format, Equals, "assertion", cmt)
+
+		devicemgmtstate.MockTimeNow(fixedTestTime.Add(time.Duration(i+1) * 2 * devicemgmtstate.DefaultExchangeInterval))
+	}
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
@@ -2522,8 +2556,9 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 	firstCall := true
 	handlers.Register("test-kind", &mockMessageHandler{
 		apply: func(ctx context.Context, st *state.State, msg *handlers.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			handlers.MarkChangeForMessage(chg, msg)
+			chg := s.newSubsystemChange(st, msg, func(t *state.Task) {
+				t.SetStatus(state.DoneStatus)
+			})
 			return chg.ID(), nil
 		},
 		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
@@ -2583,8 +2618,9 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseRejectedSequenceEvicted(c *C) {
 			return nil
 		},
 		apply: func(_ context.Context, st *state.State, msg *handlers.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			handlers.MarkChangeForMessage(chg, msg)
+			chg := s.newSubsystemChange(st, msg, func(t *state.Task) {
+				t.SetStatus(state.DoneStatus)
+			})
 			return chg.ID(), nil
 		},
 		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {

@@ -31,8 +31,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-var registeredHandlers = map[string]MessageHandler{}
-
 // RequestMessage represents a request-message being processed.
 // Messages remain pending until their associated change completes,
 // at which point a response is queued and the message is removed.
@@ -137,6 +135,8 @@ func ChangeMessageID(chg *state.Change) (id string, ok bool) {
 
 	return id, true
 }
+
+var registeredHandlers = map[string]MessageHandler{}
 
 // Register registers a MessageHandler for the given message kind.
 func Register(kind string, h MessageHandler) {
