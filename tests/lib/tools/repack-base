@@ -1,0 +1,184 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    repack-base --base-name <name> --base-branch <branch> --base-channel <channel> --output-snap <path> [options]
+
+Options:
+    --enable-test-logging
+    --completion-file <path>
+    --proxy-env <path>
+    --store-url <url>
+    --ntp-server <address>
+EOF
+}
+
+parse_value_arg() {
+    case "$1" in
+        --base-name) BASE_NAME="$2" ;;
+        --base-branch) BASE_BRANCH="$2" ;;
+        --base-channel) BASE_CHANNEL="$2" ;;
+        --output-snap) OUTPUT_SNAP="$2" ;;
+        --completion-file) COMPLETION_FILE="$2" ;;
+        --proxy-env) PROXY_ENV="$2" ;;
+        --store-url) STORE_URL="$2" ;;
+        --ntp-server) NTP_SERVER="$2" ;;
+    esac
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --base-name|--base-branch|--base-channel|--output-snap|--completion-file|--proxy-env|--store-url|--ntp-server)
+                if [ "$#" -lt 2 ]; then
+                    echo "repack-base: missing value for $1" >&2
+                    exit 1
+                fi
+                parse_value_arg "$1" "$2"
+                shift 2
+                ;;
+            --enable-test-logging)
+                ENABLE_TEST_LOGGING=true
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                echo "repack-base: unsupported argument: $1" >&2
+                show_help >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+validate_args() {
+    if [ -z "$BASE_NAME" ] || [ -z "$BASE_BRANCH" ] || [ -z "$BASE_CHANNEL" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-base: --base-name, --base-branch, --base-channel and --output-snap are required" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+base_etc_dir() {
+    local unpack_dir="$1"
+
+    if [ -e "$unpack_dir/usr/share/factory/writable" ]; then
+        printf '%s\n' "$unpack_dir/usr/share/factory/writable/system-data/etc"
+    else
+        printf '%s\n' "$unpack_dir/etc"
+    fi
+}
+
+set_test_logging() {
+    local unpack_dir="$1"
+    local destination_etc
+
+    if [ "$ENABLE_TEST_LOGGING" != true ]; then
+        return
+    fi
+    destination_etc="$(base_etc_dir "$unpack_dir")"
+    mkdir -p "$destination_etc/systemd/journald.conf.d"
+    cat > "$destination_etc/systemd/journald.conf.d/to-console.conf" <<'EOF'
+[Journal]
+ForwardToConsole=yes
+TTYPath=/dev/ttyS0
+MaxLevelConsole=debug
+EOF
+    mkdir -p "$destination_etc/systemd/system/snapd.service.d"
+    cat > "$destination_etc/systemd/system/snapd.service.d/logging.conf" <<'EOF'
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
+StandardOutput=journal+console
+StandardError=journal+console
+EOF
+}
+
+set_store_url() {
+    local unpack_dir="$1"
+    local destination_etc
+
+    if [ -z "$STORE_URL" ]; then
+        return
+    fi
+    destination_etc="$(base_etc_dir "$unpack_dir")"
+    mkdir -p "$destination_etc/systemd/system/snapd.service.d"
+    cat > "$destination_etc/systemd/system/snapd.service.d/store.conf" <<EOF
+[Service]
+Environment=SNAPPY_FORCE_API_URL=$STORE_URL
+EOF
+}
+
+set_ntp() {
+    local unpack_dir="$1"
+    local target_time_conf
+
+    if [ -z "$NTP_SERVER" ]; then
+        return
+    fi
+    if [ -e /etc/systemd/timesyncd.conf ]; then
+        target_time_conf="$(find "$unpack_dir" -name timesyncd.conf -print -quit)"
+        if [ -z "$target_time_conf" ]; then
+            echo "repack-base: timesyncd.conf not found in base snap" >&2
+            exit 1
+        fi
+        while IFS= read -r target_time_conf; do
+            cp /etc/systemd/timesyncd.conf "$target_time_conf"
+        done < <(find "$unpack_dir" -name timesyncd.conf)
+    fi
+    if [ -e "$unpack_dir/usr/lib/tmpfiles.d/core-writable.conf" ]; then
+        printf '%s\n' 'C /etc/chrony/sources.d/ci-proxy.sources' >> "$unpack_dir/usr/lib/tmpfiles.d/core-writable.conf"
+        mkdir -p "$unpack_dir/usr/share/factory/writable/system-data/etc/chrony/sources.d"
+        printf 'pool %s iburst maxsources 1 nts prefer\n' "$NTP_SERVER" > "$unpack_dir/usr/share/factory/writable/system-data/etc/chrony/sources.d/ci-proxy.sources"
+    fi
+}
+
+repack_base() {
+    local download_dir
+    local unpack_dir
+
+    download_dir="$(mktemp -d "${TMPDIR:-/tmp}/base-download.XXXXXXXX")"
+    unpack_dir="$(mktemp -d "${TMPDIR:-/tmp}/base-unpack.XXXXXXXX")"
+    trap 'rm -rf "$download_dir" "$unpack_dir"' EXIT
+
+    (cd "$download_dir" && snap download --basename="$BASE_NAME" --channel="${BASE_BRANCH}/${BASE_CHANNEL}" "$BASE_NAME")
+    unsquashfs -no-progress -f -d "$unpack_dir" "$download_dir/$BASE_NAME.snap"
+    set_test_logging "$unpack_dir"
+    set_store_url "$unpack_dir"
+    set_ntp "$unpack_dir"
+    if [ -n "$COMPLETION_FILE" ]; then
+        cp "$COMPLETION_FILE" "$unpack_dir/usr/lib/snapd/complete.sh"
+    fi
+    if [ -n "$PROXY_ENV" ]; then
+        cp "$PROXY_ENV" "$unpack_dir/etc/environment"
+    fi
+
+    mkdir -p "$(dirname "$OUTPUT_SNAP")"
+    snap pack --filename="$OUTPUT_SNAP" "$unpack_dir"
+    rm -rf "$download_dir" "$unpack_dir"
+    trap - EXIT
+    printf '%s\n' "$OUTPUT_SNAP"
+}
+
+main() {
+    BASE_NAME=
+    BASE_BRANCH=
+    BASE_CHANNEL=
+    OUTPUT_SNAP=
+    ENABLE_TEST_LOGGING=false
+    COMPLETION_FILE=
+    PROXY_ENV=
+    STORE_URL=
+    NTP_SERVER=
+
+    parse_args "$@"
+    validate_args
+    repack_base
+}
+
+main "$@"

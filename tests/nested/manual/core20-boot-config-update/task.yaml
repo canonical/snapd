@@ -37,33 +37,31 @@ prepare: |
   rm -rf snapd-snap
 
   if [ "$VARIANT" != "no-gadget" ]; then
-    echo "Grab and prepare the gadget snap"
-    version=$(tests.nested show version)
-    snap download --basename=pc --channel="$version/edge" pc
-    unsquashfs -d pc-gadget pc.snap
-
-    echo "Sign the shim binary"
     KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-
+    version=$(tests.nested show version)
+    gadget_args=(
+      --gadget-branch "$version"
+      --gadget-channel edge
+      --output-snap "$(tests.nested get extra-snaps-path)/pc.snap"
+      --sign-key "$SNAKEOIL_KEY"
+      --sign-cert "$SNAKEOIL_CERT"
+    )
     case "$VARIANT" in
       gadget-extra)
-        echo 'snapd.debug=1 hello from test' > pc-gadget/cmdline.extra
-        echo "${NESTED_EXTRA_CMDLINE}" >>pc-gadget/cmdline.extra
+        gadget_args+=(--write-cmdline-extra "$(printf '%s\n%s' 'snapd.debug=1 hello from test' "$NESTED_EXTRA_CMDLINE")")
         ;;
       gadget-full)
         # keep the console so that we have useful debug logs
-        echo 'snapd.debug=1 console=ttyS0,115200n8 full hello from test' > pc-gadget/cmdline.full
-        echo "${NESTED_EXTRA_CMDLINE}" >>pc-gadget/cmdline.full
+        gadget_args+=(--write-cmdline-full "$(printf '%s\n%s' 'snapd.debug=1 console=ttyS0,115200n8 full hello from test' "$NESTED_EXTRA_CMDLINE")")
         ;;
       *)
         echo "unexpected variant $VARIANT, fix the test"
         exit 1
         ;;
     esac
-    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
+    "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}"
   fi
 
   tests.nested build-image core
