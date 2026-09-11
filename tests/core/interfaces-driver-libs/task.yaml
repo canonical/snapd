@@ -1,0 +1,205 @@
+summary: Test driver-libs interfaces direct-connection delivery on Ubuntu Core
+
+details: |
+    Verify the direct-connection mount-based delivery mechanism for the
+    driver-libs interfaces on Ubuntu Core 26+: when a consumer snap plugs a
+    driver-libs interface and connects directly to a provider snap's slot
+    (cuda-driver-libs, egl-driver-libs, vulkan-driver-libs, gbm-driver-libs -
+    one representative per mountAssembly* code shape in
+    interfaces/builtin/helpers.go), the provider's libraries and ICD/layer
+    metadata are bind-mounted into the consumer's own mount namespace under
+    /run/snapd/snap/interfaces/, anchored by a private tmpfs at
+    /run/snapd/snap, and the loader-scanned metadata is also redistributed to
+    the canonical system locations (/usr/share/vulkan/icd.d/,
+    /usr/share/glvnd/egl_vendor.d/, /usr/lib/<arch>/gbm/). Also verify that
+    none of this is visible on the host outside the connected snap's own
+    mount namespace, and that both entry points into cmd/snap-update-ns
+    (snapd's direct re-invocation on connect, and snap-confine's bootstrap
+    construction after a namespace discard) produce the same result, and
+    that disconnect / snap remove clean everything up.
+
+systems: [ubuntu-core-26-64]
+
+environment:
+    PROVIDER_SNAP: libs-provider-core26
+    CONSUMER_SNAP: test-snapd-driver-libs
+    COMP1: comp1
+    COMP2: comp2
+
+prepare: |
+    snap pack "$PROVIDER_SNAP"
+    snap pack "$COMP1"
+    snap pack "$COMP2"
+
+restore: |
+    snap remove --purge "$CONSUMER_SNAP" || true
+    snap remove --purge "$PROVIDER_SNAP" || true
+
+execute: |
+    ARCH_TRIPLET="$(uname -m)-linux-gnu"
+
+    ASSEMBLY_ROOT=/run/snapd/snap/interfaces
+
+    CUDA_LIB_ROOT="$ASSEMBLY_ROOT/cuda-driver-libs/lib/${PROVIDER_SNAP}_cuda-driver-libs"
+    EGL_LIB_ROOT="$ASSEMBLY_ROOT/egl-driver-libs/lib/${PROVIDER_SNAP}_egl-driver-libs"
+    VULKAN_LIB="$ASSEMBLY_ROOT/vulkan-driver-libs/lib/${PROVIDER_SNAP}_vulkan-driver-libs/vulkan/lib/libvulkanhost.so"
+    GBM_CLIENT_DRIVER=nvidia-drm_gbm.so
+    GBM_LIB="$ASSEMBLY_ROOT/gbm-driver-libs/lib/${PROVIDER_SNAP}_gbm-driver-libs/gbm/lib/$GBM_CLIENT_DRIVER"
+
+    # Encoded metadata file names, derived from sourceDirEncodedName in
+    # interfaces/builtin/helpers.go: "<priority+idx>_snap_<instance>[+<comp>]_<slot>_<escaped-rel-path>".
+    # egl-driver-libs has priority: 15 and 3 icd-source dirs (idx 0,1,2), so
+    # they get priority-derived numeric prefixes 15_, 16_, 17_ in list order.
+    EGL_SNAP_ENCODED="15_snap_${PROVIDER_SNAP}_egl-driver-libs_egl.d-vendor.json"
+    EGL_COMP1_ENCODED="16_snap_${PROVIDER_SNAP}+${COMP1}_egl-driver-libs_egl.d-vendor.json"
+    EGL_COMP2_ENCODED="17_snap_${PROVIDER_SNAP}+${COMP2}_egl-driver-libs_egl.d-vendor.json"
+    # vulkan-driver-libs has no priority attribute, so no numeric prefix.
+    VULKAN_ICD_ENCODED="snap_${PROVIDER_SNAP}_vulkan-driver-libs_vulkan-icd.d-icd.json"
+    VULKAN_LAYER_ENCODED="snap_${PROVIDER_SNAP}_vulkan-driver-libs_vulkan-implicit_layer.d-layer.json"
+
+    EGL_SHARE_DIR="$ASSEMBLY_ROOT/egl-driver-libs/share/egl_vendor.d"
+    VULKAN_ICD_SHARE_DIR="$ASSEMBLY_ROOT/vulkan-driver-libs/share/vulkan/icd.d"
+    VULKAN_LAYER_SHARE_DIR="$ASSEMBLY_ROOT/vulkan-driver-libs/share/vulkan/implicit_layer.d"
+    GBM_SHARE="$ASSEMBLY_ROOT/gbm-driver-libs/share/gbm/$GBM_CLIENT_DRIVER"
+
+    EGL_REDIST_DIR=/usr/share/glvnd/egl_vendor.d
+    VULKAN_ICD_REDIST_DIR=/usr/share/vulkan/icd.d
+    VULKAN_LAYER_REDIST_DIR=/usr/share/vulkan/implicit_layer.d
+    GBM_REDIST="/usr/lib/$ARCH_TRIPLET/gbm/$GBM_CLIENT_DRIVER"
+
+    run_in_consumer_ns() {
+        "$CONSUMER_SNAP".sh -c "$1"
+    }
+
+    # Nothing at all should exist under the assembly root until at least one
+    # driver-libs plug is connected.
+    check_nothing_mounted_inside_ns() {
+        run_in_consumer_ns 'test ! -e /run/snapd/snap/interfaces'
+    }
+
+    # Before any connection is made, the assembly root may or may not exist
+    # yet on the host (nothing has triggered its creation), but the
+    # per-interface subtree must never appear there.
+    check_host_clean_before_connect() {
+        not test -e "$ASSEMBLY_ROOT"
+    }
+
+    # After at least one connection has existed, /run/snapd/snap is expected
+    # to exist as a bare mountpoint (it is on the trespassing whitelist), but
+    # its content (the per-interface assembly trees, and anything
+    # redistributed to loader-scanned system locations) must never be
+    # visible on the host: it is all mount-namespace-scoped, bound over the
+    # read-only base rootfs and invisible outside the connected snap's own
+    # namespace.
+    check_host_isolated() {
+        test -d /run/snapd/snap
+        not test -e "$ASSEMBLY_ROOT"
+
+        not test -e "$EGL_REDIST_DIR/$EGL_SNAP_ENCODED"
+        not test -e "$EGL_REDIST_DIR/$EGL_COMP1_ENCODED"
+        not test -e "$EGL_REDIST_DIR/$EGL_COMP2_ENCODED"
+        not test -e "$VULKAN_ICD_REDIST_DIR/$VULKAN_ICD_ENCODED"
+        not test -e "$VULKAN_LAYER_REDIST_DIR/$VULKAN_LAYER_ENCODED"
+        not test -e "$GBM_REDIST"
+    }
+
+    # All 4 interfaces connected: verify the full assembly tree, inside the
+    # consumer's own mount namespace.
+    check_connected_state_inside_ns() {
+        # cuda-driver-libs: library-source only (simplest shape). The
+        # $SNAP-sourced library sits at the deterministic, unsuffixed path;
+        # the component-sourced libraries are pooled alongside it (their
+        # directory clashes with the $SNAP one on the "libs" leaf name and
+        # get an unclash-renamed target, so locate them by name instead of
+        # hardcoding the renamed suffix).
+        run_in_consumer_ns "test -f $CUDA_LIB_ROOT/libs/libhost.so"
+        run_in_consumer_ns "find $CUDA_LIB_ROOT -name libsquare.so" | MATCH .
+        run_in_consumer_ns "find $CUDA_LIB_ROOT -name libmultiply.so" | MATCH .
+
+        # egl-driver-libs: icd-source + library-source, with priority
+        # (numeric-prefix encoding path). Same $SNAP + component pooling as
+        # cuda-driver-libs on the library side.
+        run_in_consumer_ns "test -f $EGL_LIB_ROOT/libs/libhost.so"
+        run_in_consumer_ns "find $EGL_LIB_ROOT -name libsquare.so" | MATCH .
+        run_in_consumer_ns "find $EGL_LIB_ROOT -name libmultiply.so" | MATCH .
+        run_in_consumer_ns "test -f $EGL_SHARE_DIR/$EGL_SNAP_ENCODED"
+        run_in_consumer_ns "test -f $EGL_SHARE_DIR/$EGL_COMP1_ENCODED"
+        run_in_consumer_ns "test -f $EGL_SHARE_DIR/$EGL_COMP2_ENCODED"
+        run_in_consumer_ns "cat $EGL_SHARE_DIR/$EGL_SNAP_ENCODED" | MATCH libhost.so
+        run_in_consumer_ns "cat $EGL_SHARE_DIR/$EGL_COMP1_ENCODED" | MATCH libsquare.so
+        run_in_consumer_ns "cat $EGL_SHARE_DIR/$EGL_COMP2_ENCODED" | MATCH libmultiply.so
+
+        # vulkan-driver-libs: icd-source + implicit-layer-source +
+        # library-source, no priority (no-prefix encoding path, two
+        # source-file subdirs sharing the same share/vulkan/ tree).
+        run_in_consumer_ns "test -f $VULKAN_LIB"
+        run_in_consumer_ns "test -f $VULKAN_ICD_SHARE_DIR/$VULKAN_ICD_ENCODED"
+        run_in_consumer_ns "test -f $VULKAN_LAYER_SHARE_DIR/$VULKAN_LAYER_ENCODED"
+        run_in_consumer_ns "cat $VULKAN_ICD_SHARE_DIR/$VULKAN_ICD_ENCODED" | MATCH libvulkanhost.so
+        run_in_consumer_ns "cat $VULKAN_LAYER_SHARE_DIR/$VULKAN_LAYER_ENCODED" | MATCH libvulkanhost.so
+
+        # gbm-driver-libs: client-driver + library-source (mountAssemblyClientDriver).
+        run_in_consumer_ns "test -f $GBM_LIB"
+        run_in_consumer_ns "test -f $GBM_SHARE"
+
+        # Redistribution to loader-scanned system locations, still inside
+        # the consumer's own mount namespace.
+        run_in_consumer_ns "test -f $EGL_REDIST_DIR/$EGL_SNAP_ENCODED"
+        run_in_consumer_ns "test -f $EGL_REDIST_DIR/$EGL_COMP1_ENCODED"
+        run_in_consumer_ns "test -f $EGL_REDIST_DIR/$EGL_COMP2_ENCODED"
+        run_in_consumer_ns "test -f $VULKAN_ICD_REDIST_DIR/$VULKAN_ICD_ENCODED"
+        run_in_consumer_ns "test -f $VULKAN_LAYER_REDIST_DIR/$VULKAN_LAYER_ENCODED"
+        run_in_consumer_ns "test -f $GBM_REDIST"
+    }
+
+    # 1. Install provider (+ components) and consumer, before any connection.
+    snap install --dangerous "$PROVIDER_SNAP"_*.snap
+    snap install --dangerous \
+        "$PROVIDER_SNAP"+"$COMP1"_*.comp \
+        "$PROVIDER_SNAP"+"$COMP2"_*.comp
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
+
+    # 2. Inside consumer's ns: nothing exists yet, no plug connected.
+    check_nothing_mounted_inside_ns
+
+    # 3. On the host: confirm no leaked state either.
+    check_host_clean_before_connect
+
+    # 4. Connect all 4 provider slots to the matching consumer plugs directly.
+    snap connect "$CONSUMER_SNAP":cuda "$PROVIDER_SNAP":cuda-driver-libs
+    snap connect "$CONSUMER_SNAP":egl "$PROVIDER_SNAP":egl-driver-libs
+    snap connect "$CONSUMER_SNAP":vulkan "$PROVIDER_SNAP":vulkan-driver-libs
+    snap connect "$CONSUMER_SNAP":gbm "$PROVIDER_SNAP":gbm-driver-libs
+
+    # 5. Inside consumer's ns, no namespace discard yet: exercises snapd's
+    #    direct snap-update-ns re-invocation path on connect.
+    check_connected_state_inside_ns
+
+    # 6. On the host: confirm isolation.
+    check_host_isolated
+
+    # 7. Discard and rebuild the consumer's mount namespace: exercises
+    #    snap-confine's bootstrap-triggered construction, the other entry
+    #    point into cmd/snap-update-ns.
+    # TODO remove after fixing problem with refreshing mount namespace
+    /usr/lib/snapd/snap-discard-ns "$CONSUMER_SNAP"
+    check_connected_state_inside_ns
+
+    # 8. Disconnect all 4 interfaces: content gone from consumer's ns, host
+    #    still clean.
+    snap disconnect "$CONSUMER_SNAP":cuda "$PROVIDER_SNAP":cuda-driver-libs
+    snap disconnect "$CONSUMER_SNAP":egl "$PROVIDER_SNAP":egl-driver-libs
+    snap disconnect "$CONSUMER_SNAP":vulkan "$PROVIDER_SNAP":vulkan-driver-libs
+    snap disconnect "$CONSUMER_SNAP":gbm "$PROVIDER_SNAP":gbm-driver-libs
+    check_nothing_mounted_inside_ns
+    check_host_isolated
+
+    # 9. Reconnect, then remove the provider snap (with components) while
+    #    still connected: verify graceful cleanup.
+    snap connect "$CONSUMER_SNAP":cuda "$PROVIDER_SNAP":cuda-driver-libs
+    snap connect "$CONSUMER_SNAP":egl "$PROVIDER_SNAP":egl-driver-libs
+    snap connect "$CONSUMER_SNAP":vulkan "$PROVIDER_SNAP":vulkan-driver-libs
+    snap connect "$CONSUMER_SNAP":gbm "$PROVIDER_SNAP":gbm-driver-libs
+    snap remove --purge "$PROVIDER_SNAP"
+    check_nothing_mounted_inside_ns
+    check_host_isolated
