@@ -39,6 +39,7 @@ require (
 
 require (
 	github.com/cilium/ebpf v0.9.1
+	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	go.etcd.io/bbolt v1.3.9
 )
 
