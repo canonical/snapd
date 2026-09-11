@@ -117,86 +117,87 @@ fchownat: display.o fchownat.o
 
 #ifneq (,$(filter $(arch_triplet), x86_64-linux-gnu aarch64-linux-gnu))
 ifneq (,$(filter $(arch_triplet), x86_64-linux-gnu))
+CC_M32 ?= i686-linux-gnu-gcc
 display32.o: display32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 drop32.o: drop32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 drop32: display32.o drop32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 drop-exec32.o: drop-exec32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 drop-exec32: display32.o drop-exec32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 drop-syscall32.o: drop-syscall32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 drop-syscall32: display32.o drop-syscall32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 setgid32.o: setgid32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 setgid32: display32.o setgid32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 setregid32.o: setregid32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 setregid32: display32.o setregid32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 setresgid32.o: setresgid32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 setresgid32: display32.o setresgid32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 setuid32.o: setuid32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 setuid32: display32.o setuid32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 setreuid32.o: setreuid32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 setreuid32: display32.o setreuid32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 setresuid32.o: setresuid32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 setresuid32: display32.o setresuid32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 chown32.o: chown32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 chown32: display32.o chown32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 lchown32.o: lchown32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 lchown32: display32.o lchown32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 fchown32.o: fchown32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 fchown32: display32.o fchown32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 
 fchownat32.o: fchownat32.c
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $< -c ${LDLIBS}
 
 fchownat32: display32.o fchownat32.o
-	${CC} -m32 ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
+	${CC_M32} ${CFLAGS} ${LDFLAGS} $^ -o $@ ${LDLIBS}
 endif
 
 
