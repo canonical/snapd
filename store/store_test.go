@@ -1972,7 +1972,7 @@ func (s *storeTestSuite) TestExists(c *C) {
 	}
 	ref, ch, err := sto.SnapExists(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(ref.SnapName(), Equals, "hello")
+	c.Check(ref.SnapName().String(), Equals, "hello")
 	c.Check(ref.ID(), Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
 	c.Check(ch, DeepEquals, &channel.Channel{
 		Architecture: "amd64",

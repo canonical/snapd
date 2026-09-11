@@ -68,7 +68,7 @@ func (s *iconsTestSuite) TestFindIconFiles(c *C) {
 	c.Assert(os.MkdirAll(filepath.Join(iconsDir, "snap.whatever"), 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(iconsDir, "snap.whatever", "snap.hello-snap.foo.png"), []byte("bad dir"), 0644), IsNil)
 
-	icons, err := wrappers.FindIconFiles(info.SnapName(), iconsDir)
+	icons, err := wrappers.FindIconFiles(info.SnapName().String(), iconsDir)
 	sort.Strings(icons)
 	c.Assert(err, IsNil)
 	c.Check(icons, DeepEquals, []string{

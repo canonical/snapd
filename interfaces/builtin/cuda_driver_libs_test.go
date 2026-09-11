@@ -282,7 +282,7 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "cuda-provider", SlotName: "cuda-slot"}: {
+		{InstanceName: "cuda-provider", SlotName: "cuda-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
 			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1"),

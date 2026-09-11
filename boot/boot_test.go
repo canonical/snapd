@@ -442,8 +442,8 @@ func (s *bootenv20Suite) TestInUseCore20(c *C) {
 
 	inUse, err := boot.InUse(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
-	c.Check(inUse(s.kern1.SnapName(), s.kern1.SnapRevision()), Equals, true)
-	c.Check(inUse(s.kern2.SnapName(), s.kern2.SnapRevision()), Equals, false)
+	c.Check(inUse(s.kern1.SnapName().String(), s.kern1.SnapRevision()), Equals, true)
+	c.Check(inUse(s.kern2.SnapName().String(), s.kern2.SnapRevision()), Equals, false)
 
 	_, err = boot.InUse(snap.TypeBase, coreDev)
 	c.Check(err, IsNil)
@@ -482,12 +482,12 @@ func (s *bootenvSuite) TestCurrentBootNameAndRevision(c *C) {
 
 	current, err := boot.GetCurrentBoot(snap.TypeOS, coreDev)
 	c.Check(err, IsNil)
-	c.Check(current.SnapName(), Equals, "core")
+	c.Check(current.SnapName().String(), Equals, "core")
 	c.Check(current.SnapRevision(), Equals, snap.R(2))
 
 	current, err = boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
-	c.Check(current.SnapName(), Equals, "canonical-pc-linux")
+	c.Check(current.SnapName().String(), Equals, "canonical-pc-linux")
 	c.Check(current.SnapRevision(), Equals, snap.R(2))
 
 	s.bootloader.BootVars["snap_mode"] = boot.TryingStatus
@@ -559,7 +559,7 @@ func (s *bootenvSuite) TestCurrentBootNameAndRevisionUnhappy(c *C) {
 	s.bootloader.BootVars["snap_kernel"] = "kernel_41.snap"
 	current, err := boot.GetCurrentBoot(snap.TypeKernel, coreDev)
 	c.Check(err, IsNil)
-	c.Check(current.SnapName(), Equals, "kernel")
+	c.Check(current.SnapName().String(), Equals, "kernel")
 	c.Check(current.SnapRevision(), Equals, snap.R(41))
 
 	// make GetVars fail
@@ -5186,8 +5186,8 @@ func (s *bootenv20Suite) TestInUseClassicWithModes(c *C) {
 
 	inUse, err := boot.InUse(snap.TypeKernel, classicWithModesDev)
 	c.Check(err, IsNil)
-	c.Check(inUse(s.kern1.SnapName(), s.kern1.SnapRevision()), Equals, true)
-	c.Check(inUse(s.kern2.SnapName(), s.kern2.SnapRevision()), Equals, false)
+	c.Check(inUse(s.kern1.SnapName().String(), s.kern1.SnapRevision()), Equals, true)
+	c.Check(inUse(s.kern2.SnapName().String(), s.kern2.SnapRevision()), Equals, false)
 
 	_, err = boot.InUse(snap.TypeBase, classicWithModesDev)
 	c.Check(err, IsNil)

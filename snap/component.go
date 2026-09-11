@@ -250,7 +250,7 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info, csi *Compon
 		return componentInfo, nil
 	}
 
-	if snapInfo.SnapName() != componentInfo.Component.SnapName {
+	if snapInfo.SnapName().String() != componentInfo.Component.SnapName {
 		return nil, fmt.Errorf(
 			"component %q is not a component for snap %q", componentInfo.Component, snapInfo.SnapName())
 	}

@@ -20,8 +20,13 @@
 package seclog_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seclog"
 )
 
@@ -97,4 +102,81 @@ func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {
 	// Empty iface means no interface contributed; the base reason is unchanged.
 	c.Check(seclog.GrantRootAuth.WithInterface("", true), Equals, seclog.GrantRootAuth)
 	c.Check(seclog.GrantRootAuth.WithInterface("", false), Equals, seclog.GrantRootAuth)
+}
+
+func (s *SecLogSuite) TestSystemUserAddOptionsFromStoreEmail(c *C) {
+	opts := &osutil.AddUserOptions{
+		Gecos:               "karl@example.com,Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: true,
+	}
+
+	got := seclog.SystemUserAddOptionsFrom(opts, nil)
+	c.Check(got, DeepEquals, seclog.SystemUserAddOptions{
+		RealUserName:        "Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: true,
+		Known:               false,
+		Assertion:           nil,
+	})
+}
+
+func (s *SecLogSuite) TestSystemUserAddOptionsFromGecosWithoutName(c *C) {
+	// No comma: RealUserName is left empty.
+	c.Check(seclog.SystemUserAddOptionsFrom(&osutil.AddUserOptions{
+		Gecos: "only-email@example.com",
+	}, nil).RealUserName, Equals, "")
+
+	c.Check(seclog.SystemUserAddOptionsFrom(&osutil.AddUserOptions{}, nil).RealUserName, Equals, "")
+}
+
+func (s *SecLogSuite) TestSystemUserAddOptionsFromAssertion(c *C) {
+	su := assertstest.FakeAssertion(map[string]any{
+		"type":         "system-user",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"username":     "example-user",
+		"name":         "Example User",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		"revision":     "3",
+	}).(*asserts.SystemUser)
+
+	got := seclog.SystemUserAddOptionsFrom(&osutil.AddUserOptions{
+		Gecos:  "foo@bar.com,Example User",
+		Sudoer: true,
+	}, su)
+	c.Check(got, DeepEquals, seclog.SystemUserAddOptions{
+		RealUserName: "Example User",
+		Sudoer:       true,
+		Known:        true,
+		Assertion: &seclog.AssertionRef{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   3,
+		},
+	})
+}
+
+func (s *SecLogSuite) TestAssertionRefFrom(c *C) {
+	c.Check(seclog.AssertionRefFrom(nil), IsNil)
+
+	su := assertstest.FakeAssertion(map[string]any{
+		"type":         "system-user",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"username":     "example-user",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+	}).(*asserts.SystemUser)
+
+	c.Check(seclog.AssertionRefFrom(su), DeepEquals, &seclog.AssertionRef{
+		Type:       "system-user",
+		PrimaryKey: []string{"my-brand", "foo@bar.com"},
+		Revision:   0,
+	})
 }

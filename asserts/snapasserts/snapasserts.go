@@ -337,7 +337,7 @@ func DeriveComponentSideInfo(name, path string, info *snap.Info, model *asserts.
 		return nil, err
 	}
 
-	csi, err := DeriveComponentSideInfoFromDigestAndSize(name, info.SnapName(), info.ID(), path, digest, size, model, db)
+	csi, err := DeriveComponentSideInfoFromDigestAndSize(name, info.SnapName().String(), info.ID(), path, digest, size, model, db)
 	if err != nil {
 		return nil, err
 	}

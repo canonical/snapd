@@ -141,7 +141,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
-				RealName: info.SnapName(),
+				RealName: info.SnapName().String(),
 				Revision: info.Revision,
 				SnapID:   info.InstanceName() + "-id",
 			},

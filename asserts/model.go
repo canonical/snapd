@@ -69,8 +69,8 @@ type ModelSnap struct {
 }
 
 // SnapName implements naming.SnapRef.
-func (s *ModelSnap) SnapName() string {
-	return s.Name
+func (s *ModelSnap) SnapName() naming.SnapName {
+	return naming.SnapName(s.Name)
 }
 
 // ID implements naming.SnapRef.
@@ -704,18 +704,6 @@ func (mod *Model) KernelTrack() string {
 // Base returns the base snap the model uses.
 func (mod *Model) Base() string {
 	return mod.HeaderString("base")
-}
-
-// BaseCoreVersion returns the version of the model's core boot base snap
-// (e.g. "core18" -> 18, "core" -> 16). An omitted base on a non-classic
-// model is treated as 16 (the core snap). It returns an error for a
-// non-core base.
-func (mod *Model) BaseCoreVersion() (int, error) {
-	base := mod.Base()
-	if !mod.Classic() && base == "" {
-		return 16, nil
-	}
-	return naming.CoreVersion(base)
 }
 
 // BaseSnap returns the details of the base snap the model uses.

@@ -54,7 +54,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}

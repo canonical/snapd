@@ -596,7 +596,7 @@ func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey
 	if sc == nil {
 		v.snaps[sn.SnapID] = &snapConstraints{
 			constraints: constraints{
-				name:     sn.Name,
+				name:     sn.Name.String(),
 				presence: sn.Presence,
 				revisions: map[snap.Revision][]revConstraint{
 					rev: {rc},
@@ -949,7 +949,7 @@ func checkManyConstraints(scs []constraints, installedRevision func(constraints)
 // PresenceConstraintError describes an error where presence of the given snap
 // has unexpected value, e.g. it's "invalid" while checking for "required".
 type PresenceConstraintError struct {
-	SnapName string
+	SnapName naming.SnapName
 	Presence asserts.Presence
 }
 
@@ -963,7 +963,7 @@ func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapConstra
 	}
 	// snapID not available, find by snap name
 	for _, cstrs := range v.snaps {
-		if cstrs.name == snapRef.SnapName() {
+		if cstrs.name == snapRef.SnapName().String() {
 			return cstrs
 		}
 	}
@@ -1081,7 +1081,7 @@ func (s *SnapPresenceConstraints) RequiredComponents() map[string]PresenceConstr
 // Check with ValidationSets.Conflict() before calling this method.
 func (v *ValidationSets) Presence(sn naming.SnapRef) (SnapPresenceConstraints, error) {
 	// if this is true, then calling code has a bug
-	if snapName := sn.SnapName(); strings.Contains(snapName, "_") {
+	if snapName := sn.SnapName().String(); strings.Contains(snapName, "_") {
 		return SnapPresenceConstraints{}, fmt.Errorf("internal error: cannot check snap against validation sets with instance name: %q", snapName)
 	}
 

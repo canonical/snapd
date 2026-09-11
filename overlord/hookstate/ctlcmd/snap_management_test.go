@@ -92,7 +92,7 @@ func (s *installSuite) SetUpTest(c *C) {
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
-				RealName: info1.SnapName(),
+				RealName: info1.SnapName().String(),
 				Revision: info1.Revision,
 				SnapID:   "test-snap-id",
 			},

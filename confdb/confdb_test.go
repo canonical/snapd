@@ -2744,6 +2744,27 @@ func (s *viewSuite) TestViewSetErrorIfValueContainsUnusedParts(c *C) {
 	}
 }
 
+func (s *viewSuite) TestSetPathChecksValueCoveredByMultipleBranches(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.bar", "storage": "foo.bar"},
+				map[string]any{"request": "foo.bar.baz", "storage": "foo.bar.baz"},
+				map[string]any{"request": "foo.other", "storage": "foo.other"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	bag := confdb.NewJSONDatabag()
+	err = view.Set(bag, "foo", map[string]any{
+		"bar":   map[string]any{"baz": "value"},
+		"other": "value",
+	})
+	c.Assert(err, IsNil)
+}
+
 func (*viewSuite) TestViewSummaryWrongType(c *C) {
 	for _, val := range []any{
 		1,
@@ -4228,6 +4249,12 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 	}
 }
 
+func (*viewSuite) TestParsePathNormalizesListIndexes(c *C) {
+	accessors, err := confdb.ParsePathIntoAccessors("foo[000][01]", confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+	c.Check(confdb.JoinAccessors(accessors), Equals, "foo[0][1]")
+}
+
 func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
 	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
@@ -4522,6 +4549,29 @@ func (*viewSuite) TestListFiltering(c *C) {
 	val, err = view.Get(bag, "vm", map[string]any{"path": "not-there"}, confdb.AdminAccess)
 	c.Assert(val, IsNil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (*viewSuite) TestSetListIndexesInNumericOrder(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{
+					"request": "settings[{n}]",
+					"storage": "items[{n}]",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	// has 11 elements so we test that settings[10] sorts after settings[9]
+	// (i.e., they're not lexicographically sorted)
+	value := []any{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"}
+	err = view.Set(bag, "settings", value)
+	c.Assert(err, IsNil)
 }
 
 func (*viewSuite) TestFieldFilteringNotString(c *C) {
@@ -5197,6 +5247,13 @@ func fuzzHelper(f *testing.F, o confdb.ParseOptions, seed string) {
 		expected := subkeyOnlyReg.FindAllString(s, -1)
 		if len(accessors) == len(expected) {
 			for i, e := range expected {
+				if accessors[i].Type() == confdb.ListIndexType {
+					index := strings.TrimLeft(e[1:len(e)-1], "0")
+					if index == "" {
+						index = "0"
+					}
+					e = "[" + index + "]"
+				}
 				if accessors[i].Access() != e {
 					t.Errorf("unexpected type of accessor %T with name %s for element %s", accessors[i].Type(), accessors[i].Name(), e)
 				}

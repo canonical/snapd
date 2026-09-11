@@ -99,7 +99,7 @@ func (pol *policy16) checkBase(info *snap.Info, modes []string, availableByMode 
 	if info.Base == "" {
 		if info.Type() == snap.TypeGadget || info.Type() == snap.TypeApp {
 			// remember to make sure we have core installed
-			pol.needsCore = append(pol.needsCore, info.SnapName())
+			pol.needsCore = append(pol.needsCore, info.SnapName().String())
 		}
 		return nil
 	}
@@ -110,7 +110,7 @@ func (pol *policy16) checkBase(info *snap.Info, modes []string, availableByMode 
 
 	if info.Base == "core16" {
 		// check at the end
-		pol.needsCore16 = append(pol.needsCore16, info.SnapName())
+		pol.needsCore16 = append(pol.needsCore16, info.SnapName().String())
 		return nil
 	}
 

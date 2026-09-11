@@ -407,7 +407,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().String() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName().String() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -616,10 +616,10 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 			// non-definer interfaces are assumed to support parallel instances
 			continue
 		}
-		if !definer.ParallelInstancesSupportedForPlug(plugInfo) {
+		if err := definer.ParallelInstancesSupportedForPlug(plugInfo); err != nil {
 			return fmt.Errorf("cannot install snap %q as parallel instance: "+
-				"plug %q with interface %q is not supported for parallel instances",
-				info.InstanceName(), plugName, plugInfo.Interface)
+				"plug %q with interface %q is not supported for parallel instances: %v",
+				info.InstanceName(), plugName, plugInfo.Interface, err)
 		}
 	}
 
@@ -629,10 +629,10 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 			// non-definer interfaces are assumed to support parallel instances
 			continue
 		}
-		if !definer.ParallelInstancesSupportedForSlot(slotInfo) {
+		if err := definer.ParallelInstancesSupportedForSlot(slotInfo); err != nil {
 			return fmt.Errorf("cannot install snap %q as parallel instance: "+
-				"slot %q with interface %q is not supported for parallel instances",
-				info.InstanceName(), slotName, slotInfo.Interface)
+				"slot %q with interface %q is not supported for parallel instances: %v",
+				info.InstanceName(), slotName, slotInfo.Interface, err)
 		}
 	}
 
@@ -995,7 +995,7 @@ func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
-	if info.SnapName() != snapName {
+	if info.SnapName().String() != snapName {
 		return nil, fmt.Errorf("cannot install snap %q: instance name prefix does not match snap name: %s != %s", instanceName, snapName, info.SnapName())
 	}
 	info.InstanceKey = instanceKey

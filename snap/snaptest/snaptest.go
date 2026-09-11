@@ -56,7 +56,7 @@ func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo
 
 		// Make sure snap name/instance name checks out
 		c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
-		c.Assert(snapInfo.SnapName(), check.Equals, snapName)
+		c.Assert(snapInfo.SnapName().String(), check.Equals, snapName)
 	}
 
 	// Put the YAML on disk, in the right spot.
@@ -121,7 +121,7 @@ func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.Compon
 	cpi := snap.MinimalComponentContainerPlaceInfo(
 		csi.Component.ComponentName,
 		csi.Revision,
-		info.SnapName(),
+		info.SnapName().String(),
 	)
 	err = os.Rename(compPath, cpi.MountFile())
 	c.Assert(err, check.IsNil)

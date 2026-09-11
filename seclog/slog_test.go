@@ -180,6 +180,28 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 				"app_id", "type", "category", "event", "peer", "endpoint", "reason_denied",
 			},
 		},
+		{
+			attrs: []seclog.Attr{
+				{Key: "system_user", Value: "karl"},
+				{Key: "add_options", Value: seclog.SystemUserAddOptions{Known: false}},
+				{Key: "add_reason", Value: string(seclog.AddReasonAPIStoreEmail)},
+			},
+			wantKeys: []string{
+				"datetime", "level", "description",
+				"app_id", "type", "category", "event", "system_user", "add_options", "add_reason",
+			},
+		},
+		{
+			attrs: []seclog.Attr{
+				{Key: "system_user", Value: "karl"},
+				{Key: "remove_options", Value: seclog.SystemUserRemoveOptions{Force: true}},
+				{Key: "remove_reason", Value: string(seclog.RemoveReasonEnsureExpired)},
+			},
+			wantKeys: []string{
+				"datetime", "level", "description",
+				"app_id", "type", "category", "event", "system_user", "remove_options", "remove_reason",
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -398,6 +420,153 @@ func (s *SlogSuite) TestPeerLogValueEmptySecurityLabels(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `"cgroup_label":"<unknown>"`)
 	c.Check(s.buf.String(), testutil.Contains, `"snap":"<unknown>"`)
 	c.Check(s.buf.String(), testutil.Contains, `"app":"<unknown>"`)
+}
+
+func (s *SlogSuite) TestSystemUserAddOptionsLogValue(c *C) {
+	type addOptionsRecord struct {
+		seclog.SystemUserAddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "add_options", Value: seclog.SystemUserAddOptions{
+			RealUserName:        "Karl Popper",
+			Sudoer:              true,
+			ExtraUsers:          true,
+			ForcePasswordChange: true,
+			Known:               false,
+		}},
+	)
+
+	var obtained addOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUserAddOptions.RealUserName, Equals, "Karl Popper")
+	c.Check(obtained.SystemUserAddOptions.Sudoer, Equals, true)
+	c.Check(obtained.SystemUserAddOptions.ExtraUsers, Equals, true)
+	c.Check(obtained.SystemUserAddOptions.ForcePasswordChange, Equals, true)
+	c.Check(obtained.SystemUserAddOptions.Known, Equals, false)
+}
+
+func (s *SlogSuite) TestAssertionRefLogValue(c *C) {
+	type refRecord struct {
+		Ref seclog.AssertionRef `json:"ref"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "ref", Value: seclog.AssertionRef{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   2,
+		}},
+	)
+
+	var obtained refRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Ref.Type, Equals, "system-user")
+	c.Check(obtained.Ref.PrimaryKey, DeepEquals, []string{"my-brand", "foo@bar.com"})
+	c.Check(obtained.Ref.Revision, Equals, 2)
+}
+
+func (s *SlogSuite) TestSystemUserAddOptionsWithAssertionLogValue(c *C) {
+	type addOptionsRecord struct {
+		seclog.SystemUserAddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "add_options", Value: seclog.SystemUserAddOptions{
+			Known: true,
+			Assertion: &seclog.AssertionRef{
+				Type:       "system-user",
+				PrimaryKey: []string{"my-brand", "foo@bar.com"},
+				Revision:   1,
+			},
+		}},
+	)
+
+	var obtained addOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUserAddOptions.Known, Equals, true)
+	c.Assert(obtained.SystemUserAddOptions.Assertion, NotNil)
+	c.Check(obtained.SystemUserAddOptions.Assertion.Type, Equals, "system-user")
+	c.Check(obtained.SystemUserAddOptions.Assertion.PrimaryKey, DeepEquals, []string{"my-brand", "foo@bar.com"})
+	c.Check(obtained.SystemUserAddOptions.Assertion.Revision, Equals, 1)
+}
+
+func (s *SlogSuite) TestSystemUserRemoveOptionsLogValue(c *C) {
+	type removeOptionsRecord struct {
+		seclog.SystemUserRemoveOptions `json:"remove_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "remove_options", Value: seclog.SystemUserRemoveOptions{Force: true}},
+	)
+
+	var obtained removeOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUserRemoveOptions.Force, Equals, true)
+}
+
+func (s *SlogSuite) TestSystemUserAddReasonLogValue(c *C) {
+	type record struct {
+		SystemUser string                      `json:"system_user"`
+		AddReason  string                      `json:"add_reason"`
+		AddOptions seclog.SystemUserAddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "USER", Name: "user_created_system", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "system_user", Value: "foo"},
+		seclog.Attr{Key: "add_options", Value: seclog.SystemUserAddOptions{Known: true}},
+		seclog.Attr{Key: "add_reason", Value: string(seclog.AddReasonAPIAssertion)},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUser, Equals, "foo")
+	c.Check(obtained.AddReason, Equals, "api-assertion")
+	c.Check(obtained.AddOptions.Known, Equals, true)
+}
+
+func (s *SlogSuite) TestSystemUserRemoveReasonLogValue(c *C) {
+	type record struct {
+		SystemUser    string                         `json:"system_user"`
+		RemoveReason  string                         `json:"remove_reason"`
+		RemoveOptions seclog.SystemUserRemoveOptions `json:"remove_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "USER", Name: "user_removed_system", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "system_user", Value: "foo"},
+		seclog.Attr{Key: "remove_options", Value: seclog.SystemUserRemoveOptions{Force: true}},
+		seclog.Attr{Key: "remove_reason", Value: string(seclog.RemoveReasonEnsureExpired)},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUser, Equals, "foo")
+	c.Check(obtained.RemoveReason, Equals, "ensure-remove-expired-user")
+	c.Check(obtained.RemoveOptions.Force, Equals, true)
 }
 
 func (s *SlogSuite) TestEndpointLogValue(c *C) {

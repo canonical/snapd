@@ -27,8 +27,10 @@ import (
 	"sort"
 	"testing"
 
+	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/fdstore"
@@ -37,6 +39,12 @@ import (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
+
+type fcntlCall struct {
+	fd  uintptr
+	cmd int
+	arg int
+}
 
 type fdstoreTestSuite struct {
 	testutil.BaseTest
@@ -47,9 +55,12 @@ type fdstoreTestSuite struct {
 	closeFds       []int
 	lastDupFd      int
 	duplicatedFds  []int
+	fcntlCalls     []fcntlCall
 }
 
 var _ = Suite(&fdstoreTestSuite{})
+
+const FD_TEST_FLAG = 0x02
 
 func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.sdNotifyCalls = nil
@@ -58,6 +69,7 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.closeFds = nil
 	s.lastDupFd = 1000
 	s.duplicatedFds = nil
+	s.fcntlCalls = nil
 
 	os.Setenv("LISTEN_PID", "1984")
 	os.Unsetenv("LISTEN_FDS")
@@ -90,13 +102,44 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 		s.sdNotifyCalls = append(s.sdNotifyCalls, call)
 		return nil
 	}))
-	s.AddCleanup(fdstore.MockUnixCloseOnExec(func(fd int) {
-		s.closeOnExecFds = append(s.closeOnExecFds, fd)
-	}))
-	s.AddCleanup(fdstore.MockUnixDup(func(oldfd int) (fd int, err error) {
-		s.duplicatedFds = append(s.duplicatedFds, oldfd)
-		s.lastDupFd++
-		return s.lastDupFd, nil
+	s.AddCleanup(fdstore.MockFcntl(func(fd uintptr, cmd, arg int) (int, error) {
+		s.fcntlCalls = append(s.fcntlCalls, fcntlCall{fd: fd, cmd: cmd, arg: arg})
+		switch cmd {
+		case unix.F_GETFD:
+			if arg != 0 {
+				return -1, fmt.Errorf("unexpected arg for F_GETFD: %d", arg)
+			}
+			call := fmt.Sprintf("fcntl-getfd-flags: %d", fd)
+			if strutil.ListContains(s.errOn, call) {
+				return -1, errors.New("boom!")
+			}
+			return FD_TEST_FLAG, nil
+		case unix.F_DUPFD_CLOEXEC:
+			if arg != 0 {
+				return -1, fmt.Errorf("unexpected arg for F_DUPFD_CLOEXEC: %d", arg)
+			}
+			call := fmt.Sprintf("fcntl-dupfd-cloexec: %d", fd)
+			if strutil.ListContains(s.errOn, call) {
+				return -1, errors.New("boom!")
+			}
+			s.duplicatedFds = append(s.duplicatedFds, int(fd))
+			s.lastDupFd++
+			// F_DUPFD_CLOEXEC sets close-on-exec on the new fd atomically.
+			s.closeOnExecFds = append(s.closeOnExecFds, s.lastDupFd)
+			return s.lastDupFd, nil
+		case unix.F_SETFD:
+			if arg != (unix.FD_CLOEXEC | FD_TEST_FLAG) {
+				return -1, fmt.Errorf("unexpected arg for F_SETFD: %d", arg)
+			}
+			call := fmt.Sprintf("fcntl-setfd-cloexec: %d", fd)
+			if strutil.ListContains(s.errOn, call) {
+				return -1, errors.New("boom!")
+			}
+			s.closeOnExecFds = append(s.closeOnExecFds, int(fd))
+			return 0, nil
+		default:
+			return -1, fmt.Errorf("unexpected fcntl cmd %d", cmd)
+		}
 	}))
 	s.AddCleanup(fdstore.MockOsFileClose(func(f *os.File) error {
 		s.closeFds = append(s.closeFds, int(f.Fd()))
@@ -476,4 +519,110 @@ func (s *fdstoreTestSuite) TestKnownFdNames(c *C) {
 	c.Assert(fdstore.KnownFdNames(), DeepEquals, map[fdstore.FdName]bool{
 		fdstore.FdName("memfd-secret-state"): true,
 	})
+}
+
+func (s *fdstoreTestSuite) TestFcntlFlags(c *C) {
+	os.Setenv("LISTEN_FDS", "1")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state")
+
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, IsNil)
+
+	// fd 3 gets close-on-exec set during init, then is duplicated
+	// with close-on-exec set atomically on Get.
+	c.Check(s.fcntlCalls, DeepEquals, []fcntlCall{
+		{fd: 3, cmd: unix.F_GETFD, arg: 0},
+		{fd: 3, cmd: unix.F_SETFD, arg: unix.FD_CLOEXEC | FD_TEST_FLAG},
+		{fd: 3, cmd: unix.F_DUPFD_CLOEXEC, arg: 0},
+	})
+}
+
+func (s *fdstoreTestSuite) TestInitCloseOnExecError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	os.Setenv("LISTEN_FDS", "2")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state:snapd.socket")
+
+	// setting close-on-exec on fd 3 (memfd-secret-state) fails
+	s.errOn = []string{"fcntl-setfd-cloexec: 3"}
+
+	restore = fdstore.MockNetFileListener(func(f *os.File) (ln net.Listener, err error) {
+		return &fakeListener{f}, nil
+	})
+	defer restore()
+
+	store := fdstore.New()
+	// the entry whose close-on-exec failed is pruned
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
+
+	c.Check(logbuf.String(), testutil.Contains, `cannot set close-on-exec on fd 3 ("memfd-secret-state"): boom!`)
+	c.Check(logbuf.String(), testutil.Contains, `removing unexpected fdstore entry "memfd-secret-state"`)
+
+	// the socket (fd 4) is unaffected
+	listeners, err := store.ActivationListeners()
+	c.Assert(err, IsNil)
+	c.Check(listeners, HasLen, 1)
+
+	c.Check(s.sdNotifyCalls, DeepEquals, []string{
+		"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state",
+	})
+}
+
+func (s *fdstoreTestSuite) TestInitGetFdFlagsError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	os.Setenv("LISTEN_FDS", "2")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state:snapd.socket")
+
+	// reading flags on fd 3 (memfd-secret-state) fails
+	s.errOn = []string{"fcntl-getfd-flags: 3"}
+
+	restore = fdstore.MockNetFileListener(func(f *os.File) (ln net.Listener, err error) {
+		return &fakeListener{f}, nil
+	})
+	defer restore()
+
+	store := fdstore.New()
+	// the entry whose flags couldn't be read is pruned
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
+
+	c.Check(logbuf.String(), testutil.Contains, `cannot get fd flags on fd 3 ("memfd-secret-state"): boom!`)
+	c.Check(logbuf.String(), testutil.Contains, `removing unexpected fdstore entry "memfd-secret-state"`)
+
+	// the socket (fd 4) is unaffected
+	listeners, err := store.ActivationListeners()
+	c.Assert(err, IsNil)
+	c.Check(listeners, HasLen, 1)
+
+	c.Check(s.sdNotifyCalls, DeepEquals, []string{
+		"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state",
+	})
+}
+
+func (s *fdstoreTestSuite) TestGetDupError(c *C) {
+	os.Setenv("LISTEN_FDS", "1")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state")
+
+	// duplicating fd 3 (memfd-secret-state) fails
+	s.errOn = []string{"fcntl-dupfd-cloexec: 3"}
+
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, "boom!")
+}
+
+func (s *fdstoreTestSuite) TestAddDupError(c *C) {
+	// duplicating the passed fd 7 fails
+	s.errOn = []string{"fcntl-dupfd-cloexec: 7"}
+
+	store := fdstore.New()
+	err := store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
+	c.Assert(err, ErrorMatches, "boom!")
+	// nothing is passed to systemd on duplication failure
+	c.Check(s.sdNotifyCalls, HasLen, 0)
 }

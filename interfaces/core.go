@@ -254,18 +254,20 @@ type ConflictingConnectedInterfacesDefiner interface {
 // whether they support plugs on snaps installed as parallel instances.
 // Interfaces not implementing this are assumed to support parallel instances.
 type ParallelInstancesPlugDefiner interface {
-	// ParallelInstancesSupportedForPlug returns whether the interface
-	// supports being plugged by a snap installed as a parallel instance.
-	ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool
+	// ParallelInstancesSupportedForPlug returns nil if the interface
+	// supports being plugged by a snap installed as a parallel instance,
+	// or an error explaining why it does not otherwise.
+	ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error
 }
 
 // ParallelInstancesSlotDefiner can be implemented by Interfaces to declare
 // whether they support slots on snaps installed as parallel instances.
 // Interfaces not implementing this are assumed to support parallel instances.
 type ParallelInstancesSlotDefiner interface {
-	// ParallelInstancesSupportedForSlot returns whether the interface
-	// supports being slotted by a snap installed as a parallel instance.
-	ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool
+	// ParallelInstancesSupportedForSlot returns nil if the interface
+	// supports being slotted by a snap installed as a parallel instance,
+	// or an error explaining why it does not otherwise.
+	ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error
 }
 
 // StaticInfo describes various static-info of a given interface.

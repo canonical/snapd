@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -1646,6 +1647,10 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerEnsureTriedRecoverySystem
 	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+	restore = devicestate.MockKeyboardCurrentXKBConfig(func() (*keyboard.XKBConfig, error) {
+		return &keyboard.XKBConfig{}, nil
+	})
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()

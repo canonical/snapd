@@ -315,7 +315,7 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	if !hasOtherInstances {
 		// remove only if not used by other instances of the same snap,
 		// failure to remove is ok, there may be other revisions
-		os.Remove(snap.BaseDir(s.SnapName()))
+		os.Remove(snap.BaseDir(s.SnapName().String()))
 	}
 	return nil
 }

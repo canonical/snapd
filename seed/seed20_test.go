@@ -2987,7 +2987,7 @@ func (s *seed20Suite) TestLoadMetaCore20Iter(c *C) {
 	// iterates over all snaps
 	seen := map[string]bool{}
 	err = seed20.Iter(func(sn *seed.Snap) error {
-		seen[sn.SnapName()] = true
+		seen[sn.SnapName().String()] = true
 		return nil
 	})
 	c.Assert(err, IsNil)
@@ -4562,7 +4562,7 @@ func (s *seed20Suite) TestLoadMetaWithComponents(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 1)
 	req20sn := runSnaps[0]
-	c.Check(req20sn.SnapName(), Equals, "required20")
+	c.Check(req20sn.SnapName().String(), Equals, "required20")
 	c.Check(len(req20sn.Components), Equals, 2)
 	checked := make([]bool, 2)
 	for _, comp := range req20sn.Components {
@@ -5077,7 +5077,7 @@ func (s *seed20Suite) TestLoadMetaWithLocalComponents(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(runSnaps, HasLen, 1)
 	req20sn := runSnaps[0]
-	c.Check(req20sn.SnapName(), Equals, "required20")
+	c.Check(req20sn.SnapName().String(), Equals, "required20")
 	c.Check(len(req20sn.Components), Equals, 2)
 	checked := make([]bool, 2)
 	for _, comp := range req20sn.Components {

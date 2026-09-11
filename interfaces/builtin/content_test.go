@@ -425,7 +425,7 @@ slots:
 
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
-	c.Check(info.SnapName(), Equals, "name")
+	c.Check(info.SnapName().String(), Equals, "name")
 	c.Check(info.InstanceName(), Equals, "name")
 
 	for _, persp := range []snap.ExpandSnapPerspective{snap.PerspectiveSelf, snap.PerspectiveOther} {
@@ -448,7 +448,7 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 func (s *ContentSuite) TestResolveSpecialVariableParallel(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
 	info.InstanceKey = "foo"
-	c.Check(info.SnapName(), Equals, "name")
+	c.Check(info.SnapName().String(), Equals, "name")
 	c.Check(info.InstanceName(), Equals, "name_foo")
 
 	persp := snap.PerspectiveOther

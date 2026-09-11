@@ -164,7 +164,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
+	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName().String()); err != nil {
 		return fmt.Errorf("cannot check for snapd-control interface: %v", err)
 	} else if conn {
 		return nil
