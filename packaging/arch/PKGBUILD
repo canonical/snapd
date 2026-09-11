@@ -31,6 +31,7 @@ build() {
   arch-meson "$pkgname-$pkgver" build \
              -Ddracut=disabled \
              -Dsetcap=false \
+             -Dsecboot=false \
              -Dsnapmountdir=/var/lib/snapd/snap \
              -Dbpf=enabled
   meson compile -C build
