@@ -395,9 +395,8 @@ const (
 	prereqRetry
 )
 
-// checkForInFlightPrereqTasks checks whether a link-snap task for
-// prerequisiteName is already in flight and reports how the caller should handle
-// the prerequisite.
+// checkForInFlightPrereqTasks checks if the prerequisite is being installed,
+// refreshed or removed, and reports how it should be handled.
 func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, basePrerequisite bool) (prereqInFlightAction, error) {
 	st := prereqs.State()
 
@@ -502,8 +501,6 @@ func removalInProgress(st *state.State, snapName string) (*state.Change, error) 
 func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 
-	// check for in-flight prerequisite work before considering whether the
-	// prerequisite is already satisfied.
 	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
 	if err != nil {
 		return nil, err
