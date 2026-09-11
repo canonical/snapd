@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !linux
 
 /*
- * Copyright (C) 2017-2026 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,16 +20,27 @@
 package systemd
 
 import (
-	"errors"
 	"os"
+	"sync"
 )
 
-var errUnsupported = errors.New("unsupported on non-Linux systems")
+var sdNotifySocket string
+var sdNotifySocketOnce sync.Once
 
-func SdNotify(notifyState string) error {
-	return errUnsupported
+// InitSdNotifySocket reads and unsets the NOTIFY_SOCKET environment variable.
+//
+// To get the cached value, use NotifySocket().
+func InitSdNotifySocket() {
+	sdNotifySocketOnce.Do(func() {
+		sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
+		os.Unsetenv("NOTIFY_SOCKET")
+	})
 }
 
-func SdNotifyWithFds(notifyState string, files ...*os.File) error {
-	return errUnsupported
+// NotifySocket returns the cached value of the NOTIFY_SOCKET environment
+// variable.
+func NotifySocket() string {
+	// ensure the NOTIFY_SOCKET environment variable is read and unset before returning the cached value
+	InitSdNotifySocket()
+	return sdNotifySocket
 }
