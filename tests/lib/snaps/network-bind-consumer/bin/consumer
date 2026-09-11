@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -13,10 +14,18 @@ class testRequestHandler(BaseHTTPRequestHandler):
         message = b"<!doctype html>ok\n"
         self.wfile.write(message)
 
-def run():
-    server_address = ('localhost', 8081)
+def run(port):
+    server_address = ('localhost', port)
     httpd = HTTPServer(server_address, testRequestHandler)
     httpd.serve_forever()
 
 if __name__ == '__main__':
-  sys.exit(run())
+    # the port is normally set via "snap set $SNAP_INSTANCE_NAME port=<port>"
+    value = subprocess.check_output(['snapctl', 'get', 'port']).strip()
+    # default port if the snap configuration is not set or invalid
+    port = 8081
+    try:
+        port = int(value)
+    except ValueError:
+        pass
+    sys.exit(run(port))

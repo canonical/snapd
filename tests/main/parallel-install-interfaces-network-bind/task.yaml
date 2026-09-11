@@ -1,0 +1,143 @@
+summary: check that the network-bind interface works with parallel instances
+
+details: |
+    Install a parallel instance of a snap declaring a plug on the network-bind
+    interface alongside the regular (non-instance) snap, both configured to
+    listen on the same default port.
+
+    The test checks that:
+    - the instance's service fails to start due to the port conflict, and
+      reconfiguring it to use a free port lets it work normally without
+      affecting the regular snap
+    - connecting and disconnecting the interface for either snap only
+      affects that snap's own service
+    - the conflicting port is not actually released when the regular snap's
+      interface is disconnected (with the service still running)
+    - removing the regular snap allows the instance's service to be
+      accessible on the default port
+
+environment:
+    SNAP_NAME: network-bind-consumer
+    SERVICE_NAME: network-consumer
+    DEFAULT_PORT: 8081
+    # used to confirm the instance's service works when not port-conflicted
+    ALT_PORT: 8082
+    REQUEST_FILE: ./request.txt
+    # snap installed as a parallel instance with the 'foo' instance key
+    INSTANCE_NAME: ${SNAP_NAME}_foo
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+    echo "Given a snap declaring the network-bind plug is installed"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
+    tests.cleanup defer snap remove --purge "$SNAP_NAME"
+
+    echo "Given the snap's service is listening"
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+    wait_listen_port "$DEFAULT_PORT"
+
+    echo "And a parallel instance of the same snap is installed alongside it"
+    "$TESTSTOOLS"/snaps-state install-local-as "$SNAP_NAME" "$INSTANCE_NAME"
+    tests.cleanup defer snap remove --purge "$INSTANCE_NAME"
+
+    echo "But the instance's service fails to bind the port already used by the regular snap"
+    "$TESTSTOOLS"/journal-state match-log "Address already in use" -u "snap.$INSTANCE_NAME.$SERVICE_NAME.service"
+
+    echo "And it fails once systemd stops retrying"
+    "$TESTSTOOLS"/journal-state match-log "Failed to start" -u "snap.$INSTANCE_NAME.$SERVICE_NAME.service" -n 15 --wait 1
+
+    echo "Given we store a basic HTTP request"
+    cat > "$REQUEST_FILE" <<EOF
+    GET / HTTP/1.0
+
+    EOF
+
+execute: |
+    check_service_accessible() {
+        nc -w 1 localhost "$1" < "$REQUEST_FILE" | grep -Pqz 'ok\n'
+    }
+
+    check_service_not_accessible() {
+        response=$(nc -w 1 localhost "$1" < "$REQUEST_FILE")
+        test -z "$response"
+    }
+
+    echo "Both the regular snap's and the instance's plugs are connected by default"
+    snap connections "$SNAP_NAME" | MATCH "^network-bind +$SNAP_NAME:network-bind +:network-bind"
+    snap connections "$INSTANCE_NAME" | MATCH "^network-bind +$INSTANCE_NAME:network-bind +:network-bind"
+
+    echo "Then the regular snap's service is accessible by a client"
+    check_service_accessible "$DEFAULT_PORT"
+
+    echo "And the instance's service works fine when configured to use a port that isn't already in use"
+    INST_SERVICE_UNIT="snap.$INSTANCE_NAME.$SERVICE_NAME.service"
+
+    # sets the instance's port and its configure hook restarts the service
+    configure_instance_port() {
+        # clear the start-limit-hit state, otherwise the service may refuse to start
+        systemctl reset-failed "$INST_SERVICE_UNIT"
+        snap set "$INSTANCE_NAME" port="$1"
+    }
+
+    configure_instance_port "$ALT_PORT"
+
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+    wait_listen_port "$ALT_PORT"
+    check_service_accessible "$ALT_PORT"
+
+    echo "And the regular snap's service is unaffected by reconfiguring the instance's service"
+    check_service_accessible "$DEFAULT_PORT"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the instance's plug is disconnected"
+    snap disconnect "$INSTANCE_NAME:network-bind"
+
+    echo "The instance's plug is now shown as disconnected while the regular snap's plug remains connected"
+    snap connections "$INSTANCE_NAME" | MATCH "^network-bind +$INSTANCE_NAME:network-bind +-"
+    snap connections "$SNAP_NAME" | MATCH "^network-bind +$SNAP_NAME:network-bind +:network-bind"
+
+    echo "Then the instance's service is not accessible"
+    check_service_not_accessible "$ALT_PORT"
+
+    echo "But the regular snap's service remains accessible"
+    check_service_accessible "$DEFAULT_PORT"
+
+    echo "When the instance's plug is reconnected and the regular snap's plug is disconnected instead"
+    snap connect "$INSTANCE_NAME:network-bind"
+    snap disconnect "$SNAP_NAME:network-bind"
+
+    echo "The regular snap's plug is now shown as disconnected while the instance's plug remains connected"
+    snap connections "$SNAP_NAME" | MATCH "^network-bind +$SNAP_NAME:network-bind +-"
+    snap connections "$INSTANCE_NAME" | MATCH "^network-bind +$INSTANCE_NAME:network-bind +:network-bind"
+
+    echo "Then the regular snap's service is not accessible"
+    check_service_not_accessible "$DEFAULT_PORT"
+
+    echo "But the instance's service remains accessible"
+    check_service_accessible "$ALT_PORT"
+
+    echo "And even with the regular snap's plug disconnected, its process still holds port $DEFAULT_PORT so the instance still can't bind it"
+    # a local cursor lets us check only this attempt's log, since the same
+    # failure message was already logged for this unit earlier in the test
+    cursor=$("$TESTSTOOLS"/journal-state get-last-cursor)
+    configure_instance_port "$DEFAULT_PORT"
+
+    retry -n 15 --wait 1 sh -c "$TESTSTOOLS/journal-state get-log-from-cursor '$cursor' -u '$INST_SERVICE_UNIT' | grep -q 'Failed to start'"
+
+    echo "When the regular snap is removed"
+    snap remove --purge "$SNAP_NAME"
+
+    echo "And the instance's service is restarted"
+    systemctl reset-failed "$INST_SERVICE_UNIT"
+    snap start "$INSTANCE_NAME"
+    wait_listen_port "$DEFAULT_PORT"
+
+    echo "Then the instance's service is now accessible on the default port"
+    check_service_accessible "$DEFAULT_PORT"
