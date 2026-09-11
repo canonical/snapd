@@ -53,6 +53,14 @@ func (s *ucrednetSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAcceptConnContext(c *check.C) {
+	readlinkCalls := 0
+	restore := MockOsReadlink(func(path string) (string, error) {
+		readlinkCalls++
+		c.Check(path, check.Equals, "/proc/100/exe")
+		return "/usr/bin/snap", nil
+	})
+	defer restore()
+
 	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
 	d := c.MkDir()
 	sock := filepath.Join(d, "sock")
@@ -72,13 +80,151 @@ func (s *ucrednetSuite) TestAcceptConnContext(c *check.C) {
 	conn, err := wl.Accept()
 	c.Assert(err, check.IsNil)
 	defer conn.Close()
+	c.Check(readlinkCalls, check.Equals, 1)
 
 	ctx := ucrednetConnContext(context.Background(), conn)
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
 	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
+	name, err := u.UntrustedProcessExeName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "/usr/bin/snap")
+	c.Check(readlinkCalls, check.Equals, 1)
 	c.Check(conn.RemoteAddr().String(), check.Equals, conn.(*ucrednetConn).Conn.RemoteAddr().String())
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextUnreadableExe(c *check.C) {
+	lookupErr := errors.New("cannot read executable")
+	restore := MockOsReadlink(func(path string) (string, error) {
+		c.Check(path, check.Equals, "/proc/100/exe")
+		return "", lookupErr
+	})
+	defer restore()
+
+	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
+	sock := filepath.Join(c.MkDir(), "sock")
+	l, err := net.Listen("unix", sock)
+	c.Assert(err, check.IsNil)
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
+
+	go func() {
+		cli, err := net.Dial("unix", sock)
+		c.Assert(err, check.IsNil)
+		cli.Close()
+	}()
+
+	conn, err := wl.Accept()
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	ctx := ucrednetConnContext(context.Background(), conn)
+	u, err := ucrednetGet(ctx)
+	c.Assert(err, check.IsNil)
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
+	name, err := u.UntrustedProcessExeName()
+	c.Check(err, check.Equals, lookupErr)
+	c.Check(name, check.Equals, "")
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextInstanceName(c *check.C) {
+	lookupCalls := 0
+	restore := MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		lookupCalls++
+		c.Check(pid, check.Equals, 100)
+		return "some-snap_instance", nil
+	})
+	defer restore()
+
+	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
+	sock := filepath.Join(c.MkDir(), "sock")
+	l, err := net.Listen("unix", sock)
+	c.Assert(err, check.IsNil)
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
+
+	go func() {
+		cli, err := net.Dial("unix", sock)
+		c.Assert(err, check.IsNil)
+		cli.Close()
+	}()
+
+	conn, err := wl.Accept()
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+	c.Check(lookupCalls, check.Equals, 1)
+
+	ctx := ucrednetConnContext(context.Background(), conn)
+	u, err := ucrednetGet(ctx)
+	c.Assert(err, check.IsNil)
+	name, err := u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap_instance")
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, sock)
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
+	c.Check(lookupCalls, check.Equals, 1)
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextUnknownInstanceName(c *check.C) {
+	lookupErr := errors.New("cannot find snap security tag")
+	lookupCalls := 0
+	restore := MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		lookupCalls++
+		c.Check(pid, check.Equals, 100)
+		return "", lookupErr
+	})
+	defer restore()
+
+	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
+	sock := filepath.Join(c.MkDir(), "sock")
+	l, err := net.Listen("unix", sock)
+	c.Assert(err, check.IsNil)
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
+
+	go func() {
+		cli, err := net.Dial("unix", sock)
+		c.Assert(err, check.IsNil)
+		cli.Close()
+	}()
+
+	conn, err := wl.Accept()
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	ctx := ucrednetConnContext(context.Background(), conn)
+	u, err := ucrednetGet(ctx)
+	c.Assert(err, check.IsNil)
+	name, err := u.InstanceName()
+	c.Check(err, check.Equals, lookupErr)
+	c.Check(name, check.Equals, "")
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, sock)
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
+	c.Check(lookupCalls, check.Equals, 1)
+}
+
+func (s *ucrednetSuite) TestEmptyNames(c *check.C) {
+	u := NewUcrednet("", "", 42, "/run/snap.socket")
+	name, err := u.InstanceName()
+	c.Check(name, check.Equals, "")
+	c.Check(err, check.ErrorMatches, "snap instance name is not available")
+	name, err = u.UntrustedProcessExeName()
+	c.Check(name, check.Equals, "")
+	c.Check(err, check.ErrorMatches, "process executable name is not available")
+}
+
+func (s *ucrednetSuite) TestString(c *check.C) {
+	var u *ucrednet
+	c.Check(u.String(), check.Equals, "snap=;uid=;socket=;")
+	u = NewUcrednet("some-snap_instance", "", 42, "/run/snap.socket")
+	u.PIDForPolkit = 100
+	c.Check(u.String(), check.Equals, "snap=some-snap_instance;uid=42;socket=/run/snap.socket;")
+	u = NewUcrednet("", "", 42, "/run/snap.socket")
+	c.Check(u.String(), check.Equals, "snap=;uid=42;socket=/run/snap.socket;")
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
@@ -162,23 +308,30 @@ func (s *ucrednetSuite) TestGetNothing(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	original := &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"}
+	original := NewUcrednet("some-snap", "/usr/bin/snap", 42, "/run/snap.socket")
 	ctx := ucrednetWithCredentials(context.Background(), original)
 	original.Uid = 0
 
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
+	name, err := u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap")
+	name, err = u.UntrustedProcessExeName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "/usr/bin/snap")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 }
 
 func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
+	name, err := u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 	c.Check(ifaces, check.DeepEquals, []string{"snap-refresh-observe"})
@@ -187,30 +340,36 @@ func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
 	ctx = ucrednetWithCredentials(context.Background(), u)
 	u, ifaces, err = ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
+	name, err = u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 	c.Check(ifaces, check.IsNil)
 }
 
 func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
+	name, err := u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 	c.Check(ifaces, check.DeepEquals, []string{"snap-refresh-observe"})
 }
 
 func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
 	for i := 0; i < 2; i++ {
 		ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 		u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 		c.Assert(err, check.IsNil)
-		c.Check(u.Pid, check.Equals, int32(100))
+		name, err := u.InstanceName()
+		c.Check(err, check.IsNil)
+		c.Check(name, check.Equals, "some-snap")
 		c.Check(u.Uid, check.Equals, uint32(42))
 		c.Check(u.Socket, check.Equals, "/run/snap.socket")
 		c.Check(ifaces, check.DeepEquals, []string{"snap-refresh-observe"})
@@ -218,7 +377,7 @@ func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), &ucrednet{Pid: 100, Uid: 42, Socket: "/run/snap.socket"})
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 	ctx = ucrednetAttachInterface(ctx, "snap-interfaces-requests-control")
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
@@ -226,7 +385,9 @@ func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
 
 	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
-	c.Check(u.Pid, check.Equals, int32(100))
+	name, err := u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 	c.Check(ifaces, check.DeepEquals, []string{

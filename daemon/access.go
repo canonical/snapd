@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/snapcore/snapd/client"
@@ -33,15 +32,12 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var polkitCheckAuthorization = polkit.CheckAuthorization
 
 var checkPolkitAction = checkPolkitActionImpl
-
-var osReadlink = os.Readlink
 
 func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *apiError {
 	var flags polkit.CheckFlags
@@ -54,7 +50,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	switch authorized, err := polkitCheckAuthorization(ucred.Pid, ucred.Uid, action, nil, flags); err {
+	switch authorized, err := polkitCheckAuthorization(ucred.PIDForPolkit, ucred.Uid, action, nil, flags); err {
 	case nil:
 		if authorized {
 			// polkit says user is authorised
@@ -230,10 +226,7 @@ func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 	return checkAccess(d, r, ucred, user, opts)
 }
 
-var (
-	cgroupSnapNameFromPid     = cgroup.SnapNameFromPid
-	requireInterfaceApiAccess = requireInterfaceApiAccessImpl
-)
+var requireInterfaceApiAccess = requireInterfaceApiAccessImpl
 
 type interfaceAccessReqs struct {
 	// Interfaces is a list of interfaces, at least one of which must be
@@ -275,10 +268,11 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		return Forbidden("access denied")
 	}
 
-	// Access on snapd-snap.socket requires a connected plug.
-	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
+	// access on snapd-snap.socket requires a known snap and a connected interface.
+	instanceName, err := ucred.InstanceName()
 	if err != nil {
-		return Forbidden("could not determine snap name for pid: %s", err)
+		logger.Noticef("cannot determine snap name: %v", err)
+		return Forbidden("cannot determine snap name")
 	}
 
 	st := d.state
@@ -297,8 +291,8 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		if err != nil {
 			return Forbidden("internal error: %s", err)
 		}
-		matchOnSlot := req.Slot && connRef.SlotRef.Snap == snapName
-		matchOnPlug := req.Plug && connRef.PlugRef.Snap == snapName
+		matchOnSlot := req.Slot && connRef.SlotRef.Snap == instanceName
+		matchOnPlug := req.Plug && connRef.PlugRef.Snap == instanceName
 		if matchOnPlug || matchOnSlot {
 			*r = *r.WithContext(ucrednetAttachInterface(r.Context(), connState.Interface))
 			// Do not return here, but keep processing connections for the side
