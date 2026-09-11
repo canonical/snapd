@@ -66,7 +66,8 @@ func (store *Store) Timestamp() time.Time {
 	return store.timestamp
 }
 
-func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (store *Store) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Will be applied to a system's snapd or influence snapd
 	// policy decisions (via friendly-stores) so must be signed by a trusted
 	// authority!

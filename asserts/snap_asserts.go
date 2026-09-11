@@ -116,8 +116,8 @@ func (snapdcl *SnapDeclaration) RevisionAuthority(provenance string) []*Revision
 	return res
 }
 
-// Implement further consistency checks.
-func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (snapdcl *SnapDeclaration) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) is not signed by a directly trusted authority: %s", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.AuthorityID())
 	}
@@ -135,7 +135,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SnapDeclaration)(nil)
+var _ ConsistencyChecker = (*SnapDeclaration)(nil)
 
 // Prerequisites returns references to this snap-declaration's prerequisite assertions.
 func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
@@ -656,8 +656,8 @@ func (snaprev *SnapRevision) SnapIntegrityData() []IntegrityData {
 	return snaprev.snapIntegrityData
 }
 
-// Implement further consistency checks.
-func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (snaprev *SnapRevision) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	otherProvenance := snaprev.Provenance() != naming.DefaultProvenance
 	if !otherProvenance && !db.IsTrustedAccount(snaprev.AuthorityID()) {
 		// delegating global-upload revisions is not allowed
@@ -704,7 +704,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SnapRevision)(nil)
+var _ ConsistencyChecker = (*SnapRevision)(nil)
 
 // Prerequisites returns references to this snap-revision's prerequisite assertions.
 func (snaprev *SnapRevision) Prerequisites() []*Ref {
@@ -914,8 +914,8 @@ func (validation *Validation) Timestamp() time.Time {
 	return validation.timestamp
 }
 
-// Implement further consistency checks.
-func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (validation *Validation) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	_, err := db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
@@ -946,7 +946,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*Validation)(nil)
+var _ ConsistencyChecker = (*Validation)(nil)
 
 // Prerequisites returns references to this validation's prerequisite assertions.
 func (validation *Validation) Prerequisites() []*Ref {
@@ -1008,7 +1008,8 @@ func (snapdev *SnapDeveloper) PublisherID() string {
 	return snapdev.HeaderString("publisher-id")
 }
 
-func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (snapdev *SnapDeveloper) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Check authority is the publisher or trusted.
 	authorityID := snapdev.AuthorityID()
 	publisherID := snapdev.PublisherID()
@@ -1058,7 +1059,7 @@ func (snapdev *SnapDeveloper) checkConsistency(db RODatabase, acck *AccountKey) 
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SnapDeveloper)(nil)
+var _ ConsistencyChecker = (*SnapDeveloper)(nil)
 
 // Prerequisites returns references to this snap-developer's prerequisite assertions.
 func (snapdev *SnapDeveloper) Prerequisites() []*Ref {

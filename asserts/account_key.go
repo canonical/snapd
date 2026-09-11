@@ -175,8 +175,8 @@ func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
 	return pubKey, nil
 }
 
-// Implement further consistency checks.
-func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (ak *AccountKey) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(ak.AuthorityID()) {
 		return fmt.Errorf("account-key assertion for %q is not signed by a directly trusted authority: %s", ak.AccountID(), ak.AuthorityID())
 	}
@@ -214,7 +214,7 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*AccountKey)(nil)
+var _ ConsistencyChecker = (*AccountKey)(nil)
 
 // Prerequisites returns references to this account-key's prerequisite assertions.
 func (ak *AccountKey) Prerequisites() []*Ref {
@@ -355,8 +355,8 @@ func (akr *AccountKeyRequest) signKey(db RODatabase) (PublicKey, error) {
 	return akr.pubKey, nil
 }
 
-// Implement further consistency checks.
-func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (akr *AccountKeyRequest) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": akr.AccountID(),
 	})
@@ -371,7 +371,7 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 
 // expected interfaces are implemented
 var (
-	_ consistencyChecker = (*AccountKeyRequest)(nil)
+	_ ConsistencyChecker = (*AccountKeyRequest)(nil)
 	_ customSigner       = (*AccountKeyRequest)(nil)
 )
 

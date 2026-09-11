@@ -602,6 +602,11 @@ type assertionBase struct {
 	signature []byte
 }
 
+// AssertionBase provides the generic assertion behavior for concrete
+// assertion types. External assertion implementations should embed the value
+// passed to their Assembler.
+type AssertionBase = assertionBase
+
 // HeaderString retrieves the string value of header with name or ""
 func (ab *assertionBase) HeaderString(name string) string {
 	s, _ := ab.headers[name].(string)
