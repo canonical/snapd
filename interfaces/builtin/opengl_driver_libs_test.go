@@ -202,9 +202,9 @@ func (s *OpenglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// mountpoint directory (not the assembly tree content) is host-visible.
 		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1"),
-			Dir: "/run/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib2"),
-			Dir: "/run/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/run/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1",

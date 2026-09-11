@@ -350,6 +350,22 @@ func sourceDirEncodedName(slot *interfaces.ConnectedSlot, pathDirIdx pathWithDir
 // mount.Specification.MountEntries (via unclashMountEntries) merges entries
 // that share the same Dir, Name and Type into one, so only a single tmpfs
 // mount is ever actually applied.
+//
+// This entry is deliberately left with x-snapd.origin unset ("non-layout"),
+// while every assembly bind and redistribution bind entry under it is tagged
+// osutil.XSnapdOriginLayout() (see mountAssemblyLibDirs/mountAssemblySourceFiles/
+// mountAssemblyClientDriver). cmd/snap-update-ns/update.go applies mount
+// changes in origin-based passes: "non-layout" (untagged) entries are fully
+// prepared *and* applied as one bucket before the separate "layout" bucket's
+// own prepare-then-apply cycle even starts. If our tmpfs root shared the
+// "non-layout" bucket with its own children, the children's directory
+// creation (during the shared prepare sub-pass) would happen *before* the
+// tmpfs root's own mount (deferred to the separate, later apply sub-pass) --
+// landing on the real host directory, which the tmpfs then hides once it
+// mounts, causing every nested bind to fail with ENOENT (reproduced on
+// device). Keeping the root alone in "non-layout" guarantees it is fully
+// mounted (prepared *and* applied) before the "layout" bucket's own prepare
+// step for its children even begins.
 func mountAssemblyRoot(spec *mount.Specification) error {
 	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    "tmpfs",
@@ -376,7 +392,7 @@ func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedS
 		if err := spec.AddMountEntry(osutil.MountEntry{
 			Name:    dir.Path,
 			Dir:     target,
-			Options: []string{"bind", "ro"},
+			Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()},
 		}); err != nil {
 			return err
 		}
@@ -437,7 +453,7 @@ func mountAssemblySourceFiles(
 		if err := spec.AddMountEntry(osutil.MountEntry{
 			Name:    pathDirIdx.path,
 			Dir:     target,
-			Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+			Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
 		}); err != nil {
 			return err
 		}
@@ -450,7 +466,7 @@ func mountAssemblySourceFiles(
 			if err := spec.AddMountEntry(osutil.MountEntry{
 				Name:    target, // source = assembly target (bound above)
 				Dir:     loaderTarget,
-				Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+				Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
 			}); err != nil {
 				return err
 			}
@@ -474,7 +490,7 @@ func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.Conne
 	if err := spec.AddMountEntry(osutil.MountEntry{
 		Name:    path,
 		Dir:     target,
-		Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
 	}); err != nil {
 		return err
 	}
@@ -484,7 +500,7 @@ func mountAssemblyClientDriver(spec *mount.Specification, slot *interfaces.Conne
 	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    target, // source = assembly target (bound above)
 		Dir:     loaderTarget,
-		Options: []string{"bind", "ro", osutil.XSnapdKindFile()},
+		Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()},
 	})
 }
 

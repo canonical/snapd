@@ -330,32 +330,32 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// mountpoint directory (not the assembly tree content) is host-visible.
 		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs.
-		{Name: libDir1, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1", Options: []string{"bind", "ro"}},
-		{Name: libDir2, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2", Options: []string{"bind", "ro"}},
-		{Name: compLibDir, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1", Options: []string{"bind", "ro"}},
+		{Name: libDir1, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		{Name: libDir2, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		{Name: compLibDir, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/clib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		// ICD files, without a numeric prefix (vulkan has no priority).
 		{Name: filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/icd.d/mesa.json"),
-			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution to the loader-scanned Vulkan search dir.
 		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json",
-			Dir: "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan-icd.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan_alt.d/radeon.json"),
-			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution for the radeon ICD too.
 		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json",
-			Dir: "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/vulkan/icd.d/snap_vulkan-provider_vulkan-slot_vulkan_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Implicit layer.
 		{Name: filepath.Join(implicitDir, "gpu_layer.json"),
-			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution for the implicit layer.
 		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json",
-			Dir: "/usr/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/vulkan/implicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Explicit layer.
 		{Name: filepath.Join(explicitDir, "exp_layer.json"),
-			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution for the explicit layer.
 		{Name: "/run/snapd/interfaces/vulkan-driver-libs/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json",
-			Dir: "/usr/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/vulkan/explicit_layer.d/snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-exp_layer.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 	})
 
 	// Only the library dirs feed SNAP_LIBRARY_PATH (sorted).

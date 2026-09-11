@@ -325,15 +325,15 @@ func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// Library dirs are bound into the assembly tree, pooled by their
 		// path-suffix after the $SNAP/$SNAP_COMPONENT prefix.
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),
-			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2"),
-			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "clib1"),
-			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "clib2"),
-			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "clib3"),
-			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib3", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/cuda-driver-libs/lib/cuda-provider_cuda-slot/clib3", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 	})
 
 	// All bound library dirs are collected for SNAP_LIBRARY_PATH derivation

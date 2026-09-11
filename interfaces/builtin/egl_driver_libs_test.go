@@ -327,25 +327,25 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		// Library dirs, pooled by path-suffix after the $SNAP/$SNAP_COMPONENT
 		// prefix (no per-index splitting).		// Library dirs, pooled by path-suffix.
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
-			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
-			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: comp1LibDir,
-			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "clib2"),
-			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		// ICD files, with the classic priority-prefixed encoded names.
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d/mesa.json"),
-			Dir: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution to the loader-scanned GLVND directory, re-binding
 		// the assembly target above.
 		{Name: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
-			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl_alt.d/radeon.json"),
-			Dir: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution for the radeon ICD too.
 		{Name: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json",
-			Dir: "/usr/share/glvnd/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/glvnd/egl_vendor.d/11_snap_egl-provider_egl-slot_egl_alt.d-radeon.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 	})
 
 	// The library dirs are collected for SNAP_LIBRARY_PATH derivation (sorted);
@@ -391,13 +391,13 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugMultiComponentFilter
 		// The shared tmpfs mount at the assembly root, so that only the bare
 		// mountpoint directory (not the assembly tree content) is host-visible.
 		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
-		{Name: libDir1, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro"}},
-		{Name: libDir2, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro"}},
-		{Name: comp1LibDir, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro"}},
-		{Name: filepath.Join(icdDir, "mesa.json"), Dir: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+		{Name: libDir1, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		{Name: libDir2, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		{Name: comp1LibDir, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		{Name: filepath.Join(icdDir, "mesa.json"), Dir: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution to the loader-scanned GLVND directory.
 		{Name: "/run/snapd/interfaces/egl-driver-libs/share/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json",
-			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/usr/share/glvnd/egl_vendor.d/10_snap_egl-provider_egl-slot_egl.d-mesa.json", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1",

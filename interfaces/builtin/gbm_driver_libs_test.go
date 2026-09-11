@@ -294,16 +294,16 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs.
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
-			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2"),
-			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2", Options: []string{"bind", "ro"}},
+			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		// Client driver bound as a file, keeping its original name.
 		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
-			Dir: "/run/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: "/run/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution to the loader-scanned GBM directory, re-binding
 		// the assembly target above.
 		{Name: "/run/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so",
-			Dir: fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName()), Options: []string{"bind", "ro", osutil.XSnapdKindFile()}},
+			Dir: fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName()), Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
 		"/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1",
