@@ -245,6 +245,7 @@ predictor_report_allows_rerun() {
     local workflow_run_id="$2"
     local workflow_run_attempt="$3"
     local execution_id="$4"
+    # HTML comments <!-- --> are added so tags are not visible in the PR comment
     local marker_prefix="<!-- test-predictor-rerun: run-id=$workflow_run_id run-attempt=$workflow_run_attempt"
     local allowed_marker="$marker_prefix allowed=true -->"
     local denied_marker="$marker_prefix allowed=false -->"
