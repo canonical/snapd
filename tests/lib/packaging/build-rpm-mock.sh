@@ -45,9 +45,10 @@ mkdir "$src_dir"
 cp "$packaging_path"/* "$src_dir"
 cp "$vendor_tar_dir"/* "$src_dir"
 
-mock -r "$config_file" --install git
+mock -r "$config_file" --install git --verbose
 
 mock -r "$config_file" \
+    --verbose \
     --no-clean \
     --no-cleanup-after \
     --buildsrpm \
@@ -58,10 +59,11 @@ mock -r "$config_file" \
 
 # use the enable-network option to allow mock to download go dependencies
 mock -r "$config_file" \
+    --verbose \
     --no-clean \
     --no-cleanup-after \
     --enable-network \
     --nocheck \
     --with testkeys \
     --resultdir /home/mockbuilder/builds \
-    /home/mockbuilder/builds/snapd*.src.rpm
+    /home/mockbuilder/builds/snapd*.src.rpm || (find /home/mockbuilder/builds -type f -name "*.log" -print -exec cat {} ";"; exit 1)
