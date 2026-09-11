@@ -1402,7 +1402,7 @@ func maybeContentPlug(plug *PlugInfo) (contentTag, defaultProviderSnap string) {
 // provider but the default-provider is missing and/or many slots
 // are available.
 type ProviderWarning struct {
-	Snap            string
+	Snap            naming.InstanceName
 	Plug            string
 	ContentTag      string
 	DefaultProvider string

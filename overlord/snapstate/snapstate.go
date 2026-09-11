@@ -102,7 +102,7 @@ const defaultDiskSpaceReservation = 5 * 1024 * 1024
 var TestingLeaveOutKernelUpdateGadgetAssets bool = false
 
 type minimalInstallInfo interface {
-	InstanceName() string
+	InstanceName() naming.InstanceName
 	Revision() snap.Revision
 	Type() snap.Type
 	SnapBase() string

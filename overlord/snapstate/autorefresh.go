@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 	"github.com/snapcore/snapd/timings"
@@ -110,8 +111,8 @@ func (rc *refreshCandidate) DownloadSize() int64 {
 	return rc.DownloadInfo.Size
 }
 
-func (rc *refreshCandidate) InstanceName() string {
-	return rc.SnapSetup.InstanceName().String()
+func (rc *refreshCandidate) InstanceName() naming.InstanceName {
+	return rc.SnapSetup.InstanceName()
 }
 
 func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {

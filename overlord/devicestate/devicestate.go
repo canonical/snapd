@@ -331,8 +331,8 @@ func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error)
 
 // interfaceConnected returns true if the given snap/interface names
 // are connected
-func interfaceConnected(st *state.State, snapName, ifName string) bool {
-	conns, err := ifacerepo.Get(st).Connected(snapName, ifName)
+func interfaceConnected(st *state.State, snapName naming.InstanceName, ifName string) bool {
+	conns, err := ifacerepo.Get(st).Connected(snapName.String(), ifName)
 	return err == nil && len(conns) > 0
 }
 

@@ -122,7 +122,7 @@ type componentPlaceInfo struct {
 	compName     string
 	compRevision Revision
 	// snapInstance identifies the snap that uses this component.
-	snapInstance string
+	snapInstance naming.InstanceName
 }
 
 var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
@@ -130,7 +130,7 @@ var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
 // MinimalComponentContainerPlaceInfo returns a ContainerPlaceInfo with just
 // the location information for a component of the given name and revision that
 // is used by a snapInstance.
-func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string) ContainerPlaceInfo {
+func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance naming.InstanceName) ContainerPlaceInfo {
 	return &componentPlaceInfo{
 		compName:     compName,
 		compRevision: compRev,
