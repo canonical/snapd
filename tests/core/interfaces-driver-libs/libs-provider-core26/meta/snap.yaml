@@ -1,0 +1,39 @@
+name: libs-provider-core26
+version: 1.0
+base: core26
+slots:
+  cuda-driver-libs:
+    compatibility: cuda-(9..12)-ubuntu-2604
+    library-source:
+      - $SNAP/libs
+      - $SNAP_COMPONENT(comp1)/libs
+      - $SNAP_COMPONENT(comp2)/libs
+  egl-driver-libs:
+    priority: 15
+    compatibility: egl-1-5-ubuntu-2604
+    icd-source:
+      - $SNAP/egl.d
+      - $SNAP_COMPONENT(comp1)/egl.d
+      - $SNAP_COMPONENT(comp2)/egl.d
+    library-source:
+      - $SNAP/libs
+      - $SNAP_COMPONENT(comp1)/libs
+      - $SNAP_COMPONENT(comp2)/libs
+  vulkan-driver-libs:
+    compatibility: vulkan-1-2-ubuntu-2604
+    icd-source:
+      - $SNAP/vulkan/icd.d
+    implicit-layer-source:
+      - $SNAP/vulkan/implicit_layer.d
+    library-source:
+      - $SNAP/vulkan/lib
+  gbm-driver-libs:
+    client-driver: nvidia-drm_gbm.so
+    compatibility: gbmbackend-(0..2)-arch64-ubuntu-2604
+    library-source:
+      - $SNAP/gbm/lib
+components:
+  comp1:
+    type: standard
+  comp2:
+    type: standard
