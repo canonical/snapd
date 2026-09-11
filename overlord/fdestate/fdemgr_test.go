@@ -69,6 +69,7 @@ type fdeMgrSuite struct {
 	st      *state.State
 	runner  *state.TaskRunner
 	o       *overlord.Overlord
+	bootId  string
 }
 
 var _ = Suite(&fdeMgrSuite{})
@@ -136,6 +137,11 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "mock process backend effects"))
+	}))
+
+	s.bootId = "547730db-9e31-4c33-b418-1bce4e03f467"
+	s.AddCleanup(fdestate.MockOsutilBootID(func() (string, error) {
+		return s.bootId, nil
 	}))
 }
 

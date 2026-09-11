@@ -26,6 +26,7 @@ package secboot
 
 import (
 	"errors"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -114,6 +115,15 @@ const (
 type DbUpdate struct {
 	Database KeyDatabase
 	Payload  []byte
+}
+
+// DALockoutInfo describes the TPM Dictionary Attack lockout state.
+type DALockoutInfo struct {
+	LockoutCounter  uint32
+	MaxTries        uint32
+	RecoveryTime    time.Duration
+	LockoutRecovery time.Duration
+	InLockout       bool
 }
 
 // TODO:FDEM: rename and drop Model from the name?
