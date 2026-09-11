@@ -21,6 +21,8 @@ package builtin
 
 import (
 	"strings"
+
+	"github.com/snapcore/snapd/release"
 )
 
 const cameraSummary = `allows access to all cameras`
@@ -56,6 +58,26 @@ const cameraConnectedPlugAppArmor = `
 /sys/devices/platform/**/usb*/**/video4linux/** r,
 `
 
+const cameraConnectedPlugTouchAppArmor = `
+# Support for Android-based Camera stack on Ubuntu Touch
+/android{,/**} r,
+/{,android/}system/build.prop r,
+/{,android/}vendor/build.prop r,
+/{,android/}odm/build.prop    r,
+
+# libcamera_compat_layer doesn't require proprietary vendor blobs
+/{,android/}system/lib{,64}/** r,
+/{,android/}system/lib{,64}/**.so m,
+
+# Commonly expected Android paths
+/{,dev/}socket/property_service rw,
+/{,dev/}socket/logdw rw,
+/{,dev/}__properties__/** r,
+
+# Allow access to the CameraService on app-only binder
+/dev/{,binderfs/}binder rw,
+`
+
 // DetectCameraFromPath returns true if the given path corresponds to an
 // AppArmor rule with the prompt prefix from the camera interface.
 //
@@ -74,13 +96,18 @@ var cameraConnectedPlugUDev = []string{
 }
 
 func init() {
+	connectedPlugAppArmor := cameraConnectedPlugAppArmor
+	if release.OnTouch {
+		connectedPlugAppArmor += cameraConnectedPlugTouchAppArmor
+	}
+
 	registerIface(&commonInterface{
 		name:                  "camera",
 		summary:               cameraSummary,
 		implicitOnCore:        true,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  cameraBaseDeclarationSlots,
-		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
+		connectedPlugAppArmor: connectedPlugAppArmor,
 		connectedPlugUDev:     cameraConnectedPlugUDev,
 	})
 }
