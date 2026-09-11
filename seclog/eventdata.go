@@ -92,61 +92,43 @@ type SnapdUser struct {
 	Expiration     time.Time `json:"expiration"`
 }
 
-// LSM security label keys for [Peer.SecurityLabels].
-const (
-	PeerSecurityLabelAppArmor = "AppArmor"
-	PeerSecurityLabelSELinux  = "SELinux"
-)
-
 // Peer describes the Unix-domain peer of an API request.
 //
 // Socket, UID, and PID come from peer credentials and are expected to be
 // set when emitting AUTHZ events (the access gate is not reached without
-// them). Exe, CgroupLabel, Snap, and App are best-effort enrichment fields.
-// When unavailable, leave them empty or set them to [unknown]; [Peer.LogValue]
-// logs empty values as [unknown].
+// them). Exe, Snap, and Runnable are best-effort enrichment fields.
+// When unavailable, leave them empty; [Peer.LogValue] logs empty values as
+// [unknown].
 //
-// [Peer.SecurityLabels] is also best-effort enrichment: include only the LSM
-// keys that were obtained. Do not use [unknown] as a map value; omit unavailable
-// keys instead. An empty or nil map is logged as an empty JSON object. Keys are
-// emitted in alphabetical order.
-//
-// Callers may signal "unknown" by setting UID to [peerNobody] and/or PID to
-// [peerNoProcess] for display via [Peer.String]; these mirror the daemon
-// `ucrednetNobody` and `ucrednetNoProcess` sentinels (see daemon/ucrednet.go).
+// Callers may signal "unknown" by setting UID to [PeerNobody] and/or PID to
+// [PeerNoProcess] for display via [Peer.String].
 type Peer struct {
 	Socket string `json:"socket"`
 	UID    uint32 `json:"uid"`
 	PID    int32  `json:"pid"`
-	// Exe is the executable path of the peer process, read from
-	// /proc/<pid>/exe. [unknown] when unavailable.
-	Exe string `json:"exe"`
-	// SecurityLabels holds LSM security labels keyed by [PeerSecurityLabelAppArmor]
-	// and [PeerSecurityLabelSELinux]. Omit unavailable keys.
-	SecurityLabels map[string]string `json:"security_labels"`
-	// CgroupLabel is the snap cgroup label of the peer process (e.g.
-	// snap.<instance>.<app>). [unknown] when unavailable.
-	CgroupLabel string `json:"cgroup_label"`
-	// Snap is the snap instance name of the peer process, typically derived
-	// from the AppArmor entry in [Peer.SecurityLabels]. [unknown] when unavailable.
-	Snap string `json:"snap"`
-	// App is the snap application or service name of the peer process,
-	// typically derived from the AppArmor entry in [Peer.SecurityLabels].
+	// Exe is the executable path of the peer process, from /proc/<pid>/exe.
 	// [unknown] when unavailable.
-	App string `json:"app"`
+	Exe string `json:"exe"`
+	// Snap is the snap instance name of the peer process, from the AppArmor
+	// tag when that is present and not unconfined, otherwise from the cgroup
+	// security tag. [unknown] when unavailable.
+	Snap string `json:"snap"`
+	// Runnable is the peer app or hook. Apps use an "app." log prefix plus
+	// snap.Runnable.CommandName; hooks use CommandName as-is (hook.<name> or
+	// <snap>+<component>.hook.<name>, snap name without instance key).
+	// From the same tag as [Peer.Snap]. [unknown] when unavailable.
+	Runnable string `json:"runnable"`
 }
 
-// [peerNobody] and [peerNoProcess] mirror the daemon `ucrednetNobody` and
-// `ucrednetNoProcess` sentinels. They are duplicated here to keep seclog
-// free of snapd package imports.
+// PeerNobody and PeerNoProcess are the unknown UID and PID sentinels for [Peer].
 const (
-	peerNobody    = ^uint32(0)
-	peerNoProcess = int32(0)
+	PeerNobody    = ^uint32(0)
+	PeerNoProcess = int32(0)
 )
 
 // String returns a colon-separated representation in the form
 // "<Socket>:<UID>:<PID>". Fields that are unset, or set to a documented
-// "unknown" sentinel ([peerNobody], [peerNoProcess]), use [unknown] as a
+// "unknown" sentinel ([PeerNobody], [PeerNoProcess]), use [unknown] as a
 // placeholder.
 func (p Peer) String() string {
 	socket := unknown
@@ -155,13 +137,13 @@ func (p Peer) String() string {
 	}
 
 	uid := unknown
-	// 0 is a valid UID (root); only [peerNobody] is unknown.
-	if p.UID != peerNobody {
+	// 0 is a valid UID (root); only [PeerNobody] is unknown.
+	if p.UID != PeerNobody {
 		uid = fmt.Sprintf("%d", p.UID)
 	}
 
 	pid := unknown
-	if p.PID != peerNoProcess {
+	if p.PID != PeerNoProcess {
 		pid = fmt.Sprintf("%d", p.PID)
 	}
 
