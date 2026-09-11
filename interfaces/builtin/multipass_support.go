@@ -116,13 +116,15 @@ lchownat
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "multipass-support",
-		summary:               multipassSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  multipassSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  multipassSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: multipassSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  multipassSupportConnectedPlugSecComp,
+		name:                     "multipass-support",
+		summary:                  multipassSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     multipassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     multipassSupportBaseDeclarationPlugs,
+		connectedPlugAppArmor:    multipassSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     multipassSupportConnectedPlugSecComp,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

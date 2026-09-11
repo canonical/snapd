@@ -415,12 +415,14 @@ func (iface *steamSupportInterface) UDevConnectedPlug(spec *udev.Specification, 
 
 func init() {
 	registerIface(&steamSupportInterface{commonInterface{
-		name:                 "steam-support",
-		summary:              steamSupportSummary,
-		implicitOnCore:       release.OnCoreDesktop,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: steamSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: steamSupportBaseDeclarationPlugs,
-		connectedPlugSecComp: steamSupportConnectedPlugSecComp,
+		name:                     "steam-support",
+		summary:                  steamSupportSummary,
+		implicitOnCore:           release.OnCoreDesktop,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     steamSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     steamSupportBaseDeclarationPlugs,
+		connectedPlugSecComp:     steamSupportConnectedPlugSecComp,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

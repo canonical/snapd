@@ -67,13 +67,15 @@ type auditdSupportInterface struct {
 
 func init() {
 	registerIface(&auditdSupportInterface{commonInterface{
-		name:                  "auditd-support",
-		summary:               auditdSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  auditdSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  auditdSupportBaseDeclarationSlots,
-		connectedPlugSecComp:  auditdSupportConnectedPlugSecComp,
-		connectedPlugAppArmor: auditdSupportConnectedPlugAppArmor,
+		name:                     "auditd-support",
+		summary:                  auditdSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     auditdSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     auditdSupportBaseDeclarationSlots,
+		connectedPlugSecComp:     auditdSupportConnectedPlugSecComp,
+		connectedPlugAppArmor:    auditdSupportConnectedPlugAppArmor,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
