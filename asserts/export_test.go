@@ -63,7 +63,7 @@ func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSi
 
 func BootstrapAccountForTest(authorityID string) *Account {
 	return &Account{
-		assertionBase: assertionBase{
+		AssertionBase: AssertionBase{
 			headers: map[string]any{
 				"type":         "account",
 				"authority-id": authorityID,
@@ -81,7 +81,7 @@ func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since ti
 
 func MakeAccountKeyForTestWithUntil(authorityID string, openPGPPubKey PublicKey, since, until time.Time, validYears int) *AccountKey {
 	return &AccountKey{
-		assertionBase: assertionBase{
+		AssertionBase: AssertionBase{
 			headers: map[string]any{
 				"type":                "account-key",
 				"authority-id":        authorityID,
@@ -118,10 +118,10 @@ func MockTimeNow(t time.Time) (restore func()) {
 // define test assertion types to use in the tests
 
 type TestOnly struct {
-	assertionBase
+	AssertionBase
 }
 
-func assembleTestOnly(assert assertionBase) (Assertion, error) {
+func assembleTestOnly(assert AssertionBase) (Assertion, error) {
 	// for testing error cases
 	if _, err := checkIntWithDefault(assert.headers, "count", 0); err != nil {
 		return nil, err
@@ -132,10 +132,10 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, nil, assembleTestOnly, 0}
 
 type TestOnly2 struct {
-	assertionBase
+	AssertionBase
 }
 
-func assembleTestOnly2(assert assertionBase) (Assertion, error) {
+func assembleTestOnly2(assert AssertionBase) (Assertion, error) {
 	return &TestOnly2{assert}, nil
 }
 
@@ -144,7 +144,7 @@ var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, nil, a
 // TestOnlyDecl is a test-only assertion that mimics snap-declaration
 // relations with other assertions.
 type TestOnlyDecl struct {
-	assertionBase
+	AssertionBase
 }
 
 func (dcl *TestOnlyDecl) ID() string {
@@ -161,7 +161,7 @@ func (dcl *TestOnlyDecl) Prerequisites() []*Ref {
 	}
 }
 
-func assembleTestOnlyDecl(assert assertionBase) (Assertion, error) {
+func assembleTestOnlyDecl(assert AssertionBase) (Assertion, error) {
 	return &TestOnlyDecl{assert}, nil
 }
 
@@ -170,7 +170,7 @@ var TestOnlyDeclType = &AssertionType{"test-only-decl", []string{"id"}, nil, ass
 // TestOnlyRev is a test-only assertion that mimics snap-revision
 // relations with other assertions.
 type TestOnlyRev struct {
-	assertionBase
+	AssertionBase
 }
 
 func (rev *TestOnlyRev) H() string {
@@ -192,7 +192,7 @@ func (rev *TestOnlyRev) Prerequisites() []*Ref {
 	}
 }
 
-func assembleTestOnlyRev(assert assertionBase) (Assertion, error) {
+func assembleTestOnlyRev(assert AssertionBase) (Assertion, error) {
 	return &TestOnlyRev{assert}, nil
 }
 
@@ -200,7 +200,7 @@ var TestOnlyRevType = &AssertionType{"test-only-rev", []string{"h"}, nil, assemb
 
 // TestOnlySeq is a test-only assertion that is sequence-forming.
 type TestOnlySeq struct {
-	assertionBase
+	AssertionBase
 	seq int
 }
 
@@ -212,13 +212,13 @@ func (seq *TestOnlySeq) Sequence() int {
 	return seq.seq
 }
 
-func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
+func assembleTestOnlySeq(assert AssertionBase) (Assertion, error) {
 	seq, err := checkSequence(assert.headers, "sequence")
 	if err != nil {
 		return nil, err
 	}
 	return &TestOnlySeq{
-		assertionBase: assert,
+		AssertionBase: assert,
 		seq:           seq,
 	}, nil
 }
@@ -226,10 +226,10 @@ func assembleTestOnlySeq(assert assertionBase) (Assertion, error) {
 var TestOnlySeqType = &AssertionType{"test-only-seq", []string{"n", "sequence"}, nil, assembleTestOnlySeq, sequenceForming}
 
 type TestOnlyNoAuthority struct {
-	assertionBase
+	AssertionBase
 }
 
-func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
+func assembleTestOnlyNoAuthority(assert AssertionBase) (Assertion, error) {
 	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
 		return nil, err
 	}
@@ -239,10 +239,10 @@ func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
 var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, nil, assembleTestOnlyNoAuthority, noAuthority}
 
 type TestOnlyNoAuthorityPK struct {
-	assertionBase
+	AssertionBase
 }
 
-func assembleTestOnlyNoAuthorityPK(assert assertionBase) (Assertion, error) {
+func assembleTestOnlyNoAuthorityPK(assert AssertionBase) (Assertion, error) {
 	return &TestOnlyNoAuthorityPK{assert}, nil
 }
 

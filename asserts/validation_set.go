@@ -258,7 +258,7 @@ func checkValidationSetSnaps(snapList any) ([]*ValidationSetSnap, error) {
 // well together). validation-sets are organized in sequences under a
 // name.
 type ValidationSet struct {
-	assertionBase
+	AssertionBase
 
 	seq int
 
@@ -322,7 +322,7 @@ var (
 	validValidationSetName = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
 )
 
-func assembleValidationSet(assert assertionBase) (Assertion, error) {
+func assembleValidationSet(assert AssertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
 	if accountID != authorityID {
@@ -354,7 +354,7 @@ func assembleValidationSet(assert assertionBase) (Assertion, error) {
 	}
 
 	return &ValidationSet{
-		assertionBase: assert,
+		AssertionBase: assert,
 		seq:           seq,
 		snaps:         snaps,
 		timestamp:     timestamp,

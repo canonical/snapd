@@ -34,7 +34,7 @@ var validSystemUserUsernames = regexp.MustCompile(`^[a-z0-9][-a-z0-9._]*$`)
 // SystemUser holds a system-user assertion which allows creating local
 // system users.
 type SystemUser struct {
-	assertionBase
+	AssertionBase
 	series     []string
 	models     []string
 	serials    []string
@@ -130,16 +130,16 @@ func (su *SystemUser) ValidAt(when time.Time) bool {
 	return valid
 }
 
-// Implement further consistency checks.
-func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (su *SystemUser) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
-	// i.e. in the create-user code. See also Model.checkConsitency
+	// i.e. in the create-user code. See also Model.CheckConsistency.
 
 	return nil
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*SystemUser)(nil)
+var _ ConsistencyChecker = (*SystemUser)(nil)
 
 type shadow struct {
 	ID     string
@@ -231,7 +231,7 @@ func checkHashedPassword(headers map[string]any, name string) (string, error) {
 	return pw, nil
 }
 
-func checkSystemUserPresence(assert assertionBase) (string, error) {
+func checkSystemUserPresence(assert AssertionBase) (string, error) {
 	str, err := checkOptionalString(assert.headers, "user-presence")
 	if err != nil || str == "" {
 		return "", err
@@ -246,7 +246,7 @@ func checkSystemUserPresence(assert assertionBase) (string, error) {
 	return str, nil
 }
 
-func assembleSystemUser(assert assertionBase) (Assertion, error) {
+func assembleSystemUser(assert AssertionBase) (Assertion, error) {
 	// brand-id here can be different from authority-id,
 	// the code using the assertion must use the policy set
 	// by the model assertion system-user-authority header
@@ -321,7 +321,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	}
 
 	return &SystemUser{
-		assertionBase:       assert,
+		AssertionBase:       assert,
 		series:              series,
 		models:              models,
 		serials:             serials,

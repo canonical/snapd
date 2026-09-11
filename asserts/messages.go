@@ -71,7 +71,7 @@ func newDeviceIDFromString(rawID string) (DeviceID, error) {
 
 // RequestMessage represents a request message assertion used to trigger actions on snapd.
 type RequestMessage struct {
-	assertionBase
+	AssertionBase
 
 	id     string
 	seqNum int
@@ -124,7 +124,7 @@ func (req *RequestMessage) ValidUntil() time.Time {
 	return req.until
 }
 
-func assembleRequestMessage(assert assertionBase) (Assertion, error) {
+func assembleRequestMessage(assert AssertionBase) (Assertion, error) {
 	accountID := assert.HeaderString("account-id")
 	if !validAccountID.MatchString(accountID) {
 		return nil, fmt.Errorf("invalid account id: %s", accountID)
@@ -165,7 +165,7 @@ func assembleRequestMessage(assert assertionBase) (Assertion, error) {
 	}
 
 	return &RequestMessage{
-		assertionBase: assert,
+		AssertionBase: assert,
 		id:            id,
 		seqNum:        seqNum,
 		devices:       deviceIDs,
@@ -281,7 +281,7 @@ func newMessageStatus(status string) (MessageStatus, error) {
 // for every processed request-message. It contains the processing outcome
 // and any payload data in the assertion body.
 type ResponseMessage struct {
-	assertionBase
+	AssertionBase
 
 	id     string
 	seqNum int
@@ -318,7 +318,7 @@ func (res *ResponseMessage) Device() DeviceID {
 	return res.device
 }
 
-func assembleResponseMessage(assert assertionBase) (Assertion, error) {
+func assembleResponseMessage(assert AssertionBase) (Assertion, error) {
 	accountID := assert.HeaderString("account-id")
 	if !validAccountID.MatchString(accountID) {
 		return nil, fmt.Errorf("invalid account id: %s", accountID)
@@ -345,7 +345,7 @@ func assembleResponseMessage(assert assertionBase) (Assertion, error) {
 	}
 
 	return &ResponseMessage{
-		assertionBase: assert,
+		AssertionBase: assert,
 		id:            id,
 		seqNum:        seqNum,
 		device:        deviceID,

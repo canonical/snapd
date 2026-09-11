@@ -31,7 +31,7 @@ import (
 // Cluster holds a cluster assertion, which describes a cluster of devices and
 // their organization into subclusters.
 type Cluster struct {
-	assertionBase
+	AssertionBase
 	seq         int
 	devices     []ClusterDevice
 	subclusters []Subcluster
@@ -300,7 +300,7 @@ func validateClusterDeviceIDs(devices []ClusterDevice, subclusters []Subcluster)
 	return nil
 }
 
-func assembleCluster(assert assertionBase) (Assertion, error) {
+func assembleCluster(assert AssertionBase) (Assertion, error) {
 	seq, err := checkSequence(assert.headers, "sequence")
 	if err != nil {
 		return nil, err
@@ -331,7 +331,7 @@ func assembleCluster(assert assertionBase) (Assertion, error) {
 	}
 
 	return &Cluster{
-		assertionBase: assert,
+		AssertionBase: assert,
 		seq:           seq,
 		devices:       devices,
 		subclusters:   subclusters,

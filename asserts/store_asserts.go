@@ -29,7 +29,7 @@ import (
 // Store holds a store assertion, defining the configuration needed to connect
 // a device to the store or relative to a non-default store.
 type Store struct {
-	assertionBase
+	AssertionBase
 	url            *url.URL
 	friendlyStores []string
 	timestamp      time.Time
@@ -66,7 +66,8 @@ func (store *Store) Timestamp() time.Time {
 	return store.timestamp
 }
 
-func (store *Store) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (store *Store) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Will be applied to a system's snapd or influence snapd
 	// policy decisions (via friendly-stores) so must be signed by a trusted
 	// authority!
@@ -128,7 +129,7 @@ func checkStoreURL(headers map[string]any) (*url.URL, error) {
 	return u, nil
 }
 
-func assembleStore(assert assertionBase) (Assertion, error) {
+func assembleStore(assert AssertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "operator-id")
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func assembleStore(assert assertionBase) (Assertion, error) {
 	}
 
 	return &Store{
-		assertionBase:  assert,
+		AssertionBase:  assert,
 		url:            url,
 		friendlyStores: friendlyStores,
 		timestamp:      timestamp,
