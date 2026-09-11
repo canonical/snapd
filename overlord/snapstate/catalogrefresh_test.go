@@ -53,6 +53,9 @@ func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.S
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	r.ops = append(r.ops, "write-catalog")
 	if r.tooMany {
 		return store.ErrTooManyRequests
@@ -66,6 +69,9 @@ func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.S
 func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, error) {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 	r.ops = append(r.ops, "sections")
 	if r.tooMany {
@@ -306,6 +312,16 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(dirs.SnapSectionsFile, testutil.FilePresent)
 	c.Check(dirs.SnapNamesFile, testutil.FilePresent)
 	c.Check(dirs.SnapCommandsDB, testutil.FilePresent)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDown(c *C) {
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	cr7.ShutDown()
+
+	err := cr7.Ensure()
+	c.Check(err, IsNil)
+	// store was not contacted after shutdown
+	c.Check(s.store.ops, HasLen, 0)
 }
 
 func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {

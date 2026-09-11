@@ -1298,7 +1298,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	}
 
 	var sectionData sectionResults
-	resp, err := s.retryRequestDecodeJSON(context.TODO(), reqOptions, user, &sectionData, nil)
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &sectionData, nil)
 	if err != nil {
 		return nil, err
 	}
