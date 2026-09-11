@@ -73,7 +73,7 @@ type AssertionType struct {
 	// forming types.
 	OptionalPrimaryKeyDefaults map[string]string
 
-	assembler func(assert assertionBase) (Assertion, error)
+	assembler func(assert AssertionBase) (Assertion, error)
 	flags     typeFlags
 }
 
@@ -588,8 +588,8 @@ type customSigner interface {
 // MediaType is the media type for encoded assertions on the wire.
 const MediaType = "application/x.ubuntu.assertion"
 
-// assertionBase is the concrete base to hold representation data for actual assertions.
-type assertionBase struct {
+// AssertionBase holds the common representation shared by assertion types.
+type AssertionBase struct {
 	headers map[string]any
 	body    []byte
 	// parsed format iteration
@@ -602,46 +602,41 @@ type assertionBase struct {
 	signature []byte
 }
 
-// AssertionBase provides the generic assertion behavior for concrete
-// assertion types. External assertion implementations should embed the value
-// passed to their Assembler.
-type AssertionBase = assertionBase
-
 // HeaderString retrieves the string value of header with name or ""
-func (ab *assertionBase) HeaderString(name string) string {
+func (ab *AssertionBase) HeaderString(name string) string {
 	s, _ := ab.headers[name].(string)
 	return s
 }
 
 // Type returns the assertion type.
-func (ab *assertionBase) Type() *AssertionType {
+func (ab *AssertionBase) Type() *AssertionType {
 	return Type(ab.HeaderString("type"))
 }
 
 // Format returns the assertion format iteration.
-func (ab *assertionBase) Format() int {
+func (ab *AssertionBase) Format() int {
 	return ab.format
 }
 
 // SupportedFormat returns whether the assertion uses a supported
 // format iteration. If false the assertion might have been only
 // partially parsed.
-func (ab *assertionBase) SupportedFormat() bool {
+func (ab *AssertionBase) SupportedFormat() bool {
 	return ab.format <= maxSupportedFormat[ab.HeaderString("type")]
 }
 
 // Revision returns the assertion revision.
-func (ab *assertionBase) Revision() int {
+func (ab *AssertionBase) Revision() int {
 	return ab.revision
 }
 
 // AuthorityID returns the authority-id a.k.a the authority responsible for the assertion.
-func (ab *assertionBase) AuthorityID() string {
+func (ab *AssertionBase) AuthorityID() string {
 	return ab.HeaderString("authority-id")
 }
 
 // Header returns the value of an header by name.
-func (ab *assertionBase) Header(name string) any {
+func (ab *AssertionBase) Header(name string) any {
 	v := ab.headers[name]
 	if v == nil {
 		return nil
@@ -650,32 +645,32 @@ func (ab *assertionBase) Header(name string) any {
 }
 
 // Headers returns the complete headers.
-func (ab *assertionBase) Headers() map[string]any {
+func (ab *AssertionBase) Headers() map[string]any {
 	return copyHeaders(ab.headers)
 }
 
 // Body returns the body of the assertion.
-func (ab *assertionBase) Body() []byte {
+func (ab *AssertionBase) Body() []byte {
 	return ab.body
 }
 
 // Signature returns the signed content and its unprocessed signature.
-func (ab *assertionBase) Signature() (content, signature []byte) {
+func (ab *AssertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
 
 // SignKeyID returns the key id for the key that signed this assertion.
-func (ab *assertionBase) SignKeyID() string {
+func (ab *AssertionBase) SignKeyID() string {
 	return ab.HeaderString("sign-key-sha3-384")
 }
 
 // Prerequisites returns references to the prerequisite assertions for the validity of this one.
-func (ab *assertionBase) Prerequisites() []*Ref {
+func (ab *AssertionBase) Prerequisites() []*Ref {
 	return nil
 }
 
 // Ref returns a reference representing this assertion.
-func (ab *assertionBase) Ref() *Ref {
+func (ab *AssertionBase) Ref() *Ref {
 	assertType := ab.Type()
 	primKey := make([]string, len(assertType.PrimaryKey))
 	for i, name := range assertType.PrimaryKey {
@@ -688,12 +683,12 @@ func (ab *assertionBase) Ref() *Ref {
 }
 
 // At returns an AtRevision referencing this assertion at its revision.
-func (ab *assertionBase) At() *AtRevision {
+func (ab *AssertionBase) At() *AtRevision {
 	return &AtRevision{Ref: *ab.Ref(), Revision: ab.Revision()}
 }
 
 // expected interface is implemented
-var _ Assertion = (*assertionBase)(nil)
+var _ Assertion = (*AssertionBase)(nil)
 
 // Decode parses a serialized assertion.
 //
@@ -1118,7 +1113,7 @@ func assemble(headers map[string]any, body, content, signature []byte) (Assertio
 		return nil, fmt.Errorf("empty assertion signature")
 	}
 
-	assert, err := assertType.assembler(assertionBase{
+	assert, err := assertType.assembler(AssertionBase{
 		headers:   headers,
 		body:      body,
 		format:    formatnum,
@@ -1286,7 +1281,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]any, body []b
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')
 
-	assert, err := assertType.assembler(assertionBase{
+	assert, err := assertType.assembler(AssertionBase{
 		headers:   finalHeaders,
 		body:      finalBody,
 		format:    formatnum,

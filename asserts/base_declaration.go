@@ -29,7 +29,7 @@ import (
 // BaseDeclaration holds a base-declaration assertion, declaring the policies
 // (to start with interface ones) applying to all snaps of a series.
 type BaseDeclaration struct {
-	assertionBase
+	AssertionBase
 	plugRules map[string]*PlugRule
 	slotRules map[string]*SlotRule
 	timestamp time.Time
@@ -68,7 +68,7 @@ func (basedcl *BaseDeclaration) CheckConsistency(db RODatabase, acck *AccountKey
 // expected interface is implemented
 var _ ConsistencyChecker = (*BaseDeclaration)(nil)
 
-func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
+func assembleBaseDeclaration(assert AssertionBase) (Assertion, error) {
 	var plugRules map[string]*PlugRule
 	plugs, err := checkMap(assert.headers, "plugs")
 	if err != nil {
@@ -105,7 +105,7 @@ func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
 	}
 
 	return &BaseDeclaration{
-		assertionBase: assert,
+		AssertionBase: assert,
 		plugRules:     plugRules,
 		slotRules:     slotRules,
 		timestamp:     timestamp,

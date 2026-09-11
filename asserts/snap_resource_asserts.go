@@ -33,7 +33,7 @@ import (
 // statement by the store acknowledging the receipt of data for a resource of a
 // snap and labeling it with a resource revision.
 type SnapResourceRevision struct {
-	assertionBase
+	AssertionBase
 	resourceSize     uint64
 	resourceRevision int
 	timestamp        time.Time
@@ -156,7 +156,7 @@ func checkResourceName(headers map[string]any) error {
 	return nil
 }
 
-func assembleSnapResourceRevision(assert assertionBase) (Assertion, error) {
+func assembleSnapResourceRevision(assert AssertionBase) (Assertion, error) {
 	if err := checkResourceName(assert.headers); err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func assembleSnapResourceRevision(assert assertionBase) (Assertion, error) {
 	}
 
 	return &SnapResourceRevision{
-		assertionBase:         assert,
+		AssertionBase:         assert,
 		resourceSize:          resourceSize,
 		resourceRevision:      resourceRevision,
 		timestamp:             timestamp,
@@ -210,7 +210,7 @@ func assembleSnapResourceRevision(assert assertionBase) (Assertion, error) {
 // that the given snap resource revision can work with the given
 // snap revision.
 type SnapResourcePair struct {
-	assertionBase
+	AssertionBase
 	resourceRevision int
 	snapRevision     int
 	timestamp        time.Time
@@ -309,7 +309,7 @@ func (respair *SnapResourcePair) Prerequisites() []*Ref {
 	}
 }
 
-func assembleSnapResourcePair(assert assertionBase) (Assertion, error) {
+func assembleSnapResourcePair(assert AssertionBase) (Assertion, error) {
 	if err := checkResourceName(assert.headers); err != nil {
 		return nil, err
 	}
@@ -340,7 +340,7 @@ func assembleSnapResourcePair(assert assertionBase) (Assertion, error) {
 	}
 
 	return &SnapResourcePair{
-		assertionBase:    assert,
+		AssertionBase:    assert,
 		resourceRevision: resourceRevision,
 		snapRevision:     snapRevision,
 		timestamp:        timestamp,

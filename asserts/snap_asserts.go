@@ -40,7 +40,7 @@ import (
 // snap binding its identifying snap-id to a name, asserting its
 // publisher and its other properties.
 type SnapDeclaration struct {
-	assertionBase
+	AssertionBase
 	refreshControl      []string
 	plugRules           map[string]*PlugRule
 	slotRules           map[string]*SlotRule
@@ -281,7 +281,7 @@ func checkAliases(headers map[string]any) (map[string]string, error) {
 	return aliasMap, nil
 }
 
-func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
+func assembleSnapDeclaration(assert AssertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
 	if err != nil {
 		return nil, err
@@ -409,7 +409,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	}
 
 	return &SnapDeclaration{
-		assertionBase:       assert,
+		AssertionBase:       assert,
 		refreshControl:      refControl,
 		plugRules:           plugRules,
 		slotRules:           slotRules,
@@ -539,7 +539,7 @@ func SnapFileSHA3_384(snapPath string) (digest string, size uint64, err error) {
 // SnapBuild holds a snap-build assertion, asserting the properties of a snap
 // at the time it was built by the developer.
 type SnapBuild struct {
-	assertionBase
+	AssertionBase
 	size      uint64
 	timestamp time.Time
 }
@@ -569,7 +569,7 @@ func (snapbld *SnapBuild) Timestamp() time.Time {
 	return snapbld.timestamp
 }
 
-func assembleSnapBuild(assert assertionBase) (Assertion, error) {
+func assembleSnapBuild(assert AssertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
 		return nil, err
@@ -596,7 +596,7 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 	}
 	// ignore extra headers and non-empty body for future compatibility
 	return &SnapBuild{
-		assertionBase: assert,
+		AssertionBase: assert,
 		size:          size,
 		timestamp:     timestamp,
 	}, nil
@@ -606,7 +606,7 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 // store acknowledging the receipt of a build of a snap and labeling it with a
 // snap revision.
 type SnapRevision struct {
-	assertionBase
+	AssertionBase
 	snapSize     uint64
 	snapRevision int
 	timestamp    time.Time
@@ -823,7 +823,7 @@ func checkSnapIntegrity(headers map[string]any) ([]IntegrityData, error) {
 	return snapIntegrityDataList, nil
 }
 
-func assembleSnapRevision(assert assertionBase) (Assertion, error) {
+func assembleSnapRevision(assert AssertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
 		return nil, err
@@ -865,7 +865,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	}
 
 	return &SnapRevision{
-		assertionBase:     assert,
+		AssertionBase:     assert,
 		snapSize:          snapSize,
 		snapRevision:      snapRevision,
 		timestamp:         timestamp,
@@ -878,7 +878,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 // the series, meaning updating to that revision of approved-snap-id
 // has been approved by the owner of the gating snap with snap-id.
 type Validation struct {
-	assertionBase
+	AssertionBase
 	revoked              bool
 	timestamp            time.Time
 	approvedSnapRevision int
@@ -956,7 +956,7 @@ func (validation *Validation) Prerequisites() []*Ref {
 	}
 }
 
-func assembleValidation(assert assertionBase) (Assertion, error) {
+func assembleValidation(assert AssertionBase) (Assertion, error) {
 	approvedSnapRevision, err := checkSnapRevisionWhat(assert.headers, "approved-snap-revision", "header")
 	if err != nil {
 		return nil, err
@@ -973,7 +973,7 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 	}
 
 	return &Validation{
-		assertionBase:        assert,
+		AssertionBase:        assert,
 		revoked:              revoked,
 		timestamp:            timestamp,
 		approvedSnapRevision: approvedSnapRevision,
@@ -994,7 +994,7 @@ type dateRange struct {
 // snap-developer for the current publisher (the snap-declaration publisher-id)
 // is relevant to a device.
 type SnapDeveloper struct {
-	assertionBase
+	AssertionBase
 	developerRanges map[string][]*dateRange
 }
 
@@ -1082,14 +1082,14 @@ func (snapdev *SnapDeveloper) Prerequisites() []*Ref {
 	return refs
 }
 
-func assembleSnapDeveloper(assert assertionBase) (Assertion, error) {
+func assembleSnapDeveloper(assert AssertionBase) (Assertion, error) {
 	developerRanges, err := checkDevelopers(assert.headers)
 	if err != nil {
 		return nil, err
 	}
 
 	return &SnapDeveloper{
-		assertionBase:   assert,
+		AssertionBase:   assert,
 		developerRanges: developerRanges,
 	}, nil
 }

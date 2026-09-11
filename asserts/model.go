@@ -573,7 +573,7 @@ func (mvs *ModelValidationSet) AtSequence() *AtSequence {
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
 type Model struct {
-	assertionBase
+	AssertionBase
 	classic bool
 
 	baseSnap   *ModelSnap
@@ -981,7 +981,7 @@ var (
 	validDistribution = regexp.MustCompile(`^[a-z0-9._-]*$`)
 )
 
-func assembleModel(assert assertionBase) (Assertion, error) {
+func assembleModel(assert AssertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
@@ -1208,7 +1208,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
-		assertionBase:              assert,
+		AssertionBase:              assert,
 		classic:                    classic,
 		baseSnap:                   modSnaps.base,
 		gadgetSnap:                 modSnaps.gadget,

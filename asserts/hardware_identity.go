@@ -37,7 +37,7 @@ import (
 // HardwareIdentity holds a hardware identity assertion, which is a statement
 // that verifies the identity of a physical piece of hardware
 type HardwareIdentity struct {
-	assertionBase
+	AssertionBase
 
 	hardwareIDKeySha3384 string
 	hardwareKey          crypto.PublicKey
@@ -79,7 +79,7 @@ func (h *HardwareIdentity) HardwareIDKeySha3384() string {
 	return h.hardwareIDKeySha3384
 }
 
-func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
+func assembleHardwareIdentity(assert AssertionBase) (Assertion, error) {
 	issuerID, err := checkStringMatches(assert.headers, "issuer-id", validAccountID)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func assembleHardwareIdentity(assert assertionBase) (Assertion, error) {
 	}
 
 	return &HardwareIdentity{
-		assertionBase:        assert,
+		AssertionBase:        assert,
 		hardwareIDKeySha3384: hardwareIDKeySha3384,
 		hardwareKey:          pubKey,
 	}, nil

@@ -31,7 +31,7 @@ var validAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
 type AccountKey struct {
-	assertionBase
+	AssertionBase
 	sinceUntil
 	constraintMatchers []attrMatcher
 	pubKey             PublicKey
@@ -160,7 +160,7 @@ func (ak *AccountKey) canSign(a Assertion) bool {
 	return ak.matchAgainstConstraints(a.Headers())
 }
 
-func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
+func checkPublicKey(ab *AssertionBase, keyIDName string) (PublicKey, error) {
 	pubKey, err := DecodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func (ak *AccountKey) Prerequisites() []*Ref {
 	}
 }
 
-func assembleAccountKey(assert assertionBase) (Assertion, error) {
+func assembleAccountKey(assert AssertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
@@ -258,7 +258,7 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers for future compatibility
 	return &AccountKey{
-		assertionBase:      assert,
+		AssertionBase:      assert,
 		sinceUntil:         *sinceUntil,
 		constraintMatchers: matchers,
 		pubKey:             pubk,
@@ -320,7 +320,7 @@ func accountKeyFormatAnalyze(headers map[string]any, body []byte) (formatnum int
 
 // AccountKeyRequest holds an account-key-request assertion, which is a self-signed request to prove that the requester holds the private key and wishes to create an account-key assertion for it.
 type AccountKeyRequest struct {
-	assertionBase
+	AssertionBase
 	sinceUntil
 	pubKey PublicKey
 }
@@ -382,7 +382,7 @@ func (akr *AccountKeyRequest) Prerequisites() []*Ref {
 	}
 }
 
-func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
+func assembleAccountKeyRequest(assert AssertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 
 	// ignore extra headers for future compatibility
 	return &AccountKeyRequest{
-		assertionBase: assert,
+		AssertionBase: assert,
 		sinceUntil:    *sinceUntil,
 		pubKey:        pubk,
 	}, nil

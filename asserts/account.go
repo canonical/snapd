@@ -33,7 +33,7 @@ var (
 // Account holds an account assertion, which ties a name for an account
 // to its identifier and provides the authority's confidence in the name's validity.
 type Account struct {
-	assertionBase
+	AssertionBase
 	validation string
 	timestamp  time.Time
 }
@@ -79,7 +79,7 @@ func (acc *Account) CheckConsistency(db RODatabase, acck *AccountKey) error {
 // expected interface is implemented
 var _ ConsistencyChecker = (*Account)(nil)
 
-func assembleAccount(assert assertionBase) (Assertion, error) {
+func assembleAccount(assert AssertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "display-name")
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 	}
 
 	return &Account{
-		assertionBase: assert,
+		AssertionBase: assert,
 		validation:    validation,
 		timestamp:     timestamp,
 	}, nil
