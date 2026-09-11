@@ -127,6 +127,53 @@ func (s *kernelCommandLineSuite) TestModeAndLabel(c *C) {
 	}
 }
 
+func (s *kernelCommandLineSuite) TestRunSystem(c *C) {
+	for _, tc := range []struct {
+		cmd      string
+		expected *boot.RunSystemBoot
+		err      string
+	}{
+		{
+			cmd: "snapd_recovery_mode=run",
+		}, {
+			cmd:      "snapd_recovery_mode=run snapd_run_system=poc-a",
+			expected: &boot.RunSystemBoot{Label: "poc-a"},
+		}, {
+			cmd:      "snapd_recovery_mode=run snapd_run_system=poc-b snapd_run_system_status=trying",
+			expected: &boot.RunSystemBoot{Label: "poc-b", Trying: true},
+		}, {
+			cmd: "snapd_recovery_mode=run snapd_run_system_status=trying",
+			err: "cannot specify run system status without a run system",
+		}, {
+			cmd: "snapd_recovery_mode=run snapd_run_system=",
+			err: "cannot specify run system status without a run system",
+		}, {
+			cmd: "snapd_recovery_mode=recover snapd_run_system=poc-b",
+			err: `cannot specify run system "poc-b" outside run mode`,
+		}, {
+			cmd: "snapd_run_system=poc-b",
+			err: `cannot specify run system "poc-b" outside run mode`,
+		}, {
+			cmd: "snapd_recovery_mode=run snapd_run_system=../poc-b",
+			err: `invalid seed system label: "../poc-b"`,
+		}, {
+			cmd: "snapd_recovery_mode=run snapd_run_system=poc-b snapd_run_system_status=bad",
+			err: `cannot use run system status "bad"`,
+		},
+	} {
+		c.Logf("tc: %q", tc.cmd)
+		s.mockProcCmdlineContent(c, tc.cmd)
+
+		runSystem, err := boot.RunSystemFromKernelCommandLine()
+		if tc.err == "" {
+			c.Assert(err, IsNil)
+			c.Check(runSystem, DeepEquals, tc.expected)
+		} else {
+			c.Assert(err, ErrorMatches, tc.err)
+		}
+	}
+}
+
 func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	model := boottest.MakeMockUC20Model()
 

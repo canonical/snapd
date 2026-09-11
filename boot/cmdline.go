@@ -52,6 +52,45 @@ var (
 	validModes = []string{ModeInstall, ModeRecover, ModeFactoryReset, ModeRun, ModeRunCVM}
 )
 
+// RunSystemBoot describes a system seed selected for a run-mode boot.
+type RunSystemBoot struct {
+	Label  string
+	Trying bool
+}
+
+// RunSystemFromKernelCommandLine returns the run system selected by the
+// bootloader. A nil result indicates the legacy run-mode boot path.
+func RunSystemFromKernelCommandLine() (*RunSystemBoot, error) {
+	m, err := kcmdline.KeyValues("snapd_recovery_mode", "snapd_run_system", "snapd_run_system_status")
+	if err != nil {
+		return nil, err
+	}
+
+	label, hasLabel := m["snapd_run_system"]
+	status, hasStatus := m["snapd_run_system_status"]
+	if !hasLabel && !hasStatus {
+		return nil, nil
+	}
+	if !hasLabel || label == "" {
+		return nil, fmt.Errorf("cannot specify run system status without a run system")
+	}
+	if m["snapd_recovery_mode"] != ModeRun {
+		return nil, fmt.Errorf("cannot specify run system %q outside run mode", label)
+	}
+	if err := asserts.IsValidSystemLabel(label); err != nil {
+		return nil, err
+	}
+
+	switch status {
+	case "":
+		return &RunSystemBoot{Label: label}, nil
+	case "trying":
+		return &RunSystemBoot{Label: label, Trying: true}, nil
+	default:
+		return nil, fmt.Errorf("cannot use run system status %q", status)
+	}
+}
+
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode
 // and the recovery system label as passed in the kernel command line by the
 // bootloader.
