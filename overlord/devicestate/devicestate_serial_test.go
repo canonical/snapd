@@ -362,8 +362,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c 
 		Model: "classic-alt-store",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -424,6 +423,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicFallback(c 
 
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
 	// have a in-progress installation
 	inst := s.state.NewChange("install", "...")
@@ -437,6 +437,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicFallback(c 
 
 	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 1)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
@@ -504,8 +505,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandAcceptGenericHap
 		Model: "my-model-accept-generic",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -567,8 +567,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandMismatchedAuthor
 		Model: "my-model-accept-generic",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
