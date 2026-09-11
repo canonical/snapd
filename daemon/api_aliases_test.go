@@ -67,7 +67,6 @@ func (s *aliasesSuite) TestAliasSuccess(c *check.C) {
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &daemon.AliasAction{
 		Action: "alias",
@@ -201,7 +200,6 @@ func (s *aliasesSuite) TestUnaliasSnapSuccess(c *check.C) {
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &daemon.AliasAction{
 		Action: "unalias",
@@ -255,7 +253,6 @@ func (s *aliasesSuite) TestUnaliasDWIMSnapSuccess(c *check.C) {
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &daemon.AliasAction{
 		Action: "unalias",
@@ -310,7 +307,6 @@ func (s *aliasesSuite) TestUnaliasAliasSuccess(c *check.C) {
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &daemon.AliasAction{
 		Action: "alias",
@@ -392,7 +388,6 @@ func (s *aliasesSuite) TestUnaliasDWIMAliasSuccess(c *check.C) {
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &daemon.AliasAction{
 		Action: "alias",
@@ -475,7 +470,6 @@ func (s *aliasesSuite) TestPreferSuccess(c *check.C) {
 	defer func() { snapstate.AutoAliases = oldAutoAliases }()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &daemon.AliasAction{
 		Action: "prefer",

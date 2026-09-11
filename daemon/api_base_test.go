@@ -503,6 +503,7 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	snapstate.CanAutoRefresh = nil
 
 	s.d = d
+	s.AddCleanup(func() { d.Overlord().Stop() })
 	return d
 }
 
