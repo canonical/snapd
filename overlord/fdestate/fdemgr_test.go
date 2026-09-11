@@ -1567,3 +1567,32 @@ func (s *fdeMgrSuite) TestNextUniqueKeyslotNoSlotsAvailableError(c *C) {
 		c.Assert(err, ErrorMatches, `internal error: cannot find a unique keyslot for container role "system-data" with prefix "tmp"`)
 	}
 }
+
+func (s *fdeMgrSuite) TestStopClosesSecretState(c *C) {
+	fds := &mockFdstore{}
+	defer backend.MockFdstoreNew(func() fdstore.Store { return fds })()
+
+	manager, err := fdestate.Manager(s.st, s.runner)
+	c.Assert(err, IsNil)
+	s.o.AddManager(manager)
+
+	s.st.Lock()
+	err = manager.SecretState().Set("test-secret", "value")
+	s.st.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Assert(s.o.Stop(), IsNil)
+	// Stop is expected to be idempotent.
+	manager.Stop()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	var value string
+	c.Check(manager.SecretState().Get("test-secret", &value), ErrorMatches, `internal error: attempt to get key "test-secret" from closed state`)
+	c.Check(manager.SecretState().Has("test-secret"), Equals, false)
+
+	reopened := backend.NewSecretState(manager)
+	c.Assert(reopened.Get("test-secret", &value), IsNil)
+	c.Check(value, Equals, "value")
+	c.Assert(reopened.Close(), IsNil)
+}

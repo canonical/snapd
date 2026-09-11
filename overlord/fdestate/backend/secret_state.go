@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 
 	"golang.org/x/sys/unix"
 
@@ -297,10 +296,7 @@ func (s *secretState) capacity() uint64 {
 
 func (s *secretState) Close() error {
 	s.ensureLocked()
-	return s.closeLocked()
-}
 
-func (s *secretState) closeLocked() error {
 	if s == nil || s.closed {
 		return nil
 	}
@@ -320,6 +316,7 @@ func (s *secretState) closeLocked() error {
 		}
 		s.f = nil
 	}
+	s.data = nil
 
 	return strutil.JoinErrors(errs...)
 }
@@ -380,7 +377,8 @@ func openSecretStateFile() (f *os.File, retErr error) {
 // Note that only a single instance of the secret state should be opened
 // at a time.
 //
-// The caller must hold the state lock.
+// The caller must hold the state lock and must call Close when finished
+// to release resources.
 func NewSecretState(stateChecker StateLockChecker) SecretState {
 	stateChecker.EnsureLocked()
 
@@ -393,10 +391,6 @@ func NewSecretState(stateChecker StateLockChecker) SecretState {
 		logger.Debugf("cannot initialize secret state: %v", s.initErr)
 	}
 
-	// The finalizer runs on the GC goroutine without holding the state lock.
-	// It only runs once the state is unreachable, so no other goroutine can
-	// be accessing it and it can release the resources directly.
-	runtime.SetFinalizer(s, (*secretState).closeLocked)
 	return s
 }
 
