@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 	"gopkg.in/tomb.v2"
 )
@@ -481,23 +480,8 @@ func removalInProgress(st *state.State, snapName string) (*state.Change, error) 
 			continue
 		}
 
-		if chg.Has("full-remove") {
-			var snapNames []string
-			if err := chg.Get("snap-names", &snapNames); err != nil {
-				return nil, err
-			}
-
-			if strutil.ListContains(snapNames, snapName) {
-				return chg, nil
-			}
-
-			continue
-		}
-
-		// there may be changes in-flight that weren't marked with "full-remove", so
-		// check for an auto-disconnect task which is only set when removing all revisions
 		for _, t := range chg.Tasks() {
-			if t.Kind() != "auto-disconnect" {
+			if !t.Has("full-remove") {
 				continue
 			}
 

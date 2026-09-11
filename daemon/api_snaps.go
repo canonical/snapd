@@ -216,10 +216,6 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg.SetStatus(state.DoneStatus)
 	}
 
-	if res.FullRemove {
-		chg.Set("full-remove", true)
-	}
-
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
@@ -490,7 +486,6 @@ type snapInstructionResult struct {
 	AffectedComponents map[string][]string
 	Tasksets           []*state.TaskSet
 	Result             map[string]any
-	FullRemove         bool
 }
 
 var errDevJailModeConflict = errors.New("cannot use devmode and jailmode flags together")
@@ -673,10 +668,9 @@ func removeSnap(inst *snapInstruction, st *state.State) (*snapInstructionResult,
 	}
 
 	return &snapInstructionResult{
-		Summary:    fmt.Sprintf(i18n.G("Remove %q snap"), inst.Snaps[0]),
-		Tasksets:   []*state.TaskSet{ts},
-		Affected:   inst.Snaps,
-		FullRemove: inst.Revision.Unset(),
+		Summary:  fmt.Sprintf(i18n.G("Remove %q snap"), inst.Snaps[0]),
+		Tasksets: []*state.TaskSet{ts},
+		Affected: inst.Snaps,
 	}, nil
 }
 
@@ -887,10 +881,6 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if len(res.Tasksets) == 0 {
 		chg.SetStatus(state.DoneStatus)
 	}
-	if res.FullRemove {
-		chg.Set("full-remove", true)
-	}
-
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
@@ -1276,7 +1266,6 @@ func snapRemoveMany(_ context.Context, inst *snapInstruction, st *state.State) (
 		Affected:           removedSnaps,
 		AffectedComponents: removedComponents,
 		Tasksets:           tasksets,
-		FullRemove:         len(removedSnaps) != 0,
 	}, nil
 }
 

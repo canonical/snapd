@@ -571,12 +571,11 @@ func (s *snapsSuite) TestPostSnapsRemoveWithTerminate(c *check.C) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Check(chg.Summary(), check.Equals, `Remove "foo" snap`)
-	c.Check(chg.Has("full-remove"), check.Equals, true)
 
 	c.Assert(snapstateRemoveCalled, check.Equals, 1)
 }
 
-func (s *snapsSuite) TestPostSnapRemoveMarksChangeAsFullRemove(c *check.C) {
+func (s *snapsSuite) TestPostSnapRemoveDoesNotMarkChangeAsFullRemove(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
 
 	defer daemon.MockSnapstateRemove(func(st *state.State, name string, revision snap.Revision, flags *snapstate.RemoveFlags) (*state.TaskSet, error) {
@@ -597,9 +596,7 @@ func (s *snapsSuite) TestPostSnapRemoveMarksChangeAsFullRemove(c *check.C) {
 	defer st.Unlock()
 
 	chg := st.Change(rsp.Change)
-	var fullRemove bool
-	c.Assert(chg.Get("full-remove", &fullRemove), check.IsNil)
-	c.Check(fullRemove, check.Equals, true)
+	c.Check(chg.Has("full-remove"), check.Equals, false)
 }
 
 func (s *snapsSuite) TestPostSnapsRemoveManyWithTerminate(c *check.C) {
@@ -627,7 +624,6 @@ func (s *snapsSuite) TestPostSnapsRemoveManyWithTerminate(c *check.C) {
 	defer st.Unlock()
 	chg := st.Change(rsp.Change)
 	c.Check(chg.Summary(), check.Equals, `Remove snaps "foo", "bar"`)
-	c.Check(chg.Has("full-remove"), check.Equals, true)
 
 	c.Assert(snapstateRemoveManyCalled, check.Equals, 1)
 }

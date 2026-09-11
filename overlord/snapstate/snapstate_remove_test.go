@@ -65,6 +65,8 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	verifyRemoveTasks(c, ts)
+	t := findKindInTaskSet(ts, "auto-disconnect")
+	c.Assert(t.Has("full-remove"), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestRemoveTasksAutoSnapshotDisabled(c *C) {
@@ -1038,6 +1040,9 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
+
+	t := findKindInTaskSet(ts, "auto-disconnect")
+	c.Assert(t.Has("full-remove"), Equals, true)
 
 	s.settle(c)
 
