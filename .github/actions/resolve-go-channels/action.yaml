@@ -2,8 +2,8 @@ name: Resolve Go snap channels
 description: |
   Compiles a list of Go snap channels with unique versions according to the
   given optional input flags and specific channels. Looks up the snapd build
-  and snapd FIPS build Go channels from build-aux/snap/snapcraft.yaml. Assumes
-  risk stable if not specified.
+  Go channel from build-aux/snap/snapcraft.yaml and the FIPS Go channel from
+  build-aux/snap/snapcraft-fips.yaml. Assumes risk stable if not specified.
 
 inputs:
   include-snapd-build-go-channel:
@@ -100,7 +100,7 @@ runs:
         # Optional Go channel used to build Snapd snap for FIPS
         if [ "${{ inputs.include-snapd-build-fips-go-channel }}" = "true" ]; then
           echo "> Require Go channel used to build Snapd snap for FIPS"
-          yaml="build-aux/snap/snapcraft.yaml"
+          yaml="build-aux/snap/snapcraft-fips.yaml"
           if ! channel="$(yq '.parts.snapd.override-build' $yaml | grep "GO_TOOLCHAIN_FIPS_CHANNEL=\".*\"")"; then
             echo "Error: Cannot find valid Snapd FIPS build Go channel"
             exit 1
