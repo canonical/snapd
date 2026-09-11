@@ -5,14 +5,14 @@ details: |
     based on a tmpfs, as part of the work to support homedirs in arbitrary
     locations.
 
-environment:
-  TEST_SNAP: test-snapd-ns-consumer
-
 systems:
   # Skip 32-bit architectures because the core20 snap is not available there
   - -*-32
   # pivot_root not on Ubuntu Core 26 either
   - -ubuntu-core-26*
+
+environment:
+  TEST_SNAP: test-snapd-ns-consumer
 
 skip:
     - reason: Unshare command doesn't support saving the namespace
