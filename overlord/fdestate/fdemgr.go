@@ -173,6 +173,18 @@ func (m *FDEManager) Ensure() error {
 	return nil
 }
 
+// Stop releases the resources associated with the secret state.
+func (m *FDEManager) Stop() {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.secretState != nil {
+		if err := m.secretState.Close(); err != nil {
+			logger.Noticef("cannot close secret state: %v", err)
+		}
+	}
+}
+
 // TODO: move this back to StartUp once we have StartUp dependencies.
 func (m *FDEManager) DeviceInitialized() {
 	if m.initErr != ErrNotInitialized {
