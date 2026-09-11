@@ -127,7 +127,7 @@ func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 
 func (iface *gbmDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// On Ubuntu Core the provider content is bound into the assembly tree under
-	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs).
+	// the /run/snapd/snap/interfaces directory (see mountAssemblyLibDirs).
 	if err := mountAssemblyRoot(spec); err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (iface *gbmDriverLibsInterface) MountConnectedPlug(spec *mount.Specificatio
 
 func (iface *gbmDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// Grant the app read access to its own assembly subtree under
-	// /run/snapd/interfaces (the core base template does not grant /opt/** to
+	// /run/snapd/snap/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
 	addAppArmorAssemblyRoot(spec)

@@ -202,15 +202,15 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// The shared tmpfs mount at the assembly root, so that only the bare
 		// mountpoint directory (not the assembly tree content) is host-visible.
-		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
+		{Name: "tmpfs", Dir: "/run/snapd/snap", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
-			Dir: "/run/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+			Dir: "/run/snapd/snap/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2"),
-			Dir: "/run/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+			Dir: "/run/snapd/snap/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/run/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1",
-		"/run/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib2",
+		"/run/snapd/snap/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1",
+		"/run/snapd/snap/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib2",
 	})
 }
 
@@ -220,7 +220,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	lib1 := filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1")
-	target0 := "/run/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1"
+	target0 := "/run/snapd/snap/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", lib1, target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}/\",\n", target0))
@@ -228,8 +228,8 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// The app gets read access to its own assembly subtree only (the core base
 	// template does not grant /opt/** to apps).
 	app := spec.SnippetForTag("snap.snapd.app")
-	c.Check(app, testutil.Contains, "/run/snapd/interfaces/opengles-driver-libs/ r,")
-	c.Check(app, testutil.Contains, "/run/snapd/interfaces/opengles-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/run/snapd/snap/interfaces/opengles-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/run/snapd/snap/interfaces/opengles-driver-libs/** mrkix,")
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

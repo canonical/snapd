@@ -291,23 +291,23 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
 		// The shared tmpfs mount at the assembly root, so that only the bare
 		// mountpoint directory (not the assembly tree content) is host-visible.
-		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
+		{Name: "tmpfs", Dir: "/run/snapd/snap", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs.
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
-			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+			Dir: "/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2"),
-			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+			Dir: "/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
 		// Client driver bound as a file, keeping its original name.
 		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
-			Dir: "/run/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
+			Dir: "/run/snapd/snap/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 		// Pass 2: redistribution to the loader-scanned GBM directory, re-binding
 		// the assembly target above.
-		{Name: "/run/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so",
+		{Name: "/run/snapd/snap/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so",
 			Dir: fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName()), Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
 	})
 	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
-		"/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1",
-		"/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2",
+		"/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1",
+		"/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2",
 	})
 }
 
@@ -322,14 +322,14 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 
 	updateNS := strings.Join(spec.UpdateNS(), "")
 	// Library dir bind.
-	target0 := "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1"
+	target0 := "/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
 		filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"), target0))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
 
 	// Client driver file bind, keeping its original name.
 	clientSrc := filepath.Join(snapSourceDir, "nvidia-drm_gbm.so")
-	clientTarget := "/run/snapd/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so"
+	clientTarget := "/run/snapd/snap/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so"
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientSrc, clientTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientTarget))
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientTarget))
@@ -350,8 +350,8 @@ func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
 	// template does not grant /opt/** to apps), plus the loader-scanned GBM
 	// subtree for Pass 2 redistribution.
 	app := spec.SnippetForTag("snap.snapd.app")
-	c.Check(app, testutil.Contains, "/run/snapd/interfaces/gbm-driver-libs/ r,")
-	c.Check(app, testutil.Contains, "/run/snapd/interfaces/gbm-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/run/snapd/snap/interfaces/gbm-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/run/snapd/snap/interfaces/gbm-driver-libs/** mrkix,")
 	c.Check(app, testutil.Contains, "/usr/lib/@{multiarch}/gbm/{,**} r,")
 }
 

@@ -238,7 +238,7 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 // driver metadata under <assemblyRoot>/<iface>/share/. The writable-mimic for
 // these paths is authorized via the snap-update-ns apparmor profile, see
 // AppArmorConnectedPlug of the driver-libs interfaces.
-const assemblyRoot = "/run/snapd/interfaces"
+var assemblyRoot = dirs.SnapInterfacesAssemblyRoot
 
 // libraryRelPath returns the path of a library/source dir relative to its
 // $SNAP or $SNAP_COMPONENT(<comp>) prefix, i.e. the path-suffix to preserve
@@ -318,20 +318,26 @@ func sourceDirEncodedName(slot *interfaces.ConnectedSlot, pathDirIdx pathWithDir
 // original relative layout (ld.so opens libraries by exact name). Each target
 // dir is also recorded via AddLibraryPathDir for the SNAP_LIBRARY_PATH
 // derivation (Pass 3).
-// mountAssemblyRoot adds the shared tmpfs mount entry for assemblyRoot itself.
+// mountAssemblyRoot adds the shared tmpfs mount entry anchoring the assembly
+// tree, mounted one level up from assemblyRoot itself (i.e. at
+// filepath.Dir(assemblyRoot) == /run/snapd/snap), so that /run/snapd/snap is
+// a private per-snap tmpfs and assemblyRoot ("interfaces") is just its
+// current sole subdirectory, leaving room for other private, per-snap state
+// at the same /run/snapd/snap/ level in the future.
 //
-// assemblyRoot lives under /run/snapd/interfaces, a real (writable, non-
-// read-only) host directory. Creating the assembly tree's *content* directly
-// there would land on the host's actual filesystem, persistent and shared
-// across every consuming snap (see the trespassing whitelist for assemblyRoot
-// in cmd/snap-update-ns/system.go, which is what allows the *mountpoint*
+// /run/snapd/snap is a real (writable, non-read-only) host directory.
+// Creating the assembly tree's *content* directly there would land on the
+// host's actual filesystem, persistent and shared across every consuming
+// snap (see the trespassing whitelist for /run/snapd/snap in
+// cmd/snap-update-ns/system.go, which is what allows the *mountpoint*
 // directory itself to be created without tripping the trespassing check on
-// the ancestor /run). This entry mounts a fresh tmpfs exactly at assemblyRoot
-// so that the mountpoint directory is the only thing that is ever host-visible
-// (an empty placeholder); everything created underneath — library dirs, ICD
-// metadata — lives on this tmpfs, which is a brand new mount and therefore
-// private to the connecting snap's own mount namespace by default (new mounts
-// are never automatically shared with their siblings or the host).
+// the ancestor /run). This entry mounts a fresh tmpfs exactly at
+// /run/snapd/snap so that the mountpoint directory is the only thing that is
+// ever host-visible (an empty placeholder); everything created underneath —
+// assemblyRoot and its library dirs, ICD metadata — lives on this tmpfs,
+// which is a brand new mount and therefore private to the connecting snap's
+// own mount namespace by default (new mounts are never automatically shared
+// with their siblings or the host).
 //
 // Explicit mode/uid/gid options are required, not cosmetic: an entry with an
 // empty Options list serializes to the fstab placeholder string "defaults"
@@ -369,7 +375,7 @@ func sourceDirEncodedName(slot *interfaces.ConnectedSlot, pathDirIdx pathWithDir
 func mountAssemblyRoot(spec *mount.Specification) error {
 	return spec.AddMountEntry(osutil.MountEntry{
 		Name:    "tmpfs",
-		Dir:     assemblyRoot,
+		Dir:     filepath.Dir(assemblyRoot),
 		Type:    "tmpfs",
 		Options: []string{"mode=0755", "uid=0", "gid=0"},
 	})
@@ -577,7 +583,7 @@ func addAppArmorAssemblyRoot(spec *apparmor.Specification) {
   mount fstype=tmpfs tmpfs -> "%[1]s/",
   mount options=(rprivate) -> "%[1]s/",
   umount "%[1]s/",
-`, assemblyRoot)
+`, filepath.Dir(assemblyRoot))
 }
 
 func addAppArmorAssemblyAccess(spec *apparmor.Specification, ifaceName string) {

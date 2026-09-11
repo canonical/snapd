@@ -80,17 +80,19 @@ func (upCtx *SystemProfileUpdateContext) Assumptions() *Assumptions {
 	}
 	// Allow the driver-libs interfaces (interfaces/builtin/*_driver_libs.go,
 	// see the assemblyRoot constant in interfaces/builtin/helpers.go) to create
-	// their assembly-tree skeleton directly under /run/snapd/interfaces without
-	// tripping the trespassing check on the ancestor /run itself. /run is a
-	// live host directory (sockets, other daemons' runtime state) that the
-	// writable-mimic mechanism cannot safely reconstruct (it only supports
+	// their assembly-tree skeleton directly under /run/snapd/snap (mounted as a
+	// private tmpfs, see mountAssemblyRoot; assemblyRoot itself,
+	// /run/snapd/snap/interfaces, is just its current sole subdirectory)
+	// without tripping the trespassing check on the ancestor /run itself. /run
+	// is a live host directory (sockets, other daemons' runtime state) that
+	// the writable-mimic mechanism cannot safely reconstruct (it only supports
 	// dirs, regular files and symlinks - see planWritableMimic), so unlike
 	// /snap/$SNAP_NAME above, this directory's content is NOT mimic'd into a
 	// private per-snap copy: creating it directly here is intentional and
 	// mirrors the /run/systemd entry below. Only mount *targets* are ever
 	// placed here by driver-libs; connecting snaps still see the bind-mounted
 	// library content only within their own mount namespace.
-	as.AddUnrestrictedPaths(dirs.SnapRunDir + "/interfaces")
+	as.AddUnrestrictedPaths(dirs.SnapRuntimeAssemblyRoot)
 	// Allow snap-update-ns to write to host's /tmp directory. This is
 	// specifically here to allow two snaps to share X11 sockets that are placed
 	// in the /tmp/.X11-unix/ directory in the private /tmp directories provided
