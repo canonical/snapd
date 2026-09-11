@@ -579,7 +579,6 @@ func (s *generalSuite) TestSysInfoClientAdviceAwaitChangeMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	rec := httptest.NewRecorder()
 	s.req(c, req, nil, actionIsExpected).ServeHTTP(rec, nil)
