@@ -318,6 +318,47 @@ func sourceDirEncodedName(slot *interfaces.ConnectedSlot, pathDirIdx pathWithDir
 // original relative layout (ld.so opens libraries by exact name). Each target
 // dir is also recorded via AddLibraryPathDir for the SNAP_LIBRARY_PATH
 // derivation (Pass 3).
+// mountAssemblyRoot adds the shared tmpfs mount entry for assemblyRoot itself.
+//
+// assemblyRoot lives under /run/snapd/interfaces, a real (writable, non-
+// read-only) host directory. Creating the assembly tree's *content* directly
+// there would land on the host's actual filesystem, persistent and shared
+// across every consuming snap (see the trespassing whitelist for assemblyRoot
+// in cmd/snap-update-ns/system.go, which is what allows the *mountpoint*
+// directory itself to be created without tripping the trespassing check on
+// the ancestor /run). This entry mounts a fresh tmpfs exactly at assemblyRoot
+// so that the mountpoint directory is the only thing that is ever host-visible
+// (an empty placeholder); everything created underneath — library dirs, ICD
+// metadata — lives on this tmpfs, which is a brand new mount and therefore
+// private to the connecting snap's own mount namespace by default (new mounts
+// are never automatically shared with their siblings or the host).
+//
+// Explicit mode/uid/gid options are required, not cosmetic: an entry with an
+// empty Options list serializes to the fstab placeholder string "defaults"
+// (osutil/mountentry.go's String()); once the mount profile round-trips
+// through the persisted fstab file, that placeholder is read back as a
+// literal (single) option string "defaults", which is not a real tmpfs mount
+// option and makes the mount(2) syscall fail with EINVAL. Giving explicit,
+// real tmpfs options (recognized by the kernel's tmpfs option parser) avoids
+// this entirely, and also makes the tmpfs look like an ordinary root:root
+// 0755 directory, matching planWritableMimic's synthetic tmpfs entries
+// (cmd/snap-update-ns/utils.go).
+//
+// Every driver-libs interface's MountConnectedPlug calls this before adding
+// its own entries under assemblyRoot. If a snap connects to more than one
+// driver-libs interface the identical entry gets added multiple times, but
+// mount.Specification.MountEntries (via unclashMountEntries) merges entries
+// that share the same Dir, Name and Type into one, so only a single tmpfs
+// mount is ever actually applied.
+func mountAssemblyRoot(spec *mount.Specification) error {
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    "tmpfs",
+		Dir:     assemblyRoot,
+		Type:    "tmpfs",
+		Options: []string{"mode=0755", "uid=0", "gid=0"},
+	})
+}
+
 func mountAssemblyLibDirs(spec *mount.Specification, slot *interfaces.ConnectedSlot, ifaceName string) error {
 	libDirs := []string{}
 	if err := slot.Attr("library-source", &libDirs); err != nil {
@@ -506,6 +547,23 @@ func addAppArmorRedistributionAccess(spec *apparmor.Specification, ifaceName str
 // apps, so each driver-libs interface must grant access to its own subtree explicitly.
 // Only the library/metadata files bind-mounted by the mount backend are exposed; the
 // app can read its own interface's subtree but not other interfaces' or assemblyRoot broadly.
+// addAppArmorAssemblyRoot authorizes snap-update-ns to mount the shared tmpfs
+// at assemblyRoot (see mountAssemblyRoot), mirroring the apparmor rules a
+// snap.yaml "layout: {type: tmpfs}" entry gets (interfaces/apparmor/spec.go's
+// emitLayout, case layout.Type == "tmpfs"). Unlike a layout tmpfs mimic target,
+// assemblyRoot's parent (/run/snapd) is already writable and covered by the
+// trespassing whitelist, so no GenWritableProfile/mimic authorization is
+// needed here for creating the mountpoint itself.
+func addAppArmorAssemblyRoot(spec *apparmor.Specification) {
+	spec.AddUpdateNSf(`
+  # Driver-libs assembly tree root: a private tmpfs so that only the bare
+  # mountpoint directory, not its content, is ever host-visible.
+  mount fstype=tmpfs tmpfs -> "%[1]s/",
+  mount options=(rprivate) -> "%[1]s/",
+  umount "%[1]s/",
+`, assemblyRoot)
+}
+
 func addAppArmorAssemblyAccess(spec *apparmor.Specification, ifaceName string) {
 	spec.AddSnippet(fmt.Sprintf(`
   # Driver-libs assembly tree for %[3]s: read the bind-mounted provider

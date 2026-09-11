@@ -99,6 +99,9 @@ func (iface *openglesDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.S
 func (iface *openglesDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// On Ubuntu Core the provider content is bound into the assembly tree under
 	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs).
+	if err := mountAssemblyRoot(spec); err != nil {
+		return err
+	}
 	return mountAssemblyLibDirs(spec, slot, openglesDriverLibs)
 }
 
@@ -107,6 +110,7 @@ func (iface *openglesDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.S
 	// /run/snapd/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
+	addAppArmorAssemblyRoot(spec)
 	addAppArmorAssemblyAccess(spec, openglesDriverLibs)
 	return addAppArmorAssemblyLibDirs(spec, slot, openglesDriverLibs)
 }

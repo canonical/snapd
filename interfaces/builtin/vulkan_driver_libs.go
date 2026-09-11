@@ -116,6 +116,9 @@ func (iface *vulkanDriverLibsInterface) MountConnectedPlug(spec *mount.Specifica
 	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs). Vulkan
 	// slots have no priority attribute, so no numeric prefix is used in the
 	// encoded metadata file names.
+	if err := mountAssemblyRoot(spec); err != nil {
+		return err
+	}
 	const withPriority = false
 	if err := mountAssemblyLibDirs(spec, slot, vulkanDriverLibs); err != nil {
 		return err
@@ -146,6 +149,7 @@ func (iface *vulkanDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 	// /run/snapd/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
+	addAppArmorAssemblyRoot(spec)
 	addAppArmorAssemblyAccess(spec, vulkanDriverLibs)
 	// Grant read access to the loader-scanned metadata location (Pass 2).
 	addAppArmorRedistributionAccess(spec, vulkanDriverLibs)

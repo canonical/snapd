@@ -319,6 +319,9 @@ func (s *CudaDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs are bound into the assembly tree, pooled by their
 		// path-suffix after the $SNAP/$SNAP_COMPONENT prefix.
 		{Name: filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1"),

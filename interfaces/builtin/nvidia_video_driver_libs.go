@@ -102,6 +102,9 @@ func (iface *nvidiaVideoDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfi
 func (iface *nvidiaVideoDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// On Ubuntu Core the provider content is bound into the assembly tree under
 	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs).
+	if err := mountAssemblyRoot(spec); err != nil {
+		return err
+	}
 	return mountAssemblyLibDirs(spec, slot, nvidiaVideoDriverLibs)
 }
 
@@ -110,6 +113,7 @@ func (iface *nvidiaVideoDriverLibsInterface) AppArmorConnectedPlug(spec *apparmo
 	// /run/snapd/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
+	addAppArmorAssemblyRoot(spec)
 	addAppArmorAssemblyAccess(spec, nvidiaVideoDriverLibs)
 	return addAppArmorAssemblyLibDirs(spec, slot, nvidiaVideoDriverLibs)
 }

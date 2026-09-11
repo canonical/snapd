@@ -200,6 +200,9 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
 			Dir: "/run/snapd/interfaces/opengles-driver-libs/lib/opengles-provider_opengles-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2"),

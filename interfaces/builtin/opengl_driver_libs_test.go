@@ -198,6 +198,9 @@ func (s *OpenglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib1"),
 			Dir: "/run/snapd/interfaces/opengl-driver-libs/lib/opengl-provider_opengl-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: filepath.Join(dirs.SnapMountDir, "opengl-provider/5/lib2"),

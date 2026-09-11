@@ -326,6 +326,9 @@ func (s *VulkanDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs.
 		{Name: libDir1, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: libDir2, Dir: "/run/snapd/interfaces/vulkan-driver-libs/lib/vulkan-provider_vulkan-slot/lib2", Options: []string{"bind", "ro"}},

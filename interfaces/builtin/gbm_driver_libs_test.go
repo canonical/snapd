@@ -289,6 +289,9 @@ func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs.
 		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
 			Dir: "/run/snapd/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro"}},

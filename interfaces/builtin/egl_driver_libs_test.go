@@ -321,6 +321,9 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		// Library dirs, pooled by path-suffix after the $SNAP/$SNAP_COMPONENT
 		// prefix (no per-index splitting).		// Library dirs, pooled by path-suffix.
 		{Name: filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
@@ -385,6 +388,9 @@ func (s *EglDriverLibsInterfaceSuite) TestMountConnectedPlugMultiComponentFilter
 
 	// comp2 entries are absent; remaining entries keep their pooled targets.
 	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/interfaces", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
 		{Name: libDir1, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib1", Options: []string{"bind", "ro"}},
 		{Name: libDir2, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/lib2", Options: []string{"bind", "ro"}},
 		{Name: comp1LibDir, Dir: "/run/snapd/interfaces/egl-driver-libs/lib/egl-provider_egl-slot/clib1", Options: []string{"bind", "ro"}},

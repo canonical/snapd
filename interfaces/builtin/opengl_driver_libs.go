@@ -98,6 +98,9 @@ func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Spe
 func (iface *openglDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// On Ubuntu Core the provider content is bound into the assembly tree under
 	// the /run/snapd/interfaces directory (see mountAssemblyLibDirs).
+	if err := mountAssemblyRoot(spec); err != nil {
+		return err
+	}
 	return mountAssemblyLibDirs(spec, slot, openglDriverLibs)
 }
 
@@ -106,6 +109,7 @@ func (iface *openglDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 	// /run/snapd/interfaces (the core base template does not grant /opt/** to
 	// apps), then authorize snap-update-ns to construct (and eventually tear
 	// down) the assembly tree.
+	addAppArmorAssemblyRoot(spec)
 	addAppArmorAssemblyAccess(spec, openglDriverLibs)
 	return addAppArmorAssemblyLibDirs(spec, slot, openglDriverLibs)
 }
