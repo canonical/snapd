@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "libsnap-confine-private/string-utils.h"
+#include "../libsnap-confine-private/string-utils.h"
 
 #include "config.h"
 

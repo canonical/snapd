@@ -84,18 +84,13 @@ jobs:
 
       - name: vendor
         run: |
+          sudo apt install -y meson
           sudo snap install --classic --channel 1.18/stable go
-          /snap/bin/go mod vendor
-          (
-            cd c-vendor
-            ./vendor.sh
-          )
+          meson setup build -D vendor-dist=true
+          meson dist -C build --no-tests
           mkdir /tmp/pkg
-          base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
-          version="1337.$base_version"
-          ./packaging/pack-source -v "$version" -o /tmp/pkg
-          ./packaging/pack-source -v "$version" -o /tmp/pkg -s
-          echo "$version" > /tmp/pkg/version
+          cp build/meson-dist/snapd-*.tar.xz /tmp/pkg/
+          cp cmd/VERSION /tmp/pkg/version
 
       - name: Upload vendors
         uses: actions/upload-artifact@v7

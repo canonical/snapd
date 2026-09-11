@@ -1,0 +1,16 @@
+#ifndef _GNU_SOURCE
+# define _GNU_SOURCE
+#endif
+
+#define PACKAGE_VERSION "@version@"
+#define PACKAGE "@project@"
+
+#define STATIC_SNAP_MOUNT_DIR "@snapmountdir@"
+#define SNAP_MOUNT_DIR_SYSTEMD_UNIT "@snapmountdir_escaped@"
+
+#mesondefine ENABLE_BPF
+#mesondefine NVIDIA_MULTIARCH
+#mesondefine NVIDIA_BIARCH
+
+#define LIB32_DIR "@LIB32_DIR@"
+#define NATIVE_LIBDIR "@NATIVE_LIBDIR@"

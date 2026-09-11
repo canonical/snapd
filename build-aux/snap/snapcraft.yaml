@@ -213,25 +213,35 @@ parts:
     prime: [-*]
 
   snapd:
-    plugin: nil
+    plugin: meson
     source: .
+    meson-parameters:
+      - "--buildtype=release"
+      - "-Dprefix=/usr"
+      - "-Dcore=true"
+      - "-Dsecboot=true"
+      - "-Dusergo=true"
+      - "--auto-features=enabled"
+      - "-Ddracut=disabled"
+      - "-Dunit-tests=disabled"
+      - "-Dvendored=disabled"
+      # TODO: enable -Doptee=true on aarch64
     build-snaps:
       - go/1.23/stable # the default Go toolchain
     after:
       - apparmor
       - patchelf
     build-packages:
+      - meson
       - git
       - dpkg-dev
-      - autoconf
-      - autoconf-archive
-      - automake
       - xfslibs-dev
       - libblkid-dev
       - libudev-dev
       - libcap-dev
       - libseccomp-dev
       - libselinux1-dev
+      - libdbus-1-dev
       - pkg-config
       - libcap2-bin
       - on armhf:
@@ -279,250 +289,6 @@ parts:
           VERSION="1337.${VERSION}"
       fi
       craftctl set version="$VERSION"
-
-      ./get-deps.sh --skip-unused-check
-    override-build: |
-      # this should be passed through build environment, but we're already
-      # anchoring dynamic linker env variables
-      GO_TOOLCHAIN_FIPS_CHANNEL="1.23-fips/stable"
-
-      VERSION="$(craftctl get version)"
-      if [ -f fips-build ] ; then
-          # use the fips channel of Go
-          snap refresh --channel "$GO_TOOLCHAIN_FIPS_CHANNEL" go
-          # make sure it is really the Go FIPS toolchain
-          if ! test -f /snap/go/current/src/crypto/internal/backend/openssl_linux.go; then
-              echo "Go FIPS toolschain verification failed: cannot find /snap/go/current/src/crypto/internal/backend/openssl_linux.go"
-              exit 1
-          fi
-      fi
-      # make sure to set the version we declared in pull
-      ./mkversion.sh "$VERSION"
-
-      # double check the toolchain
-      echo "--- go version $(go version)"
-      echo "--- go is at $(which go)"
-
-      cd "${CRAFT_PART_BUILD}/cmd"
-
-      autoreconf -fvi
-      ./configure \
-        --prefix=/usr \
-        --libexec=/usr/lib/snapd \
-        --sysconfdir=/etc \
-        --localstatedir=/var \
-        --without-unit-tests \
-        --enable-apparmor \
-        --enable-static-libapparmor \
-        --enable-selinux \
-        --enable-static-libselinux \
-        --disable-host-binaries \
-        --enable-nvidia-multiarch \
-        --with-host-arch-triplet=$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
-        $(test "$(uname -m)" = x86_64 && echo --with-host-arch-32bit-triplet=$(dpkg-architecture -ai386 -qDEB_HOST_MULTIARCH))
-
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
-      make DESTDIR="${CRAFT_PART_INSTALL}" install
-
-      cd "${CRAFT_PART_BUILD}"
-
-      # Disable buildvcs:
-      #  * We do not use it
-      #  * When building in a git worktree, snapcraft does not share
-      #    the main directory, and it fails.
-      EXTRA_GO_FLAGS="-buildvcs=false"
-
-      CMDS=(lib/snapd/snapd
-            # core-initrd for UC20 still depends on snap-bootstrap
-            # being started from snap because of broken re-execution
-            # and fixes that were not yet backported
-            lib/snapd/snap-bootstrap
-            lib/snapd/snap-failure
-            lib/snapd/snap-repair
-            lib/snapd/snap-seccomp
-            lib/snapd/snap-update-ns
-            lib/snapd/snapctl)
-      if [ -f fips-build ]; then
-        # build FIPS dispatcher
-        CMDS+=(lib/snapd/snap-fips-dispatch)
-      fi
-
-      for cmd in "${CMDS[@]}"; do
-        case "${cmd}" in
-           # FIXME: some binaries need to be run confined in apps. But
-           # instead we should allow apps to access dynamic linkers
-           # and libraries from snapd.
-           lib/snapd/snapctl)
-             export CGO_ENABLED=0
-             GO_LD_FLAGS=()
-             CHECK_STATIC=1
-             ;;
-           lib/snapd/snap-update-ns)
-             export CGO_ENABLED=1
-             GO_LD_FLAGS=(-ldflags '-extldflags "-static"')
-             CHECK_STATIC=1
-             ;;
-           *)
-             export CGO_ENABLED=1
-             GO_LD_FLAGS=()
-
-             case "${CRAFT_ARCH_BUILD_FOR}" in
-               arm64|armhf)
-                 GO_LD_FLAGS+=(-ldflags "-extldflags \"-L/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"\")
-                 ;;
-             esac
-
-             case "${CRAFT_ARCH_BUILD_FOR}" in
-               armhf)
-                 # https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1822738
-                 ;;
-               *)
-                 GO_LD_FLAGS+=(-buildmode=pie)
-                 ;;
-             esac
-             unset CHECK_STATIC
-             ;;
-        esac
-
-        TAGS=(snapdusergo osusergo)
-
-        # general build tags, note that version 1337 is used only in CI and
-        # triggers testing specific build tags which produce binaries that are
-        # insecure for use in production systems
-        case "${cmd}" in
-          lib/snapd/snap-bootstrap)
-            TAGS+=(nomanagers)
-            ;;
-        esac
-
-        case "${VERSION}" in
-          1337.*)
-            TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging)
-            ;;
-        esac
-
-        # include optee on arm64 and armhf
-         case "${CRAFT_ARCH_BUILD_FOR}" in
-           arm64|armhf)
-               case "${cmd}" in
-                 lib/snapd/snapd|lib/snapd/snap-bootstrap)
-                   TAGS+=(optee)
-                   ;;
-               esac
-             ;;
-         esac
-
-        # FIPS specific build tags
-        if [ -f fips-build ]; then
-          case "${cmd}" in
-            # per snapd FIPS spec, FIPS build tags are only relevant for snapd,
-            # snap, snap-repair and snap-bootstrap, tags:
-            # - goexperiment.opensslcrypto - enable openssl crypto backend
-            # - snapdfips - enable additional FIPS support (enforce FIPS compliant TLS)
-            lib/snapd/snapd|lib/snapd/snap-repair|lib/snapd/snap-bootstrap)
-              TAGS+=(goexperiment.opensslcrypto snapdfips)
-              ;;
-          esac
-        fi
-
-        output="${CRAFT_PART_INSTALL}/usr/${cmd}"
-        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
-        if [ "${CHECK_STATIC-}" = 1 ]; then
-          if objdump -p "${output}" | grep INTERP; then
-            echo "${output} is not static!" 1>&2
-            exit 1
-          fi
-        fi
-        unset CGO_ENABLED
-      done
-
-      make -C data -j"${CRAFT_PARALLEL_BUILD_COUNT}" all
-      # wrappers/core18.go expects units in fixed paths so even when
-      # systemd package will those, they have to continue to match our
-      # paths. We force the value here in case we change the default.
-      make -C data install DESTDIR="${CRAFT_PART_INSTALL}" SYSTEMDUSERUNITDIR=/usr/lib/systemd/user SYSTEMDSYSTEMUNITDIR=/lib/systemd/system
-      # UC depends on this name (symlink)
-      mv "${CRAFT_PART_INSTALL}/etc/profile.d/snapd.sh" "${CRAFT_PART_INSTALL}/etc/profile.d/apps-bin-path.sh"
-
-      install -Dm644 data/info "${CRAFT_PART_INSTALL}/usr/lib/snapd/info"
-      install -Dm644 data/preseed.json "${CRAFT_PART_INSTALL}/usr/lib/snapd/preseed.json"
-
-      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh data/completion/bash/etelpmoc.sh
-      install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
-
-      # link usr/bin/snap -> usr/lib/snapd/snapd
-      mkdir -p "${CRAFT_PART_INSTALL}/usr/bin"
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
-      # link usr/lib/snapd/snap-exec -> usr/lib/snapd/snapctl (multi-call binary)
-      ln -v -s snapctl "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-exec"
-      # link snap-preseed -> snapd-tool-wrap (C tool wrapper multi-call)
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
-         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
-      # link snapd-apparmor -> snapd-tool-wrap (C tool wrapper multi-call)
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
-         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-apparmor"
-      # link snap-gpio-helper -> snapd-tool-wrap (C tool wrapper multi-call)
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
-         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-gpio-helper"
-      # link snap-recovery-chooser -> snapd-tool-wrap (C tool wrapper multi-call)
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
-         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-recovery-chooser"
-      # link snap-fde-keymgr -> snapd-tool-wrap (C tool wrapper multi-call)
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
-         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fde-keymgr"
-
-      if [ -f fips-build ]; then
-        # Set up FIPS dispatch: replace each original binary with a symlink
-        # to snap-fips-dispatch, and rename the original to a -fips suffix.
-        #
-        # Real binary (renamed)                       Dispatch symlink (original path)
-        # <root>/usr/lib/snapd/snapd-fips          <- <root>/usr/lib/snapd/snapd
-        # <root>/usr/lib/snapd/snap-repair-fips    <- <root>/usr/lib/snapd/snap-repair
-        # <root>/usr/lib/snapd/snap-bootstrap-fips <- <root>/usr/lib/snapd/snap-bootstrap
-        #
-        # usr/bin/snap is a symlink to usr/lib/snapd/snapd (now the dispatch symlink),
-        # so the dispatcher sees argv[0]="snap" and resolves to usr/bin/snap-fips.
-        # Create that symlink pointing at the renamed FIPS binary.
-
-        for cmd in lib/snapd/snapd lib/snapd/snap-repair lib/snapd/snap-bootstrap; do
-          mv -v "${CRAFT_PART_INSTALL}/usr/${cmd}" "${CRAFT_PART_INSTALL}/usr/lib/snapd/$(basename $cmd)-fips"
-          ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/${cmd}"
-        done
-        # usr/bin/snap-fips is the dispatch target when argv[0]="snap"; point it at snapd-fips.
-        ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-fips" "${CRAFT_PART_INSTALL}/usr/bin/snap-fips"
-      fi
-
-      # TODO: For now snapd expects a renamed apparmor profile to
-      # work-around LP#1673247. We should fix that since the snapd
-      # should not need that work-around.
-      mv "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine" "${CRAFT_PART_INSTALL}/etc/apparmor.d/usr.lib.snapd.snap-confine.real"
-
-      # copy helper for collecting debug output
-      cp -av debug-tools/snap-debug-info.sh ${CRAFT_PART_INSTALL}/usr/lib/snapd/
-
-      if sh -x ./mkversion.sh --output-only | grep "dirty"; then
-        mkdir -p "${CRAFT_PART_INSTALL}/usr/lib/snapd"
-        (
-          echo "dirty git tree during build detected:"
-          git status
-          git diff
-        ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
-      fi
-
-      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec "${CRAFT_PROJECT_DIR}/build-aux/snap/local/minidebuginfo" {} ";"
-
-      if [ -f fips-build ]; then
-        touch "${CRAFT_PART_INSTALL}/fips-build"
-      fi
-      if [ -f fips-build-lp ]; then
-        touch "${CRAFT_PART_INSTALL}/fips-build-lp"
-      fi
-
-      # ensure capabilities are set
-      setcap -q - "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" \
-           < "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps"
-      getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine"
-
     <<:
       - *dynamic-linker
     prime:
@@ -535,13 +301,6 @@ parts:
       PATH="${CRAFT_STAGE}"/usr/local/bin:$PATH \
           "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" \
               "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
-
-      # verify file capabilities
-      caps="$(getcap "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine" | awk '{print $2}')"
-      expected_caps="$(cat "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-confine.caps")"
-      echo "-- expecting caps: $expected_caps"
-      echo "-- actual caps:    $caps"
-      test "$caps" = "$expected_caps"
 
   libcrypto-fips:
     plugin: nil

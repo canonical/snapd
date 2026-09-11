@@ -1,0 +1,8 @@
+subdir('systemd')
+subdir('systemd-user')
+subdir('systemd-tmpfiles')
+subdir('dbus')
+subdir('env')
+subdir('desktop')
+subdir('polkit')
+subdir('dracut')
