@@ -151,6 +151,9 @@ execute: |
   gojq --raw-output '.result."key-id"' < resp > rkey-id.out
   gojq --raw-output '.result."recovery-key"' < resp > rkey-post-install.out
 
+  # Restart snapd to ensure the new recovery key is persisted in the secret state
+  remote.exec sudo systemctl restart snapd
+
   remote_action_request "{\"action\": \"replace-recovery-key\", \"key-id\": \"$(cat rkey-id.out)\"}"
   change_id="$(gojq --raw-output .change < resp)"
   remote.exec sudo snap watch "$change_id"

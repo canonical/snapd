@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate"
-	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
@@ -113,11 +112,11 @@ func (s *fdeMgrSuite) TestAddRecoveryKey(c *C) {
 	manager := s.startedManager(c, onClassic)
 	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key"}}, nil)
 
-	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
-	c.Assert(err, IsNil)
-
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
 
 	ts, err := fdestate.AddRecoveryKey(s.st, recoveryKeyID, []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-recovery"},
@@ -147,23 +146,8 @@ func (s *fdeMgrSuite) TestAddRecoveryKey(c *C) {
 }
 
 func (s *fdeMgrSuite) TestAddRecoveryKeyErrors(c *C) {
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return &mockRecoveryKeyCache{
-			getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-				switch keyID {
-				case "good-key-id":
-					return backend.CachedRecoverKey{Expiration: time.Now().Add(100 * time.Hour)}, nil
-				case "expired-key-id":
-					return backend.CachedRecoverKey{Expiration: time.Now().Add(-100 * time.Hour)}, nil
-				default:
-					return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-				}
-			},
-		}
-	})()
-
 	const onClassic = true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 	s.mockCurrentKeys(c,
 		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-1"}},
 		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-2"}},
@@ -173,6 +157,14 @@ func (s *fdeMgrSuite) TestAddRecoveryKeyErrors(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	rkeyGood := fdestate.RecoveryKeyInfo{}
+	rkeyGood.Expiration = time.Now().Add(100 * time.Hour) // not expired
+	c.Assert(m.SecretState().Set("good-key-id", &rkeyGood), IsNil)
+
+	rkeyExpired := fdestate.RecoveryKeyInfo{}
+	rkeyExpired.Expiration = time.Now().Add(-100 * time.Hour) // expired
+	c.Assert(m.SecretState().Set("expired-key-id", &rkeyExpired), IsNil)
 
 	// no key slots
 	_, err := fdestate.AddRecoveryKey(s.st, "good-key-id", nil)
@@ -312,11 +304,11 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	onClassic := true
 	manager := s.startedManager(c, onClassic)
 
-	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
-	c.Assert(err, IsNil)
-
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
 
 	var ts *state.TaskSet
 	if defaultKeyslots {
@@ -381,22 +373,6 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyDefaultKeyslots(c *C) {
 }
 
 func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
-	mockStore := &mockRecoveryKeyCache{
-		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-			switch keyID {
-			case "good-key-id":
-				return backend.CachedRecoverKey{Expiration: time.Now().Add(100 * time.Hour)}, nil
-			case "expired-key-id":
-				return backend.CachedRecoverKey{Expiration: time.Now().Add(-100 * time.Hour)}, nil
-			default:
-				return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-			}
-		},
-	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return mockStore
-	})()
-
 	// mock no existing key slots, except one non-recovery keyslot
 	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
@@ -419,12 +395,19 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 
 	// initialize fde manager
 	onClassic := true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 
 	keyslots := []fdestate.KeyslotRef{{ContainerRole: "system-save", Name: "default-recovery"}}
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	rkeyGood := fdestate.RecoveryKeyInfo{}
+	rkeyGood.Expiration = time.Now().Add(100 * time.Hour) // not expired
+	c.Assert(m.SecretState().Set("good-key-id", &rkeyGood), IsNil)
+	rkeyExpired := fdestate.RecoveryKeyInfo{}
+	rkeyExpired.Expiration = time.Now().Add(-100 * time.Hour) // expired
+	c.Assert(m.SecretState().Set("expired-key-id", &rkeyExpired), IsNil)
 
 	// invalid recovery key id
 	_, err := fdestate.ReplaceRecoveryKey(s.st, "bad-key-id", keyslots)
@@ -477,7 +460,7 @@ func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
 	swfeatstest.CheckEnsureLoopLogging("fdemgr.go", c, false)
 }
 
-func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning, defaultKeyslots bool) {
+func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, defaultKeyslots bool) {
 	keyslots := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default"},
 	}
@@ -501,20 +484,18 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 		}
 	})()
 
+	now := time.Now()
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
 	// initialize fde manager
 	onClassic := true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	logBuf, restore := logger.MockLogger()
 	defer restore()
-	if withWarning {
-		s.st.Unlock()
-		defer fdestate.MockChangeAuthOptionsInCache(s.st, "old-stale", "new-stale")()
-		s.st.Lock()
-	}
 
 	old := "old"
 	new := "new"
@@ -552,43 +533,35 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 	c.Assert(tsks[0].Get("auth-mode", &tskAuthMode), IsNil)
 	c.Check(tskAuthMode, Equals, authMode)
 
-	authOptions := fdestate.GetChangeAuthOptionsFromCache(s.st)
-	c.Check(authOptions.Old(), Equals, old)
-	c.Check(authOptions.New(), Equals, new)
+	// check authentication options are stored in the persistent secret state
+	var changeAuthID string
+	c.Assert(tsks[0].Get("change-auth-id", &changeAuthID), IsNil)
+	c.Check(changeAuthID, Not(Equals), "")
+	var authOptions fdestate.ExpiringChangeAuthOptions
+	c.Assert(m.SecretState().Get(changeAuthID, &authOptions), IsNil)
+	c.Check(authOptions.Old, Equals, old)
+	c.Check(authOptions.New, Equals, new)
+	c.Check(authOptions.Expiration.Equal(now.Add(5*time.Minute)), Equals, true)
 
-	if withWarning {
-		c.Check(logBuf.String(), Matches, ".*WARNING: authentication change options already exists in memory\n")
-	} else {
-		c.Check(logBuf.Len(), Equals, 0)
-	}
+	c.Check(logBuf.Len(), Equals, 0)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePassphrase(c *C) {
 	const authMode = device.AuthModePassphrase
-	const withWarning = false
 	const defaultKeyslots = false
-	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
-}
-
-func (s *fdeMgrSuite) TestChangeAuthWithCachedAuthOptionsWarning(c *C) {
-	const authMode = device.AuthModePassphrase
-	const withWarning = true
-	const defaultKeyslots = false
-	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+	s.testChangeAuth(c, authMode, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePassphraseDefaultKeyslots(c *C) {
 	const authMode = device.AuthModePassphrase
-	const withWarning = false
 	const defaultKeyslots = true
-	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+	s.testChangeAuth(c, authMode, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthModePIN(c *C) {
 	const authMode = device.AuthModePIN
-	const withWarning = false
 	const defaultKeyslots = false
-	s.testChangeAuth(c, authMode, withWarning, defaultKeyslots)
+	s.testChangeAuth(c, authMode, defaultKeyslots)
 }
 
 func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
@@ -743,7 +716,10 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 
 	// initialize fde manager
 	onClassic := true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
+
+	now := time.Now()
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -815,10 +791,17 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 		})
 	}
 
+	// check authentication options are stored in the persistent secret state
+	var volumesAuthID string
 	if authMode == device.AuthModeNone {
-		c.Check(s.st.Cached(fdestate.VolumesAuthOptionsKey()), IsNil)
+		c.Check(tsks[0].Get("volumes-auth-id", &volumesAuthID), testutil.ErrorIs, state.ErrNoState)
 	} else {
-		c.Check(s.st.Cached(fdestate.VolumesAuthOptionsKey()), Equals, volumesAuth)
+		c.Assert(tsks[0].Get("volumes-auth-id", &volumesAuthID), IsNil)
+		c.Check(volumesAuthID, Not(Equals), "")
+		var authOptions fdestate.ExpiringVolumesAuthOptions
+		c.Assert(m.SecretState().Get(volumesAuthID, &authOptions), IsNil)
+		c.Check(authOptions.VolumesAuthOptions, DeepEquals, *volumesAuth)
+		c.Check(authOptions.Expiration.Equal(now.Add(5*time.Minute)), Equals, true)
 	}
 }
 

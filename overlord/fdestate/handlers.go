@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -141,7 +142,8 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		return err
 	}
 
-	rkeyInfo, err := m.recoveryKeyCache.Key(recoveryKeyID)
+	var rkeyInfo RecoveryKeyInfo
+	err = m.secretState.Get(recoveryKeyID, &rkeyInfo)
 	if err != nil {
 		return fmt.Errorf("cannot find recovery key with id %q: %v", recoveryKeyID, err)
 	}
@@ -162,7 +164,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
 	t.SetStatus(state.DoneStatus)
-	m.recoveryKeyCache.RemoveKey(recoveryKeyID)
+	m.secretState.Set(recoveryKeyID, nil) // remove recovery key from cache to avoid re-use
 
 	return nil
 }
@@ -342,18 +344,24 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 	}
 
 	var volumesAuth *device.VolumesAuthOptions
+	var volumesAuthID string
 	// authentication options are only relevant for PINs and passphrases.
 	switch authMode {
 	case device.AuthModePassphrase, device.AuthModePIN:
-		cached := m.state.Cached(volumesAuthOptionsKey{})
-		if cached == nil {
-			return errors.New("cannot find authentication options in memory: unexpected snapd restart")
+		if err := t.Get("volumes-auth-id", &volumesAuthID); err != nil {
+			return err
 		}
-		var ok bool
-		volumesAuth, ok = cached.(*device.VolumesAuthOptions)
-		if !ok {
-			return fmt.Errorf("internal error: wrong data type under volumesAuthOptionsKey: %T", cached)
+		var opts expiringVolumesAuthOptions
+		if err := m.secretState.Get(volumesAuthID, &opts); err != nil {
+			if errors.Is(err, backend.ErrNoSecret) {
+				return errors.New("cannot find authentication options in memory: unexpected system restart")
+			}
+			return err
 		}
+		if opts.Expired(timeNow()) {
+			return errors.New("authentication options have expired")
+		}
+		volumesAuth = &opts.VolumesAuthOptions
 		if err := volumesAuth.Validate(); err != nil {
 			return fmt.Errorf("internal error: invalid authentication options: %v", err)
 		}
@@ -394,7 +402,9 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 	}
 	if len(missingRefs) == 0 {
 		// this could be re-run and all key slots were already added, do nothing
-		m.state.Cache(volumesAuthOptionsKey{}, nil)
+		if volumesAuthID != "" {
+			m.secretState.Set(volumesAuthID, nil) // remove authentication options from cache
+		}
 		return nil
 	}
 
@@ -458,7 +468,9 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
 	t.SetStatus(state.DoneStatus)
-	m.state.Cache(volumesAuthOptionsKey{}, nil)
+	if volumesAuthID != "" {
+		m.secretState.Set(volumesAuthID, nil) // remove authentication options from cache
+	}
 
 	return nil
 }
@@ -481,14 +493,20 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	cached := m.state.Cached(changeAuthOptionsKey{})
-	if cached == nil {
-		return errors.New("cannot find authentication options in memory: unexpected snapd restart")
+	var changeAuthID string
+	if err := t.Get("change-auth-id", &changeAuthID); err != nil {
+		return err
 	}
-	var ok bool
-	opts, ok := cached.(*changeAuthOptions)
-	if !ok {
-		return fmt.Errorf("internal error: wrong data type under changeAuthOptionsKey: %T", cached)
+
+	var opts expiringChangeAuthOptions
+	if err := m.secretState.Get(changeAuthID, &opts); err != nil {
+		if errors.Is(err, backend.ErrNoSecret) {
+			return errors.New("cannot find authentication options in memory: unexpected system restart")
+		}
+		return err
+	}
+	if opts.Expired(timeNow()) {
+		return errors.New("authentication options have expired")
 	}
 
 	changeOneKeyslot := func(keyslot Keyslot, old, new string) error {
@@ -529,7 +547,7 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 		}
 		for _, keyslot := range keyslots {
 			// best effort cleanup, log errors only
-			if err := changeOneKeyslot(keyslot, opts.new, opts.old); err != nil {
+			if err := changeOneKeyslot(keyslot, opts.New, opts.Old); err != nil {
 				logger.Noticef("cannot cleanup: %v", err)
 			}
 		}
@@ -546,7 +564,7 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 
 	for _, keyslot := range currentKeyslots {
-		if err := changeOneKeyslot(keyslot, opts.old, opts.new); err != nil {
+		if err := changeOneKeyslot(keyslot, opts.Old, opts.New); err != nil {
 			return err
 		}
 
@@ -554,7 +572,7 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now updated.
 	t.SetStatus(state.DoneStatus)
-	m.state.Cache(changeAuthOptionsKey{}, nil)
+	m.secretState.Set(changeAuthID, nil) // remove authentication options from cache
 
 	return nil
 }

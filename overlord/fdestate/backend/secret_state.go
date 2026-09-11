@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 
 	"golang.org/x/sys/unix"
 
@@ -41,30 +40,30 @@ var (
 	// state does not fit in the fixed-size backing store.
 	ErrInsufficientCapacity = errors.New("insufficient capacity in secret state")
 
-	// ErrNoState is returned by SecretState.Get in the case of no state entry for a given key.
-	ErrNoState = errors.New("no state entry for key")
+	// ErrNoSecret is returned by SecretState.Get in the case of no secret state entry for a given key.
+	ErrNoSecret = errors.New("no secret state entry for key")
 )
 
-// NoStateError represents the case where no state could be found for a given key.
-type NoStateError struct {
+// NoSecretError represents the case where no secret state could be found for a given key.
+type NoSecretError struct {
 	// Key is the key for which no state could be found.
 	Key string
 }
 
-func (e *NoStateError) Error() string {
+func (e *NoSecretError) Error() string {
 	var keyMsg string
 	if e.Key != "" {
 		keyMsg = fmt.Sprintf(" %q", e.Key)
 	}
 
-	return fmt.Sprintf("no state entry for key%s", keyMsg)
+	return fmt.Sprintf("no secret state entry for key%s", keyMsg)
 }
 
-// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
-// NoStateError's key isn't compared between errors.
-func (e *NoStateError) Is(err error) bool {
-	_, ok := err.(*NoStateError)
-	return ok || errors.Is(err, ErrNoState)
+// Is returns true if the error is of type *NoSecretError or equal to ErrNoSecret.
+// NoSecretError's key isn't compared between errors.
+func (e *NoSecretError) Is(err error) bool {
+	_, ok := err.(*NoSecretError)
+	return ok || errors.Is(err, ErrNoSecret)
 }
 
 var (
@@ -91,7 +90,7 @@ const (
 type SecretState interface {
 	// Get unmarshals the stored value associated with the provided key
 	// into the value parameter.
-	// It returns ErrNoState if there is no entry for key.
+	// It returns ErrNoSecret if there is no entry for key.
 	Get(key string, value any) error
 
 	// Has returns whether the provided key has an associated value.
@@ -151,7 +150,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value any) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return &NoStateError{Key: key}
+		return &NoSecretError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
@@ -197,6 +196,10 @@ type secretState struct {
 	header secretStateHeader
 	mmap   []byte
 
+	// initErr holds an error that occurred while initializing the state.
+	// It is checked lazily by Get, Has and Set.
+	initErr error
+
 	closed       bool
 	stateChecker StateLockChecker
 }
@@ -214,6 +217,9 @@ func (s *secretState) ensureLocked() {
 
 func (s *secretState) Get(key string, value any) error {
 	s.ensureLocked()
+	if s.initErr != nil {
+		return s.initErr
+	}
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to get key %q from closed state", key)
 	}
@@ -223,6 +229,9 @@ func (s *secretState) Get(key string, value any) error {
 
 func (s *secretState) Has(key string) bool {
 	s.ensureLocked()
+	if s.initErr != nil {
+		return false
+	}
 	if s.closed {
 		return false
 	}
@@ -232,6 +241,9 @@ func (s *secretState) Has(key string) bool {
 
 func (s *secretState) Set(key string, value any) error {
 	s.ensureLocked()
+	if s.initErr != nil {
+		return s.initErr
+	}
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to set key %q on closed state", key)
 	}
@@ -284,10 +296,7 @@ func (s *secretState) capacity() uint64 {
 
 func (s *secretState) Close() error {
 	s.ensureLocked()
-	return s.closeLocked()
-}
 
-func (s *secretState) closeLocked() error {
 	if s == nil || s.closed {
 		return nil
 	}
@@ -307,6 +316,7 @@ func (s *secretState) closeLocked() error {
 		}
 		s.f = nil
 	}
+	s.data = nil
 
 	return strutil.JoinErrors(errs...)
 }
@@ -320,8 +330,8 @@ func openSecretStateFile() (f *os.File, retErr error) {
 			f.Close()
 		}
 	}()
-	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupportedSystemdVersion) {
-		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupportedSystemdVersion)
+	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupported) {
+		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupported)
 		fd, err := sysMemfdSecret(unix.FD_CLOEXEC)
 		if err != nil {
 			// fallback to memfd-create if memfd-secret is not supported
@@ -339,15 +349,15 @@ func openSecretStateFile() (f *os.File, retErr error) {
 		}
 
 		if fdstoreSupported {
-			// only add to the fdstore if systemd supports it. If the systemd
-			// version is too old, we will just use the memfd without adding
-			// it to the fdstore, persistence across snapd restarts will be
-			// lost but it is better than crashing.
+			// only add to the fdstore if it is supported. Otherwise we
+			// just use the memfd without adding it to the fdstore, so
+			// persistence across snapd restarts will be lost but it is
+			// better than crashing.
 			if err := fds.Add(fdstore.FdNameMemfdSecretState, f); err != nil {
 				return nil, fmt.Errorf("cannot add secret state to fdstore: %w", err)
 			}
 		} else {
-			logger.Debugf("secret state will not persist across snapd restarts: systemd version too old to support fdstore")
+			logger.Debugf("secret state will not persist across snapd restarts: fdstore is not supported")
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("cannot get secret state from fdstore: %w", err)
@@ -355,7 +365,7 @@ func openSecretStateFile() (f *os.File, retErr error) {
 	return f, nil
 }
 
-// OpenSecretState returns the memfd-secret backed state used to store
+// NewSecretState returns the memfd-secret backed state used to store
 // secrets that can persist through snapd restarts. If memfd-secret is
 // not supported, it fallbacks to using memfd-create. In that fallback,
 // secret data lives in regular process memory and is not protected from
@@ -367,13 +377,28 @@ func openSecretStateFile() (f *os.File, retErr error) {
 // Note that only a single instance of the secret state should be opened
 // at a time.
 //
-// The caller must hold the state lock.
-func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retErr error) {
+// The caller must hold the state lock and must call Close when finished
+// to release resources.
+func NewSecretState(stateChecker StateLockChecker) SecretState {
 	stateChecker.EnsureLocked()
 
+	s := &secretState{
+		stateChecker: stateChecker,
+		data:         make(customData),
+	}
+	if err := s.init(); err != nil {
+		s.initErr = fmt.Errorf("cannot initialize secret state: %w", err)
+		logger.Debugf("cannot initialize secret state: %v", s.initErr)
+	}
+
+	return s
+}
+
+// init initializes the backing store for the secret state.
+func (s *secretState) init() (retErr error) {
 	f, err := openSecretStateFile()
 	if err != nil {
-		return nil, fmt.Errorf("cannot open secret state file: %w", err)
+		return fmt.Errorf("cannot open secret state file: %w", err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -383,13 +408,13 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 
 	finfo, err := f.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("cannot stat memfd-secret state: %w", err)
+		return fmt.Errorf("cannot stat memfd-secret state: %w", err)
 	}
 
 	if finfo.Size() < secretStateHeaderSize {
 		// XXX: file does not even fit the header, consider removing the file
 		// and creating a new one with the correct size.
-		return nil, fmt.Errorf("secret state file size %d is too small", finfo.Size())
+		return fmt.Errorf("secret state file size %d is too small", finfo.Size())
 	}
 
 	size := finfo.Size()
@@ -399,7 +424,7 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 	}
 	mmap, err := unixMmap(int(f.Fd()), 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
-		return nil, fmt.Errorf("cannot mmap memfd-secret state: %w", err)
+		return fmt.Errorf("cannot mmap memfd-secret state: %w", err)
 	}
 	defer func() {
 		if retErr != nil {
@@ -410,31 +435,25 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 		}
 	}()
 
-	s := &secretState{
-		f:            f,
-		stateChecker: stateChecker,
-		data:         make(customData),
-		header:       initSecretStateHeader(mmap),
-		mmap:         mmap,
+	header := initSecretStateHeader(mmap)
+	if header.version != 1 {
+		return fmt.Errorf("unsupported memfd-secret state version %d", header.version)
 	}
-
-	if s.header.version != 1 {
-		return nil, fmt.Errorf("unsupported memfd-secret state version %d", s.header.version)
-	}
-	if s.header.size > s.capacity() {
-		return nil, fmt.Errorf("invalid header size %d for capacity %d", s.header.size, s.capacity())
+	// capacity available for data after the fixed-size header.
+	capacity := uint64(len(mmap)) - secretStateHeaderSize
+	if header.size > capacity {
+		return fmt.Errorf("invalid header size %d for capacity %d", header.size, capacity)
 	}
 
 	// load the existing state from the mmaped file.
-	if err := s.data.load(s.header, mmap); err != nil {
-		return nil, fmt.Errorf("cannot load memfd-secret state: %w", err)
+	if err := s.data.load(header, mmap); err != nil {
+		return fmt.Errorf("cannot load memfd-secret state: %w", err)
 	}
 
-	// The finalizer runs on the GC goroutine without holding the state lock.
-	// It only runs once the state is unreachable, so no other goroutine can
-	// be accessing it and it can release the resources directly.
-	runtime.SetFinalizer(s, (*secretState).closeLocked)
-	return s, nil
+	s.f = f
+	s.header = header
+	s.mmap = mmap
+	return nil
 }
 
 // MockFdstoreNew mocks the returned fdstore instance for testing.
