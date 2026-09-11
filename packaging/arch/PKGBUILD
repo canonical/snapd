@@ -32,6 +32,7 @@ build() {
              --libexecdir lib/snapd \
              -Ddracut=disabled \
              -Dsetcap=false \
+             -Dsecboot=false \
              -Dsnapmountdir=/var/lib/snapd/snap \
              -Dbpf=enabled
   meson compile -C build
