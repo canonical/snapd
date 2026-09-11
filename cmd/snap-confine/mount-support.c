@@ -54,7 +54,92 @@
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
 #define NUM_ELEM(x) (sizeof(x) / sizeof((x)[0]))
 
+/**
+ * Effective value of SC_MANAGED_CA_CERTS_DIR.
+ *
+ * We use 'const char *' so we can update sc_managed_ca_certs_dir in the testsuite
+ **/
+static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
+static const char *sc_managed_ca_generation_dir = SC_MANAGED_CA_GENERATION_DIR;
+
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
+
+// Resolve the host-managed CA certificate view to the immutable generation
+// directory currently active (/var/lib/snapd/pki/v1/merged). The merged folder
+// must be a symlink (after generations was introduced), and must be within the
+// published generations directory.
+static char *sc_resolve_managed_ca_certs_dir(void) {
+    char resolved[PATH_MAX] = {0};
+    if (realpath(sc_managed_ca_certs_dir, resolved) == NULL) {
+        if (errno == ENOENT || errno == ENOTDIR) {
+            debug("entry %s does not resolve to a managed CA generation, skipping mount", sc_managed_ca_certs_dir);
+            return NULL;
+        }
+        die("cannot resolve %s", sc_managed_ca_certs_dir);
+    }
+
+    struct stat resolved_stat;
+    if (stat(resolved, &resolved_stat) != 0) {
+        die("cannot stat %s", resolved);
+    }
+    if (!S_ISDIR(resolved_stat.st_mode)) {
+        debug("entry %s does not resolve to a directory, skipping mount", sc_managed_ca_certs_dir);
+        return NULL;
+    }
+
+    if (!sc_startswith(resolved, sc_managed_ca_generation_dir)) {
+        debug("entry %s points outside the published generations directory, skipping mount", sc_managed_ca_certs_dir);
+        return NULL;
+    }
+
+    const char *generation = resolved + strlen(sc_managed_ca_generation_dir);
+    // sc_managed_ca_generation_dir does not end with a trailing slash,
+    // so let's account for that if needed.
+    if (generation[0] != '/') {
+        debug("entry %s points outside the published generations directory, skipping mount", sc_managed_ca_certs_dir);
+        return NULL;
+    }
+    generation++;
+
+    if (generation[0] == '\0' || strchr(generation, '/') != NULL) {
+        debug("entry %s does not point to a published generation directory, skipping mount", sc_managed_ca_certs_dir);
+        return NULL;
+    }
+    return sc_strdup(resolved);
+}
+
+// Mount the whole managed cert generation so confined processes see the same
+// certs regardless of whether their TLS stack reads the bundle file or
+// resolves certificates through the directory layout under /etc/ssl/certs.
+static void sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
+    // If the managed certs dir did not resolve cleanly, we assume that the host
+    // snapd is not exposing one.
+    char *managed SC_CLEANUP(sc_cleanup_string) = sc_resolve_managed_ca_certs_dir();
+    if (managed == NULL) {
+        return;
+    }
+
+    // Reject a symlink target before pivot_root so the bind mount cannot be
+    // redirected somewhere else in the host namespace.
+    struct stat target_lstat;
+    char target_certs_dir[PATH_MAX] = {0};
+    sc_must_snprintf(target_certs_dir, sizeof target_certs_dir, "%s%s", scratch_dir, SC_SYSTEM_CA_CERTS_DIR);
+    if (lstat(target_certs_dir, &target_lstat) == 0) {
+        if (S_ISLNK(target_lstat.st_mode)) {
+            die("cannot bind mount managed CA certificates over a symlink: %s", target_certs_dir);
+        }
+    } else {
+        if (errno == ENOENT) {
+            debug("target %s is absent, skipping managed CA mount", target_certs_dir);
+            return;
+        }
+        die("cannot stat %s", target_certs_dir);
+    }
+
+    // make sure we remount r/o
+    sc_do_mount(managed, target_certs_dir, NULL, MS_BIND, NULL);
+    sc_do_mount(NULL, target_certs_dir, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
+}
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
@@ -620,6 +705,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
             sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
         }
     }
+
     // The "core" base snap is special as it contains snapd and friends.
     // Other base snaps do not, so whenever a base snap other than core is
     // in use we need extra provisions for setting up internal tooling to
@@ -666,6 +752,10 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
 
         sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
         sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+
+        // Only Ubuntu Core systems currently expect the managed certificate
+        // database to be mounted into confined snaps.
+        sc_maybe_bind_mount_managed_ca_certs_dir(scratch_dir);
     }
     // Bind mount the directory where all snaps are mounted. The location of
     // the this directory on the host filesystem may not match the location in
