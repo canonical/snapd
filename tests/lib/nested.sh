@@ -727,41 +727,39 @@ nested_prepare_kernel() {
     # allow repacking the kernel
     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
         echo "Repacking kernel snap"
-        local kernel_snap output_name snap_id version
+        local kernel_snap output_name snap_id version core_branch
         output_name="pc-kernel.snap"
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
         version="$(nested_get_version)"
+        if [ "$version" = 16 ]; then
+            core_branch=latest
+        else
+            core_branch="$version"
+        fi
 
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
-            if nested_is_core_le 18; then
-                kernel_snap=pc-kernel-new.snap
-                repack_kernel_snap "$kernel_snap"
+            local epoch_bump_time kernel_channel
+            local -a repack_kernel_args
+            kernel_snap="$NESTED_ASSETS_DIR/$output_name"
 
-            elif nested_is_core_ge 20; then
-                snap download --basename=pc-kernel --channel="$version/$(nested_get_kernel_channel)" pc-kernel
+            kernel_channel="$(nested_get_kernel_channel)"
+            repack_kernel_args=(
+                --mode nested
+                --core-version "$version"
+                --kernel-branch "$core_branch"
+                --kernel-channel "$kernel_channel"
+                --output-snap "$kernel_snap"
+            )
 
-                # set the unix bump time if the NESTED_* var is set,
-                # otherwise leave it empty
-                local epochBumpTime
-                epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                if [ -n "$epochBumpTime" ]; then
-                    epochBumpTime="--epoch-bump-time=$epochBumpTime"
+            # For UC20+, pass epoch bump when configured.
+            if nested_is_core_ge 20; then
+                epoch_bump_time=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                if [ -n "$epoch_bump_time" ]; then
+                    repack_kernel_args+=(--epoch-bump-time "$epoch_bump_time")
                 fi
-
-                if nested_is_core_ge 24; then
-                    # shellcheck source=tests/lib/prepare.sh
-                    . "$TESTSLIB"/prepare.sh
-                    uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                else
-                    uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                fi
-                rm -f "pc-kernel.snap" "pc-kernel.assert"
-
-                # Prepare the pc kernel snap
-                kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-                chmod 0600 "$kernel_snap"
             fi
-            mv "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
+
+            "$TESTSTOOLS"/repack-kernel "${repack_kernel_args[@]}"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 

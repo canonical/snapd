@@ -8,8 +8,6 @@ set -eux
 . "$TESTSLIB/pkgdb.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-#shellcheck source=tests/lib/core-initrd.sh
-. "$TESTSLIB"/core-initrd.sh
 #shellcheck source=tests/lib/systems.sh
 . "$TESTSLIB"/systems.sh
 
@@ -986,355 +984,6 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
-repack_kernel_snap() {
-    local TARGET=$1
-    local VERSION
-    local UNPACK_DIR
-    local CHANNEL
-
-    VERSION=$(nested_get_version)
-    if [ "$VERSION" = 16 ]; then
-        CHANNEL=latest
-    else
-        CHANNEL=$VERSION
-    fi
-
-    echo "Repacking kernel snap"
-    # TODO set up a trap to clean this up properly?
-    UNPACK_DIR="$(mktemp -d /tmp/kernel-unpack.XXXXXXXX)"
-    snap download --basename=pc-kernel --channel="$CHANNEL/${KERNEL_CHANNEL}" pc-kernel
-    unsquashfs -no-progress -f -d "$UNPACK_DIR" pc-kernel.snap
-    snap pack --filename="$TARGET" "$UNPACK_DIR"
-
-    rm -rf pc-kernel.snap "$UNPACK_DIR"
-}
-
-# Builds kernel snap with bad kernel.efi, in different ways
-# $1: snap we will modify
-# $2: target folder for the new snap
-# $3: argument, type of corruption we want for kernel.efi
-uc20_build_corrupt_kernel_snap() {
-    local ORIG_SNAP="$1"
-    local TARGET_DIR="$2"
-    local optArg=${3:-}
-
-    # kernel snap is huge, unpacking to current dir
-    local REPACKED_DIR=repacked-kernel
-    local KERNEL_EFI_PATH=$REPACKED_DIR/kernel.efi
-    unsquashfs -d "$REPACKED_DIR" "$ORIG_SNAP"
-
-    case "$optArg" in
-        --empty)
-            printf "" > "$KERNEL_EFI_PATH"
-            ;;
-        --zeros)
-            dd if=/dev/zero of="$KERNEL_EFI_PATH" count=1
-            ;;
-        --bad-*)
-            section=${optArg#--bad-}
-            # Get the file offset for the section, put zeros at the beginning of it
-            sectOffset=$(objdump -w -h "$KERNEL_EFI_PATH" | grep "$section" |
-                             awk '{print $6}')
-            dd if=/dev/zero of="$KERNEL_EFI_PATH" \
-               bs=1 seek=$((0x$sectOffset)) count=512 conv=notrunc
-            ;;
-    esac
-
-    # Make snap smaller, we don't need the fw with qemu
-    rm -rf "$REPACKED_DIR"/firmware/*
-    snap pack "$REPACKED_DIR" "$TARGET_DIR"
-    rm -rf "$REPACKED_DIR"
-}
-
-uc_write_bootstrap_wrapper() {
-    local SKELETON_PATH="$1"
-    local INJECT_KERNEL_PANIC="${2:-}"
-
-    cp -a /usr/lib/snapd/snap-bootstrap "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap.real
-    cat <<'EOF' >"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
-#!/bin/sh
-set -eux
-if [ "$1" != initramfs-mounts ]; then
-    exec /usr/lib/snapd/snap-bootstrap.real "$@"
-fi
-EOF
-    if [ "$INJECT_KERNEL_PANIC" = "before-snap-bootstrap" ]; then
-        echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
-    fi
-    cat <<'EOF' >>"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
-beforeDate="$(date --utc '+%s')"
-/usr/lib/snapd/snap-bootstrap.real "$@"
-if [ -d /run/mnt/data/system-data ]; then
-    touch /run/mnt/data/system-data/the-tool-ran
-fi
-# also copy the time for the clock-epoch to system-data, this is
-# used by a specific test but doesn't hurt anything to do this for
-# all tests
-mode="$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
-mode=${mode##snapd_recovery_mode=}
-mkdir -p /run/mnt/ubuntu-seed/test
-stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epoch
-echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
-date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
-EOF
-    if [ "$INJECT_KERNEL_PANIC" = "after-snap-bootstrap" ]; then
-        echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
-    fi
-    chmod +x "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
-}
-
-uc20_build_initramfs_kernel_snap() {
-    quiet apt install software-properties-common -y
-    # carries ubuntu-core-initframfs
-    retry -n 10 add-apt-repository ppa:snappy-dev/image -y
-    # On focal, lvm2 does not reinstall properly after being removed.
-    # So we need to clean up in case the VM has been re-used.
-    if os.query is-focal; then
-        systemctl unmask lvm2-lvmpolld.socket
-    fi
-    # TODO: install the linux-firmware as the current version of
-    # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
-    # to build the initrd
-    retry -n 10 quiet apt install ubuntu-core-initramfs linux-firmware -y
-
-    local ORIG_SNAP="$1"
-    local TARGET="$2"
-
-    # TODO proper option support here would be nice but bash is hard and this is
-    # easier, and likely we won't need to both inject a panic and set the epoch
-    # bump simultaneously
-    local injectKernelPanic=
-    local initramfsEpochBumpTime
-    initramfsEpochBumpTime=$(date '+%s')
-    optArg=${3:-}
-    case "$optArg" in
-        --inject-kernel-panic-before-snap-bootstrap)
-            injectKernelPanic=before-snap-bootstrap
-            ;;
-        --inject-kernel-panic-after-snap-bootstrap)
-            injectKernelPanic=after-snap-bootstrap
-            ;;
-        --epoch-bump-time=*)
-            # this strips the option and just gives us the value
-            initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
-            ;;
-    esac
-    
-    # kernel snap is huge, unpacking to current dir
-    unsquashfs -d repacked-kernel "$ORIG_SNAP"
-
-    # repack initrd magic, beware
-    # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
-    # at the beginning of initrd image
-    (
-        cd repacked-kernel
-        unpackeddir="$PWD"
-        #shellcheck disable=SC2010
-        kver=$(ls "config"-* | grep -Po 'config-\K.*')
-
-        # XXX: ideally we should unpack the initrd, replace snap-boostrap and
-        # repack it using ubuntu-core-initramfs --skeleton=<unpacked> this does not
-        # work and the rebuilt kernel.efi panics unable to start init, but we
-        # still need the unpacked initrd to get the right kernel modules
-        objcopy -j .initrd -O binary kernel.efi initrd
-        # this works on 20.04 but not on 18.04
-        unmkinitramfs initrd unpacked-initrd
-
-        # use only the initrd we got from the kernel snap to inject our changes
-        # we don't use the distro package because the distro package may be 
-        # different systemd version, etc. in the initrd from the one in the 
-        # kernel and we don't want to test that, just test our snap-bootstrap
-        cp -ar unpacked-initrd skeleton
-        # all the skeleton edits go to a local copy of distro directory
-        skeletondir="$PWD/skeleton"
-        initrd_dir="$skeletondir/main"
-        clock_epoch_file="$skeletondir/main/usr/lib/clock-epoch"
-        if os.query is-arm; then
-            initrd_dir="$skeletondir"
-            clock_epoch_file="$skeletondir/usr/lib/clock-epoch"
-        fi
-        uc_write_bootstrap_wrapper "$initrd_dir" "$injectKernelPanic"
-
-        # bump the epoch time file timestamp, converting unix timestamp to 
-        # touch's date format
-        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$clock_epoch_file"
-
-        # copy any extra files to the same location inside the initrd
-        if [ -d ../extra-initrd/ ]; then
-            if os.query is-arm; then
-                cp -a ../extra-initrd/* "$skeletondir"
-            else
-                cp -a ../extra-initrd/* "$skeletondir"/main
-            fi
-        fi
-
-        # XXX: need to be careful to build an initrd using the right kernel
-        # modules from the unpacked initrd, rather than the host which may be
-        # running a different kernel
-        (
-            # accommodate assumptions about tree layout, use the unpacked initrd
-            # to pick up the right modules
-            if os.query is-arm; then
-                cd unpacked-initrd
-                feature='.'
-            else
-                cd unpacked-initrd/main
-                feature='main'
-            fi
-            # XXX: pass feature 'main' and u-c-i picks up any directory named
-            # after feature inside skeletondir and uses that a template
-            ubuntu-core-initramfs create-initrd \
-                                  --kernelver "$kver" \
-                                  --skeleton "$skeletondir" \
-                                  --kerneldir "${unpackeddir}/modules/$kver" \
-                                  --firmwaredir "${unpackeddir}/firmware" \
-                                  --feature "$feature" \
-                                  --output "$unpackeddir"/repacked-initrd
-        )
-
-        # copy out the kernel image for create-efi command
-        objcopy -j .linux -O binary kernel.efi "vmlinuz-$kver"
-
-        # assumes all files are named <name>-$kver
-        ubuntu-core-initramfs create-efi \
-                              --kernelver "$kver" \
-                              --initrd repacked-initrd \
-                              --kernel vmlinuz \
-                              --output repacked-kernel.efi
-
-        mv "repacked-kernel.efi-$kver" kernel.efi
-
-        # XXX: needed?
-        chmod +x kernel.efi
-
-        rm -rf unpacked-initrd skeleton initrd repacked-initrd-* vmlinuz-*
-    )
-
-    # drop ~450MB+ of firmware which should not be needed in qemu or the cloud system
-    rm -rf repacked-kernel/firmware/*
-
-    # copy any extra files that tests may need for the kernel
-    if [ -d ./extra-kernel-snap/ ]; then
-        cp -a ./extra-kernel-snap/* ./repacked-kernel
-    fi
-    
-    snap pack repacked-kernel "$TARGET"
-    rm -rf repacked-kernel
-}
-
-
-# Modify kernel and create a component, kernel content expected in pc-kernel
-move_module_to_component() {
-    mod_name=$1
-    comp_name=$2
-
-    kern_ver=$(find pc-kernel/modules/* -maxdepth 0 -printf "%f\n")
-    comp_ko_dir=$comp_name/modules/"$kern_ver"/kmod/
-    mkdir -p "$comp_ko_dir"
-    mkdir -p "$comp_name"/meta/
-    cat << EOF > "$comp_name"/meta/component.yaml
-component: pc-kernel+$comp_name
-type: kernel-modules
-version: 1.0
-summary: kernel component
-description: kernel component for testing purposes
-EOF
-    # Replace _ or - with [_-], as it can be any of these
-    glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
-    module_path=$(find pc-kernel/modules/ -name "${glob_mod_name}.ko*")
-    cp "$module_path" "$comp_ko_dir"
-    snap pack --filename=pc-kernel+"$comp_name".comp "$comp_name"
-
-    # remove the kernel module from the kernel snap
-    rm "$module_path"
-    # depmod wants a lib subdir
-    mkdir -p pc-kernel/lib
-    ln -s ../modules pc-kernel/lib/modules
-    depmod -b pc-kernel/ "$kern_ver"
-    # append component meta-information
-    #shellcheck disable=SC2016
-    gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
-    mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
-}
-
-uc24_build_initramfs_kernel_snap() {
-    local ORIG_SNAP="$1"
-    local TARGET="$2"
-    local OPT_ARG="${3:-}"
-
-    local injectKernelPanic=
-    case "$OPT_ARG" in
-        --inject-kernel-panic-before-snap-bootstrap)
-            injectKernelPanic=before-snap-bootstrap
-            ;;
-        --inject-kernel-panic-after-snap-bootstrap)
-            injectKernelPanic=after-snap-bootstrap
-            ;;
-    esac
-
-    unsquashfs -d pc-kernel "$ORIG_SNAP"
-    kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
-    # TODO: update ubuntu-core-initramfs to use a disk-backed tmpdir by default
-    TMPDIR=/var/tmp ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
-                          --firmwaredir pc-kernel/firmware --output initrd.img
-
-    # Check that manifest is generated
-    stat manifest-initramfs.yaml-"$kernelver"
-    initrd_f=initrd.img-"$kernelver"
-    rm -rf initrd
-    unmkinitramfs "$initrd_f" initrd
-
-    if [ -d ./extra-initrd ]; then
-        if [ -d ./initrd/early ]; then
-            cp -aT ./extra-initrd ./initrd/main
-        else
-            cp -aT ./extra-initrd ./initrd
-        fi
-    fi
-
-    if [ -d ./initrd/early ]; then
-        uc_write_bootstrap_wrapper ./initrd/main "$injectKernelPanic"
-
-        (cd ./initrd/early; find . | cpio --create --quiet --format=newc --owner=0:0) >"$initrd_f"
-        (cd ./initrd/main; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >>"$initrd_f"
-    else
-        uc_write_bootstrap_wrapper ./initrd "$injectKernelPanic"
-
-        (cd ./initrd; find . | cpio --create --quiet --format=newc --owner=0:0 | zstd -1 -T0) >"$initrd_f"
-    fi
-
-    # Build signed uki image - snakeoil keys shipped by ubuntu-core-initramfs
-    # are used by default
-    objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
-    # TODO: update ubuntu-core-initramfs to use a disk-backed tmpdir by default
-    TMPDIR=/var/tmp ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
-    cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
-
-    # copy any extra files that tests may need for the kernel
-    if [ -d ./extra-kernel-snap/ ]; then
-        cp -a ./extra-kernel-snap/* ./pc-kernel
-    fi
-
-    if [ -n "${NESTED_KERNEL_REMOVE_COMPONENTS-}" ]; then
-        #shellcheck disable=SC2016
-        gojq 'del(.components)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
-        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
-        gojq 'del(.slots)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
-        mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
-    fi
-
-    if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && is_test_target_core_ge 24; then
-        # "split" kernel in kernel-modules component and kernel
-        move_module_to_component "$NESTED_COMP_KERNEL_MODULE_NAME" "$NESTED_KERNEL_MODULES_COMP"
-    fi
-
-    snap pack pc-kernel
-    if [ "$(pwd)" != "$TARGET" ]; then
-        mv pc-kernel_*.snap "$TARGET"
-    fi
-    rm -rf pc-kernel
-}
-
 setup_core_for_testing_by_modify_writable() {
     UNPACK_DIR="$1"
 
@@ -1496,16 +1145,27 @@ setup_reflash_magic() {
 
     # we cannot use "snaps.names tool" here because no snaps are installed yet
     core_name="core"
+    core_branch="latest"
     if is_test_target_core 18; then
         core_name="core18"
+        core_version="18"
+        core_branch="18"
     elif is_test_target_core 20; then
         core_name="core20"
+        core_version="20"
+        core_branch="20"
     elif is_test_target_core 22; then
         core_name="core22"
+        core_version="22"
+        core_branch="22"
     elif is_test_target_core 24; then
         core_name="core24"
+        core_version="24"
+        core_branch="24"
     elif is_test_target_core 26; then
         core_name="core26"
+        core_version="26"
+        core_branch="26"
     fi
     # XXX: we get "error: too early for operation, device not yet
     # seeded or device model not acknowledged" here sometimes. To
@@ -1548,33 +1208,16 @@ setup_reflash_magic() {
     cp /usr/bin/snap "$IMAGE_HOME"
     export UBUNTU_IMAGE_SNAP_CMD="$IMAGE_HOME/snap"
 
-    if is_test_target_core 18; then
+    if [ "$core_version" = "18" ]; then
         build_snapd_snap_for_core18 "${IMAGE_HOME}"
         # FIXME: fetch directly once its in the assertion service
         cp "$TESTSLIB/assertions/ubuntu-core-18-amd64.model" "$IMAGE_HOME/pc.model"
-    elif is_test_target_core 20; then
-        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        cp "$TESTSLIB/assertions/ubuntu-core-20-amd64.model" "$IMAGE_HOME/pc.model"
-    elif is_test_target_core 22; then
+    elif [ "$core_version" -ge "20" ]; then
         build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
         if os.query is-arm; then
-            cp "$TESTSLIB/assertions/ubuntu-core-22-arm64.model" "$IMAGE_HOME/pc.model"
+            cp "$TESTSLIB/assertions/ubuntu-core-$core_version-arm64.model" "$IMAGE_HOME/pc.model"
         else
-            cp "$TESTSLIB/assertions/ubuntu-core-22-amd64.model" "$IMAGE_HOME/pc.model"
-        fi
-    elif is_test_target_core 24; then
-        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        if os.query is-arm; then
-            cp "$TESTSLIB/assertions/ubuntu-core-24-arm64.model" "$IMAGE_HOME/pc.model"
-        else
-            cp "$TESTSLIB/assertions/ubuntu-core-24-amd64.model" "$IMAGE_HOME/pc.model"
-        fi
-    elif is_test_target_core 26; then
-        build_snapd_snap_with_run_mode_firstboot_tweaks "$IMAGE_HOME"
-        if os.query is-arm; then
-            cp "$TESTSLIB/assertions/ubuntu-core-26-arm64.model" "$IMAGE_HOME/pc.model"
-        else
-            cp "$TESTSLIB/assertions/ubuntu-core-26-amd64.model" "$IMAGE_HOME/pc.model"
+            cp "$TESTSLIB/assertions/ubuntu-core-$core_version-amd64.model" "$IMAGE_HOME/pc.model"
         fi
     else
         # FIXME: install would be better but we don't have dpkg on
@@ -1621,37 +1264,16 @@ EOF
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
+    kernel_extra=""
+    if [ "$core_version" -ge 20 ] || { [ "$core_version" -eq 18 ] && [[ "$SPREAD_BACKEND" =~ openstack ]]; }; then
+        kernel_extra="$IMAGE_HOME/pc-kernel.snap"
+        "$TESTSTOOLS"/repack-kernel --mode prepare --core-version "$core_version" --kernel-branch "$core_branch" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$kernel_extra"
+    fi
+    if [ -n "$kernel_extra" ]; then
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $kernel_extra"
+    fi
+
     if is_test_target_core_le 18; then
-        if is_test_target_core 16; then
-            BRANCH=latest
-        else
-            BRANCH=18
-        fi
-
-        if is_test_target_core 18 && [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-            # When running in openstack backend and uc18 it is required to use an specific
-            # kernel snap which is using the 5.4.0 instead of the 4.15 because this
-            # version has a fix for https://bugs.launchpad.net/qemu/+bug/1844053
-            wget -q -O pc-kernel.snap https://storage.googleapis.com/snapd-spread-tests/snaps/pc-kernel_5.4.0-221.241.1_amd64.snap
-        elif [ "$KERNEL_CHANNEL" != "$GADGET_CHANNEL" ]; then
-            # download pc-kernel snap for the specified channel and set
-            # ubuntu-image channel to that of the gadget, so that we don't
-            # need to download it. Do this only for UC16/18 as the UC20+
-            # case is considered a few lines below.
-            snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
-        fi
-
-        if [ -f pc-kernel.snap ]; then
-            # Repack to prevent reboots as the image channel (which will become
-            # the tracked channel) is different to the kernel channel.
-            unsquashfs -d pc-kernel pc-kernel.snap
-            touch pc-kernel/repacked
-            snap pack --filename=pc-kernel-repacked.snap pc-kernel
-            rm -rf pc-kernel
-            mv pc-kernel-repacked.snap pc-kernel.snap
-            EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
-            chmod 0600 pc-kernel.snap
-        fi
         if [ -n "$TAG_FEATURES" ] && is_test_target_core 18; then
             snap="$(repack_gadget_w_feature_tagging_core_18 "$GADGET_CHANNEL" "$IMAGE_HOME")"
             EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $snap"
@@ -1659,36 +1281,15 @@ EOF
     fi
 
     if is_test_target_core_ge 20; then
-        if is_test_target_core 20; then
-            BRANCH=20
-        elif is_test_target_core 22; then
-            BRANCH=22
-        elif is_test_target_core 24; then
-            BRANCH=24
-        elif is_test_target_core 26; then
-            BRANCH=26
-        fi
-        snap download --basename=pc-kernel --channel="${BRANCH}/${KERNEL_CHANNEL}" pc-kernel
-        # make sure we have the snap
-        test -e pc-kernel.snap
-        # build the initramfs with our snapd assets into the kernel snap
-        if is_test_target_core_ge 24; then
-            build_and_install_initramfs_deb
-            uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        else
-            uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        fi
-        EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
-
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        case "${BRANCH}/${GADGET_CHANNEL}" in
+        case "${core_branch}/${GADGET_CHANNEL}" in
             26/beta)
                 # TODO_UC26RELEASE: when core26 is release we can drop edge
                 snap download --basename=pc --channel="26/edge" pc
                 ;;
             *)
-                snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
+                snap download --basename=pc --channel="${core_branch}/${GADGET_CHANNEL}" pc
                 ;;
         esac
         test -e pc.snap
@@ -1765,16 +1366,7 @@ EOF
 
     # download the core20 snap manually from the specified channel for UC20
     if is_test_target_core_ge 20; then
-        if is_test_target_core 20; then
-            BASE=core20
-        elif is_test_target_core 22; then
-            BASE=core22
-        elif is_test_target_core 24; then
-            BASE=core24
-        elif is_test_target_core 26; then
-            BASE=core26
-        fi
-        snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
+        snap download "${core_name}" --channel="$BASE_CHANNEL" --basename="${core_name}"
 
         # we want to download the specific channel referenced by $BASE_CHANNEL, 
         # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
@@ -1791,13 +1383,13 @@ EOF
         # * pc (to aid in debugging by modifying the kernel command line)
         # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
-            unsquashfs -d "${BASE}-snap" "${BASE}.snap"
+            unsquashfs -d "${core_name}-snap" "${core_name}.snap"
 
             # We setup the ntp server in case it is defined in the current env
             # This is not needed in classic systems because the images already have ntp configured
             if [ -n "${NTP_SERVER:-}" ]; then
                 if [ -e /etc/systemd/timesyncd.conf ]; then
-                    TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
+                    TARGET_TIME_CONF="$(find "${core_name}-snap" -name timesyncd.conf)"
                     if [ -z "$TARGET_TIME_CONF" ]; then
                         echo "File timesyncd.conf not found in core image"
                         exit 1
@@ -1806,21 +1398,21 @@ EOF
                         cp /etc/systemd/timesyncd.conf "$target"
                     done <<< "$TARGET_TIME_CONF"
                 fi
-                if [ -e "${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
-                    echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf"
-                    mkdir -p "${BASE}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d"
-                    echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" "${BASE}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d/ci-proxy.sources"
+                if [ -e "${core_name}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
+                    echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${core_name}-snap/usr/lib/tmpfiles.d/core-writable.conf"
+                    mkdir -p "${core_name}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d"
+                    echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" "${core_name}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d/ci-proxy.sources"
                 fi
             fi
 
-            snap pack --filename="${BASE}-repacked.snap" "${BASE}-snap"
-            rm -r "${BASE}-snap"
-            mv "${BASE}-repacked.snap" "${IMAGE_HOME}/${BASE}.snap"
+            snap pack --filename="${core_name}-repacked.snap" "${core_name}-snap"
+            rm -r "${core_name}-snap"
+            mv "${core_name}-repacked.snap" "${IMAGE_HOME}/${core_name}.snap"
         else 
-            mv "${BASE}.snap" "${IMAGE_HOME}/${BASE}.snap"
+            mv "${core_name}.snap" "${IMAGE_HOME}/${core_name}.snap"
         fi
 
-        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${BASE}.snap"
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${core_name}.snap"
     fi
     local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
     if is_test_target_core 16 || os.query is-arm; then
