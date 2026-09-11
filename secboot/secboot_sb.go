@@ -126,15 +126,18 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 
 	switch {
 	case errors.Is(lockoutResetErr, sb_tpm2.ErrTPMLockout):
+		logger.Debugf("attempt repair: platform requires reset")
 		return RemedialActions{
 			RequirePlatformReset: true,
 		}
 	case errors.Is(lockoutResetErr, sb_tpm2.ErrLockoutAuthNotInitialized):
 		// authorization was performed with an empty auth value, we need to repair that.
+		logger.Debugf("attempt repair: authorazation is not initialized")
 		needsFixes = true
 	case lockoutResetErr != nil:
 		// Maybe post install check during reprovision will help diagnostic the issue.
 		// This includes errors like LockoutAuthPolicyNotSupported.
+		logger.Debugf("attempt repair: other issue with resetting the lockout")
 		needsFixes = true
 		canFixManually = false
 		canAutoRepair = false
@@ -145,6 +148,7 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 			// Failed mode
 			for _, errorType := range activation.KeyslotErrors {
 				if errorType == sb.KeyslotErrorPlatformFailure {
+					logger.Debugf("attempt repair: platform failure during activation")
 					// TODO: spec is incomplete about this case
 					needsFixes = true
 					canFixManually = false
@@ -169,11 +173,11 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 						// FIXME: The invalid key data also provides "either the sealed key object is
 						// bad or the TPM owner has changed". It would be nice in that case to have a different
 						// type of error if the TPM owner changed.
+						logger.Debugf("attempt repair: used recovery: TPM not owned and key data invalid")
 						needsFixes = true
 						canFixManually = false
 						canAutoRepair = false
 					}
-					continue
 				}
 				if errorType != sb.KeyslotErrorIncorrectUserAuth {
 					allKeySlotsFailWithIncorrectUserAuth = false
@@ -189,21 +193,25 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 			if allKeySlotsFailWithUserAuthUnavailable && len(activation.KeyslotErrors) != 0 {
 				// In this case lockout reset has fixed the issue.
 				// We guard against missing errors, maybe platform keyslots were removed?
+				logger.Debugf("attempt repair: used recovery: no keyslot error")
 				continue
 			}
 
 			needsFixes = true
 
 			if allKeySlotsFailWithIncompatibleRoleParams {
+				logger.Debugf("attempt repair: used recovery: incompatible role params")
 				continue
 			}
 
 			canAutoRepair = false
 
 			if allKeySlotsFailWithIncorrectUserAuth {
+				logger.Debugf("attempt repair: used recovery: incompatible incorrect user auth")
 				continue
 			}
 
+			logger.Debugf("attempt repair: used recovery: other error")
 			canFixManually = false
 		} else {
 			// Disk was unlocked. We now check if it was degraded.
@@ -229,22 +237,27 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 					// discriminate the case of not using token.
 
 				case sb.KeyslotErrorInvalidPrimaryKey:
+					logger.Debugf("attempt repair: degraded: invalid primary key")
 					needsFixes = true
 					canFixManually = false
 					canAutoRepair = false
 				case sb.KeyslotErrorPlatformFailure:
+					logger.Debugf("attempt repair: degraded: platform failure")
 					needsFixes = true
 					canFixManually = false
 					canAutoRepair = false
 				case sb.KeyslotErrorUnknown:
+					logger.Debugf("attempt repair: degraded: error unknown")
 					needsFixes = true
 					canFixManually = false
 					canAutoRepair = false
 
 				case sb.KeyslotErrorIncompatibleRoleParams:
+					logger.Debugf("attempt repair: degraded: incompatible role params")
 					// This can be fixed with auto repair
 					needsFixes = true
 				case sb.KeyslotErrorInvalidRoleParams:
+					logger.Debugf("attempt repair: degraded: invalid role params")
 					// This can be fixed with auto repair
 					needsFixes = true
 				}
@@ -253,12 +266,16 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 	}
 
 	if !needsFixes {
+		logger.Debugf("attempt repair: no fixes needed")
 		return RemedialActions{}
 	}
 
 	if canAutoRepair {
+		logger.Debugf("attempt repair: will auto repair")
 		return RemedialActions{AttemptRepair: true}
 	}
+
+	logger.Debugf("attempt repair: require reprovision, can fix manually? %v", canFixManually)
 
 	return RemedialActions{
 		RequireReprovision: true,
