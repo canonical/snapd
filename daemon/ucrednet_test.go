@@ -86,7 +86,7 @@ func (s *ucrednetSuite) TestAcceptConnContext(c *check.C) {
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Uid, check.Equals, uint32(42))
-	c.Check(u.PolkitPID, check.Equals, int32(100))
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
 	name, err := u.UntrustedProcessExeName()
 	c.Check(err, check.IsNil)
 	c.Check(name, check.Equals, "/usr/bin/snap")
@@ -123,7 +123,7 @@ func (s *ucrednetSuite) TestAcceptConnContextUnreadableExe(c *check.C) {
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(u.Uid, check.Equals, uint32(42))
-	c.Check(u.PolkitPID, check.Equals, int32(100))
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
 	name, err := u.UntrustedProcessExeName()
 	c.Check(err, check.Equals, lookupErr)
 	c.Check(name, check.Equals, "")
@@ -164,7 +164,7 @@ func (s *ucrednetSuite) TestAcceptConnContextInstanceName(c *check.C) {
 	c.Check(name, check.Equals, "some-snap_instance")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, sock)
-	c.Check(u.PolkitPID, check.Equals, int32(100))
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
 	c.Check(lookupCalls, check.Equals, 1)
 }
 
@@ -203,7 +203,7 @@ func (s *ucrednetSuite) TestAcceptConnContextUnknownInstanceName(c *check.C) {
 	c.Check(name, check.Equals, "")
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, sock)
-	c.Check(u.PolkitPID, check.Equals, int32(100))
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
 	c.Check(lookupCalls, check.Equals, 1)
 }
 
@@ -221,7 +221,7 @@ func (s *ucrednetSuite) TestString(c *check.C) {
 	var u *ucrednet
 	c.Check(u.String(), check.Equals, "snap=;uid=;socket=;")
 	u = NewUcrednet("some-snap_instance", "", 42, "/run/snap.socket")
-	u.PolkitPID = 100
+	u.PIDForPolkit = 100
 	c.Check(u.String(), check.Equals, "snap=some-snap_instance;uid=42;socket=/run/snap.socket;")
 	u = NewUcrednet("", "", 42, "/run/snap.socket")
 	c.Check(u.String(), check.Equals, "snap=;uid=42;socket=/run/snap.socket;")

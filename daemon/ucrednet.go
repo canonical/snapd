@@ -95,11 +95,11 @@ type ucrednet struct {
 	// Socket is the local Unix socket path on which the connection was
 	// accepted.
 	Socket string
+	// PIDForPolkit is the peer PID, for use only in polkit authorization.
+	PIDForPolkit int32
 
 	untrustedProcessExeName    string
 	untrustedProcessExeNameErr error
-	// PolkitPID is the peer PID, should only be used for polkit authorization.
-	PolkitPID int32
 }
 
 // InstanceName returns the peer snap instance name captured at acceptance.
@@ -169,9 +169,9 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		}
 
 		unet = &ucrednet{
-			Uid:       ucred.Uid,
-			Socket:    ucon.LocalAddr().String(),
-			PolkitPID: ucred.Pid,
+			Uid:          ucred.Uid,
+			Socket:       ucon.LocalAddr().String(),
+			PIDForPolkit: ucred.Pid,
 		}
 		// non-snap clients and failed lookups must not prevent serving the connection.
 		unet.instanceName, unet.instanceNameErr = cgroupSnapNameFromPid(int(ucred.Pid))
