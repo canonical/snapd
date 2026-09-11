@@ -3321,6 +3321,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 		// run disconnect hooks
 		disconnect := st.NewTask("auto-disconnect", fmt.Sprintf(i18n.G("Disconnect interfaces of snap %q"), snapsup.InstanceName()))
 		disconnect.Set("snap-setup", snapsup)
+		disconnect.Set("full-remove", true)
 		if prev != nil {
 			disconnect.WaitFor(prev)
 		}

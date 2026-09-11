@@ -53,11 +53,17 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// snapd/os/base/kernel/gadget cannot have prerequisites other than the
+	// snapd/os/base/gadget cannot have prerequisites other than the
 	// models default base (or core) which is installed anyway
 	switch snapsup.Type {
-	case snap.TypeSnapd, snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
+	case snap.TypeSnapd, snap.TypeOS, snap.TypeBase, snap.TypeGadget:
 		return nil
+	case snap.TypeKernel:
+		// kernels used to never specify bases, so an empty base meant "unset" and
+		// not implicit dependency on core.
+		if snapsup.Base == "" {
+			return nil
+		}
 	}
 
 	dctx, err := DeviceCtx(st, t, nil)
@@ -128,6 +134,8 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 		transaction = client.TransactionPerSnap
 	}
 
+	// we don't need to handle kernel's unset base meaning "none" unlike the
+	// usual "core" because we only get here if the kernel has an explicit base
 	base := defaultCoreSnapName
 	if snapsup.Base != "" {
 		base = snapsup.Base
@@ -387,11 +395,26 @@ const (
 	prereqRetry
 )
 
-// checkForInFlightPrereqTasks checks whether a link-snap task for
-// prerequisiteName is already in flight and reports how the caller should handle
-// the prerequisite.
+// checkForInFlightPrereqTasks checks if the prerequisite is being installed,
+// refreshed or removed, and reports how it should be handled.
 func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, basePrerequisite bool) (prereqInFlightAction, error) {
 	st := prereqs.State()
+
+	if basePrerequisite {
+		removeChange, err := removalInProgress(st, prerequisiteName)
+		if err != nil {
+			return 0, err
+		}
+
+		if removeChange != nil {
+			// TODO: consider whether we can actually wait on it without creating a loop
+			// (which currently can only happen in clustering changes)
+			if removeChange.ID() == prereqs.Change().ID() {
+				return 0, fmt.Errorf("internal error: prerequisites task %s cannot wait on auto-disconnect in same change", prereqs.ID())
+			}
+			return prereqRetry, nil
+		}
+	}
 
 	link, err := findLinkSnapTaskForSnap(st, prerequisiteName)
 	if err != nil {
@@ -450,8 +473,45 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 	return prereqRetry, nil
 }
 
+func removalInProgress(st *state.State, snapName string) (*state.Change, error) {
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+
+		for _, t := range chg.Tasks() {
+			if !t.Has("full-remove") {
+				continue
+			}
+
+			tsup, err := TaskSnapSetup(t)
+			if err != nil {
+				return nil, err
+			}
+
+			if tsup.InstanceName().String() == snapName {
+				return chg, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
+
+	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
+	if err != nil {
+		return nil, err
+	}
+
+	switch action {
+	case prereqSkip:
+		return nil, nil
+	case prereqRetry:
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
+	}
 
 	// as a special case, we allow the core snap to satisfy a core16 requirement
 	if sn.InstanceName == "core16" {
@@ -466,18 +526,6 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 		if installed {
 			return nil, nil
 		}
-	}
-
-	// check for an existing link-snap task before creating prerequisite tasks.
-	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
-	if err != nil {
-		return nil, err
-	}
-	switch action {
-	case prereqSkip:
-		return nil, nil
-	case prereqRetry:
-		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 
 	installed, err := isInstalled(st, sn.InstanceName)

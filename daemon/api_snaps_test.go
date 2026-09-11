@@ -575,6 +575,30 @@ func (s *snapsSuite) TestPostSnapsRemoveWithTerminate(c *check.C) {
 	c.Assert(snapstateRemoveCalled, check.Equals, 1)
 }
 
+func (s *snapsSuite) TestPostSnapRemoveDoesNotMarkChangeAsFullRemove(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+
+	defer daemon.MockSnapstateRemove(func(st *state.State, name string, revision snap.Revision, flags *snapstate.RemoveFlags) (*state.TaskSet, error) {
+		c.Check(name, check.Equals, "foo")
+		c.Check(revision.Unset(), check.Equals, true)
+		return state.NewTaskSet(st.NewTask("fake-remove", "Remove one")), nil
+	})()
+
+	req, err := http.NewRequest("POST", "/v2/snaps/foo", strings.NewReader(`{"action": "remove"}`))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp := s.jsonReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, check.Equals, 202)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(rsp.Change)
+	c.Check(chg.Has("full-remove"), check.Equals, false)
+}
+
 func (s *snapsSuite) TestPostSnapsRemoveManyWithTerminate(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
 

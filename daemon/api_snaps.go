@@ -881,7 +881,6 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	if len(res.Tasksets) == 0 {
 		chg.SetStatus(state.DoneStatus)
 	}
-
 	if inst.SystemRestartImmediate {
 		chg.Set("system-restart-immediate", true)
 	}
