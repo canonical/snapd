@@ -3566,6 +3566,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if snapst.Current == snapsup.Revision() {
 			snapst.Current = newSeq[len(newSeq)-1].Snap.Revision
 		}
+
+		// the snap still has other revisions; keep the on-disk sequence file
+		// in sync with the removed revision. when no revisions are left the
+		// file is removed further below instead.
+		if err := updateSeqFileForSnap(snapst, snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
