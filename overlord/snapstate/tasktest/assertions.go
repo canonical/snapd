@@ -25,10 +25,11 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// AssertSequenced checks that the given Selections form a sequence in the task
-// graph. Every task in each Selection must transitively precede every task in
-// the following Selection. Task ordering within a Selection is not considered.
-func AssertSequenced(selections ...Selection) error {
+// AssertOrdered checks that the given Selections are ordered in the task
+// graph as specified by their argument order. Every task in each Selection
+// must transitively precede every task in the next Selection. Task ordering
+// within a Selection is not considered.
+func AssertOrdered(selections ...Selection) error {
 	if err := validateNonEmpty(selections...); err != nil {
 		return err
 	}
@@ -47,9 +48,9 @@ func AssertSequenced(selections ...Selection) error {
 	return nil
 }
 
-// AssertNotSequenced checks that no task in first transitively precedes any
-// task in second.
-func AssertNotSequenced(first, second Selection) error {
+// AssertNotOrdered checks that no task in first transitively precedes any task
+// in second. Task ordering within a Selection is not considered.
+func AssertNotOrdered(first, second Selection) error {
 	if err := validateNonEmpty(first, second); err != nil {
 		return err
 	}

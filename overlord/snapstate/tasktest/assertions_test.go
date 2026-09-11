@@ -45,7 +45,7 @@ func (s *assertionsSuite) TestAssertSequenced(c *C) {
 	tail.WaitFor(right)
 	selection := tasktest.NewSelection([]*state.Task{root, left, right, tail})
 
-	c.Check(tasktest.AssertSequenced(
+	c.Check(tasktest.AssertOrdered(
 		selection.Select(tasktest.Kind("root")),
 		selection.Select(tasktest.Kind("middle").All()),
 		selection.Select(tasktest.Kind("tail")),
@@ -67,7 +67,7 @@ func (s *assertionsSuite) TestAssertSequencedMissingDependency(c *C) {
 	before := tasktest.NewSelection([]*state.Task{first, second})
 	after := tasktest.NewSelection([]*state.Task{third, fourth})
 
-	c.Check(tasktest.AssertSequenced(before, after), ErrorMatches, `task 2 \(second\) is not sequenced before task 4 \(fourth\)`)
+	c.Check(tasktest.AssertOrdered(before, after), ErrorMatches, `task 2 \(second\) is not sequenced before task 4 \(fourth\)`)
 }
 
 func (s *assertionsSuite) TestAssertNotSequenced(c *C) {
@@ -82,7 +82,7 @@ func (s *assertionsSuite) TestAssertNotSequenced(c *C) {
 	later := tasktest.NewSelection([]*state.Task{second})
 	others := tasktest.NewSelection([]*state.Task{first, unrelated})
 
-	c.Check(tasktest.AssertNotSequenced(later, others), IsNil)
+	c.Check(tasktest.AssertNotOrdered(later, others), IsNil)
 }
 
 func (s *assertionsSuite) TestAssertNotSequencedHasDependency(c *C) {
@@ -100,7 +100,7 @@ func (s *assertionsSuite) TestAssertNotSequencedHasDependency(c *C) {
 	before := tasktest.NewSelection([]*state.Task{first, second})
 	after := tasktest.NewSelection([]*state.Task{third, fourth})
 
-	c.Check(tasktest.AssertNotSequenced(before, after), ErrorMatches, `task 2 \(second\) is sequenced before task 4 \(fourth\)`)
+	c.Check(tasktest.AssertNotOrdered(before, after), ErrorMatches, `task 2 \(second\) is sequenced before task 4 \(fourth\)`)
 }
 
 func (s *assertionsSuite) TestAssertLaneSuperset(c *C) {
@@ -256,8 +256,8 @@ func (s *assertionsSuite) TestAssertionsCheckEmptySets(c *C) {
 	selection := tasktest.NewSelection([]*state.Task{task})
 	empty := tasktest.NewSelection(nil)
 
-	c.Check(tasktest.AssertSequenced(selection, empty), ErrorMatches, "selection 2 is empty")
-	c.Check(tasktest.AssertNotSequenced(selection, empty), ErrorMatches, "selection 2 is empty")
+	c.Check(tasktest.AssertOrdered(selection, empty), ErrorMatches, "selection 2 is empty")
+	c.Check(tasktest.AssertNotOrdered(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertLaneSuperset(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertDoesNotShareLane(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertSameLanes(selection, empty), ErrorMatches, "selection 2 is empty")
