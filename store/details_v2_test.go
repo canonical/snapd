@@ -461,6 +461,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"LegacyWebsite",
+		"UbuntuCoreTracks",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -486,6 +487,87 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	}
 	x := reflect.ValueOf(info).Elem()
 	checker("", x)
+}
+
+func (s *detailsV2Suite) TestInfoFromStoreSnapIgnoresOtherSnapYamlErrors(c *C) {
+	for _, snapYaml := range []string{
+		`name: snapd
+version: 1.0
+layouts: {}
+`,
+		`name: snapd
+version: 1.0
+snapd-info: []
+`,
+		`name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18": "18"
+`,
+		`name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      latest: "18/stable"
+`,
+	} {
+		snp := &storeSnap{
+			Name:     "snapd",
+			Type:     snap.TypeSnapd,
+			SnapYAML: snapYaml,
+		}
+
+		info, err := infoFromStoreSnap(snp)
+		c.Assert(err, IsNil, Commentf("yaml=%s", snapYaml))
+		c.Check(info.UbuntuCoreTracks, IsNil, Commentf("yaml=%s", snapYaml))
+		c.Check(info.RealName, Equals, "snapd", Commentf("yaml=%s", snapYaml))
+	}
+}
+
+func (s *detailsV2Suite) TestInfoFromStoreSnapUbuntuCoreTracks(c *C) {
+	snp := &storeSnap{
+		Name: "snapd",
+		Type: snap.TypeSnapd,
+		SnapYAML: `name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+      fips-updates: "18-fips"
+`,
+	}
+
+	info, err := infoFromStoreSnap(snp)
+	c.Assert(err, IsNil)
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
+		"18": {"latest": "18", "fips-updates": "18-fips"},
+	})
+}
+
+func (s *detailsV2Suite) TestInfoFromStoreSnapEmptyUbuntuCoreTracksSnapd(c *C) {
+	for _, snapYaml := range []string{
+		`name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks: {}
+`,
+		`name: snapd
+version: 1.0
+`,
+	} {
+		snp := &storeSnap{
+			Name:     "snapd",
+			Type:     snap.TypeSnapd,
+			SnapYAML: snapYaml,
+		}
+
+		info, err := infoFromStoreSnap(snp)
+		c.Assert(err, IsNil)
+		c.Check(info.UbuntuCoreTracks, IsNil)
+	}
 }
 
 // arg must be a pointer to a struct

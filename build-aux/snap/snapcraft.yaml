@@ -19,6 +19,25 @@ grade: stable
 license: GPL-3.0
 confinement: strict
 
+# Nested objects such as ubuntu-core-tracks must not be validated by Snapcraft
+# or review-tools; snapd validates them via snap pack. Passthrough
+# only skips Snapcraft validation.
+# TODO: allow snapd-info in the store/review-tools snap.yaml schema for
+# the snapd snap.
+# TODO: allow snapd-info in Snapcraft so passthrough is not needed.
+passthrough:
+  snapd-info:
+    # Example:
+    #   ubuntu-core-tracks:
+    #     "18":
+    #       latest: "18"
+    #       fips-updates: "18-fips"
+    #     "20":
+    #       latest: "20"
+    #       fips-updates: "20-fips"
+    # Empty until the first Ubuntu Core version is onboarded.
+    ubuntu-core-tracks: {}
+
 # Note that this snap is unusual in that it has no "apps" section.
 #
 # It is started via re-exec on classic systems and via special
