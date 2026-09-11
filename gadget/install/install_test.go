@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+	"github.com/snapcore/snapd/osutil/mkfs"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -507,37 +508,38 @@ fi
 	defer restore()
 
 	mkfsCall := 0
-	restore = install.MockMkfsMake(func(typ, img, label string, devSize, sectorSize quantity.Size) error {
+	restore = install.MockMkfsMake(func(ctx context.Context, typ, img string, mkfsOpts *mkfs.MakeOptions) error {
+		c.Assert(ctx, NotNil)
 		mkfsCall++
 		switch mkfsCall {
 		case 1:
 			c.Assert(typ, Equals, "vfat")
 			c.Assert(img, Equals, "/dev/mmcblk0p2")
-			c.Assert(label, Equals, "ubuntu-boot")
-			c.Assert(devSize, Equals, 750*quantity.SizeMiB)
-			c.Assert(sectorSize, Equals, quantity.Size(512))
+			c.Assert(mkfsOpts.Label, Equals, "ubuntu-boot")
+			c.Assert(mkfsOpts.DeviceSize, Equals, 750*quantity.SizeMiB)
+			c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(512))
 		case 2:
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
 				c.Assert(img, Equals, "/dev/mapper/ubuntu-save")
-				c.Assert(sectorSize, Equals, quantity.Size(4096))
+				c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p3")
-				c.Assert(sectorSize, Equals, quantity.Size(512))
+				c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(512))
 			}
-			c.Assert(label, Equals, "ubuntu-save")
-			c.Assert(devSize, Equals, 16*quantity.SizeMiB)
+			c.Assert(mkfsOpts.Label, Equals, "ubuntu-save")
+			c.Assert(mkfsOpts.DeviceSize, Equals, 16*quantity.SizeMiB)
 		case 3:
 			c.Assert(typ, Equals, "ext4")
 			if opts.encryption {
 				c.Assert(img, Equals, "/dev/mapper/ubuntu-data")
-				c.Assert(sectorSize, Equals, quantity.Size(4096))
+				c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(4096))
 			} else {
 				c.Assert(img, Equals, "/dev/mmcblk0p4")
-				c.Assert(sectorSize, Equals, quantity.Size(512))
+				c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(512))
 			}
-			c.Assert(label, Equals, "ubuntu-data")
-			c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
+			c.Assert(mkfsOpts.Label, Equals, "ubuntu-data")
+			c.Assert(mkfsOpts.DeviceSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
 			return fmt.Errorf("test broken")
@@ -985,28 +987,29 @@ fi
 	}
 
 	mkfsCall := 0
-	restore = install.MockMkfsMake(func(typ, img, label string, devSize, sectorSize quantity.Size) error {
+	restore = install.MockMkfsMake(func(ctx context.Context, typ, img string, mkfsOpts *mkfs.MakeOptions) error {
+		c.Assert(ctx, NotNil)
 		mkfsCall++
 		switch mkfsCall {
 		case 1:
 			c.Assert(typ, Equals, "vfat")
 			c.Assert(img, Equals, "/dev/mmcblk0p2")
-			c.Assert(label, Equals, "ubuntu-boot")
-			c.Assert(devSize, Equals, 750*quantity.SizeMiB)
-			c.Assert(sectorSize, Equals, quantity.Size(512))
+			c.Assert(mkfsOpts.Label, Equals, "ubuntu-boot")
+			c.Assert(mkfsOpts.DeviceSize, Equals, 750*quantity.SizeMiB)
+			c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(512))
 		case 2:
 			c.Assert(typ, Equals, "ext4")
 			c.Assert(img, Equals, dataDev)
-			c.Assert(label, Equals, "ubuntu-data")
+			c.Assert(mkfsOpts.Label, Equals, "ubuntu-data")
 			if opts.noSave {
-				c.Assert(devSize, Equals, (30528-(1+1200+750))*quantity.SizeMiB)
+				c.Assert(mkfsOpts.DeviceSize, Equals, (30528-(1+1200+750))*quantity.SizeMiB)
 			} else {
-				c.Assert(devSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
+				c.Assert(mkfsOpts.DeviceSize, Equals, (30528-(1+1200+750+16))*quantity.SizeMiB)
 			}
 			if opts.encryption {
-				c.Assert(sectorSize, Equals, quantity.Size(4096))
+				c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(4096))
 			} else {
-				c.Assert(sectorSize, Equals, quantity.Size(512))
+				c.Assert(mkfsOpts.SectorSize, Equals, quantity.Size(512))
 			}
 		default:
 			c.Errorf("unexpected call (%d) to mkfs.Make()", mkfsCall)
