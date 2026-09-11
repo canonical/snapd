@@ -2407,3 +2407,266 @@ components:
 	c.Assert(err.Error(), Equals, `component hooks cannot have slots`)
 	c.Assert(info, IsNil)
 }
+
+func (s *YamlSuite) TestUnmarshalUCTracks(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18":
+      latest: "18"
+      fips-updates: "18-fips"
+    "20":
+      latest: "20"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Type(), Equals, snap.TypeSnapd)
+	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+		"18": {"latest": "18", "fips-updates": "18-fips"},
+		"20": {"latest": "20"},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksUnquotedVersion(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    18:
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+		"18": {"latest": "18"},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksIgnoresOtherSnapdInfoKeys(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+  uc-tracks:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+		"18": {"latest": "18"},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoWithoutUCTracks(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UCTracks, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksOmitted(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UCTracks, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksEmpty(c *C) {
+	for _, yaml := range []string{
+		`
+name: snapd
+version: 1.0
+snapd-info: {}
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks: {}
+`,
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(info.UCTracks, IsNil, Commentf("yaml=%s", yaml))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoRejectsNonMapping(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info: []
+`))
+	c.Assert(err, ErrorMatches, `(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*`)
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksRejectsTwoLevelMap(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18": "18"
+`))
+	c.Assert(err, ErrorMatches, `(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*`)
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksRejectsNonTrackOnly(c *C) {
+	const tmpl = `
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18":
+      %s
+`
+	for _, t := range []struct {
+		rule string
+		err  string
+	}{
+		{`latest: "18/stable"`, `target track "18/stable" for boot base 18 is not a track-only channel`},
+		{`latest: "stable"`, `target track "stable" for boot base 18 is not a track-only channel`},
+		{`latest: ""`, `target track "" for boot base 18 is not a track-only channel`},
+		{`latest/stable: "18"`, `input track "latest/stable" for boot base 18 is not a track-only channel`},
+		{`"": "18"`, `input track "" for boot base 18 is not a track-only channel`},
+		{`stable: "18"`, `input track "stable" for boot base 18 is not a track-only channel`},
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(tmpl, t.rule)))
+		c.Check(err, ErrorMatches, `invalid uc-tracks: `+t.err, Commentf("rule %s", t.rule))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksRejectsBadBootBase(c *C) {
+	const tmpl = `
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "%s":
+      latest: "18"
+`
+	for _, t := range []struct {
+		bootBase string
+		err      string
+	}{
+		{"", `empty boot base`},
+		{"core18", `cannot parse boot base "core18":.*`},
+		// an odd spelling would never be found by uctrack.Resolve, and
+		// normalizing it instead would let "018" and "18" collide
+		{"018", `boot base "018" is not a plain Ubuntu Core version number`},
+		{"+18", `boot base "\+18" is not a plain Ubuntu Core version number`},
+		{"-18", `boot base "-18" is not a plain Ubuntu Core version number`},
+		{"0", `boot base "0" is not a plain Ubuntu Core version number`},
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(tmpl, t.bootBase)))
+		c.Check(err, ErrorMatches, `invalid uc-tracks: `+t.err, Commentf("boot base %q", t.bootBase))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalUCTracksRejectsEmptyTrackMap(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18": {}
+`))
+	c.Check(err, ErrorMatches, `invalid uc-tracks: empty track map for boot base 18`)
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoRejectedOnApp(c *C) {
+	for _, yaml := range []string{
+		`
+name: foo
+version: 1.0
+snapd-info: {}
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+  uc-tracks: {}
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18":
+      latest: "18"
+`,
+		`
+name: some-app
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18":
+      latest: "18/stable"
+`,
+		// an empty value still names a snapd-only key
+		`
+name: foo
+version: 1.0
+snapd-info: null
+`,
+		`
+name: foo
+version: 1.0
+snapd-info: ~
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+`,
+		// YAML may spell the key with an escape; presence is still presence
+		`
+name: foo
+version: 1.0
+"snapd\x2dinfo":
+  uc-tracks:
+    "18":
+      latest: "18"
+`,
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Check(err, ErrorMatches, `cannot specify snapd-info except on the snapd snap`, Commentf("yaml=%s", yaml))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoEmptyValueOnSnapd(c *C) {
+	for _, yaml := range []string{
+		`
+name: snapd
+version: 1.0
+snapd-info: null
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info: ~
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info:
+`,
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(info.UCTracks, IsNil, Commentf("yaml=%s", yaml))
+	}
+}

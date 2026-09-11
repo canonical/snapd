@@ -2886,3 +2886,85 @@ slots:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, strings.Join(expectedErrs, "\n"))
 }
+
+func (s *ValidateSuite) TestValidateUCTracksOnSnapd(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateSnapdInfoEmptyOnSnapd(c *C) {
+	for _, yaml := range []string{
+		`
+name: snapd
+version: 1.0
+snapd-info: {}
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info:
+  uc-tracks: {}
+`,
+	} {
+		info, err := InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(Validate(info), IsNil, Commentf("yaml=%s", yaml))
+	}
+}
+
+func (s *ValidateSuite) TestValidateSnapdInfoExtraKeyOnSnapd(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+  uc-tracks:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateUCTracksConstructedOnApp(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	info.UCTracks = UCTracks{
+		"18": {"latest": "18"},
+	}
+	c.Check(Validate(info), ErrorMatches, `cannot specify snapd-info except on the snapd snap`)
+}
+
+func (s *ValidateSuite) TestValidateUCTracksConstructedInvalid(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	info.UCTracks = UCTracks{
+		"18": {"latest": "18/stable"},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid uc-tracks: target track "18/stable" for boot base 18 is not a track-only channel`)
+
+	info.UCTracks = UCTracks{
+		"18": {},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid uc-tracks: empty track map for boot base 18`)
+
+	// such a key would never be found by uctrack.Resolve
+	info.UCTracks = UCTracks{
+		"018": {"latest": "18"},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid uc-tracks: boot base "018" is not a plain Ubuntu Core version number`)
+}

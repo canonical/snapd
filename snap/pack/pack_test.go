@@ -140,6 +140,31 @@ no-colon
 	c.Assert(err, ErrorMatches, `cannot parse snap.yaml: yaml: line 4: could not find expected ':'`)
 }
 
+func (s *packSuite) TestPackInvalidUCTracksFails(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: snapd
+version: 1.0
+type: snapd
+snapd-info:
+  uc-tracks:
+    "18":
+      latest: "18/stable"
+`)
+	_, err := pack.Pack(sourceDir, pack.Defaults)
+	c.Assert(err, ErrorMatches, `invalid uc-tracks: target track "18/stable" for boot base 18 is not a track-only channel`)
+}
+
+func (s *packSuite) TestPackSnapdInfoOnAppFails(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 1.0
+snapd-info:
+  uc-tracks:
+    "18":
+      latest: "18"
+`)
+	_, err := pack.Pack(sourceDir, pack.Defaults)
+	c.Assert(err, ErrorMatches, `cannot specify snapd-info except on the snapd snap`)
+}
+
 func (s *packSuite) TestPackComponentBadName(c *C) {
 	sourceDir := makeExampleComponentSourceDir(c, "{component: hello, version: 0}")
 	pathName, err := pack.Pack(sourceDir, pack.Defaults)
