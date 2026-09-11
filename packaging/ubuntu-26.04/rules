@@ -14,9 +14,20 @@ export DH_OPTIONS
 export DH_GOPKG := github.com/snapcore/snapd
 #export DEB_BUILD_OPTIONS=nocheck
 export DH_GOLANG_EXCLUDES=tests
-export DH_GOLANG_GO_GENERATE=1
+# Version files come from the pack-source tarball and all other generated Go
+# files (bootloader assets, strutil/chrorder) are committed, so there is
+# nothing left for "go generate" to do; disable it so dh-golang does not invoke
+# mkversion.sh (which requires a Go toolchain to regenerate data/info).
+export DH_GOLANG_GO_GENERATE=0
 
 VERSION := $(shell dpkg-parsechangelog -S Version)
+
+# The upstream version is baked into the source tarball (cmd/VERSION). The
+# downstream version suffix is whatever the changelog version adds on top of
+# the upstream version, e.g. "+ubuntu26.04" for 2.77.1+ubuntu26.04; it is empty
+# when the changelog version equals the upstream version.
+upstream_version := $(shell cat cmd/VERSION 2>/dev/null)
+downstream_version_suffix := $(if $(filter $(upstream_version)%,$(VERSION)),$(patsubst $(upstream_version)%,%,$(VERSION)),)
 
 ifneq (,$(findstring +fips,$(VERSION)))
 	# the version has +fips tag, we're building a FIPS variant
@@ -197,6 +208,9 @@ with_apparmor = 1
 with_testkeys = $(if $(findstring testkeys,$(DEB_BUILD_OPTIONS)),1,0)
 with_static_pie = 0
 with_vendor = 1
+# The downstream version suffix (e.g. "+ubuntu26.04") baked into the binaries
+# via a linker flag; empty when the changelog version matches upstream.
+downstream_version_suffix = $(downstream_version_suffix)
 endef
 
 snapd.defines.mk:
@@ -214,10 +228,14 @@ endif
 
 	# generate dh-golang does not copy modules.txt
 	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
-	# usually done via `go generate` but that is not supported on powerpc
-	./mkversion.sh
-	# ensure auto-generated version is also in the build-tree
-	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
+	# The version files (snapdtool/version_generated.go, cmd/VERSION, data/info)
+	# are baked into the upstream source tarball, so mkversion.sh is not needed;
+	# packaging is expected to build from a pack-source tarball. Ensure the
+	# generated version is also present in the dh-golang build-tree.
+	install -m 0644 snapdtool/version_generated.go _build/src/$(DH_GOPKG)/snapdtool/version_generated.go
+	# Set data/info VERSION to the full package version (upstream + downstream
+	# suffix), so it matches the binaries' FullVersion().
+	sed -i 's/^VERSION=.*/VERSION=$(VERSION)/' data/info
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
@@ -226,8 +244,10 @@ endif
 	cp -a cmd/snapd/cli/testdata/*.gpg _build/src/$(DH_GOPKG)/cmd/snapd/cli/testdata/
 	# this is the main go build
 
-	# note that dh-golang invokes go generate as the first step, which may invoke
-	# go
+	# go generate is disabled above (DH_GOLANG_GO_GENERATE=0); the version files
+	# come from the source tarball and the other generated Go files are
+	# committed. GOINVOKEFLAGS is kept for the genasset/chrorder go:generate
+	# directives should they be run manually.
 	GOINVOKEFLAGS='-mod=vendor'	GO111MODULE=on SNAPD_VANILLA_GO=$$(which go) \
 	PATH="$$(pwd)/packaging/build-tools/:$$PATH" \
 		dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...

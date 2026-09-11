@@ -28,6 +28,14 @@ vars += bindir sbindir libexecdir mandir datadir localstatedir sharedstatedir un
 #   with_vendor: set to 1 to build snapd using the vendor directory for dependencies
 #   with_static_pie: set to 1 to build static binaries in PIE mode if
 vars += with_testkeys with_apparmor with_core_bits with_alt_snap_mount_dir with_vendor with_static_pie
+# 3) optional variables:
+#   downstream_version_suffix: distribution-specific version suffix, including
+#       any separator (e.g. "-1" for a Debian revision, "-%{release}" for RPM,
+#       "-$pkgrel" for Arch, "+ubuntu26.04" for Ubuntu). When set, it is passed
+#       to the linker so that it is baked into the snapd binaries as
+#       DownstreamVersionSuffix, without patching the source. Leave unset or
+#       empty for unpackaged builds and for native packages whose changelog
+#       version equals the upstream version.
 # Verify that none of the variables are empty. This may happen if snapd.mk and
 # distribution packaging generating snapd.defines.mk get out of sync.
 
@@ -94,6 +102,18 @@ endif
 # Go -ldflags settings for static build. Can be overridden in snapd.defines.mk.
 EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG)" $(EXTRA_GO_LDFLAGS)
 
+# When a downstream version suffix is provided, bake it into the binaries via
+# the linker so that distribution packaging does not need to patch the source.
+# This is kept in a dedicated variable that is appended at the link command
+# site (see the go build rules below), so it applies to both the regular (PIE)
+# and the static link flags regardless of how the packaging overrides the
+# EXTRA_GO_*_LDFLAGS variables.
+ifneq ($(strip $(downstream_version_suffix)),)
+VERSION_SUFFIX_LDFLAGS = -X $(import_path)/snapdtool.DownstreamVersionSuffix=$(downstream_version_suffix)
+else
+VERSION_SUFFIX_LDFLAGS =
+endif
+
 # sourcedir is the path to the source directory tree (where the go source files are).
 # This is used by check-static-binaries to locate C binaries built by the autotools
 # cmd/ build. Can be set in snapd.defines.mk or on the make command line; defaults
@@ -112,7 +132,7 @@ all: $(go_binaries)
 $(builddir)/snapd $(builddir)/snap-seccomp:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
-		-ldflags="$(EXTRA_GO_LDFLAGS)" \
+		-ldflags="$(EXTRA_GO_LDFLAGS) $(VERSION_SUFFIX_LDFLAGS)" \
 		$(GO_MOD) \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
@@ -124,7 +144,7 @@ $(builddir)/snap-update-ns $(builddir)/snapctl:
 	go build -o $@ -buildmode=$(GO_STATIC_BUILDMODE) \
 		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
-		-ldflags="$(EXTRA_GO_STATIC_LDFLAGS)" \
+		-ldflags="$(EXTRA_GO_STATIC_LDFLAGS) $(VERSION_SUFFIX_LDFLAGS)" \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 

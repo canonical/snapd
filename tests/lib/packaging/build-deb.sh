@@ -37,6 +37,12 @@ fi
 snapd_dir=$(pwd)
 
 dch --newversion "$pkg_version" "testing build"
+
+# Packaging builds from a source tarball that already carries the version
+# files (snapdtool/version_generated.go, cmd/VERSION, data/info). Here we
+# build from a git checkout, so generate them with mkversion.sh first.
+./packaging/ensure-version.sh .
+
 # Skip tests since the unit tests are run separately in dedicated jobs in the CI
 unshare -n -- \
     su -l -c "cd $snapd_dir && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip -uc -us" "$user"
