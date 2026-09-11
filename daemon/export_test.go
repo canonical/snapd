@@ -46,8 +46,9 @@ import (
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues   = createQuotaValues
+	ParseOptionalTime   = parseOptionalTime
+	SeclogPeerFromUcred = seclogPeerFromUcred
 )
 
 func APICommands() []*Command {
