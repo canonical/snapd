@@ -152,7 +152,7 @@ func (s *accessSuite) TestCheckPolkitActionImpl(c *C) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 	ucred := daemon.NewUcrednet("some-snap", "", 42, dirs.SnapdSocket)
-	ucred.PolkitPID = 1000
+	ucred.PIDForPolkit = 1000
 
 	// Access granted if polkit authorizes the request
 	restore = daemon.MockPolkitCheckAuthorization(func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {

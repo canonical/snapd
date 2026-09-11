@@ -50,7 +50,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 		}
 	}
 	// Pass both pid and uid from the peer ucred to avoid pid race
-	switch authorized, err := polkitCheckAuthorization(ucred.PolkitPID, ucred.Uid, action, nil, flags); err {
+	switch authorized, err := polkitCheckAuthorization(ucred.PIDForPolkit, ucred.Uid, action, nil, flags); err {
 	case nil:
 		if authorized {
 			// polkit says user is authorised
