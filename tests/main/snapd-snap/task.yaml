@@ -211,10 +211,10 @@ execute: |
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
 
-    echo "Check meta/snap.yaml carries empty snapd-info uc-tracks"
+    echo "Check meta/snap.yaml carries empty snapd-info ubuntu-core-tracks"
     test -f squashfs-root/meta/snap.yaml
     MATCH '^snapd-info:' < squashfs-root/meta/snap.yaml
-    MATCH 'uc-tracks: \{\}' < squashfs-root/meta/snap.yaml
+    MATCH 'ubuntu-core-tracks: \{\}' < squashfs-root/meta/snap.yaml
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
@@ -224,7 +224,7 @@ execute: |
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
     MATCH '^snapd-info:' < /snap/snapd/current/meta/snap.yaml
-    MATCH 'uc-tracks: \{\}' < /snap/snapd/current/meta/snap.yaml
+    MATCH 'ubuntu-core-tracks: \{\}' < /snap/snapd/current/meta/snap.yaml
     cat >> snapd-cleanup.sh <<EOF
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then

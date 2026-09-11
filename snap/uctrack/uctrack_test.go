@@ -47,12 +47,12 @@ func (s *ucSuite) SetUpTest(c *C) {
 }
 
 // tracks18 onboards boot base 18, as a full onboard would.
-var tracks18 = snap.UCTracks{
+var tracks18 = snap.UbuntuCoreTracks{
 	"18": {"latest": "18", "fips-updates": "18-fips"},
 }
 
 // tracks18Latest onboards boot base 18 for the latest track only.
-var tracks18Latest = snap.UCTracks{
+var tracks18Latest = snap.UbuntuCoreTracks{
 	"18": {"latest": "18"},
 }
 
@@ -145,7 +145,7 @@ func (s *ucSuite) TestResolveUC18Identity(c *C) {
 
 func (s *ucSuite) TestResolveExplicitKeyWinsOverIdentity(c *C) {
 	// A later onboard can remap a track onward with an explicit key.
-	tracks := snap.UCTracks{
+	tracks := snap.UbuntuCoreTracks{
 		"18": {"latest": "24", "18": "24"},
 	}
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
@@ -185,7 +185,7 @@ func (s *ucSuite) TestResolveLatestTargetCollapses(c *C) {
 	// "latest" is a valid target, but it is the default track and so is
 	// rendered implicitly. The store reads the result as latest/stable.
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
-	resolved, err := uctrack.Resolve(model, "18/stable", snap.UCTracks{
+	resolved, err := uctrack.Resolve(model, "18/stable", snap.UbuntuCoreTracks{
 		"18": {"18": "latest"},
 	})
 	c.Assert(err, IsNil)
@@ -231,7 +231,7 @@ func (s *ucSuite) TestResolveUsesProvidedMap(c *C) {
 	model := s.coreModel("core18", "pc=18", "pc-kernel=18")
 
 	// an empty or absent map covers no boot base at all
-	for _, tracks := range []snap.UCTracks{{}, nil} {
+	for _, tracks := range []snap.UbuntuCoreTracks{{}, nil} {
 		_, err := uctrack.Resolve(model, "latest/stable", tracks)
 		c.Assert(err, ErrorMatches, `cannot find Ubuntu Core track map for boot base 18`)
 		c.Check(errors.Is(err, uctrack.ErrBootBaseNotCovered), Equals, true)

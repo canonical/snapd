@@ -2408,12 +2408,12 @@ components:
 	c.Assert(info, IsNil)
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracks(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracks(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
       fips-updates: "18-fips"
@@ -2422,44 +2422,44 @@ snapd-info:
 `))
 	c.Assert(err, IsNil)
 	c.Check(info.Type(), Equals, snap.TypeSnapd)
-	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
 		"18": {"latest": "18", "fips-updates": "18-fips"},
 		"20": {"latest": "20"},
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksUnquotedVersion(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksUnquotedVersion(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     18:
       latest: "18"
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
 		"18": {"latest": "18"},
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksIgnoresOtherSnapdInfoKeys(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksIgnoresOtherSnapdInfoKeys(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
   other-policy: {foo: bar}
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
 		"18": {"latest": "18"},
 	})
 }
 
-func (s *YamlSuite) TestUnmarshalSnapdInfoWithoutUCTracks(c *C) {
+func (s *YamlSuite) TestUnmarshalSnapdInfoWithoutUbuntuCoreTracks(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
@@ -2467,18 +2467,18 @@ snapd-info:
   other-policy: {foo: bar}
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.UCTracks, IsNil)
+	c.Check(info.UbuntuCoreTracks, IsNil)
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksOmitted(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksOmitted(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
 version: 1.0
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.UCTracks, IsNil)
+	c.Check(info.UbuntuCoreTracks, IsNil)
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksEmpty(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksEmpty(c *C) {
 	for _, yaml := range []string{
 		`
 name: snapd
@@ -2489,12 +2489,12 @@ snapd-info: {}
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks: {}
+  ubuntu-core-tracks: {}
 `,
 	} {
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
-		c.Check(info.UCTracks, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(info.UbuntuCoreTracks, IsNil, Commentf("yaml=%s", yaml))
 	}
 }
 
@@ -2507,23 +2507,23 @@ snapd-info: []
 	c.Assert(err, ErrorMatches, `(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*`)
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksRejectsTwoLevelMap(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsTwoLevelMap(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18": "18"
 `))
 	c.Assert(err, ErrorMatches, `(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*`)
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksRejectsNonTrackOnly(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsNonTrackOnly(c *C) {
 	const tmpl = `
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       %s
 `
@@ -2539,16 +2539,16 @@ snapd-info:
 		{`stable: "18"`, `input track "stable" for boot base 18 is not a track-only channel`},
 	} {
 		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(tmpl, t.rule)))
-		c.Check(err, ErrorMatches, `invalid uc-tracks: `+t.err, Commentf("rule %s", t.rule))
+		c.Check(err, ErrorMatches, `invalid ubuntu-core-tracks: `+t.err, Commentf("rule %s", t.rule))
 	}
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksRejectsBadBootBase(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsBadBootBase(c *C) {
 	const tmpl = `
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "%s":
       latest: "18"
 `
@@ -2566,19 +2566,19 @@ snapd-info:
 		{"0", `boot base "0" is not a plain Ubuntu Core version number`},
 	} {
 		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(tmpl, t.bootBase)))
-		c.Check(err, ErrorMatches, `invalid uc-tracks: `+t.err, Commentf("boot base %q", t.bootBase))
+		c.Check(err, ErrorMatches, `invalid ubuntu-core-tracks: `+t.err, Commentf("boot base %q", t.bootBase))
 	}
 }
 
-func (s *YamlSuite) TestUnmarshalUCTracksRejectsEmptyTrackMap(c *C) {
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsEmptyTrackMap(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18": {}
 `))
-	c.Check(err, ErrorMatches, `invalid uc-tracks: empty track map for boot base 18`)
+	c.Check(err, ErrorMatches, `invalid ubuntu-core-tracks: empty track map for boot base 18`)
 }
 
 func (s *YamlSuite) TestUnmarshalSnapdInfoRejectedOnApp(c *C) {
@@ -2592,7 +2592,7 @@ snapd-info: {}
 name: foo
 version: 1.0
 snapd-info:
-  uc-tracks: {}
+  ubuntu-core-tracks: {}
 `,
 		`
 name: foo
@@ -2604,7 +2604,7 @@ snapd-info:
 name: foo
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
 `,
@@ -2612,7 +2612,7 @@ snapd-info:
 name: some-app
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18/stable"
 `,
@@ -2637,7 +2637,7 @@ snapd-info:
 name: foo
 version: 1.0
 "snapd\x2dinfo":
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
 `,
@@ -2667,6 +2667,6 @@ snapd-info:
 	} {
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
-		c.Check(info.UCTracks, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(info.UbuntuCoreTracks, IsNil, Commentf("yaml=%s", yaml))
 	}
 }

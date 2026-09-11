@@ -461,7 +461,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"LegacyWebsite",
-		"UCTracks",
+		"UbuntuCoreTracks",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -502,13 +502,13 @@ snapd-info: []
 		`name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18": "18"
 `,
 		`name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18/stable"
 `,
@@ -521,19 +521,19 @@ snapd-info:
 
 		info, err := infoFromStoreSnap(snp)
 		c.Assert(err, IsNil, Commentf("yaml=%s", snapYaml))
-		c.Check(info.UCTracks, IsNil, Commentf("yaml=%s", snapYaml))
+		c.Check(info.UbuntuCoreTracks, IsNil, Commentf("yaml=%s", snapYaml))
 		c.Check(info.RealName, Equals, "snapd", Commentf("yaml=%s", snapYaml))
 	}
 }
 
-func (s *detailsV2Suite) TestInfoFromStoreSnapUCTracks(c *C) {
+func (s *detailsV2Suite) TestInfoFromStoreSnapUbuntuCoreTracks(c *C) {
 	snp := &storeSnap{
 		Name: "snapd",
 		Type: snap.TypeSnapd,
 		SnapYAML: `name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
       fips-updates: "18-fips"
@@ -542,17 +542,17 @@ snapd-info:
 
 	info, err := infoFromStoreSnap(snp)
 	c.Assert(err, IsNil)
-	c.Check(info.UCTracks, DeepEquals, snap.UCTracks{
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
 		"18": {"latest": "18", "fips-updates": "18-fips"},
 	})
 }
 
-func (s *detailsV2Suite) TestInfoFromStoreSnapEmptyUCTracksSnapd(c *C) {
+func (s *detailsV2Suite) TestInfoFromStoreSnapEmptyUbuntuCoreTracksSnapd(c *C) {
 	for _, snapYaml := range []string{
 		`name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks: {}
+  ubuntu-core-tracks: {}
 `,
 		`name: snapd
 version: 1.0
@@ -566,7 +566,7 @@ version: 1.0
 
 		info, err := infoFromStoreSnap(snp)
 		c.Assert(err, IsNil)
-		c.Check(info.UCTracks, IsNil)
+		c.Check(info.UbuntuCoreTracks, IsNil)
 	}
 }
 

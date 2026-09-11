@@ -52,12 +52,12 @@ var (
 
 // Resolve remaps the planned store channel for model, keeping its risk and
 // dropping any branch. A channel without a track means latest, as in the
-// store. tracks is normally [snap.Info.UCTracks] of the snapd snap being
+// store. tracks is normally [snap.Info.UbuntuCoreTracks] of the snapd snap being
 // planned; an empty or nil map is valid.
 //
 // It fails with [ErrNotApplicable], [ErrBootBaseNotCovered] or [ErrNoTrack]
 // when policy cannot be applied.
-func Resolve(model *asserts.Model, channel string, tracks snap.UCTracks) (string, error) {
+func Resolve(model *asserts.Model, channel string, tracks snap.UbuntuCoreTracks) (string, error) {
 	if model == nil {
 		return "", errors.New("internal error: cannot use nil model")
 	}
@@ -88,8 +88,8 @@ func Resolve(model *asserts.Model, channel string, tracks snap.UCTracks) (string
 
 // resolveUCTrack looks up the target track for bootBase and inputTrack in
 // tracks. bootBase is the Ubuntu Core version taken from the model, matched
-// against the plain number keys of [snap.UCTracks] ("18", "20", ...).
-func resolveUCTrack(tracks snap.UCTracks, bootBase int, inputTrack string) (string, error) {
+// against the plain number keys of [snap.UbuntuCoreTracks] ("18", "20", ...).
+func resolveUCTrack(tracks snap.UbuntuCoreTracks, bootBase int, inputTrack string) (string, error) {
 	baseTrackMap, ok := tracks[strconv.Itoa(bootBase)]
 	if !ok {
 		return "", fmt.Errorf("%w %d", ErrBootBaseNotCovered, bootBase)

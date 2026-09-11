@@ -2887,12 +2887,12 @@ slots:
 	c.Check(err, ErrorMatches, strings.Join(expectedErrs, "\n"))
 }
 
-func (s *ValidateSuite) TestValidateUCTracksOnSnapd(c *C) {
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksOnSnapd(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
 `))
@@ -2900,7 +2900,7 @@ snapd-info:
 	c.Check(Validate(info), IsNil)
 }
 
-func (s *ValidateSuite) TestValidateSnapdInfoEmptyOnSnapd(c *C) {
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksEmptyOnSnapd(c *C) {
 	for _, yaml := range []string{
 		`
 name: snapd
@@ -2911,7 +2911,7 @@ snapd-info: {}
 name: snapd
 version: 1.0
 snapd-info:
-  uc-tracks: {}
+  ubuntu-core-tracks: {}
 `,
 	} {
 		info, err := InfoFromSnapYaml([]byte(yaml))
@@ -2920,13 +2920,13 @@ snapd-info:
 	}
 }
 
-func (s *ValidateSuite) TestValidateSnapdInfoExtraKeyOnSnapd(c *C) {
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksExtraKeyOnSnapd(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 snapd-info:
   other-policy: {foo: bar}
-  uc-tracks:
+  ubuntu-core-tracks:
     "18":
       latest: "18"
 `))
@@ -2934,37 +2934,37 @@ snapd-info:
 	c.Check(Validate(info), IsNil)
 }
 
-func (s *ValidateSuite) TestValidateUCTracksConstructedOnApp(c *C) {
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksConstructedOnApp(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`
 name: foo
 version: 1.0
 `))
 	c.Assert(err, IsNil)
-	info.UCTracks = UCTracks{
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
 		"18": {"latest": "18"},
 	}
 	c.Check(Validate(info), ErrorMatches, `cannot specify snapd-info except on the snapd snap`)
 }
 
-func (s *ValidateSuite) TestValidateUCTracksConstructedInvalid(c *C) {
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksConstructedInvalid(c *C) {
 	info, err := InfoFromSnapYaml([]byte(`
 name: snapd
 version: 1.0
 `))
 	c.Assert(err, IsNil)
-	info.UCTracks = UCTracks{
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
 		"18": {"latest": "18/stable"},
 	}
-	c.Check(Validate(info), ErrorMatches, `invalid uc-tracks: target track "18/stable" for boot base 18 is not a track-only channel`)
+	c.Check(Validate(info), ErrorMatches, `invalid ubuntu-core-tracks: target track "18/stable" for boot base 18 is not a track-only channel`)
 
-	info.UCTracks = UCTracks{
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
 		"18": {},
 	}
-	c.Check(Validate(info), ErrorMatches, `invalid uc-tracks: empty track map for boot base 18`)
+	c.Check(Validate(info), ErrorMatches, `invalid ubuntu-core-tracks: empty track map for boot base 18`)
 
 	// such a key would never be found by uctrack.Resolve
-	info.UCTracks = UCTracks{
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
 		"018": {"latest": "18"},
 	}
-	c.Check(Validate(info), ErrorMatches, `invalid uc-tracks: boot base "018" is not a plain Ubuntu Core version number`)
+	c.Check(Validate(info), ErrorMatches, `invalid ubuntu-core-tracks: boot base "018" is not a plain Ubuntu Core version number`)
 }

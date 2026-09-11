@@ -551,33 +551,25 @@ func Validate(info *Info) error {
 		return err
 	}
 
-	if err := validateSnapdInfo(info); err != nil {
+	if err := validateUbuntuCoreTracks(info.UbuntuCoreTracks, info.Type()); err != nil {
 		return err
 	}
 
 	return ValidateLayoutAll(info)
 }
 
-func validateSnapdInfo(info *Info) error {
-	if len(info.UCTracks) == 0 {
-		return nil
-	}
-	if info.Type() != TypeSnapd {
+// validateUbuntuCoreTracks checks track maps. A non-empty map is only valid on the
+// snapd snap; an empty or nil map is valid on any type.
+func validateUbuntuCoreTracks(tracks UbuntuCoreTracks, typ Type) error {
+	if len(tracks) != 0 && typ != TypeSnapd {
 		return errSnapdInfoNotSnapd
 	}
-	if err := validateUCTracks(info.UCTracks); err != nil {
-		return fmt.Errorf("invalid uc-tracks: %v", err)
-	}
-	return nil
-}
-
-func validateUCTracks(tracks UCTracks) error {
 	for bootBase, redirects := range tracks {
 		if err := checkBootBaseKey(bootBase); err != nil {
-			return err
+			return fmt.Errorf("invalid ubuntu-core-tracks: %v", err)
 		}
-		if err := checkUCRedirects(bootBase, redirects); err != nil {
-			return err
+		if err := checkUbuntuCoreTrackRedirects(bootBase, redirects); err != nil {
+			return fmt.Errorf("invalid ubuntu-core-tracks: %v", err)
 		}
 	}
 	return nil
@@ -600,8 +592,8 @@ func checkBootBaseKey(bootBase string) error {
 	return nil
 }
 
-// checkUCRedirects checks the from-and-to track pairs of a single boot base.
-func checkUCRedirects(bootBase string, redirects map[string]string) error {
+// checkUbuntuCoreTrackRedirects checks the from-and-to track pairs of a single boot base.
+func checkUbuntuCoreTrackRedirects(bootBase string, redirects map[string]string) error {
 	if len(redirects) == 0 {
 		return fmt.Errorf("empty track map for boot base %s", bootBase)
 	}

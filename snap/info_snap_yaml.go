@@ -65,9 +65,9 @@ type snapYaml struct {
 }
 
 // snapdInfoYaml is metadata that may only appear in the snapd snap. Unknown
-// keys alongside uc-tracks are ignored, so the envelope can grow.
+// keys alongside ubuntu-core-tracks are ignored, so the envelope can grow.
 type snapdInfoYaml struct {
-	UCTracks UCTracks `yaml:"uc-tracks,omitempty"`
+	UbuntuCoreTracks UbuntuCoreTracks `yaml:"ubuntu-core-tracks,omitempty"`
 }
 
 const snapdInfoKey = "snapd-info"
@@ -269,7 +269,7 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 		return nil, err
 	}
 
-	if err := setUCTracksFromSnapdInfo(y, snap); err != nil {
+	if err := setUbuntuCoreTracks(y, snap); err != nil {
 		return nil, err
 	}
 
@@ -689,14 +689,14 @@ func hasSnapdInfoKey(yamlData []byte) bool {
 	return ok
 }
 
-func setUCTracksFromSnapdInfo(y snapYaml, snap *Info) error {
-	if len(y.SnapdInfo.UCTracks) == 0 {
+func setUbuntuCoreTracks(y snapYaml, snap *Info) error {
+	if err := validateUbuntuCoreTracks(y.SnapdInfo.UbuntuCoreTracks, snap.Type()); err != nil {
+		return err
+	}
+	if len(y.SnapdInfo.UbuntuCoreTracks) == 0 {
 		return nil
 	}
-	if err := validateUCTracks(y.SnapdInfo.UCTracks); err != nil {
-		return fmt.Errorf("invalid uc-tracks: %v", err)
-	}
-	snap.UCTracks = y.SnapdInfo.UCTracks
+	snap.UbuntuCoreTracks = y.SnapdInfo.UbuntuCoreTracks
 	return nil
 }
 

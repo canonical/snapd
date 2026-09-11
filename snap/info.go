@@ -436,14 +436,14 @@ type Info struct {
 	// IntegrityData available for this snap
 	IntegrityData *IntegrityDataInfo
 
-	// UCTracks comes from snap.yaml snapd-info.uc-tracks; nil if omitted or empty.
-	UCTracks UCTracks
+	// UbuntuCoreTracks comes from snap.yaml snapd-info.ubuntu-core-tracks; nil if omitted or empty.
+	UbuntuCoreTracks UbuntuCoreTracks
 }
 
-// UCTracks maps an Ubuntu Core boot base version, as a plain number
+// UbuntuCoreTracks maps an Ubuntu Core boot base version, as a plain number
 // ("18", "20", ...), to one or more from-and-to track pairs
 // ("latest" -> "18") that describe allowed track redirections.
-type UCTracks map[string]map[string]string
+type UbuntuCoreTracks map[string]map[string]string
 
 // StoreAccount holds information about a store account, for example of snap
 // publisher.
