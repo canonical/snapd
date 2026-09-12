@@ -370,6 +370,16 @@ func (s *prereqSuite) TestDoPrereqTalksToStoreAndQueues(c *C) {
 			snapsup, err := snapstate.TaskSnapSetup(t)
 			c.Assert(err, IsNil)
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName().String())
+			switch snapsup.InstanceName().String() {
+			case "prereq1", "prereq2":
+				// Content-provider prereq policy: UC tracks do not apply (content providers are never snapd).
+				c.Check(snapsup.AllowUCTrackSwitch, Equals, false)
+			case "some-base":
+				// Base install policy: UC tracks do not apply (bases are never snapd).
+				c.Check(snapsup.AllowUCTrackSwitch, Equals, false)
+			case "snapd":
+				c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
+			}
 		}
 	}
 	c.Check(linkedSnaps, testutil.DeepUnsortedMatches, expectedLinkedSnaps)

@@ -249,6 +249,8 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 				InstanceName: "snapd",
 				RevOpts: RevisionOptions{
 					Channel: defaultSnapdSnapsChannel(),
+					// Snapd prereq policy: allow switching to a UC track (channel is the default).
+					AllowUCTrackSwitch: true,
 				},
 			}, opts)
 		})

@@ -505,6 +505,8 @@ func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
 		c.Check(snapsup.InstanceName().String(), Equals, snaps[matched])
+		// Seeding policy: UC tracks do not apply (local seed blob).
+		c.Check(snapsup.AllowUCTrackSwitch, Equals, false)
 		matched++
 	}
 	c.Check(matched, Equals, len(snaps))

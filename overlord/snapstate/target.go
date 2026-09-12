@@ -173,9 +173,11 @@ func targetFromLocalSnapWithStoreComponents(
 		info:   info,
 		snapst: *snapst,
 		setup: SnapSetup{
-			Channel:   trackedChannel,
-			CohortKey: up.RevOpts.CohortKey,
-			SnapPath:  info.MountFile(),
+			Channel:            trackedChannel,
+			CohortKey:          up.RevOpts.CohortKey,
+			SnapPath:           info.MountFile(),
+			AllowUCTrackSwitch: up.RevOpts.AllowUCTrackSwitch,
+			ValidationSets:     up.RevOpts.snapSetupValidationSets(),
 
 			// if the caller specified a revision, then we always run
 			// through the entire update process. this enables something
@@ -227,10 +229,12 @@ func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOp
 		info:   sar.Info,
 		snapst: *snapst,
 		setup: SnapSetup{
-			DownloadInfo:      &sar.DownloadInfo,
-			Channel:           trackedChannel,
-			CohortKey:         revOpts.CohortKey,
-			IntegrityDataInfo: sar.IntegrityData,
+			DownloadInfo:       &sar.DownloadInfo,
+			Channel:            trackedChannel,
+			CohortKey:          revOpts.CohortKey,
+			IntegrityDataInfo:  sar.IntegrityData,
+			AllowUCTrackSwitch: revOpts.AllowUCTrackSwitch,
+			ValidationSets:     revOpts.snapSetupValidationSets(),
 		},
 		components: components,
 	}, nil
@@ -297,6 +301,9 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		DownloadInfo: t.setup.DownloadInfo,
 		SnapPath:     t.setup.SnapPath,
 		AlwaysUpdate: t.setup.AlwaysUpdate,
+
+		AllowUCTrackSwitch: t.setup.AllowUCTrackSwitch,
+		ValidationSets:     t.setup.ValidationSets,
 
 		Base:               t.info.Base,
 		Prereq:             keys(providerContentAttrs),
@@ -1557,6 +1564,8 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 				Channel:        snapst.TrackingChannel,
 				CohortKey:      snapst.CohortKey,
 				ValidationSets: vsets,
+				// Refresh-all policy: allow switching to a UC track (channel is from tracking).
+				AllowUCTrackSwitch: true,
 			},
 		}
 	}
@@ -1701,11 +1710,13 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 
 	return target{
 		setup: SnapSetup{
-			SnapPath:  update.Path,
-			Channel:   update.RevOpts.Channel,
-			CohortKey: update.RevOpts.CohortKey,
+			SnapPath:           update.Path,
+			Channel:            update.RevOpts.Channel,
+			CohortKey:          update.RevOpts.CohortKey,
+			AllowUCTrackSwitch: update.RevOpts.AllowUCTrackSwitch,
+			ValidationSets:     update.RevOpts.snapSetupValidationSets(),
 
-			// mirror store-backed by-revision refresh: an explicit revision should
+			// mirror store-backed by-revision refresh: a requested revision should
 			// run the full update path even if the revision is already current.
 			AlwaysUpdate: !update.RevOpts.Revision.Unset(),
 		},
