@@ -22,7 +22,6 @@ package configcore
 import (
 	"time"
 
-	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -90,8 +89,8 @@ func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions)) func() {
 	return testutil.Mock(&loggerSimpleSetup, f)
 }
 
-func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo)) func() {
-	return testutil.Mock(&restartRequest, f)
+func MockRequestDaemonRestart(f func(st *state.State, reason restart.DaemonRestartReason)) func() {
+	return testutil.Mock(&requestDaemonRestart, f)
 }
 
 func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, cu *user.User, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) func() {

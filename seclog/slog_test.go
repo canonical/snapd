@@ -294,6 +294,37 @@ func (s *SlogSuite) TestGrantReasonLogValue(c *C) {
 	c.Check(obtained.ReasonGranted, Equals, "root-auth desktop-launch plug")
 }
 
+func (s *SlogSuite) TestLogSystemRestart(c *C) {
+	type record struct {
+		baseAttrs
+		Event  string `json:"event"`
+		Reason string `json:"reason"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_restart", Level: seclog.LevelInfo},
+		"Snapd restart: snapd-update",
+		seclog.Attr{Key: "reason", Value: seclog.SystemRestartSnapdUpdate},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd restart: snapd-update")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_restart")
+	c.Check(obtained.Reason, Equals, "snapd-update")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "reason",
+	})
+}
+
 func (s *SlogSuite) TestReasonLogValue(c *C) {
 	type errorRecord struct {
 		Error struct {

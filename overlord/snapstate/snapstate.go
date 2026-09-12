@@ -421,9 +421,13 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 // setting its status and requesting a restart.
 // It should usually be invoked returning its result immediately
 // from the caller.
-// It delegates the work to restart.FinishTaskWithRestart which decides
-// on how the restart will be scheduled.
+// Daemon restarts record a reason via restart.FinishTaskWithDaemonRestart.
+// Other restart types are delegated to restart.FinishTaskWithRestart.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
+	if rt == restart.RestartDaemon {
+		return restart.FinishTaskWithDaemonRestart(task, status, daemonRestartReasonForTask(task, status))
+	}
+
 	var rebootRequiredSnap naming.InstanceName
 	// If system restart is requested, consider how the change the
 	// task belongs to is configured (system-restart-immediate) to
@@ -450,6 +454,17 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	}
 
 	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap.String(), rebootInfo)
+}
+
+func daemonRestartReasonForTask(task *state.Task, status state.Status) restart.DaemonRestartReason {
+	if status == state.UndoneStatus {
+		return restart.DaemonRestartSnapdUndo
+	}
+	snapsup, err := TaskSnapSetup(task)
+	if err == nil && snapsup.Flags.Revert {
+		return restart.DaemonRestartSnapdRevert
+	}
+	return restart.DaemonRestartSnapdUpdate
 }
 
 func isChangeRequestingSnapdRestart(chg *state.Change) bool {

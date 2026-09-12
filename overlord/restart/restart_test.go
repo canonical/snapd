@@ -109,6 +109,70 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	c.Check(t, Equals, restart.RestartDaemon)
 	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartDaemon)
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartReason(""))
+}
+
+func (s *restartSuite) TestRequestDaemonStoresReason(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
+	c.Assert(err, IsNil)
+
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartReason(""))
+
+	restart.RequestDaemon(st, restart.DaemonRestartSnapdUpdate)
+
+	c.Check(h.restartRequested, Equals, true)
+	c.Check(restart.Pending(st), Equals, restart.RestartDaemon)
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartSnapdUpdate)
+}
+
+func (s *restartSuite) TestFinishTaskWithDaemonRestart(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", &testHandler{})
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("chg", "...")
+	task := st.NewTask("foo", "...")
+	chg.AddTask(task)
+
+	err = restart.FinishTaskWithDaemonRestart(task, state.DoneStatus, restart.DaemonRestartSnapdRevert)
+	c.Assert(err, IsNil)
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Check(restart.Pending(st), Equals, restart.RestartDaemon)
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartSnapdRevert)
+}
+
+func (s *restartSuite) TestRequestClearsDaemonReason(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := restart.Manager(st, "boot-id-1", &testHandler{})
+	c.Assert(err, IsNil)
+
+	restart.RequestDaemon(st, restart.DaemonRestartApparmorPromptingEnable)
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartApparmorPromptingEnable)
+
+	restart.Request(st, restart.RestartSystem, nil)
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartReason(""))
+}
+
+func (s *restartSuite) TestPendingReasonNoManager(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Check(restart.PendingReason(st), Equals, restart.DaemonRestartReason(""))
 }
 
 func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
@@ -280,6 +344,11 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 			rst := restart.Pending(st)
 			c.Check(task.Status(), Equals, t.final)
 			c.Check(rst, Equals, restart.RestartDaemon)
+			expectedReason := restart.DaemonRestartSnapdUpdate
+			if t.final == state.UndoneStatus {
+				expectedReason = restart.DaemonRestartSnapdUndo
+			}
+			c.Check(restart.PendingReason(st), Equals, expectedReason)
 			c.Check(waitBootID, Equals, "")
 			continue
 		}

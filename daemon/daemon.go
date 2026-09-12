@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -771,6 +772,8 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			if needsFullShutdown {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
+				// Wait failed: this is an aborted shutdown, not a
+				// completed controlled restart, so do not emit sys_restart.
 				return err
 			}
 		}
@@ -780,12 +783,15 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
-	if d.restartSocket {
-		return ErrRestartSocket
-	}
-
+	// A later RequestDaemon (update, revert, undo, prompting) must complete
+	// even if socket standby was already requested: prefer restarting snapd
+	// over exiting for socket activation.
 	if d.requestedRestart == restart.RestartDaemon {
-		logger.Noticef("restarting daemon after update")
+		d.state.Lock()
+		reason := restart.PendingReason(d.state)
+		d.state.Unlock()
+		seclog.LogSystemRestart(seclog.SystemRestartReason(reason))
+		logger.Noticef("restarting daemon (%s)", reason)
 		// This has effect only if snapd was not started by snapd.service, which is the
 		// case on seeding boot in UC (see run-snapd-from-snap script in core* bases).
 		// Otherwise we are simply restarted by systemd after exiting. For the former case,
@@ -794,6 +800,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		if err := wrappers.RestartSnapd(); err != nil {
 			logger.Noticef("while restarting snapd: %v", err)
 		}
+		return nil
+	}
+
+	if d.restartSocket {
+		return ErrRestartSocket
 	}
 
 	return nil

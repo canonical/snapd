@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var restartRequest = restart.Request
+var requestDaemonRestart = restart.RequestDaemon
 
 var servicestateControl = servicestate.Control
 var serviceStartChangeTimeout = time.Minute
@@ -151,7 +151,11 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 	st.Lock()
 	defer st.Unlock()
 
-	restartRequest(st, restart.RestartDaemon, nil)
+	reason := restart.DaemonRestartApparmorPromptingDisable
+	if prompting {
+		reason = restart.DaemonRestartApparmorPromptingEnable
+	}
+	requestDaemonRestart(st, reason)
 
 	return nil
 }
