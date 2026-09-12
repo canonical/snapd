@@ -44,6 +44,8 @@ type RestartType int32
 
 const (
 	RestartUnset RestartType = iota
+	// RestartDaemon restarts the snapd process. New callers must use
+	// RequestDaemon with a dedicated DaemonRestartReason.
 	RestartDaemon
 	RestartSystem
 	// RestartSystemNow is like RestartSystem but action is immediate
@@ -149,6 +151,7 @@ type RestartManager struct {
 	h                Handler
 	bootID           string
 	changeCallbackID int
+	restartReason    DaemonRestartReason
 }
 
 // Manager returns a new restart manager and initializes the support
@@ -358,16 +361,60 @@ func restartManager(st *state.State, errMsg string) *RestartManager {
 	return cached.(*RestartManager)
 }
 
+// DaemonRestartReason identifies why a controlled snapd process restart
+// was requested. Values are kebab-case and match the sys_restart
+// reason attribute.
+type DaemonRestartReason string
+
+const (
+	// DaemonRestartSnapdUpdate is used after a snapd (or classic
+	// core/os) install or refresh.
+	DaemonRestartSnapdUpdate DaemonRestartReason = "snapd-update"
+	// DaemonRestartSnapdRevert is used when that binary change is
+	// undone, including the initial classic core install.
+	DaemonRestartSnapdRevert DaemonRestartReason = "snapd-revert"
+	// DaemonRestartApparmorPromptingEnable is used when
+	// experimental.apparmor-prompting is turned on.
+	DaemonRestartApparmorPromptingEnable DaemonRestartReason = "apparmor-prompting-enable"
+	// DaemonRestartApparmorPromptingDisable is used when
+	// experimental.apparmor-prompting is turned off.
+	DaemonRestartApparmorPromptingDisable DaemonRestartReason = "apparmor-prompting-disable"
+)
+
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
+//
+// Daemon restarts must be requested with RequestDaemon so a
+// DaemonRestartReason is recorded.
 func Request(st *state.State, t RestartType, rebootInfo *boot.RebootInfo) {
 	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
+	if t != RestartDaemon {
+		rm.restartReason = ""
+	}
 	switch t {
 	case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 		st.Set("system-restart-from-boot-id", rm.bootID)
 	}
 	atomic.StoreInt32(&rm.restarting, int32(t))
 	rm.handleRestart(t, rebootInfo)
+}
+
+// RequestDaemon asks for a restart of the snapd process and records why.
+// The state needs to be locked to request a restart.
+func RequestDaemon(st *state.State, reason DaemonRestartReason) {
+	rm := restartManager(st, "internal error: cannot request a restart before RestartManager initialization")
+	rm.restartReason = reason
+	Request(st, RestartDaemon, nil)
+}
+
+// PendingReason returns the reason recorded by RequestDaemon, or empty if no
+// daemon-restart reason was set. The state needs to be locked.
+func PendingReason(st *state.State) DaemonRestartReason {
+	cached := st.Cached(restartManagerKey{})
+	if cached == nil {
+		return ""
+	}
+	return cached.(*RestartManager).restartReason
 }
 
 func setWaitForSystemRestart(chg *state.Change) {
@@ -543,6 +590,14 @@ func FinishTaskWithRestart(t *state.Task, status state.Status, restartType Resta
 		break
 	default:
 		t.SetStatus(status)
+		if restartType == RestartDaemon {
+			reason := DaemonRestartSnapdUpdate
+			if status == state.UndoneStatus {
+				reason = DaemonRestartSnapdRevert
+			}
+			RequestDaemon(t.State(), reason)
+			return nil
+		}
 		Request(t.State(), restartType, rebootInfo)
 		return nil
 	}
