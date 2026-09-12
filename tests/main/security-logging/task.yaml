@@ -13,7 +13,13 @@ details: |
     created on first login and removed on logout. System account events
     (user_created_system, user_removed_system) are recorded when a local
     system user is created via create-user and removed via remove-user,
-    including add_reason and remove_reason fields.
+    including add_reason and remove_reason fields. Sideloading a new
+    snapd snap revision produces a "sys_restart" event with reason
+    "snapd-update".
+
+environment:
+    # uploading the snapd snap can trigger OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
     python3 "$PWD/enable-audit.py"
@@ -34,6 +40,16 @@ restore: |
     fi
 
     snap logout || true
+
+    if [ -f extra-snapd-revision ]; then
+        extra=$(cat extra-snapd-revision)
+        snap revert snapd || true
+        if [ "$(readlink /snap/snapd/current)" != "$extra" ]; then
+            snap remove snapd --revision="$extra" || true
+        fi
+        rm -f extra-snapd-revision
+        snap wait system seed.loaded || true
+    fi
 
     if [ -f system-user-name ]; then
         snap remove-user "$(cat system-user-name)" || true
@@ -81,15 +97,22 @@ execute: |
         fi
     }
 
+    pin_logs() {
+        if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+            audit_pin
+        else
+            journal_pin
+        fi
+    }
+
     echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
     if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
         echo "auditd is active; security events will be checked in /var/log/audit/audit.log"
-        audit_pin
     else
         echo "auditd is not active; security events will be checked in the journal"
-        journal_pin
     fi
-    
+    pin_logs()
+
     systemctl restart snapd.service
     snap wait system seed.loaded
     journal_match "security logger disabled" -u snapd.service
@@ -98,6 +121,21 @@ execute: |
     echo "Checking that restart produces disable/enable audit events"
     security_event_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
     security_event_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
+
+    echo "Checking that installing a new snapd snap revision produces a sys_restart audit event"
+    if [ ! -e /snap/snapd/current ]; then
+        echo "snapd snap is not installed; skipping sys_restart check"
+    else
+        pin_logs
+        current=$(readlink /snap/snapd/current)
+        snap install --dangerous "/var/lib/snapd/snaps/snapd_${current}.snap"
+        new=$(readlink /snap/snapd/current)
+        if [ "$new" != "$current" ]; then
+            echo "$new" > extra-snapd-revision
+        fi
+        snap wait system seed.loaded
+        security_event_match '"level":"INFO","description":"Snapd restart: snapd-update","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_restart","reason":"snapd-update"'
+    fi
 
     echo "Checking that a failed login attempt produces an audit event"
     echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \

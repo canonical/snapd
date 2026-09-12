@@ -1380,6 +1380,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessSnapdRestartsOnCoreWithBase(c *C) {
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon})
+	c.Check(restart.PendingReason(s.state), Equals, restart.DaemonRestartSnapdUpdate)
 	c.Check(t.Log(), HasLen, 1)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 }
@@ -2734,6 +2735,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 
 	// 2 restarts, one from link snap, another one from undo
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon, restart.RestartDaemon})
+	c.Check(restart.PendingReason(s.state), Equals, restart.DaemonRestartSnapdRevert)
 	c.Check(t.Log(), HasLen, 3)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 	c.Check(t.Log()[2], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
@@ -2811,6 +2813,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 	// 1 restart from link snap
 	// 1 restart from undo of 'setup-profiles'
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartDaemon, restart.RestartDaemon})
+	c.Check(restart.PendingReason(s.state), Equals, restart.DaemonRestartSnapdRevert)
 	c.Assert(t.Log(), HasLen, 2)
 	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)
 	c.Check(t.Log()[1], Matches, `.*INFO Requested daemon restart \(snapd snap\)\.`)

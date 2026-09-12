@@ -57,6 +57,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -608,6 +610,10 @@ func (s *daemonSuite) markSeeded(d *Daemon) {
 }
 
 func (s *daemonSuite) TestStartStop(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -669,9 +675,14 @@ version: 1`, si)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
+	c.Check(seclogBuf.String(), check.Equals, "")
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
 
 	var systemctlArgs [][]string
@@ -727,13 +738,13 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.RequestDaemon(st, restart.DaemonRestartSnapdUpdate)
 	st.Unlock()
 
 	select {
 	case <-d.Dying():
 	case <-time.After(2 * time.Second):
-		c.Fatal("restart.Request -> daemon -> Kill chain didn't work")
+		c.Fatal("restart.RequestDaemon -> daemon -> Kill chain didn't work")
 	}
 
 	c.Assert(d.Stop(nil), check.IsNil)
@@ -745,6 +756,9 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 		{"start", "--no-block", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"}})
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart: snapd-update")
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-update"]`)
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
