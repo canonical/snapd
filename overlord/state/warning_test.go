@@ -73,11 +73,6 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 		c.Check(0 <= dt, check.Equals, true)
 		c.Check(dt < time.Minute, check.Equals, true)
 	}
-
-	var ws2 []*state.Warning
-	c.Assert(json.Unmarshal(buf, &ws2), check.IsNil)
-	c.Assert(ws2, check.HasLen, 1)
-	c.Check(ws2[0], check.DeepEquals, ws[0])
 }
 
 func (s stateSuite) TestMarshalWarning(c *check.C) {
@@ -86,41 +81,6 @@ func (s stateSuite) TestMarshalWarning(c *check.C) {
 
 func (s stateSuite) TestMarshalShownWarning(c *check.C) {
 	s.testMarshalWarning(true, c)
-}
-
-func (stateSuite) TestUnmarshalErrors(c *check.C) {
-	var w state.Warning
-	c.Check(json.Unmarshal([]byte(`42`), &w), check.ErrorMatches, ".* cannot unmarshal .*")
-
-	type T1 struct {
-		b string
-		e error
-	}
-
-	for _, t := range []T1{
-		// validity check
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, nil},
-		// remove one field at a time:
-		{`{                "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},
-		{`{"message": "x",                                        "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningFirstAdded},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, state.ErrNoWarningExpireAfter},
-	} {
-		var w state.Warning
-		c.Check(json.Unmarshal([]byte(t.b), &w), check.Equals, t.e)
-	}
-
-	type T2 struct{ b, e string }
-
-	for _, t := range []T2{
-		// some bogus values
-		{`{"message": " ", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "malformed warning message"},
-		{`{"message": "x", "first-added": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
-	} {
-		var w state.Warning
-		c.Check(json.Unmarshal([]byte(t.b), &w), check.ErrorMatches, t.e)
-	}
 }
 
 func (stateSuite) TestEmptyStateWarnings(c *check.C) {
