@@ -20,6 +20,7 @@
 package mount_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -298,7 +299,7 @@ func (s *backendSuite) TestSetupUpdates(c *C) {
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
 
 	// snap-update-ns was invoked
-	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}})
 
 	// ensure both security effects from iface/iface2 are combined
 	// (because mount profiles are global in the whole snap)
@@ -352,6 +353,114 @@ func (s *backendSuite) TestSetupNoChangesNoUpdate(c *C) {
 	content2, err := os.ReadFile(fn)
 	c.Assert(err, IsNil)
 	c.Check(content1, DeepEquals, content2)
+}
+
+func (s *backendSuite) TestSetupLockBusy(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry2 := osutil.MountEntry{Name: "/src-2", Dir: "/dst-2", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+	fsEntry3 := osutil.MountEntry{Name: "/src-3", Dir: "/dst-3", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	update := false
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		if update {
+			if err := spec.AddMountEntry(fsEntry3); err != nil {
+				return err
+			}
+		}
+		return spec.AddMountEntry(fsEntry1)
+	}
+	s.iface2.MountPermanentSlotCallback = func(spec *mount.Specification, slot *snap.SlotInfo) error {
+		return spec.AddMountEntry(fsEntry2)
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+	cmd.ForgetCalls()
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), []byte(""), 0644), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+
+	// While the snap lock is held (e.g. by a concurrently running snap-confine)
+	// the immediate apply inside Setup() declines with a retryable
+	// SnapNamespaceBusyError. The desired mount profile is still committed, so
+	// the caller can retry the apply later once the lock is free.
+	update = true
+	err = snaplock.WithLock("snap-name", func() error {
+		err := s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+		var snapBusyErr *mount.SnapNamespaceBusyError
+		c.Assert(errors.As(err, &snapBusyErr), Equals, true,
+			Commentf("expected a SnapNamespaceBusyError, got: %v", err))
+		c.Check(snapBusyErr.SnapName, Equals, "snap-name")
+		c.Check(cmd.Calls(), HasLen, 0)
+		return err
+	})
+	c.Assert(err, ErrorMatches, `cannot update mount namespace of snap "snap-name", it is locked and possibly being updated:.*`)
+
+	// The desired profile was committed despite the busy lock.
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.fstab")
+	content, err := os.ReadFile(fn)
+	c.Assert(err, IsNil, Commentf("Expected mount profile for the whole snap"))
+	got := strings.Split(string(content), "\n")
+	c.Check(got, testutil.DeepUnsortedMatches, strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n"))
+
+	// Once the lock is available, a retry with ForceMountNsApply set re-applies
+	// the namespace even though the desired profile did not change (it was
+	// already committed on the failed attempt).
+	sctx.ForceMountNsApply = true
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}})
+
+	// A plain retry without ForceMountNsApply is a no-op (mutated == false).
+	sctx.ForceMountNsApply = false
+	cmd.ForgetCalls()
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *backendSuite) TestSetupForceMountNsApply(c *C) {
+	fsEntry1 := osutil.MountEntry{Name: "/src-1", Dir: "/dst-1", Type: "none", Options: []string{"bind", "ro"}, DumpFrequency: 0, CheckPassNumber: 0}
+
+	s.Iface.MountPermanentPlugCallback = func(spec *mount.Specification, plug *snap.PlugInfo) error {
+		return spec.AddMountEntry(fsEntry1)
+	}
+
+	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	defer cmd.Restore()
+	dirs.DistroLibExecDir = cmd.BinDir()
+
+	// confinement options are irrelevant to this security backend
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", mockSnapYaml, 0)
+	cmd.ForgetCalls()
+
+	// ensure .mnt file so that calls to snap-update-ns would be done
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapRunNsDir, "snap-name.mnt"), []byte(""), 0644), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	sctx := interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
+
+	// No content changes and no ForceMountNsApply: nothing is done.
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), HasLen, 0)
+
+	// With ForceMountNsApply the namespace is (re)applied even though the
+	// desired mount profile did not change. This is used when a previous apply
+	// attempt was skipped because the snap lock was busy.
+	sctx.ForceMountNsApply = true
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, sctx, s.Repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}})
 }
 
 func (s *backendSuite) TestSetupUpdateChangedRemoved(c *C) {
@@ -466,7 +575,7 @@ func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {
 	c.Check(err, ErrorMatches, `cannot update mount namespace of snap "snap-name", and cannot discard it because it contains an enduring daemon:.*`)
 
 	// snap-update-ns was invoked, snap-discard-ns wasn't
-	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}})
 
 	// no undo at this level
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
@@ -536,7 +645,7 @@ func (s *backendSuite) TestSetupUpdatesErrorDiscardsNs(c *C) {
 	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, mockSnapYaml, 1)
 
 	// snap-update-ns was invoked, and then snap-discard-ns
-	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}, {"snap-discard-ns", "snap-name"}})
+	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}, {"snap-discard-ns", "--snap-already-locked", "snap-name"}})
 
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n%s\n", fsEntry1, fsEntry2, fsEntry3), "\n")
 	// and that we have the modern fstab file (global for snap)
@@ -625,7 +734,7 @@ func (s *backendSuite) TestSetupDelaysIfDuringOtherUpdateAndConnectedOnPlugSideA
 	expected := fmt.Sprintf("%s\n", fsEntryIface3Slot)
 	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.producer.fstab"), testutil.FileEquals, expected)
 	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
-		{"snap-update-ns", "producer"},
+		{"snap-update-ns", "--snap-already-locked", "producer"},
 	})
 	cmdUpdNs.ForgetCalls()
 
@@ -747,7 +856,7 @@ func (s *backendSuite) TestEffectNotDelayedIfConnectedOnPlugAndOwnUpdate(c *C) {
 		fmt.Sprintf("%s\n", fsEntryIface3Plug))
 	// snap-update-ns called
 	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
-		{"snap-update-ns", "consumer"},
+		{"snap-update-ns", "--snap-already-locked", "consumer"},
 	})
 }
 
@@ -793,7 +902,7 @@ func (s *backendSuite) TestEffectNotDelayedIfConnectedOnSlot(c *C) {
 		fsEntryIface3Plug.String())
 	// snap-update-ns called
 	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
-		{"snap-update-ns", "producer"},
+		{"snap-update-ns", "--snap-already-locked", "producer"},
 	})
 }
 
@@ -836,7 +945,7 @@ func (s *backendSuite) TestEffectNotDelayedWhenNotPossible(c *C) {
 	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.consumer.fstab"), testutil.FilePresent)
 	// snap-update-ns was called
 	c.Check(cmdUpdNs.Calls(), DeepEquals, [][]string{
-		{"snap-update-ns", "consumer"},
+		{"snap-update-ns", "--snap-already-locked", "consumer"},
 	})
 }
 

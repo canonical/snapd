@@ -90,3 +90,15 @@ func UpdateSnapNamespace(snapName string) error {
 	}
 	return nil
 }
+
+// Update the mount namespace of a given snap. The snap must be locked, which
+// the tool is expected to verify.
+func UpdateLockedSnapNamespace(snapName string) error {
+	output, err := runNamespaceTool("snap-update-ns", snapName, runNamespaceToolOpts{
+		SnapIsLocked: true,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot update preserved mount namespace of snap %q: %s", snapName, osutil.OutputErr(output, err))
+	}
+	return nil
+}

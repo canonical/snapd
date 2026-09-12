@@ -4859,8 +4859,9 @@ func (s *interfaceManagerSuite) TestSetupSecurityByBackendInvalidNumberOfSnaps(c
 	appSets := []*interfaces.SnapAppSet{}
 	opts := []interfaces.ConfinementOptions{{}}
 	sctxs := map[string]interfaces.SetupContext{}
-	err := mgr.SetupSecurityByBackend(task, appSets, opts, sctxs, nil)
+	busySnaps, err := mgr.SetupSecurityByBackend(task, appSets, opts, sctxs, nil)
 	c.Check(err, ErrorMatches, `internal error: setupSecurityByBackend received an unexpected number of snaps.*`)
+	c.Check(busySnaps, HasLen, 0)
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
