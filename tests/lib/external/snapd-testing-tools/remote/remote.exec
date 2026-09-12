@@ -19,24 +19,20 @@ _load_config() {
     . "$CFG_FILE"
 }
 
-_get_pass() {
-    local SSH_PASS
-    if [ -n "$TESTS_REMOTE_PASS" ]; then
-        echo "sshpass -p $TESTS_REMOTE_PASS"
-    fi
-}
-
-_get_cert() {
-    if [ -n "$TESTS_REMOTE_PASS" ]; then
-        return
-    elif [ -n "$TESTS_REMOTE_CERT" ]; then
-        echo "-i $TESTS_REMOTE_CERT"
-    fi
+run_service() {
+    while IFS= read -r line; do
+        case "${line}" in
+            READY)
+                systemd-notify --pid=auto --ready
+                ;;
+        esac
+    done < <("$@" sh -c 'echo READY; waitpid 1')
 }
 
 remote_exec() {
     local user pass
     local timeout=10
+    local share_connection=1
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
@@ -45,10 +41,12 @@ remote_exec() {
                 ;;
             --user)
                 user="$2"
+                share_connection=0
                 shift 2
                 ;;
             --pass)
                 pass="$2"
+                share_connection=0
                 shift 2
                 ;;
             --timeout)
@@ -73,16 +71,37 @@ remote_exec() {
         TESTS_REMOTE_PASS="$pass"
     fi
 
-    local SSH_PASS SSH_CERT
-    SSH_PASS="$(_get_pass)"
-    SSH_CERT="$(_get_cert)"
+    ssh_args=(-o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST")
 
-    # shellcheck disable=SC2153,SC2086
-    $SSH_PASS ssh $SSH_CERT -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" "$@"
+    ssh=(ssh)
+    if [ -n "${TESTS_REMOTE_PASS-}" ]; then
+        ssh=(sshpass -p "${TESTS_REMOTE_PASS}" "${ssh[@]}")
+    elif [ -n "${TESTS_REMOTE_CERT-}" ]; then
+        ssh_args=(-i "${TESTS_REMOTE_CERT}" "${ssh_args[@]}")
+    fi
+
+    case "${share_connection}" in
+        1)
+            if ! [ -S /run/spread/remote.sock ]; then
+                mkdir -p /run/spread
+                systemd-run --setenv=REMOTE_EXEC_SERVICE=1 --service-type=notify --property=NotifyAccess=all bash "${BASH_SOURCE[0]}" "${ssh[@]}" -M -S /run/spread/remote.sock "${ssh_args[@]}"
+            fi
+            "${ssh[@]}" -S /run/spread/remote.sock "${ssh_args[@]}" "$@"
+            ;;
+        *)
+            "${ssh[@]}" "${ssh_args[@]}" "$@"
+            ;;
+    esac
 }
 
-main() {    
+main() {
     remote_exec "$@"
 }
 
-main "$@"
+
+set -x
+if [ "${REMOTE_EXEC_SERVICE-}" = 1 ]; then
+    run_service "$@"
+else
+    main "$@"
+fi
