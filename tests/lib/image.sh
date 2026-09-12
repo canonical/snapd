@@ -1,40 +1,19 @@
 #!/bin/bash
 
 build_ubuntu_image() {
-    # the helper can be invoked multiple times, so do nothing if ubuntu-image
-    # was already built and is accessible
-    if command -v ubuntu-image; then
-        return
-    fi
+    local ubuntu_image_dir
+    ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
 
-    if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
-        (
-            # build a version which uses the current snapd tree as a dependency
-            # shellcheck disable=SC2030,SC2031
-            export GO111MODULE=off
-            # use go get so that ubuntu-image is built with current snapd
-            # sources
-            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-        )
-    else
-        (
-            # build a version which uses a particular revision of snapd listed
-            # in ubuntu-image go.mod file
-            # shellcheck disable=SC2030,SC2031
-            export GO111MODULE=on
-            # shellcheck disable=SC2030,SC2031
-            unset GOPATH
-            cd /tmp || exit 1
-            git clone https://github.com/canonical/ubuntu-image
-            cd ubuntu-image || exit 1
-            go build -tags 'withtestkeys' ./cmd/ubuntu-image
-        )
-        # make it available
-        mv /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
-    fi
+    git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
+    (
+        # go 1.22 needs an exact toolchain name for automatic toolchain selection
+        export GOTOOLCHAIN=go1.25.0
+        cd "$ubuntu_image_dir" || exit 1
+        go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
+        go build -mod=mod -tags withtestkeys -o "$GOHOME/bin/ubuntu-image" ./cmd/ubuntu-image
+    )
+    rm -rf "$ubuntu_image_dir"
 }
-
 
 get_ubuntu_image() {
     if os.query is-arm; then
@@ -49,6 +28,14 @@ get_ubuntu_image() {
 
     test -x ubuntu-image
     mv ubuntu-image "$GOHOME/bin"
+}
+
+prepare_ubuntu_image() {
+    if [ "${UBUNTU_IMAGE_USE_LOCAL_SNAPD:-false}" = "true" ]; then
+        build_ubuntu_image
+    else
+        get_ubuntu_image
+    fi
 }
 
 # shellcheck disable=SC2120

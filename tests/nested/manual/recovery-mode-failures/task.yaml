@@ -8,7 +8,6 @@ details: |
 systems: [ubuntu-24.04-64, ubuntu-26.04-64]
 
 environment:
-  TMPDIR: /var/tmp
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
   NESTED_REPACK_FOR_FAKESTORE: true
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -30,18 +29,6 @@ prepare: |
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
-
-  # ubuntu-image embeds snapd boot assets, build the latest version against this
-  # tree instead of using the suite's prebuilt binary
-  ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
-  (
-    # go 1.22 needs an exact toolchain name for automatic toolchain selection
-    export GOTOOLCHAIN=go1.25.0
-    git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
-    cd "$ubuntu_image_dir"
-    go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
-    go build -mod=mod -tags withtestkeys -o "$GOHOME/bin/ubuntu-image" ./cmd/ubuntu-image
-  )
 
   "${TESTSTOOLS}/store-state" setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
 
