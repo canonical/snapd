@@ -111,7 +111,7 @@ execute: |
     else
         echo "auditd is not active; security events will be checked in the journal"
     fi
-    pin_logs()
+    pin_logs
 
     systemctl restart snapd.service
     snap wait system seed.loaded
