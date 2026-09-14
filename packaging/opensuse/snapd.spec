@@ -283,10 +283,10 @@ EXTRA_GO_BUILD_FLAGS = -v -x
 EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
-# Set the version and configuration that is compiled into the various executables/
-pushd %{indigo_srcdir}
-./mkversion.sh %{version}
-popd
+# The source tarball carries the upstream version (snapdtool/version_generated.go,
+# cmd/VERSION, data/info) and openSUSE's package version matches it, so no
+# downstream_version_suffix is needed here.
+sed -i 's/^VERSION=.*/VERSION=%{version}/' %{indigo_srcdir}/data/info
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then

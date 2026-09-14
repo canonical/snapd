@@ -116,24 +116,22 @@ override_dh_clean:
 version_from_changelog := $(shell dpkg-parsechangelog --show-field Version)
 $(info version_from_changelog is $(version_from_changelog))
 
-# Generate version files
-define snapdtool__version_generated.go
-package snapdtool
-func init() {
-	// TODO: Stop doing this and start setting downstream version suffix later on.
-	UpstreamVersion = "$(version_from_changelog)"
-}
-endef
+# The upstream source tarball already carries the version files
+# (snapdtool/version_generated.go, cmd/VERSION and data/info) with
+# UpstreamVersion set, so there is no need to generate them here; packaging is
+# expected to build from a pack-source tarball. The upstream version is read
+# from cmd/VERSION, and the downstream version suffix (the Debian revision,
+# e.g. "-1" for 2.77.1-1) is whatever the changelog version adds on top of it.
+#
+# data/info is taken from the source tree as-is, except that VERSION is set to
+# the full package version (matching the binaries) and SNAPD_APPARMOR_REEXEC is
+# 0 on Debian; the assertion formats are reused from the tree, so they never
+# drift from the source.
 
-define cmd__VERSION
-$(version_from_changelog)
-endef
-
-define data__info
-VERSION=$(version_from_changelog)
-SNAPD_APPARMOR_REEXEC=0
-SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
-endef
+upstream_version := $(shell cat cmd/VERSION 2>/dev/null)
+# The downstream suffix is the changelog version with the upstream version
+# prefix stripped (empty when they are equal).
+downstream_version_suffix := $(if $(filter $(upstream_version)%,$(version_from_changelog)),$(patsubst $(upstream_version)%,%,$(version_from_changelog)),)
 
 # Generate snapd.defines.mk for use by snapd.mk makefile targets.
 # This file contains variable definitions that match Debian's FHS conventions.
@@ -157,17 +155,24 @@ with_apparmor = 1
 with_testkeys = $(if $(findstring testkeys,$(DEB_BUILD_OPTIONS)),1,0)
 with_static_pie = 0
 with_vendor = 0
+# The Debian revision (e.g. "-1") baked into the binaries via a linker flag.
+downstream_version_suffix = $(downstream_version_suffix)
 endef
 
 snapd.defines.mk:
 	$(file >$@,$(snapd_defines_mk_content))
 
 override_dh_auto_build: snapd.defines.mk
-	# We used to call mkversion.sh, but since it builds and executes go code
-	# from this package it is significantly easier to do by hand.
-	$(file >_build/src/$(DH_GOPKG)/snapdtool/version_generated.go,$(snapdtool__version_generated.go))
-	$(file >cmd/VERSION,$(cmd__VERSION))
-	$(file >data/info,$(data__info))
+	# The version files come from the source tarball (packaging is expected to
+	# build from a pack-source tarball). Copy version_generated.go into the
+	# dh-golang build tree and adjust data/info for Debian: set VERSION to the
+	# full package version (upstream + Debian revision, matching the binaries)
+	# and SNAPD_APPARMOR_REEXEC=0, reusing the assertion formats from the tree.
+	install -m 0644 snapdtool/version_generated.go _build/src/$(DH_GOPKG)/snapdtool/version_generated.go
+	sed -e 's/^SNAPD_APPARMOR_REEXEC=.*/SNAPD_APPARMOR_REEXEC=0/' \
+	    -e 's/^VERSION=.*/VERSION=$(version_from_changelog)/' \
+	    data/info > data/info.tmp
+	mv data/info.tmp data/info
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
