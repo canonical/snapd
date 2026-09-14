@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/install"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
@@ -76,8 +75,8 @@ func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDESt
 	return restore
 }
 
-func MockBackendNewInMemoryRecoveryKeyCache(f func() backend.RecoveryKeyCache) (restore func()) {
-	return testutil.Mock(&backendNewInMemoryRecoveryKeyCache, f)
+func MockRandutilRandomString(f func(length int) string) (restore func()) {
+	return testutil.Mock(&randutilRandomString, f)
 }
 
 func MockKeysNewRecoveryKey(f func() (keys.RecoveryKey, error)) (restore func()) {
@@ -90,7 +89,8 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 
 var NewModel = newModel
 
-func (m *FDEManager) IsFunctional() error { return m.isFunctional() }
+func (m *FDEManager) IsFunctional() error              { return m.isFunctional() }
+func (m *FDEManager) SecretState() backend.SecretState { return m.secretState }
 
 func MockBootHostUbuntuDataForMode(f func(mode string, mod gadget.Model) ([]string, error)) (restore func()) {
 	old := bootHostUbuntuDataForMode
@@ -144,33 +144,9 @@ func MockSecbootRenameContainerKey(f func(devicePath string, oldName string, new
 	return testutil.Mock(&secbootRenameContainerKey, f)
 }
 
-func MockChangeAuthOptionsInCache(st *state.State, old, new string) (restore func()) {
-	st.Lock()
-	defer st.Unlock()
-	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
+type ExpiringChangeAuthOptions = expiringChangeAuthOptions
 
-	return func() { st.Cache(changeAuthOptionsKey{}, nil) }
-}
-
-func GetChangeAuthOptionsFromCache(st *state.State) *changeAuthOptions {
-	cached := st.Cached(changeAuthOptionsKey{})
-	if cached == nil {
-		return nil
-	}
-	return cached.(*changeAuthOptions)
-}
-
-func (o *changeAuthOptions) Old() string {
-	return o.old
-}
-
-func (o *changeAuthOptions) New() string {
-	return o.new
-}
-
-func VolumesAuthOptionsKey() volumesAuthOptionsKey {
-	return volumesAuthOptionsKey{}
-}
+type ExpiringVolumesAuthOptions = expiringVolumesAuthOptions
 
 func MockBootLoadDiskUnlockState(f func(name string) (*boot.DiskUnlockState, error)) (restore func()) {
 	return testutil.Mock(&bootLoadDiskUnlockState, f)
