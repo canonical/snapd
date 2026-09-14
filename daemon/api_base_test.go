@@ -400,6 +400,15 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	daemon.ResetBuildIDDetection()
 }
 
+func (s *apiBaseSuite) TearDownTest(c *check.C) {
+	// stop the overlord loop before the cleanup handlers run so that mock
+	// restores don't race with a still-running Ensure loop
+	if s.d != nil {
+		s.d.Overlord().Stop()
+	}
+	s.BaseTest.TearDownTest(c)
+}
+
 type storeInstallGoalRecorder struct {
 	snapstate.InstallGoal
 	snaps []snapstate.StoreSnap
@@ -493,7 +502,6 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	snapstate.CanAutoRefresh = nil
 
 	s.d = d
-	s.AddCleanup(func() { d.Overlord().Stop() })
 	return d
 }
 
