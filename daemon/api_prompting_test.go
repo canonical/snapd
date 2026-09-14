@@ -781,7 +781,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	c.Assert(err, IsNil)
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found")
+	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found in request context")
 
 	// Prompting not running
 	s.appArmorPromptingRunning = false
@@ -1022,7 +1022,7 @@ func (s *promptingSuite) TestGetPromptsErrors(c *C) {
 	c.Assert(err, IsNil)
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found")
+	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found in request context")
 
 	// Prompting not running
 	s.appArmorPromptingRunning = false
@@ -1086,7 +1086,7 @@ func (s *promptingSuite) TestGetPromptErrors(c *C) {
 	c.Assert(err, IsNil)
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found")
+	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found in request context")
 
 	// Can't parse prompt ID
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/not-a-valid-id", nil)

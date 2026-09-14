@@ -224,7 +224,8 @@ func (s *ucrednetSuite) TestString(c *check.C) {
 	u.PIDForPolkit = 100
 	c.Check(u.String(), check.Equals, "snap=some-snap_instance;uid=42;socket=/run/snap.socket;")
 	u = NewUcrednet("", "", 42, "/run/snap.socket")
-	c.Check(u.String(), check.Equals, "snap=;uid=42;socket=/run/snap.socket;")
+	u.PIDForPolkit = 100
+	c.Check(u.String(), check.Equals, "pid=100;uid=42;socket=/run/snap.socket;")
 }
 
 func (s *ucrednetSuite) TestNonUnix(c *check.C) {
@@ -249,7 +250,7 @@ func (s *ucrednetSuite) TestNonUnix(c *check.C) {
 	ctx := ucrednetConnContext(context.Background(), conn)
 	u, err := ucrednetGet(ctx)
 	c.Check(u, check.IsNil)
-	c.Check(err, check.Equals, errNoID)
+	c.Check(err, check.Equals, errNoPeerCredentials)
 }
 
 func (s *ucrednetSuite) TestAcceptErrors(c *check.C) {
@@ -303,7 +304,7 @@ func (s *ucrednetSuite) TestIdempotentClose(c *check.C) {
 
 func (s *ucrednetSuite) TestGetNothing(c *check.C) {
 	u, err := ucrednetGet(context.Background())
-	c.Check(err, check.Equals, errNoID)
+	c.Check(err, check.Equals, errNoPeerCredentials)
 	c.Check(u, check.IsNil)
 }
 

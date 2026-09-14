@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	sys "syscall"
 
@@ -32,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-var errNoID = errors.New("no peer credentials found")
+var errNoPeerCredentials = errors.New("no peer credentials found in request context")
 
 type ucrednetContextKey struct{}
 type ucrednetInterfacesContextKey struct{}
@@ -62,7 +63,7 @@ func ucrednetConnContext(ctx context.Context, conn net.Conn) context.Context {
 func ucrednetGet(ctx context.Context) (*ucrednet, error) {
 	ucred, ok := ctx.Value(ucrednetContextKey{}).(ucrednet)
 	if !ok {
-		return nil, errNoID
+		return nil, errNoPeerCredentials
 	}
 	return &ucred, nil
 }
@@ -125,7 +126,19 @@ func (un *ucrednet) String() string {
 	if un == nil {
 		return "snap=;uid=;socket=;"
 	}
-	return fmt.Sprintf("snap=%s;uid=%d;socket=%s;", un.instanceName, un.Uid, un.Socket)
+
+	var b strings.Builder
+
+	// prefer the snap name if we have it
+	if un.instanceName != "" {
+		fmt.Fprintf(&b, "snap=%s;", un.instanceName)
+	} else {
+		fmt.Fprintf(&b, "pid=%d;", un.PIDForPolkit)
+	}
+
+	fmt.Fprintf(&b, "uid=%d;socket=%s;", un.Uid, un.Socket)
+
+	return b.String()
 }
 
 type ucrednetConn struct {

@@ -133,7 +133,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ucred, err := ucrednetGet(r.Context())
-	if err != nil && err != errNoID {
+	if err != nil && err != errNoPeerCredentials {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		InternalError(err.Error()).ServeHTTP(w, r)
 		return
