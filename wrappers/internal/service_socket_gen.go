@@ -35,6 +35,18 @@ import (
 func renderListenStream(socket *snap.SocketInfo) string {
 	s := socket.App.Snap
 	listenStream := socket.ListenStream
+	isAbstract := strings.HasPrefix(listenStream, "@")
+	if isAbstract {
+		if s.InstanceKey != "" {
+			prefixSnapName := fmt.Sprintf("@snap.%s.", s.SnapName())
+			if !strings.HasPrefix(listenStream, prefixSnapName) {
+				logger.Panicf("internal error: abstract listen-stream %q must be prefixed with %q", listenStream, prefixSnapName)
+			}
+			prefixInstanceName := fmt.Sprintf("@snap.%s.", s.InstanceName())
+			listenStream = strings.Replace(listenStream, prefixSnapName, prefixInstanceName, 1)
+		}
+		return listenStream
+	}
 	switch socket.App.DaemonScope {
 	case snap.SystemDaemon:
 		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)

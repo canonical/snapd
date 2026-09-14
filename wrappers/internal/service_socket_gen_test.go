@@ -113,3 +113,89 @@ WantedBy=sockets.target
 		"sock2": []byte(sock2Expected),
 	})
 }
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketParallelInstance(c *C) {
+	si := &snap.Info{
+		SuggestedName: "some-snap",
+		InstanceKey:   "inst1",
+		Version:       "1.0",
+		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+	}
+	service := &snap.AppInfo{
+		Snap:        si,
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
+		Sockets: map[string]*snap.SocketInfo{
+			"sock1": {
+				Name:         "sock1",
+				ListenStream: "@snap.some-snap.my.socket",
+			},
+		},
+	}
+	service.Sockets["sock1"].App = service
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedSockets, HasLen, 1)
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream=@snap.some-snap_inst1.my.socket\n")
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketNoInstanceKey(c *C) {
+	si := &snap.Info{
+		SuggestedName: "some-snap",
+		Version:       "1.0",
+		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+	}
+	service := &snap.AppInfo{
+		Snap:        si,
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
+		Sockets: map[string]*snap.SocketInfo{
+			"sock1": {
+				Name:         "sock1",
+				ListenStream: "@snap.some-snap.my.socket",
+			},
+		},
+	}
+	service.Sockets["sock1"].App = service
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedSockets, HasLen, 1)
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream=@snap.some-snap.my.socket\n")
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketDoesNotExpandSnapVars(c *C) {
+	si := &snap.Info{
+		SuggestedName: "some-snap",
+		InstanceKey:   "inst1",
+		Version:       "1.0",
+		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+	}
+	service := &snap.AppInfo{
+		Snap:        si,
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
+		Sockets: map[string]*snap.SocketInfo{
+			"sock1": {
+				Name:         "sock1",
+				ListenStream: "@snap.some-snap.$SNAP_DATA.$SNAP_COMMON.$XDG_RUNTIME_DIR",
+			},
+		},
+	}
+	service.Sockets["sock1"].App = service
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedSockets, HasLen, 1)
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream=@snap.some-snap_inst1.$SNAP_DATA.$SNAP_COMMON.$XDG_RUNTIME_DIR\n")
+}
