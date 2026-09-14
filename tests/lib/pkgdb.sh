@@ -566,9 +566,12 @@ pkg_dependencies_ubuntu_nested(){
     fi
 
     if os.query is-ubuntu-ge 20.04; then
-        echo "
-            golang
-        "
+        if os.query is-ubuntu-ge 22.04; then
+            echo "
+                golang
+            "
+        fi
+
         # These dependencies are used to build the initramfs deb package required for the
         # kernel snap with initramfs when using Ubuntu 24.04 or later.
         if os.query is-ubuntu-ge 24.04; then
