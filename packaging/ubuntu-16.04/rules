@@ -259,9 +259,13 @@ endif
 	# packaging is expected to build from a pack-source tarball. Ensure the
 	# generated version is also present in the dh-golang build-tree.
 	install -m 0644 snapdtool/version_generated.go _build/src/$(DH_GOPKG)/snapdtool/version_generated.go
+ifneq ($(strip $(downstream_version_suffix)),)
 	# Set data/info VERSION to the full package version (upstream + downstream
-	# suffix), so it matches the binaries' FullVersion().
+	# suffix), so it matches the binaries' FullVersion(). Skipped when there is
+	# no downstream suffix: data/info's upstream version (from the source
+	# tarball) is already correct.
 	sed -i 's/^VERSION=.*/VERSION=$(VERSION)/' data/info
+endif
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 

@@ -285,8 +285,8 @@ __DEFINES__
 
 # The source tarball carries the upstream version (snapdtool/version_generated.go,
 # cmd/VERSION, data/info) and openSUSE's package version matches it, so no
-# downstream_version_suffix is needed here.
-sed -i 's/^VERSION=.*/VERSION=%{version}/' %{indigo_srcdir}/data/info
+# downstream_version_suffix is needed here, and data/info's VERSION (already
+# the upstream version) needs no adjustment either.
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
