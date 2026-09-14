@@ -305,7 +305,6 @@ func (s *systemVolumesSuite) TestSystemVolumesActionAddRecoveryKey(c *C) {
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdestateAddRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
@@ -463,7 +462,6 @@ func (s *systemVolumesSuite) TestSystemVolumesActionReplaceRecoveryKey(c *C) {
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdestateReplaceRecoveryKey(func(st *state.State, recoveryKeyID string, keyslots []fdestate.KeyslotRef) (*state.TaskSet, error) {
@@ -624,7 +622,6 @@ func (s *systemVolumesSuite) testSystemVolumesActionReplacePlatformKey(c *C, aut
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdestateReplacePlatformKey(func(st *state.State, volumesAuth *device.VolumesAuthOptions, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
@@ -828,7 +825,6 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphrase(c *C) {
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
@@ -982,7 +978,6 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePIN(c *C) {
 	st := d.Overlord().State()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	called := 0
 	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
