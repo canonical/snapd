@@ -102,3 +102,67 @@ execute: |
     snap start --enable socket-activation.sleep-daemon
 
     verify_status "enabled" "inactive" "active"
+
+    echo "Verify abstract socket is remapped for parallel instances"
+
+    verify_unit_status() {
+        local UNIT="$1"
+        local UNIT_FILE_STATE="$2"
+        local ACTIVE_STATE="$3"
+
+        systemctl show --property=UnitFileState "$UNIT" | MATCH "^UnitFileState=${UNIT_FILE_STATE}$"
+        systemctl show --property=ActiveState "$UNIT" | MATCH "^ActiveState=${ACTIVE_STATE}$"
+    }
+
+    verify_unit_status_non_instance() {
+        local UNIT_FILE_STATE="$1"
+        local ACTIVE_STATE="$2"
+
+        verify_unit_status snap.socket-activation.sleep-daemon.sock-abstract.socket "$UNIT_FILE_STATE" "$ACTIVE_STATE"
+    }
+
+    verify_unit_status_instance() {
+        local UNIT_FILE_STATE="$1"
+        local ACTIVE_STATE="$2"
+
+        verify_unit_status snap.socket-activation_foo.sleep-daemon.sock-abstract.socket "$UNIT_FILE_STATE" "$ACTIVE_STATE"
+    }
+
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+    if [ "$CONFINEMENT" = classic ]; then
+        "$TESTSTOOLS"/snaps-state install-local-as socket-activation-classic socket-activation_foo --classic
+    else
+        "$TESTSTOOLS"/snaps-state install-local-as socket-activation socket-activation_foo
+    fi
+    tests.cleanup defer snap remove --purge socket-activation_foo
+
+    unit_abstract=/etc/systemd/system/snap.socket-activation.sleep-daemon.sock-abstract.socket
+    unit_abstract_foo=/etc/systemd/system/snap.socket-activation_foo.sleep-daemon.sock-abstract.socket
+
+    MATCH '^ListenStream=@snap.socket-activation\.abstract$' < "$unit_abstract"
+    MATCH '^ListenStream=@snap.socket-activation_foo\.abstract$' < "$unit_abstract_foo"
+
+    echo "Verify abstract socket unit status"
+    verify_unit_status_non_instance enabled active
+    verify_unit_status_instance enabled active
+
+    echo "Verify disabling one instance does not affect the other"
+    snap stop --disable socket-activation_foo.sleep-daemon
+    verify_unit_status_instance disabled inactive
+    verify_unit_status_non_instance enabled active
+
+    echo "Re-enable disabled instance"
+    snap start --enable socket-activation_foo.sleep-daemon
+    verify_unit_status_instance enabled active
+
+    echo "Verify disabling non-instance does not affect instance"
+    snap stop --disable socket-activation.sleep-daemon
+    verify_unit_status_non_instance disabled inactive
+    verify_unit_status_instance enabled active
+
+    echo "Re-enable disabled non-instance"
+    snap start --enable socket-activation.sleep-daemon
+    verify_unit_status_non_instance enabled active
+    verify_unit_status_instance enabled active
