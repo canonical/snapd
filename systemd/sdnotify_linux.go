@@ -74,9 +74,9 @@ func (c *sdNotifyConnCache) Conn() (*net.UnixConn, error) {
 		return c.conn, nil
 	}
 
-	notifySocket := NotifySocket()
-	if notifySocket == "" {
-		return nil, fmt.Errorf("cannot find NOTIFY_SOCKET environment variable")
+	notifySocket, err := NotifySocket()
+	if err != nil {
+		return nil, err
 	}
 	if !strings.HasPrefix(notifySocket, "@") && !strings.HasPrefix(notifySocket, "/") {
 		return nil, fmt.Errorf("cannot use NOTIFY_SOCKET %q", notifySocket)

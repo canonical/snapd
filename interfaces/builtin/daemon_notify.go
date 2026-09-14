@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -57,8 +58,12 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 	// If the system has defined it, use NOTIFY_SOCKET from the environment. Note
 	// this is safe because it is examined on snapd start and snaps cannot manipulate
 	// the environment of snapd.
-	notifySocket := systemdNotifySocket()
-	if notifySocket == "" {
+	notifySocket, err := systemdNotifySocket()
+	if err != nil {
+		if !errors.Is(err, systemd.ErrNotifySocketNotSet) {
+			return err
+		}
+		// NOTIFY_SOCKET was not set, fall back to the default socket.
 		notifySocket = "/run/systemd/notify"
 	}
 	if !strings.HasPrefix(notifySocket, "/") && !strings.HasPrefix(notifySocket, "@") {
