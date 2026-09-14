@@ -20,27 +20,51 @@
 package systemd
 
 import (
+	"errors"
 	"os"
 	"sync"
 )
 
+var (
+	// ErrSdNotifySocketNotInitialized indicates that NotifySocket was called
+	// before InitSdNotifySocket.
+	ErrSdNotifySocketNotInitialized = errors.New("internal error: InitSdNotifySocket must be called first")
+	// ErrNotifySocketNotSet indicates that the NOTIFY_SOCKET environment
+	// variable was not set.
+	ErrNotifySocketNotSet = errors.New("cannot find NOTIFY_SOCKET environment variable")
+)
+
 var sdNotifySocket string
-var sdNotifySocketOnce sync.Once
+var sdNotifySocketInitialized bool
+var sdNotifySocketMu sync.Mutex
 
 // InitSdNotifySocket reads and unsets the NOTIFY_SOCKET environment variable.
 //
 // To get the cached value, use NotifySocket().
 func InitSdNotifySocket() {
-	sdNotifySocketOnce.Do(func() {
-		sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
-		os.Unsetenv("NOTIFY_SOCKET")
-	})
+	sdNotifySocketMu.Lock()
+	defer sdNotifySocketMu.Unlock()
+	if sdNotifySocketInitialized {
+		return
+	}
+	sdNotifySocket = os.Getenv("NOTIFY_SOCKET")
+	os.Unsetenv("NOTIFY_SOCKET")
+	sdNotifySocketInitialized = true
 }
 
 // NotifySocket returns the cached value of the NOTIFY_SOCKET environment
 // variable.
-func NotifySocket() string {
-	// ensure the NOTIFY_SOCKET environment variable is read and unset before returning the cached value
-	InitSdNotifySocket()
-	return sdNotifySocket
+//
+// It returns ErrSdNotifySocketNotInitialized if InitSdNotifySocket has not been
+// called yet, or ErrNotifySocketNotSet if NOTIFY_SOCKET was not set.
+func NotifySocket() (string, error) {
+	sdNotifySocketMu.Lock()
+	defer sdNotifySocketMu.Unlock()
+	if !sdNotifySocketInitialized {
+		return "", ErrSdNotifySocketNotInitialized
+	}
+	if sdNotifySocket == "" {
+		return "", ErrNotifySocketNotSet
+	}
+	return sdNotifySocket, nil
 }

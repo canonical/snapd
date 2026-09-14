@@ -156,8 +156,6 @@ func AllowedKernelMountOptions() []string {
 	return allowedKernelMountOptions
 }
 
-func MockSystemdNotifySocket(socket string) (restore func()) {
-	return testutil.Mock(&systemdNotifySocket, func() string {
-		return socket
-	})
+func MockSystemdNotifySocket(f func() (string, error)) (restore func()) {
+	return testutil.Mock(&systemdNotifySocket, f)
 }

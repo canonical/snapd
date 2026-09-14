@@ -57,15 +57,35 @@ func (sd *sdNotifyTestSuite) TestInitSdNotifySocketCachesAndUnsetsEnv(c *C) {
 	os.Setenv("NOTIFY_SOCKET", "@test-socket")
 	systemd.InitSdNotifySocket()
 
-	c.Check(systemd.NotifySocket(), Equals, "@test-socket")
+	socket, err := systemd.NotifySocket()
+	c.Check(err, IsNil)
+	c.Check(socket, Equals, "@test-socket")
 	_, found := os.LookupEnv("NOTIFY_SOCKET")
 	c.Check(found, Equals, false)
 
 	// re-running is a no-op
 	systemd.InitSdNotifySocket()
-	c.Check(systemd.NotifySocket(), Equals, "@test-socket")
+	socket, err = systemd.NotifySocket()
+	c.Check(err, IsNil)
+	c.Check(socket, Equals, "@test-socket")
 	_, found = os.LookupEnv("NOTIFY_SOCKET")
 	c.Check(found, Equals, false)
+}
+
+func (sd *sdNotifyTestSuite) TestNotifySocketErrors(c *C) {
+	// NotifySocket returns a dedicated error when InitSdNotifySocket has not
+	// been called yet.
+	systemd.ResetSdNotifySocketCache()
+	socket, err := systemd.NotifySocket()
+	c.Check(socket, Equals, "")
+	c.Check(err, Equals, systemd.ErrSdNotifySocketNotInitialized)
+
+	// once initialized with NOTIFY_SOCKET unset, a different error is returned.
+	os.Unsetenv("NOTIFY_SOCKET")
+	systemd.InitSdNotifySocket()
+	socket, err = systemd.NotifySocket()
+	c.Check(socket, Equals, "")
+	c.Check(err, Equals, systemd.ErrNotifySocketNotSet)
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyCacheConnRequiresLock(c *C) {
@@ -90,6 +110,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 	} {
 		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", t.env)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		if withFds {
@@ -119,6 +140,7 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 	} {
 		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
@@ -160,6 +182,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 	} {
 		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		addr := &net.UnixAddr{
@@ -232,6 +255,7 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
 	} {
 		systemd.ResetSdNotifySocketCache()
 		os.Setenv("NOTIFY_SOCKET", sockPath)
+		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
 		tmpdir := c.MkDir()
