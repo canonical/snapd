@@ -70,7 +70,7 @@ func (s *assertionsSuite) TestAssertSequencedMissingDependency(c *C) {
 	c.Check(tasktest.AssertOrdered(before, after), ErrorMatches, `task 2 \(second\) is not sequenced before task 4 \(fourth\)`)
 }
 
-func (s *assertionsSuite) TestAssertNotSequenced(c *C) {
+func (s *assertionsSuite) TestAssertDoesNotPrecede(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -82,10 +82,10 @@ func (s *assertionsSuite) TestAssertNotSequenced(c *C) {
 	later := tasktest.NewSelection([]*state.Task{second})
 	others := tasktest.NewSelection([]*state.Task{first, unrelated})
 
-	c.Check(tasktest.AssertNotOrdered(later, others), IsNil)
+	c.Check(tasktest.AssertDoesNotPrecede(later, others), IsNil)
 }
 
-func (s *assertionsSuite) TestAssertNotSequencedHasDependency(c *C) {
+func (s *assertionsSuite) TestAssertDoesNotPrecedeHasDependency(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -100,7 +100,7 @@ func (s *assertionsSuite) TestAssertNotSequencedHasDependency(c *C) {
 	before := tasktest.NewSelection([]*state.Task{first, second})
 	after := tasktest.NewSelection([]*state.Task{third, fourth})
 
-	c.Check(tasktest.AssertNotOrdered(before, after), ErrorMatches, `task 2 \(second\) is sequenced before task 4 \(fourth\)`)
+	c.Check(tasktest.AssertDoesNotPrecede(before, after), ErrorMatches, `task 2 \(second\) is sequenced before task 4 \(fourth\)`)
 }
 
 func (s *assertionsSuite) TestAssertLaneSuperset(c *C) {
@@ -257,7 +257,7 @@ func (s *assertionsSuite) TestAssertionsCheckEmptySets(c *C) {
 	empty := tasktest.NewSelection(nil)
 
 	c.Check(tasktest.AssertOrdered(selection, empty), ErrorMatches, "selection 2 is empty")
-	c.Check(tasktest.AssertNotOrdered(selection, empty), ErrorMatches, "selection 2 is empty")
+	c.Check(tasktest.AssertDoesNotPrecede(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertLaneSuperset(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertDoesNotShareLane(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertSameLanes(selection, empty), ErrorMatches, "selection 2 is empty")

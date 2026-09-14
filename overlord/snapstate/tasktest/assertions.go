@@ -48,9 +48,10 @@ func AssertOrdered(selections ...Selection) error {
 	return nil
 }
 
-// AssertNotOrdered checks that no task in first transitively precedes any task
-// in second. Task ordering within a Selection is not considered.
-func AssertNotOrdered(first, second Selection) error {
+// AssertDoesNotPrecede checks that no task in first transitively precedes any
+// task in second. Tasks in second may precede tasks in first. Task ordering
+// within a Selection is not considered.
+func AssertDoesNotPrecede(first, second Selection) error {
 	if err := validateNonEmpty(first, second); err != nil {
 		return err
 	}
