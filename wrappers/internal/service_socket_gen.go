@@ -26,6 +26,8 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
@@ -33,8 +35,13 @@ import (
 )
 
 const (
-	maxLenUnixAbstractSocketAddress = 108
-	maxLenUnixPathSocketAddress     = 107
+	maxLenUnixSocketAddress = len(unix.RawSockaddrUnix{}.Path)
+	// maxLenUnixAbstractSocketAddress includes the leading null byte used by
+	// abstract AF_UNIX addresses.
+	maxLenUnixAbstractSocketAddress = maxLenUnixSocketAddress
+	// maxLenUnixPathSocketAddress excludes the trailing null byte required by
+	// pathname AF_UNIX addresses.
+	maxLenUnixPathSocketAddress = maxLenUnixSocketAddress - 1
 )
 
 func renderListenStream(socket *snap.SocketInfo) (string, error) {
