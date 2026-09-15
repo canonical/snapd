@@ -21,12 +21,14 @@ package state_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -203,6 +205,57 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
+}
+
+func (stateSuite) TestMigrateWarnings(c *check.C) {
+	now := time.Now()
+	firstAdded := now.Add(-5 * time.Minute)
+	lastAdded := now.Add(-2 * time.Minute)
+
+	oldWarning := json.RawMessage(
+		fmt.Sprintf(
+			`[{"message": "test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s"}]`,
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningRepeatAfter,
+		),
+	)
+
+	stateJSON := json.RawMessage(
+		fmt.Sprintf(
+			`{
+				"warnings": %s,
+				"data": {},
+				"changes": {},
+				"tasks": {},
+				"notices":[],
+				"last-change-id": 0,
+			 	"last-task-id": 0,
+				"last-lane-id": 0,
+				"last-notice-id": 0
+			}`,
+			oldWarning,
+		),
+	)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal(stateJSON, st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+
+	c.Assert(st.NumNotices(), check.Equals, 1)
+
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, check.HasLen, 1)
+	c.Check(notices[0].Type(), check.Equals, state.WarningNotice)
+	c.Check(notices[0].ID(), check.Equals, "1")
+	c.Check(st.GetLastNoticeId(), check.Equals, 1)
+
+	c.Check(notices[0].Key(), check.Equals, "test warning")
+	c.Check(notices[0].GetNoticeFirstOccurred().Format(time.RFC3339), check.Equals, firstAdded.Format(time.RFC3339))
+	c.Check(notices[0].GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAdded.Format(time.RFC3339))
+	c.Check(notices[0].LastRepeated().Format(time.RFC3339), check.Equals, lastAdded.Format(time.RFC3339))
+	c.Check(notices[0].LastData()["show-after"], check.Equals, state.DefaultWarningRepeatAfter.String())
+	c.Check(notices[0].GetExpireAfter(), check.Equals, state.DefaultWarningExpireAfter)
 }
 
 func (ss *stateSuite) TestCache(c *C) {

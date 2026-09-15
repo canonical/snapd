@@ -76,3 +76,19 @@ func (s *State) NumNotices() int {
 func (s *State) GetLastNoticeTimestamp() time.Time {
 	return s.getLastNoticeTimestamp()
 }
+
+func (s *State) GetLastNoticeId() int {
+	return s.lastNoticeId
+}
+
+func (n *Notice) GetExpireAfter() time.Duration {
+	return n.expireAfter
+}
+
+func (n *Notice) GetNoticeFirstOccurred() time.Time {
+	return n.firstOccurred
+}
+
+func (n *Notice) GetNoticeLastOccurred() time.Time {
+	return n.lastOccurred
+}

@@ -185,11 +185,21 @@ func (s *State) unlock() {
 	maybeSaveLockTime(lockWaitStart, lockHoldStart, lockHoldEnd)
 }
 
+type marshalledWarning struct {
+	Message     string     `json:"message"`
+	FirstAdded  time.Time  `json:"first-added"`
+	LastAdded   time.Time  `json:"last-added"`
+	LastShown   *time.Time `json:"last-shown,omitempty"`
+	ExpireAfter string     `json:"expire-after,omitempty"`
+	RepeatAfter string     `json:"repeat-after,omitempty"`
+}
+
 type marshalledState struct {
-	Data    map[string]*json.RawMessage `json:"data"`
-	Changes map[string]*Change          `json:"changes"`
-	Tasks   map[string]*Task            `json:"tasks"`
-	Notices []*Notice                   `json:"notices,omitempty"`
+	Data     map[string]*json.RawMessage `json:"data"`
+	Changes  map[string]*Change          `json:"changes"`
+	Tasks    map[string]*Task            `json:"tasks"`
+	Warnings []*marshalledWarning        `json:"warnings,omitempty"`
+	Notices  []*Notice                   `json:"notices,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
@@ -233,6 +243,10 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
+	// migrate the old warnings to notices after setting the lastNoticeId
+	if len(unmarshalled.Warnings) > 0 {
+		s.migrateWarnings(unmarshalled.Warnings)
+	}
 	// Update the last notice timestamp if the one saved to disk is later.
 	// The timestamp on disk is only guaranteed to reflect the most recent
 	// timestamp of notices which are stored in state, since state lock was
@@ -253,6 +267,36 @@ func (s *State) UnmarshalJSON(data []byte) error {
 		chg.finishUnmarshal()
 	}
 	return nil
+}
+
+func (s *State) migrateWarnings(oldWarnings []*marshalledWarning) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+
+	now := time.Now()
+	for _, w := range oldWarnings {
+		expireAfter, err := time.ParseDuration(w.ExpireAfter)
+		if err != nil {
+			continue
+		}
+
+		if w.LastAdded.Add(expireAfter).Before(now) {
+			continue
+		}
+		addNoticeOptions := &AddNoticeOptions{
+			Data:        map[string]string{},
+			RepeatAfter: 0,
+			ExpireAfter: expireAfter,
+		}
+		addNoticeOptions.Data["show-after"] = w.RepeatAfter
+		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
+		if err != nil {
+			continue
+		}
+		notice.firstOccurred = w.FirstAdded
+		notice.lastOccurred = w.LastAdded
+		notice.lastRepeated = w.LastAdded
+	}
 }
 
 func (s *State) checkpointData() []byte {
