@@ -19,8 +19,6 @@
 
 package advisor
 
-import "errors"
-
 type CommandDB interface {
 	// AddSnap adds the entries for commands pointing to the given
 	// snap name to the commands database.
@@ -32,6 +30,3 @@ type CommandDB interface {
 	// database has already been committed/rollbacked, does nothing.
 	Rollback() error
 }
-
-// ErrNotSupported indicates that advisor is not supported.
-var ErrNotSupported = errors.New("advisor is not supported")
