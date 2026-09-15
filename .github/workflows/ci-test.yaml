@@ -215,7 +215,7 @@ jobs:
       - cache-build-deps
     with:
       runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
+      gochannel: '1.26/stable'
 
   branch-static-checks:
     runs-on: ubuntu-latest
@@ -363,12 +363,12 @@ jobs:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - static-checks-not-required
-    name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
+    name: "unit-tests (Go 1.26/stable ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
       runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
+      gochannel: '1.26/stable'
       skip-coverage: true
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
       go-test-race: ${{ matrix.test-case.go-test-race }}
