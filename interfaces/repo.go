@@ -419,7 +419,7 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := slot.Snap.InstanceName()
+	snapName := slot.Snap.InstanceName().String()
 
 	// Reject snaps with invalid names
 	if err := snap.ValidateInstanceName(snapName); err != nil {
@@ -1032,7 +1032,7 @@ func (r *Repository) AddAppSet(appSet *SnapAppSet) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := snapInfo.InstanceName()
+	snapName := snapInfo.InstanceName().String()
 
 	// just checking for the name's existence in r.appSets should be enough
 	if r.appSets[snapName] != nil {
@@ -1127,7 +1127,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 	result := make([]string, 0, len(seen))
 	for info := range seen {
-		result = append(result, info.InstanceName())
+		result = append(result, info.InstanceName().String())
 	}
 	sort.Strings(result)
 	return result, nil
@@ -1167,7 +1167,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			slotAppSet := r.appSets[slotInfo.Snap.InstanceName()]
+			slotAppSet := r.appSets[slotInfo.Snap.InstanceName().String()]
 			if slotAppSet == nil {
 				continue
 			}
@@ -1214,7 +1214,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			plugAppSet := r.appSets[plugInfo.Snap.InstanceName()]
+			plugAppSet := r.appSets[plugInfo.Snap.InstanceName().String()]
 			if plugAppSet == nil {
 				continue
 			}

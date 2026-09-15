@@ -152,7 +152,7 @@ func (c *componentPlaceInfo) Filename() string {
 // will be of the form:
 // /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
 func (c *componentPlaceInfo) MountDir() string {
-	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance)
+	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance.String())
 }
 
 // MountFile returns the path of the file to be mounted for a component,

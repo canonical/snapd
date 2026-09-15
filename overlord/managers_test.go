@@ -301,7 +301,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.automaticSnapshots = nil
 	r := snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string,
 		options *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
-		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName(), SnapConfig: cfg, Usernames: usernames, Options: options})
+		s.automaticSnapshots = append(s.automaticSnapshots, automaticSnapshotCall{InstanceName: si.InstanceName().String(), SnapConfig: cfg, Usernames: usernames, Options: options})
 		return nil, nil
 	})
 	s.AddCleanup(r)
@@ -654,7 +654,7 @@ func (ms *baseMgrsSuite) mockInstalledSnapWithRevAndFiles(c *C, snapYaml string,
 		SnapID:   fakeSnapID(info.SnapName().String()),
 		Revision: info.Revision,
 	}
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  info.Revision,
@@ -3246,7 +3246,7 @@ func (s *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Inf
 	c.Assert(err, IsNil)
 
 	// store current state
-	snapName := info.InstanceName()
+	snapName := info.InstanceName().String()
 	var snapst snapstate.SnapState
 	snapstate.Get(st, snapName, &snapst)
 
@@ -6122,7 +6122,7 @@ func (ms *mgrsSuite) TestRefreshSimplePrevRev(c *C) {
 		SnapID:   fakeSnapID(info.SnapName().String()),
 		Revision: snap.R(2),
 	}
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, si2}),
 		Current:  snap.R(2),
@@ -6225,7 +6225,7 @@ func (ms *mgrsSuite) TestRefreshSimpleRevertToLocalFromLocalFile(c *C) {
 		SnapID:   fakeSnapID(info.SnapName().String()),
 		Revision: snap.R(2),
 	}
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1, si2}),
 		Current:  snap.R(2),
@@ -14760,8 +14760,8 @@ func makeMockRepoWithConnectedSnaps(c *C, repo *interfaces.Repository, info11, c
 	c.Assert(err, IsNil)
 
 	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName().String(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName().String(), Name: ifname},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected(info11.RealName, ifname)

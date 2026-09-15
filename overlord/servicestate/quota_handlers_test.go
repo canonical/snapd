@@ -249,7 +249,7 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	c.Check(data, NotNil)
 	c.Assert(data.AppsToRestartBySnap, HasLen, 1)
 	for info, apps := range data.AppsToRestartBySnap {
-		c.Check(info.InstanceName(), Equals, "test-snap")
+		c.Check(info.InstanceName().String(), Equals, "test-snap")
 		c.Assert(apps, HasLen, 1)
 		c.Check(apps[0], Equals, info.Apps["svc1"])
 	}

@@ -407,10 +407,10 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().String() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName().String() != current.InstanceName().String() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
-			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName().String())
 		}
 	}
 
@@ -1094,7 +1094,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 
 	installed := make([]string, 0, len(infos))
 	for _, info := range infos {
-		installed = append(installed, info.InstanceName())
+		installed = append(installed, info.InstanceName().String())
 	}
 
 	return installed, tss, err
@@ -2394,15 +2394,15 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	fromChange := ""
 	for _, t := range plan.targets {
 		name := t.info.InstanceName()
-		if _, ok := hints[name]; !ok {
+		if _, ok := hints[name.String()]; !ok {
 			// filtered out by refreshHintsFromCandidates
 			continue
 		}
 
-		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, name.String(), &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", name, err)
 		} else {
-			updates = append(updates, name)
+			updates = append(updates, name.String())
 		}
 	}
 
@@ -2605,7 +2605,7 @@ func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, i
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
-			snaps[i] = up.InstanceName()
+			snaps[i] = up.InstanceName().String()
 		}
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 			return &InsufficientSpaceError{
@@ -2824,7 +2824,7 @@ func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.Ta
 
 	// Switching to a new model base may require regenerating the managed
 	// certificate database.
-	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName(), info.Type(), deviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName().String(), info.Type(), deviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		add(updateCertDB)
 	}
@@ -3130,7 +3130,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName().String()}
 		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
@@ -4322,7 +4322,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 			keepBlob(snap.MountFile(snapName, rss.Snap.Revision))
 			for _, comp := range rss.Components {
 				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
-					comp.SideInfo.Revision, snapName)
+					comp.SideInfo.Revision, naming.InstanceName(snapName))
 				keepBlob(cpi.MountFile())
 			}
 		}
@@ -4357,7 +4357,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 				// download task runs, which may, or may not have run already.
 				if compsup.CompPath == "" {
 					cpi := snap.MinimalComponentContainerPlaceInfo(compsup.ComponentName(),
-						compsup.Revision(), snapsup.InstanceName().String())
+						compsup.Revision(), snapsup.InstanceName())
 					keepBlob(cpi.MountFile())
 				} else {
 					keepBlob(compsup.CompPath)
@@ -4505,7 +4505,7 @@ func unmountSnap(snapst *SnapState) error {
 			cpi := snap.MinimalComponentContainerPlaceInfo(
 				compName,
 				c.SideInfo.Revision,
-				snapst.InstanceName().String(),
+				snapst.InstanceName(),
 			)
 
 			mountDir := cpi.MountDir()

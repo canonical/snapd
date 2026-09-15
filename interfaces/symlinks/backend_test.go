@@ -200,8 +200,8 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo/bar2.so")
 
 	// Now disconnect the first slot and set-up backends again
-	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName().String(), plugInfos[0].Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only symlinks for the connected slots are around
@@ -267,8 +267,8 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	checkSymlink(c, "/snap/somesnap2/1/target2.so", "/usr/lib/foo2/bar2.so")
 
 	// Now disconnect the first slot and set-up backends again
-	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName().String(), plugInfos[0].Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only symlinks for the connected slots are around

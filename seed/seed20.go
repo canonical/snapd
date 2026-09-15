@@ -894,7 +894,7 @@ func (s *seed20) lookupVerifiedComponent(cref naming.ComponentRef, snapRev snap.
 			compName, resPair.Provenance(), snapProvenance)
 	}
 
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, snap.R(resRev.ResourceRevision()), snapName)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, snap.R(resRev.ResourceRevision()), naming.InstanceName(snapName))
 	newPath, snapSHA3_384, resSize, err := handler.HandleAndDigestAssertedContainer(
 		cpi, compPath, tm)
 	if err != nil {

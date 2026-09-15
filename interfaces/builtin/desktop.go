@@ -807,7 +807,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	appId := "snap." + plug.Snap().InstanceName()
 	spec.AddUserMountEntry(osutil.MountEntry{
-		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId.String(),
 		Dir:     "$XDG_RUNTIME_DIR/doc",
 		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
 	})
