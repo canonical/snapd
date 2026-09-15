@@ -48,6 +48,25 @@ type jsonWarning struct {
 	RepeatAfter string     `json:"repeat-after,omitempty"`
 }
 
+// validate is used to ensure that the jsonWarning used to migrate warnings found
+// on disk to notices have valid fields.
+func (w *jsonWarning) validate() (e error) {
+	if w.Message == "" {
+		return errNoWarningMessage
+	}
+	if strings.TrimSpace(w.Message) != w.Message {
+		return errBadWarningMessage
+	}
+	if w.FirstAdded.IsZero() {
+		return errNoWarningFirstAdded
+	}
+	if w.ExpireAfter == "" {
+		return errNoWarningExpireAfter
+	}
+
+	return nil
+}
+
 type Warning struct {
 	// The notice which backs this warning. Notice-specific fields will be
 	// extracted and parsed as needed from the lastData map.
@@ -219,7 +238,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	// Get the existing notice data, if present, to persist the "last-shown" value
-	if existing := s.getNotice(nil, WarningNotice, message); existing != nil {
+	if existing := s.getWarningBackingNotice(message); existing != nil {
 		if lastShown, ok := existing.lastData["last-shown"]; ok {
 			addNoticeOptions.Data["last-shown"] = lastShown
 		}
@@ -239,7 +258,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 // RemoveWarning removes a warning given its message.
 //
 // This method is only used for removing autorefresh warnings. It
-// will be when the new "details" field is added to AddNoticeOptions
+// will be removed when the new "details" field is added to AddNoticeOptions
 // to start allowing for some mutability of notices.
 //
 // Returns state.ErrNoState if no warning exists with given message.
@@ -248,14 +267,28 @@ func (s *State) RemoveWarning(message string) error {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	uid, hasUserID := flattenUserID(nil)
-	uniqueKey := noticeKey{hasUserID, uid, WarningNotice, message}
-	if _, ok := s.notices[uniqueKey]; !ok {
+	notice := s.getWarningBackingNotice(message)
+	if notice == nil {
 		return ErrNoState
 	}
 
+	uniqueKey := createWarningNoticeKey(message)
 	delete(s.notices, uniqueKey)
 	return nil
+}
+
+func createWarningNoticeKey(key string) noticeKey {
+	uid, hasUserID := flattenUserID(nil)
+	return noticeKey{hasUserID, uid, WarningNotice, key}
+}
+
+func (s *State) getWarningBackingNotice(key string) *Notice {
+	uniqueKey := createWarningNoticeKey(key)
+	notice, ok := s.notices[uniqueKey]
+	if !ok {
+		return nil
+	}
+	return notice
 }
 
 // AllWarnings returns all the warnings in the system, whether they're
