@@ -26,10 +26,12 @@ jobs:
               pull_number: context.payload.pull_request.number,
               per_page: 100,
             });
-            const path = 'build-aux/snap/snapcraft.yaml';
-            if (!files.some(file => file.filename === path || file.previous_filename === path)) {
+            const paths = ['build-aux/snap/snapcraft.yaml', 'build-aux/snap/snapcraft-fips.yaml'];
+            const changed = paths.filter(path => files.some(file => file.filename === path));
+            if (changed.length !== 1) {
               return;
             }
+            const other = paths.find(path => path !== changed[0]);
 
             const marker = '<!-- snapcraft-sync-reminder -->';
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -50,6 +52,6 @@ jobs:
               issue_number: context.payload.pull_request.number,
               body: [
                 marker,
-                'This PR changes `build-aux/snap/snapcraft.yaml`. Please check whether the same changes are needed in `build-aux/snap/snapcraft-fips.yaml`.',
+                `This PR changes \`${changed[0]}\`. Please check whether the same changes are needed in \`${other}\`.`,
               ].join('\n'),
             });
