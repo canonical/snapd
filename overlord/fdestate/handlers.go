@@ -552,6 +552,12 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 
 		changedKeyslots = append(changedKeyslots, keyslot.Ref())
 	}
+
+	// reclaim the consumed DA lockout token on success
+	if err := reclaimDALockoutToken(t.State()); err != nil {
+		return fmt.Errorf("cannot reclaim DA lockout token: %v", err)
+	}
+
 	// avoid re-runs in case of abrupt shutdown since all key slots are now updated.
 	t.SetStatus(state.DoneStatus)
 	m.state.Cache(changeAuthOptionsKey{}, nil)
