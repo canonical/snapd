@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -291,6 +292,41 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnmarshalErrors(c *C) {
+	var n *state.Notice
+	c.Check(json.Unmarshal([]byte(`42`), &n), check.ErrorMatches, ".* cannot unmarshal .*")
+
+	type T1 struct {
+		b string
+		e error
+	}
+
+	for _, t := range []T1{
+		// validity check
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, nil},
+		// remove one field at a time:
+		{`{            "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},
+		{`{"key": "x", "type":"warning",                                           "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningFirstAdded},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, state.ErrNoWarningExpireAfter},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), check.Equals, t.e)
+	}
+
+	type T2 struct{ b, e string }
+
+	for _, t := range []T2{
+		// some bogus values
+		{`{"key": " ", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "malformed warning message"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), check.ErrorMatches, t.e)
+	}
+}
+
 func (s *noticesSuite) TestString(c *C) {
 	noticeJSON := []byte(`{
 		"id": "1",
@@ -316,7 +352,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"first-occurred": "2023-09-01T05:23:01Z",
 		"last-occurred": "2023-09-01T07:23:02Z",
 		"last-repeated": "2023-09-01T06:23:03.123456789Z",
-		"occurrences": 2
+		"occurrences": 2,
+		"expire-after": "168h0m0s"
 	}`)
 	err = json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)

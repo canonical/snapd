@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -125,6 +126,23 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 	jw.RepeatAfter = repeatAfter.String()
 
 	return json.Marshal(jw)
+}
+
+func (w *Warning) validate() (e error) {
+	if w.String() == "" {
+		return errNoWarningMessage
+	}
+	if strings.TrimSpace(w.String()) != w.String() {
+		return errBadWarningMessage
+	}
+	if w.firstAdded().IsZero() {
+		return errNoWarningFirstAdded
+	}
+	if w.expireAfter() == 0 {
+		return errNoWarningExpireAfter
+	}
+
+	return nil
 }
 
 func (w *Warning) ExpiredBefore(now time.Time) bool {
