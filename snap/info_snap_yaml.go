@@ -59,6 +59,8 @@ type snapYaml struct {
 	Links           map[string][]string      `yaml:"links,omitempty"`
 	Components      map[string]componentYaml `yaml:"components,omitempty"`
 	SnapdInfo       snapdInfoYaml            `yaml:"snapd-info,omitempty"`
+	// true if the snapd-info key was present
+	snapdInfoPresent bool
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
@@ -71,6 +73,27 @@ type snapdInfoYaml struct {
 }
 
 const snapdInfoKey = "snapd-info"
+
+type ignored struct{}
+
+// UnmarshalYAML skips the value so only the map key is kept.
+func (*ignored) UnmarshalYAML(func(any) error) error { return nil }
+
+// UnmarshalYAML decodes snap.yaml and records whether the snapd-info key was present.
+func (y *snapYaml) UnmarshalYAML(unmarshal func(any) error) error {
+	// same fields, no UnmarshalYAML, so this does not recurse
+	type plain snapYaml
+	if err := unmarshal((*plain)(y)); err != nil {
+		return err
+	}
+	// key presence including null, without decoding values
+	var topLevelKeys map[string]ignored
+	if err := unmarshal(&topLevelKeys); err != nil {
+		return err
+	}
+	_, y.snapdInfoPresent = topLevelKeys[snapdInfoKey]
+	return nil
+}
 
 // errSnapdInfoNotSnapd is reported both when parsing snap.yaml and when
 // validating a constructed Info, so the two agree verbatim.
@@ -198,7 +221,7 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
-	if snap.Type() != TypeSnapd && hasSnapdInfoKey(yamlData) {
+	if snap.Type() != TypeSnapd && y.snapdInfoPresent {
 		return nil, errSnapdInfoNotSnapd
 	}
 
@@ -674,19 +697,6 @@ func setLinksFromSnapYaml(y snapYaml, snap *Info) error {
 		snap.OriginalLinks[linksKey] = links
 	}
 	return nil
-}
-
-// hasSnapdInfoKey reports whether snap.yaml has a top-level snapd-info key,
-// whatever its value. A struct field cannot tell an explicit null from an
-// omitted key, but a map keeps the key.
-func hasSnapdInfoKey(yamlData []byte) bool {
-	var doc map[string]any
-	if err := yaml.Unmarshal(yamlData, &doc); err != nil {
-		// unreachable: the typed unmarshal above already succeeded
-		return false
-	}
-	_, ok := doc[snapdInfoKey]
-	return ok
 }
 
 func setUbuntuCoreTracks(y snapYaml, snap *Info) error {
