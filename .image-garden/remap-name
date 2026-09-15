@@ -10,6 +10,7 @@
 # debian-sid-64            debian-cloud-sid.$(uname -m)
 # fedora-42-64             fedora-cloud-42.$(uname -m)
 # opensuse-tumbleweed-64   opensuse-cloud-tumbleweed.$(uname -m)
+# opensuse-tumbleweed-selinux-64  opensuse-cloud-tumbleweed@selinux.$(uname -m)
 # ubuntu-24.04-64          ubuntu-cloud-24.04.$(uname -m)
 # ubuntu-core-24-64        ubuntu-cloud-24.04.$(uname -m)
 
@@ -18,6 +19,7 @@ snapd_to_garden() {
   echo "$1" | sed \
 		-e 's/ubuntu-core-\([0-9][0-9]\)/ubuntu-\1.04/' \
 		-e 's/\(\w\+\)-linux/\1linux/' \
+		-e 's/tumbleweed-selinux/tumbleweed@selinux/' \
 		-e 's/\(\w\+\)/\1-cloud/' \
 		-e 's/-64$/.'"$(uname -m)"'/'
 }
@@ -25,7 +27,8 @@ snapd_to_garden() {
 garden_to_snapd() {
     echo "$1" | sed \
     -e 's/.'"$(uname -m)"'$/-64/' \
-    -e 's/\(\w\+\)linux/\1-linux/' \
+    -e 's/@/-/g' \
+    -e '/selinux/!{ s/\(\w\+\)linux/\1-linux/; }' \
     -e 's/\(\w\+\)-cloud/\1/'
 }
 
