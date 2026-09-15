@@ -33,6 +33,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -559,18 +560,32 @@ func orderedCurrentBootImagesHybrid() ([]bootloader.BootFile, error) {
 	imageInfo := []struct {
 		name string
 		glob string
+		regex *regexp.Regexp
 	}{
-		{"shim", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/boot*.efi")},
-		{"grub", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot/grub*.efi")},
-		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz")},
+		{"shim", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot*.efi"), regexp.MustCompile(`^cdrom/EFI/boot/boot(ia32|x64|arm|aa64|ia64|riscv64|loongarch64)\.efi$`)},
+		{"grub", filepath.Join(dirs.GlobalRootDir, "cdrom/EFI/boot*.efi"), regexp.MustCompile(`^cdrom/EFI/boot/grub(ia32|x64|arm|aa64|ia64|riscv64|loongarch64)\.efi$`)},
+		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz"), nil},
 	}
 
 	var bootImageFiles []bootloader.BootFile
 	for _, info := range imageInfo {
-		matches, err := filepath.Glob(info.glob)
+		candidates, err := filepath.Glob(info.glob)
 		if err != nil {
 			return nil, fmt.Errorf("cannot use globbing pattern %q: %v", info.glob, err)
 		}
+
+		var matches []string
+		if info.regex == nil {
+			matches = candidates
+		} else {
+			for _, candidate := range candidates {
+				rel, err := filepath.Rel(dirs.GlobalRootDir, candidate)
+				if err == nil && info.regex.MatchString(rel) {
+					matches = append(matches, candidate)
+				}
+			}
+		}
+
 		if len(matches) == 0 {
 			return nil, fmt.Errorf("cannot locate installer %s using globbing pattern %q", info.name, info.glob)
 		}
