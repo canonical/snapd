@@ -50,10 +50,15 @@ packages:
 - apparmor-utils
 endef
 
-define OPENSUSE_tumbleweed-selinux_CLOUD_INIT_USER_DATA_TEMPLATE
+define OPENSUSE_tumbleweed@selinux_CLOUD_INIT_USER_DATA_TEMPLATE
 $(BASE_CLOUD_INIT_USER_DATA_TEMPLATE)
 - sed -i -e 's/^SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
 endef
+
+# Create an instance of opensuse-cloud-tumbleweed with a SELinux cloud-init
+# profile. We provide the OPENSUSE_tumbleweed@selinux_CLOUD_INIT_USER_DATA_TEMPLATE
+# above.
+$(eval $(call define-instance,opensuse-cloud-tumbleweed.x86_64,selinux))
 
 define UBUNTU_CLOUD_INIT_USER_DATA_TEMPLATE
 $(CLOUD_INIT_USER_DATA_TEMPLATE)
@@ -118,32 +123,6 @@ ubuntu-cloud-16.04.x86_64.qcow2 ubuntu-cloud-16.04.x86_64.run ubuntu-cloud-18.04
     -drive file=$(1),if=none,format=qcow2,id=drive0,media=disk,cache=writeback,discard=unmap \
     -device virtio-scsi-pci,id=scsi0 \
     -device scsi-hd,drive=drive0,bus=scsi0.0,bootindex=0)";
-
-# XXX: small hack to offer two versions of openSUSE Tumbleweed.
-
-opensuse-cloud-tumbleweed-selinux.x86_64.run: $(MAKEFILE_LIST) | opensuse-cloud-tumbleweed-selinux.x86_64.qcow2 opensuse-cloud-tumbleweed.x86_64.efi-code.img opensuse-cloud-tumbleweed.x86_64.efi-vars.img
-	echo "#!/bin/sh" >$@
-	echo 'set -xeu' >>$@
-	echo "# WARNING: The .qcow2 file refers to a file in $(GARDEN_DL_DIR)/opensuse" >>$@
-	echo '$(strip $(call QEMU_SYSTEM_X86_64_EFI_CMDLINE,$(word 1,$|),$(word 2,$|),$(word 3,$|)) "$$@")' >>$@
-	chmod +x $@
-
-opensuse-cloud-tumbleweed-selinux.x86_64.qcow2: $(GARDEN_DL_DIR)/opensuse/opensuse-cloud-tumbleweed.x86_64.qcow2 opensuse-cloud-tumbleweed-selinux.x86_64.seed.iso opensuse-cloud-tumbleweed-selinux.x86_64.efi-code.img opensuse-cloud-tumbleweed-selinux.x86_64.efi-vars.img
-	$(strip $(QEMU_IMG) create -f qcow2 -b $< -F qcow2 $@ $(QEMU_IMG_SIZE))
-	$(strip $(call QEMU_SYSTEM_X86_64_EFI_CMDLINE,$@,$(word 3,$^),$(word 4,$^)) \
-    -drive file=$(word 2,$^),format=raw,id=drive1,if=none,readonly=true,media=cdrom \
-    -device virtio-blk,drive=drive1 \
-    | tee $@.log)
-
-opensuse-cloud-tumbleweed-selinux.x86_64.meta-data: export META_DATA = $(call CLOUD_INIT_META_DATA_TEMPLATE,opensuse)
-opensuse-cloud-tumbleweed-selinux.x86_64.meta-data: $(MAKEFILE_LIST)
-	echo "$${META_DATA}" | tee $@
-	touch --reference=$(shell stat $^ -c '%Y %n' | sort -nr | cut -d ' ' -f 2 | head -n 1) $@
-
-opensuse-cloud-tumbleweed-selinux.x86_64.user-data: export USER_DATA = $(call $(call PICK_CLOUD_INIT_USER_DATA_TEMPLATE_FOR,OPENSUSE,tumbleweed-selinux),opensuse-tumbleweed,opensuse)
-opensuse-cloud-tumbleweed-selinux.x86_64.user-data: $(MAKEFILE_LIST) $(wildcard $(GARDEN_PROJECT_DIR)/.image-garden.mk)
-	echo "$${USER_DATA}" | tee $@
-	touch --reference=$(shell stat $^ -c '%Y %n' | sort -nr | cut -d ' ' -f 2 | head -n 1) $@
 
 # include local overrides if present
 -include $(GARDEN_PROJECT_DIR)/.image-garden.local.mk
