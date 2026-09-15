@@ -93,6 +93,22 @@ func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error
 	}
 }
 
+func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, error) {
+	switch params.Type {
+	case "dm-verity":
+		hashDevicePath, err := params.IntegrityFile(snapPath)
+		if err != nil {
+			return nil, err
+		}
+		return []string{
+			fmt.Sprintf("verity.roothash=%s", params.Digest),
+			fmt.Sprintf("verity.hashdevice=%s", hashDevicePath),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unexpected integrity data type %q", params.Type)
+	}
+}
+
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
 var ErrNoIntegrityDataFoundInRevision = errors.New("no integrity data found in revision")
 

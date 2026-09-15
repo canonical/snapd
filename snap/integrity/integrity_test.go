@@ -320,3 +320,25 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 	_, err = idp.IntegrityFile("/path/to/instance.snap")
 	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
 }
+
+func (s *IntegrityTestSuite) TestIntegrityDataParamsMountOptions(c *C) {
+	idp := integrity.IntegrityDataParams{
+		Type:   "dm-verity",
+		Digest: "aaa",
+	}
+
+	opts, err := idp.MountOptions("/path/to/instance.snap")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, []string{
+		"verity.roothash=aaa",
+		"verity.hashdevice=/path/to/instance.snap.dmverity_aaa",
+	})
+
+	idp = integrity.IntegrityDataParams{
+		Type:   "bad-type",
+		Digest: "aaa",
+	}
+	opts, err = idp.MountOptions("/path/to/instance.snap")
+	c.Check(opts, IsNil)
+	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
+}
