@@ -381,5 +381,8 @@ func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification,
 }
 
 func init() {
-	registerIface(&posixMQInterface{})
+	registerIface(&posixMQInterface{commonInterface{
+		parallelInstancesPlugErr: errors.New("conflicting operations on shared POSIX message queues"),
+		parallelInstancesSlotErr: errors.New("conflicting operations on shared POSIX message queues"),
+	}})
 }

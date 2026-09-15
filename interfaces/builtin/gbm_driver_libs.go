@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -178,8 +179,11 @@ func init() {
 			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
+			// library-source filenames also use "_" to separate instance name, slot name and interface name
+			parallelInstancesSlotErr: errors.New("client-driver symlink cannot distinguish parallel instances"),
 		},
 	})
 }

@@ -122,8 +122,10 @@ func init() {
 			baseDeclarationPlugs: nvidiaVideoDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: nvidiaVideoDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
+			parallelInstancesSlotErr: errParallelInstancesLibrarySource,
 		},
 	})
 }

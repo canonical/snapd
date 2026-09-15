@@ -485,11 +485,13 @@ type greengrassSupportInterface struct {
 
 func init() {
 	registerIface(&greengrassSupportInterface{commonInterface{
-		name:                 "greengrass-support",
-		summary:              greengrassSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
+		name:                     "greengrass-support",
+		summary:                  greengrassSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     greengrassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     greengrassSupportBaseDeclarationPlugs,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

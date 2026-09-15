@@ -142,8 +142,10 @@ func init() {
 			baseDeclarationPlugs: classicSupportBaseDeclarationPlugs,
 			baseDeclarationSlots: classicSupportBaseDeclarationSlots,
 			// handled by AppArmorConnectedPlug
-			connectedPlugAppArmor: "",
-			connectedPlugSecComp:  classicSupportPlugSecComp,
+			connectedPlugAppArmor:    "",
+			connectedPlugSecComp:     classicSupportPlugSecComp,
+			parallelInstancesPlugErr: errParallelInstancesSharedResources,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

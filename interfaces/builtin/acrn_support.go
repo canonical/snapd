@@ -47,12 +47,14 @@ var acrnSupportConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&acrnSupportInterface{commonInterface{
-		name:                  "acrn-support",
-		summary:               acrnSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		connectedPlugUDev:     acrnSupportConnectedPlugUDev,
-		baseDeclarationSlots:  acrnSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: acrnSupportConnectedPlugAppArmor,
+		name:                     "acrn-support",
+		summary:                  acrnSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		connectedPlugUDev:        acrnSupportConnectedPlugUDev,
+		baseDeclarationSlots:     acrnSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:    acrnSupportConnectedPlugAppArmor,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

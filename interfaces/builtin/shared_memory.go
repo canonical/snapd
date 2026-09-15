@@ -356,6 +356,10 @@ func (iface *sharedMemoryInterface) ParallelInstancesSupportedForPlug(plug *snap
 	return nil
 }
 
+func (iface *sharedMemoryInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errors.New("conflicting operations on the same shared memory")
+}
+
 func (iface *sharedMemoryInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true

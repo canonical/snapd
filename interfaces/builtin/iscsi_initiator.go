@@ -119,6 +119,8 @@ func init() {
 			Dir:     nodesDBDebianPath,
 			Options: []string{"bind", "rw"},
 		}},
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
 
