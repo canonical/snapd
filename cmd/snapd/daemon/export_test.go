@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -61,4 +62,8 @@ func MockNewSlogLogger(f func(io.Writer, string, seclog.Level) seclog.SecurityLo
 	return func() {
 		newSlogLogger = oldNewSlogLogger
 	}
+}
+
+func MockSystemdInitSdNotifySocket(f func()) (restore func()) {
+	return testutil.Mock(&systemdInitSdNotifySocket, f)
 }

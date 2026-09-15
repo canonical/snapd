@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/standby"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -132,4 +133,18 @@ func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	// stop the daemon
 	close(ch)
 	wg.Wait()
+}
+
+func (s *snapdSuite) TestMainInitializesSdNotifySocket(c *C) {
+	// mock preseeding so snapd doesn't re-exec
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
+
+	restore := snapd.MockSystemdInitSdNotifySocket(func() {
+		// panic to simplify the test avoiding complex mocking
+		panic("systemd-init-sd-notify-socket-called")
+	})
+	defer restore()
+
+	c.Assert(snapd.Main, PanicMatches, "systemd-init-sd-notify-socket-called")
 }
