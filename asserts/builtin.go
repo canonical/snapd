@@ -104,7 +104,7 @@ func assembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byt
 		content = append(content, body...)
 	}
 
-	a, err := assertType.assembler(assertionBase{
+	a, err := assertType.assembler(AssertionBase{
 		headers:   h,
 		body:      body,
 		revision:  revision,

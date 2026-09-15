@@ -32,7 +32,7 @@ import (
 // code to fixup broken systems. It can be limited by series and models, as well
 // as by bases and modes.
 type Repair struct {
-	assertionBase
+	AssertionBase
 
 	series        []string
 	architectures []string
@@ -111,8 +111,8 @@ func (r *Repair) Timestamp() time.Time {
 	return r.timestamp
 }
 
-// Implement further consistency checks.
-func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
+// CheckConsistency performs further checks using the assertion database.
+func (r *Repair) CheckConsistency(db RODatabase, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,
 	// i.e. in the future repair code
 
@@ -120,9 +120,9 @@ func (r *Repair) checkConsistency(db RODatabase, acck *AccountKey) error {
 }
 
 // expected interface is implemented
-var _ consistencyChecker = (*Repair)(nil)
+var _ ConsistencyChecker = (*Repair)(nil)
 
-func assembleRepair(assert assertionBase) (Assertion, error) {
+func assembleRepair(assert AssertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func assembleRepair(assert assertionBase) (Assertion, error) {
 	}
 
 	return &Repair{
-		assertionBase: assert,
+		AssertionBase: assert,
 		series:        series,
 		architectures: architectures,
 		models:        models,

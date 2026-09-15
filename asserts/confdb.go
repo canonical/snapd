@@ -32,7 +32,7 @@ import (
 // account of access views and a storage schema for a set of related
 // configuration options under the purview of the account.
 type ConfdbSchema struct {
-	assertionBase
+	AssertionBase
 
 	schema    *confdb.Schema
 	timestamp time.Time
@@ -54,7 +54,7 @@ func (ar *ConfdbSchema) Schema() *confdb.Schema {
 	return ar.schema
 }
 
-func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
+func assembleConfdbSchema(assert AssertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
 	if accountID == "system" {
@@ -108,7 +108,7 @@ func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 	}
 
 	return &ConfdbSchema{
-		assertionBase: assert,
+		AssertionBase: assert,
 		schema:        confdbSchema,
 		timestamp:     timestamp,
 	}, nil
@@ -117,7 +117,7 @@ func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 // ConfdbControl holds a confdb-control assertion, which holds lists of
 // views delegated by the device to operators.
 type ConfdbControl struct {
-	assertionBase
+	AssertionBase
 
 	control *confdb.Control
 }
@@ -177,7 +177,7 @@ func (cc *ConfdbControl) Control() confdb.Control {
 
 // assembleConfdbControl creates a new confdb-control assertion after validating
 // all required fields and constraints.
-func assembleConfdbControl(assert assertionBase) (Assertion, error) {
+func assembleConfdbControl(assert AssertionBase) (Assertion, error) {
 	_, err := checkStringMatches(assert.headers, "brand-id", validAccountID)
 	if err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ func assembleConfdbControl(assert assertionBase) (Assertion, error) {
 	}
 
 	return &ConfdbControl{
-		assertionBase: assert,
+		AssertionBase: assert,
 		control:       cc,
 	}, nil
 }
