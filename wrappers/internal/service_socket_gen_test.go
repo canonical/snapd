@@ -114,13 +114,16 @@ WantedBy=sockets.target
 	})
 }
 
-func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketParallelInstance(c *C) {
-	si := &snap.Info{
+func makeTestSnapInfo(instanceKey string) *snap.Info {
+	return &snap.Info{
 		SuggestedName: "some-snap",
-		InstanceKey:   "inst1",
+		InstanceKey:   instanceKey,
 		Version:       "1.0",
 		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
 	}
+}
+
+func makeTestServiceWithSingleSocket(si *snap.Info, listenStream string) *snap.AppInfo {
 	service := &snap.AppInfo{
 		Snap:        si,
 		Name:        "app",
@@ -131,11 +134,19 @@ func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketPar
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",
-				ListenStream: "@snap.some-snap.my.socket",
+				ListenStream: listenStream,
 			},
 		},
 	}
 	service.Sockets["sock1"].App = service
+	return service
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketParallelInstance(c *C) {
+	instanceKey := "inst1"
+	listenStream := "@snap.some-snap.my.socket"
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
 
 	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
 	c.Assert(err, IsNil)
@@ -144,58 +155,120 @@ func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketPar
 }
 
 func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketNoInstanceKey(c *C) {
-	si := &snap.Info{
-		SuggestedName: "some-snap",
-		Version:       "1.0",
-		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
-	}
-	service := &snap.AppInfo{
-		Snap:        si,
-		Name:        "app",
-		Command:     "bin/foo start",
-		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
-		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
-		Sockets: map[string]*snap.SocketInfo{
-			"sock1": {
-				Name:         "sock1",
-				ListenStream: "@snap.some-snap.my.socket",
-			},
-		},
-	}
-	service.Sockets["sock1"].App = service
+	instanceKey := ""
+	listenStream := "@snap.some-snap.my.socket"
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
 
 	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedSockets, HasLen, 1)
-	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream=@snap.some-snap.my.socket\n")
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream="+listenStream+"\n")
 }
 
 func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketDoesNotExpandSnapVars(c *C) {
-	si := &snap.Info{
-		SuggestedName: "some-snap",
-		InstanceKey:   "inst1",
-		Version:       "1.0",
-		SideInfo:      snap.SideInfo{Revision: snap.R(44)},
-	}
-	service := &snap.AppInfo{
-		Snap:        si,
-		Name:        "app",
-		Command:     "bin/foo start",
-		Daemon:      "simple",
-		DaemonScope: snap.SystemDaemon,
-		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
-		Sockets: map[string]*snap.SocketInfo{
-			"sock1": {
-				Name:         "sock1",
-				ListenStream: "@snap.some-snap.$SNAP_DATA.$SNAP_COMMON.$XDG_RUNTIME_DIR",
-			},
-		},
-	}
-	service.Sockets["sock1"].App = service
+	instanceKey := "inst1"
+	listenStream := "@snap.some-snap.$SNAP_DATA.$SNAP_COMMON.$XDG_RUNTIME_DIR"
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
 
 	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
 	c.Assert(err, IsNil)
 	c.Assert(generatedSockets, HasLen, 1)
-	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream=@snap.some-snap_inst1.$SNAP_DATA.$SNAP_COMMON.$XDG_RUNTIME_DIR\n")
+	expectedListenStream := strings.Replace(listenStream, "@snap.some-snap.", "@snap.some-snap_inst1.", 1)
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream="+expectedListenStream+"\n")
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketTooLongBeforeRemap(c *C) {
+	instanceKey := ""
+	prefix := "@snap.some-snap."
+	listenStream := prefix + strings.Repeat("a", internal.MaxLenUnixAbstractSocketAddress-len(prefix)+1)
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	expectedErr := fmt.Sprintf(`cannot generate socket unit for socket %q: abstract socket address %q is too long \(%d bytes\), maximum is %d`, "sock1",
+		listenStream, len(listenStream), internal.MaxLenUnixAbstractSocketAddress)
+	c.Assert(err, ErrorMatches, expectedErr)
+	c.Assert(generatedSockets, IsNil)
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketTooLongAfterRemap(c *C) {
+	instanceKey := "inst1"
+	prefix := "@snap.some-snap."
+	listenStream := prefix + strings.Repeat("a", internal.MaxLenUnixAbstractSocketAddress-len(prefix))
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	renderedListenStream := strings.Replace(listenStream, prefix, "@snap.some-snap_inst1.", 1)
+	expectedErr := fmt.Sprintf(`cannot generate socket unit for socket %q: abstract socket address %q is too long \(%d bytes\), maximum is %d`, "sock1",
+		renderedListenStream, len(renderedListenStream), internal.MaxLenUnixAbstractSocketAddress)
+	c.Assert(err, ErrorMatches, expectedErr)
+	c.Assert(generatedSockets, IsNil)
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithAbstractSocketMaxLenAfterRemap(c *C) {
+	instanceKey := "inst1"
+	prefixSnapName := "@snap.some-snap."
+	prefixInstanceName := "@snap.some-snap_inst1."
+	listenStream := prefixSnapName + strings.Repeat("a", internal.MaxLenUnixAbstractSocketAddress-len(prefixInstanceName))
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedSockets, HasLen, 1)
+
+	renderedListenStream := strings.Replace(listenStream, prefixSnapName, prefixInstanceName, 1)
+	c.Assert(len(renderedListenStream), Equals, internal.MaxLenUnixAbstractSocketAddress)
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream="+renderedListenStream+"\n")
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketTooLongBeforeExpansion(c *C) {
+	instanceKey := ""
+	prefix := "$SNAP_DATA/"
+	listenStream := prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(prefix)+1)
+	si := makeTestSnapInfo(instanceKey)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	renderedListenStream := strings.Replace(listenStream, "$SNAP_DATA", si.DataDir(), 1)
+	expectedErr := fmt.Sprintf(`cannot generate socket unit for socket %q: socket path %q is too long \(%d bytes\), maximum is %d`, "sock1",
+		renderedListenStream, len(renderedListenStream), internal.MaxLenUnixPathSocketAddress)
+	c.Assert(err, ErrorMatches, expectedErr)
+	c.Assert(generatedSockets, IsNil)
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketTooLongAfterExpansion(c *C) {
+	instanceKey := ""
+	prefix := "$SNAP_DATA/"
+	var listenStream string
+	si := makeTestSnapInfo(instanceKey)
+	listenStream = prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(si.DataDir()))
+	service := makeTestServiceWithSingleSocket(si, listenStream)
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	renderedListenStream := strings.Replace(listenStream, "$SNAP_DATA", si.DataDir(), 1)
+	expectedErr := fmt.Sprintf(`cannot generate socket unit for socket %q: socket path %q is too long \(%d bytes\), maximum is %d`, "sock1",
+		renderedListenStream, len(renderedListenStream), internal.MaxLenUnixPathSocketAddress)
+	c.Assert(err, ErrorMatches, expectedErr)
+	c.Assert(generatedSockets, IsNil)
+}
+
+func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketMaxLenAfterExpansion(c *C) {
+	instanceKey := ""
+	prefix := "$SNAP_DATA/"
+	var listenStream string
+	si := makeTestSnapInfo(instanceKey)
+	listenStream = prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(si.DataDir())-1)
+	service := makeTestServiceWithSingleSocket(si, listenStream)
+
+	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
+	c.Assert(err, IsNil)
+	c.Assert(generatedSockets, HasLen, 1)
+
+	renderedListenStream := strings.Replace(listenStream, "$SNAP_DATA", si.DataDir(), 1)
+	c.Assert(len(renderedListenStream), Equals, internal.MaxLenUnixPathSocketAddress)
+	c.Assert(string(generatedSockets["sock1"]), testutil.Contains, "ListenStream="+renderedListenStream+"\n")
 }

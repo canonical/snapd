@@ -32,44 +32,60 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func renderListenStream(socket *snap.SocketInfo) string {
+const (
+	maxLenUnixAbstractSocketAddress = 108
+	maxLenUnixPathSocketAddress     = 107
+)
+
+func renderListenStream(socket *snap.SocketInfo) (string, error) {
 	s := socket.App.Snap
 	listenStream := socket.ListenStream
-	isAbstract := strings.HasPrefix(listenStream, "@")
-	if isAbstract {
-		if s.InstanceKey != "" {
-			prefixSnapName := fmt.Sprintf("@snap.%s.", s.SnapName())
-			if !strings.HasPrefix(listenStream, prefixSnapName) {
-				logger.Panicf("internal error: abstract listen-stream %q must be prefixed with %q", listenStream, prefixSnapName)
-			}
-			prefixInstanceName := fmt.Sprintf("@snap.%s.", s.InstanceName())
-			listenStream = strings.Replace(listenStream, prefixSnapName, prefixInstanceName, 1)
+
+	switch listenStream[0] {
+	case '@': // unix abstract socket
+		prefixSnapName := fmt.Sprintf("@snap.%s.", s.SnapName())
+		prefixInstanceName := fmt.Sprintf("@snap.%s.", s.InstanceName())
+		// ValidateApp has already enforced the "@snap.<snap-name>." prefix in AppInfo.
+		// For parallel installs, the abstract socket address is remapped to
+		// "@snap.<instance-name>." prefix.
+		// Clients must connect using the instance-qualified address.
+		listenStream = strings.Replace(listenStream, prefixSnapName, prefixInstanceName, 1)
+		if len(listenStream) > maxLenUnixAbstractSocketAddress {
+			return "", fmt.Errorf("abstract socket address %q is too long (%d bytes), maximum is %d",
+				listenStream, len(listenStream), maxLenUnixAbstractSocketAddress)
 		}
-		return listenStream
+		return listenStream, nil
+	case '/', '$': // unix path socket
+		switch socket.App.DaemonScope {
+		case snap.SystemDaemon:
+			listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
+			// TODO: when we support User/Group in the generated
+			// systemd unit, adjust this accordingly
+			serviceUserUid := sys.UserID(0)
+			runtimeDir := s.UserXdgRuntimeDir(serviceUserUid)
+			listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
+			listenStream = strings.Replace(listenStream, "$SNAP_COMMON", s.CommonDataDir(), -1)
+		case snap.UserDaemon:
+			// TODO: use SnapDirOpts here. User daemons are also an experimental
+			// feature so, for simplicity, we can not pass opts here for now
+			listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h", nil), -1)
+			listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h", nil), -1)
+			// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
+			listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", s.InstanceName()), -1)
+		default:
+			panic("unknown snap.DaemonScope")
+		}
+		if len(listenStream) > maxLenUnixPathSocketAddress {
+			return "", fmt.Errorf("socket path %q is too long (%d bytes), maximum is %d",
+				listenStream, len(listenStream), maxLenUnixPathSocketAddress)
+		}
+		return listenStream, nil
+	default: // network socket
+		return listenStream, nil
 	}
-	switch socket.App.DaemonScope {
-	case snap.SystemDaemon:
-		listenStream = strings.Replace(listenStream, "$SNAP_DATA", s.DataDir(), -1)
-		// TODO: when we support User/Group in the generated
-		// systemd unit, adjust this accordingly
-		serviceUserUid := sys.UserID(0)
-		runtimeDir := s.UserXdgRuntimeDir(serviceUserUid)
-		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", runtimeDir, -1)
-		listenStream = strings.Replace(listenStream, "$SNAP_COMMON", s.CommonDataDir(), -1)
-	case snap.UserDaemon:
-		// TODO: use SnapDirOpts here. User daemons are also an experimental
-		// feature so, for simplicity, we can not pass opts here for now
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_DATA", s.UserDataDir("%h", nil), -1)
-		listenStream = strings.Replace(listenStream, "$SNAP_USER_COMMON", s.UserCommonDataDir("%h", nil), -1)
-		// FIXME: find some way to share code with snap.UserXdgRuntimeDir()
-		listenStream = strings.Replace(listenStream, "$XDG_RUNTIME_DIR", fmt.Sprintf("%%t/snap.%s", s.InstanceName()), -1)
-	default:
-		panic("unknown snap.DaemonScope")
-	}
-	return listenStream
 }
 
-func generateSnapServiceSocketUnitFile(appInfo *snap.AppInfo, socketName string) []byte {
+func generateSnapServiceSocketUnitFile(appInfo *snap.AppInfo, socketName string) ([]byte, error) {
 	socketTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Socket {{.SocketName}} for snap application {{.App.Snap.InstanceName}}.{{.App.Name}}
@@ -94,7 +110,10 @@ WantedBy={{.SocketsTarget}}
 	t := template.Must(template.New("socket-wrapper").Parse(socketTemplate))
 
 	socket := appInfo.Sockets[socketName]
-	listenStream := renderListenStream(socket)
+	listenStream, err := renderListenStream(socket)
+	if err != nil {
+		return nil, err
+	}
 	wrapperData := struct {
 		App             *snap.AppInfo
 		ServiceFileName string
@@ -125,7 +144,7 @@ WantedBy={{.SocketsTarget}}
 		logger.Panicf("Unable to execute template: %v", err)
 	}
 
-	return templateOut.Bytes()
+	return templateOut.Bytes(), nil
 }
 
 func GenerateSnapSocketUnitFiles(app *snap.AppInfo) (map[string][]byte, error) {
@@ -135,7 +154,11 @@ func GenerateSnapSocketUnitFiles(app *snap.AppInfo) (map[string][]byte, error) {
 
 	socketFiles := make(map[string][]byte)
 	for name := range app.Sockets {
-		socketFiles[name] = generateSnapServiceSocketUnitFile(app, name)
+		socketFile, err := generateSnapServiceSocketUnitFile(app, name)
+		if err != nil {
+			return nil, fmt.Errorf("cannot generate socket unit for socket %q: %v", name, err)
+		}
+		socketFiles[name] = socketFile
 	}
 	return socketFiles, nil
 }
