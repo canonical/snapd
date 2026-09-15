@@ -62,7 +62,10 @@ func (w *Warning) firstAdded() time.Time {
 }
 
 func (w *Warning) lastAdded() time.Time {
-	return w.notice.lastRepeated
+	// Since repeatAfter is always 0 for warnings, the value for
+	// lastOccurred and lastRepeated are equal. It is less confusing
+	// to set lastAdded to lastOccurred since firstAdded is firstOccured.
+	return w.notice.lastOccurred
 }
 
 func (w *Warning) lastShown() (time.Time, error) {
@@ -198,10 +201,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	// Get the existing notice data, if present, to persist the "last-shown" value
-	noticeFilter := &NoticeFilter{Types: []NoticeType{WarningNotice}, Keys: []string{message}}
-	if existingNotices := s.doNotices(noticeFilter); len(existingNotices) > 0 {
-		// Should only be possible to have one notice with a given type and key
-		existing := existingNotices[0]
+	if existing := s.getNotice(nil, WarningNotice, message); existing != nil {
 		if lastShown, ok := existing.lastData["last-shown"]; ok {
 			addNoticeOptions.Data["last-shown"] = lastShown
 		}
@@ -220,37 +220,23 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 
 // RemoveWarning removes a warning given its message.
 //
+// This method is only used for removing autorefresh warnings. It
+// will be when the new "details" field is added to AddNoticeOptions
+// to start allowing for some mutability of notices.
+//
 // Returns state.ErrNoState if no warning exists with given message.
 func (s *State) RemoveWarning(message string) error {
 	s.writing()
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	// If a notice matching this warning doesn't exist, we don't want to
-	// create a new one in an effort to remove it
-	noticeFilter := &NoticeFilter{
-		Types: []NoticeType{WarningNotice},
-		Keys:  []string{message},
-	}
-	existing := s.doNotices(noticeFilter)
-	if len(existing) == 0 {
+	uid, hasUserID := flattenUserID(nil)
+	uniqueKey := noticeKey{hasUserID, uid, WarningNotice, message}
+	if _, ok := s.notices[uniqueKey]; !ok {
 		return ErrNoState
 	}
 
-	// Remove warning by adding a warning with an ExpireAfter of 1ns
-	addNoticeOptions := &AddNoticeOptions{
-		RepeatAfter: 0,
-		ExpireAfter: time.Nanosecond,
-		// Specify time explicitly so as not to bump the last notice timestamp.
-		// Add -2ns so the notice is guaranteed to be expired before returning.
-		Time: timeNow().UTC().Add(-2 * time.Nanosecond),
-	}
-	_, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
-	if err != nil {
-		// programming error!
-		logger.Panicf("internal error, please report: attempted to use invalid notice options when removing warning")
-		return err
-	}
+	delete(s.notices, uniqueKey)
 	return nil
 }
 
