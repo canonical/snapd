@@ -43,9 +43,10 @@ import (
 )
 
 var (
-	syscheckCheckSystem = syscheck.CheckSystem
-	openAuditWriter     = seclog.OpenAuditWriter
-	newSlogLogger       = seclog.NewSlogLogger
+	syscheckCheckSystem       = syscheck.CheckSystem
+	openAuditWriter           = seclog.OpenAuditWriter
+	newSlogLogger             = seclog.NewSlogLogger
+	systemdInitSdNotifySocket = systemd.InitSdNotifySocket
 )
 
 const (
@@ -66,7 +67,7 @@ func Main() {
 	}
 
 	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
-	systemd.InitSdNotifySocket()
+	systemdInitSdNotifySocket()
 
 	// Set up security logging via the audit subsystem.
 	teardownSecurityLogging := setupSecurityLogging()
