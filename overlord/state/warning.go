@@ -39,15 +39,6 @@ var (
 	errNoWarningExpireAfter = errors.New("warning has no expire-after duration")
 )
 
-type jsonWarning struct {
-	Message     string     `json:"message"`
-	FirstAdded  time.Time  `json:"first-added"`
-	LastAdded   time.Time  `json:"last-added"`
-	LastShown   *time.Time `json:"last-shown,omitempty"`
-	ExpireAfter string     `json:"expire-after,omitempty"`
-	RepeatAfter string     `json:"repeat-after,omitempty"`
-}
-
 type Warning struct {
 	// The notice which backs this warning. Notice-specific fields will be
 	// extracted and parsed as needed from the lastData map.
