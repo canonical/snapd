@@ -53,11 +53,12 @@ void sc_reassociate_with_pid1_mount_ns(void);
  * where namespaces are kept (/run/snapd/ns) is correctly prepared as described
  * above.
  *
- * Experimental features can be enabled via optional feature flags.
+ * Experimental features can be enabled via optional feature flags. The
+ * parallel_instance flag identifies a non-primary snap instance.
  *
  * For more details see namespaces(7).
  **/
-void sc_initialize_mount_ns(unsigned int experimental_features);
+void sc_initialize_mount_ns(unsigned int experimental_features, bool parallel_instance);
 
 /**
  * Data required to manage namespaces amongst a group of processes.

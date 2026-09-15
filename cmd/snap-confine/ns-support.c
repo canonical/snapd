@@ -124,7 +124,7 @@ void sc_reassociate_with_pid1_mount_ns(void) {
     }
 }
 
-void sc_initialize_mount_ns(unsigned int experimental_features) {
+void sc_initialize_mount_ns(unsigned int experimental_features, bool parallel_instance) {
     debug("unsharing snap namespace directory");
 
     /* Ensure that /run/snapd/ns is a directory. */
@@ -169,7 +169,7 @@ void sc_initialize_mount_ns(unsigned int experimental_features) {
     }
 
     /* code that follows is experimental */
-    if (experimental_features & SC_FEATURE_PARALLEL_INSTANCES) {
+    if ((experimental_features & SC_FEATURE_PARALLEL_INSTANCES) && parallel_instance) {
         // Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
         debug("(experimental) ensuring snap mount and data directories are mount points");
         sc_ensure_snap_dir_shared_mounts();

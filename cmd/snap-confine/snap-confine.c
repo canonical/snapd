@@ -536,7 +536,7 @@ int main(int argc, char **argv) {
         if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
             experimental_features |= SC_FEATURE_PARALLEL_INSTANCES;
         }
-        sc_initialize_mount_ns(experimental_features);
+        sc_initialize_mount_ns(experimental_features, !sc_streq(invocation.snap_instance, invocation.snap_name));
         sc_unlock(global_lock_fd);
     }
 
