@@ -564,14 +564,34 @@ pkg_dependencies_ubuntu_nested(){
             qemu-efi-aarch64
         "
     fi
-    if os.query is-ubuntu-ge 24.04; then
-        echo "
-            dpkg-dev
-            debhelper
-            devscripts
-            distro-info
-            linux-firmware
-        "
+
+    if os.query is-ubuntu-ge 20.04; then
+        if os.query is-ubuntu-ge 22.04; then
+            echo "
+                golang
+            "
+        fi
+
+        # These dependencies are used to build the initramfs deb package required for the
+        # kernel snap with initramfs when using Ubuntu 24.04 or later.
+        if os.query is-ubuntu-ge 24.04; then
+            echo "
+                dpkg-dev
+                debhelper
+                devscripts
+                distro-info
+                linux-firmware
+            "
+        else
+            # Add the PPA which is required to install ubuntu-core-initramfs, needed to
+            # build the kernel snap with initramfs when using Ubuntu 20.04 or 22.04.
+            add-apt-repository ppa:snappy-dev/image -y  > /dev/null 2>&1
+            echo "
+                software-properties-common
+                ubuntu-core-initramfs
+                linux-firmware
+            "
+        fi
     fi
 }
 
