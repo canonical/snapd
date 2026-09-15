@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
@@ -51,14 +52,77 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 }
 
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
-	s.testAddMountUnit(c, backend.MountUnitFlags{})
+	s.testAddMountUnit(c, backend.MountUnitOptions{})
 }
 
 func (s *mountunitSuite) TestAddBeforeDriversMountUnit(c *C) {
-	s.testAddMountUnit(c, backend.MountUnitFlags{StartBeforeDriversLoad: true})
+	s.testAddMountUnit(c, backend.MountUnitOptions{StartBeforeDriversLoad: true})
 }
 
-func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
+func (s *mountunitSuite) TestAddMountUnitAppendsIntegrityMountOptions(c *C) {
+	var sysd *systemdtest.FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ConfigureMountUnitOptionsResults.Options = []string{"nodev", "nosuid"}
+		return sysd
+	})
+	defer restore()
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(13),
+		},
+		Version:       "1.1",
+		Architectures: []string{"all"},
+	}
+
+	opts := backend.MountUnitOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "e64838dh",
+		},
+	}
+	expectedIntegrityMountOpts, err := opts.IntegrityDataParams.MountOptions(info.MountFile())
+	c.Assert(err, IsNil)
+
+	err = backend.AddMountUnit(info, systemd.New(systemd.SystemMode, progress.Null), opts)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysd.EnsureMountUnitFileCalls, HasLen, 1)
+	c.Check(sysd.EnsureMountUnitFileCalls[0].Options, DeepEquals,
+		append([]string{"nodev", "nosuid"}, expectedIntegrityMountOpts...))
+}
+
+func (s *mountunitSuite) TestAddMountUnitErrorOnIntegrityMountOptions(c *C) {
+	var sysd *systemdtest.FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &systemdtest.FakeSystemd{}
+		return sysd
+	})
+	defer restore()
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(13),
+		},
+		Version:       "1.1",
+		Architectures: []string{"all"},
+	}
+
+	opts := backend.MountUnitOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type: "unexpected-type",
+		},
+	}
+
+	err := backend.AddMountUnit(info, systemd.New(systemd.SystemMode, progress.Null), opts)
+	c.Assert(err, ErrorMatches, `unexpected integrity data type "unexpected-type"`)
+	c.Check(sysd.EnsureMountUnitFileCalls, HasLen, 0)
+}
+
+func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitOptions) {
 	expectedErr := errors.New("creation error")
 
 	var sysd *systemdtest.FakeSystemd

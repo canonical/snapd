@@ -108,13 +108,13 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	// generate the mount unit for the squashfs
 	t := s.Type()
-	mountFlags := MountUnitFlags{
+	mountOptions := mountUnitOptions{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
 	}
-	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountFlags); err != nil {
+	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountOptions); err != nil {
 		return snapType, nil, err
 	}
 
@@ -191,13 +191,13 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// generate the mount unit for the squashfs
-	mountFlags := MountUnitFlags{
+	mountOptions := mountUnitOptions{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: compInfo.Type == snap.KernelModulesComponent && dev.HasModeenv(),
 	}
-	if err := addMountUnit(compPi, newSystemd(b.preseed, meter), mountFlags); err != nil {
+	if err := addMountUnit(compPi, newSystemd(b.preseed, meter), mountOptions); err != nil {
 		return nil, err
 	}
 
