@@ -616,6 +616,17 @@ func (s *State) Notice(id string) *Notice {
 	return nil
 }
 
+func (s *State) getNotice(userID *uint32, noticeType NoticeType, key string) *Notice {
+	uid, hasUserID := flattenUserID(userID)
+	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
+	notice, ok := s.notices[uniqueKey]
+	if !ok {
+		return nil
+	}
+	return notice
+
+}
+
 // flattenNotices loops over the notices map and returns all non-expired notices
 // so that they can be marshalled to disk. The notices are not sorted.
 //
