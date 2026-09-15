@@ -313,6 +313,11 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("invalid expire-after duration: %w", err)
 		}
 	}
+
+	if n.noticeType == WarningNotice {
+		warning := Warning{notice: n}
+		return warning.validate()
+	}
 	return nil
 }
 
