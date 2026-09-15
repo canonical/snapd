@@ -30,7 +30,7 @@ type assertionsSuite struct{}
 
 var _ = Suite(&assertionsSuite{})
 
-func (s *assertionsSuite) TestAssertSequenced(c *C) {
+func (s *assertionsSuite) TestAssertOrdered(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -52,7 +52,7 @@ func (s *assertionsSuite) TestAssertSequenced(c *C) {
 	), IsNil)
 }
 
-func (s *assertionsSuite) TestAssertSequencedMissingDependency(c *C) {
+func (s *assertionsSuite) TestAssertOrderedMissingDependency(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
