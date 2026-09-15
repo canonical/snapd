@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -46,14 +47,27 @@ type catalogStore struct {
 
 	ops     []string
 	tooMany bool
+	// wrapCtxErr wraps ctx errors
+	wrapCtxErr bool
+}
+
+func (r *catalogStore) ctxErr(ctx context.Context) error {
+	err := ctx.Err()
+	if err == nil {
+		return nil
+	}
+	if r.wrapCtxErr {
+		return fmt.Errorf("cannot perform request: %w", err)
+	}
+	return err
 }
 
 func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.SnapAdder) error {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
-	if ctx.Err() != nil {
-		return ctx.Err()
+	if err := r.ctxErr(ctx); err != nil {
+		return err
 	}
 	r.ops = append(r.ops, "write-catalog")
 	if r.tooMany {
@@ -69,8 +83,8 @@ func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]strin
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
 	}
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
+	if err := r.ctxErr(ctx); err != nil {
+		return nil, err
 	}
 	r.ops = append(r.ops, "sections")
 	if r.tooMany {
@@ -301,7 +315,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(dirs.SnapCommandsDB, testutil.FilePresent)
 }
 
-func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDown(c *C) {
+func (s *catalogRefreshTestSuite) testCatalogRefreshShutDown(c *C, wrapCtxErr bool) {
+	s.store.wrapCtxErr = wrapCtxErr
+
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	cr7.ShutDown()
 
@@ -309,6 +325,17 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDown(c *C) {
 	c.Check(err, IsNil)
 	// store was not contacted after shutdown
 	c.Check(s.store.ops, HasLen, 0)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDown(c *C) {
+	wrapCtxErr := false
+	s.testCatalogRefreshShutDown(c, wrapCtxErr)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDownWrappedCancelError(c *C) {
+	// simulates an HTTP client wrapping context.Canceled (e.g. *url.Error).
+	wrapCtxErr := true
+	s.testCatalogRefreshShutDown(c, wrapCtxErr)
 }
 
 func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {

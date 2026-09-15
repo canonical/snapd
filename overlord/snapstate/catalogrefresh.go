@@ -55,8 +55,9 @@ type catalogRefresh struct {
 	nextCatalogRefresh           time.Time
 	catalogRefreshDelayWithDelta time.Duration
 
-	// ctx is cancelled on ShutDown to abort in-progress store requests.
-	ctx    context.Context
+	// ctx parent context for store requests
+	ctx context.Context
+	// cancel cancels ctx and any in-flight store request
 	cancel context.CancelFunc
 }
 
@@ -142,16 +143,16 @@ func (r *catalogRefresh) Ensure() error {
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
 	err = refreshCatalogs(r.state, theStore, r.ctx)
-	switch err {
-	case nil:
+	switch {
+	case err == nil:
 		logger.Debugf("Catalog refresh succeeded.")
-	case store.ErrTooManyRequests:
+	case errors.Is(err, store.ErrTooManyRequests):
 		logger.Debugf("Catalog refresh postponed.")
 		err = nil
-	case errSkipCatalogRefreshWhenTesting:
+	case errors.Is(err, errSkipCatalogRefreshWhenTesting):
 		logger.Debugf("Catalog refresh skipped when testing is enabled")
 		err = nil
-	case context.Canceled:
+	case errors.Is(err, context.Canceled):
 		// Canceled catalog refresh is not treated as an error.
 		logger.Debugf("Catalog refresh canceled.")
 		err = nil
