@@ -47,7 +47,6 @@ runs:
       run: |
         case "${{ inputs.toolchain }}" in
             default)
-                rm -f fips-build
                 ;;
             FIPS)
                 cp build-aux/snap/snapcraft-fips.yaml build-aux/snap/snapcraft.yaml
@@ -58,7 +57,6 @@ runs:
                         -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
                         commit -m "Use snapcraft-fips.yaml for FIPS build" -- build-aux/snap/snapcraft.yaml
                 fi
-                touch fips-build
                 ;;
             *)
                 echo "unknown toolchain ${{ inputs.toolchain }}"
