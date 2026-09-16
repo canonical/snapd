@@ -334,9 +334,10 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	defer restore()
 
 	msg := &devicemgmthandlers.RequestMessage{
-		BaseID: "msg-1",
-		Kind:   "confdb",
-		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
+		AccountID: "operator",
+		BaseID:    "msg-1",
+		Kind:      "confdb",
+		Body:      `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
 	}
 
 	chgID, err := handler.Apply(context.Background(), s.st, msg)
@@ -345,9 +346,9 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 
 	chg := s.st.Change(chgID)
 	c.Assert(chg, NotNil)
-	var markedID string
-	c.Assert(chg.Get("mgmt-message-id", &markedID), IsNil)
-	c.Check(markedID, Equals, "msg-1")
+	var key string
+	c.Assert(chg.Get("mgmt-message-key", &key), IsNil)
+	c.Check(key, Equals, "operator/msg-1")
 }
 
 func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
@@ -371,9 +372,10 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	defer restore()
 
 	msg := &devicemgmthandlers.RequestMessage{
-		BaseID: "msg-2",
-		Kind:   "confdb",
-		Body:   `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
+		AccountID: "operator",
+		BaseID:    "msg-2",
+		Kind:      "confdb",
+		Body:      `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
 	}
 
 	chgID, err := handler.Apply(context.Background(), s.st, msg)
@@ -382,9 +384,9 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 
 	chg := s.st.Change(chgID)
 	c.Assert(chg, NotNil)
-	var markedID string
-	c.Assert(chg.Get("mgmt-message-id", &markedID), IsNil)
-	c.Check(markedID, Equals, "msg-2")
+	var key string
+	c.Assert(chg.Get("mgmt-message-key", &key), IsNil)
+	c.Check(key, Equals, "operator/msg-2")
 }
 
 func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
