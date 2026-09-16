@@ -1,373 +1,178 @@
 # snapd Development Guide for AI Agents
 
-## Project Overview
+## Scope
 
-**snapd** is the background daemon that manages snap packages across Linux distributions. It's written in Go and consists of a daemon (`snapd`), CLI client (`snap`), and sandbox execution components (`snap-confine`, `snap-exec`).
+snapd manages snap packages and Ubuntu Core systems. The repository contains
+the `snapd` daemon, the `snap` client, sandbox helpers such as `snap-confine`
+and `snap-exec`, and supporting tools.
 
-## Architecture Fundamentals
+This file is a quick reference for project-specific constraints. The documents
+listed under [Authoritative references](#authoritative-references) own the
+detailed guidance and should be consulted before changing the corresponding
+subsystem.
 
-See `ARCHITECTURE.md` for detailed diagrams and explanations.
+## Safety and approval
 
-### Overlord & State Managers
+Get explicit user approval in the current conversation before running a
+command that requires elevated privileges or mutates the local host outside
+the repository. State the expected impact before asking. This includes:
 
-The core architecture is based on `overlord.Overlord` which coordinates **state managers**:
+- using `sudo` or otherwise running as root
+- installing, removing, or refreshing snaps or system packages
+- stopping, starting, or restarting host services
+- replacing or running the host's snapd daemon
 
-- **State managers** implement `StateManager` interface with `Ensure()`.
-  Managers may optionally define the methods `StartUp()` or `Stop()` as defined
-  by the `StateStarterUp` and `StateStopper` interfaces, respectively.
-- All operations are persisted to survive reboots via `overlord/state.State` (backed by `state.json`)
-- **Operations are modeled as `state.Change` → graph of `state.Task`** with do/undo handlers
-- `state.TaskRunner` executes tasks, spawning goroutines for handlers
+Prefer spread with the `garden` backend, a VM, or another isolated environment
+for system-level testing. Building artifacts, running tests confined to the
+workspace, and read-only host inspection do not require this approval.
 
-**Key state managers:**
-- `overlord/snapstate`: Snap lifecycle (install/remove/update), manages `SnapState` per snap
-- `overlord/ifacestate`: Interface connections, security profiles via `interfaces.Repository`
-- `overlord/assertstate`: Signed assertion database (snap-declaration, snap-revision)
-- `overlord/devicestate`: Device identity, registration, Ubuntu Core installation/remodeling
-- `overlord/hookstate`: Snap hook execution
+## Architecture essentials
 
-**Critical import rules:**
-- `snapstate` is imported BY other managers but CANNOT import them
-- Circular imports broken via function hook variables (see `snapstate.ValidateRefreshes`)
-- Hook variables must be assigned in `init()` or `Manager()` constructors
+### Overlord and state managers
 
-### Snap Execution Pipeline
+`overlord.Overlord` coordinates state managers and persistent operations:
 
-```
-snap run <snap.app>  →  exec(snap-confine)  →  exec(snap-exec)  →  actual app
-                        [sandbox setup]        [final prep]
-```
+- State managers implement `StateManager.Ensure()`.
+- Optional lifecycle interfaces are `StateStarterUp`, `StateWaiter`,
+  `StateShutDowner`, and `StateStopper`. See `overlord/stateengine.go` for their
+  exact contracts and invocation order.
+- Operations are persisted as a `state.Change` containing a dependency graph
+  of `state.Task` values, so work can survive daemon and system restarts.
+- `state.TaskRunner` executes task do and undo handlers concurrently when their
+  dependencies permit it.
 
-`snap-confine` uses capabilities to set up mount namespace, AppArmor profiles,
-then execs `snap-exec` which runs the actual snap binary.
+Key manager package roots include `overlord/snapstate`,
+`overlord/ifacestate`, `overlord/assertstate`, `overlord/devicestate`, and
+`overlord/hookstate`.
 
-### Task Handler Pattern
+### Manager dependencies
 
-Task handlers follow strict conventions:
-```go
-func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
-    st := t.State()
-    st.Lock()
-    defer st.Unlock()  // Auto-commits state changes
+Import rules apply to Go packages, not recursively to every package beneath a
+directory:
 
-    // Extract parameters from task
-    var snapsup SnapSetup
-    t.Get("snap-setup", &snapsup)
+- The `overlord/snapstate` manager package root is imported by peer managers
+  and must not directly import their package roots in the opposite direction.
+  `assertstate` and `hookstate` should likewise mostly be consumed rather than
+  consume peer manager roots.
+- Subpackages such as `overlord/ifacestate/ifacerepo`,
+  `overlord/snapstate/backend`, and `overlord/configstate/config` are distinct
+  package boundaries. They may be imported when the dependency direction is
+  sound, no cycle is introduced, and nearby production code establishes the
+  precedent.
+- Break unavoidable cross-manager cycles with exported function hooks or
+  registration mechanisms. Assign hooks from `init` functions or manager
+  constructors. `snapstate.ValidateRefreshes` is a representative example.
 
-    // Slow operations (I/O, network) require unlocking:
-    st.Unlock()
-    defer st.Lock()
-    // ... copy/download/mount operations ...
+See `CODING.md` before introducing or changing a cross-manager dependency.
 
-    // Non idempotent operations need to set task status before returning.
-    st.Lock()
-    t.SetStatus(state.DoneStatus)
-    st.Unlock()
+### Task handlers
 
-    return nil  // TaskRunner sets task to DoneStatus
-}
+Follow these invariants rather than copying a simplified handler template:
 
-func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
-    // Undo must be symmetric and idempotent
-}
-```
+- Hold the `state.State` lock while reading or mutating working state.
+- Release the lock only around slow external operations such as network or
+  substantial filesystem work. Revalidate mutable state after reacquiring the
+  lock; do not overwrite it using values read before the unlock.
+- Make external state changes idempotent or otherwise safe to repeat after a
+  restart.
+- Persist the task-owned prior state or ownership information needed for a
+  precise undo without reverting unrelated concurrent changes.
+- Atomically combine non-idempotent working-state changes with the appropriate
+  `Task.SetStatus` transition before unlocking.
+- On a terminal error, clean up the current task's partial external effects;
+  the task runner normally undoes completed prerequisite tasks, not the failing
+  task itself. Undo handlers must nevertheless tolerate partial execution when
+  an in-flight task is aborted because another task fails.
+- Use conflicts to reject incompatible changes, task dependencies for ordering,
+  and lanes for failure domains rather than serialization. Use
+  `TaskRunner.AddBlocked` to defer tasks when unlocked external work must not
+  overlap, especially when a task can affect multiple snaps and expressing all
+  potential overlap as conflicts would be brittle or unnecessarily reject user
+  operations.
+- Use `TaskRunner.AddCleanup` only for task-local temporary data. Cleanup runs
+  after the whole change is ready and outside conflict protection.
 
-**State locking rules:**
-- Start handlers with `st.Lock(); defer st.Unlock()`
-- Release lock only for slow I/O/network operations
-- Working state + status changes must be atomic via `Task.SetStatus()` before unlock
+`overlord/README.md` is authoritative for task lifecycle, locking, retries,
+lanes, and undo behavior. Use nearby real handlers as implementation examples.
 
-## Skills
+Task handlers that need device information must use the task-aware
+`snapstate.DeviceCtx(st, task, providedCtx)` API, commonly as
+`DeviceCtx(t.State(), t, nil)` inside `snapstate`. A remodel can make the device
+context specific to the task's change. Code without a task may legitimately
+use `DeviceCtxFromState` or another context-specific helper. See
+`overlord/snapstate/devicectx.go` and `ARCHITECTURE.md`.
 
-Detailed, executable workflows for common tasks live in `.agents/skills/`.
+## Coding and testing essentials
 
-## Developer Workflows
+- Follow `gofmt -s` and the naming and package-layout guidance in `CODING.md`.
+- Error messages start lowercase, have no trailing period, and normally use
+  "cannot" rather than "failed to". Prefix programming errors with
+  "internal error:".
+- Introduce an exported error type only when callers need to inspect it.
+- Prefer tests in a dedicated `<package>_test` package. Expose internals through
+  conventional `export_test.go` files only where warranted.
+- snapd tests use gocheck and `testutil` to complement Go's standard testing
+  package. Benchmarks use the standard `testing` package.
+- Mock at system boundaries where practical. Conventional `Mock*` helpers
+  return a parameterless restore function.
+- Keep `*util` packages low-level: they should not import non-`*util` packages
+  and should minimize dependencies.
+- Most code under `overlord` is daemon-only and must not be imported into other
+  snapd tools. The controlled `nomanagers` subset of
+  `overlord/configstate/configcore` is an exception.
 
-### Building & Testing
+When adding spread tests, keep sections in this order:
 
-**Build natively:**
-
-Note that while there are many binaries, usually you only need `snap` and `snapd` for development. Many go binaries have special build rules (.e.g precise static linking). Snapd can be built with keys to the production
-snap store, or with test keys that allow installing snaps
-signed with the well-known, insecure test key.
-
-Building several elements of snapd individually:
-```bash
-go build -o /tmp/build/snapd ./cmd/snapd
-go build -o /tmp/build ./...  # All binaries
-```
-
-The snapd binary implements both the daemon and the client functionality. The
-client functionality is invoked when `argv[0]` equals to `snap`.
-
-You may want to build the snapd snap package with `snapcraft pack` instead, as that constructs a complete, cohesive set of programs.
-
-**Run checks (required before commits):**
-```bash
-./run-checks  # Runs: go fmt, go vet, golangci-lint, unit tests, static checks
-```
-
-**Unit tests:**
-```bash
-go test -check.f TestName  # Run specific test
-go test -v -check.vv       # Verbose mode for debugging hangs
-LANG=C.UTF-8 go test       # Required locale for many tests
-make -C cmd check          # C unit tests
-```
-
-**Integration tests (spread):**
-```bash
-./run-spread garden:ubuntu-22.04-64        # Builds test snapd snap automatically
-NO_REBUILD=1 ./run-spread garden:...       # Skip rebuild when iterating
-./run-spread -reuse garden:ubuntu-22.04-64 # Reuse systems (faster iteration)
-```
-
-### Snapcraft Build
-
-Build snapd snap (preferred for testing):
-```bash
-snapcraft  # Uses build-aux/snap/snapcraft.yaml
-sudo snap install --dangerous snapd_*.snap
-```
-
-## Coding Conventions
-
-Abbreviated coding conventions. See `CODING.md` for details.
-
-### Naming & Style
-
-- Follow `gofmt -s` (enforced by `run-checks`)
-- Error messages: lowercase, no period, "cannot X" not "failed to X"
-- Error types: introduce `*Error` structs only when callers need to inspect them
-- Check similar code in same package for naming consistency
-
-### Package Structure
-
-- Packages should have clear, focused responsibilities at consistent abstraction levels
-- Abstract/primitive packages at bottom (e.g., `boot` → `bootloader`)
-- Application-specific packages at top (e.g., `snapstate` → `snapstate/backend` → `boot`)
-- **`*util` packages**: Cannot import non-util packages, minimize dependencies
-- **`overlord/*state` packages**: Only for snapd daemon, not imported by CLI tools
-  - Exception: subset of `overlord/configstate/configcore` (via `nomanagers` build tag)
-
-### Error Handling
-
-```go
-// Prefix internal programming errors
-return fmt.Errorf("internal error: unexpected state %v", state)
-
-// Use "cannot" for user-facing errors
-return fmt.Errorf("cannot install snap: %v", err)
-
-// Keep error chains concise—avoid "cannot: cannot: cannot"
-```
-
-### Testing Patterns
-
-**Use `gocheck` (not stdlib testing):**
-```go
-package mypackage_test  // Test from exported API perspective
-
-import . "gopkg.in/check.v1"
-
-type mySuite struct{}
-var _ = Suite(&mySuite{})
-
-func (s *mySuite) TestFeature(c *C) {
-    c.Assert(value, Equals, expected)
-}
-```
-
-Note that as a special exception, benchmarks are expected
-to use stdlib `testing` package.
-
-**Export internals via `export_test.go`:**
-```go
-// export_test.go (in package mypackage)
-var TimeNow = timeNow  // Export unexported var for testing
-
-func MockTimeNow(f func() time.Time) (restore func()) {
-    restore = testutil.Backup(&timeNow)
-    timeNow = f
-    return restore
-}
-```
-
-**Test requirements:**
-- Test both `do` and `undo` task handlers symmetrically
-- Verify handlers are idempotent (can safely re-run after partial execution)
-- Test error paths that perform cleanup
-- Minimize mocking—mock at system boundaries (systemd, store) not internal packages
-- Use `<package>test` helpers (e.g., `assertstest`, `devicestatetest`) for complex fixtures
-
-**Spread test section order (enforced by CI):**
 1. `summary` (required)
 2. `details` (required)
 3. `backends`, `systems`, `manual`, `priority`, `warn-timeout`, `kill-timeout`
 4. `environment`, `prepare`, `restore`, `debug`
 5. `execute` (required)
 
+## Validation
 
-**Running specific tests:**
+Start with the narrowest check that can falsify the change, then broaden based
+on risk and the touched surface.
 
-To run specific go tests using the check framework, use commands like this:
+| Touched surface | Focused validation |
+| --- | --- |
+| Go package | Run the relevant package and gocheck test pattern; use `LANG=C.UTF-8` where locale matters |
+| Shared Go behavior | Expand to affected packages, then use `./run-checks` before committing |
+| C code under `cmd` | Run the relevant target, commonly `make -C cmd check` |
+| Spread test or system behavior | Follow the `run-spread-test` skill and target a specific test path |
+| Documentation only | Run the applicable linter and `git diff --check` |
 
-```
-go test -v "${package_path}" -check.v -check.f "${test_pattern}"
-```
+Do not run a bare `./run-spread`; it targets far too much. Build test snap
+artifacts and select spread systems through the repository skills rather than
+inventing local workflows.
 
-## PR & Commit Guidelines
+## Authoritative references
 
-**PR format:**
-- Title: `affected/packages: short summary in lowercase`
-- Keep diffs ≤500 lines (split if larger)
-- Separate refactoring from behavior changes
-- Refactoring must not touch tests unless unavoidable
+- `ARCHITECTURE.md`: entry points, execution pipeline, subsystem ownership,
+  and device-context rationale.
+- `CODING.md`: coding, dependency, testing, PR, and merge policy.
+- `overlord/README.md`: persistent state, changes, tasks, handlers, locking,
+  lanes, and conflicts.
+- `interfaces/builtin/README.md`: implementing built-in interfaces and
+  declaration policy.
+- `HACKING.md`: local development and debugging procedures. Its host-mutating
+  commands remain subject to the approval rule above.
 
-**Commit messages:**
-```
-overlord/snapstate: add helper to get gating holds
-gadget,image: remove LayoutConstraints struct
-o/snapstate: add user and gating holds helpers  # Abbreviate when obvious
-many: correct struct fields and output keys     # Many packages affected
-spread: remove old release of distribution      # spread.yaml affected
-```
+Task-specific workflows live under `.agents/skills/`:
 
-**Merging strategy:**
-- **Prefer "Squash and Merge"** (simplifies cherry-picking)
-- Use "Rebase and Merge" only when commit history is valuable
-- Never use "Create a merge commit"
+- `build-snapd-snap`: build the snapd snap used by integration tests.
+- `build-native-package`: build distribution-native packages.
+- `run-spread-test`: select and run focused spread integration tests.
+- `bump-snapd-apparmor`: update the bundled AppArmor userspace and checks.
 
-## Key Files & Patterns
+## PR and commit conventions
 
-- **`overlord/README.md`**: Deep dive on state managers, task lifecycle, conflicts
-- **`ARCHITECTURE.md`**: Entry points, execution pipeline, manager responsibilities
-- **`CODING.md`**: Full coding conventions, error handling, testing philosophy
-- **`spread.yaml`**: Integration test configuration with backend definitions
-- **Task parameters**: Via `task.Get("snap-setup", &snapsup)` as `SnapSetup` structs
-- **Manager caching**: `state.State.Cache()` with private keys for manager instances
-
-## Debugging
-
-**Debug snapd daemon:**
-```bash
-sudo systemctl stop snapd.service snapd.socket
-sudo SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=3 ./snapd
-# SNAPD_DEBUG_HTTP: 1=requests, 2=responses, 4=bodies (bitfield)
-```
-
-**Debug snap CLI:**
-```bash
-SNAP_CLIENT_DEBUG_HTTP=7 snap install ...  # Same bitfield as above
-```
-
-## Developing Interfaces
-
-Interfaces define how snaps access system resources and interact with each other. Each interface consists of plugs (consumers) and slots (providers).
-
-### Interface Structure
-
-**Every interface must:**
-- Be registered via `registerIface()` in its `init()` function
-- Implement the `Interface` interface (at minimum `Name()` and `AutoConnect()`)
-- Live in `interfaces/builtin/` package
-
-**Common interface pattern:**
-```go
-type myInterface struct {
-    commonInterface  // Embeds standard behavior
-}
-
-func (iface *myInterface) Name() string {
-    return "my-interface"
-}
-
-func init() {
-    registerIface(&myInterface{commonInterface{
-        name:                 "my-interface",
-        summary:              "allows access to X",
-        implicitOnCore:       true,
-        baseDeclarationPlugs: myBaseDeclarationPlugs,
-        baseDeclarationSlots: myBaseDeclarationSlots,
-    }})
-}
-```
-
-### Security Backend Methods
-
-Interfaces generate security profiles by implementing backend-specific methods:
-
-- **`AppArmorConnectedPlug/Slot`**: AppArmor rules when connected
-- **`AppArmorPermanentPlug/Slot`**: AppArmor rules always present
-- **`SecCompConnectedPlug/Slot`**: Seccomp syscall filters when connected
-- **`UDevConnectedPlug/Slot`**: UDev rules for device access
-- **`KModConnectedPlug/Slot`**: Kernel modules to load
-
-**Example AppArmor snippet:**
-```go
-func (iface *myInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
-    plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-    spec.AddSnippet("/dev/my-device rw,")
-    return nil
-}
-```
-
-### Base Declaration Policy
-
-Base declarations define default connection/installation policies:
-
-```go
-const myBaseDeclarationPlugs = `
-  my-interface:
-    allow-installation: false  # Super-privileged, needs snap-declaration
-    deny-auto-connection: true # Manual connection required
-`
-```
-
-**Policy evaluation order (first match wins):**
-1. `deny-*` in plug snap-declaration
-2. `allow-*` in plug snap-declaration
-3. `deny-*` in slot snap-declaration
-4. `allow-*` in slot snap-declaration
-5. `deny-*` in plug base-declaration
-6. `allow-*` in plug base-declaration
-7. `deny-*` in slot base-declaration
-8. `allow-*` in slot base-declaration
-
-### Sanitizers for Validation
-
-Implement sanitizers to validate plug/slot attributes:
-
-```go
-func (iface *myInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
-    path, ok := plug.Attrs["path"].(string)
-    if !ok || path == "" {
-        return fmt.Errorf("my-interface must contain path attribute")
-    }
-    return nil
-}
-```
-
-### Interface Testing Requirements
-
-- Test both plug and slot sides
-- Test connection scenarios
-- Test AppArmor/seccomp snippet generation
-- Verify base declaration policy evaluation
-- Use `ifacetest.BackendSuite` for backend tests
-
-### Key Files
-
-- **`interfaces/builtin/README.md`**: Complete policy evaluation guide
-- **`interfaces/core.go`**: Core interface types and sanitizer interfaces
-- **`interfaces/builtin/common.go`**: `commonInterface` with standard behavior
-- **`interfaces/repo.go`**: Interface repository managing connections
-
-## Common Patterns to Follow
-
-1. **State transitions are persistent**: All `state.Change` and `state.Task` survive restarts
-2. **Task handlers are retriable**: Design for idempotency
-3. **Device context is contextual**: Use `DeviceCtx(task)` in handlers, not `DeviceCtxFromState()`
-4. **Conflicts prevent concurrent ops**: Check `snapstate/conflict.go` for snap operation serialization
-5. **Backend abstraction**: Use `snapstate/backend` for disk state, never manipulate directly
-6. **Interface security profiles are additive**: Each connected interface adds to AppArmor/seccomp profiles
+- Format titles and commit subjects as
+  `affected/packages: short summary in lowercase`.
+- Keep production diffs around 500 lines or less where practical.
+- Separate mechanical refactoring from behavior changes. Avoid changing
+  pre-existing tests during a refactor unless necessary and keep unavoidable
+  test changes minimal.
+- Prefer "Squash and Merge". Use "Rebase and Merge" when preserving distinct
+  commits matters. Never use "Create a merge commit".
+- Do not create commits or branches unless the user explicitly requests it.
