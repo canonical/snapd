@@ -243,9 +243,8 @@ func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketTooLong
 func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketTooLongAfterExpansion(c *C) {
 	instanceKey := ""
 	prefix := "$SNAP_DATA/"
-	var listenStream string
 	si := makeTestSnapInfo(instanceKey)
-	listenStream = prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(si.DataDir()))
+	listenStream := prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(si.DataDir()))
 	service := makeTestServiceWithSingleSocket(si, listenStream)
 
 	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
@@ -259,9 +258,8 @@ func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketTooLong
 func (s *serviceSocketUnitGenSuite) TestGenerateSnapServiceWithPathSocketMaxLenAfterExpansion(c *C) {
 	instanceKey := ""
 	prefix := "$SNAP_DATA/"
-	var listenStream string
 	si := makeTestSnapInfo(instanceKey)
-	listenStream = prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(si.DataDir())-1)
+	listenStream := prefix + strings.Repeat("a", internal.MaxLenUnixPathSocketAddress-len(si.DataDir())-1)
 	service := makeTestServiceWithSingleSocket(si, listenStream)
 
 	generatedSockets, err := internal.GenerateSnapSocketUnitFiles(service)
