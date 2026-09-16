@@ -187,7 +187,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 			return err
 		}
 
-		if err := kernelEnsureKernelDriversTree(
+		if _, err := kernelEnsureKernelDriversTree(
 			kernel.MountPoints{
 				Current: kSnapInfo.MountPoint,
 				Target:  cpi.MountDir(),

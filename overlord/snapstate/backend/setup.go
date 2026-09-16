@@ -134,12 +134,13 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
 	// TODO:COMPS: consider components when installed jointly
-	return kernelEnsureKernelDriversTree(
+	_, err = kernelEnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: cpi.MountDir(),
 			Target:  cpi.MountDir()},
 		nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	return err
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
@@ -378,12 +379,12 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	}
 	finalCompsMntPts := compsMountPoints(finalComps, ksnapName, ksnapRev, kinfo)
 
-	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
+	if _, err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
 
 		// Revert change on error
 		currentCompsMntPts := compsMountPoints(currentComps, ksnapName, ksnapRev, kinfo)
-		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
+		if _, e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
 		}
