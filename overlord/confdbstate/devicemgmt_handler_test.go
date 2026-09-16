@@ -89,7 +89,6 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	defer s.st.Unlock()
 
 	setFeatureFlag(c, s.st, features.Confdb, true)
-	setFeatureFlag(c, s.st, features.ConfdbControl, true)
 
 	views := map[string]any{
 		"wifi-admin": map[string]any{
@@ -130,7 +129,7 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *confdbHandlerSuite) TestValidateFeatureDisabled(c *C) {
+func (s *confdbHandlerSuite) TestValidateConfdbFeatureDisabled(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -138,27 +137,13 @@ func (s *confdbHandlerSuite) TestValidateFeatureDisabled(c *C) {
 		confdbControl: func() (*asserts.ConfdbControl, error) { return nil, nil },
 	})
 
-	tests := []struct {
-		feature features.SnapdFeature
-	}{
-		{features.Confdb},
-		{features.ConfdbControl},
-	}
+	setFeatureFlag(c, s.st, features.Confdb, false)
 
-	for _, t := range tests {
-		cmt := Commentf("feature: %s", t.feature)
-		expectedErr := fmt.Sprintf("cannot validate message: feature flag %q is disabled", t.feature)
+	err := handler.Validate(context.Background(), s.st, &devicemgmthandlers.RequestMessage{})
+	c.Check(err, ErrorMatches, `cannot validate message: feature flag "confdb" is disabled`)
 
-		setFeatureFlag(c, s.st, t.feature, false)
-
-		err := handler.Validate(context.Background(), s.st, &devicemgmthandlers.RequestMessage{})
-		c.Check(err, ErrorMatches, expectedErr, cmt)
-
-		var authErr *devicemgmthandlers.UnauthorizedError
-		c.Check(errors.As(err, &authErr), Equals, false, cmt)
-
-		setFeatureFlag(c, s.st, t.feature, true)
-	}
+	var authErr *devicemgmthandlers.UnauthorizedError
+	c.Check(errors.As(err, &authErr), Equals, false)
 }
 
 func (s *confdbHandlerSuite) TestValidateMismatchedAuthority(c *C) {

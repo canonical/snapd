@@ -845,7 +845,7 @@ func (s *confdbControlSuite) setFeatureFlag(c *C, confName string) {
 
 func (s *confdbControlSuite) prereqs(c *C) {
 	s.setFeatureFlag(c, "experimental.confdb")
-	s.setFeatureFlag(c, "experimental.confdb-control")
+	s.setFeatureFlag(c, "experimental.remote-device-management")
 
 	s.st.Lock()
 	encDevKey, _ := asserts.EncodePublicKey(deviceKey.PublicKey())
@@ -888,12 +888,12 @@ func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdb-control" is disabled: set 'experimental.confdb-control' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "remote-device-management" is disabled: set 'experimental.remote-device-management' to true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
 	s.setFeatureFlag(c, "experimental.confdb")
-	s.setFeatureFlag(c, "experimental.confdb-control")
+	s.setFeatureFlag(c, "experimental.remote-device-management")
 
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)
