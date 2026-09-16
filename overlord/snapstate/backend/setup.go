@@ -128,19 +128,47 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 	return t, installRecord, nil
 }
 
-// SetupKernelSnap does extra configuration for kernel snaps.
-func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+// SetupKernelSnapOptions carries extra options for SetupKernelSnap.
+type SetupKernelSnapOptions struct {
+	// Regenerate requests regenerating the artifacts created when setting up a
+	// given kernel. This may include rebuilding the kernel modules and firmware
+	// trees. Regenerate may be requeted for a live kernel.
+	Regenerate bool
+}
+
+// SetupKernelSnap does extra configuration for kernel snaps. currentComps
+// should be the currently active kernel-modules components for
+// instanceName/rev (used by the Regenerate mode; pass nil for a fresh
+// install, see the TODO below).
+func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, opts *SetupKernelSnapOptions, meter progress.Meter) error {
+	if opts == nil {
+		opts = &SetupKernelSnapOptions{}
+	}
+
 	// Build kernel tree that will be mounted from initramfs
 	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
-	// TODO:COMPS: consider components when installed jointly
+	kMntPts := kernel.MountPoints{
+		Current: cpi.MountDir(),
+		Target:  cpi.MountDir(),
+	}
+
+	kinfo, err := kernel.ReadInfo(kMntPts.Current)
+	if err != nil {
+		return err
+	}
+	compsMntPts := compsMountPoints(currentComps, instanceName, rev, kinfo)
+
+	// TODO:COMPS: consider components when installed jointly (currentComps
+	// is always nil for a fresh install today, see doPrepareKernelSnap)
 	return kernelEnsureKernelDriversTree(
-		kernel.MountPoints{
-			Current: cpi.MountDir(),
-			Target:  cpi.MountDir()},
-		nil, destDir,
-		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+		kMntPts,
+		compsMntPts, destDir,
+		&kernel.KernelDriversTreeOptions{
+			KernelInstall: !opts.Regenerate,
+			Regenerate:    opts.Regenerate,
+		})
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
