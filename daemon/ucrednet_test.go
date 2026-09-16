@@ -27,9 +27,13 @@ import (
 	sys "syscall"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ucrednetSuite struct {
+	testutil.BaseTest
+
 	ucred *sys.Ucred
 	err   error
 }
@@ -44,9 +48,20 @@ func (s *ucrednetSuite) SetUpSuite(c *check.C) {
 	getUcred = s.getUcred
 }
 
+func (s *ucrednetSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(MockAppArmorLabelFromPid(func(int) (string, error) {
+		return "unconfined", nil
+	}))
+	s.AddCleanup(MockCgroupProcessPathInTrackingCgroup(func(int) (string, error) {
+		return "/", nil
+	}))
+}
+
 func (s *ucrednetSuite) TearDownTest(c *check.C) {
 	s.ucred = nil
 	s.err = nil
+	s.BaseTest.TearDownTest(c)
 }
 func (s *ucrednetSuite) TearDownSuite(c *check.C) {
 	getUcred = sys.GetsockoptUcred
@@ -129,12 +144,12 @@ func (s *ucrednetSuite) TestAcceptConnContextUnreadableExe(c *check.C) {
 	c.Check(name, check.Equals, "")
 }
 
-func (s *ucrednetSuite) TestAcceptConnContextInstanceName(c *check.C) {
+func (s *ucrednetSuite) TestAcceptConnContextInstanceNameFromCgroup(c *check.C) {
 	lookupCalls := 0
-	restore := MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+	restore := MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
 		lookupCalls++
 		c.Check(pid, check.Equals, 100)
-		return "some-snap_instance", nil
+		return "/system.slice/snap.some-snap_instance.app.service", nil
 	})
 	defer restore()
 
@@ -168,16 +183,38 @@ func (s *ucrednetSuite) TestAcceptConnContextInstanceName(c *check.C) {
 	c.Check(lookupCalls, check.Equals, 1)
 }
 
-func (s *ucrednetSuite) TestAcceptConnContextUnknownInstanceName(c *check.C) {
-	lookupErr := errors.New("cannot find snap security tag")
-	lookupCalls := 0
-	restore := MockCgroupSnapNameFromPid(func(pid int) (string, error) {
-		lookupCalls++
-		c.Check(pid, check.Equals, 100)
-		return "", lookupErr
-	})
-	defer restore()
+func (s *ucrednetSuite) TestAcceptConnContextNoSecurityTag(c *check.C) {
+	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
+	sock := filepath.Join(c.MkDir(), "sock")
+	l, err := net.Listen("unix", sock)
+	c.Assert(err, check.IsNil)
+	wl := &ucrednetListener{Listener: l}
+	defer wl.Close()
 
+	go func() {
+		cli, err := net.Dial("unix", sock)
+		c.Assert(err, check.IsNil)
+		cli.Close()
+	}()
+
+	conn, err := wl.Accept()
+	c.Assert(err, check.IsNil)
+	defer conn.Close()
+
+	ctx := ucrednetConnContext(context.Background(), conn)
+
+	u, err := ucrednetGet(ctx)
+	c.Assert(err, check.IsNil)
+
+	_, err = u.SecurityTag()
+	c.Check(err, check.ErrorMatches, "apparmor: invalid security tag\ncgroup: cannot find snap security tag")
+
+	c.Check(u.Uid, check.Equals, uint32(42))
+	c.Check(u.Socket, check.Equals, sock)
+	c.Check(u.PIDForPolkit, check.Equals, int32(100))
+}
+
+func (s *ucrednetSuite) acceptConnContext(c *check.C) *ucrednet {
 	s.ucred = &sys.Ucred{Pid: 100, Uid: 42}
 	sock := filepath.Join(c.MkDir(), "sock")
 	l, err := net.Listen("unix", sock)
@@ -198,29 +235,108 @@ func (s *ucrednetSuite) TestAcceptConnContextUnknownInstanceName(c *check.C) {
 	ctx := ucrednetConnContext(context.Background(), conn)
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
+	return u
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextAppArmor(c *check.C) {
+	s.AddCleanup(MockCgroupProcessPathInTrackingCgroup(func(int) (string, error) {
+		c.Error("cgroups must not be queried when AppArmor identifies the snap")
+		return "", nil
+	}))
+
+	calls := 0
+	s.AddCleanup(MockAppArmorLabelFromPid(func(pid int) (string, error) {
+		c.Check(pid, check.Equals, 100)
+		calls++
+		return "snap.some-snap.app", nil
+	}))
+
+	u := s.acceptConnContext(c)
+
+	tag, err := u.SecurityTag()
+	c.Assert(err, check.IsNil)
+	c.Check(tag.String(), check.Equals, "snap.some-snap.app")
+
 	name, err := u.InstanceName()
-	c.Check(err, check.Equals, lookupErr)
-	c.Check(name, check.Equals, "")
-	c.Check(u.Uid, check.Equals, uint32(42))
-	c.Check(u.Socket, check.Equals, sock)
-	c.Check(u.PIDForPolkit, check.Equals, int32(100))
-	c.Check(lookupCalls, check.Equals, 1)
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "some-snap")
+	c.Check(calls, check.Equals, 1)
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextCgroupFallback(c *check.C) {
+
+	for _, t := range []struct {
+		label        string
+		readLabelErr error
+	}{
+		{label: "unconfined"},
+		{label: "snap.some-snap.app.garbage"},
+		{readLabelErr: errors.New("cannot read security label")},
+	} {
+		comment := check.Commentf("label: %q, label error: %v", t.label, t.readLabelErr)
+
+		var calls []string
+		s.AddCleanup(MockAppArmorLabelFromPid(func(pid int) (string, error) {
+			c.Check(pid, check.Equals, 100)
+			calls = append(calls, "apparmor")
+			return t.label, t.readLabelErr
+		}))
+		s.AddCleanup(MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+			c.Check(pid, check.Equals, 100)
+			calls = append(calls, "cgroup")
+			return "/system.slice/snap.fallback-snap.app.service", nil
+		}))
+
+		u := s.acceptConnContext(c)
+
+		tag, err := u.SecurityTag()
+		c.Assert(err, check.IsNil, comment)
+		c.Check(tag.String(), check.Equals, "snap.fallback-snap.app", comment)
+
+		name, err := u.InstanceName()
+		c.Check(err, check.IsNil, comment)
+		c.Check(name, check.Equals, "fallback-snap", comment)
+		c.Check(calls, check.DeepEquals, []string{"apparmor", "cgroup"}, comment)
+	}
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextSecurityTagLookupErrors(c *check.C) {
+	var calls []string
+	s.AddCleanup(MockAppArmorLabelFromPid(func(pid int) (string, error) {
+		c.Check(pid, check.Equals, 100)
+		calls = append(calls, "apparmor")
+		return "", errors.New("cannot read security label")
+	}))
+	s.AddCleanup(MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Check(pid, check.Equals, 100)
+		calls = append(calls, "cgroup")
+		return "", errors.New("cannot find tracking cgroup")
+	}))
+
+	u := s.acceptConnContext(c)
+
+	_, err := u.SecurityTag()
+	c.Check(err, check.ErrorMatches, "apparmor: cannot read security label\ncgroup: cannot find tracking cgroup")
+	c.Check(calls, check.DeepEquals, []string{"apparmor", "cgroup"})
 }
 
 func (s *ucrednetSuite) TestEmptyNames(c *check.C) {
 	u := NewUcrednet("", "", 42, "/run/snap.socket")
 	name, err := u.InstanceName()
 	c.Check(name, check.Equals, "")
-	c.Check(err, check.ErrorMatches, "snap instance name is not available")
+	c.Check(err, check.ErrorMatches, "security tag is not available")
 	name, err = u.UntrustedProcessExeName()
 	c.Check(name, check.Equals, "")
 	c.Check(err, check.ErrorMatches, "process executable name is not available")
+	tag, err := u.SecurityTag()
+	c.Check(tag, check.IsNil)
+	c.Check(err, check.ErrorMatches, "security tag is not available")
 }
 
 func (s *ucrednetSuite) TestString(c *check.C) {
 	var u *ucrednet
 	c.Check(u.String(), check.Equals, "snap=;uid=;socket=;")
-	u = NewUcrednet("some-snap_instance", "", 42, "/run/snap.socket")
+	u = NewUcrednet("snap.some-snap_instance.app", "", 42, "/run/snap.socket")
 	u.PIDForPolkit = 100
 	c.Check(u.String(), check.Equals, "snap=some-snap_instance;uid=42;socket=/run/snap.socket;")
 	u = NewUcrednet("", "", 42, "/run/snap.socket")
@@ -309,24 +425,30 @@ func (s *ucrednetSuite) TestGetNothing(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestGet(c *check.C) {
-	original := NewUcrednet("some-snap", "/usr/bin/snap", 42, "/run/snap.socket")
+	original := NewUcrednet("snap.some-snap.app", "/usr/bin/snap", 42, "/run/snap.socket")
 	ctx := ucrednetWithCredentials(context.Background(), original)
-	original.Uid = 0
 
 	u, err := ucrednetGet(ctx)
 	c.Assert(err, check.IsNil)
+
 	name, err := u.InstanceName()
 	c.Check(err, check.IsNil)
 	c.Check(name, check.Equals, "some-snap")
-	name, err = u.UntrustedProcessExeName()
+
+	tag, err := u.SecurityTag()
+	c.Assert(err, check.IsNil)
+	c.Check(tag.String(), check.Equals, "snap.some-snap.app")
+
+	proc, err := u.UntrustedProcessExeName()
 	c.Check(err, check.IsNil)
-	c.Check(name, check.Equals, "/usr/bin/snap")
+	c.Check(proc, check.Equals, "/usr/bin/snap")
+
 	c.Check(u.Uid, check.Equals, uint32(42))
 	c.Check(u.Socket, check.Equals, "/run/snap.socket")
 }
 
 func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("snap.some-snap.app", "", 42, "/run/snap.socket"))
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
@@ -350,7 +472,7 @@ func (s *ucrednetSuite) TestGetWithInterface(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("snap.some-snap.app", "", 42, "/run/snap.socket"))
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 	u, ifaces, err := ucrednetGetWithInterfaces(ctx)
 	c.Assert(err, check.IsNil)
@@ -363,7 +485,7 @@ func (s *ucrednetSuite) TestAttachInterface(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("snap.some-snap.app", "", 42, "/run/snap.socket"))
 	for i := 0; i < 2; i++ {
 		ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 		u, ifaces, err := ucrednetGetWithInterfaces(ctx)
@@ -378,7 +500,7 @@ func (s *ucrednetSuite) TestAttachInterfaceRepeatedly(c *check.C) {
 }
 
 func (s *ucrednetSuite) TestAttachInterfaceMultiple(c *check.C) {
-	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("some-snap", "", 42, "/run/snap.socket"))
+	ctx := ucrednetWithCredentials(context.Background(), NewUcrednet("snap.some-snap.app", "", 42, "/run/snap.socket"))
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
 	ctx = ucrednetAttachInterface(ctx, "snap-interfaces-requests-control")
 	ctx = ucrednetAttachInterface(ctx, "snap-refresh-observe")
