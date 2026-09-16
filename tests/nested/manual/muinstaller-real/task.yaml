@@ -90,7 +90,7 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel assertion and snap through repack-kernel tool
-  "$TESTSTOOLS"/repack-kernel --mode initramfs --kernel-branch "$version" --kernel-channel edge --output-snap "$PWD/pc-kernel-from-store.snap"
+    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel edge --output-snap "$PWD/pc-kernel-from-store.snap"
   # the fakestore needs this assertion
   snap ack pc-kernel.assert
 
