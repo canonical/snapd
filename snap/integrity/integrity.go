@@ -81,13 +81,19 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+func integrityFilePath(snapPath, digest string) string {
+	// strip .snap suffix
+	basePath := strings.TrimSuffix(snapPath, ".snap")
+	// TODO: change dm-verity file name to <instance_name>_<revision>_<root_hash>.dm-verity
+	return fmt.Sprintf("%s.dmverity_%s", basePath, digest)
+}
+
 // IntegrityFile returns the integrity file name corresponding to the integrity
 // type. Currently, only dm-verity is supported.
 func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error) {
 	switch params.Type {
 	case "dm-verity":
-		// TODO: change dm-verity file name to <instance_name>_<revision>_<root_hash>.dm-verity
-		return fmt.Sprintf("%s.dmverity_%s", snapPath, params.Digest), nil
+		return integrityFilePath(snapPath, params.Digest), nil
 	default:
 		return "", fmt.Errorf("unexpected integrity data type %q", params.Type)
 	}

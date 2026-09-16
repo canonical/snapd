@@ -62,7 +62,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	digest := "test"
-	verityFilePath := snapPath + ".dmverity_" + digest
+	verityFilePath := "foo.dmverity_test"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -95,7 +95,7 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataCrossCheckError(c *C) {
 	c.Assert(err, IsNil)
 
 	digest := "test"
-	verityFilePath := snapPath + ".dmverity_" + digest
+	verityFilePath := "foo.dmverity_test"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -217,13 +217,10 @@ func (s *IntegrityTestSuite) TestLookupDmVerityDataNotExist(c *C) {
 		HashBlockSize: 4096,
 	}
 
-	digest := ""
-	verityFilePath := snapPath + ".dmverity_" + digest
-
 	hashFileName, err := integrity.LookupDmVerityDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Check(hashFileName, Equals, "")
 	c.Check(errors.Is(err, integrity.ErrDmVerityDataNotFound), Equals, true)
-	c.Check(err, ErrorMatches, fmt.Sprintf("dm-verity data not found: %q doesn't exist.", verityFilePath))
+	c.Check(err, ErrorMatches, `dm-verity data not found: "foo.dmverity_" doesn't exist.`)
 }
 
 func (s *IntegrityTestSuite) TestLookupDmVerityDataAnyError(c *C) {
@@ -311,7 +308,7 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 
 	integrityFile, err := idp.IntegrityFile("/path/to/instance.snap")
 	c.Assert(err, IsNil)
-	c.Check(integrityFile, Equals, "/path/to/instance.snap.dmverity_aaa")
+	c.Check(integrityFile, Equals, "/path/to/instance.dmverity_aaa")
 
 	idp = integrity.IntegrityDataParams{
 		Type:   "bad-type",
@@ -331,7 +328,7 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsMountOptions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, []string{
 		"verity.roothash=aaa",
-		"verity.hashdevice=/path/to/instance.snap.dmverity_aaa",
+		"verity.hashdevice=/path/to/instance.dmverity_aaa",
 	})
 
 	idp = integrity.IntegrityDataParams{
