@@ -1,5 +1,13 @@
 # Implementing built-in interfaces
 
+Snap applications and services run in a sandbox by default. Built-in
+interfaces encapsulate the policy governing access to system resources and
+interactions with other snaps. Security backends translate that policy into
+low-level security artifacts and manage the profiles and configuration of
+security-relevant subsystems such as AppArmor, seccomp, mount namespaces,
+udev, and kernel modules. See [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for
+the broader system context.
+
 Built-in interfaces live in this package and register themselves with
 `registerIface` from an `init` function. Every implementation satisfies
 `interfaces.Interface`, whose required methods are `Name` and `AutoConnect`.
