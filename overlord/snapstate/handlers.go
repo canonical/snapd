@@ -5046,7 +5046,7 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
 			err = m.backend.SetupKernelSnap(
-				snapsup.InstanceName().String(), snapsup.Revision(), pm)
+				snapsup.InstanceName().String(), snapsup.Revision(), nil, nil, pm)
 		})
 	st.Lock()
 	if err != nil {
@@ -5192,7 +5192,7 @@ func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb)
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName().String(), prevKernelRev, pm)
+					currInfo.InstanceName().String(), prevKernelRev, nil, nil, pm)
 			})
 		st.Lock()
 		if err != nil {
