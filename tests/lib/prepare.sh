@@ -1145,6 +1145,7 @@ setup_reflash_magic() {
 
     # we cannot use "snaps.names tool" here because no snaps are installed yet
     core_name="core"
+    core_version="16"
     core_branch="latest"
     if is_test_target_core 18; then
         core_name="core18"
@@ -1265,7 +1266,7 @@ EOF
     fi
 
     kernel_extra=""
-    if [ "$core_version" -ge 20 ] || { [ "$core_version" -eq 18 ] && [[ "$SPREAD_BACKEND" =~ openstack ]]; }; then
+    if [ "$core_version" -ge 20 ] || [ "$KERNEL_CHANNEL" != "$GADGET_CHANNEL" ] || { [ "$core_version" -eq 18 ] && [[ "$SPREAD_BACKEND" =~ openstack ]]; }; then
         kernel_extra="$IMAGE_HOME/pc-kernel.snap"
         "$TESTSTOOLS"/repack-kernel --mode prepare --core-version "$core_version" --kernel-branch "$core_branch" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$kernel_extra"
     fi

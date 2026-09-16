@@ -87,7 +87,7 @@ execute: |
   rm -rf pc-gadget
 
   # Retrieve kernel through repack-kernel tool
-  "$TESTSTOOLS"/repack-kernel --mode initramfs --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB"/prepare.sh
