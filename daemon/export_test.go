@@ -82,6 +82,23 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 
 type Ucrednet = ucrednet
 
+func NewUcrednet(instanceName, processExeName string, uid uint32, socket string) *Ucrednet {
+	return &ucrednet{
+		instanceName:            instanceName,
+		untrustedProcessExeName: processExeName,
+		Uid:                     uid,
+		Socket:                  socket,
+	}
+}
+
+func (un *ucrednet) SetInstanceNameErr(err error) {
+	un.instanceNameErr = err
+}
+
+func (un *ucrednet) SetUntrustedProcessExeNameErr(err error) {
+	un.untrustedProcessExeNameErr = err
+}
+
 func AddUcrednetToRequest(r *http.Request, ucred *Ucrednet, ifaces ...string) {
 	ctx := ucrednetWithCredentials(r.Context(), ucred)
 	for _, iface := range ifaces {
