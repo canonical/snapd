@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 
 #include "fault-injection.h"
 #include "privs.h"
@@ -290,6 +291,10 @@ void sc_do_mount(const char *source, const char *target, const char *fs_type, un
 
 bool sc_do_optional_mount(const char *source, const char *target, const char *fs_type, unsigned long mountflags,
                           const void *data) {
+    struct stat st;
+    if ((source != NULL && stat(source, &st) < 0 && errno == ENOENT) || (stat(target, &st) < 0 && errno == ENOENT)) {
+        return false;
+    }
     return sc_do_mount_ex(source, target, fs_type, mountflags, data, true);
 }
 
