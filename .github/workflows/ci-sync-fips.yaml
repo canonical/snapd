@@ -16,6 +16,7 @@ concurrency:
 jobs:
   open-sync-pr:
     runs-on: ubuntu-latest
+    if: github.repository == 'canonical/snapd'
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
