@@ -53,6 +53,13 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	return newModelDeviceContext(devMgr, modelAs), nil
 }
 
+// EarlyDeviceCtx resolves a device context from the acknowledged model or the
+// selected seed. If noModel is true, it skips looking up the acknowledged
+// model. Callers must hold the state lock.
+func EarlyDeviceCtx(st *state.State, noModel bool) (snapstate.DeviceContext, error) {
+	return deviceMgr(st).earlyDeviceContext(noModel)
+}
+
 type groundDeviceContext struct {
 	model      *asserts.Model
 	systemMode string
