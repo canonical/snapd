@@ -77,11 +77,16 @@ func (s *assertionsSuite) TestAssertDoesNotPrecede(c *C) {
 
 	first := st.NewTask("first", "...")
 	second := st.NewTask("second", "...")
-	unrelated := st.NewTask("unrelated", "...")
 	second.WaitFor(first)
 	later := tasktest.NewSelection([]*state.Task{second})
-	others := tasktest.NewSelection([]*state.Task{first, unrelated})
+	earlier := tasktest.NewSelection([]*state.Task{first})
 
+	// assertion passes when tasks in earlier depend on tasks in later
+	c.Check(tasktest.AssertDoesNotPrecede(later, earlier), IsNil)
+
+	others := tasktest.NewSelection([]*state.Task{st.NewTask("unrelated", "...")})
+
+	// assertion passes when there are no dependencies between selections
 	c.Check(tasktest.AssertDoesNotPrecede(later, others), IsNil)
 }
 
