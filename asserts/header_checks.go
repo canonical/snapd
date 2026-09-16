@@ -295,6 +295,34 @@ func checkOptionalBool(headers map[string]any, name string) (bool, error) {
 	return checkOptionalBoolWhat(headers, name, "header")
 }
 
+// CheckNotEmptyString checks that the named header is a non-empty string.
+func CheckNotEmptyString(assert AssertionBase, name string) (string, error) {
+	return checkNotEmptyString(assert.headers, name)
+}
+
+// CheckRFC3339Date checks that the named header is a valid RFC 3339 date.
+func CheckRFC3339Date(assert AssertionBase, name string) (time.Time, error) {
+	return checkRFC3339Date(assert.headers, name)
+}
+
+// CheckUint checks that the named header is an unsigned integer with at most
+// the given bit size.
+func CheckUint(assert AssertionBase, name string, bitSize int) (uint64, error) {
+	return checkUint(assert.headers, name, bitSize)
+}
+
+// CheckDigest checks that the named header is a valid digest for the given
+// hash algorithm.
+func CheckDigest(assert AssertionBase, name string, hash crypto.Hash) (string, error) {
+	return checkDigest(assert.headers, name, hash)
+}
+
+// CheckOptionalBool checks that the named optional header, if present, is a
+// valid boolean string.
+func CheckOptionalBool(assert AssertionBase, name string) (bool, error) {
+	return checkOptionalBool(assert.headers, name)
+}
+
 func checkOptionalBoolWhat(headers map[string]any, name, what string) (bool, error) {
 	value, ok := headers[name]
 	if !ok {
