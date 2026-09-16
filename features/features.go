@@ -56,15 +56,14 @@ const (
 	RefreshAppAwarenessUX
 	// Confdb enables experimental configuration based on confdb and views.
 	Confdb
-	// ConfdbControl enables experimental remote management of confdb.
-	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 	// ContentCompatLabel enables compatibility labels for the content interface.
 	ContentCompatLabel
 	// Clustering enables experimental clustering support.
 	Clustering
-	// RemoteDeviceManagement enables experimental remote management of the device through the Store.
+	// RemoteDeviceManagement enables experimental remote management of the device
+	// through the Store, including remote management of confdb.
 	RemoteDeviceManagement
 	// SeedRefresh enables experimental seed creation during model snap refresh.
 	SeedRefresh
@@ -106,8 +105,7 @@ var featureNames = map[SnapdFeature]string{
 
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
 
-	Confdb:        "confdb",
-	ConfdbControl: "confdb-control",
+	Confdb: "confdb",
 
 	AppArmorPrompting:  "apparmor-prompting",
 	ContentCompatLabel: "content-compatibility-label",
