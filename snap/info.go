@@ -83,7 +83,7 @@ type ContainerPlaceInfo interface {
 type PlaceInfo interface {
 	// InstanceName returns the name of the snap decorated with instance
 	// key, if any.
-	InstanceName() string
+	InstanceName() naming.InstanceName
 
 	// SnapName returns the name of the snap.
 	SnapName() naming.SnapName
@@ -515,7 +515,7 @@ func (s *Info) Provenance() string {
 
 // InstanceName returns the blessed name of the snap decorated with instance
 // key, if any.
-func (s *Info) InstanceName() string {
+func (s *Info) InstanceName() naming.InstanceName {
 	return InstanceName(s.SnapName().String(), s.InstanceKey)
 }
 
@@ -1917,7 +1917,7 @@ func SnapComponentName(snapInstance, componentName string) string {
 
 // InstanceName takes the snap name and the instance key and returns an instance
 // name of the snap.
-func InstanceName(snapName, instanceKey string) string {
+func InstanceName(snapName, instanceKey string) naming.InstanceName {
 	if instanceKey != "" {
 		return fmt.Sprintf("%s_%s", snapName, instanceKey)
 	}
