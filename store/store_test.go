@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -2542,9 +2541,6 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt support is disabled")
-	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -2590,9 +2586,6 @@ func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt support is disabled")
-	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
