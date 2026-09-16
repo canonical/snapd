@@ -1,0 +1,161 @@
+summary: Verify a stale kernel drivers tree is regenerated live on snapd startup
+
+details: |
+  A kernel snap's on-disk drivers tree (the symlink/depmod tree under
+  /var/lib/snapd/kernel/<kernel>/<rev>, bind-mounted at
+  /usr/lib/{modules,firmware}) is normally only rebuilt when the kernel
+  snap itself is installed/refreshed/reverted, or when a kernel-modules
+  component is installed/removed. A fix to the generation logic itself
+  would therefore never reach an already-provisioned device unless the
+  kernel snap happens to get refreshed too.
+
+  This test simulates a drivers tree that was built by "older" logic
+  (by deleting its generator-version marker, one symlink and one
+  modprobe data file from the modules tree, and one entry from the
+  firmware tree) and verifies that simply restarting snapd is enough to
+  detect and correct it live, without a reboot, via the automatic
+  "regenerate-kernel-drivers-tree" change.
+
+systems:
+  - -ubuntu-1*
+  - -ubuntu-20*
+  - -ubuntu-22*
+
+environment:
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: false
+
+prepare: |
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  # Returns the status ("Done"/"Undone"/"Error"/"Doing"/...) of the
+  # first change of the given kind, or empty if none exists yet.
+  change_status_for_kind() {
+      local kind="$1"
+      remote.exec "sudo snap debug api /v2/changes?select=all" | \
+          gojq -r "[.result[] | select(.kind == \"${kind}\")][0].status // empty"
+  }
+
+  # Returns how many changes of the given kind exist (any status).
+  change_count_for_kind() {
+      local kind="$1"
+      remote.exec "sudo snap debug api /v2/changes?select=all" | \
+          gojq "[.result[] | select(.kind == \"${kind}\")] | length"
+  }
+
+  # Waits (up to ~2 minutes) for a change of the given kind to reach a
+  # ready (non-in-progress) status, then echoes that status.
+  wait_for_change_ready() {
+      local kind="$1" tries=0 status=""
+      while [ "$tries" -lt 120 ]; do
+          status="$(change_status_for_kind "$kind")"
+          case "$status" in
+              Done|Undone|Error) echo "$status"; return 0 ;;
+          esac
+          tries=$((tries + 1))
+          sleep 1
+      done
+      echo "$status"
+      return 1
+  }
+
+  # Wait until the system is fully seeded before poking at the drivers
+  # tree; also gives us a first-boot marker that should already be
+  # up-to-date (a fresh install always writes it).
+  remote.exec "sudo snap wait system seed.loaded"
+
+  kernel_rev="$(remote.exec 'snap list pc-kernel' | tail -1 | awk '{print $3}')"
+  kver="$(remote.exec uname -r)"
+  drivers_tree="/var/lib/snapd/kernel/pc-kernel/${kernel_rev}"
+  modules_dir="${drivers_tree}/lib/modules/${kver}"
+  firmware_dir="${drivers_tree}/lib/firmware"
+
+  # Sanity check: the tree and its marker already exist from the normal
+  # install/seeding flow.
+  remote.exec "test -d ${modules_dir}"
+  remote.exec "test -f ${drivers_tree}/kernel.json"
+
+  # Pick one top-level firmware vendor entry to corrupt too, if the
+  # kernel snap ships any (excluding "updates", which is reserved for
+  # kernel-modules components and is not part of what this test
+  # exercises).
+  fw_entry="$(remote.exec "ls /snap/pc-kernel/current/firmware 2>/dev/null | grep -vx updates | head -1 || true")"
+  if [ -z "$fw_entry" ]; then
+      echo "no usable firmware entry in the kernel snap?"
+      exit 1
+  fi
+
+  # Pick one modprobe data file (a regular file copied from the kernel
+  # snap, named modules.*) to delete as well - with no kernel-modules
+  # components installed depmod is not involved, so the restore must be
+  # an exact copy of what the kernel snap ships.
+  modinfo_file="$(remote.exec "ls /snap/pc-kernel/current/modules/${kver} | grep '^modules\.' | head -1")"
+  if [ -z "$modinfo_file" ]; then
+      echo "no modules.* files in the kernel snap?"
+      exit 1
+  fi
+
+  # Simulate a tree built by older/buggy generation logic:
+  # - delete the generator-version marker, so it is treated as
+  #   version 0 (always stale, regardless of what this snapd build's
+  #   own generator version actually is);
+  # - delete the "kernel" symlink from the live modules tree (always
+  #   present in a correctly-built tree, see createModulesSubtree);
+  # - delete one modprobe data file from the live modules tree;
+  # - delete one top-level firmware vendor symlink.
+  remote.exec "sudo rm -f ${drivers_tree}/kernel.json"
+  remote.exec "sudo rm -f ${modules_dir}/kernel"
+  remote.exec "sudo rm -f ${modules_dir}/${modinfo_file}"
+  remote.exec "sudo rm -rfv ${firmware_dir}/${fw_entry}"
+
+  # Confirm the corruption is visible live, through the bind-mounted
+  # paths, *before* triggering the fix - this is the exact runtime
+  # symptom the feature exists to correct.
+  not remote.exec "test -e /usr/lib/modules/${kver}/kernel"
+  not remote.exec "test -e /usr/lib/modules/${kver}/${modinfo_file}"
+  not remote.exec "test -e /usr/lib/firmware/${fw_entry}"
+
+  # Restarting snapd is the trigger: on its next Ensure() tick it
+  # should notice the stale marker and launch a
+  # "regenerate-kernel-drivers-tree" change on its own, with no kernel snap
+  # refresh and no reboot involved.
+  remote.exec "sudo systemctl restart snapd.service"
+
+  status="$(wait_for_change_ready regenerate-kernel-drivers-tree)"
+  test "$status" = Done
+
+  # The underlying tree is corrected...
+  remote.exec "test -L ${modules_dir}/kernel"
+  remote.exec "test -f ${modules_dir}/${modinfo_file}"
+  # ...the restored modinfo file is an exact copy of what the kernel
+  # snap ships...
+  remote.exec "cmp ${modules_dir}/${modinfo_file} /snap/pc-kernel/current/modules/${kver}/${modinfo_file}"
+  remote.exec "test -L ${firmware_dir}/${fw_entry}"
+
+  # ...and, critically, so is the *live*, already-mounted view, without
+  # any reboot: this is the assertion this whole feature exists for.
+  remote.exec "test -L /usr/lib/modules/${kver}/kernel"
+  remote.exec "test -f /usr/lib/modules/${kver}/${modinfo_file}"
+  remote.exec "test -L /usr/lib/firmware/${fw_entry}"
+
+  # The marker is back, and non-zero, i.e. it was actually rewritten by
+  # the fix (there is no way to check the exact expected integer from
+  # outside a black-box spread test, since this plan deliberately does
+  # not add a "snap debug" escape hatch exposing the constant).
+  remote.exec "cat ${drivers_tree}/kernel.json" | MATCH '"generator-version":[1-9][0-9]*'
+
+  # Idempotency / no duplicate launches: with the ensureKernelRegenerateDone
+  # per-process cache, forcing another Ensure() tick within the *same*
+  # snapd process (e.g. via "snap debug ensure-state-soon") would be a
+  # guaranteed no-op regardless of marker state, so it would not actually
+  # prove anything here. Instead, restart snapd again - a fresh process
+  # really does re-run the check from scratch - and confirm it correctly
+  # finds the marker already up to date and does not launch a second
+  # regenerate-kernel-drivers-tree change.
+  remote.exec "sudo systemctl restart snapd.service"
+  remote.exec "sudo snap wait system seed.loaded"
+  count="$(change_count_for_kind regenerate-kernel-drivers-tree)"
+  test "$count" = 1
