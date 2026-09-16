@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -176,14 +177,14 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	for i := range a.Plugs {
-		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
-		if err := checkInstalled(a.Plugs[i].Snap); err != nil {
+		a.Plugs[i].Snap = naming.InstanceName(ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap.String()))
+		if err := checkInstalled(a.Plugs[i].Snap.String()); err != nil {
 			return errToResponse(err, nil, BadRequest, "%v")
 		}
 	}
 	for i := range a.Slots {
-		a.Slots[i].Snap = ifacestate.RemapSnapFromRequest(a.Slots[i].Snap)
-		if err := checkInstalled(a.Slots[i].Snap); err != nil {
+		a.Slots[i].Snap = naming.InstanceName(ifacestate.RemapSnapFromRequest(a.Slots[i].Snap.String()))
+		if err := checkInstalled(a.Slots[i].Snap.String()); err != nil {
 			return errToResponse(err, nil, BadRequest, "%v")
 		}
 	}
@@ -193,12 +194,12 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	case "connect":
 		var connRef *interfaces.ConnRef
 		repo := c.d.overlord.InterfaceManager().Repository()
-		connRef, err = repo.ResolveConnect(a.Plugs[0].Snap, a.Plugs[0].Name, a.Slots[0].Snap, a.Slots[0].Name)
+		connRef, err = repo.ResolveConnect(naming.InstanceName(a.Plugs[0].Snap), a.Plugs[0].Name, naming.InstanceName(a.Slots[0].Snap), a.Slots[0].Name)
 		if err == nil {
 			var ts *state.TaskSet
 			affected = snapNamesFromConns([]*interfaces.ConnRef{connRef})
 			summary = fmt.Sprintf("Connect %s:%s to %s:%s", connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
-			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name)
+			ts, err = ifacestate.Connect(st, connRef.PlugRef.Snap.String(), connRef.PlugRef.Name, connRef.SlotRef.Snap.String(), connRef.SlotRef.Name)
 			if _, ok := err.(*ifacestate.ErrAlreadyConnected); ok {
 				change := newChange(st, connectSnapChangeKind, summary, nil, affected)
 				change.SetStatus(state.DoneStatus)
@@ -254,8 +255,8 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {
 	m := make(map[string]bool)
 	for _, conn := range conns {
-		m[conn.PlugRef.Snap] = true
-		m[conn.SlotRef.Snap] = true
+		m[conn.PlugRef.Snap.String()] = true
+		m[conn.SlotRef.Snap.String()] = true
 	}
 	l := make([]string, 0, len(m))
 	for name := range m {

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var connectRetryTimeout = time.Second * 5
@@ -97,10 +98,10 @@ func Connect(st *state.State, plugSnap, plugName, slotSnap, slotName string) (*s
 		return nil, err
 	}
 
-	return connect(st, plugSnap, plugName, slotSnap, slotName, connectOpts{})
+	return connect(st, naming.InstanceName(plugSnap), plugName, naming.InstanceName(slotSnap), slotName, connectOpts{})
 }
 
-func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, flags connectOpts) (*state.TaskSet, error) {
+func connect(st *state.State, plugSnap naming.InstanceName, plugName string, slotSnap naming.InstanceName, slotName string, flags connectOpts) (*state.TaskSet, error) {
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
@@ -129,10 +130,10 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	}
 
 	var plugSnapst, slotSnapst snapstate.SnapState
-	if err = snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
+	if err = snapstate.Get(st, plugSnap.String(), &plugSnapst); err != nil {
 		return nil, err
 	}
-	if err = snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
+	if err = snapstate.Get(st, slotSnap.String(), &slotSnapst); err != nil {
 		return nil, err
 	}
 	plugSnapInfo, err := plugSnapst.CurrentInfo()
@@ -144,7 +145,7 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 		return nil, err
 	}
 
-	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnapInfo, plugSnap, plugName, slotSnapInfo, slotSnap, slotName)
+	plugStatic, slotStatic, err := initialConnectAttributes(st, plugSnapInfo, plugSnap.String(), plugName, slotSnapInfo, slotSnap.String(), slotName)
 	if err != nil {
 		return nil, err
 	}
@@ -165,13 +166,13 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	preparePlugHookName := fmt.Sprintf("prepare-plug-%s", plugName)
 	if plugSnapInfo.Hooks[preparePlugHookName] != nil {
 		plugHookSetup := &hookstate.HookSetup{
-			Snap:     plugSnap,
+			Snap:     plugSnap.String(),
 			Hook:     preparePlugHookName,
 			Optional: true,
 		}
 		summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), plugHookSetup.Hook, plugHookSetup.Snap)
 		undoPrepPlugHookSetup := &hookstate.HookSetup{
-			Snap:        plugSnap,
+			Snap:        plugSnap.String(),
 			Hook:        "unprepare-plug-" + plugName,
 			Optional:    true,
 			IgnoreError: true,
@@ -184,12 +185,12 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	prepareSlotHookName := fmt.Sprintf("prepare-slot-%s", slotName)
 	if slotSnapInfo.Hooks[prepareSlotHookName] != nil {
 		slotHookSetup := &hookstate.HookSetup{
-			Snap:     slotSnap,
+			Snap:     slotSnap.String(),
 			Hook:     prepareSlotHookName,
 			Optional: true,
 		}
 		undoPrepSlotHookSetup := &hookstate.HookSetup{
-			Snap:        slotSnap,
+			Snap:        slotSnap.String(),
 			Hook:        "unprepare-slot-" + slotName,
 			Optional:    true,
 			IgnoreError: true,
@@ -235,12 +236,12 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	connectSlotHookName := fmt.Sprintf("connect-slot-%s", slotName)
 	if slotSnapInfo.Hooks[connectSlotHookName] != nil {
 		connectSlotHookSetup := &hookstate.HookSetup{
-			Snap:     slotSnap,
+			Snap:     slotSnap.String(),
 			Hook:     connectSlotHookName,
 			Optional: true,
 		}
 		undoConnectSlotHookSetup := &hookstate.HookSetup{
-			Snap:        slotSnap,
+			Snap:        slotSnap.String(),
 			Hook:        "disconnect-slot-" + slotName,
 			Optional:    true,
 			IgnoreError: true,
@@ -258,12 +259,12 @@ func connect(st *state.State, plugSnap, plugName, slotSnap, slotName string, fla
 	connectPlugHookName := fmt.Sprintf("connect-plug-%s", plugName)
 	if plugSnapInfo.Hooks[connectPlugHookName] != nil {
 		connectPlugHookSetup := &hookstate.HookSetup{
-			Snap:     plugSnap,
+			Snap:     plugSnap.String(),
 			Hook:     connectPlugHookName,
 			Optional: true,
 		}
 		undoConnectPlugHookSetup := &hookstate.HookSetup{
-			Snap:        plugSnap,
+			Snap:        plugSnap.String(),
 			Hook:        "disconnect-plug-" + plugName,
 			Optional:    true,
 			IgnoreError: true,
@@ -322,7 +323,7 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
-	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap.String(), slotSnap.String()}, ""); err != nil {
 		return nil, err
 	}
 
@@ -336,7 +337,7 @@ func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, e
 // If the interface is already disconnected, it will be removed from the state
 // (forgotten).
 func Forget(st *state.State, repo *interfaces.Repository, connRef *interfaces.ConnRef) (*state.TaskSet, error) {
-	if err := snapstate.CheckChangeConflictMany(st, []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap}, ""); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{connRef.PlugRef.Snap.String(), connRef.SlotRef.Snap.String()}, ""); err != nil {
 		return nil, err
 	}
 
@@ -394,10 +395,10 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	slotName := conn.Slot.Name()
 
 	var plugSnapst, slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotSnap.String(), &slotSnapst); err != nil {
 		return nil, err
 	}
-	if err := snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugSnap.String(), &plugSnapst); err != nil {
 		return nil, err
 	}
 
@@ -449,13 +450,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		hookName := fmt.Sprintf("disconnect-slot-%s", slotName)
 		if slotSnapInfo.Hooks[hookName] != nil {
 			disconnectSlotHookSetup := &hookstate.HookSetup{
-				Snap:        slotSnap,
+				Snap:        slotSnap.String(),
 				Hook:        hookName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
 			}
 			undoDisconnectSlotHookSetup := &hookstate.HookSetup{
-				Snap:        slotSnap,
+				Snap:        slotSnap.String(),
 				Hook:        "connect-slot-" + slotName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
@@ -473,13 +474,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		hookName := fmt.Sprintf("disconnect-plug-%s", plugName)
 		if plugSnapInfo.Hooks[hookName] != nil {
 			disconnectPlugHookSetup := &hookstate.HookSetup{
-				Snap:        plugSnap,
+				Snap:        plugSnap.String(),
 				Hook:        hookName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
 			}
 			undoDisconnectPlugHookSetup := &hookstate.HookSetup{
-				Snap:        plugSnap,
+				Snap:        plugSnap.String(),
 				Hook:        "connect-plug-" + plugName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
@@ -634,7 +635,7 @@ func InterfacesRequestsControlHandlerServices(st *state.State) ([]*snap.AppInfo,
 		}
 
 		sn := connRef.PlugRef.Snap
-		si, err := snapstate.CurrentInfo(st, sn)
+		si, err := snapstate.CurrentInfo(st, sn.String())
 		if err != nil {
 			return nil, err
 		}

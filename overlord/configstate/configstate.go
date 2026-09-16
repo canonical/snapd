@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -55,7 +56,7 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
-func canConfigure(st *state.State, snapName string) error {
+func canConfigure(st *state.State, snapName naming.InstanceName) error {
 	// the "core" snap/pseudonym can always be configured as it
 	// is handled internally
 	if snapName == "core" {
@@ -63,13 +64,13 @@ func canConfigure(st *state.State, snapName string) error {
 	}
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, snapName, &snapst)
+	err := snapstate.Get(st, snapName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	if !snapst.IsInstalled() {
-		return &snap.NotInstalledError{Snap: snapName}
+		return &snap.NotInstalledError{Snap: snapName.String()}
 	}
 
 	// the "snapd" snap cannot be configured yet
@@ -97,7 +98,7 @@ func canConfigure(st *state.State, snapName string) error {
 // configuration patch for an installed snap. It returns
 // snap.NotInstalledError if the snap is not installed.
 func ConfigureInstalled(st *state.State, snapName string, patch map[string]any, flags int) (*state.TaskSet, error) {
-	if err := canConfigure(st, snapName); err != nil {
+	if err := canConfigure(st, naming.InstanceName(snapName)); err != nil {
 		return nil, err
 	}
 

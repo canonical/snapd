@@ -260,7 +260,7 @@ func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActi
 		baseName := snapOpts.Basename
 		if baseName == "" {
 			cpi := snap.MinimalComponentContainerPlaceInfo(
-				srr.Name, snap.R(srr.Revision), sar.SnapName().String())
+				srr.Name, snap.R(srr.Revision), naming.InstanceName(sar.SnapName().String()))
 			baseName = cpi.Filename()
 		} else {
 			baseName += fmt.Sprintf("+%s.comp", srr.Name)

@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -367,7 +368,7 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 // that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
-	instanceName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -397,7 +398,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(instanceName)
+	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(instanceName.String())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,7 +407,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	// original connections so that setup-profiles' undo can restore them, if
 	// needed
 	if task.Status() != state.UndoingStatus {
-		if err := snapshotChangedConnectionsForUndo(task, instanceName, changedOrDroppedConns); err != nil {
+		if err := snapshotChangedConnectionsForUndo(task, instanceName.String(), changedOrDroppedConns); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -428,14 +429,14 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 		return nil, err
 	}
 
-	affectedSet := make(map[string]bool)
+	affectedSet := make(map[naming.InstanceName]bool)
 	for _, name := range disconnectedSnaps {
-		affectedSet[name] = true
+		affectedSet[naming.InstanceName(name)] = true
 	}
 
-	snapsWithConnectedPlugs := make(map[string]bool)
-	snapsWithConnectedSlots := make(map[string]bool)
-	newConnectedSnaps := make(map[string]bool)
+	snapsWithConnectedPlugs := make(map[naming.InstanceName]bool)
+	snapsWithConnectedSlots := make(map[naming.InstanceName]bool)
+	newConnectedSnaps := make(map[naming.InstanceName]bool)
 	// Identify affected snaps on either side of the connection.
 	for _, connID := range reloadedConns {
 		connRef, err := interfaces.ParseConnRef(connID)
@@ -448,10 +449,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		// Snaps on the plug or slot side, other than the current one, are
 		// indirectly affected.
-		if connRef.PlugRef.Snap != instanceName.String() {
+		if connRef.PlugRef.Snap != instanceName {
 			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
 		}
-		if connRef.SlotRef.Snap != instanceName.String() {
+		if connRef.SlotRef.Snap != instanceName {
 			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
 		}
 	}
@@ -466,15 +467,17 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	}
 
 	// back to a slice
-	affectedNames := make([]string, 0, len(affectedSet))
+	affectedNames := make([]naming.InstanceName, 0, len(affectedSet))
 	for name := range affectedSet {
-		if name != instanceName.String() {
+		if name != instanceName {
 			affectedNames = append(affectedNames, name)
 		}
 	}
-	sort.Strings(affectedNames)
+	sort.Slice(affectedNames, func(i, j int) bool {
+		return affectedNames[i] < affectedNames[j]
+	})
 	// the snap for which profiles are being set up comes first
-	affectedNames = append([]string{instanceName.String()}, affectedNames...)
+	affectedNames = append([]naming.InstanceName{instanceName}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
@@ -498,7 +501,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// For remaining snaps we need to interrogate the state.
 	for _, name := range affectedNames[1:] {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, name, &snapst); err != nil {
+		if err := snapstate.Get(st, name.String(), &snapst); err != nil {
 			task.Errorf("cannot obtain state of snap %s: %s", name, err)
 			continue
 		}
@@ -585,7 +588,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 				}
 			}
 		}
-		setupContexts[name] = sctx
+		setupContexts[name.String()] = sctx
 
 		affectedSnapSets = append(affectedSnapSets, appSet)
 		confinementOpts = append(confinementOpts, opts)
@@ -617,7 +620,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 	instanceName := snapSetup.InstanceName()
 
-	if err := m.removeProfilesForSnap(task, tomb, instanceName.String(), perfTimings); err != nil {
+	if err := m.removeProfilesForSnap(task, tomb, instanceName, perfTimings); err != nil {
 		return err
 	}
 
@@ -625,7 +628,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	return setPendingProfilesSideInfo(task.State(), instanceName.String(), nil)
 }
 
-func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
+func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName naming.InstanceName, tm timings.Measurer) error {
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
@@ -634,7 +637,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	if err != nil {
 		return err
 	}
-	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps, tm); err != nil {
+	if err := m.setupAffectedSnaps(task, snapName.String(), affectedSnaps, tm); err != nil {
 		return err
 	}
 
@@ -645,7 +648,7 @@ func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb,
 	}
 
 	// Remove security artefacts of the snap.
-	if err := m.removeSnapSecurity(task, snapName); err != nil {
+	if err := m.removeSnapSecurity(task, snapName.String()); err != nil {
 		return err
 	}
 
@@ -752,7 +755,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		return m.removeProfilesForSnap(task, tomb, instanceName.String(), perfTimings)
+		return m.removeProfilesForSnap(task, tomb, instanceName, perfTimings)
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
 		snapInfo, err := snap.ReadInfo(instanceName.String(), sideInfo)
@@ -821,7 +824,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 		if err != nil {
 			return err
 		}
-		if connRef.PlugRef.Snap == instanceName.String() || connRef.SlotRef.Snap == instanceName.String() {
+		if connRef.PlugRef.Snap == instanceName || connRef.SlotRef.Snap == instanceName {
 			removed[id] = conns[id]
 			delete(conns, id)
 		}
@@ -916,7 +919,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugRef.Snap.String(), &plugSnapst); err != nil {
 		if autoConnect && errors.Is(err, state.ErrNoState) {
 			// conflict logic should prevent this
 			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", plugRef.Snap)
@@ -925,7 +928,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotRef.Snap.String(), &slotSnapst); err != nil {
 		if autoConnect && errors.Is(err, state.ErrNoState) {
 			// conflict logic should prevent this
 			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", slotRef.Snap)
@@ -1078,7 +1081,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var snapStates []snapstate.SnapState
-	for _, instanceName := range []string{plugRef.Snap, slotRef.Snap} {
+	for _, instanceName := range []string{plugRef.Snap.String(), slotRef.Snap.String()} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, instanceName, &snapst); err != nil {
 			if errors.Is(err, state.ErrNoState) {
@@ -1200,11 +1203,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugRef.Snap.String(), &plugSnapst); err != nil {
 		return err
 	}
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotRef.Snap.String(), &slotSnapst); err != nil {
 		return err
 	}
 
@@ -1337,7 +1340,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var plugSnapst snapstate.SnapState
-	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)
+	err = snapstate.Get(st, plugRef.Snap.String(), &plugSnapst)
 	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: snap %q is no longer available", plugRef.Snap)
 	}
@@ -1345,7 +1348,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	var slotSnapst snapstate.SnapState
-	err = snapstate.Get(st, slotRef.Snap, &slotSnapst)
+	err = snapstate.Get(st, slotRef.Snap.String(), &slotSnapst)
 	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: snap %q is no longer available", slotRef.Snap)
 	}
@@ -1419,10 +1422,10 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 			if err != nil {
 				return err
 			}
-			if plugRef.Snap == plugSnap {
+			if plugRef.Snap.String() == plugSnap {
 				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting plug snap %s, task %q", plugSnap, k)}
 			}
-			if slotRef.Snap == slotSnap {
+			if slotRef.Snap.String() == slotSnap {
 				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting slot snap %s, task %q", slotSnap, k)}
 			}
 			continue
@@ -1489,7 +1492,7 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 			if err != nil {
 				return err
 			}
-			if plugRef.Snap == plugSnap || slotRef.Snap == slotSnap {
+			if plugRef.Snap.String() == plugSnap || slotRef.Snap.String() == slotSnap {
 				return &state.Retry{After: connectRetryTimeout}
 			}
 			continue
@@ -1536,10 +1539,10 @@ func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string)
 			if err != nil {
 				return err
 			}
-			if plugRef.Snap == plugSnap {
+			if plugRef.Snap.String() == plugSnap {
 				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting plug snap %s, task %q", plugSnap, k)}
 			}
-			if slotRef.Snap == slotSnap {
+			if slotRef.Snap.String() == slotSnap {
 				return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting slot snap %s, task %q", slotSnap, k)}
 			}
 			continue
@@ -1814,7 +1817,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// forcefully wait for defaultProviders; we just retry for
 	// things in the intersection between defaultProviders here and
 	// snaps with not ready link-snap|setup-profiles tasks
-	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(instanceName.String()))
+	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(instanceName))
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
 			continue
@@ -1838,8 +1841,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	plugs := m.repo.Plugs(instanceName.String())
-	slots := m.repo.Slots(instanceName.String())
+	plugs := m.repo.Plugs(instanceName)
+	slots := m.repo.Slots(instanceName)
 	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
 	var connOpts map[string]*connectOpts
 
@@ -1884,7 +1887,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	// Auto-connect all the slots
 	for _, slot := range slots {
-		candidates := m.repo.AutoConnectCandidatePlugs(instanceName.String(), slot.Name, autochecker.check)
+		candidates := m.repo.AutoConnectCandidatePlugs(instanceName, slot.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
 		}
@@ -1963,14 +1966,14 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	instanceName := snapsup.InstanceName()
-	connections, err := m.repo.Connections(instanceName.String())
+	connections, err := m.repo.Connections(instanceName)
 	if err != nil {
 		return err
 	}
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		if err := checkDisconnectConflicts(st, instanceName.String(), connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkDisconnectConflicts(st, instanceName.String(), connRef.PlugRef.Snap.String(), connRef.SlotRef.Snap.String()); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", instanceName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				task.Logf("Waiting for conflicting change in progress...")
@@ -2029,8 +2032,8 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 		if err != nil {
 			return err
 		}
-		if connRef.SlotRef.Snap == oldName {
-			connRef.SlotRef.Snap = newName
+		if connRef.SlotRef.Snap.String() == oldName {
+			connRef.SlotRef.Snap = naming.InstanceName(newName)
 			conns[connRef.ID()] = conns[id]
 			delete(conns, id)
 		}
@@ -2039,7 +2042,7 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 
 	// After migrating connections in state, remove them from repo so they stay in sync and we don't
 	// attempt to run disconnects on when the old core gets removed as part of the transition.
-	if err := m.removeConnections(oldName); err != nil {
+	if err := m.removeConnections(naming.InstanceName(oldName)); err != nil {
 		return err
 	}
 
@@ -2146,7 +2149,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 			return err
 		}
 
-		if err := checkAutoconnectConflicts(st, task, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkAutoconnectConflicts(st, task, connRef.PlugRef.Snap.String(), connRef.SlotRef.Snap.String()); err != nil {
 			retry, _ := err.(*state.Retry)
 			return conflictError(retry, err)
 		}
@@ -2315,7 +2318,7 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		if err := checkHotplugDisconnectConflicts(st, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkHotplugDisconnectConflicts(st, connRef.PlugRef.Snap.String(), connRef.SlotRef.Snap.String()); err != nil {
 			if retry, ok := err.(*state.Retry); ok {
 				task.Logf("Waiting for conflicting change in progress: %s", retry.Reason)
 				return err // will retry

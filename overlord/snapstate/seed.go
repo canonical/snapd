@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SeedRefreshTasks carries the tasks needed to perform a seed refresh.
@@ -48,7 +49,7 @@ type SeedRefreshEvictionPolicy struct {
 // seed refresh.
 type SeedRefreshCandidate struct {
 	// InstanceName is the snap's instance name.
-	InstanceName string
+	InstanceName naming.InstanceName
 	// SnapSetupTaskIDs are the snap tasks that should be considered as inputs to
 	// recovery system creation. Will be empty for component-only refreshes.
 	SnapSetupTaskIDs []string
@@ -128,7 +129,7 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 	}
 
 	candidate := SeedRefreshCandidate{
-		InstanceName:          snapsup.InstanceName().String(),
+		InstanceName:          snapsup.InstanceName(),
 		ComponentSetupTaskIDs: compSetupTaskIDs,
 	}
 

@@ -422,12 +422,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName())
+		sn, ok := s.snap(r.InstanceName().String())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
 
-		snapst, ok := allSnaps[r.InstanceName()]
+		snapst, ok := allSnaps[r.InstanceName().String()]
 		if !ok {
 			snapst = &SnapState{}
 		}
@@ -441,7 +441,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	for _, t := range installs {
-		sn, ok := s.snap(t.info.InstanceName())
+		sn, ok := s.snap(t.info.InstanceName().String())
 		if !ok {
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
@@ -460,7 +460,7 @@ func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup
 		return err
 	}
 
-	if err := checkSnapAgainstConstraints(info.InstanceName(), info.Revision, constraints, action); err != nil {
+	if err := checkSnapAgainstConstraints(info.InstanceName().String(), info.Revision, constraints, action); err != nil {
 		return err
 	}
 
@@ -1108,7 +1108,7 @@ func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Inf
 
 	targetByName := make(map[string]target, len(p.targets))
 	for _, t := range p.targets {
-		targetByName[t.info.InstanceName()] = t
+		targetByName[t.info.InstanceName().String()] = t
 	}
 
 	changes := make([]*snap.Info, 0, len(updates))
@@ -1187,7 +1187,7 @@ func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	}
 
 	p.filter(func(t target) (bool, error) {
-		_, ok := heldSnaps[t.info.InstanceName()]
+		_, ok := heldSnaps[t.info.InstanceName().String()]
 		return !ok, nil
 	})
 
@@ -1207,7 +1207,7 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 		// validation done by ValidateRefreshes applies refresh-control gating,
 		// which doesn't make sense to apply to new installations
 		if t.snapst.IgnoreValidation || !t.snapst.IsInstalled() {
-			ignoreValidation[t.info.InstanceName()] = true
+			ignoreValidation[t.info.InstanceName().String()] = true
 		}
 	}
 
@@ -1223,11 +1223,11 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 
 	validatedMap := make(map[string]bool, len(validated))
 	for _, sn := range validated {
-		validatedMap[sn.InstanceName()] = true
+		validatedMap[sn.InstanceName().String()] = true
 	}
 
 	p.filter(func(t target) (bool, error) {
-		_, ok := validatedMap[t.info.InstanceName()]
+		_, ok := validatedMap[t.info.InstanceName().String()]
 		return ok, nil
 	})
 
@@ -1339,7 +1339,7 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		}
 
 		if err := plan.filter(func(t target) (bool, error) {
-			return isEssentialSnap(t.info.InstanceName(), t.info.Type(), bootBase), nil
+			return isEssentialSnap(t.info.InstanceName().String(), t.info.Type(), bootBase), nil
 		}); err != nil {
 			return nil, nil, err
 		}

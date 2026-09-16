@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // BeforePreparePlug sanitizes a plug with a given snapd interface.
@@ -61,8 +62,8 @@ var ByName = func(name string) (iface Interface, err error) {
 
 // PlugRef is a reference to a plug.
 type PlugRef struct {
-	Snap string `json:"snap"`
-	Name string `json:"plug"`
+	Snap naming.InstanceName `json:"snap"`
+	Name string              `json:"plug"`
 }
 
 // String returns the "snap:plug" representation of a plug reference.
@@ -93,8 +94,8 @@ func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 
 // SlotRef is a reference to a slot.
 type SlotRef struct {
-	Snap string `json:"snap"`
-	Name string `json:"slot"`
+	Snap naming.InstanceName `json:"snap"`
+	Name string              `json:"slot"`
 }
 
 // String returns the "snap:slot" representation of a slot reference.
@@ -165,9 +166,9 @@ func ParseConnRef(id string) (*ConnRef, error) {
 	if len(plugParts) != 2 || len(slotParts) != 2 {
 		return nil, fmt.Errorf("malformed connection identifier: %q", id)
 	}
-	conn.PlugRef.Snap = plugParts[0]
+	conn.PlugRef.Snap = naming.InstanceName(plugParts[0])
 	conn.PlugRef.Name = plugParts[1]
-	conn.SlotRef.Snap = slotParts[0]
+	conn.SlotRef.Snap = naming.InstanceName(slotParts[0])
 	conn.SlotRef.Name = slotParts[1]
 	return &conn, nil
 }

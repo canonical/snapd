@@ -443,7 +443,7 @@ func Validate(info *Info) error {
 	if err := ValidateName(info.SnapName().String()); err != nil {
 		return err
 	}
-	if err := ValidateInstanceName(name); err != nil {
+	if err := ValidateInstanceName(name.String()); err != nil {
 		return err
 	}
 
@@ -1485,7 +1485,7 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 			case 0:
 				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q or any alternative provider for content %q is missing", info.InstanceName(), defaultProvider, wantedTag))
 			case 1:
-				if candSlots[0].Snap.InstanceName() == defaultProvider {
+				if candSlots[0].Snap.InstanceName().String() == defaultProvider {
 					continue
 				}
 				// XXX TODO: consider also publisher

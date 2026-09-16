@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -371,11 +372,11 @@ var removeStaleConnections = func(st *state.State) error {
 			return err
 		}
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, connRef.PlugRef.Snap, &snapst); err != nil {
+		if err := snapstate.Get(st, connRef.PlugRef.Snap.String(), &snapst); err != nil {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
-			broken, err := isBrokenCached(connRef.SlotRef.Snap)
+			broken, err := isBrokenCached(connRef.SlotRef.Snap.String())
 			if err != nil {
 				return err
 			}
@@ -385,11 +386,11 @@ var removeStaleConnections = func(st *state.State) error {
 			staleConns = append(staleConns, id)
 			continue
 		}
-		if err := snapstate.Get(st, connRef.SlotRef.Snap, &snapst); err != nil {
+		if err := snapstate.Get(st, connRef.SlotRef.Snap.String(), &snapst); err != nil {
 			if !errors.Is(err, state.ErrNoState) {
 				return err
 			}
-			broken, err := isBrokenCached(connRef.PlugRef.Snap)
+			broken, err := isBrokenCached(connRef.PlugRef.Snap.String())
 			if err != nil {
 				return err
 			}
@@ -566,7 +567,7 @@ ConnsLoop:
 		// Apply filtering, this allows us to reload only a subset of
 		// connections (and similarly, refresh the static attributes of only a
 		// subset of connections).
-		if snapName != "" && connRef.PlugRef.Snap != snapName && connRef.SlotRef.Snap != snapName {
+		if snapName != "" && connRef.PlugRef.Snap.String() != snapName && connRef.SlotRef.Snap.String() != snapName {
 			continue
 		}
 
@@ -582,8 +583,8 @@ ConnsLoop:
 			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
 				// only do anything about this connection if snap isn't in a broken state, otherwise
 				// leave the connection untouched.
-				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
-					broken, err := isBroken(m.state, snapName)
+				for _, snapName := range []naming.InstanceName{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
+					broken, err := isBroken(m.state, snapName.String())
 					if err != nil {
 						return nil, nil, err
 					}
@@ -673,7 +674,7 @@ ConnsLoop:
 
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
 // has no connections in the state. State must be locked by the caller.
-func (m *InterfaceManager) removeConnections(snapName string) error {
+func (m *InterfaceManager) removeConnections(snapName naming.InstanceName) error {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return err
@@ -868,7 +869,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 				return err
 			}
 		}
-		plug := gc.repo.Plug(plugSnapName, gconn.Plug.Plug)
+		plug := gc.repo.Plug(naming.InstanceName(plugSnapName), gconn.Plug.Plug)
 		if plug == nil {
 			task.Logf("gadget connections: ignoring missing plug %s:%s", gconn.Plug.SnapID, gconn.Plug.Plug)
 			continue
@@ -881,7 +882,7 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 				return err
 			}
 		}
-		slot := gc.repo.Slot(slotSnapName, gconn.Slot.Slot)
+		slot := gc.repo.Slot(naming.InstanceName(slotSnapName), gconn.Slot.Slot)
 		if slot == nil {
 			task.Logf("gadget connections: ignoring missing slot %s:%s", gconn.Slot.SnapID, gconn.Slot.Slot)
 			continue
@@ -910,7 +911,7 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	}
 
 	if task.Kind() == "auto-connect" {
-		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName().String(), slot.Snap.InstanceName().String(), task)
 		if err != nil {
 			return err
 		}
@@ -920,7 +921,7 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 		}
 	}
 
-	if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+	if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName().String(), slot.Snap.InstanceName().String()); err != nil {
 		retry, _ := err.(*state.Retry)
 		return conflictError(retry, err)
 	}
@@ -1266,8 +1267,8 @@ func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 		if err != nil {
 			return nil, err
 		}
-		cref.PlugRef.Snap = RemapSnapFromState(cref.PlugRef.Snap)
-		cref.SlotRef.Snap = RemapSnapFromState(cref.SlotRef.Snap)
+		cref.PlugRef.Snap = naming.InstanceName(RemapSnapFromState(cref.PlugRef.Snap.String()))
+		cref.SlotRef.Snap = naming.InstanceName(RemapSnapFromState(cref.SlotRef.Snap.String()))
 		cstate.StaticSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticSlotAttrs).(map[string]any)
 		cstate.DynamicSlotAttrs = utils.NormalizeInterfaceAttributes(cstate.DynamicSlotAttrs).(map[string]any)
 		cstate.StaticPlugAttrs = utils.NormalizeInterfaceAttributes(cstate.StaticPlugAttrs).(map[string]any)
@@ -1288,8 +1289,8 @@ func setConns(st *state.State, conns map[string]*schema.ConnState) {
 			// We cannot fail here
 			panic(err)
 		}
-		cref.PlugRef.Snap = RemapSnapToState(cref.PlugRef.Snap)
-		cref.SlotRef.Snap = RemapSnapToState(cref.SlotRef.Snap)
+		cref.PlugRef.Snap = naming.InstanceName(RemapSnapToState(cref.PlugRef.Snap.String()))
+		cref.SlotRef.Snap = naming.InstanceName(RemapSnapToState(cref.SlotRef.Snap.String()))
 		remapped[cref.ID()] = cstate
 	}
 	st.Set("conns", remapped)
@@ -1579,7 +1580,7 @@ func connectDisconnectAffectedSnaps(t *state.Task) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("internal error: cannot obtain plug/slot data from task: %s", t.Summary())
 	}
-	return []string{plugRef.Snap, slotRef.Snap}, nil
+	return []string{plugRef.Snap.String(), slotRef.Snap.String()}, nil
 }
 
 func checkSystemSnapIsPresent(st *state.State) bool {
@@ -1736,7 +1737,7 @@ func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, erro
 	st := t.State()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, info.InstanceName().String(), &snapst); err != nil {
 		// if the snap isn't in the state, then we know that there aren't any
 		// pre-existing components to consider
 		if errors.Is(err, state.ErrNoState) {
@@ -1760,7 +1761,7 @@ func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, erro
 
 func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAppSet, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, info.InstanceName().String(), &snapst); err != nil {
 		return nil, err
 	}
 

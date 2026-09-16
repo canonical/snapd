@@ -259,11 +259,11 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, _ snap.C
 		return fmt.Errorf("cannot install %s snap on classic if not requested by the model", kind)
 	}
 
-	if snapInfo.InstanceName() != snapInfo.SnapName().String() {
+	if snapInfo.InstanceName().String() != snapInfo.SnapName().String() {
 		return fmt.Errorf("cannot install %q, parallel installation of kernel or gadget snaps is not supported", snapInfo.InstanceName())
 	}
 
-	if snapInfo.InstanceName() != expectedName {
+	if snapInfo.InstanceName().String() != expectedName {
 		return fmt.Errorf("cannot install %s %q, model assertion requests %q", kind, snapInfo.InstanceName(), expectedName)
 	}
 
@@ -331,7 +331,7 @@ func proxyStore(st *state.State, tr *config.Transaction) (*asserts.Store, error)
 
 // interfaceConnected returns true if the given snap/interface names
 // are connected
-func interfaceConnected(st *state.State, snapName, ifName string) bool {
+func interfaceConnected(st *state.State, snapName naming.InstanceName, ifName string) bool {
 	conns, err := ifacerepo.Get(st).Connected(snapName, ifName)
 	return err == nil && len(conns) > 0
 }
@@ -773,7 +773,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			cs.SideInfo.Component.ComponentName,
 			cs.SideInfo.Revision,
-			snapst.InstanceName().String(),
+			snapst.InstanceName(),
 		)
 
 		comps = append(comps, snapstate.PathComponent{
@@ -1761,7 +1761,7 @@ func SeedRefreshTasks(
 		if !ok {
 			continue
 		}
-		added[candidate.InstanceName] = true
+		added[candidate.InstanceName.String()] = true
 
 		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
 		for _, tid := range candidate.ComponentSetupTaskIDs {
@@ -1852,14 +1852,14 @@ func UpdateSeedRefreshChange(seedTS *snapstate.SeedRefreshTasks, dctx snapstate.
 
 	// we've already calculated which candidates are allowed to go into the
 	// seed. avoid opening the seed again by using that list
-	if !strutil.ListContains(setup.Allowlist.Snaps, candidate.InstanceName) {
+	if !strutil.ListContains(setup.Allowlist.Snaps, candidate.InstanceName.String()) {
 		return false, nil
 	}
 
 	// also filter the component setup tasks ids using the allow list
 	var compsups []string
 	for comp, tid := range candidate.ComponentSetupTaskIDs {
-		if strutil.ListContains(setup.Allowlist.Components[candidate.InstanceName], comp) {
+		if strutil.ListContains(setup.Allowlist.Components[candidate.InstanceName.String()], comp) {
 			compsups = append(compsups, tid)
 		}
 	}
@@ -1945,7 +1945,7 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 
 	filter = func(candidate snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error) {
 		instanceName := candidate.InstanceName
-		sn, ok := snaps[instanceName]
+		sn, ok := snaps[instanceName.String()]
 		if !ok {
 			// snaps not in the model do not trigger a seed refresh
 			return snapstate.SeedRefreshCandidate{}, false, nil
@@ -1957,7 +1957,7 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 				return snapstate.SeedRefreshCandidate{}, false, err
 			}
 
-			if !strutil.ListContains(optionalInSeed.Snaps, instanceName) {
+			if !strutil.ListContains(optionalInSeed.Snaps, instanceName.String()) {
 				// optional snaps not in the seed do not trigger a seed refresh
 				return snapstate.SeedRefreshCandidate{}, false, nil
 			}
@@ -1965,7 +1965,7 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 
 		candidateComponentTriggers := make(map[string]string)
 		for compName, compsupID := range candidate.ComponentSetupTaskIDs {
-			fullCompName := snap.SnapComponentName(candidate.InstanceName, compName)
+			fullCompName := snap.SnapComponentName(candidate.InstanceName.String(), compName)
 			compPresence, ok := components[fullCompName]
 			if !ok {
 				continue
@@ -1977,7 +1977,7 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 					return snapstate.SeedRefreshCandidate{}, false, err
 				}
 
-				if !strutil.ListContains(optionalInSeed.Components[instanceName], compName) {
+				if !strutil.ListContains(optionalInSeed.Components[instanceName.String()], compName) {
 					// optional component in the seed triggers a seed refresh
 					continue
 				}

@@ -351,7 +351,7 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 
 // shouldScheduleUpdateCertDBForRefresh reports whether a snap operation
 // should inject an update-cert-db task.
-func shouldScheduleUpdateCertDBForRefresh(instanceName string, snapType snap.Type, ctx DeviceContext) bool {
+func shouldScheduleUpdateCertDBForRefresh(instanceName naming.InstanceName, snapType snap.Type, ctx DeviceContext) bool {
 	if snapType != snap.TypeBase {
 		return false
 	}
@@ -361,7 +361,7 @@ func shouldScheduleUpdateCertDBForRefresh(instanceName string, snapType snap.Typ
 		return false
 	}
 
-	return instanceName == model.Base()
+	return instanceName.String() == model.Base()
 }
 
 func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
@@ -402,7 +402,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	// Refreshing the model base may bring updated system certificates.
 	// Regenerate the managed certificate database as part of the post-reboot
 	// refresh stage for that base.
-	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName().String(), sc.snapsup.Type, ic.DeviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName(), sc.snapsup.Type, ic.DeviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		s.Append(updateCertDB)
 	}
@@ -852,7 +852,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 		return err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName().String(), snapst, ic.ConflictOptions); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.ConflictOptions); err != nil {
 		return err
 	}
 

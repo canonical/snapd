@@ -161,8 +161,8 @@ func (iface *gpioChardevInterface) SystemdConnectedPlug(spec *systemd.Specificat
 	plugName := plug.Name()
 	plugSnapName := plug.Snap().InstanceName()
 
-	target := gpio.SnapChardevPath(slotSnapName, slotName)
-	symlink := gpio.SnapChardevPath(plugSnapName, plugName)
+	target := gpio.SnapChardevPath(slotSnapName.String(), slotName)
+	symlink := gpio.SnapChardevPath(plugSnapName.String(), plugName)
 
 	// Create symlink pointing to exported virtual slot device.
 	serviceSuffix := fmt.Sprintf("gpio-chardev-%s", plugName)

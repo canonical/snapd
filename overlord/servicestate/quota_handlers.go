@@ -223,7 +223,7 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		restartTask := st.NewTask("service-control", fmt.Sprintf("Restarting services for snap %q", info.InstanceName()))
 		restartTask.Set("service-action", ServiceAction{
 			Action:                  "restart",
-			SnapName:                info.InstanceName(),
+			SnapName:                info.InstanceName().String(),
 			Services:                getServiceNames(servicesAffected[info]),
 			RestartEnabledNonActive: false,
 		})

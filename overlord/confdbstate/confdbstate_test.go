@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -557,13 +558,13 @@ func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info.SnapName().String(),
 				Revision: info.Revision,
-				SnapID:   info.InstanceName() + "-id",
+				SnapID:   info.InstanceName().String() + "-id",
 			},
 		}),
 		Current:         info.Revision,
@@ -923,7 +924,7 @@ slots:
 	err = repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
-	mockSnap := func(snapName string, isCustodian bool, hooks []string) {
+	mockSnap := func(snapName naming.InstanceName, isCustodian bool, hooks []string) {
 		var custodianSnippet string
 		if isCustodian {
 			custodianSnippet = `    role: custodian`
@@ -977,14 +978,14 @@ plugs:
 	// mock custodians
 	for snap, hooks := range custodians {
 		const isCustodian = true
-		mockSnap(snap, isCustodian, hooks.toString())
+		mockSnap(naming.InstanceName(snap), isCustodian, hooks.toString())
 	}
 
 	// mock non-custodians
 	hooks := []string{"observe-view-setup", "install"}
 	for _, snap := range nonCustodians {
 		const isCustodian = false
-		mockSnap(snap, isCustodian, hooks)
+		mockSnap(naming.InstanceName(snap), isCustodian, hooks)
 	}
 }
 

@@ -619,8 +619,8 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map
 		// TODO: if a snap has more than one plug providing access to a view, then
 		// which plug we're getting here becomes unpredictable. We should check
 		// for this at some point (interface connection?)
-		custodianPlugs[plug.Snap.InstanceName()] = plug
-		custodians = append(custodians, plug.Snap.InstanceName())
+		custodianPlugs[plug.Snap.InstanceName().String()] = plug
+		custodians = append(custodians, plug.Snap.InstanceName().String())
 	}
 
 	// we want to process these in a deterministic order (useful for testing
@@ -662,8 +662,8 @@ func getPlugsAffectedByPaths(st *state.State, dbSchema *confdb.Schema, storagePa
 			continue
 		}
 
-		snapPlugs := affectedPlugs[plug.Snap.InstanceName()]
-		affectedPlugs[plug.Snap.InstanceName()] = append(snapPlugs, plug)
+		snapPlugs := affectedPlugs[plug.Snap.InstanceName().String()]
+		affectedPlugs[plug.Snap.InstanceName().String()] = append(snapPlugs, plug)
 	}
 
 	return affectedPlugs, nil

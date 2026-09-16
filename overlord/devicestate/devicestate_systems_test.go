@@ -1577,7 +1577,7 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			comp,
 			compRev,
-			name,
+			naming.InstanceName(name),
 		)
 		err := os.Rename(compPath, cpi.MountFile())
 		c.Assert(err, IsNil)
@@ -1604,7 +1604,7 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 		c.Assert(err, IsNil)
 	}
 
-	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.state, info.InstanceName().String(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
 		Sequence: seq,
@@ -2857,7 +2857,7 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 	dctx := &snapstatetest.TrivialDeviceContext{DeviceModel: s.model}
 	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
 		{
-			InstanceName: s.model.Kernel(),
+			InstanceName: naming.InstanceName(s.model.Kernel()),
 		},
 	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
@@ -484,16 +485,16 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 // In both cases the snap name can be omitted to implicitly refer to the core
 // snap. If there's no core snap it is simply assumed to be called "core" to
 // provide consistent error messages.
-func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
-	var connected func(plugSn, plug, slotSn, slot string) (bool, error)
-	var connectedPlugOrSlot func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
+func (m *InterfaceManager) ResolveDisconnect(plugSnapName naming.InstanceName, plugName string, slotSnapName naming.InstanceName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
+	var connected func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error)
+	var connectedPlugOrSlot func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
 
 	if forget {
 		conns, err := getConns(m.state)
 		if err != nil {
 			return nil, err
 		}
-		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+		connected = func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error) {
 			cref := interfaces.ConnRef{
 				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
 				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
@@ -502,7 +503,7 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			return ok, nil
 		}
 
-		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+		connectedPlugOrSlot = func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
 			var refs []*interfaces.ConnRef
 			for connID := range conns {
 				cref, err := interfaces.ParseConnRef(connID)
@@ -519,7 +520,7 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			return refs, nil
 		}
 	} else {
-		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+		connected = func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error) {
 			_, err := m.repo.Connection(&interfaces.ConnRef{
 				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
 				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
@@ -533,12 +534,12 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			return true, nil
 		}
 
-		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+		connectedPlugOrSlot = func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
 			return m.repo.Connected(snapName, plugOrSlotName)
 		}
 	}
 
-	coreSnapName := SystemSnapName()
+	coreSnapName := naming.InstanceName(SystemSnapName())
 
 	// There are two allowed forms (see snap disconnect --help)
 	switch {

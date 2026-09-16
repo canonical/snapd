@@ -1347,7 +1347,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
 	c.Check(result.Revision, Equals, snap.R(29))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
@@ -1457,7 +1457,7 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 
 	info, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "hello")
+	c.Check(info.InstanceName().String(), Equals, "hello")
 
 	info, err = sto.SnapInfo(s.ctx, store.SnapSpec{Name: "hello"}, nil)
 	c.Check(err, Equals, store.ErrSnapNotFound)
@@ -1501,7 +1501,7 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Channel, Equals, "stable")
 }
@@ -1565,7 +1565,7 @@ func (s *storeTestSuite) TestInfo500Once(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	c.Assert(n, Equals, 2)
 }
 
@@ -1604,7 +1604,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	expected := map[string]*snap.ChannelSnapInfo{
 		"latest/stable": {
 			Revision:    snap.R(29),
@@ -1736,7 +1736,7 @@ func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
@@ -1766,7 +1766,7 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestLocation(c *C) {
@@ -1793,7 +1793,7 @@ func (s *storeTestSuite) TestLocation(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
@@ -1825,7 +1825,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
@@ -1856,7 +1856,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestInfoOopses(c *C) {
@@ -2695,7 +2695,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
-	c.Check(snp.InstanceName(), Equals, "hello-world")
+	c.Check(snp.InstanceName().String(), Equals, "hello-world")
 	c.Check(snp.Revision, Equals, snap.R(27))
 	c.Check(snp.SnapID, Equals, helloWorldSnapID)
 	c.Check(snp.Publisher, Equals, snap.StoreAccount{

@@ -166,7 +166,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	found := make(map[string]bool)
 	appInfos := make([]*snap.AppInfo, 0, len(requested))
 	for _, snp := range snaps {
-		snapName := snp.info.InstanceName()
+		snapName := snp.info.InstanceName().String()
 		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
 		for _, app := range snp.info.Apps {
 			if !opts.service || app.IsService() {

@@ -49,7 +49,7 @@ func (c *collectFilter) plugOrConnectedSlotMatches(plug *interfaces.PlugRef, con
 			return true
 		}
 	}
-	if c.snapName != "" && plug.Snap != c.snapName {
+	if c.snapName != "" && plug.Snap.String() != c.snapName {
 		return false
 	}
 	return true
@@ -61,7 +61,7 @@ func (c *collectFilter) slotOrConnectedPlugMatches(slot *interfaces.SlotRef, con
 			return true
 		}
 	}
-	if c.snapName != "" && slot.Snap != c.snapName {
+	if c.snapName != "" && slot.Snap.String() != c.snapName {
 		return false
 	}
 	return true

@@ -6205,7 +6205,7 @@ epoch: 1
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap, other-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, snapNames)
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap", "other-snap"})
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyClassic(c *C) {
@@ -7265,7 +7265,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	snapRevision := snap.R(11)
 	const channel = "channel-for-components"
 
-	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
+	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey).String()
 
 	// we start without the auxiliary store info
 	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
@@ -7279,7 +7279,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	}
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		c.Assert(info.InstanceName().String(), DeepEquals, instanceName)
 		var results []store.SnapResourceResult
 		for _, cs := range componentStates {
 			results = append(results, store.SnapResourceResult{
@@ -7307,7 +7307,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, instanceName)
+	c.Check(info.InstanceName().String(), Equals, instanceName)
 	c.Check(info.Channel, Equals, channel)
 	c.Check(info.Revision, Equals, snapRevision)
 
@@ -7710,7 +7710,7 @@ func (s *snapmgrTestSuite) testSeedingGoalWithComponentsRunThrough(c *C, opts te
 		snapRevision = snap.R(-1)
 	}
 
-	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
+	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey).String()
 
 	components := make([]snapstate.PathComponent, 0, len(opts.components))
 	compPaths := make(map[string]string, len(opts.components))
@@ -7812,7 +7812,7 @@ components:
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, instanceName)
+	c.Check(info.InstanceName().String(), Equals, instanceName)
 	c.Check(info.Revision, Equals, si.Revision)
 
 	chg.AddAll(ts)
@@ -8259,7 +8259,7 @@ func (s *validationSetsSuite) testInstallComponentsValidationSets(c *C, opts tes
 	defer restore()
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		c.Assert(info.InstanceName().String(), DeepEquals, snapName)
 		return []store.SnapResourceResult{
 			{
 				DownloadInfo: snap.DownloadInfo{
@@ -8378,7 +8378,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 		instanceKey = "key"
 		channel     = "channel-for-components"
 	)
-	instanceName := snap.InstanceName(snapName, instanceKey)
+	instanceName := snap.InstanceName(snapName, instanceKey).String()
 
 	snapID := snaptest.AssertedSnapID(snapName)
 
@@ -8444,7 +8444,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 	defer restore()
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		c.Assert(info.InstanceName().String(), DeepEquals, instanceName)
 		results := make([]store.SnapResourceResult, 0, len(opts.comps))
 		for _, c := range opts.comps {
 			results = append(results, store.SnapResourceResult{

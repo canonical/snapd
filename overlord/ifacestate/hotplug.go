@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -420,7 +421,7 @@ func suggestedSlotName(devinfo *hotplug.HotplugDeviceInfo, fallbackName string) 
 
 // hotplugSlotName returns a slot name derived from slotSpecName or device attributes, or interface name, in that priority order, depending
 // on which information is available. The chosen name is guaranteed to be unique
-func hotplugSlotName(hotplugKey snap.HotplugKey, systemSnapInstanceName, slotSpecName, ifaceName string, devinfo *hotplug.HotplugDeviceInfo, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo) string {
+func hotplugSlotName(hotplugKey snap.HotplugKey, systemSnapInstanceName naming.InstanceName, slotSpecName, ifaceName string, devinfo *hotplug.HotplugDeviceInfo, repo *interfaces.Repository, stateSlots map[string]*HotplugSlotInfo) string {
 	proposedName := slotSpecName
 	if proposedName == "" {
 		proposedName = suggestedSlotName(devinfo, ifaceName)
