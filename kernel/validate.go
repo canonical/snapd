@@ -92,6 +92,48 @@ func validateModulesTree(kernelRoot string) error {
 	return nil
 }
 
+// validateFirmwareTree checks the kernel snap firmware tree for entries
+// that would conflict with snapd's runtime handling of the drivers tree.
+func validateFirmwareTree(kernelRoot string) error {
+	fwDir := filepath.Join(kernelRoot, "firmware")
+	// The firmware directory is optional; if there is none, there is
+	// nothing to validate here.
+	if _, err := os.Stat(fwDir); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+
+	entries, err := os.ReadDir(fwDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		// "updates" is reserved for firmware coming from
+		// kernel-modules components and must not be shipped by the
+		// kernel snap itself.
+		if e.Name() != "updates" {
+			continue
+		}
+		if !e.IsDir() {
+			return fmt.Errorf("firmware directory %q must not contain an entry named %q, reserved for kernel-modules components", fwDir, e.Name())
+		}
+		// Some kernel build tooling ships an empty "updates" directory as
+		// a harmless placeholder; only a non-empty one actually conflicts
+		// with kernel-modules-component firmware at runtime (see
+		// createFirmwareSymlinks/setupModsFromComp in kernel_drivers.go,
+		// which always (re)creates this directory anyway).
+		updatesDir := filepath.Join(fwDir, e.Name())
+		updatesEntries, err := os.ReadDir(updatesDir)
+		if err != nil {
+			return err
+		}
+		if len(updatesEntries) > 0 {
+			return fmt.Errorf("firmware directory %q must not contain a non-empty entry named %q, reserved for kernel-modules components", fwDir, e.Name())
+		}
+	}
+
+	return nil
+}
+
 // Validate checks whether the given directory contains valid kernel snap
 // metadata and a matching content.
 func Validate(kernelRoot string) error {
@@ -105,6 +147,10 @@ func Validate(kernelRoot string) error {
 	}
 
 	if err := validateModulesTree(kernelRoot); err != nil {
+		return err
+	}
+
+	if err := validateFirmwareTree(kernelRoot); err != nil {
 		return err
 	}
 
