@@ -1190,9 +1190,13 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 
 func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, opts *backend.SetupKernelSnapOptions, meter progress.Meter) (changed bool, err error) {
 	meter.Notify("prepare-kernel-snap")
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op: "prepare-kernel-snap",
-	})
+	}
+	f.appendOp(op)
+	if err := f.maybeErr(op); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
