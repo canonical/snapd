@@ -22,13 +22,15 @@ interface needs custom validation, connection behavior, or backend logic;
 Nearby interfaces with similar behavior are generally the best implementation
 reference.
 
-Security backends discover optional methods implemented by an interface. The
-recognized method signatures are collected in [`all_test.go`](all_test.go) and
-enforced by each backend's `Specification`, such as
+Security backends discover optional methods implemented by an interface. These
+methods let the interface add its backend-specific policy and configuration to
+the `Specification` passed to them. Each backend's `Specification` defines the
+exact method signatures it recognizes, such as
 [`apparmor/spec.go`](../apparmor/spec.go),
 [`seccomp/spec.go`](../seccomp/spec.go), [`udev/spec.go`](../udev/spec.go), and
-[`kmod/spec.go`](../kmod/spec.go). Implement only the connected or permanent
-plug and slot methods needed by the interface.
+[`kmod/spec.go`](../kmod/spec.go). [`all_test.go`](all_test.go) collects the
+common backend signatures used by its cross-interface checks. Implement only
+the connected or permanent plug and slot methods needed by the interface.
 
 Interfaces may also validate or normalize attributes before preparation or
 connection. The prepare-time sanitizer interfaces are defined in
