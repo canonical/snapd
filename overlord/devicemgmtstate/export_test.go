@@ -22,6 +22,7 @@ package devicemgmtstate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -33,8 +34,6 @@ var (
 
 	DefaultExchangeLimit    = defaultExchangeLimit
 	DefaultExchangeInterval = defaultExchangeInterval
-
-	MgmtMessageIDKey = mgmtMessageIDKey
 )
 
 func MockFetchAccountKey(f func(st *state.State, userID int, signKeyID string) error) func() {
@@ -91,7 +90,7 @@ func (m *DeviceMgmtManager) DoQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 	return m.doQueueResponse(t, tomb)
 }
 
-func ParseRequestMessage(msg store.Message) (*RequestMessage, error) {
+func ParseRequestMessage(msg store.Message) (*handlers.RequestMessage, error) {
 	return parseRequestMessage(msg)
 }
 
