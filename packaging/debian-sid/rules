@@ -123,10 +123,9 @@ $(info version_from_changelog is $(version_from_changelog))
 # from cmd/VERSION, and the downstream version suffix (the Debian revision,
 # e.g. "-1" for 2.77.1-1) is whatever the changelog version adds on top of it.
 #
-# data/info is taken from the source tree as-is, except that
-# SNAPD_APPARMOR_REEXEC is forced to 0 on Debian, and VERSION is set to the
-# full package version (matching the binaries) only when there is a
-# downstream suffix; the assertion formats are reused from the tree, so they
+# cmd/VERSION and data/info are stamped with the full package version by
+# packaging/mod-version.sh below, except that SNAPD_APPARMOR_REEXEC is forced
+# to 0 on Debian; the assertion formats are reused from the tree, so they
 # never drift from the source.
 
 upstream_version := $(shell cat cmd/VERSION 2>/dev/null)
@@ -166,18 +165,21 @@ snapd.defines.mk:
 override_dh_auto_build: snapd.defines.mk
 	# The version files come from the source tarball (packaging is expected to
 	# build from a pack-source tarball). Copy version_generated.go into the
-	# dh-golang build tree and adjust data/info for Debian: set VERSION to the
-	# full package version (upstream + Debian revision, matching the binaries)
-	# and SNAPD_APPARMOR_REEXEC=0, reusing the assertion formats from the tree.
+	# dh-golang build tree, stamp cmd/VERSION and data/info with the full
+	# package version, and adjust data/info for Debian
+	# (SNAPD_APPARMOR_REEXEC=0), reusing the assertion formats from the tree.
 	install -m 0644 snapdtool/version_generated.go _build/src/$(DH_GOPKG)/snapdtool/version_generated.go
-	# Force SNAPD_APPARMOR_REEXEC=0, and when there is a downstream (Debian
-	# revision) suffix, also set VERSION to the full package version so it
-	# matches the binaries; otherwise data/info's upstream version (from the
-	# source tarball) is already correct.
-	sed -e 's/^SNAPD_APPARMOR_REEXEC=.*/SNAPD_APPARMOR_REEXEC=0/' \
-	$(if $(downstream_version_suffix), -e 's/^VERSION=.*/VERSION=$(version_from_changelog)/',) \
-	    data/info > data/info.tmp
-	mv data/info.tmp data/info
+ifneq ($(strip $(downstream_version_suffix)),)
+	# Set cmd/VERSION and data/info VERSION to the full package version
+	# (upstream + Debian revision), so snap-confine and the installed info
+	# file match the binaries' FullVersion(). Skipped when there is no
+	# downstream suffix: the upstream version from the source tarball is
+	# already correct.
+	packaging/mod-version.sh $(version_from_changelog)
+endif
+	# Debian does not support re-exec into the snap, force it off in the
+	# installed info file.
+	sed -i 's/^SNAPD_APPARMOR_REEXEC=.*/SNAPD_APPARMOR_REEXEC=0/' data/info
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 

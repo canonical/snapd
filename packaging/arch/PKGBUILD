@@ -73,9 +73,10 @@ EXTRA_GO_LDFLAGS = -w -s
 downstream_version_suffix = -$pkgrel
 __DEFINES__
 
-  # Set data/info VERSION to the full package version (pkgver + pkgrel), so it
-  # matches the binaries' FullVersion().
-  sed -i "s/^VERSION=.*/VERSION=$pkgver-$pkgrel/" data/info
+  # Set cmd/VERSION and data/info VERSION to the full package version (pkgver +
+  # pkgrel), so snap-confine and the installed info file match the binaries'
+  # FullVersion().
+  packaging/mod-version.sh "$pkgver-$pkgrel"
 
   make -f packaging/snapd.mk \
        SNAPD_DEFINES_DIR="$srcdir"

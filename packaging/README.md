@@ -94,6 +94,29 @@ example, Debian packaging sets it to the Debian revision (`-1` for
 `2.77.1+ubuntu26.04`), both derived from the changelog version with the
 upstream version prefix stripped.
 
+Two files carry the version outside of the Go linker flags and must be stamped
+with the **full package version** (upstream version plus the distribution
+suffix, e.g. `2.77.1-1`), so that they match the binaries'
+`FullVersion()`:
+
+- `cmd/VERSION` - read by autotools (`AC_INIT`) for snap-confine, so that
+  `snap-confine --version` agrees with the Go binaries
+- `data/info` - its `VERSION` key only; `SNAPD_APPARMOR_REEXEC` and the
+  assertion formats map are kept from the source tree
+
+To do this, distribution packaging invokes `packaging/mod-version.sh` with the
+full package version, before `cmd/configure` reads `cmd/VERSION`:
+
+``` sh
+packaging/mod-version.sh 2.77.1-1
+```
+
+The script takes the version files from a source tarball (it requires them to
+exist) and fails the build when the given version does not extend the upstream
+version baked into the tarball, catching packaging metadata that drifted from
+the source. When the package version equals the upstream version (no suffix),
+calling it is a harmless no-op.
+
 ### C
 
 All of the C code is contained within `cmd` directory. It is configured and

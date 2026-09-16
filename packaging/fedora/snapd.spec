@@ -585,9 +585,10 @@ EXTRA_GO_BUILD_TAGS = rpm_crashtraceback $EXTRA_TAGS
 downstream_version_suffix = -%{release}
 __DEFINES__
 
-# Set data/info VERSION to the full package version (upstream + release), so it
-# matches the binaries' FullVersion().
-sed -i 's/^VERSION=.*/VERSION=%{version}-%{release}/' data/info
+# Set cmd/VERSION and data/info VERSION to the full package version (upstream +
+# release), so snap-confine and the installed info file match the binaries'
+# FullVersion().
+packaging/mod-version.sh %{version}-%{release}
 
 # Build SELinux policy module
 %if 0%{?with_selinux}

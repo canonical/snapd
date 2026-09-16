@@ -21,6 +21,10 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=0
 
 VERSION := $(shell dpkg-parsechangelog -S Version)
+# VERSION is clobbered by "include /etc/os-release" below (to PRETTY_NAME),
+# so keep the changelog version in a dedicated variable for use after that
+# point.
+changelog_version := $(VERSION)
 
 # The upstream version is baked into the source tarball (cmd/VERSION). The
 # downstream version suffix is whatever the changelog version adds on top of
@@ -234,11 +238,12 @@ endif
 	# generated version is also present in the dh-golang build-tree.
 	install -m 0644 snapdtool/version_generated.go _build/src/$(DH_GOPKG)/snapdtool/version_generated.go
 ifneq ($(strip $(downstream_version_suffix)),)
-	# Set data/info VERSION to the full package version (upstream + downstream
-	# suffix), so it matches the binaries' FullVersion(). Skipped when there is
-	# no downstream suffix: data/info's upstream version (from the source
-	# tarball) is already correct.
-	sed -i 's/^VERSION=.*/VERSION=$(VERSION)/' data/info
+	# Set cmd/VERSION and data/info VERSION to the full package version
+	# (upstream + downstream suffix), so snap-confine and the installed info
+	# file match the binaries' FullVersion(). Skipped when there is no
+	# downstream suffix: the upstream version from the source tarball is
+	# already correct.
+	packaging/mod-version.sh $(changelog_version)
 endif
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
