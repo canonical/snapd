@@ -115,6 +115,13 @@ func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, erro
 	}
 }
 
+// FileNameGlob returns the base name globs that matches snap integrity files.
+func FileNameGlobs(snapPath string) []string {
+	// glob matches path/to/snap/<instance_name>_<revision>.dmverity_*
+	dmverityFileNameGlob := integrityFilePath(snapPath, "*")
+	return []string{dmverityFileNameGlob}
+}
+
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
 var ErrNoIntegrityDataFoundInRevision = errors.New("no integrity data found in revision")
 

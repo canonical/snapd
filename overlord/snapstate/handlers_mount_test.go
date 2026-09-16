@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -169,6 +170,57 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 	})
 
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
+	v1 := "name: mock\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		SnapPath:     testSnap,
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "https://some"},
+		IntegrityDataInfo: &snap.IntegrityDataInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Digest: "some digest",
+			},
+		},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(osutil.FileExists(testSnap), Equals, true)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:    "setup-snap",
+			name:  "foo",
+			path:  testSnap,
+			revno: snap.R(33),
+			integrityDataParams: integrity.IntegrityDataParams{
+				Digest: "some digest",
+			},
+		},
+	})
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {

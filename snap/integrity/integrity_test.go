@@ -339,3 +339,24 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsMountOptions(c *C) {
 	c.Check(opts, IsNil)
 	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
 }
+
+func (s *IntegrityTestSuite) TestFileNameGlob(c *C) {
+	tests := []struct {
+		snapPath      string
+		expectedGlobs []string
+	}{
+		{
+			snapPath:      "/path/to/snap/foo_1.snap",
+			expectedGlobs: []string{"/path/to/snap/foo_1.dmverity_*"},
+		},
+		{
+			snapPath:      "/path/to/snap/foo_1",
+			expectedGlobs: []string{"/path/to/snap/foo_1.dmverity_*"},
+		},
+	}
+
+	for _, tc := range tests {
+		glob := integrity.FileNameGlobs(tc.snapPath)
+		c.Check(glob, DeepEquals, tc.expectedGlobs)
+	}
+}

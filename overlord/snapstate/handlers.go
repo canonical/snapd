@@ -845,6 +845,13 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	setupOpts := &backend.SetupSnapOptions{
 		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
+	if snapsup.IntegrityDataInfo != nil {
+		// the snap has integrity data attached, make sure SetupSnap considers it
+		//
+		// TODO: when policy for choosing the preferred integrity method is
+		//       implemented, choose it
+		setupOpts.IntegrityDataParams = &snapsup.IntegrityDataInfo.IntegrityDataParams
+	}
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.

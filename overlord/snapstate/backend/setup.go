@@ -35,7 +35,9 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -51,6 +53,8 @@ type InstallRecord struct {
 
 type SetupSnapOptions struct {
 	SkipKernelExtraction bool
+	// IntegrityDataParams holds the optional integrity data parameters for the snap installation.
+	IntegrityDataParams *integrity.IntegrityDataParams
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
@@ -96,7 +100,9 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 
 	// in uc20+ and classic with modes run mode, all snaps must be on the
 	// same device
-	opts := &snap.InstallOptions{}
+	opts := &snap.InstallOptions{
+		IntegrityDataParams: setupOpts.IntegrityDataParams,
+	}
 	if dev.HasModeenv() && dev.RunMode() {
 		opts.MustNotCrossDevices = true
 	}
@@ -113,6 +119,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
+		IntegrityDataParams:    setupOpts.IntegrityDataParams,
 	}
 	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountOptions); err != nil {
 		return snapType, nil, err
@@ -177,6 +184,8 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 		return nil, err
 	}
 
+	// TODO: support passing integrity data for components
+
 	// in uc20+ and classic with modes run mode, all snaps must be on the
 	// same device
 	opts := &snap.InstallOptions{}
@@ -203,6 +212,26 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
 	return installRecord, nil
+}
+
+func removeIntegrityFilesForSnap(s snap.PlaceInfo) error {
+	// in practice only one file should match, but we do not know the exact
+	// digest, so we use a glob to match all possible integrity files for
+	// the snap
+	integrityFileNameGlobs := integrity.FileNameGlobs(s.MountFile())
+	var errs []error
+	for _, integrityFileNameGlob := range integrityFileNameGlobs {
+		matches, err := filepath.Glob(integrityFileNameGlob)
+		if err != nil {
+			return err
+		}
+		for _, match := range matches {
+			if err := os.RemoveAll(match); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return strutil.JoinErrors(errs...)
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
@@ -232,6 +261,11 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 		if !keepSeededSnap {
 			// remove the snap
 			if err := os.RemoveAll(snapPath); err != nil {
+				return err
+			}
+
+			// remove the snap's integrity files
+			if err := removeIntegrityFilesForSnap(s); err != nil {
 				return err
 			}
 		}
