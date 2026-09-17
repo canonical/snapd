@@ -5985,7 +5985,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			defer st.Unlock()
 			// not strictly needed, but underlines there's a reboot
 			// happening
-			restart.Request(st, restart.RestartSystemNow, nil)
+			restart.Request(st, restart.RestartSystemNow, nil, "")
 		}
 		if fakeRebootCallsReady {
 			return nil

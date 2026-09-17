@@ -29,6 +29,6 @@ var (
 	ProcessRestartForChange     = processRestartForChange
 )
 
-func RestartParametersInit(rt *RestartParameters, snapName string, restartType RestartType, rebootInfo *boot.RebootInfo) {
-	rt.init(snapName, restartType, rebootInfo)
+func RestartParametersInit(rt *RestartParameters, snapName string, restartType RestartType, rebootInfo *boot.RebootInfo, reason RestartReason) {
+	rt.init(snapName, restartType, rebootInfo, reason)
 }

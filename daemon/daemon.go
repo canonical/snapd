@@ -87,6 +87,8 @@ type Daemon struct {
 	requestedRestart restart.RestartType
 	// reboot info needed to handle reboots
 	rebootInfo *boot.RebootInfo
+	// reason for a restart request, empty otherwise
+	restartReason restart.RestartReason
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
@@ -574,7 +576,7 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 }
 
 // HandleRestart implements overlord.RestartBehavior.
-func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo) {
+func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -584,6 +586,7 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 		}
 	}
 	d.rebootInfo = rebootInfo
+	d.restartReason = reason
 
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
