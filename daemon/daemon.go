@@ -785,10 +785,6 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return d.doReboot(sigCh, restartType, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
-	if restartSocket {
-		return ErrRestartSocket
-	}
-
 	if restartType == restart.RestartDaemon {
 		seclog.LogSystemRestartSnapd(d.Version, restartReason)
 		if restartReason == "" {
@@ -804,6 +800,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		if err := wrappers.RestartSnapd(); err != nil {
 			logger.Noticef("while restarting snapd: %v", err)
 		}
+		return nil
+	}
+
+	if restartSocket {
+		return ErrRestartSocket
 	}
 
 	return nil

@@ -769,6 +769,50 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-update"]`)
 }
 
+func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+
+	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		return nil, nil
+	})
+	defer systemctlMock()
+
+	s.markSeeded(d)
+	makeDaemonListeners(c, d)
+
+	c.Assert(d.Start(context.Background()), check.IsNil)
+	stoppedYet := false
+	defer func() {
+		if !stoppedYet {
+			d.Stop(nil)
+		}
+	}()
+
+	st := d.overlord.State()
+	st.Lock()
+	restart.Request(st, restart.RestartSocket, nil, "")
+	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdUpdate)
+	st.Unlock()
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("restart.Request -> daemon -> Kill chain didn't work")
+	}
+
+	c.Assert(d.Stop(nil), check.IsNil)
+	stoppedYet = true
+
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+}
+
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	d := s.newTestDaemon(c)
 
