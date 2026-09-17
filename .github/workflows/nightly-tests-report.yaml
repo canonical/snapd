@@ -1,0 +1,149 @@
+name: Nightly test predictor report
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      probability_threshold:
+        description: Report tests with a success probability below this percentage
+        type: number
+        required: true
+        default: 30
+
+permissions:
+  contents: read
+
+env:
+  TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
+
+jobs:
+  systems:
+    name: Collect systems
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.systems.outputs.matrix }}
+      threshold: ${{ steps.threshold.outputs.value }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Validate probability threshold
+        id: threshold
+        env:
+          THRESHOLD: ${{ inputs.probability_threshold || 30 }}
+        run: |
+          if ! awk -v value="${THRESHOLD}" 'BEGIN { exit !(value ~ /^[0-9]+([.][0-9]+)?$/ && value >= 0 && value <= 100) }'; then
+            echo "Probability threshold must be a number between 0 and 100" >&2
+            exit 1
+          fi
+          echo "value=${THRESHOLD}" >> "${GITHUB_OUTPUT}"
+
+      - name: Collect unique backend/system targets
+        id: systems
+        run: |
+          matrix=$(jq -cs '
+            [.[].include[] | .backend as $backend | .systems | split(" ")[] | select(length > 0) | {backend: $backend, system: .}]
+            | unique
+          ' \
+            .github/workflows/data-fundamental-systems.json \
+            .github/workflows/data-nested-systems.json \
+            .github/workflows/data-non-fundamental-systems.json)
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+  predict:
+    name: Predict ${{ matrix.backend }}:${{ matrix.system }}
+    needs: systems
+    runs-on: [self-hosted, spread-enabled]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.systems.outputs.matrix) }}
+    steps:
+      - name: Query test predictor
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SYSTEM: ${{ matrix.system }}
+          THRESHOLD: ${{ needs.systems.outputs.threshold }}
+        run: |
+          mkdir -p predictor-reports
+          response=$(mktemp)
+          trap 'rm -f "${response}"' EXIT
+
+          curl --fail --show-error --silent --get \
+            --retry 3 \
+            --retry-all-errors \
+            --max-time 1800 \
+            --output "${response}" \
+            --data-urlencode "verb=executing" \
+            --data-urlencode "backend=${BACKEND}" \
+            --data-urlencode "system=${SYSTEM}" \
+            "${TEST_PREDICTOR_URL}/rank-risk"
+
+          jq --arg backend "${BACKEND}" --arg system "${SYSTEM}" --argjson threshold "${THRESHOLD}" '
+            .top_high_risk
+            | if type != "array" then error("top_high_risk is not an array") else . end
+            | .[]
+            | select(.prob < ($threshold / 100))
+            | [$backend, $system, .name, (.prob * 100), .context_len]
+            | @tsv
+          ' --raw-output "${response}" > "predictor-reports/${BACKEND}--${SYSTEM}.tsv"
+
+      - name: Upload system report
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-predictions-${{ matrix.backend }}-${{ matrix.system }}
+          path: predictor-reports/${{ matrix.backend }}--${{ matrix.system }}.tsv
+          retention-days: 28
+
+  report:
+    name: Publish report
+    if: ${{ always() && needs.systems.result == 'success' }}
+    needs: [systems, predict]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download system reports
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-predictions-*
+          path: predictor-reports
+          merge-multiple: true
+
+      - name: Create report
+        env:
+          THRESHOLD: ${{ needs.systems.outputs.threshold }}
+          PREDICT_RESULT: ${{ needs.predict.result }}
+        run: |
+          mkdir -p predictor-reports
+          {
+            echo "# Test predictor report"
+            echo
+            echo "Tests with a predicted success probability below ${THRESHOLD}%."
+            echo
+            echo "| Backend | System | Test | Success probability | History samples |"
+            echo "|---|---|---|---:|---:|"
+
+            find predictor-reports -type f -name '*.tsv' -print0 \
+              | xargs -0 -r cat \
+              | sort -t $'\t' -k1,1 -k2,2 -k4,4n \
+              | awk -F '\t' '{ printf "| %s | %s | %s | %.2f%% | %s |\n", $1, $2, $3, $4, $5 }'
+          } > test-predictor-report.md
+
+          if ! find predictor-reports -type f -name '*.tsv' -size +0c -print -quit | grep -q .; then
+            echo "| - | - | No tests found below the threshold | - | - |" >> test-predictor-report.md
+          fi
+
+          if [ "${PREDICT_RESULT}" != "success" ]; then
+            echo >> test-predictor-report.md
+            echo "> Some system predictions failed." >> test-predictor-report.md
+          fi
+
+          cat test-predictor-report.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload report
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-predictor-report
+          path: test-predictor-report.md
+          retention-days: 28
