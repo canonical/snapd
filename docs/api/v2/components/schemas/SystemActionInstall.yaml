@@ -35,12 +35,39 @@ oneOf:
         description: A list of volume labels to operate on.
       volumes-auth:
         type: object
-        additionalProperties:
-          type: string
-        description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
+        description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN). Defaults to
+          no authentication.
+        properties:
+          required:
+            - mode
+          mode:
+            type: string
+            enum:
+              - passphrase
+              - pin
+            description: The authentication mode for the volume (e.g., 'passphrase' or 'pin').
+          passphrase:
+            type: string
+            description: The passphrase for the volume, required if 'mode' is set to 'passphrase'.
+          pin:
+            type: string
+            description: The PIN for the volume, required if 'mode' is set to 'pin'.
+          kdf-time:
+            type: integer
+            description:
+              Length of time to run the KDF in nanoseconds. If 'mode' is set to 'passphrase', defaults to 2
+              seconds. If 'mode' is set to 'pin', defaults to 200ms.
+          kdf-type:
+            type: string
+            enum: # gadget/device/encrypt.go:VolumesAuthOptions defines it as a string.
+              - argon2id
+              - argon2i
+              - pbkdf2
+            description: The type of KDF. Only supported if 'mode' is set to 'passphrase'.
       keyboard-config:
         type: object
-        description: Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g. plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
+        description: Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g.
+          plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
         properties:
           layout:
             type: string
