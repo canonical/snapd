@@ -19,6 +19,7 @@ properties:
       - setup-storage-encryption
       - generate-recovery-key
       - finish
+      - preseed
 oneOf:
   - type: object
     required:
@@ -35,7 +36,8 @@ oneOf:
         description: A list of volume labels to operate on.
       volumes-auth:
         type: object
-        description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN). Defaults to
+        description:
+          A map of volume labels to their authentication credentials (e.g., passphrase or PIN). Defaults to
           no authentication.
         properties:
           required:
@@ -66,7 +68,8 @@ oneOf:
             description: The type of KDF. Only supported if 'mode' is set to 'passphrase'.
       keyboard-config:
         type: object
-        description: Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g.
+        description:
+          Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g.
           plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
         properties:
           layout:
@@ -120,3 +123,18 @@ oneOf:
             items:
               type: string
             description: A list of specific optional components to install.
+  - type: object
+    required:
+      - step
+    properties:
+      step:
+        type: string
+        enum:
+          - preseed
+      target-root:
+        type: string
+        description: The target root directory of a mounted target system for the preseed step. The mount points can be
+          /dev, /proc, /sys, /sys/kernel/security. "/sys" and "/sys/kernel/security" must be mounted
+          independently due to some existing checks within snapd's preseeding implementation. it is
+          required to make the target system available by bind mounting /var/lib/snapd/seed into
+          /target/var/lib/snapd/seed. # Why not an enum?
