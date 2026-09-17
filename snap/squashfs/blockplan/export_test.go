@@ -123,10 +123,12 @@ func (s *xzBlockSplitter) Next() (payload []byte, uSize int, err error) {
 type (
 	Image     = squashfsImage
 	FileInode = fileInode
+	MetaBlock = metaBlock
 )
 
 const (
 	SquashfsMagic         = squashfsMagic
+	SquashfsMetadataSize  = squashfsMetadataSize
 	SuperblockSize        = superblockSize
 	NoTable               = squashfsNoTable
 	InodeTypeFile         = inodeTypeFile
@@ -237,6 +239,40 @@ func (pr *planReader) HasSection(id uint16) bool { return pr.hasSection(id) }
 func (pr *planReader) Entries() []sectionEntry { return pr.entries }
 func (pr *planReader) Pay() io.Reader          { return pr.pay }
 func (pr *planReader) PayLen() int64           { return pr.payLen }
+
+// --- instr.go ---
+//
+// The instruction stream's own structures, again read through aliases: the
+// encoder and the decoder are what the tests drive, and both are the format's
+// business rather than the package's API.
+
+type (
+	Opcode       = opcode
+	Instruction  = instruction
+	PlanBlock    = planBlock
+	SrcWindow    = srcWindow
+	InstrEncoder = instrEncoder
+	InstrDecoder = instrDecoder
+)
+
+const (
+	OpCopy     = opCopy
+	OpPatchRun = opPatchRun
+	OpLiteral  = opLiteral
+)
+
+var (
+	NewInstrEncoder = newInstrEncoder
+	NewInstrDecoder = newInstrDecoder
+	EncodeMDFrame   = encodeMDFrame
+	DecodeMDFrame   = decodeMDFrame
+)
+
+func (d *instrDecoder) Done() bool { return d.done() }
+
+// Rest is how many bytes of the stream are still unread, which is the one thing
+// a decoding loop cannot tell from the instructions it got back.
+func (d *instrDecoder) Rest() int { return len(d.buf) - d.pos }
 
 // --- memfd.go ---
 
