@@ -965,7 +965,7 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 	message := fmt.Sprintf("cannot refresh (%s) due running apps; close running apps to continue refresh.", snapsBuf.String())
 
 	// wait some time before showing the same warning to the user again after okaying.
-	st.AddWarning(message, &state.AddWarningOptions{RepeatAfter: 24 * time.Hour})
+	st.AddWarning(message, &state.AddWarningOptions{ShowAfter: 24 * time.Hour})
 
 	return nil
 }
