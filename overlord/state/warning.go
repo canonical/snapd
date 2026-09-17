@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	defaultWarningRepeatAfter = time.Hour * 24
+	defaultWarningShowAfter   = time.Hour * 24
 	defaultWarningExpireAfter = time.Hour * 24 * 28
 
 	errNoWarningMessage     = errors.New("warning has no message")
@@ -87,7 +87,7 @@ func (w *Warning) expireAfter() time.Duration {
 	return w.notice.expireAfter
 }
 
-func (w *Warning) repeatAfter() (time.Duration, error) {
+func (w *Warning) showAfter() (time.Duration, error) {
 	// use "show-after" instead of "repeat-after" to make it clear that this is
 	// about "show" in the warnings sense, unrelated to notices repeatAfter.
 	showAfterStr, ok := w.notice.lastData["show-after"]
@@ -116,14 +116,14 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 	if !lastShown.IsZero() {
 		jw.LastShown = &lastShown
 	}
-	repeatAfter, err := w.repeatAfter()
+	showAfter, err := w.showAfter()
 	// XXX: this round-trip is only necessary for validation purposes
 	if err != nil {
 		return nil, err
 	}
 	// XXX: the "omitempty" directive in the jsonWarning was and remains always
 	// unused, since duration 0 marshals as "0s"
-	jw.RepeatAfter = repeatAfter.String()
+	jw.RepeatAfter = showAfter.String()
 
 	return json.Marshal(jw)
 }
@@ -149,19 +149,19 @@ func (w *Warning) ExpiredBefore(now time.Time) bool {
 	return w.notice.Expired(now)
 }
 
-func (w *Warning) ShowAfter(t time.Time) bool {
+func (w *Warning) ShownAfter(t time.Time) bool {
 	lastShown, err := w.lastShown()
 	if err != nil || lastShown.IsZero() {
 		// warning was never shown before; was it added after the cutoff?
 		return !w.firstAdded().After(t)
 	}
-	// Treat invalid "repeat-after" as the same as repeatAfter of 0
-	repeatAfter, err := w.repeatAfter()
+	// Treat invalid "show-after" as the same as showAfter of 0
+	showAfter, err := w.showAfter()
 	if err != nil {
-		repeatAfter = 0
+		showAfter = 0
 	}
 
-	return lastShown.Add(repeatAfter).Before(t)
+	return lastShown.Add(showAfter).Before(t)
 }
 
 // Warnf records a warning: if it's the first Warning with this
@@ -176,15 +176,15 @@ func (s *State) Warnf(template string, args ...any) {
 		message = template
 	}
 	s.AddWarning(message, &AddWarningOptions{
-		RepeatAfter: defaultWarningRepeatAfter,
+		ShowAfter: defaultWarningShowAfter,
 	})
 }
 
 // AddWarningOptions holds optional parameters for an AddWarning call.
 type AddWarningOptions struct {
-	// RepeatAfter defines how long after this warning was last shown we
+	// ShowAfter defines how long after this warning was last shown we
 	// should allow it to repeat. Zero means always repeat.
-	RepeatAfter time.Duration
+	ShowAfter time.Duration
 
 	// Time, if set, overrides time.Now() as the warning lastAdded time.
 	Time time.Time
@@ -214,8 +214,8 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 		Time:        options.Time,
 	}
 
-	if options.RepeatAfter != 0 {
-		addNoticeOptions.Data["show-after"] = options.RepeatAfter.String()
+	if options.ShowAfter != 0 {
+		addNoticeOptions.Data["show-after"] = options.ShowAfter.String()
 	}
 
 	// Get the existing notice data, if present, to persist the "last-shown" value
@@ -305,7 +305,7 @@ func (s *State) OkayWarnings(t time.Time) int {
 
 	n := 0
 	for _, w := range warnings {
-		if w.ShowAfter(t) {
+		if w.ShownAfter(t) {
 			if w.notice.lastData == nil {
 				w.notice.lastData = make(map[string]string)
 			}
@@ -333,7 +333,7 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 
 	var toShow []*Warning
 	for _, w := range all {
-		if !w.ShowAfter(now) {
+		if !w.ShownAfter(now) {
 			continue
 		}
 		toShow = append(toShow, w)
