@@ -589,16 +589,16 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 // where a snap refresh/remove/disable could start.
 func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// Remove hint check takes precedence because we want to exit early
-	snapName := app.Snap.InstanceName()
-	hint, _, err := runinhibit.IsLocked(snapName.String(), nil)
+	instanceName := app.Snap.InstanceName()
+	hint, _, err := runinhibit.IsLocked(instanceName.String(), nil)
 	if err != nil {
 		return err
 	}
 	if hint == runinhibit.HintInhibitedForRemove {
-		return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snap.JoinSnapApp(snapName.String(), app.Name))
+		return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snap.JoinSnapApp(instanceName.String(), app.Name))
 	}
 	if hint == runinhibit.HintInhibitedForDisable {
-		return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snap.JoinSnapApp(snapName.String(), app.Name))
+		return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snap.JoinSnapApp(instanceName.String(), app.Name))
 	}
 
 	if app.IsService() {
@@ -611,7 +611,7 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// - Or, A refresh was started and finished
 	// Let's retry to avoid either existing with an error due to missing current
 	// symlink or worse starting with the wrong revision.
-	if osutil.FileExists(runinhibit.HintFile(snapName.String())) {
+	if osutil.FileExists(runinhibit.HintFile(instanceName.String())) {
 		// errSnapRefreshConflict should trigger a retry
 		return errSnapRefreshConflict
 	}

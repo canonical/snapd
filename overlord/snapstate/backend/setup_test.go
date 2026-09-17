@@ -520,18 +520,18 @@ func (s *setupSuite) testSetupComponentDoUndo(c *C, compName, snapName string, i
 }
 
 func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
-	snapName := naming.NewInstanceName("mysnap", "")
+	instanceName := naming.NewInstanceName("mysnap", "")
 	compName := "mycomp"
 	compRev := snap.R(33)
 
 	componentYaml := fmt.Sprintf(`component: %s+%s
 type: standard
 version: 1.0
-`, snapName, compName)
+`, instanceName, compName)
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
 
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		// mount unit start fails

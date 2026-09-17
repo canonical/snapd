@@ -13016,24 +13016,24 @@ func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {
 	classicCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModelClassicWithModes("pc", nil)}
 
 	tests := []struct {
-		name     string
-		ctx      snapstate.DeviceContext
-		snapType snap.Type
-		snapName naming.InstanceName
-		expected bool
+		name         string
+		ctx          snapstate.DeviceContext
+		snapType     snap.Type
+		instanceName naming.InstanceName
+		expected     bool
 	}{
-		{name: "base-snap refresh", ctx: modelBaseCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
-		{name: "remodel refresh path", ctx: remodelCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
-		{name: "remodel install path", ctx: remodelCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
-		{name: "non-base snap", ctx: modelBaseCtx, snapType: snap.TypeApp, snapName: "core18", expected: false},
-		{name: "classic model", ctx: classicCtx, snapType: snap.TypeBase, snapName: "core22", expected: false},
-		{name: "non-model base", ctx: modelBaseCtx, snapType: snap.TypeBase, snapName: "some-base", expected: false},
-		{name: "model base", ctx: modelBaseCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
+		{name: "base-snap refresh", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "remodel refresh path", ctx: remodelCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "remodel install path", ctx: remodelCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "non-base snap", ctx: modelBaseCtx, snapType: snap.TypeApp, instanceName: "core18", expected: false},
+		{name: "classic model", ctx: classicCtx, snapType: snap.TypeBase, instanceName: "core22", expected: false},
+		{name: "non-model base", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "some-base", expected: false},
+		{name: "model base", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
 	}
 
 	for _, tc := range tests {
 		c.Check(snapstate.ShouldScheduleUpdateCertDBForRefresh(
-			tc.snapName.String(), tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
+			tc.instanceName.String(), tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
 	}
 }
 

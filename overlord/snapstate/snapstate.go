@@ -407,10 +407,10 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().String() != current.InstanceName().String() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
-			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName().String())
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
 		}
 	}
 
@@ -4317,12 +4317,12 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 	}
 
 	// keep revisions in snap's sequence
-	for snapName, snapst := range snapStates {
+	for instanceName, snapst := range snapStates {
 		for _, rss := range snapst.Sequence.Revisions {
-			keepBlob(snap.MountFile(snapName, rss.Snap.Revision))
+			keepBlob(snap.MountFile(instanceName, rss.Snap.Revision))
 			for _, comp := range rss.Components {
 				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
-					comp.SideInfo.Revision, naming.InstanceName(snapName))
+					comp.SideInfo.Revision, naming.InstanceName(instanceName))
 				keepBlob(cpi.MountFile())
 			}
 		}

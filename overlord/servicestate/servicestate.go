@@ -152,10 +152,10 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 	}
 
 	for _, app := range appInfos {
-		snapName := app.Snap.InstanceName()
+		instanceName := app.Snap.InstanceName()
 		// app.String() gives "snapname.appname"
 		if requested[app.String()] {
-			explicitServices[snapName.String()] = append(explicitServices[snapName.String()], app.Name)
+			explicitServices[instanceName.String()] = append(explicitServices[instanceName.String()], app.Name)
 		}
 	}
 
@@ -300,11 +300,11 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *u
 	names := make([]string, len(appInfos))
 	for i, svc := range appInfos {
 		svcs = append(svcs, svc.ServiceName())
-		snapName := svc.Snap.InstanceName().String()
-		names[i] = snapName + "." + svc.Name
-		if snapName != lastName {
-			snapNames = append(snapNames, snapName)
-			lastName = snapName
+		instanceName := svc.Snap.InstanceName().String()
+		names[i] = instanceName + "." + svc.Name
+		if instanceName != lastName {
+			snapNames = append(snapNames, instanceName)
+			lastName = instanceName
 		}
 	}
 
