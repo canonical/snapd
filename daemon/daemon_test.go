@@ -733,7 +733,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.Request(st, restart.RestartDaemon, nil, "")
 	st.Unlock()
 
 	select {
@@ -943,7 +943,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType, *boot.RebootInfo), restartKind restart.RestartType, wait time.Duration) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType, *boot.RebootInfo, restart.RestartReason), restartKind restart.RestartType, wait time.Duration) {
 	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -1016,7 +1016,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	<-snapDone
 
 	st.Lock()
-	doRestart(st, restartKind, nil)
+	doRestart(st, restartKind, nil, "")
 	st.Unlock()
 
 	defer func() {
@@ -1107,7 +1107,7 @@ type rstManager struct {
 func (m *rstManager) Ensure() error {
 	m.st.Lock()
 	defer m.st.Unlock()
-	restart.Request(m.st, restart.RestartSystemNow, nil)
+	restart.Request(m.st, restart.RestartSystemNow, nil, "")
 	return nil
 }
 
@@ -1136,7 +1136,7 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 		o.AddManager(wm)
 	}
 
-	nop := func(*state.State, restart.RestartType, *boot.RebootInfo) {}
+	nop := func(*state.State, restart.RestartType, *boot.RebootInfo, restart.RestartReason) {}
 
 	s.testRestartSystemWiring(c, prep, nop, restart.RestartSystemNow, 0)
 
@@ -1196,7 +1196,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	restart.Request(st, restart.RestartSystem, nil)
+	restart.Request(st, restart.RestartSystem, nil, "")
 	st.Unlock()
 
 	ch := make(chan os.Signal, 2)
@@ -1249,7 +1249,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	restart.Request(st, restart.RestartSystem, nil)
+	restart.Request(st, restart.RestartSystem, nil, "")
 	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)

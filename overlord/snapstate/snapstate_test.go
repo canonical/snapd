@@ -267,7 +267,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(rt restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(rt restart.RestartType, _ restart.RestartReason) {
 		if s.restartHandler != nil {
 			c.Logf("call test restart handler for restart type: %v", rt)
 			s.restartHandler(rt)

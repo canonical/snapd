@@ -51,12 +51,14 @@ type testHandler struct {
 	rebootAsExpected   bool
 	rebootDidNotHappen bool
 	rebootInfo         *boot.RebootInfo
+	restartReason      restart.RestartReason
 }
 
-func (h *testHandler) HandleRestart(t restart.RestartType, rbi *boot.RebootInfo) {
+func (h *testHandler) HandleRestart(t restart.RestartType, rbi *boot.RebootInfo, reason restart.RestartReason) {
 	h.restartRequested = true
 	h.restartType = t
 	h.rebootInfo = rbi
+	h.restartReason = reason
 }
 
 func (h *testHandler) RebootAsExpected(*state.State) error {
@@ -101,7 +103,7 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartUnset)
 
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.Request(st, restart.RestartDaemon, nil, "")
 
 	c.Check(h.restartRequested, Equals, true)
 
@@ -109,6 +111,64 @@ func (s *restartSuite) TestRequestRestartDaemon(c *C) {
 	c.Check(t, Equals, restart.RestartDaemon)
 	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartDaemon)
+	c.Check(h.restartReason, Equals, restart.RestartReason(""))
+}
+
+func (s *restartSuite) TestRequestStoresReason(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
+	c.Assert(err, IsNil)
+
+	c.Check(h.restartReason, Equals, restart.RestartReason(""))
+
+	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdUpdate)
+
+	c.Check(h.restartRequested, Equals, true)
+	c.Check(restart.Pending(st), Equals, restart.RestartDaemon)
+	c.Check(h.restartReason, Equals, restart.RestartSnapdUpdate)
+}
+
+func (s *restartSuite) TestFinishTaskWithDaemonRestart(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("chg", "...")
+	task := st.NewTask("foo", "...")
+	chg.AddTask(task)
+
+	err = restart.FinishTaskWithDaemonRestart(task, state.DoneStatus, restart.RestartSnapdRevert)
+	c.Assert(err, IsNil)
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Check(restart.Pending(st), Equals, restart.RestartDaemon)
+	c.Check(h.restartReason, Equals, restart.RestartSnapdRevert)
+}
+
+func (s *restartSuite) TestRequestPassesEmptyReason(c *C) {
+	st := state.New(nil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
+	c.Assert(err, IsNil)
+
+	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdFeatureChange)
+	c.Check(h.restartReason, Equals, restart.RestartSnapdFeatureChange)
+
+	restart.Request(st, restart.RestartSystem, nil, "")
+	c.Check(h.restartReason, Equals, restart.RestartReason(""))
 }
 
 func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
@@ -120,7 +180,7 @@ func (s *restartSuite) TestRequestRestartDaemonNoHandler(c *C) {
 	manager, err := restart.Manager(st, "boot-id-1", nil)
 	c.Assert(err, IsNil)
 
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.Request(st, restart.RestartDaemon, nil, "")
 
 	t := restart.Pending(st)
 	c.Check(t, Equals, restart.RestartDaemon)
@@ -143,7 +203,7 @@ func (s *restartSuite) TestRequestRestartSystemAndVerifyReboot(c *C) {
 	t = manager.Pending()
 	c.Check(t, Equals, restart.RestartUnset)
 
-	restart.Request(st, restart.RestartSystem, nil)
+	restart.Request(st, restart.RestartSystem, nil, "")
 
 	c.Check(h.restartRequested, Equals, true)
 
@@ -190,7 +250,7 @@ func (s *restartSuite) TestRequestRestartSystemWithRebootInfo(c *C) {
 	restart.Request(st, restart.RestartSystem, &boot.RebootInfo{
 		RebootRequired:    true,
 		BootloaderOptions: &bootloader.Options{},
-	})
+	}, "")
 
 	c.Check(h.restartRequested, Equals, true)
 	c.Check(h.rebootInfo.RebootRequired, Equals, true)
@@ -227,9 +287,8 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	defer release.MockOnClassic(false)()
-
-	_, err := restart.Manager(st, "boot-id-1", nil)
+	h := &testHandler{}
+	_, err := restart.Manager(st, "boot-id-1", h)
 	c.Assert(err, IsNil)
 
 	tests := []struct {
@@ -267,7 +326,14 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 			}
 		}
 
-		err := restart.FinishTaskWithRestart(task, t.final, t.restartType, "some-snap", nil)
+		reason := restart.RestartReason("")
+		if t.restartType == restart.RestartDaemon {
+			reason = restart.RestartSnapdUpdate
+			if t.final == state.UndoneStatus {
+				reason = restart.RestartSnapdUndo
+			}
+		}
+		err := restart.FinishTaskWithRestart(task, t.final, t.restartType, "some-snap", nil, reason)
 		c.Check(err, IsNil)
 
 		// For daemon restarts the logic is a bit simpler, as directly leads to the restart handler
@@ -280,6 +346,7 @@ func (s *restartSuite) TestFinishTaskWithRestart(c *C) {
 			rst := restart.Pending(st)
 			c.Check(task.Status(), Equals, t.final)
 			c.Check(rst, Equals, restart.RestartDaemon)
+			c.Check(h.restartReason, Equals, reason)
 			c.Check(waitBootID, Equals, "")
 			continue
 		}
@@ -341,7 +408,7 @@ func (s *restartSuite) TestProcessRestartForChangeClassic(c *C) {
 
 	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
 
-	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
@@ -374,7 +441,7 @@ func (s *restartSuite) TestProcessRestartForChangeCore(c *C) {
 
 	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
 
-	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
@@ -426,7 +493,7 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	t2 := st.NewTask("wait-for-reboot", "...")
 	restart.MarkTaskAsRestartBoundary(t2, restart.RestartBoundaryDirectionDo)
 	chg.AddTask(t2)
-	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 
 	restart.ReplaceBootID(st, "boot-id-2")
@@ -434,7 +501,7 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	t3 := st.NewTask("wait-for-reboot-same-boot", "...")
 	restart.MarkTaskAsRestartBoundary(t3, restart.RestartBoundaryDirectionDo)
 	chg.AddTask(t3)
-	err = restart.FinishTaskWithRestart(t3, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t3, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 
 	t4 := st.NewTask("do-after-wait", "...")
@@ -507,7 +574,7 @@ func (s *restartSuite) TestStop(c *C) {
 	t1 := st.NewTask("waiting", "...")
 	chg1.AddTask(t1)
 
-	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t1.Status(), Equals, state.WaitStatus)
 	c.Check(t1.WaitedStatus(), Equals, state.DoneStatus)
@@ -531,7 +598,7 @@ func (s *restartSuite) TestStop(c *C) {
 	t2 := st.NewTask("waiting", "...")
 	chg2.AddTask(t2)
 
-	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	// Change has indeed changed status
 	c.Check(t2.Status(), Equals, state.WaitStatus)
@@ -641,7 +708,7 @@ func (s *restartSuite) TestPendingForChangeWaitTasksButNotPending(c *C) {
 
 	restart.MarkTaskAsRestartBoundary(t1, restart.RestartBoundaryDirectionDo)
 
-	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t1.Status(), Equals, state.WaitStatus)
 	c.Check(t1.WaitedStatus(), Equals, state.DoneStatus)
@@ -667,7 +734,7 @@ func (s *restartSuite) TestPendingForChangeWaitTasksButNotPending(c *C) {
 
 	// Requesting a reboot for task8 will put it's halt-tasks into Wait status, with their
 	// WaitedStatus set to Do.
-	err = restart.FinishTaskWithRestart(t4, state.UndoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t4, state.UndoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t4.Status(), Equals, state.WaitStatus)
 	c.Check(t4.WaitedStatus(), Equals, state.UndoneStatus)
@@ -891,7 +958,7 @@ func (s *restartSuite) TestFinishTaskWithRestartDoneWithoutRestartBoundary(c *C)
 	t := st.NewTask("waiting", "...")
 	chg.AddTask(t)
 
-	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
@@ -928,7 +995,7 @@ func (s *restartSuite) TestFinishTaskWithRestartDoneWithRestartBoundary(c *C) {
 
 	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionDo)
 
-	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
@@ -965,7 +1032,7 @@ func (s *restartSuite) TestFinishTaskWithRestartDoneWithRestartBoundaryAndTwoReq
 
 	restart.MarkTaskAsRestartBoundary(t2, restart.RestartBoundaryDirectionDo)
 
-	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t1.Status(), Equals, state.DoneStatus)
 
@@ -976,7 +1043,7 @@ func (s *restartSuite) TestFinishTaskWithRestartDoneWithRestartBoundaryAndTwoReq
 	}
 	c.Check(waitBootID, Equals, "")
 
-	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t2, state.DoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t2.Status(), Equals, state.WaitStatus)
 	c.Check(t2.WaitedStatus(), Equals, state.DoneStatus)
@@ -1016,7 +1083,7 @@ func (s *restartSuite) TestFinishTaskWithRestartWithArguments(c *C) {
 				PrepareImageTime: true,
 				Role:             bootloader.RoleRunMode,
 			},
-		})
+		}, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.DoneStatus)
@@ -1051,7 +1118,7 @@ func (s *restartSuite) TestFinishTaskWithRestartUndoneClassic(c *C) {
 	chg.AddTask(t)
 
 	// Ensure a restart is not requested when undoing on classic
-	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
@@ -1077,7 +1144,7 @@ func (s *restartSuite) TestFinishTaskWithRestartUndoneCore(c *C) {
 
 	chg.AddTask(t)
 
-	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.UndoneStatus)
@@ -1108,7 +1175,7 @@ func (s *restartSuite) TestFinishTaskWithRestart2UndoneCoreWithRestartBoundary(c
 
 	restart.MarkTaskAsRestartBoundary(t, restart.RestartBoundaryDirectionUndo)
 
-	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil)
+	err = restart.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystemNow, "some-snap", nil, "")
 	c.Assert(err, IsNil)
 	c.Check(t.Status(), Equals, state.WaitStatus)
 	c.Check(t.WaitedStatus(), Equals, state.UndoneStatus)
@@ -1127,7 +1194,7 @@ func (s *restartSuite) TestFinishTaskWithRestartInvalid(c *C) {
 
 	chg.AddTask(t)
 
-	err := restart.FinishTaskWithRestart(t, state.DoingStatus, restart.RestartSystem, "", nil)
+	err := restart.FinishTaskWithRestart(t, state.DoingStatus, restart.RestartSystem, "", nil, "")
 	c.Assert(err, ErrorMatches, `internal error: unexpected task status when requesting system restart for task: Doing`)
 }
 
@@ -1232,7 +1299,7 @@ test "$DPKG_MAINTSCRIPT_NAME" = "postinst"
 `)
 	defer mockNrr.Restore()
 
-	err := restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err := restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Check(err, IsNil)
 
 	c.Check(mockNrr.Calls(), DeepEquals, [][]string{
@@ -1248,7 +1315,7 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 	mockNrr := testutil.MockCommand(c, s.mockNrrPath, `echo fail; exit 1`)
 	defer mockNrr.Restore()
 
-	err := restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err := restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Check(err, IsNil)
 	c.Check(mockNrr.Calls(), DeepEquals, [][]string{
 		{"notify-reboot-required", "snap:some-snap"},
@@ -1272,7 +1339,7 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 	mockNrr := testutil.MockCommand(c, s.mockNrrPath, "")
 	defer mockNrr.Restore()
 
-	err := restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil)
+	err := restart.FinishTaskWithRestart(s.t1, state.DoneStatus, restart.RestartSystem, "some-snap", nil, "")
 	c.Check(err, IsNil)
 	c.Check(mockNrr.Calls(), HasLen, 0)
 	c.Check(s.mockLog.String(), Equals, "")
