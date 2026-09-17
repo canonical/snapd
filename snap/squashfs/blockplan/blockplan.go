@@ -53,6 +53,7 @@
 package blockplan
 
 import (
+	"fmt"
 	"io"
 	"sync"
 )
@@ -70,6 +71,85 @@ const (
 	// dispatching on a delta file's magic simply gains a case.
 	Magic = uint32(0x70627173)
 )
+
+// --- options and statistics ---
+//
+// The package's whole public surface, apart from Generate and Apply themselves.
+// It lives here rather than beside the code that reads it because both option
+// types are what a caller has to understand to drive the format at all, and both
+// statistics types are what it needs to report the cost this format exists to
+// reduce.
+
+// ApplyOpts carries what an apply needs beyond the three streams. A nil
+// *ApplyOpts is the same as a zero one, which is what a device passes.
+type ApplyOpts struct {
+	// Comp overrides the compressor. Nil is the normal case and derives it
+	// from the target superblock the delta carries in SEC_SB, so a device is
+	// never told what compressed the image it is assembling; a non-nil one
+	// must agree with that superblock.
+	Comp Compressor
+
+	// Jobs is how many blocks the derived compressor may work on at once.
+	// Zero or less means every core. Raising it raises peak memory as well
+	// as speed, because every worker holds its own encoder state and
+	// buffers.
+	Jobs int
+
+	// MaxRunUSize is the largest patch run this applier is willing to
+	// accept. It is how a device with a memory budget refuses a delta up
+	// front rather than discovering the cost partway through assembling an
+	// image -- falling back to a full download is a far better outcome than
+	// failing late.
+	//
+	// The delta header's own cap is what the instruction decoder bounds
+	// every run and window against, so capping the header is enough to cap
+	// the work. Zero accepts whatever the delta asks for.
+	MaxRunUSize int
+
+	// SkipSourceDigest omits hashing the source. The digest is what makes
+	// every OP_COPY safe, so it is only skipped by callers that already know
+	// the source is right -- the generator's own final gate.
+	SkipSourceDigest bool
+}
+
+// ApplyStats records what an apply actually did. UCompressedBytes is the number
+// that justifies the format: it is the plaintext the device had to push through
+// the compressor, against the whole image in snap-1-1-xdelta3.
+type ApplyStats struct {
+	Instructions int
+	Copies       int
+	Literals     int
+	PatchRuns    int
+
+	CopiedBytes  int64
+	LiteralBytes int64
+	PatchedBytes int64
+
+	// BlocksCompressed and UCompressedBytes count the compression work: data
+	// blocks from patch runs plus every metadata block.
+	BlocksCompressed int
+	UCompressedBytes int64
+
+	// WindowUBytes is the source plaintext read back to feed the patch runs.
+	// It is the format's only data-region decompression, and it is bounded
+	// by what changed rather than by the size of the image.
+	WindowUBytes int64
+
+	// MetaBlocks and MetaUBytes break out the metadata region, which is
+	// recompressed unconditionally and so is the format's CPU floor.
+	MetaBlocks int
+	MetaUBytes int64
+
+	// PeakScratchBytes is the most one patch run held in its three scratch
+	// files at once: the source window, the patch, and the reconstructed
+	// plaintext.
+	//
+	// It is reported separately from resident memory because those files are
+	// memfds. That keeps them out of the heap and out of the resident set,
+	// but tmpfs is still RAM, so this is the other half of an apply's memory
+	// demand -- and the half MaxRunUSize bounds directly.
+	PeakScratchBytes int64
+}
 
 // --- shared helpers ---
 //
@@ -115,4 +195,29 @@ func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
 	buf := ioBufPool.Get().([]byte)
 	defer ioBufPool.Put(buf)
 	return io.CopyBuffer(dst, src, buf)
+}
+
+// copyNBuffer is copyBuffer for the many places that copy a length the delta
+// states: a copied extent, a literal, a patch. The count is returned so that a
+// short stream is reported as the delta having promised more than it carried,
+// rather than as a truncated image.
+func copyNBuffer(dst io.Writer, src io.Reader, n int64) (int64, error) {
+	buf := ioBufPool.Get().([]byte)
+	defer ioBufPool.Put(buf)
+	return io.CopyBuffer(dst, io.LimitReader(src, n), buf)
+}
+
+// humanBytes formats a byte count for the messages this format reports sizes in.
+// A delta refused for asking more memory than the caller allows has to say what
+// it would have cost in the units that budget is set in.
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.2f GiB", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.2f MiB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KiB", float64(n)/(1<<10))
+	}
+	return fmt.Sprintf("%d B", n)
 }
