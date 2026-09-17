@@ -15,8 +15,8 @@ name: sync private snapd
 # those commits and a fast-forward is possible again.
 on:
   schedule:
-    # minute 0 of every hour (UTC)
-    - cron: '0 * * * *'
+    # 04:00 UTC daily
+    - cron: '0 4 * * *'
   workflow_dispatch:
     inputs:
       release-branch-count:
@@ -24,11 +24,15 @@ on:
         type: number
         default: 3
 
-# GITHUB_TOKEN is only used for gh run list. git push uses a GitHub App
-# installation token; that app must be on the private repo ruleset bypass list.
-permissions:
-  contents: write
-  actions: read # gh run list in the skip step
+# One sync at a time. Do not cancel an in-progress git push of several refs;
+# GitHub may replace an older pending run with a newer trigger.
+concurrency:
+  group: snapd-security-sync
+  cancel-in-progress: false
+
+# Checkout and git push use a GitHub App token; that app must be on the
+# private repo ruleset bypass list. GITHUB_TOKEN is unused.
+permissions: {}
 
 jobs:
   sync:
@@ -36,34 +40,14 @@ jobs:
     if: github.repository == 'canonical/snapd-security-release'
     runs-on: ubuntu-latest
     env:
-      # workflow_dispatch input; the || 3 is for hourly runs, which have no inputs.
+      # workflow_dispatch input; the || 3 is for scheduled runs, which have no inputs.
       RELEASE_BRANCH_COUNT: ${{ inputs.release-branch-count || 3 }}
       PUBLIC_URL: https://github.com/canonical/snapd.git
     steps:
-      # A long run likely means something is wrong; do not queue or start a
-      # second sync. GitHub concurrency cannot skip (only queue or cancel).
-      - name: Skip if a sync is already running
-        id: already
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          count="$(gh run list \
-              --workflow sync-private-snapd.yaml \
-              --status in_progress \
-              --json databaseId \
-              --jq 'length')"
-          # This run is already in_progress, so count 1 means we are the only sync.
-          if [[ "${count}" -gt 1 ]]; then
-              echo "another sync is already in progress; skipping"
-              echo "skip=true" >> "${GITHUB_OUTPUT}"
-          fi
-
       # Push identity is a Canonical-approved GitHub App (not github-actions[bot]).
       # App ID / PEM live only on the private repo; the app must be allowed to
       # bypass the require-PR ruleset.
       - name: Mint GitHub App token
-        if: steps.already.outputs.skip != 'true'
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
@@ -71,7 +55,6 @@ jobs:
           private-key: ${{ secrets.SNAPD_SECURITY_SYNC_APP_KEY }}
 
       - name: Checkout security repo
-        if: steps.already.outputs.skip != 'true'
         uses: actions/checkout@v6
         with:
           # Need full objects to push public commits/tags onto the private repo.
@@ -79,7 +62,6 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Fast-forward from canonical/snapd
-        if: steps.already.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
