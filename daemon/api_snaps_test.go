@@ -2017,8 +2017,10 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
 	checkOpts := func(opts *snapstate.RevisionOptions) {
-		// no channel in -> no channel out
+		// no channel in -> no channel out, and not an explicit request
 		c.Check(opts.Channel, check.Equals, "")
+		c.Check(opts.IsExplicitChannel, check.Equals, false)
+		c.Check(opts.IsExplicitRevision, check.Equals, false)
 	}
 	summary, systemRestartImmediate := s.testPostSnap(c, "", checkOpts)
 	c.Check(summary, check.Equals, `Install "foo" snap`)
@@ -2027,8 +2029,10 @@ func (s *snapsSuite) TestPostSnap(c *check.C) {
 
 func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
 	checkOpts := func(opts *snapstate.RevisionOptions) {
-		// channel in -> channel out
+		// channel in -> channel out, marked explicit so LTS cannot override it
 		c.Check(opts.Channel, check.Equals, "xyzzy")
+		c.Check(opts.IsExplicitChannel, check.Equals, true)
+		c.Check(opts.IsExplicitRevision, check.Equals, false)
 	}
 	summary, systemRestartImmediate := s.testPostSnap(c, `"channel": "xyzzy"`, checkOpts)
 	c.Check(summary, check.Equals, `Install "foo" snap from "xyzzy" channel`)
@@ -4286,6 +4290,76 @@ func (s *snapsSuite) TestUpdateWithAdditionalComponents(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(chg.Kind(), check.Equals, "refresh-snap")
 	c.Check(chg.Summary(), check.Equals, `Refresh "some-snap" snap with components "comp1", "comp2"`)
+}
+
+func (s *snapsSuite) TestUpdateSetsIsExplicitChannelAndRevision(c *check.C) {
+	restore := daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		goal := g.(*storeUpdateGoalRecorder)
+		c.Assert(goal.snaps, check.HasLen, 1)
+		c.Check(goal.snaps[0].InstanceName, check.Equals, "some-snap")
+		c.Check(goal.snaps[0].RevOpts.Channel, check.Equals, "latest/stable")
+		c.Check(goal.snaps[0].RevOpts.Revision, check.Equals, snap.R(100))
+		c.Check(goal.snaps[0].RevOpts.IsExplicitChannel, check.Equals, true)
+		c.Check(goal.snaps[0].RevOpts.IsExplicitRevision, check.Equals, true)
+		t := st.NewTask("fake-refresh-snap", "Doing a fake refresh")
+		return state.NewTaskSet(t), nil
+	})
+	defer restore()
+
+	d := s.daemonWithFakeSnapManager(c)
+
+	r := strings.NewReader(`{"action": "refresh", "channel": "latest/stable", "revision": 100}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", r)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Kind(), check.Equals, "refresh-snap")
+}
+
+func (s *snapsSuite) TestUpdateWithoutChannelOrRevisionLeavesExplicitUnset(c *check.C) {
+	restore := daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})
+	defer restore()
+
+	restore = daemon.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		goal := g.(*storeUpdateGoalRecorder)
+		c.Assert(goal.snaps, check.HasLen, 1)
+		c.Check(goal.snaps[0].InstanceName, check.Equals, "some-snap")
+		c.Check(goal.snaps[0].RevOpts.Channel, check.Equals, "")
+		c.Check(goal.snaps[0].RevOpts.Revision.Unset(), check.Equals, true)
+		c.Check(goal.snaps[0].RevOpts.IsExplicitChannel, check.Equals, false)
+		c.Check(goal.snaps[0].RevOpts.IsExplicitRevision, check.Equals, false)
+		t := st.NewTask("fake-refresh-snap", "Doing a fake refresh")
+		return state.NewTaskSet(t), nil
+	})
+	defer restore()
+
+	d := s.daemonWithFakeSnapManager(c)
+
+	r := strings.NewReader(`{"action": "refresh"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", r)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Kind(), check.Equals, "refresh-snap")
 }
 
 func (s *snapsSuite) TestInstallManyWithComponents(c *check.C) {

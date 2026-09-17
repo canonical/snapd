@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -168,6 +170,14 @@ type fakeDownload struct {
 	macaroon string
 	target   string
 	opts     *store.DownloadOptions
+}
+
+func (d fakeDownload) revision() snap.Revision {
+	pi, err := snap.ParsePlaceInfoFromSnapFileName(filepath.Base(d.target))
+	if err != nil {
+		return snap.Revision{}
+	}
+	return pi.SnapRevision()
 }
 
 type fakeIconDownload struct {
@@ -989,7 +999,67 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 		return e
 	}
 
+	// Tests rarely write a real squashfs. After a successful snapd
+	// download on UC18+, LTS inspect opens the blob: plant an identity
+	// map so inspect succeeds without redirecting. Tests that need a
+	// redirecting (or unreadable) map write the target in downloadCallback
+	// first and are left alone.
+	if name == "snapd" && !osutil.FileExists(targetFn) {
+		blob, err := identitySnapdBlob()
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(targetFn), 0755); err != nil {
+			return err
+		}
+		if err := osutil.CopyFile(blob, targetFn, 0); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+var (
+	identitySnapdBlobOnce sync.Once
+	identitySnapdBlobPath string
+	identitySnapdBlobErr  error
+)
+
+// identitySnapdBlob returns a cached snapd squashfs whose LTS map keeps
+// latest on latest for current UC bases. Unmanaged boot bases still skip
+// (map present, base not onboarded).
+func identitySnapdBlob() (string, error) {
+	identitySnapdBlobOnce.Do(func() {
+		restore := snap.MockSanitizePlugsSlots(func(*snap.Info) {})
+		defer restore()
+
+		dir, err := os.MkdirTemp("", "identity-snapd-blob-*")
+		if err != nil {
+			identitySnapdBlobErr = err
+			return
+		}
+		src := filepath.Join(dir, "src")
+		if err := os.MkdirAll(filepath.Join(src, "meta"), 0755); err != nil {
+			identitySnapdBlobErr = err
+			return
+		}
+		if err := os.WriteFile(filepath.Join(src, "meta", "snap.yaml"), []byte("name: snapd\ntype: snapd\nversion: 2.75\n"), 0644); err != nil {
+			identitySnapdBlobErr = err
+			return
+		}
+		if err := os.MkdirAll(filepath.Join(src, "usr", "lib", "snapd"), 0755); err != nil {
+			identitySnapdBlobErr = err
+			return
+		}
+		info := "VERSION=2.75\nSNAPD_LTS_TRACKS='{\"18\":{\"latest\":\"latest\"},\"20\":{\"latest\":\"latest\"},\"22\":{\"latest\":\"latest\"},\"24\":{\"latest\":\"latest\"}}'\n"
+		if err := os.WriteFile(filepath.Join(src, "usr", "lib", "snapd", "info"), []byte(info), 0644); err != nil {
+			identitySnapdBlobErr = err
+			return
+		}
+		identitySnapdBlobPath, identitySnapdBlobErr = pack.Pack(src, &pack.Options{TargetDir: dir})
+	})
+	return identitySnapdBlobPath, identitySnapdBlobErr
 }
 
 func (f *fakeStore) DownloadIcon(ctx context.Context, name string, targetPath string, downloadURL string) error {

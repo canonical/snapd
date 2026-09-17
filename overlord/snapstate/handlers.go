@@ -267,25 +267,25 @@ func autoRefreshRateLimited(st *state.State) (rate int64) {
 	return val
 }
 
-func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreService, *auth.UserState, error) {
+func downloadSnapParams(st *state.State, t *state.Task) (*SnapSetup, StoreService, *auth.UserState, DeviceContext, error) {
 	snapsup, err := TaskSnapSetup(t)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	sto := Store(st, deviceCtx)
 
 	user, err := userFromUserID(st, snapsup.UserID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return snapsup, sto, user, nil
+	return snapsup, sto, user, deviceCtx, nil
 }
 
 func maybeCloudName(st *state.State) (name string, err error) {
@@ -306,7 +306,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
-	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	snapsup, theStore, user, deviceCtx, err := downloadSnapParams(st, t)
 	if snapsup != nil && snapsup.IsAutoRefresh {
 		// NOTE rate is never negative
 		rate = autoRefreshRateLimited(st)
@@ -392,11 +392,30 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	snapsup.SnapPath = targetFn
 
-	// update the snap setup for the follow up tasks
+	discardPath := ""
+	if needsSnapdLTSTrackResolve(snapsup) {
+		discardPath = snapsup.BlobPath()
+		st.Lock()
+		changeID := ""
+		if chg := t.Change(); chg != nil {
+			changeID = chg.ID()
+		}
+		st.Unlock()
+		if err := maybeRedirectSnapdToLTSTrack(
+			tomb.Context(nil), st, snapsup, deviceCtx,
+			theStore, user, meter, dlOpts, perfTimings, changeID,
+		); err != nil {
+			return err
+		}
+	}
+
+	// Persist snap-setup before deleting the discarded first download so a
+	// crash cannot leave state pointing at a blob that is already gone.
 	st.Lock()
 	t.Set("snap-setup", snapsup)
 	perfTimings.Save(st)
 	st.Unlock()
+	removeDiscardedSnapdDownload(discardPath, snapsup.BlobPath())
 
 	return nil
 }
@@ -406,7 +425,7 @@ func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, theStore, _, err := downloadSnapParams(st, t)
+	snapsup, theStore, _, _, err := downloadSnapParams(st, t)
 	if err != nil {
 		t.Logf("cannot obtain download info: %v", err)
 		return nil
@@ -469,7 +488,7 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapsup, theStore, user, err := downloadSnapParams(st, t)
+	snapsup, theStore, user, _, err := downloadSnapParams(st, t)
 	if err != nil {
 		return err
 	}

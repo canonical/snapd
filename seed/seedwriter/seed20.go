@@ -480,7 +480,14 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 
 	if len(optionsSnaps) != 0 {
 		if tr.grade != asserts.ModelDangerous {
-			return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
+			if len(extraSnaps) != 0 {
+				return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
+			}
+			for _, sn := range optionsSnaps {
+				if sn.Unasserted != "" || len(sn.Components) != 0 {
+					return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
+				}
+			}
 		}
 		options20 := &internal.Options20{Snaps: optionsSnaps}
 		if err := options20.Write(filepath.Join(tr.systemDir, "options.yaml")); err != nil {

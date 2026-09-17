@@ -11511,6 +11511,67 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
 }
 
+// downloadTasks (used by recovery-system creation) injects "stable" when
+// the channel is empty, and callers often copy a model DefaultChannel or
+// the installed revision. Those are planner values, not an explicit user
+// request. So Download must not call markExplicitRequest.
+func (s *snapmgrTestSuite) TestDownloadDoesNotMarkPlannerChannelOrRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "stable")
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+	c.Check(snapsup.ValidationSets, HasLen, 0)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel: "some-channel",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "some-channel")
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Revision: snap.R(2),
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(2))
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestDownloadPreservesCallerExplicitFlags(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel:           "some-channel",
+		IsExplicitChannel: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitChannel, Equals, true)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Revision:           snap.R(2),
+		IsExplicitRevision: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	snapsup = snapstate.SnapSetup{}
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitRevision, Equals, true)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -11808,6 +11869,10 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 
 	const componentExclusive = false
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 }
 
 func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
@@ -11885,6 +11950,28 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 
 	const componentExclusive = true
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	ts, err = snapstate.DownloadComponents(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		downloadDir,
+		snapstate.RevisionOptions{
+			Channel:  "latest/stable",
+			Revision: snap.R(11),
+		},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+	begin = ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Check(snapsup.Revision(), Equals, snap.R(11))
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
 }
 
 func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string, componentExclusive bool) {
@@ -11892,6 +11979,8 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 	err := begin.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.DownloadBlobDir, Equals, downloadDir)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
 
 	expectedDownloadDir := downloadDir
 	if expectedDownloadDir == "" {

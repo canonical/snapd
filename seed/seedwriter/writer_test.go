@@ -1690,8 +1690,99 @@ func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
 	err = w.SetInfo(sn, info, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(w.SetRedirectChannel(sn, "foo"), ErrorMatches, `internal error: cannot set redirect channel for local snap .*`)
+	c.Check(w.SetRedirectChannel(sn, "foo"), ErrorMatches, `internal error: cannot set redirect channel for unasserted local snap .*`)
 
+}
+
+func (s *writerSuite) TestSetRedirectChannelLocalAssertedSigned(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("snapd")}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 1)
+
+	sn := localSnaps[0]
+	si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+	c.Assert(err, IsNil)
+	f, err := snapfile.Open(sn.Path)
+	c.Assert(err, IsNil)
+	info, err := snap.ReadInfoFromSnapFile(f, si)
+	c.Assert(err, IsNil)
+	c.Assert(w.SetInfo(sn, info, nil), IsNil)
+	s.aRefs[sn.SnapName()] = aRefs
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 3)
+
+	c.Check(sn.Channel, Equals, "latest/stable")
+	c.Assert(w.SetRedirectChannel(sn, "18/stable"), IsNil)
+	c.Check(sn.Channel, Equals, "18/stable")
+
+	for _, dlsn := range snaps {
+		s.fillDownloadedSnap(c, w, dlsn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	options20, err := seedwriter.InternalReadOptions20(filepath.Join(systemDir, "options.yaml"))
+	c.Assert(err, IsNil)
+	c.Check(options20.Snaps, DeepEquals, []*seedwriter.InternalSnap20{
+		{
+			Name:    "snapd",
+			SnapID:  s.AssertedSnapID("snapd"),
+			Channel: "18/stable",
+		},
+	})
 }
 
 func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
