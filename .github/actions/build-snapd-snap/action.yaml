@@ -50,7 +50,7 @@ runs:
                 rm -f fips-build
                 ;;
             FIPS)
-                cp build-aux/snap/snapcraft-fips.yaml build-aux/snap/snapcraft.yaml
+                cp build-aux/snap/local/snapcraft-fips.yaml build-aux/snap/snapcraft.yaml
                 git add build-aux/snap/snapcraft.yaml
                 if ! git diff --cached --quiet -- build-aux/snap/snapcraft.yaml; then
                     # record the substitution so build-time dirty checks remain active.
