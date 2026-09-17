@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -229,8 +230,24 @@ func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, o
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 
-func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) error {
+func (m *InterfaceManager) SetupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) (busySnaps map[naming.InstanceName]bool, err error) {
 	return m.setupSecurityByBackend(task, appSets, opts, sctxs, tm)
+}
+
+func (m *InterfaceManager) SetupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+	return m.setupSnapSecurity(task, appSet, opts, tm)
+}
+
+func MaybeRetryForBusySnaps(task *state.Task, busySnaps map[naming.InstanceName]bool) error {
+	return maybeRetryForBusySnaps(task, busySnaps)
+}
+
+func RetryIfSnapBusy(task *state.Task, err error) error {
+	return retryIfSnapBusy(task, err)
+}
+
+func PreviouslyRecordedBusySnaps(task *state.Task) (map[naming.InstanceName]bool, error) {
+	return previouslyRecordedBusySnaps(task)
 }
 
 func MockIsSnapVerified(new func(st *state.State, snapID string) bool) (restore func()) {
