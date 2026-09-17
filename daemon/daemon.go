@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -685,6 +686,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	restartSocket := d.restartSocket
 	rebootInfo := d.rebootInfo
+	restartReason := d.restartReason
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
@@ -788,7 +790,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if d.requestedRestart == restart.RestartDaemon {
-		logger.Noticef("restarting daemon after update")
+		seclog.LogSystemRestartSnapd(d.Version, restartReason)
+		if restartReason == "" {
+			logger.Noticef("restarting daemon")
+		} else {
+			logger.Noticef("restarting daemon (%s)", restartReason)
+		}
 		// This has effect only if snapd was not started by snapd.service, which is the
 		// case on seeding boot in UC (see run-snapd-from-snap script in core* bases).
 		// Otherwise we are simply restarted by systemd after exiting. For the former case,

@@ -23,62 +23,21 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/seclog"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type NopSuite struct {
-	testutil.BaseTest
-}
+type NopSuite struct{}
 
 var _ = Suite(&NopSuite{})
 
-func (s *NopSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-}
-
-func (s *NopSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-}
-
-func (s *NopSuite) TestLogLoggerEnabled(c *C) {
+func (s *NopSuite) TestLogEventDiscards(c *C) {
 	logger := seclog.NewNopLogger()
 	c.Assert(logger, NotNil)
 
-	// nop logger discards all messages without error
+	// nop logger discards all events without error
 	logger.LogEvent(
 		seclog.Event{Category: "SYS", Name: "sys_logging_enabled", Level: seclog.LevelInfo},
 		"Security logging enabled",
 	)
-}
-
-func (s *NopSuite) TestLogLoggerDisabled(c *C) {
-	logger := seclog.NewNopLogger()
-	c.Assert(logger, NotNil)
-
-	// nop logger discards all messages without error
-	logger.LogEvent(
-		seclog.Event{Category: "SYS", Name: "sys_logging_disabled", Level: seclog.LevelCritical},
-		"Security logging disabled",
-	)
-}
-
-func (s *NopSuite) TestLogLoginSuccess(c *C) {
-	logger := seclog.NewNopLogger()
-	c.Assert(logger, NotNil)
-
-	// nop logger discards all messages without error
-	logger.LogEvent(
-		seclog.Event{Category: "AUTHN", Name: "authn_login_success", Level: seclog.LevelInfo},
-		"test",
-		seclog.Attr{Key: "user", Value: seclog.SnapdUser{StoreUserEmail: "user@gmail.com"}},
-	)
-}
-
-func (s *NopSuite) TestLogLoginFailure(c *C) {
-	logger := seclog.NewNopLogger()
-	c.Assert(logger, NotNil)
-
-	// nop logger discards all messages without error
 	logger.LogEvent(
 		seclog.Event{Category: "AUTHN", Name: "authn_login_failure", Level: seclog.LevelWarn},
 		"test",
