@@ -357,3 +357,243 @@ func (s *compressorSuite) TestPlainFile(c *C) {
 			Commentf("Block(%d, %d)", t.off, t.n))
 	}
 }
+
+// --- the contract, over every compressor this build registered ---
+//
+// These run over the ids that registered themselves rather than a fixed list, so
+// a codec is covered the moment it is added and a build without cgo covers
+// exactly what it supports.
+//
+// What they hold is the unit half of the contract every implementation has to
+// meet: whatever CompressBlocks produces, DecompressBlocks turns back into the
+// same plaintext; how many blocks are worked on at once changes nothing about the
+// bytes; and a compressor refuses to serve an image some other compressor built.
+// The other half -- that these bytes are the ones mksquashfs writes -- takes a
+// real image and arrives with the generator.
+
+// externalTool names the binary a compressor drives, for the ones that drive
+// one. xz is a process; lzo and zstd are libraries here, so a build that
+// registered them can use them.
+var externalTool = map[uint16]string{4: "xz"}
+
+// usableCompressorIDs are the registered compressors this machine can actually
+// use. It notes the ones it cannot and skips only when that leaves nothing: a
+// machine without liblzo2 must not take the xz coverage down with it.
+func usableCompressorIDs(c *C) []uint16 {
+	var ids []uint16
+	for _, id := range blockplan.ImplementedCompressorIDs() {
+		name := blockplan.CompressorName(id)
+		if tool := externalTool[id]; tool != "" && !blockplan.HaveTool(tool) {
+			c.Logf("not covering %s here: %s is not available", name, tool)
+			continue
+		}
+		if _, err := blockplan.NewCompressor(id, 0); err != nil {
+			c.Logf("not covering %s here: %v", name, err)
+			continue
+		}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		c.Skip("no compressor this build implements can be used here")
+	}
+	return ids
+}
+
+// TestCompressorRoundTripsBlocks is the unit-level contract: whatever
+// CompressBlocks produces, DecompressBlocks turns back into the same plaintext,
+// with each block's length reported and a raw-stored block handled by the caller
+// rather than by the decompressor.
+func (s *compressorSuite) TestCompressorRoundTripsBlocks(c *C) {
+	ctx := context.Background()
+	for _, id := range usableCompressorIDs(c) {
+		comment := Commentf("the %s compressor", blockplan.CompressorName(id))
+		comp, err := blockplan.NewCompressor(id, 0)
+		c.Assert(err, IsNil, comment)
+
+		// A compressible block, a partial tail and a block nothing can
+		// shrink, which is the one that comes back raw.
+		blocks := [][]byte{
+			compressibleText(testBlockSize, "round"),
+			compressibleText(5000, "tail"),
+			incompressible(4096, 3),
+		}
+		var plain []byte
+		uSizes := make([]int, len(blocks))
+		for i, b := range blocks {
+			plain = append(plain, b...)
+			uSizes[i] = len(b)
+		}
+
+		var stored []byte
+		var cSizes []int
+		rawAt := -1
+		err = comp.CompressBlocks(ctx, blockplan.PlainBytes(plain), uSizes, testBlockSize,
+			func(idx int, blk blockplan.CompressedBlock) error {
+				c.Check(blk.USize, Equals, uSizes[idx], comment)
+				if blk.Raw {
+					c.Check(bytes.Equal(blk.OnDisk, blocks[idx]), Equals, true,
+						Commentf("block %d is stored raw but its bytes are not the plaintext, %s", idx, comment))
+					rawAt = idx
+					return nil
+				}
+				c.Check(blk.OnDiskLen() < blk.USize, Equals, true,
+					Commentf("block %d is stored compressed at %d bytes for %d of plaintext, %s",
+						idx, blk.OnDiskLen(), blk.USize, comment))
+				stored = append(stored, blk.OnDisk...)
+				cSizes = append(cSizes, blk.OnDiskLen())
+				return nil
+			})
+		c.Assert(err, IsNil, comment)
+		c.Check(rawAt, Equals, 2, Commentf("which block was stored raw, %s", comment))
+
+		// Only the compressed blocks go back through the decompressor; a raw
+		// block's bytes are its plaintext and the image's callers splice them
+		// in, which is the same split the metadata walk makes.
+		out, gotU, err := comp.DecompressBlocks(ctx, nil, stored, cSizes, testBlockSize)
+		c.Assert(err, IsNil, comment)
+		c.Assert(gotU, HasLen, len(cSizes), comment)
+		want := plain[:len(blocks[0])+len(blocks[1])]
+		c.Check(bytes.Equal(out, want), Equals, true,
+			Commentf("the round trip differs from the plaintext at offset %d, %s", firstDiff(out, want), comment))
+		c.Check(gotU, DeepEquals, uSizes[:len(cSizes)], comment)
+
+		// DecompressTo has to agree with DecompressBlocks, since the applier
+		// uses it for source windows and nothing else checks it.
+		var streamed bytes.Buffer
+		n, err := comp.DecompressTo(ctx, &streamed, bytes.NewReader(stored), cSizes, testBlockSize, len(want))
+		c.Assert(err, IsNil, comment)
+		c.Check(n, Equals, int64(len(want)), comment)
+		c.Check(bytes.Equal(streamed.Bytes(), want), Equals, true,
+			Commentf("streaming decompression differs from the buffered one at offset %d, %s",
+				firstDiff(streamed.Bytes(), want), comment))
+
+		// The section codec, which is what carries the instruction stream.
+		blob := compressibleText(40000, "blob")
+		sec, err := comp.CompressBlob(ctx, blob)
+		c.Assert(err, IsNil, comment)
+		c.Check(len(sec) < len(blob), Equals, true,
+			Commentf("a compressible blob came back as %d bytes for %d, %s", len(sec), len(blob), comment))
+		back, err := blockplan.DecompressBlob(ctx, comp.SectionCodec(), sec, len(blob))
+		c.Assert(err, IsNil, comment)
+		c.Check(bytes.Equal(back, blob), Equals, true,
+			Commentf("the section blob round trip differs at offset %d, %s", firstDiff(back, blob), comment))
+	}
+}
+
+// TestCompressorIgnoresJobCount is the property the job count rests on: how many
+// blocks are worked on at once changes how long the work takes and how much
+// memory it holds, and nothing else. Every squashfs block is compressed
+// independently of its neighbours, so a block's bytes cannot depend on which
+// worker took it -- and if they ever did, a delta generated on a build machine
+// would not apply on a device with a different core count.
+func (s *compressorSuite) TestCompressorIgnoresJobCount(c *C) {
+	ctx := context.Background()
+	// Enough blocks to fill several batches at every job count below, so the
+	// batching itself is exercised rather than one short batch.
+	const nBlocks = 21
+	blocks := make([][]byte, nBlocks)
+	uSizes := make([]int, nBlocks)
+	var plain []byte
+	for i := range blocks {
+		switch i % 3 {
+		case 0:
+			blocks[i] = compressibleText(testBlockSize, fmt.Sprintf("jobs-%d", i))
+		case 1:
+			blocks[i] = compressibleText(9000+i, fmt.Sprintf("short-%d", i))
+		default:
+			blocks[i] = incompressible(4096, int64(i))
+		}
+		uSizes[i] = len(blocks[i])
+		plain = append(plain, blocks[i]...)
+	}
+
+	for _, id := range usableCompressorIDs(c) {
+		name := blockplan.CompressorName(id)
+
+		// compress returns the concatenated on-disk bytes, each block's
+		// length, and which blocks came back raw.
+		compress := func(jobs int) (stored []byte, cSizes []int, raw []bool) {
+			comment := Commentf("the %s compressor with %d jobs", name, jobs)
+			comp, err := blockplan.NewCompressor(id, jobs)
+			c.Assert(err, IsNil, comment)
+			err = comp.CompressBlocks(ctx, blockplan.PlainBytes(plain), uSizes, testBlockSize,
+				func(idx int, blk blockplan.CompressedBlock) error {
+					if idx != len(cSizes) {
+						return fmt.Errorf("block %d arrived at position %d, out of order", idx, len(cSizes))
+					}
+					stored = append(stored, blk.OnDisk...)
+					cSizes = append(cSizes, blk.OnDiskLen())
+					raw = append(raw, blk.Raw)
+					return nil
+				})
+			c.Assert(err, IsNil, comment)
+			return stored, cSizes, raw
+		}
+
+		wantStored, wantCSizes, wantRaw := compress(1)
+		for _, jobs := range []int{2, 4, 16} {
+			comment := Commentf("the %s compressor with %d jobs", name, jobs)
+			gotStored, gotCSizes, gotRaw := compress(jobs)
+			c.Assert(bytes.Equal(gotStored, wantStored), Equals, true,
+				Commentf("%d jobs produced %d bytes on disk against %d for one job, differing at offset %d, %s",
+					jobs, len(gotStored), len(wantStored), firstDiff(gotStored, wantStored), comment))
+			c.Check(gotCSizes, DeepEquals, wantCSizes, comment)
+			c.Check(gotRaw, DeepEquals, wantRaw, comment)
+		}
+
+		// The reading half, over the compressed blocks only: a raw block's
+		// bytes are its plaintext and callers splice them in themselves.
+		var cStored []byte
+		var cSizes []int
+		var cPlain []byte
+		off := 0
+		for i, cSize := range wantCSizes {
+			if !wantRaw[i] {
+				cStored = append(cStored, wantStored[off:off+cSize]...)
+				cSizes = append(cSizes, cSize)
+				cPlain = append(cPlain, blocks[i]...)
+			}
+			off += cSize
+		}
+		for _, jobs := range []int{1, 2, 4, 16} {
+			comment := Commentf("the %s compressor with %d jobs", name, jobs)
+			comp, err := blockplan.NewCompressor(id, jobs)
+			c.Assert(err, IsNil, comment)
+			got, gotU, err := comp.DecompressBlocks(ctx, nil, cStored, cSizes, testBlockSize)
+			c.Assert(err, IsNil, comment)
+			c.Check(bytes.Equal(got, cPlain), Equals, true,
+				Commentf("DecompressBlocks returned %d bytes against %d, differing at offset %d, %s",
+					len(got), len(cPlain), firstDiff(got, cPlain), comment))
+			c.Check(gotU, HasLen, len(cSizes), comment)
+
+			var buf bytes.Buffer
+			n, err := comp.DecompressTo(ctx, &buf, bytes.NewReader(cStored), cSizes, testBlockSize, len(cPlain))
+			c.Assert(err, IsNil, comment)
+			c.Check(n, Equals, int64(len(cPlain)), comment)
+			c.Check(bytes.Equal(buf.Bytes(), cPlain), Equals, true,
+				Commentf("DecompressTo differs from the plaintext at offset %d, %s",
+					firstDiff(buf.Bytes(), cPlain), comment))
+		}
+	}
+}
+
+// TestCompressorRefusesMismatchedOverride is the guard on the one thing a caller
+// can get wrong: serving an image with a compressor that did not build it. Its
+// blocks would be valid and would not be the image's.
+func (s *compressorSuite) TestCompressorRefusesMismatchedOverride(c *C) {
+	ids := usableCompressorIDs(c)
+	for _, id := range ids {
+		comp, err := blockplan.NewCompressor(id, 0)
+		c.Assert(err, IsNil)
+		c.Check(blockplan.CheckCompressorMatches(comp, id), IsNil,
+			Commentf("%s rejected its own id", blockplan.CompressorName(id)))
+		for _, other := range blockplan.ImplementedCompressorIDs() {
+			if other == id {
+				continue
+			}
+			c.Check(blockplan.CheckCompressorMatches(comp, other), NotNil,
+				Commentf("a %s compressor was accepted for a %s image",
+					blockplan.CompressorName(id), blockplan.CompressorName(other)))
+		}
+	}
+}

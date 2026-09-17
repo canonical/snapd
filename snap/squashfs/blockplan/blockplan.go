@@ -52,6 +52,11 @@
 // end to downloading the snap whole.
 package blockplan
 
+import (
+	"io"
+	"sync"
+)
+
 const (
 	// Format is the name this delta format goes by in the store and in the
 	// snap delta command line. It follows the compatibility label
@@ -65,3 +70,49 @@ const (
 	// dispatching on a delta file's magic simply gains a case.
 	Magic = uint32(0x70627173)
 )
+
+// --- shared helpers ---
+//
+// go.mod is go 1.18, so min and max are not builtins yet and neither is
+// binary.LittleEndian.AppendUint32. The package carries its own, as several
+// others in the tree do.
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// appendUint32 appends v to b, little end first, which is the byte order both
+// squashfs and the .xz container use throughout.
+func appendUint32(b []byte, v uint32) []byte {
+	return append(b, byte(v), byte(v>>8), byte(v>>16), byte(v>>24))
+}
+
+// copyBufferSize is the buffer a stream copy uses. Generating and applying a
+// delta moves whole multi-megabyte windows between processes and files, where
+// io.Copy's own 32 KiB buffer costs a syscall pair per 32 KiB of window.
+const copyBufferSize = 1 << 20
+
+// ioBufPool keeps those buffers out of the collector's way: an apply makes at
+// least one copy per instruction, and a megabyte of fresh garbage per
+// instruction would dominate the memory this format exists to save.
+var ioBufPool = sync.Pool{
+	New: func() any {
+		return make([]byte, copyBufferSize)
+	},
+}
+
+func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
+	buf := ioBufPool.Get().([]byte)
+	defer ioBufPool.Put(buf)
+	return io.CopyBuffer(dst, src, buf)
+}
