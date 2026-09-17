@@ -239,7 +239,7 @@ func (ms *deviceMgmtState) evictSequence(baseID string) {
    Queued in sequence
      |
      V
-   Too many sequences in state?                 <- dispatch-mgmt-messages
+   Too many sequences, and this one LRU?        <- dispatch-mgmt-messages
      |  \
      |   \ Yes ------------------------------------\
      |                                             |
