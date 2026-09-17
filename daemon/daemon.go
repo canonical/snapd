@@ -782,14 +782,14 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, restartType, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if restartSocket {
 		return ErrRestartSocket
 	}
 
-	if d.requestedRestart == restart.RestartDaemon {
+	if restartType == restart.RestartDaemon {
 		seclog.LogSystemRestartSnapd(d.Version, restartReason)
 		if restartReason == "" {
 			logger.Noticef("restarting daemon")
