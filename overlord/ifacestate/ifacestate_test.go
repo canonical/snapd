@@ -1779,6 +1779,71 @@ func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
 }
 
+// TestDisconnectAlreadyDisconnectedInRepo simulates a busy-retry: an earlier,
+// retried attempt of the same doDisconnect task already disconnected the
+// connection in the (ephemeral) repository, but conns (durable state) still
+// has the connection recorded. The handler must tolerate the resulting
+// NotConnectedError and proceed with (re-)applying security, rather than
+// hard-failing with "snapd changed, please retry the operation".
+func (s *interfaceManagerSuite) TestDisconnectAlreadyDisconnectedInRepo(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	consumer := s.mockSnap(c, consumerWithComponentYaml)
+	producer := s.mockSnap(c, producerWithComponentYaml)
+
+	s.mockComponentForSnap(c, "comp", "component: consumer+comp\ntype: standard", consumer)
+	s.mockComponentForSnap(c, "comp", "component: producer+comp\ntype: standard", producer)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	conn := s.getConnection(c, "consumer", "plug", "producer", "slot")
+
+	// Simulate the earlier, busy-retried attempt: disconnect in the
+	// (ephemeral) repository directly, without touching conns (durable
+	// state), just as a prior invocation of doDisconnect would have left
+	// things after m.repo.Disconnect() succeeded but before the task
+	// finished.
+	repo := mgr.Repository()
+	c.Assert(repo.Disconnect("consumer", "plug", "producer", "slot"), IsNil)
+
+	s.state.Lock()
+	change := s.state.NewChange("disconnect", "...")
+	ts, err := ifacestate.Disconnect(s.state, conn)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+	c.Assert(err, IsNil)
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The change must succeed despite the repo already being disconnected.
+	c.Assert(change.Err(), IsNil)
+	task := change.Tasks()[2]
+	c.Check(task.Kind(), Equals, "disconnect")
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// conns is still cleaned up as usual.
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, HasLen, 0)
+
+	// Security is still (re-)applied for both snaps.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+}
+
 func (s *interfaceManagerSuite) getConnection(c *C, plugSnap, plugName, slotSnap, slotName string) *interfaces.Connection {
 	conn, err := s.manager(c).Repository().Connection(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
@@ -5757,6 +5822,159 @@ slots:
 	c.Check(snapst.PendingSecurity, DeepEquals, &snapstate.PendingSecurityState{})
 }
 
+// TestDoRemoveAlreadyDisconnectedInRepo simulates a busy-retry: an earlier,
+// retried attempt of the same remove-profiles task already disconnected the
+// snap being removed in the (ephemeral) repository, so repo.DisconnectSnap()
+// returns an empty affected-snaps list on this attempt, while conns (durable
+// state) still records the connection. removeProfilesForSnap must still
+// derive the affected-snaps set from conns and (re-)apply security to the
+// other, still-installed end of the connection, rather than silently
+// skipping it.
+func (s *interfaceManagerSuite) TestDoRemoveAlreadyDisconnectedInRepo(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		// mock relevant unlink-snap behavior
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "consumer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "consumer"}}), IsNil)
+	}()
+
+	// Simulate the earlier, busy-retried attempt: disconnect the snap in
+	// the (ephemeral) repository directly, without touching conns (durable
+	// state), just as a prior invocation of removeProfilesForSnap would
+	// have left things after m.repo.DisconnectSnap() succeeded but before
+	// the task finished.
+	repo := mgr.Repository()
+	affected, err := repo.DisconnectSnap("consumer")
+	c.Assert(err, IsNil)
+	c.Assert(affected, testutil.DeepUnsortedMatches, []string{"consumer", "producer"})
+
+	// Run the remove-security task. repo.DisconnectSnap("consumer") will
+	// now return an empty list (already disconnected above), but conns
+	// still has the connection recorded.
+	change := s.addRemoveSnapSecurityChange("consumer")
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Stop()
+
+	// Change succeeds
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Snap is removed from repository
+	c.Check(repo.Plug("consumer", "slot"), IsNil)
+
+	// Security of the snap was removed
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
+
+	// Security of the related snap was still configured, derived from
+	// conns rather than repo.DisconnectSnap()'s (now-empty) return value.
+	c.Check(s.secBackend.SetupCalls, HasLen, 1)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+}
+
+// TestDoRemoveIgnoresStaleUndesiredConn checks that a stale, inactive (i.e.
+// Undesired or HotplugGone) conns entry referencing the removed snap does
+// not cause an unrelated snap's security to be re-applied: such an entry was
+// never part of the live repository, so it must not inflate the affected-
+// snaps set derived from conns.
+func (s *interfaceManagerSuite) TestDoRemoveIgnoresStaleUndesiredConn(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
+	var helperYaml = `
+name: helper
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, helperYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+		// stale: helper's connection to consumer was manually disconnected
+		// long ago and was never part of the live repository.
+		"helper:plug consumer:slot": map[string]any{"interface": "test", "undesired": true},
+	})
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "consumer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "consumer"}}), IsNil)
+	}()
+
+	change := s.addRemoveSnapSecurityChange("consumer")
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	repo := mgr.Repository()
+	c.Check(repo.Plug("consumer", "slot"), IsNil)
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
+
+	// Only producer (the actually-connected snap) had security re-applied;
+	// helper's stale Undesired conns entry must not trigger it.
+	c.Check(s.secBackend.SetupCalls, HasLen, 1)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+}
+
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.MockModel(c, nil)
 
@@ -7611,6 +7829,84 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	c.Check(s.secBackend.SetupCalls[3].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[2].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 	c.Check(s.secBackend.SetupCalls[3].AppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
+}
+
+// TestUndoConnectAlreadyDisconnectedInRepo simulates a busy-retry: an
+// earlier, retried attempt of the same undoConnect task already
+// disconnected the connection in the (ephemeral) repository, but the
+// task hasn't finished yet. undoConnect's sole job is to sever a
+// connection its own doConnect just made, so a NotConnectedError here
+// can only be caused by a prior partial attempt of the same task; it
+// must be tolerated instead of aborting the undo.
+func (s *interfaceManagerSuite) TestUndoConnectAlreadyDisconnectedInRepo(c *C) {
+	conns := map[string]any{
+		"snap1:plug snap2:slot":       map[string]any{},
+		"consumer:plug producer:slot": map[string]any{},
+	}
+	chg := s.mockConnectForUndo(c, conns, false)
+
+	// Find the "connect" task so we can wait for it to finish before
+	// simulating a busy-retry.
+	var connectTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "connect" {
+			connectTask = t
+			break
+		}
+	}
+	c.Assert(connectTask, NotNil)
+
+	s.state.Unlock()
+	// Step the state engine until the connect task (which establishes the
+	// repo connection) is done, but before the rest of the change (and any
+	// eventual undo) proceeds.
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+
+		s.state.Lock()
+		done := connectTask.Status() == state.DoneStatus
+		s.state.Unlock()
+		if done {
+			break
+		}
+	}
+
+	s.state.Lock()
+	c.Assert(connectTask.Status(), Equals, state.DoneStatus)
+	s.state.Unlock()
+
+	// Simulate the earlier, busy-retried attempt: disconnect in the
+	// (ephemeral) repository directly, before the undo runs.
+	repo := s.manager(c).Repository()
+	c.Assert(repo.Disconnect("consumer", "plug", "producer", "slot"), IsNil)
+
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Status().Ready(), Equals, true)
+	for _, t := range chg.Tasks() {
+		if t.Kind() != "error-trigger" {
+			c.Assert(t.Status(), Equals, state.UndoneStatus)
+		}
+	}
+
+	// connection is removed from conns, other connection is left intact
+	var realConns map[string]any
+	c.Assert(s.state.Get("conns", &realConns), IsNil)
+	c.Check(realConns, DeepEquals, map[string]any{
+		"snap1:plug snap2:slot": map[string]any{},
+	})
+
+	cref := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	// and it's not in the repo
+	_, err := s.manager(c).Repository().Connection(cref)
+	notConnected, _ := err.(*interfaces.NotConnectedError)
+	c.Check(notConnected, NotNil)
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {

@@ -626,12 +626,37 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
-	// Disconnect the snap entirely.
-	// This is required to remove the snap from the interface repository.
-	// The returned list of affected snaps will need to have its security setup
-	// to reflect the change.
-	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
+	st := task.State()
+
+	// Only active connections count, matching what the repo would have
+	// reported.
+	conns, err := getConns(st)
 	if err != nil {
+		return err
+	}
+	affectedSet := make(map[string]bool)
+	for id, conn := range conns {
+		if conn.Undesired || conn.HotplugGone {
+			// Effectively disconnected/inactive.
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(id)
+		if err != nil {
+			return err
+		}
+		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
+			affectedSet[connRef.PlugRef.Snap] = true
+			affectedSet[connRef.SlotRef.Snap] = true
+		}
+	}
+	affectedSnaps := make([]string, 0, len(affectedSet))
+	for name := range affectedSet {
+		affectedSnaps = append(affectedSnaps, name)
+	}
+	sort.Strings(affectedSnaps)
+
+	// Return value unused: affectedSnaps is derived from conns above.
+	if _, err := m.repo.DisconnectSnap(snapName); err != nil {
 		return err
 	}
 	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps, tm); err != nil {
@@ -1103,13 +1128,17 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		_, notConnected := err.(*interfaces.NotConnectedError)
 		_, noPlugOrSlot := err.(*interfaces.NoPlugOrSlotError)
-		// not connected, just forget it.
-		if forget && (notConnected || noPlugOrSlot) {
+		switch {
+		case forget && (notConnected || noPlugOrSlot):
+			// not connected, just forget it.
 			delete(conns, cref.ID())
 			setConns(st, conns)
 			return nil
+		case notConnected:
+			// busy-retry of this same task already disconnected it; proceed.
+		default:
+			return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 		}
-		return fmt.Errorf("snapd changed, please retry the operation: %v", err)
 	}
 
 	for _, snapst := range snapStates {
@@ -1304,7 +1333,10 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	setConns(st, conns)
 
 	if err := m.repo.Disconnect(connRef.PlugRef.Snap, connRef.PlugRef.Name, connRef.SlotRef.Snap, connRef.SlotRef.Name); err != nil {
-		return err
+		if _, ok := err.(*interfaces.NotConnectedError); !ok {
+			return err
+		}
+		// busy-retry of this same task already disconnected it; proceed.
 	}
 
 	var delayedSetupProfiles bool
