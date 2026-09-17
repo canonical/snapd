@@ -20,8 +20,11 @@
 package blockplan_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -82,4 +85,72 @@ func firstDiff(a, b []byte) int {
 		}
 	}
 	return n
+}
+
+// --- image fixtures ---
+//
+// These build real squashfs images with mksquashfs rather than using checked-in
+// ones, so the tests exercise the same producer the store does and stay honest
+// when squashfs-tools changes.
+
+// snapdMksquashfsArgs is exactly how snapd packs an app snap -- see Build in
+// snap/squashfs/squashfs.go. The delta format is designed against these options,
+// so the fixtures must use them and nothing else.
+var snapdMksquashfsArgs = []string{
+	"-noappend", "-comp", "xz", "-no-fragments", "-no-progress", "-all-root", "-no-xattrs",
+}
+
+// buildImage populates a directory through populate and packs it the way snapd
+// does, returning the image path. extra is appended, which is how a test asks
+// for something snapd's own options do not already cover.
+func buildImage(c *C, name string, populate func(c *C, dir string), extra ...string) string {
+	return buildImageArgs(c, name, populate, append(append([]string{}, snapdMksquashfsArgs...), extra...)...)
+}
+
+// buildImageArgs packs a tree under an explicit argument list. The refusal tests
+// need this rather than extra arguments, because mksquashfs refuses two
+// conflicting -comp options outright and silently keeps -no-fragments whatever
+// follows it.
+func buildImageArgs(c *C, name string, populate func(c *C, dir string), args ...string) string {
+	requireTools(c, "mksquashfs")
+
+	root := c.MkDir()
+	tree := filepath.Join(root, "tree")
+	c.Assert(os.MkdirAll(tree, 0755), IsNil)
+	populate(c, tree)
+
+	img := filepath.Join(root, name)
+	cmd, err := blockplan.ToolCommand(context.Background(), "mksquashfs",
+		append([]string{tree, img}, args...)...)
+	c.Assert(err, IsNil)
+	out, err := cmd.CombinedOutput()
+	c.Assert(err, IsNil, Commentf("mksquashfs %v failed: %s", args, out))
+	return img
+}
+
+// writeFile is a populate helper; mode 0644 throughout, since -all-root
+// normalizes ownership anyway.
+func writeFile(c *C, dir, name string, data []byte) {
+	full := filepath.Join(dir, name)
+	c.Assert(os.MkdirAll(filepath.Dir(full), 0755), IsNil)
+	c.Assert(os.WriteFile(full, data, 0644), IsNil)
+}
+
+// populateMixed lays down every block shape the extent walk has to handle:
+// several full compressed blocks plus a partial tail, a raw block, a wholly
+// sparse file (extended inode, zero size words), a duplicate that mksquashfs
+// dedups onto shared extents, and a hard link so one inode has two names.
+func populateMixed(c *C, dir string) {
+	writeFile(c, dir, "multi.txt", compressibleText(400000, "multi"))
+	writeFile(c, dir, "raw.bin", incompressible(200000, 1))
+	writeFile(c, dir, "sub/small.txt", []byte("hello world\n"))
+	// Same bytes as multi.txt: dedup makes both inodes share extents.
+	writeFile(c, dir, "sub/dup.txt", compressibleText(400000, "multi"))
+
+	f, err := os.Create(filepath.Join(dir, "sparse.bin"))
+	c.Assert(err, IsNil)
+	c.Assert(f.Truncate(300000), IsNil)
+	c.Assert(f.Close(), IsNil)
+
+	c.Assert(os.Link(filepath.Join(dir, "sub/small.txt"), filepath.Join(dir, "sub/link.txt")), IsNil)
 }
