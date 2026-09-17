@@ -105,6 +105,11 @@ func (s *bootstrapSuite) TestProcessArguments(c *C) {
 		// The option --from-snap-confine disables setns.
 		{[]string{"argv0", "--from-snap-confine", "snapname"}, "snapname", false, false, 0, ""},
 		{[]string{"argv0", "snapname", "--from-snap-confine"}, "snapname", false, false, 0, ""},
+		// The option --snap-already-locked does NOT disable setns: snapd
+		// invokes snap-update-ns outside of snap-confine and needs to enter
+		// the mount namespace itself.
+		{[]string{"argv0", "--snap-already-locked", "snapname"}, "snapname", true, false, 0, ""},
+		{[]string{"argv0", "snapname", "--snap-already-locked"}, "snapname", true, false, 0, ""},
 		// The option --user-mounts switches to the real uid
 		{[]string{"argv0", "--user-mounts", "snapname"}, "snapname", false, true, 0, ""},
 		// Unknown options are reported.

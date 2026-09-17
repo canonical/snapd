@@ -35,9 +35,10 @@ import (
 )
 
 var opts struct {
-	FromSnapConfine bool `long:"from-snap-confine"`
-	UserMounts      bool `long:"user-mounts"`
-	UserID          int  `short:"u"`
+	FromSnapConfine   bool `long:"from-snap-confine"`
+	SnapAlreadyLocked bool `long:"snap-already-locked"`
+	UserMounts        bool `long:"user-mounts"`
+	UserID            int  `short:"u"`
 	Positionals     struct {
 		SnapName string `positional-arg-name:"SNAP_NAME" required:"yes"`
 	} `positional-args:"true"`
@@ -86,8 +87,8 @@ func run() error {
 	}
 
 	setupOptInLogging(opts.Positionals.SnapName, opts.UserMounts)
-	logger.Debugf("snap-update-ns invoked snap:%s, fromSnapConfine:%v, userMounts:%v",
-		opts.Positionals.SnapName, opts.FromSnapConfine, opts.UserMounts)
+	logger.Debugf("snap-update-ns invoked snap:%s, fromSnapConfine:%v, snapAlreadyLocked:%v, userMounts:%v",
+		opts.Positionals.SnapName, opts.FromSnapConfine, opts.SnapAlreadyLocked, opts.UserMounts)
 
 	// Explicitly set the umask to 0 to prevent permission bits
 	// being masked out when creating files and directories.
@@ -96,15 +97,21 @@ func run() error {
 	// snapd's umask when it invokes us.
 	syscall.Umask(0)
 
+	// Both --from-snap-confine and --snap-already-locked mean the snap lock
+	// is already held by the caller, so snap-update-ns must verify it is held
+	// (via TryLock) instead of acquiring it. This is reflected in the
+	// mount-profile-update context used by Lock().
+	snapAlreadyLocked := opts.FromSnapConfine || opts.SnapAlreadyLocked
+
 	var upCtx MountProfileUpdateContext
 	if opts.UserMounts {
-		userUpCtx, err := NewUserProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine, os.Getuid())
+		userUpCtx, err := NewUserProfileUpdateContext(opts.Positionals.SnapName, snapAlreadyLocked, os.Getuid())
 		if err != nil {
 			return fmt.Errorf("cannot create user profile update context: %v", err)
 		}
 		upCtx = userUpCtx
 	} else {
-		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, opts.FromSnapConfine)
+		upCtx = NewSystemProfileUpdateContext(opts.Positionals.SnapName, snapAlreadyLocked)
 	}
 	return executeMountProfileUpdate(upCtx)
 }

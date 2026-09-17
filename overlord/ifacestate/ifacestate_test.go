@@ -13523,6 +13523,102 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 	c.Check(secBackend.ApplyDelayedEffectsCalls, Equals, 1)
 }
 
+func (s *interfaceManagerSuite) TestDelayedEffectsApplyRetriesOnSnapBusy(c *C) {
+	// a *interfaces.SnapBusyError returned from ApplyDelayedEffects is
+	// converted into a state.Retry by doApplyDelayedSnapSecurityBackendEffects
+	// (via retryIfSnapBusy), and the apply is attempted again later rather
+	// than failing the task outright. See LP#2164926.
+	s.mockSnap(c, consumerYaml)
+	prod := s.mockSnap(c, producerYaml)
+
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+
+	initDone := false
+	applyCalls := 0
+
+	secBackend := &ifacetest.TestSecurityBackendDelayedEffects{
+		TestSecurityBackend: ifacetest.TestSecurityBackend{
+			BackendName: "test",
+			SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+				if initDone {
+					panic("unexpected call after initial Setup() call")
+				}
+				return nil
+			},
+		},
+		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
+			applyCalls++
+			if applyCalls == 1 {
+				// first attempt finds the snap busy (e.g. a concurrent
+				// snap-confine holding the snap lock)
+				return &interfaces.SnapBusyError{Snap: appSet.InstanceName()}
+			}
+			return nil
+		},
+	}
+	s.mockSecBackend(secBackend)
+
+	s.o.TaskRunner().AddHandler("link-snap", func(task *state.Task, tomb *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	_ = s.manager(c)
+	initDone = true
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	tsup := s.state.NewTask("link-snap", "snap setup carrier")
+	tsup.Set("snap-setup", struct{}{})
+	err := snapstate.SetTaskSnapSetup(tsup, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: prod.RealName,
+		},
+	})
+	c.Assert(err, IsNil)
+	change.AddTask(tsup)
+	ts := ifacestate.ProcessDelayedSecurityBackendEffects(s.state, tsup.Lanes(), 0)
+	c.Assert(ts.Tasks(), HasLen, 1)
+
+	det := ts.Tasks()[0]
+	de := ifacestate.NewDelayedEffectsForSnaps()
+	de.EnqueueFor("consumer", interfaces.SecuritySystem("test"), interfaces.DelayedSideEffect{
+		ID:          interfaces.DelayedEffect("effect"),
+		Description: "mock effect",
+	})
+	ifacestate.DelayedBackendEffectsFor(det, "producer", de)
+
+	change.AddAll(ts)
+
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	change = s.state.Change(change.ID())
+	c.Assert(change, NotNil)
+	dumpTasks(c, "after", change.Tasks())
+	c.Check(change.Status(), Equals, state.DoneStatus)
+	c.Check(change.Err(), IsNil)
+
+	// the busy attempt was retried and eventually succeeded
+	c.Check(applyCalls, Equals, 2)
+
+	tasks := change.Tasks()
+	c.Assert(len(tasks), Equals, 3)
+	applyTask := tasks[2]
+	c.Check(applyTask.Kind(), Equals, "apply-delayed-snap-security-backend-effects")
+	c.Check(applyTask.Status(), Equals, state.DoneStatus)
+
+	// bookkeeping left over from the busy retry was cleared once the apply
+	// succeeded
+	var raw []string
+	err = applyTask.Get("snaps-needing-retry", &raw)
+	c.Check(errors.Is(err, state.ErrNoState) || len(raw) == 0, Equals, true,
+		Commentf("expected no leftover snaps-needing-retry bookkeeping, got err=%v raw=%v", err, raw))
+}
+
 func keys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {

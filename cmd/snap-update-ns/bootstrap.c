@@ -402,6 +402,12 @@ void process_arguments(int argc, char *const *argv, const char **snap_name_out, 
                 // option skip the setns call as snap-confine has
                 // already placed us in the right namespace.
                 should_setns = false;
+            } else if (!strcmp(arg, "--snap-already-locked")) {
+                // When snapd uses "--snap-already-locked" the snap lock has
+                // already been taken by the caller. Unlike --from-snap-confine
+                // this does NOT disable setns: snapd invokes snap-update-ns
+                // outside of snap-confine and needs to enter the snap's mount
+                // namespace itself.
             } else if (!strcmp(arg, "--user-mounts")) {
                 user_fstab = true;
                 // Processing the user-fstab file implies we're being

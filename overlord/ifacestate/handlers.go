@@ -2843,7 +2843,11 @@ func (m *InterfaceManager) doApplyDelayedSnapSecurityBackendEffects(task *state.
 			continue
 		}
 
-		if err := interfaces.ApplyDelayedEffects(m.repo, backend, appSet, effects, perfTimings); err != nil {
+		applyErr := interfaces.ApplyDelayedEffects(m.repo, backend, appSet, effects, perfTimings)
+		st.Lock()
+		err := retryIfSnapBusy(task, applyErr)
+		st.Unlock()
+		if err != nil {
 			return err
 		}
 	}
