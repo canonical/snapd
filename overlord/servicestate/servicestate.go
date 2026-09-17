@@ -170,11 +170,11 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 
 	// group services by snap, we need to create one task for every affected snap
 	for _, app := range appInfos {
-		snapName := app.Snap.InstanceName().String()
-		if _, ok := servicesBySnap[snapName]; !ok {
-			sortedNames = append(sortedNames, snapName)
+		instanceName := app.Snap.InstanceName().String()
+		if _, ok := servicesBySnap[instanceName]; !ok {
+			sortedNames = append(sortedNames, instanceName)
 		}
-		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+		servicesBySnap[instanceName] = append(servicesBySnap[instanceName], app.Name)
 	}
 	sort.Strings(sortedNames)
 
