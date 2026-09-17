@@ -488,11 +488,15 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 	found := make(map[string][]string, len(expected))
 	for _, i := range builtin.Interfaces() {
 		if iface, ok := i.(conflictsWithOtherConnectedInterfacesDefiner); ok {
-			found[i.Name()] = iface.ConflictsWithOtherConnectedInterfaces()
+			// Interfaces embedding commonInterface return nil (no
+			// conflict); only record actual conflicting relations.
+			if conflicts := iface.ConflictsWithOtherConnectedInterfaces(); conflicts != nil {
+				found[i.Name()] = conflicts
+			}
 		}
 	}
 
-	c.Assert(found, DeepEquals, found)
+	c.Assert(found, DeepEquals, expected)
 }
 
 // TestParallelInstancesUnsupportedOnPlugAndSlotSides checks interfaces that
