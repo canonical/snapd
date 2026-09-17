@@ -291,8 +291,10 @@ void sc_do_mount(const char *source, const char *target, const char *fs_type, un
 
 bool sc_do_optional_mount(const char *source, const char *target, const char *fs_type, unsigned long mountflags,
                           const void *data) {
+    // TODO: Ideally we'd do the same as in snap-update-ns/secure_bindmount.go
+    // to prevent TOCTOU bugs.
     struct stat st;
-    if ((source != NULL && stat(source, &st) < 0 && errno == ENOENT) || (stat(target, &st) < 0 && errno == ENOENT)) {
+    if ((source != NULL && lstat(source, &st) < 0 && errno == ENOENT) || (lstat(target, &st) < 0 && errno == ENOENT)) {
         return false;
     }
     return sc_do_mount_ex(source, target, fs_type, mountflags, data, true);

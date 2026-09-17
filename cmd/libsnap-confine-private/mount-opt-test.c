@@ -22,7 +22,6 @@
 #include <sys/mount.h>
 
 #include <glib.h>
-#include <glib/gstdio.h>
 
 static void test_sc_mount_opt2str(void) {
     char buf[1000] = {0};
