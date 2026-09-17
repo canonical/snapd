@@ -4174,6 +4174,133 @@ func (s *writerSuite) testSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C,
 	c.Check(filepath.Join(systemDir, "options.yaml"), testutil.FileAbsent)
 }
 
+// TestSeedSnapsWriteMetaCore20SignedLocalCompNotInModelBlocked is a guard
+// test: a component attached to a local snap but not declared anywhere in
+// the model at all -- unlike a component required only by an enforced
+// validation-set -- must still require a dangerous model grade. This is
+// the invariant tree20.writeMeta's grade check protects, and it must keep
+// doing so once components required only by an enforced validation-set
+// are allowed to bypass that same check.
+func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalCompNotInModelBlocked(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+				// comp1 is the only component the model knows about;
+				// comp2 is attached locally below without being
+				// declared here, and without any validation-set
+				// requiring it either.
+				"components": map[string]any{
+					"comp1": "optional",
+				},
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelSigned)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	compRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), compRevs, "canonical", s.StoreSigning.Database)
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("required20")}})
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 1)
+
+	sn := localSnaps[0]
+	si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, model, s.rf, s.db)
+	c.Assert(err, IsNil)
+	f, err := snapfile.Open(sn.Path)
+	c.Assert(err, IsNil)
+	info, err := snap.ReadInfoFromSnapFile(f, si)
+	c.Assert(err, IsNil)
+
+	cref := naming.NewComponentRef("required20", "comp2")
+	cinfo := snap.NewComponentInfo(cref, snap.StandardComponent, "1.0", "", "", "", nil)
+	pathComp := s.AssertedSnap(cref.String())
+	csi, _, err := seedwriter.DeriveComponentSideInfo(pathComp, cinfo, info, model, s.rf, s.db)
+	c.Assert(err, IsNil)
+	cinfo.ComponentSideInfo = *csi
+	seedComps := map[string]*seedwriter.SeedComponent{
+		"comp2": {
+			ComponentRef: cref,
+			Path:         pathComp,
+			Info:         cinfo,
+		},
+	}
+
+	err = w.SetInfo(sn, info, seedComps)
+	c.Assert(err, IsNil)
+	s.aRefs[sn.SnapName().String()] = aRefs
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+
+	for _, snToDl := range snaps {
+		channel := "latest/stable"
+		switch snToDl.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(snToDl.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, snToDl)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+
+	// comp2 is not declared by the model and was not required by any
+	// validation-set, so this must still be rejected, exactly as before
+	// the validation-set-only component fix.
+	err = w.WriteMeta()
+	c.Assert(err, ErrorMatches, `internal error: unexpected non-model snap overrides with grade signed`)
+}
+
 func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
@@ -4706,6 +4833,313 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedComponentsHappy(c 
 	// validation-set requires, so this must succeed
 	err = w.CheckValidationSets()
 	c.Assert(err, IsNil)
+}
+
+// TestValidateValidationSetsCore20EnforcedComponentRequiredByValidationSetOnly
+// is a regression test for a gap where modelSnapToSeed() only ever resolved
+// a component if it was declared in the model's own "components:" stanza
+// (or passed via --comp, which is unrelated here). If an enforced
+// validation-set required a component that the model itself did not
+// declare, that component was never even considered for download, so
+// SnapsToDownload/CheckValidationSets failed with "missing required
+// components" even though the component could genuinely have been
+// resolved and seeded -- mirroring how runtime's InstallComponents
+// resolves a validation-set-only component for a snap that is already
+// installed, without requiring the component to be declared anywhere
+// else.
+//
+// required20's snap.yaml declares both comp1 and comp2. The model requires
+// only comp1; the validation-set requires both comp1 and comp2. comp2 --
+// required only by the validation-set -- must still be resolved and
+// downloaded, since required20 itself is already part of the model.
+func (s *writerSuite) TestValidateValidationSetsCore20EnforcedComponentRequiredByValidationSetOnly(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+				"components": map[string]any{
+					// comp2 is intentionally absent here: the model does
+					// not know about it, only the validation-set does.
+					"comp1": "required",
+				},
+			},
+		},
+		"validation-sets": []any{
+			map[string]any{
+				"account-id": "canonical",
+				"name":       "comps-set",
+				"sequence":   "1",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	compRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), compRevs, "canonical", s.StoreSigning.Database)
+
+	// the validation-set requires required20 and BOTH of its components,
+	// even though the model above only declares comp1
+	valSet, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "comps-set",
+		"sequence":     "1",
+		"snaps": []any{
+			map[string]any{
+				"name":     "required20",
+				"id":       s.AssertedSnapID("required20"),
+				"presence": "required",
+				"revision": "21",
+				"components": map[string]any{
+					"comp1": map[string]any{
+						"presence": "required",
+						"revision": "22",
+					},
+					"comp2": map[string]any{
+						"presence": "required",
+						"revision": "33",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(valSet)
+	c.Check(err, IsNil)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+
+	// both comp1 (declared by the model) and comp2 (required only by the
+	// validation-set) must be considered for download.
+	for _, sn := range snaps {
+		if sn.SnapName() != "required20" {
+			continue
+		}
+		comps := make(map[string]bool)
+		for _, comp := range sn.Components {
+			comps[comp.ComponentName] = true
+		}
+		c.Check(comps["comp1"], Equals, true)
+		c.Check(comps["comp2"], Equals, true)
+	}
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	// comp2 was resolved and downloaded at exactly revision 33, as the
+	// validation-set requires, even though the model never declared it,
+	// so this must succeed
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+}
+
+// TestValidateValidationSetsCore20EnforcedComponentRequiredByValidationSetOnlySecuredGrade
+// is a regression test for a second gap uncovered by the fix above: even
+// once a component required only by an enforced validation-set is
+// correctly resolved and downloaded, tree20.writeMeta rejected it outright
+// on any model grade other than dangerous, since historically the only way
+// to end up with a component the model itself doesn't declare was a
+// dangerous-only --comp command-line override. A validation-set-required
+// component is backed by a signed assertion instead, exactly like the
+// model itself, so it must be allowed through on a secured model too.
+func (s *writerSuite) TestValidateValidationSetsCore20EnforcedComponentRequiredByValidationSetOnlySecuredGrade(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "secured",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+				"components": map[string]any{
+					// comp2 is intentionally absent here: the model does
+					// not know about it, only the validation-set does.
+					"comp1": "required",
+				},
+			},
+		},
+		"validation-sets": []any{
+			map[string]any{
+				"account-id": "canonical",
+				"name":       "comps-set",
+				"sequence":   "1",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelSecured)
+
+	compRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), compRevs, "canonical", s.StoreSigning.Database)
+
+	// the validation-set requires required20 and BOTH of its components,
+	// even though the model above only declares comp1
+	valSet, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "comps-set",
+		"sequence":     "1",
+		"snaps": []any{
+			map[string]any{
+				"name":     "required20",
+				"id":       s.AssertedSnapID("required20"),
+				"presence": "required",
+				"revision": "21",
+				"components": map[string]any{
+					"comp1": map[string]any{
+						"presence": "required",
+						"revision": "22",
+					},
+					"comp2": map[string]any{
+						"presence": "required",
+						"revision": "33",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(valSet)
+	c.Check(err, IsNil)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+
+	copySnap := func(name, src, dst string) error {
+		return osutil.CopyFile(src, dst, 0)
+	}
+	err = w.SeedSnaps(copySnap)
+	c.Assert(err, IsNil)
+
+	// this is the crux of the regression: writing the seed metadata must
+	// not reject comp2 just because the model grade isn't dangerous.
+	err = w.WriteMeta()
+	c.Assert(err, IsNil)
+
+	// and comp2 must actually have been recorded in options.yaml, since
+	// it is required20 the model didn't have this components information
+	systemDir := filepath.Join(s.opts.SeedDir, "systems", s.opts.Label)
+	optionsFile := filepath.Join(systemDir, "options.yaml")
+	c.Check(optionsFile, testutil.FilePresent)
+	data, err := os.ReadFile(optionsFile)
+	c.Assert(err, IsNil)
+	c.Check(string(data), testutil.Contains, "comp2")
 }
 
 func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {

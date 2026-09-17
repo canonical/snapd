@@ -152,6 +152,15 @@ type SeedComponent struct {
 	Path string
 
 	Info *snap.ComponentInfo
+
+	// FromValidationSet is true if this component is not declared by the
+	// snap's own model entry but was resolved solely because an enforced
+	// validation-set requires it. Unlike other ways a component can end
+	// up absent from the model (e.g. a --comp command-line override),
+	// this one is backed by a signed validation-set assertion rather
+	// than a local image-build-time choice, so it does not require a
+	// dangerous model grade (see tree20.writeMeta).
+	FromValidationSet bool
 }
 
 func (sn *SeedSnap) modes() []string {
@@ -767,7 +776,12 @@ func (w *Writer) SetInfo(sn *SeedSnap, info *snap.Info, seedComps map[string]*Se
 			return fmt.Errorf("store did not return information about %s",
 				sn.Components[i].ComponentName)
 		}
+		// Preserve provenance recorded when this component was resolved
+		// (see modelSnapToSeed): seedComp comes from the caller and only
+		// carries the downloaded component's own data.
+		fromValidationSet := sn.Components[i].FromValidationSet
 		sn.Components[i] = *seedComp
+		sn.Components[i].FromValidationSet = fromValidationSet
 		// Fill the path as this is a non-local component
 		compPath, err := w.tree.componentPath(sn, &sn.Components[i])
 		if err != nil {
@@ -875,6 +889,41 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 			}
 			seedCompsMap[comp] = SeedComponent{
 				ComponentRef: naming.NewComponentRef(modSnap.Name, comp),
+			}
+		}
+		// A component required only by an enforced validation-set (and not
+		// declared by the model itself) is still resolved here, mirroring
+		// how runtime's InstallComponents resolves validation-set-only
+		// components for a snap that is already installed: the snap must
+		// already be part of this model, but the component doesn't need to
+		// be declared in the model's own "components:" stanza.
+		//
+		// This only applies when validation is actually being enforced:
+		// w.validationSets() errors out immediately if the model demands
+		// enforcement of a validation-set that opts.EnforceValidation is
+		// set to ignore, and that specific mismatch is only meant to be
+		// reported once seeding otherwise completes, via
+		// CheckValidationSets(), not here.
+		if w.opts.EnforceValidation {
+			valsets, err := w.validationSets()
+			if err != nil {
+				return nil, err
+			}
+			if err := valsets.Conflict(); err != nil {
+				return nil, err
+			}
+			pres, err := valsets.Presence(modSnap)
+			if err != nil {
+				return nil, err
+			}
+			for comp := range pres.RequiredComponents() {
+				if _, ok := seedCompsMap[comp]; ok {
+					continue
+				}
+				seedCompsMap[comp] = SeedComponent{
+					ComponentRef:      naming.NewComponentRef(modSnap.Name, comp),
+					FromValidationSet: true,
+				}
 			}
 		}
 		// We add also components in command options if the model allows it
