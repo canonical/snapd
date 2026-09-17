@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
@@ -36,7 +37,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateHappyPath(c *C) {
 	var gotFormat string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format string) error {
+		func(_ context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			gotSource = source
 			gotTarget = target
 			gotDelta = delta
@@ -66,7 +67,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 	var gotSource, gotDelta, gotTarget string
 
 	restore := snap.MockSquashfsApplyDelta(
-		func(_ context.Context, source, delta, target string) error {
+		func(_ context.Context, source, delta, target string, opts *squashfs.ApplyDeltaOpts) error {
 			gotSource = source
 			gotDelta = delta
 			gotTarget = target
@@ -90,7 +91,7 @@ func (s *SnapSuite) TestDeltaCommandApplyHappyPath(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format string) error {
+		func(_ context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			return errors.New("cannot generate delta: xdelta3 not found")
 		})
 	defer restore()
@@ -107,7 +108,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateError(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandApplyError(c *C) {
 	restore := snap.MockSquashfsApplyDelta(
-		func(_ context.Context, source, delta, target string) error {
+		func(_ context.Context, source, delta, target string, opts *squashfs.ApplyDeltaOpts) error {
 			return errors.New("cannot apply delta: unknown delta file format")
 		})
 	defer restore()
@@ -171,7 +172,7 @@ func (s *SnapSuite) TestDeltaCommandMissingDelta(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandMissingFormat(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format string) error {
+		func(_ context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			return nil
 		})
 	defer restore()
@@ -187,7 +188,7 @@ func (s *SnapSuite) TestDeltaCommandMissingFormat(c *C) {
 
 func (s *SnapSuite) TestDeltaCommandAlgorithmDisplayed(c *C) {
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format string) error {
+		func(_ context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			return nil
 		})
 	defer restore()
@@ -218,7 +219,7 @@ func (s *SnapSuite) TestDeltaCommandShortFlags(c *C) {
 	var gotSource, gotTarget, gotDelta string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format string) error {
+		func(_ context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			gotSource = source
 			gotTarget = target
 			gotDelta = delta
@@ -243,7 +244,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateXdelta3Format(c *C) {
 	var gotFormat string
 
 	restore := snap.MockSquashfsGenerateDelta(
-		func(_ context.Context, source, target, delta string, format string) error {
+		func(_ context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			gotFormat = format
 			return nil
 		})
@@ -283,7 +284,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateListensForSignals(c *C) {
 
 	var ctxErrDuringExec error
 	restoreGenerate := snap.MockSquashfsGenerateDelta(
-		func(ctx context.Context, source, target, delta string, format string) error {
+		func(ctx context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			// Capture ctx.Err() here, before Execute returns and
 			// defer cancel() fires.
 			ctxErrDuringExec = ctx.Err()
@@ -312,7 +313,7 @@ func (s *SnapSuite) TestDeltaCommandGenerateCancelledOnSignal(c *C) {
 	defer restoreSignal()
 
 	restoreGenerate := snap.MockSquashfsGenerateDelta(
-		func(ctx context.Context, source, target, delta string, format string) error {
+		func(ctx context.Context, source, target, delta string, format string, opts *squashfs.GenerateDeltaOpts) error {
 			// Simulate SIGINT while the operation is in progress
 			sigCh <- syscall.SIGINT
 			// Wait for context cancellation
@@ -339,7 +340,7 @@ func (s *SnapSuite) TestDeltaCommandApplyCancelledOnSignal(c *C) {
 	defer restoreSignal()
 
 	restoreApply := snap.MockSquashfsApplyDelta(
-		func(ctx context.Context, source, delta, target string) error {
+		func(ctx context.Context, source, delta, target string, opts *squashfs.ApplyDeltaOpts) error {
 			// Simulate SIGTERM while the operation is in progress
 			sigCh <- syscall.SIGTERM
 			// Wait for context cancellation
