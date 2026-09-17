@@ -22,6 +22,7 @@ package blockplan
 import (
 	"context"
 	"os/exec"
+	"sort"
 )
 
 // This file exports what the tests need to reach inside the package. The tests
@@ -47,6 +48,18 @@ var (
 )
 
 type PlainBytes = plainBytes
+
+// ImplementedCompressorIDs lists the ids this build registered, in a stable
+// order so that a failure names the same compressor run to run. It is how the
+// contract tests cover every codec a build has rather than a fixed list.
+func ImplementedCompressorIDs() []uint16 {
+	ids := make([]uint16, 0, len(compressorFactories))
+	for id := range compressorFactories {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
 
 // MockCompressor registers a compressor and the section codec that goes with it
 // for the duration of a test, so that the dispatch and refusal paths can be
@@ -82,6 +95,22 @@ func MockCommandFromSystemSnapWithContext(f func(ctx context.Context, name strin
 	return func() {
 		snapdtoolCommandFromSystemSnapWithContext = old
 	}
+}
+
+// --- xz.go ---
+
+type XZBlockSplitter = xzBlockSplitter
+
+var (
+	NewXZBlockSplitter = newXZBlockSplitter
+	AppendXZFrame      = appendXZFrame
+	XZDecompressAll    = xzDecompressAll
+	XZBlockHeaderSize  = blockHeaderSize
+)
+
+// Next walks to the following block, as CompressBlocks does over a running xz.
+func (s *xzBlockSplitter) Next() (payload []byte, uSize int, err error) {
+	return s.next()
 }
 
 // --- memfd.go ---
