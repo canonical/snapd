@@ -274,6 +274,58 @@ func (d *instrDecoder) Done() bool { return d.done() }
 // a decoding loop cannot tell from the instructions it got back.
 func (d *instrDecoder) Rest() int { return len(d.buf) - d.pos }
 
+// --- match.go ---
+//
+// The matcher is the one part of the generator whose mistakes are invisible: a
+// missed correspondence is not an error, it is just a bigger delta. So its
+// decision table is driven directly rather than only through a generate.
+
+type (
+	FileLayout  = fileLayout
+	FileBlock   = fileBlock
+	PathMatcher = pathMatcher
+	AnchorKind  = anchorKind
+)
+
+const (
+	AnchorNone  = anchorNone
+	AnchorPath  = anchorPath
+	AnchorFuzzy = anchorFuzzy
+)
+
+var (
+	NormalizeDigits = normalizeDigits
+	PathsMatchFuzzy = pathsMatchFuzzy
+	SizeSimilarity  = sizeSimilarity
+)
+
+// NewFileBlock builds one file block. The literal cannot be written outside the
+// package: a block's on-disk fields are promoted from an embedded unexported
+// type, so they can be read from a test but not set by one.
+func NewFileBlock(imageOff int64, cSize, uSize int, uOff int64) fileBlock {
+	return fileBlock{extent: extent{Offset: imageOff, CSize: cSize, USize: uSize}, UOff: uOff}
+}
+
+// NewPathMatcherFor assembles a matcher from file layouts rather than from a pair
+// of images, so that which index answers -- and when neither does -- can be
+// asserted on shapes no fixture pair reliably produces. The layouts go in
+// through the same two methods a real generate indexes with, so a test cannot
+// end up matching against an index production code would never have built.
+func NewPathMatcherFor(src, tgt []*fileLayout) *pathMatcher {
+	m := newEmptyPathMatcher()
+	for _, f := range src {
+		m.addSource(f)
+	}
+	for _, f := range tgt {
+		m.addTarget(f)
+	}
+	return m
+}
+
+func (f *fileLayout) UOffAt(uOff int64) (int64, bool) { return f.uOffAt(uOff) }
+
+func (m *pathMatcher) Anchor(tgtOff int64) (int64, anchorKind) { return m.anchor(tgtOff) }
+
 // --- patchtool.go ---
 //
 // The three ways a patch tool is driven. Nothing about them is exported for real
