@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"time"
@@ -36,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type refreshSuite struct {
@@ -280,11 +278,8 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	snapst.RefreshInhibitedTime = &pastInstant
 	snapstate.Set(s.state, snapst.InstanceName().String(), snapst)
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {})
-	defer restore()
-
 	// Pretend that the snap is running.
-	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()
