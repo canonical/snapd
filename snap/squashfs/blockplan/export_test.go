@@ -21,6 +21,8 @@ package blockplan
 
 import (
 	"context"
+	"io"
+	"os"
 	"os/exec"
 	"sort"
 )
@@ -176,6 +178,65 @@ func NewMetaRegion(blob []byte) *metaRegion {
 func (im *squashfsImage) ReadDirListing(meta *metaRegion, dirRel int64, list dirListing) ([]dirChild, error) {
 	return im.readDirListing(meta, dirRel, list)
 }
+
+// --- plan.go ---
+//
+// The container's own structures keep the field names the format's byte layout
+// goes by, so the tests read them through aliases; only the methods, which are
+// the package's internal API, need wrappers.
+
+type (
+	PlanHeader   = planHeader
+	PlanWriter   = planWriter
+	SectionEntry = sectionEntry
+)
+
+const (
+	PlanHeaderSize    = planHeaderSize
+	SectionEntrySize  = sectionEntrySize
+	PlanFormatVersion = planFormatVersion
+	PlanToolsVersion  = planToolsVersion
+	PatchToolHdiffz   = patchToolHdiffz
+
+	SecSB      = secSB
+	SecMDFrame = secMDFrame
+	SecMDTail  = secMDTail
+	SecMDPatch = secMDPatch
+	SecInstr   = secInstr
+	SecPay     = secPay
+)
+
+var (
+	ParsePlanHeader = parsePlanHeader
+	OpenPlan        = openPlan
+)
+
+func (h *planHeader) Marshal() []byte  { return h.marshal() }
+func (e sectionEntry) Marshal() []byte { return e.marshal() }
+
+func (w *planWriter) AddSection(id uint16, raw []byte) { w.addSection(id, raw) }
+
+func (w *planWriter) AddSectionCompressed(ctx context.Context, id uint16, raw []byte, comp Compressor) error {
+	return w.addSectionCompressed(ctx, id, raw, comp)
+}
+
+func (w *planWriter) AddSectionFile(id uint16, f *os.File, storedLen int, crc uint32) {
+	w.addSectionFile(id, f, storedLen, crc)
+}
+
+// Emit is writeTo under another name: a WriteTo(io.Writer) error method would
+// be mistaken for io.WriterTo, whose signature it is not.
+func (w *planWriter) Emit(out io.Writer) error { return w.writeTo(out) }
+
+func (pr *planReader) Section(id uint16) []byte  { return pr.section(id) }
+func (pr *planReader) HasSection(id uint16) bool { return pr.hasSection(id) }
+
+// Entries, Pay and PayLen are the reader's state a test has to see: which codec
+// a section ended up stored under, and that the payload really was left as a
+// stream positioned at its first byte rather than read into memory.
+func (pr *planReader) Entries() []sectionEntry { return pr.entries }
+func (pr *planReader) Pay() io.Reader          { return pr.pay }
+func (pr *planReader) PayLen() int64           { return pr.payLen }
 
 // --- memfd.go ---
 
