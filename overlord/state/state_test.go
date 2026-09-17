@@ -848,8 +848,8 @@ func (ss *stateSuite) TestPrune(c *C) {
 
 	// two warnings, one expired
 	st.AddWarning("hello", &state.AddWarningOptions{
-		Time:        now.Add(-state.DefaultWarningExpireAfter),
-		RepeatAfter: state.DefaultWarningRepeatAfter,
+		Time:      now.Add(-state.DefaultWarningExpireAfter),
+		ShowAfter: state.DefaultWarningShowAfter,
 	})
 	st.Warnf("hello again")
 
