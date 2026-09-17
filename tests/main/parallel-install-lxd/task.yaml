@@ -70,7 +70,7 @@ prepare: |
 restore: |
     lxc stop my-ubuntu --force || true
     lxc delete my-ubuntu || true
-    snap remove --purge lxd || true
+    snap remove --purge lxd
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
     # stop user dbus if it was started by refresh-app-awareness
@@ -290,11 +290,11 @@ execute: |
     lxc exec my-ubuntu -- snap run --shell test-snapd-service_foo -c \
         "snapctl restart test-snapd-service_bar.test-snapd-other-service" 2>&1 \
         | MATCH 'unexpected snap instance key'
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-service_bar || true
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-service_bar
 
     echo "Clean up service instances"
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-service || true
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-service_foo || true
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-service
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-service_foo
 
     # -------------------------------------------------------------------
     # Mount unit generation verification
