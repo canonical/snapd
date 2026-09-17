@@ -444,7 +444,7 @@ prepare_project() {
             # now remove all snaps that aren't a base, core or snapd
             for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+(?!base)' | awk '{print $1}'); do
                 if [ "$sn" != snapd ] && [ "$sn" != core ]; then
-                    snap remove "$sn" || true
+                    snap remove --purge "$sn" || true
                 fi
             done
 
