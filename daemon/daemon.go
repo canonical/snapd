@@ -753,7 +753,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// If this is the case we do a "normal" snapd restart
 		// to process the new changes.
 		if !d.standbyOpinions.CanStandby() {
-			d.restartSocket = false
+			restartSocket = false
 		}
 	}
 	d.overlord.Stop()
@@ -785,7 +785,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
-	if d.restartSocket {
+	if restartSocket {
 		return ErrRestartSocket
 	}
 

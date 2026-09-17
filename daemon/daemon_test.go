@@ -1457,7 +1457,6 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	// when the daemon got a pending change it just restarts
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
-	c.Check(d.restartSocket, check.Equals, false)
 }
 
 func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
