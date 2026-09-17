@@ -189,8 +189,7 @@ func (s *validateKernelSuite) TestValidateFirmwareEmptyUpdatesOK(c *C) {
 
 	// Some kernel build tooling ships an empty "updates" directory as a
 	// harmless placeholder; this must validate fine, since it does not
-	// actually conflict with anything at runtime (createFirmwareSymlinks/
-	// setupModsFromComp always (re)create this directory anyway).
+	// actually conflict with anything at runtime.
 	c.Assert(os.MkdirAll(filepath.Join(fwDir, "updates"), 0755), IsNil)
 
 	err := kernel.Validate(mockKernelRoot)

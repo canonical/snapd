@@ -118,9 +118,7 @@ func validateFirmwareTree(kernelRoot string) error {
 		}
 		// Some kernel build tooling ships an empty "updates" directory as
 		// a harmless placeholder; only a non-empty one actually conflicts
-		// with kernel-modules-component firmware at runtime (see
-		// createFirmwareSymlinks/setupModsFromComp in kernel_drivers.go,
-		// which always (re)creates this directory anyway).
+		// with kernel-modules-component firmware at runtime.
 		updatesDir := filepath.Join(fwDir, e.Name())
 		updatesEntries, err := os.ReadDir(updatesDir)
 		if err != nil {
