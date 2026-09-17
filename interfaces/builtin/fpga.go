@@ -61,12 +61,14 @@ var fpgaConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "fpga",
-		summary:               fpgaSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  fpgaBaseDeclarationSlots,
-		connectedPlugAppArmor: fpgaConnectedPlugAppArmor,
-		connectedPlugUDev:     fpgaConnectedPlugUDev,
+		name:                     "fpga",
+		summary:                  fpgaSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     fpgaBaseDeclarationSlots,
+		connectedPlugAppArmor:    fpgaConnectedPlugAppArmor,
+		connectedPlugUDev:        fpgaConnectedPlugUDev,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

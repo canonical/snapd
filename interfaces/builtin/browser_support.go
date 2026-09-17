@@ -428,6 +428,10 @@ func (iface *browserSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo
 	return true
 }
 
+func (iface *browserSupportInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errParallelInstancesSystemSlot
+}
+
 func init() {
 	registerIface(&browserSupportInterface{})
 }

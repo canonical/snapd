@@ -53,11 +53,12 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "docker",
-		summary:               dockerSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  dockerBaseDeclarationSlots,
-		connectedPlugAppArmor: dockerConnectedPlugAppArmor,
-		connectedPlugSecComp:  dockerConnectedPlugSecComp,
+		name:                     "docker",
+		summary:                  dockerSummary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     dockerBaseDeclarationSlots,
+		connectedPlugAppArmor:    dockerConnectedPlugAppArmor,
+		connectedPlugSecComp:     dockerConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

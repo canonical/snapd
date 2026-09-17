@@ -479,6 +479,12 @@ func (iface *avahiObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) 
 	return true
 }
 
+func (iface *avahiObserveInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// avahi-daemon owns the well-known bus name org.freedesktop.Avahi on the
+	// system bus; only one snap instance can hold it at a time.
+	return errParallelInstancesSingletonServiceSlot
+}
+
 func init() {
 	registerIface(&avahiObserveInterface{})
 }

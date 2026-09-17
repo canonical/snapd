@@ -921,7 +921,8 @@ func init() {
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
 			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
-			affectsPlugOnRefresh: true,
+			affectsPlugOnRefresh:     true,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

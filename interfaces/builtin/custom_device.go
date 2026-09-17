@@ -520,6 +520,14 @@ func (iface *customDeviceInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.
 	return true
 }
 
+func (iface *customDeviceInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errParallelInstancesGadgetSlot
+}
+
+func (iface *customDeviceInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) error {
+	return errParallelInstancesSharedResources
+}
+
 func init() {
 	registerIface(&customDeviceInterface{})
 }
