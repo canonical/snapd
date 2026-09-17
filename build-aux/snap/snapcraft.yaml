@@ -216,7 +216,7 @@ parts:
     plugin: nil
     source: .
     build-snaps:
-      - go/1.23/stable # the default Go toolchain
+      - go/1.24/stable # the default Go toolchain
     after:
       - apparmor
       - patchelf
