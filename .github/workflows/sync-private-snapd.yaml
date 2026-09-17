@@ -30,8 +30,9 @@ concurrency:
   group: snapd-security-sync
   cancel-in-progress: false
 
-# Checkout and git push use a GitHub App token; that app must be on the
-# private repo ruleset bypass list. GITHUB_TOKEN is unused.
+# Checkout and git push use a GitHub App token, or SNAPD_SECURITY_SYNC_PAT
+# until the app exists. The pusher must be on the private repo ruleset
+# bypass list. GITHUB_TOKEN is unused.
 permissions: {}
 
 jobs:
@@ -44,10 +45,26 @@ jobs:
       RELEASE_BRANCH_COUNT: ${{ inputs.release-branch-count || 3 }}
       PUBLIC_URL: https://github.com/canonical/snapd.git
     steps:
-      # Push identity is a Canonical-approved GitHub App (not github-actions[bot]).
-      # App ID / PEM live only on the private repo; the app must be allowed to
-      # bypass the require-PR ruleset.
+      # Prefer the Canonical-approved GitHub App. SNAPD_SECURITY_SYNC_PAT is a
+      # temporary personal fallback on this private repo only; do not set it
+      # on public snapd. Remove it once the app vars/secrets exist.
+      - name: Require App credentials or SNAPD_SECURITY_SYNC_PAT
+        env:
+          HAS_APP: ${{ vars.SNAPD_SECURITY_SYNC_APP_ID != '' }}
+          HAS_PAT: ${{ secrets.SNAPD_SECURITY_SYNC_PAT != '' }}
+        run: |
+          set -euo pipefail
+          if [[ "${HAS_APP}" == "true" ]]; then
+              echo "using GitHub App token"
+          elif [[ "${HAS_PAT}" == "true" ]]; then
+              echo "using SNAPD_SECURITY_SYNC_PAT (temporary personal fallback)"
+          else
+              echo "::error::set SNAPD_SECURITY_SYNC_APP_ID/KEY, or SNAPD_SECURITY_SYNC_PAT on this private repo"
+              exit 1
+          fi
+
       - name: Mint GitHub App token
+        if: vars.SNAPD_SECURITY_SYNC_APP_ID != ''
         id: app-token
         uses: actions/create-github-app-token@v2
         with:
@@ -59,7 +76,7 @@ jobs:
         with:
           # Need full objects to push public commits/tags onto the private repo.
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token || secrets.SNAPD_SECURITY_SYNC_PAT }}
 
       - name: Fast-forward from canonical/snapd
         shell: bash
