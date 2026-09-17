@@ -113,6 +113,35 @@ func (s *xzBlockSplitter) Next() (payload []byte, uSize int, err error) {
 	return s.next()
 }
 
+// --- image.go ---
+//
+// The image-side types are unexported, but their fields keep the names the
+// on-disk structures go by, so an alias is enough for a test to read them.
+
+const (
+	SquashfsMagic         = squashfsMagic
+	SuperblockSize        = superblockSize
+	NoTable               = squashfsNoTable
+	InodeTypeFile         = inodeTypeFile
+	InodeTypeExtFile      = inodeTypeExtFile
+	FlagCompressorOptions = flagCompressorOptions
+	CompressorXz          = compressorXz
+)
+
+var (
+	OpenImage       = openImage
+	ParseSuperblock = parseSuperblock
+	PaddedImageSize = paddedImageSize
+)
+
+// CheckSupportedGeometry vets a superblock on its own, as the applier does with
+// the target's before the image it describes exists.
+func (sb *superblock) CheckSupportedGeometry(imageSize int64) error {
+	return sb.checkSupportedGeometry(imageSize)
+}
+
+func (im *squashfsImage) CheckSupported() error { return im.checkSupported() }
+
 // --- memfd.go ---
 
 type MemFile = memFile
