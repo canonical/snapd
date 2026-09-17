@@ -36,9 +36,8 @@ confinement: strict
 #
 # - test-build - created by the CI (or the in-repo test build script), indicates
 #   a test build with version override to 1337.*
-# - fips-build-lp - only created by snapd part 'pull' stage, when the build
-#   environment has been identified to be LP within the FIPS-CC-STIG project,
-#   where the snapd snap recipe is named snapd-fips
+# - fips-libs-from-core22 - created by the CI or a developer to get FIPS
+#   libraries from the core22 FIPS snap. Without this stamp, use APT packages.
 #
 parts:
   dynamic-linker:
@@ -242,14 +241,6 @@ parts:
       ln -sfn packaging/ubuntu-16.04 debian
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
-
-      # check for triggers that indicate a build on LP of the snapd-fips snap
-      # recipe https://launchpad.net/~fips-cc-stig/fips-cc-stig/+snap/snapd-fips
-      is_lp_fips_build="$(./release-tools/is-lp-fips-build.sh)"
-      if [ "$is_lp_fips_build" = "true" ]; then
-          echo "-- detected FIPS build from LP location"
-          touch fips-build-lp
-      fi
 
       if [ "${VERSION/+fips/}" = "$VERSION" ] ; then
           # add the FIPS tag if it is not already part of the version
@@ -478,8 +469,8 @@ parts:
 
       find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec "${CRAFT_PROJECT_DIR}/build-aux/snap/local/minidebuginfo" {} ";"
 
-      if [ -f fips-build-lp ]; then
-        touch "${CRAFT_PART_INSTALL}/fips-build-lp"
+      if [ -f fips-libs-from-core22 ]; then
+        touch "${CRAFT_PART_INSTALL}/fips-libs-from-core22"
       fi
 
       # ensure capabilities are set
@@ -490,8 +481,8 @@ parts:
     <<:
       - *dynamic-linker
     prime:
-      # drop the Launchpad build stamp
-      - -fips-build-lp
+      # drop the FIPS library source stamp
+      - -fips-libs-from-core22
     override-prime: |
       craftctl default
       # use patchelf built in earlier step
@@ -514,8 +505,8 @@ parts:
       # XXX this should be done in pull, but apparently ordering is not honored
       # for 'pull' step of parts
 
-      # the Launchpad stamp file was created in the 'snapd' part build
-      if [ -f "${CRAFT_STAGE}/fips-build-lp" ]; then
+      # the library source stamp was copied by the 'snapd' part build
+      if [ ! -f "${CRAFT_STAGE}/fips-libs-from-core22" ]; then
         mkdir -p etc/apt/preferences.d/
         # need to up the priority of the repository
         # TODO what if we need to choose between FIPS and FIPS preview?
@@ -540,7 +531,7 @@ parts:
       # snap should include the information about a particular openssl version
       # which was included in the build but the core22 FIPS variant snap has
       # been stripped off of the manifest.
-      if [ -f "${CRAFT_STAGE}/fips-build-lp" ]; then
+      if [ ! -f "${CRAFT_STAGE}/fips-libs-from-core22" ]; then
         mkdir fips-libs-from-debs
         mkdir fips-libs-from-debs-stage
 
