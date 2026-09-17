@@ -155,6 +155,7 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 			allKeySlotsFailWithIncompatibleRoleParams := true
 			allKeySlotsFailWithIncorrectUserAuth := true
 			allKeySlotsFailWithUserAuthUnavailable := true
+			allKeySlotsFailWithInvalidKeyData := true
 
 			for _, errorType := range activation.KeyslotErrors {
 				if errorType == sb.KeyslotErrorInvalidKeyData {
@@ -175,6 +176,7 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 					}
 					continue
 				}
+				allKeySlotsFailWithInvalidKeyData = false
 				if errorType != sb.KeyslotErrorIncorrectUserAuth {
 					allKeySlotsFailWithIncorrectUserAuth = false
 				}
@@ -184,6 +186,16 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 				if errorType != sb.KeyslotErrorUserAuthUnavailable {
 					allKeySlotsFailWithUserAuthUnavailable = false
 				}
+			}
+
+			// FIXME: Second part of the work-around with invalid key data.
+			// If everything failed with InvalidKeyData then we need
+			// reprovision.
+			if allKeySlotsFailWithInvalidKeyData && len(activation.KeyslotErrors) != 0 {
+				logger.Debugf("attempt repair: used recovery: all key data is invalid")
+				needsFixes = true
+				canFixManually = false
+				canAutoRepair = false
 			}
 
 			if allKeySlotsFailWithUserAuthUnavailable && len(activation.KeyslotErrors) != 0 {
