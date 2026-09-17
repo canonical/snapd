@@ -54,7 +54,7 @@ type (
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
 var DiskSpaceReservation = diskSpaceReservation
-var CalculateRequiredSpace = calculateRequiredSpace
+var CheckForAvailableSpace = checkForAvailableSpace
 
 var DiskSpaceUnsetError = diskSpaceUnsetError
 

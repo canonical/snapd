@@ -544,7 +544,8 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservation(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestCalculateRequiredSpace(c *C) {
+func (s *snapmgrTestSuite) TestCheckForAvailableSpace(c *C) {
+	rootDir := c.MkDir()
 	for _, tc := range []struct {
 		description string
 		totalSize   uint64
@@ -554,16 +555,72 @@ func (s *snapmgrTestSuite) TestCalculateRequiredSpace(c *C) {
 	}{
 		{description: "reservation", totalSize: 1024, reservation: 2048, expected: 3072},
 		{description: "zero reservation", totalSize: 1024, expected: 1024},
+		{description: "maximum required space", totalSize: ^uint64(0) - 1, reservation: 1, expected: ^uint64(0)},
 		{description: "overflow", totalSize: ^uint64(0), reservation: 1, err: "cannot calculate required disk space: size overflow"},
 	} {
-		requiredSpace, err := snapstate.CalculateRequiredSpace(tc.totalSize, tc.reservation)
+		checkCalls := 0
+		restore := snapstate.MockOsutilCheckFreeSpace(func(path string, size uint64) error {
+			checkCalls++
+			c.Check(path, Equals, rootDir, Commentf(tc.description))
+			c.Check(size, Equals, tc.expected, Commentf(tc.description))
+			return nil
+		})
+		err := snapstate.CheckForAvailableSpace(tc.totalSize, tc.reservation, []string{"some-snap"}, "install", rootDir, "")
+		restore()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
+			c.Check(checkCalls, Equals, 0, Commentf(tc.description))
 			continue
 		}
 
 		c.Check(err, IsNil, Commentf(tc.description))
-		c.Check(requiredSpace, Equals, tc.expected, Commentf(tc.description))
+		c.Check(checkCalls, Equals, 1, Commentf(tc.description))
+	}
+}
+
+func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
+	rootDir := c.MkDir()
+	snaps := []string{"some-snap", "other-snap"}
+	noSpaceErr := &osutil.NotEnoughDiskSpaceError{}
+	checkErr := errors.New("cannot check free space")
+	for _, tc := range []struct {
+		description   string
+		checkError    error
+		messagePrefix string
+		expected      error
+	}{
+		{
+			description: "insufficient space",
+			checkError:  noSpaceErr,
+			expected: &snapstate.InsufficientSpaceError{
+				Path: rootDir, Snaps: snaps, ChangeKind: "remove",
+			},
+		},
+		{
+			description:   "insufficient space with prefix",
+			checkError:    noSpaceErr,
+			messagePrefix: "cannot create automatic snapshot",
+			expected: &snapstate.InsufficientSpaceError{
+				Path: rootDir, Snaps: snaps, ChangeKind: "remove",
+				Message: fmt.Sprintf("cannot create automatic snapshot: %v", noSpaceErr),
+			},
+		},
+		{
+			description:   "other error is returned unchanged",
+			checkError:    checkErr,
+			messagePrefix: "cannot create automatic snapshot",
+			expected:      checkErr,
+		},
+	} {
+		restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+			return tc.checkError
+		})
+		err := snapstate.CheckForAvailableSpace(1024, 2048, snaps, "remove", rootDir, tc.messagePrefix)
+		restore()
+		c.Check(err, DeepEquals, tc.expected, Commentf(tc.description))
+		if tc.checkError == checkErr {
+			c.Check(err, Equals, checkErr, Commentf(tc.description))
+		}
 	}
 }
 
