@@ -13,7 +13,7 @@ properties:
     description: The unique label identifying the recovery system.
   brand:
     type: object
-    title: StoreAccount         # TODO: Adding 'title' fields to inline defined objects provide greater clarity to the user.
+    title: StoreAccount # TODO: Adding 'title' fields to inline defined objects provide greater clarity to the user.
     properties:
       id:
         type: string
@@ -74,7 +74,7 @@ properties:
     properties:
       support:
         type: string
-        enum: 
+        enum:
           - disabled
           - available
           - defective
@@ -88,12 +88,35 @@ properties:
         description: The type of encryption (e.g., 'luks2').
       unavailable-reason:
         type: string
-        description: The reason why encryption is unavailable or defective.
+        description:
+          The reason why encryption is unavailable or defective. Required if
+          availability-check-errors is non-empty.
       availability-check-errors:
         type: array
         items:
-          type: string
-        description: A list of errors encountered during the availability check.
+          type: object
+          required:
+            - kind
+            - message
+          properties:
+            kind:
+              type: string
+              # description: Kind of error as specified by secboot.
+            message:
+              type: string
+              # description: Error message
+            args:
+              type: object
+              additionalProperties: true
+              # description:  Additional information relating to the error with string keys and arbitrary values as constructed by secboot during classification.
+            actions:
+              type: array
+              items:
+                type: string
+              # description: available actions, for the error kind as mapped by secboot.
+        description:
+          A list of errors encountered during the availability check. If non-empty, unavailable-reason must
+          be populated.
       features:
         type: array
         items:
