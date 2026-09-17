@@ -850,6 +850,8 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		//
 		// TODO: when policy for choosing the preferred integrity method is
 		//       implemented, choose it
+		// TODO: get this from revision assertion instead using ValidatedIntegrityData
+		//       so it also works for sideloaded snaps
 		setupOpts.IntegrityDataParams = &snapsup.IntegrityDataInfo.IntegrityDataParams
 	}
 	pb := NewTaskProgressAdapterUnlocked(t)

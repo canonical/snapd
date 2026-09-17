@@ -190,6 +190,8 @@ type SnapSetup struct {
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 
 	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
+	//
+	// TODO: drop this and only keep DownloadInfo for the integrity data.
 	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
 }
 
