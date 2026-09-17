@@ -588,7 +588,7 @@ main() {
 
     parse_args "$@"
 
-    if [ -z "$KERNEL_BRANCH" ] && [ -n "$CORE_VERSION" ]; then
+    if [ -z "$KERNEL_BRANCH" ] && [ -n "$CORE_VERSION" ] && [ -z "$ORIG_SNAP" ]; then
         KERNEL_BRANCH="$CORE_VERSION"
     fi
 
