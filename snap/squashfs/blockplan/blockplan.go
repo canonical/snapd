@@ -56,6 +56,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 )
 
 const (
@@ -79,6 +80,67 @@ const (
 // types are what a caller has to understand to drive the format at all, and both
 // statistics types are what it needs to report the cost this format exists to
 // reduce.
+
+// GenerateOpts configures generation. The zero value is what a caller with no
+// opinion passes: the compressor comes from the target image, the run cap from
+// the measured default, and every block that can be patched is.
+type GenerateOpts struct {
+	// Comp overrides the compressor. Nil is the normal case and derives it
+	// from the target image's own superblock; a non-nil one must agree with
+	// that superblock, because a compressor that does not match the image
+	// produces blocks that are valid and wrong.
+	Comp Compressor
+
+	// Jobs is how many blocks the derived compressor may work on at once.
+	// Zero or less means every core, which is the right default here:
+	// generating runs where a snap is built or published rather than on a
+	// device, so there is no memory budget to trade against.
+	Jobs int
+
+	// MaxRunUSize caps the plaintext one patch run may reconstruct, which is
+	// what bounds the applier's peak memory. Zero takes defaultMaxRunUSize,
+	// whose comment is where that budget is accounted for.
+	MaxRunUSize int
+
+	// Verify runs the applier over the finished delta and refuses to keep it
+	// unless the result is byte-identical to the real target.
+	Verify bool
+
+	// NoPatchRuns ships every changed block as a literal, which asks the
+	// device for no data-block compression at all. It is the baseline the
+	// patch runs are measured against, and where generation lands when no
+	// patch tool is installed.
+	NoPatchRuns bool
+
+	// NoPathMatch anchors every run by offset proximity alone, which is what
+	// the format did before the directory tables were read. It is the
+	// baseline the path matcher is measured against.
+	NoPathMatch bool
+
+	// Tuning overrides the patch-run cost model. Nil is what everything in
+	// snapd passes and takes the measured defaults; a caller that means to
+	// move one knob takes DefaultPatchRunTuning(MaxRunUSize) and assigns to
+	// it, so that the knobs it did not name keep their measured settings
+	// rather than collapsing to a zero value.
+	//
+	// Disabled is not read from here -- NoPatchRuns above is what turns patch
+	// runs off -- because one switch with two spellings is a switch that
+	// eventually disagrees with itself.
+	Tuning *PatchRunTuning
+
+	// RunLog receives one line per patch run that got as far as being
+	// diffed, preceded once by RunLogHeader explaining the columns. It is how
+	// a run that produced a bad patch is told apart from a run whose content
+	// genuinely changed, which an aggregate count cannot do. Nil is the
+	// normal case and logs nothing.
+	RunLog io.Writer
+
+	// HdiffzArgs are extra hdiffz options for a caller measuring the diff
+	// tool itself. They are merged into the built-in tuning, and one naming
+	// an option the tuning already sets replaces it -- see hdiffzArgs, which
+	// is where that rule and its reason live.
+	HdiffzArgs []string
+}
 
 // ApplyOpts carries what an apply needs beyond the three streams. A nil
 // *ApplyOpts is the same as a zero one, which is what a device passes.
@@ -110,6 +172,62 @@ type ApplyOpts struct {
 	// every OP_COPY safe, so it is only skipped by callers that already know
 	// the source is right -- the generator's own final gate.
 	SkipSourceDigest bool
+}
+
+// Stats reports what a generated delta consists of, and what applying it will
+// cost the device that receives it.
+type Stats struct {
+	DeltaSize int64
+
+	Instructions int
+	Copies       int
+	Literals     int
+	PatchRuns    int
+
+	TargetDataBytes int64
+	CopiedBytes     int64
+	LiteralBytes    int64
+	PatchBytes      int64
+
+	// TargetUBytes is the target's total plaintext; ReusedUBytes is how much
+	// of it the applier gets without running the compressor. Their ratio is
+	// the CPU saving, which is the point of the format.
+	TargetUBytes int64
+	ReusedUBytes int64
+
+	// PatchedUBytes is the plaintext patch runs make the device compress, and
+	// WindowUBytes what it must decompress to feed them. Together they are the
+	// price paid for the delta-size reduction the runs buy.
+	PatchedUBytes int64
+	WindowUBytes  int64
+
+	// Why candidate runs did not become patch runs. Each one shipped as
+	// literals instead, which is correct but larger; RunsRejectedBytes is how
+	// many on-disk bytes that cost.
+	RunsNoWindow       int
+	RunsTooExpensive   int
+	RunsVerifyFailed   int
+	RunBlockMismatches int
+	RunsRejectedBytes  int64
+
+	// Where the patch runs' source windows came from: the same path in the
+	// source, a path differing only in its digits, or the offset-proximity
+	// fallback. A high cursor share means the path map is not reaching the
+	// files that churn, which shows up as a larger delta and nothing else.
+	RunsPathAnchored   int
+	RunsFuzzyAnchored  int
+	RunsCursorAnchored int
+	// MatchUnavailable is why path correspondence could not be built at all,
+	// empty when it was. Generation continues without it.
+	MatchUnavailable string
+
+	MetaBlocks   int
+	MetaUBytes   int64
+	MDPatchBytes int
+	InstrBytes   int
+	InstrStored  int
+
+	Elapsed time.Duration
 }
 
 // ApplyStats records what an apply actually did. UCompressedBytes is the number

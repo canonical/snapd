@@ -124,6 +124,7 @@ type (
 	Image     = squashfsImage
 	FileInode = fileInode
 	MetaBlock = metaBlock
+	Extent    = extent
 )
 
 const (
@@ -325,6 +326,32 @@ func NewPathMatcherFor(src, tgt []*fileLayout) *pathMatcher {
 func (f *fileLayout) UOffAt(uOff int64) (int64, bool) { return f.uOffAt(uOff) }
 
 func (m *pathMatcher) Anchor(tgtOff int64) (int64, anchorKind) { return m.anchor(tgtOff) }
+
+// --- patchrun.go ---
+//
+// The cost model and the window picker. Both are the generator's judgement
+// rather than the format's rules -- a badly chosen window makes a large delta,
+// not a wrong one -- but the two invariants the applier reads a window through
+// are rules, so the picker is driven directly over a real image.
+
+type (
+	SrcWindowPicker = srcWindowPicker
+)
+
+var (
+	NewSrcWindowPicker  = newSrcWindowPicker
+	RunWorthCompressing = runWorthCompressing
+)
+
+func (p *srcWindowPicker) Window(lo int64, maxU int) (srcWindow, bool) {
+	return p.window(lo, maxU)
+}
+
+func (p *srcWindowPicker) WindowsFrom(lo int64, maxU int) ([]srcWindow, bool) {
+	return p.windowsFrom(lo, maxU)
+}
+
+func (p *srcWindowPicker) ExtentsIn(w srcWindow) []extent { return p.extentsIn(w) }
 
 // --- patchtool.go ---
 //
