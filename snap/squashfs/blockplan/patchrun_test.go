@@ -21,6 +21,9 @@ package blockplan_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -234,4 +237,318 @@ func (s *patchrunSuite) TestRunWorthCompressing(c *C) {
 			}
 		}
 	}
+}
+
+// --- end to end ---
+//
+// Everything above drives the picker and the cost model directly. What follows
+// generates real deltas over real images, because the two properties that matter
+// most about a patch run are only visible there: that it is worth having, and
+// that a compressor which does not reproduce the target's bytes cannot turn one
+// into a wrong image.
+
+// TestBeatsLiterals is the whole point of OP_PATCHRUN: the same pair is encoded
+// twice, once with runs disabled, and the run version has to be substantially
+// smaller while still reconstructing the target exactly.
+func (s *patchrunSuite) TestBeatsLiterals(c *C) {
+	ctx := context.Background()
+	source, target := churnPair(c)
+	dir := c.MkDir()
+
+	litPath := filepath.Join(dir, "literals.delta")
+	lit, err := blockplan.Generate(ctx, source, target, litPath, &blockplan.GenerateOpts{
+		Comp: newXZ(c), Verify: true, NoPatchRuns: true,
+	})
+	c.Assert(err, IsNil, Commentf("generating a literals-only delta"))
+	c.Check(lit.PatchRuns, Equals, 0, Commentf("NoPatchRuns still emitted patch runs"))
+	c.Check(lit.PatchedUBytes, Equals, int64(0),
+		Commentf("a literals-only delta asks the device to compress %d bytes of data plaintext",
+			lit.PatchedUBytes))
+
+	runPath := filepath.Join(dir, "runs.delta")
+	run, err := blockplan.Generate(ctx, source, target, runPath, &blockplan.GenerateOpts{
+		Comp: newXZ(c), Verify: true,
+	})
+	c.Assert(err, IsNil, Commentf("generating a delta with patch runs"))
+	c.Assert(run.PatchRuns > 0, Equals, true,
+		Commentf("no patch run was emitted for a wholly shifted file; runs went to literals instead "+
+			"(%d no window, %d not worth it, %d failed verify)",
+			run.RunsNoWindow, run.RunsTooExpensive, run.RunsVerifyFailed))
+	// The insertion shifts every block of big.bin, so the source holds the
+	// plaintext but none of the compressed bytes. A patch against it should be a
+	// rounding error next to shipping those blocks whole.
+	c.Check(run.DeltaSize <= lit.DeltaSize/2, Equals, true,
+		Commentf("patch runs saved too little: %d bytes against %d for literals",
+			run.DeltaSize, lit.DeltaSize))
+	c.Check(run.PatchBytes < int64(4*4000), Equals, true,
+		Commentf("a patch for a 4000-byte insertion came to %d bytes", run.PatchBytes))
+
+	// What the device pays for that: it compresses the run's plaintext and
+	// decompresses a window to feed it, and both must be far below the whole
+	// image -- otherwise this is just snap-1-1-xdelta3 again.
+	st := applyAndCompare(c, source, runPath, target, newXZ(c))
+	c.Check(st.PatchRuns, Equals, run.PatchRuns,
+		Commentf("applied %d patch runs, the delta declares %d", st.PatchRuns, run.PatchRuns))
+	c.Check(st.WindowUBytes > 0, Equals, true,
+		Commentf("a patch run ran without reading any source plaintext"))
+	c.Check(st.UCompressedBytes > st.MetaUBytes, Equals, true,
+		Commentf("a patch run compressed no data plaintext at all"))
+	// steady.bin did not change, so the compressor must never have seen it. This
+	// is the CPU saving itself, and the assertion snap-1-1-xdelta3 cannot make at
+	// any delta size.
+	c.Check(st.CopiedBytes > 0, Equals, true,
+		Commentf("nothing was copied verbatim, so the unchanged half of the image was rebuilt"))
+	c.Check(st.UCompressedBytes < run.TargetUBytes, Equals, true,
+		Commentf("the apply compressed %d bytes of plaintext out of a %d-byte target -- no CPU was saved",
+			st.UCompressedBytes, run.TargetUBytes))
+}
+
+// TestSplitsAtRunCap holds the applier's memory bound: a changed region larger
+// than the cap has to become several runs, not one oversized one.
+func (s *patchrunSuite) TestSplitsAtRunCap(c *C) {
+	ctx := context.Background()
+	source, target := churnPair(c)
+	delta := filepath.Join(c.MkDir(), "capped.delta")
+
+	// Two blocks' worth. big.bin spans five, so the run cannot be emitted whole.
+	const cap2 = 2 * testBlockSize
+	stats, err := blockplan.Generate(ctx, source, target, delta, &blockplan.GenerateOpts{
+		Comp: newXZ(c), Verify: true, MaxRunUSize: cap2,
+	})
+	c.Assert(err, IsNil, Commentf("generating under a %d-byte run cap", cap2))
+	c.Check(stats.PatchRuns >= 2, Equals, true,
+		Commentf("a five-block change under a two-block cap produced %d patch runs", stats.PatchRuns))
+
+	// The header's cap is what the applier enforces, so it has to travel.
+	df, err := os.Open(delta)
+	c.Assert(err, IsNil)
+	defer df.Close()
+	pr, err := blockplan.OpenPlan(df)
+	c.Assert(err, IsNil)
+	c.Check(pr.Header.MaxRunUSize, Equals, uint32(cap2))
+
+	applyAndCompare(c, source, delta, target, newXZ(c))
+}
+
+// sabotagingComp is a compressor that produces wrong bytes for data blocks and
+// correct ones for metadata. It stands in for the real hazard behind the
+// generator's per-block verification: a compressor that does not reproduce what
+// mksquashfs produced, whether that is a different liblzma, a different preset,
+// or a squashfs-tools that has moved on.
+//
+// Only data blocks are perturbed, so the metadata patch still applies and the
+// only thing under test is the data-block path.
+type sabotagingComp struct {
+	// Everything but CompressBlocks is the real compressor's: the method
+	// declared below shadows the promoted one.
+	blockplan.Compressor
+	metaDict int
+	// blocks counts the data blocks perturbed, so a test can tell the sabotage
+	// happened rather than the run being declined for some other reason.
+	blocks int
+}
+
+func (s *sabotagingComp) CompressBlocks(ctx context.Context, plain blockplan.BlockPlain, uSizes []int,
+	dictSize int, fn func(idx int, blk blockplan.CompressedBlock) error) error {
+
+	return s.Compressor.CompressBlocks(ctx, plain, uSizes, dictSize,
+		func(idx int, blk blockplan.CompressedBlock) error {
+			// A raw block's on-disk bytes are its plaintext, so there is nothing
+			// in the compressor's output to corrupt.
+			if dictSize != s.metaDict && !blk.Raw && len(blk.OnDisk) > 8 {
+				// Flip a bit deep inside the LZMA2 payload rather than
+				// truncating, so the block stays a well-formed stream of exactly
+				// the right length. The applier's own check is on the length, so
+				// only the generator's byte comparison can catch this -- which is
+				// the point.
+				bad := append([]byte(nil), blk.OnDisk...)
+				bad[len(bad)/2] ^= 0x01
+				blk.OnDisk = bad
+				s.blocks++
+			}
+			return fn(idx, blk)
+		})
+}
+
+// TestDowngradesOnVerifyFailure is the safety property that lets the cost model
+// be a knob rather than a correctness risk. Given a compressor whose data blocks
+// do not match the target's, every candidate run must fall back to OP_LITERAL and
+// the delta must still reconstruct the target exactly.
+//
+// Both sides use the sabotaging compressor, because it stands for the machine's
+// xz rather than a fault in one process: the generator discovers it cannot
+// reproduce a data block, ships literals, and the applier -- now never asked to
+// compress a data block -- produces the right image regardless.
+func (s *patchrunSuite) TestDowngradesOnVerifyFailure(c *C) {
+	ctx := context.Background()
+	source, target := churnPair(c)
+	delta := filepath.Join(c.MkDir(), "sabotaged.delta")
+
+	im, err := blockplan.OpenImage(target)
+	c.Assert(err, IsNil)
+	c.Assert(int(im.SB.BlockSize) != blockplan.SquashfsMetadataSize, Equals, true,
+		Commentf("the fixture's block size equals the metadata dictionary, so the saboteur cannot tell them apart"))
+	comp := &sabotagingComp{Compressor: newXZ(c), metaDict: blockplan.SquashfsMetadataSize}
+
+	// Verify is what makes this a proof rather than a hope: had any run survived
+	// with a corrupt block, the gate would have caught the bad image here and
+	// generation would fail.
+	stats, err := blockplan.Generate(ctx, source, target, delta, &blockplan.GenerateOpts{
+		Comp: comp, Verify: true,
+	})
+	c.Assert(err, IsNil, Commentf("generation did not survive a compressor it cannot trust"))
+	c.Assert(comp.blocks > 0, Equals, true,
+		Commentf("no data block was perturbed, so nothing was under test"))
+	c.Check(stats.RunBlockMismatches > 0, Equals, true,
+		Commentf("the corruption went unnoticed: %d block mismatches over %d failed runs",
+			stats.RunBlockMismatches, stats.RunsVerifyFailed))
+	c.Check(stats.RunsVerifyFailed > 0, Equals, true,
+		Commentf("%d block mismatches did not fail a single run", stats.RunBlockMismatches))
+	c.Check(stats.PatchRuns, Equals, 0,
+		Commentf("%d patch runs were emitted from blocks that do not recompress", stats.PatchRuns))
+	c.Check(stats.PatchedUBytes, Equals, int64(0),
+		Commentf("a fully downgraded delta still asks the device to compress %d bytes", stats.PatchedUBytes))
+	c.Check(stats.RunsRejectedBytes > 0, Equals, true,
+		Commentf("the downgraded runs are not accounted for in RunsRejectedBytes"))
+
+	st := applyAndCompare(c, source, delta, target, comp)
+	c.Check(st.PatchRuns, Equals, 0,
+		Commentf("the apply ran %d patch runs over %d bytes, expected none", st.PatchRuns, st.PatchedBytes))
+	c.Check(st.PatchedBytes, Equals, int64(0))
+	// The only plaintext the compressor saw was metadata, which the saboteur
+	// leaves alone -- so a delta this conservative asks for no data-block
+	// compression whatsoever, which is what makes it safe.
+	c.Check(st.UCompressedBytes, Equals, st.MetaUBytes,
+		Commentf("compressed %d bytes of plaintext but only %d were metadata",
+			st.UCompressedBytes, st.MetaUBytes))
+}
+
+// flakyComp gives the right answer the first time it sees a block's plaintext and
+// a wrong one every time after. That is what it takes to slip past the
+// generator's per-block verification: the run is checked once, passes, and is
+// emitted -- and then the applier compresses the same plaintext again and gets
+// different bytes. Nothing but the final gate catches it.
+//
+// The bit flip keeps the block's length intact, so the applier's own cSize check
+// cannot see it either. Metadata is left alone, as in sabotagingComp.
+type flakyComp struct {
+	// As in sabotagingComp: only CompressBlocks is this type's own.
+	blockplan.Compressor
+	metaDict int
+	seen     map[[32]byte]bool
+	spoiled  int
+}
+
+func (f *flakyComp) CompressBlocks(ctx context.Context, plain blockplan.BlockPlain, uSizes []int,
+	dictSize int, fn func(idx int, blk blockplan.CompressedBlock) error) error {
+
+	if f.seen == nil {
+		f.seen = map[[32]byte]bool{}
+	}
+	at := 0
+	offs := make([]int, len(uSizes))
+	for i, u := range uSizes {
+		offs[i] = at
+		at += u
+	}
+	return f.Compressor.CompressBlocks(ctx, plain, uSizes, dictSize,
+		func(idx int, blk blockplan.CompressedBlock) error {
+			if dictSize != f.metaDict && !blk.Raw && len(blk.OnDisk) > 8 {
+				// Reading the block's plaintext back may reuse the buffer the
+				// inner compressor read it into, which is safe here only because
+				// this branch excludes raw blocks -- for a compressed one OnDisk
+				// is the freshly framed stream, not a view of that buffer.
+				src, err := plain.Block(offs[idx], uSizes[idx])
+				if err != nil {
+					return err
+				}
+				key := sha256.Sum256(src)
+				if f.seen[key] {
+					bad := append([]byte(nil), blk.OnDisk...)
+					bad[len(bad)/2] ^= 0x01
+					blk.OnDisk = bad
+					f.spoiled++
+				}
+				f.seen[key] = true
+			}
+			return fn(idx, blk)
+		})
+}
+
+// TestGateRefusesUnverifiableDelta is the last line of defence. A run that passes
+// per-block verification and then rebuilds wrongly must be caught by the final
+// gate, and the delta must not be left behind on disk -- otherwise a caller that
+// drops the error would publish an image that does not apply.
+func (s *patchrunSuite) TestGateRefusesUnverifiableDelta(c *C) {
+	ctx := context.Background()
+	source, target := churnPair(c)
+	delta := filepath.Join(c.MkDir(), "unverifiable.delta")
+
+	comp := &flakyComp{Compressor: newXZ(c), metaDict: blockplan.SquashfsMetadataSize}
+	_, err := blockplan.Generate(ctx, source, target, delta, &blockplan.GenerateOpts{
+		Comp: comp, Verify: true,
+	})
+	c.Assert(err, NotNil, Commentf("a delta that does not reconstruct the target was accepted"))
+	c.Check(comp.spoiled > 0, Equals, true,
+		Commentf("no block was spoiled on its second sighting, so the gate was never tested"))
+	_, err = os.Stat(delta)
+	c.Check(os.IsNotExist(err), Equals, true,
+		Commentf("the rejected delta is still on disk (stat: %v)", err))
+
+	// Without the gate the same generation succeeds, which is what makes the gate
+	// rather than the per-block verification the thing under test here.
+	comp2 := &flakyComp{Compressor: newXZ(c), metaDict: blockplan.SquashfsMetadataSize}
+	_, err = blockplan.Generate(ctx, source, target, delta, &blockplan.GenerateOpts{Comp: comp2})
+	c.Assert(err, IsNil, Commentf("generating without the gate"))
+	_, err = os.Stat(delta)
+	c.Check(err, IsNil, Commentf("an ungated delta was not written"))
+}
+
+// TestCrossesRawStretch is the window rule end to end: one run whose plaintext
+// spans a stretch the source stores raw. Every block of the file changes a
+// little, as a rebuilt binary's do, so the run covers the whole file --
+// compressible head, incompressible middle, compressible tail -- and a window
+// that stops at the head/middle boundary has nothing to offer the rest of it.
+func (s *patchrunSuite) TestCrossesRawStretch(c *C) {
+	requireTools(c, "mksquashfs", "xz", "hdiffz", "hpatchz")
+	ctx := context.Background()
+
+	// The middle is what mksquashfs stores raw and what the window has to get
+	// past; the head and tail are compressible, so they are stored as xz streams
+	// and cannot share a window with it.
+	const part = 1 << 20
+	body := append(append(append([]byte{},
+		compressibleText(part, "head")...),
+		incompressible(part, 9)...),
+		semiCompressible(part, 3)...)
+	// Flip one byte every 4 KiB, which leaves every block of the target different
+	// from the source's and so puts the whole file in one run, while leaving it
+	// almost entirely matchable.
+	edited := append([]byte{}, body...)
+	for i := 0; i < len(edited); i += 4 << 10 {
+		edited[i] ^= 0x40
+	}
+	source := buildImage(c, "raw-source.snap", func(c *C, dir string) {
+		writeFile(c, dir, "data/blob.bin", body)
+	})
+	target := buildImage(c, "raw-target.snap", func(c *C, dir string) {
+		writeFile(c, dir, "data/blob.bin", edited)
+	})
+
+	stats, err := blockplan.Generate(ctx, source, target, filepath.Join(c.MkDir(), "raw.delta"),
+		&blockplan.GenerateOpts{Comp: newXZ(c), Verify: true})
+	c.Assert(err, IsNil)
+	c.Assert(stats.PatchRuns > 0, Equals, true,
+		Commentf("no run was patched (%d no window, %d not worth it, %d failed verify)",
+			stats.RunsNoWindow, stats.RunsTooExpensive, stats.RunsVerifyFailed))
+	c.Check(stats.LiteralBytes, Equals, int64(0),
+		Commentf("%d bytes shipped as literals, so a run did not get the window it needed",
+			stats.LiteralBytes))
+	// The edit is 1 byte in 4096 against a source that holds all of it, so the
+	// patch is a list of small changes. A window truncated at the raw stretch
+	// instead leaves two thirds of the run diffed against nothing, and the patch
+	// carries that plaintext itself -- hundreds of KiB, not tens.
+	c.Check(stats.PatchBytes <= 256<<10, Equals, true,
+		Commentf("patching a run across a raw stretch cost %d bytes, and the run only "+
+			"reconstructs %d bytes of plaintext", stats.PatchBytes, stats.PatchedUBytes))
 }
