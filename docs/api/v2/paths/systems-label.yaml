@@ -19,13 +19,13 @@ get:
   security:
     - PeerAuth: []
   responses:
-    '200':
+    200:
       description: Detailed information about the recovery system.
       content:
         application/json:
           schema:
             $ref: '../components/schemas/SystemDetails.yaml'
-    '404':
+    404:
       $ref: '../components/responses/NotFound.yaml'
 post:
   tags:
@@ -50,12 +50,12 @@ post:
             - $ref: '../components/schemas/SystemActionCheckPin.yaml'
             - $ref: '../components/schemas/SystemActionFixEncryptionSupport.yaml'
   responses:
-    '200':
+    200:
       description: The action was successfully initiated (for synchronous actions).
-    '202':
+    202:
       description: The asynchronous action (e.g., install, remove) was accepted and is in progress.
       $ref: '../components/responses/Accepted.yaml'
-    '400':
+    400:
       $ref: '../components/responses/BadRequest.yaml'
-    '404':
+    404:
       $ref: '../components/responses/NotFound.yaml'
