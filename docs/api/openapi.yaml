@@ -253,6 +253,8 @@ components:
       $ref: './v2/components/schemas/SystemActionRemove.yaml'
     System:
       $ref: './v2/components/schemas/System.yaml'
+    SystemDetails:
+      $ref: './v2/components/schemas/SystemDetails.yaml'
     SystemInfo:
       $ref: './v2/components/schemas/SystemInfo.yaml'
     Task:
