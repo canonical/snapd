@@ -20,6 +20,9 @@
 package blockplan_test
 
 import (
+	"context"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap/squashfs/blockplan"
@@ -199,4 +202,120 @@ func (s *matchSuite) TestAnchorPrefersExactPath(c *C) {
 	var absent *blockplan.PathMatcher
 	_, kind := absent.Anchor(10000)
 	c.Check(kind, Equals, blockplan.AnchorNone)
+}
+
+// --- end to end ---
+//
+// The matcher's mistakes are invisible from the outside: a missed correspondence
+// is not an error, only a larger delta. So the two tests below measure the delta,
+// which is the only thing that can tell whether the anchoring worked.
+
+// TestPathAnchorBeatsSourceCursor is why the directory tables are read at all. An
+// insertion near the front of a large file shifts every following block, so the
+// file becomes several runs, and offset proximity can only place the first of
+// them: it anchors on where the last copy left off, which after a shift is
+// nowhere near the plaintext the run needs. Path correspondence gives each run
+// the part of the source file it actually came from.
+//
+// The delta size is the measurement; both modes must still reconstruct the target
+// exactly, because an anchor may never affect correctness.
+func (s *matchSuite) TestPathAnchorBeatsSourceCursor(c *C) {
+	requireTools(c, "mksquashfs", "xz", "hdiffz", "hpatchz")
+	ctx := context.Background()
+
+	const size = 4 << 20
+	body := semiCompressible(size, 23)
+	source := buildImage(c, "anchor-source.snap", func(c *C, dir string) {
+		writeFile(c, dir, "data/big.bin", body)
+	})
+	target := buildImage(c, "anchor-target.snap", func(c *C, dir string) {
+		edited := make([]byte, 0, size+4000)
+		edited = append(edited, body[:1000]...)
+		edited = append(edited, semiCompressible(4000, 77)...)
+		edited = append(edited, body[1000:]...)
+		writeFile(c, dir, "data/big.bin", edited)
+	})
+
+	dir := c.MkDir()
+	gen := func(name string, noPathMatch bool) *blockplan.Stats {
+		stats, err := blockplan.Generate(ctx, source, target, filepath.Join(dir, name),
+			&blockplan.GenerateOpts{
+				Comp: newXZ(c), Verify: true,
+				// Well below the run's plaintext, so the file is split into
+				// several runs and every one after the first has to find its own
+				// way back into the source.
+				MaxRunUSize: 1 << 20,
+				NoPathMatch: noPathMatch,
+			})
+		c.Assert(err, IsNil, Commentf("generating with NoPathMatch=%v", noPathMatch))
+		return stats
+	}
+
+	offset := gen("offset.delta", true)
+	path := gen("path.delta", false)
+
+	c.Check(offset.RunsPathAnchored+offset.RunsFuzzyAnchored, Equals, 0,
+		Commentf("NoPathMatch still used the path map for %d runs",
+			offset.RunsPathAnchored+offset.RunsFuzzyAnchored))
+	c.Assert(path.MatchUnavailable, Equals, "",
+		Commentf("the path map could not be built: %s", path.MatchUnavailable))
+	c.Check(path.RunsPathAnchored >= 2, Equals, true,
+		Commentf("only %d runs were anchored by path (%d by source offset); the file is one path in both images",
+			path.RunsPathAnchored, path.RunsCursorAnchored))
+	c.Check(path.PatchRuns > offset.PatchRuns, Equals, true,
+		Commentf("path anchoring produced %d patch runs, offset proximity %d -- the runs it should have "+
+			"rescued went to literals instead (%d no window, %d not worth it, %d failed verify)",
+			path.PatchRuns, offset.PatchRuns,
+			path.RunsNoWindow, path.RunsTooExpensive, path.RunsVerifyFailed))
+	c.Check(path.DeltaSize < offset.DeltaSize/2, Equals, true,
+		Commentf("path anchoring gave %d bytes against %d for offset proximity, which is not the saving "+
+			"a whole-file correspondence should buy", path.DeltaSize, offset.DeltaSize))
+	// And the point of the format is still intact: the device compresses the
+	// runs' plaintext, not the image's.
+	c.Check(path.PatchedUBytes <= path.TargetUBytes, Equals, true,
+		Commentf("patch runs ask the device to compress %d bytes of a %d-byte data region",
+			path.PatchedUBytes, path.TargetUBytes))
+}
+
+// TestPathAnchorFollowsAVersionBump is the fuzzy half: the same content under a
+// path whose version changed. Nothing about the file's identity survives except
+// its name, and mksquashfs writes it at a different offset, so a match here can
+// only have come from the digit-normalized bucket.
+func (s *matchSuite) TestPathAnchorFollowsAVersionBump(c *C) {
+	requireTools(c, "mksquashfs", "xz", "hdiffz", "hpatchz")
+	ctx := context.Background()
+
+	const size = 2 << 20
+	body := semiCompressible(size, 41)
+	// A filler that exists only in the source, and only to push the library far
+	// enough down the source's data region that the run's fallback anchor -- the
+	// start of the region, since nothing has been copied yet -- cannot reach it.
+	filler := semiCompressible(6<<20, 5)
+
+	source := buildImage(c, "bump-source.snap", func(c *C, dir string) {
+		writeFile(c, dir, "aaa-filler.bin", filler)
+		writeFile(c, dir, "usr/lib/libdemo.so.1.2.3", body)
+	})
+	target := buildImage(c, "bump-target.snap", func(c *C, dir string) {
+		edited := make([]byte, 0, size+4000)
+		edited = append(edited, body[:1000]...)
+		edited = append(edited, semiCompressible(4000, 78)...)
+		edited = append(edited, body[1000:]...)
+		writeFile(c, dir, "usr/lib/libdemo.so.1.2.4", edited)
+	})
+
+	stats, err := blockplan.Generate(ctx, source, target, filepath.Join(c.MkDir(), "bump.delta"),
+		&blockplan.GenerateOpts{Comp: newXZ(c), Verify: true, MaxRunUSize: 1 << 20})
+	c.Assert(err, IsNil, Commentf("generating"))
+	c.Assert(stats.RunsFuzzyAnchored > 0, Equals, true,
+		Commentf("no run was anchored on the source's earlier version of the library "+
+			"(%d by exact path, %d by source offset)", stats.RunsPathAnchored, stats.RunsCursorAnchored))
+	c.Check(stats.PatchRuns > 0, Equals, true,
+		Commentf("the renamed library shipped as literals (%d no window, %d not worth it, %d failed verify)",
+			stats.RunsNoWindow, stats.RunsTooExpensive, stats.RunsVerifyFailed))
+	// The library is 2 MiB of semi-compressible bytes, about 1 MiB on disk, and
+	// only 4000 bytes of it are new. A delta anywhere near its stored size means
+	// the rename lost the correspondence.
+	c.Check(stats.DeltaSize <= 300<<10, Equals, true,
+		Commentf("a 4000-byte edit under a bumped version number cost %d bytes of delta", stats.DeltaSize))
 }

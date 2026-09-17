@@ -33,6 +33,10 @@ import (
 // is one API, not thirty -- and the parts that carry the risk are the internal
 // ones: the block walks, the instruction encoding, the run costing.
 
+// --- blockplan.go ---
+
+var HumanBytes = humanBytes
+
 // --- compressor.go ---
 
 type BlobDecoder = blobDecoder
@@ -202,16 +206,20 @@ const (
 	PatchToolHdiffz   = patchToolHdiffz
 
 	SecSB      = secSB
+	SecCanary  = secCanary
 	SecMDFrame = secMDFrame
 	SecMDTail  = secMDTail
 	SecMDPatch = secMDPatch
 	SecInstr   = secInstr
 	SecPay     = secPay
+	SecToolVer = secToolVer
 )
 
 var (
-	ParsePlanHeader = parsePlanHeader
-	OpenPlan        = openPlan
+	ParsePlanHeader   = parsePlanHeader
+	ParseSectionEntry = parseSectionEntry
+	SectionName       = sectionName
+	OpenPlan          = openPlan
 )
 
 func (h *planHeader) Marshal() []byte  { return h.marshal() }
@@ -352,6 +360,20 @@ func (p *srcWindowPicker) WindowsFrom(lo int64, maxU int) ([]srcWindow, bool) {
 }
 
 func (p *srcWindowPicker) ExtentsIn(w srcWindow) []extent { return p.extentsIn(w) }
+
+// --- generate.go ---
+//
+// compareWriter is the generator's final gate, and the only part of it whose
+// failures can be provoked exactly rather than by contriving a compressor that
+// misbehaves, so a test drives it directly.
+
+type CompareWriter = compareWriter
+
+func NewCompareWriter(want []byte) *compareWriter { return &compareWriter{want: want} }
+
+// At is how much of the target the writer has accepted, which is what tells a
+// truncated reconstruction from a complete one -- Write cannot.
+func (c *compareWriter) At() int { return c.at }
 
 // --- patchtool.go ---
 //

@@ -20,7 +20,9 @@
 package blockplan_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"os"
@@ -53,6 +55,16 @@ func requireTools(c *C, names ...string) {
 	}
 }
 
+// newXZ is the compressor every fixture in this package is packed with. The
+// tests name it explicitly where a real caller would let the generator derive it
+// from the image, so that a machine whose registered codecs differ still runs
+// the same coverage.
+func newXZ(c *C) blockplan.Compressor {
+	comp, err := blockplan.NewCompressor(blockplan.CompressorXz, 0)
+	c.Assert(err, IsNil)
+	return comp
+}
+
 // incompressible returns bytes no compressor can shrink, so mksquashfs stores
 // the block raw -- the case where cSize == uSize and the compressed bit is set.
 func incompressible(n int, seed int64) []byte {
@@ -69,6 +81,18 @@ func compressibleText(n int, tag string) []byte {
 		out = append(out, "the quick brown fox jumps over the lazy dog "+tag+"\n"...)
 	}
 	return out[:n]
+}
+
+// semiCompressible returns bytes in the regime patch runs exist for: hex digits
+// carry four bits per byte, so xz halves them. That matters because the two ends
+// of the trade are both non-trivial -- text compresses to nearly nothing, making
+// literals free, and random bytes do not compress at all, so mksquashfs stores
+// them raw and there is no compression to avoid. Real snap content (ELF objects,
+// Python bytecode) sits between the two, which is where this does.
+func semiCompressible(n int, seed int64) []byte {
+	raw := make([]byte, n/2+1)
+	rand.New(rand.NewSource(seed)).Read(raw)
+	return []byte(hex.EncodeToString(raw))[:n]
 }
 
 // firstDiff is the offset of the first differing byte, or the shorter length.
@@ -153,4 +177,84 @@ func populateMixed(c *C, dir string) {
 	c.Assert(f.Close(), IsNil)
 
 	c.Assert(os.Link(filepath.Join(dir, "sub/small.txt"), filepath.Join(dir, "sub/link.txt")), IsNil)
+}
+
+// populateChurn is the source side of a patch-run fixture. steady.bin never
+// changes and big.bin changes wholesale, which is the shape of a real revision
+// pair: most of the image is carried by OP_COPY and the rest has to be rebuilt.
+func populateChurn(c *C, dir string) {
+	writeFile(c, dir, "big.bin", semiCompressible(600000, 42))
+	writeFile(c, dir, "steady.bin", semiCompressible(600000, 7))
+	writeFile(c, dir, "sub/small.txt", []byte("hello world\n"))
+}
+
+// churnEdit inserts a few kilobytes near the front of big.bin. The insertion
+// shifts every following block, so not one of them matches the source verbatim
+// and OP_COPY can carry none of the file -- yet the source still holds almost
+// all of the plaintext. That is exactly the case OP_PATCHRUN exists for, and the
+// case snap-1-1-xdelta3 pays for by recompressing the whole image.
+func churnEdit(c *C, dir string) {
+	b := semiCompressible(600000, 42)
+	edited := make([]byte, 0, len(b)+4000)
+	edited = append(edited, b[:1000]...)
+	edited = append(edited, semiCompressible(4000, 99)...)
+	edited = append(edited, b[1000:]...)
+	writeFile(c, dir, "big.bin", edited)
+}
+
+// churnPair builds the source/target pair the patch-run tests share. Each test
+// generates its own delta, since what is under test is the generator's choices.
+func churnPair(c *C) (source, target string) {
+	requireTools(c, "mksquashfs", "xz", "hdiffz", "hpatchz")
+	source = buildImage(c, "churn-source.snap", populateChurn)
+	target = buildImage(c, "churn-target.snap", func(c *C, dir string) {
+		populateChurn(c, dir)
+		churnEdit(c, dir)
+	})
+	return source, target
+}
+
+// smallEdit changes one file and adds another, so the metadata differs (it
+// always does) while most data blocks still match.
+func smallEdit(c *C, dir string) {
+	writeFile(c, dir, "sub/small.txt", []byte("hello again\n"))
+	writeFile(c, dir, "sub/added.txt", compressibleText(9000, "added"))
+}
+
+// deltaFixture builds a source/target pair and a delta between them, returning
+// all three paths.
+func deltaFixture(c *C, mutate func(c *C, dir string)) (source, target, delta string) {
+	requireTools(c, "mksquashfs", "xz", "hdiffz", "hpatchz")
+	source = buildImage(c, "source.snap", populateMixed)
+	target = buildImage(c, "target.snap", func(c *C, dir string) {
+		populateMixed(c, dir)
+		mutate(c, dir)
+	})
+	delta = filepath.Join(c.MkDir(), "d.delta")
+	_, err := blockplan.Generate(context.Background(), source, target, delta, &blockplan.GenerateOpts{
+		Comp:   newXZ(c),
+		Verify: true,
+	})
+	c.Assert(err, IsNil, Commentf("generating a delta"))
+	return source, target, delta
+}
+
+// applyAndCompare applies a delta and fails unless the result is the target byte
+// for byte, which is the only acceptance criterion the format has.
+func applyAndCompare(c *C, source, delta, target string, comp blockplan.Compressor) *blockplan.ApplyStats {
+	src, err := os.Open(source)
+	c.Assert(err, IsNil)
+	defer src.Close()
+	df, err := os.Open(delta)
+	c.Assert(err, IsNil)
+	defer df.Close()
+
+	var got bytes.Buffer
+	stats, err := blockplan.Apply(context.Background(), src, df, &got, &blockplan.ApplyOpts{Comp: comp})
+	c.Assert(err, IsNil, Commentf("applying the delta"))
+	want, err := os.ReadFile(target)
+	c.Assert(err, IsNil)
+	c.Assert(bytes.Equal(got.Bytes(), want), Equals, true,
+		Commentf("the reconstruction differs from the target at offset %d", firstDiff(got.Bytes(), want)))
+	return stats
 }

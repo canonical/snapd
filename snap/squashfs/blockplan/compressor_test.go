@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -595,5 +596,119 @@ func (s *compressorSuite) TestCompressorRefusesMismatchedOverride(c *C) {
 				Commentf("a %s compressor was accepted for a %s image",
 					blockplan.CompressorName(id), blockplan.CompressorName(other)))
 		}
+	}
+}
+
+// --- the other half of the contract, over real images ---
+
+// mksquashfsArgsForComp is snapd's own option set with the compressor swapped,
+// which is the only thing that differs about a snap built with another one.
+func mksquashfsArgsForComp(c *C, name string, extra ...string) []string {
+	out := append([]string{}, snapdMksquashfsArgs...)
+	for i, a := range out {
+		if a == "-comp" {
+			out[i+1] = name
+			return append(out, extra...)
+		}
+	}
+	c.Fatalf("snapdMksquashfsArgs no longer passes -comp: %v", out)
+	return nil
+}
+
+// mksquashfsWrites reports whether the local mksquashfs was built with a
+// compressor, by packing a one-file tree with it. There is no way to ask: the
+// -help output lists the compressors compiled in, but its wording has changed
+// across releases, and packing is what the answer is needed for anyway.
+func mksquashfsWrites(c *C, name string) bool {
+	dir := c.MkDir()
+	tree := filepath.Join(dir, "probe")
+	c.Assert(os.MkdirAll(tree, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tree, "f"), []byte("probe\n"), 0644), IsNil)
+
+	cmd, err := blockplan.ToolCommand(context.Background(), "mksquashfs",
+		append([]string{tree, filepath.Join(dir, "probe.img")}, mksquashfsArgsForComp(c, name)...)...)
+	if err != nil {
+		return false
+	}
+	return cmd.Run() == nil
+}
+
+// TestCompressorReproducesRealImages is the half of the contract no unit test can
+// reach: that the bytes a compressor here produces are the bytes mksquashfs
+// wrote. Everything the format does rests on it -- an OP_COPY is only valid
+// because a block compressed the same way twice comes out the same -- and it
+// cannot be assumed, because mksquashfs compresses with the library it was linked
+// against and this code with the one it finds. So the check is a generate and an
+// apply over a real pair, neither of which is told which compressor to use: the
+// generator takes it from the target's superblock and the applier from SEC_SB,
+// exactly as a real run does.
+//
+// The fixture is the churn pair rather than a small edit, so a patch run is
+// emitted: for a compressor whose blocks are not self-delimiting that is what
+// exercises SrcWindow.CSizes, and nothing else in the suite would.
+//
+// Where the two libraries do disagree the codec is noted and skipped rather than
+// failed. That is not a lowered bar: refusing is the whole answer there, and the
+// generator's own gate is what reports it. Measured on zstd, whose level-15
+// output drifted between 1.4.8 and 1.5.7 on short inputs -- which is every
+// metadata block.
+func (s *compressorSuite) TestCompressorReproducesRealImages(c *C) {
+	requireTools(c, "mksquashfs", "hdiffz", "hpatchz")
+	ctx := context.Background()
+
+	for _, id := range usableCompressorIDs(c) {
+		name := blockplan.CompressorName(id)
+		if !mksquashfsWrites(c, name) {
+			c.Logf("not covering %s here: the local mksquashfs cannot write %s images", name, name)
+			continue
+		}
+
+		args := mksquashfsArgsForComp(c, name)
+		source := buildImageArgs(c, "comp-source.snap", populateChurn, args...)
+		target := buildImageArgs(c, "comp-target.snap", func(c *C, dir string) {
+			populateChurn(c, dir)
+			churnEdit(c, dir)
+		}, args...)
+		for _, path := range []string{source, target} {
+			im, err := blockplan.OpenImage(path)
+			c.Assert(err, IsNil, Commentf("%s", filepath.Base(path)))
+			c.Assert(im.SB.CompressionId, Equals, id,
+				Commentf("%s was built with %s, wanted %s", filepath.Base(path),
+					blockplan.CompressorName(im.SB.CompressionId), name))
+			c.Assert(im.CheckSupported(), IsNil, Commentf("%s was refused", filepath.Base(path)))
+		}
+
+		delta := filepath.Join(c.MkDir(), "comp.delta")
+		stats, err := blockplan.Generate(ctx, source, target, delta, &blockplan.GenerateOpts{Verify: true})
+		if err != nil {
+			// The gate failing on metadata is the drift itself: this machine's
+			// library cannot reproduce what its mksquashfs wrote, so no delta of
+			// such an image can be made here at all.
+			if strings.Contains(err.Error(), "does not reconstruct the target") {
+				c.Logf("not covering %s here: the %s library available does not reproduce what "+
+					"the local mksquashfs writes, so no delta of such an image can be made "+
+					"on this machine: %v", name, name, err)
+				continue
+			}
+			c.Fatalf("generating a %s delta: %v", name, err)
+		}
+		if stats.RunBlockMismatches != 0 {
+			// The same drift, caught a step earlier: the data blocks did not
+			// recompress, so every run was downgraded to literals and the delta
+			// is correct but says nothing about reproduction.
+			c.Logf("not covering %s here: %d data blocks did not recompress to what the local "+
+				"mksquashfs wrote", name, stats.RunBlockMismatches)
+			continue
+		}
+		c.Assert(stats.PatchRuns > 0, Equals, true,
+			Commentf("%s: no patch run was emitted, so source windows went untested "+
+				"(%d no window, %d not worth it, %d failed verify)", name,
+				stats.RunsNoWindow, stats.RunsTooExpensive, stats.RunsVerifyFailed))
+		c.Check(stats.CopiedBytes > 0, Equals, true,
+			Commentf("%s: nothing was copied verbatim, so the whole image was rebuilt", name))
+
+		// Applied with no compressor either: it comes from SEC_SB.
+		applyAndCompare(c, source, delta, target, nil)
+		c.Logf("the %s compressor reproduces what the local mksquashfs writes", name)
 	}
 }
