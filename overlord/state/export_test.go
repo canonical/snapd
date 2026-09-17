@@ -59,7 +59,7 @@ func (t *Task) AccumulateUndoingTime(duration time.Duration) {
 
 var (
 	DefaultWarningExpireAfter = defaultWarningExpireAfter
-	DefaultWarningRepeatAfter = defaultWarningRepeatAfter
+	DefaultWarningShowAfter   = defaultWarningShowAfter
 
 	ErrNoWarningMessage     = errNoWarningMessage
 	ErrBadWarningMessage    = errBadWarningMessage
