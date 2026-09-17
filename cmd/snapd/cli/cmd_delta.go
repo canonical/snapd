@@ -117,10 +117,10 @@ func (x *cmdDelta) Execute(args []string) error {
 		}
 		fmt.Fprintf(Stdout, i18n.G("Using snap delta algorithm '%s'\n"), x.Format)
 		fmt.Fprintf(Stdout, i18n.G("Generating delta...\n"))
-		return squashfsGenerateDelta(ctx, x.Source, x.Target, x.Delta, x.Format)
+		return squashfsGenerateDelta(ctx, x.Source, x.Target, x.Delta, x.Format, nil)
 	case x.Apply:
 		fmt.Fprintf(Stdout, i18n.G("Applying delta...\n"))
-		return squashfsApplyDelta(ctx, x.Source, x.Delta, x.Target)
+		return squashfsApplyDelta(ctx, x.Source, x.Delta, x.Target, nil)
 	}
 
 	return nil
