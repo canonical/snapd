@@ -45,14 +45,21 @@ var readDir = os.ReadDir
 var (
 	errParallelInstancesSystemPlug      = errors.New("system plug cannot have parallel instances")
 	errParallelInstancesSystemSlot      = errors.New("system slot cannot have parallel instances")
+	errParallelInstancesGadgetSlot      = errors.New("gadget slot cannot have parallel instances")
 	errParallelInstancesSharedResources = errors.New("conflicting operations on shared system resources")
-	// system*.library-source files under SnapExportDir use "_" to encode the
-	// instance name, slot name and interface name in their names. Since parallel
-	// instance names also use "_" to append the instance key, some functionality
-	// may not correctly distinguish parallel instances.
+	// errParallelInstancesLibrarySource is used since system*.library-source
+	// files under SnapExportDir use "_" to encode the instance name, slot name
+	// and interface name in their names. Since parallel instance names also
+	// use "_" to append the instance key, some functionality may not correctly
+	// distinguish parallel instances.
 	// TODO: add tests for *-driver-libs interfaces to check if parallel instances on
 	// slot side work and remove this error if they do.
 	errParallelInstancesLibrarySource = errors.New("library-source filenames cannot distinguish parallel instances")
+	// errParallelInstancesSingletonServiceSlot is used for interfaces whose
+	// slot represents a singleton system or session service (e.g. a
+	// well-known D-Bus name or socket): two parallel instances of the
+	// providing snap would conflict with each other for ownership of it.
+	errParallelInstancesSingletonServiceSlot = errors.New("slot providing a singleton service cannot have parallel instances")
 )
 
 type commonInterface struct {
@@ -257,4 +264,15 @@ func (iface *commonInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo
 // slot attributes.
 func (iface *commonInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
 	return iface.parallelInstancesSlotErr
+}
+
+// parallelInstancesSystemOrGadgetSlotErr returns the appropriate parallel
+// instances error for interfaces whose slot can only be provided by
+// system or gadget snap, neither of which support parallel instances.
+// The slot must be non-nil.
+func parallelInstancesSystemOrGadgetSlotErr(slot *snap.SlotInfo) error {
+	if implicitSystemPermanentSlot(slot) {
+		return errParallelInstancesSystemSlot
+	}
+	return errParallelInstancesGadgetSlot
 }
