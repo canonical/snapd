@@ -274,6 +274,28 @@ func (d *instrDecoder) Done() bool { return d.done() }
 // a decoding loop cannot tell from the instructions it got back.
 func (d *instrDecoder) Rest() int { return len(d.buf) - d.pos }
 
+// --- patchtool.go ---
+//
+// The three ways a patch tool is driven. Nothing about them is exported for real
+// callers, because a patch run is an implementation detail of generate and apply
+// -- but they are the one place where correctness rests on an external tool
+// behaving as it was measured to.
+
+var (
+	RunHdiffz       = runHdiffz
+	HdiffzArgs      = hdiffzArgs
+	RunHpatchz      = runHpatchz
+	RunHpatchzFiles = runHpatchzFiles
+)
+
+// --- toolver.go ---
+
+var (
+	ToolVersionLine     = toolVersionLine
+	CaptureToolVersions = captureToolVersions
+	CheckToolVersions   = checkToolVersions
+)
+
 // --- memfd.go ---
 
 type MemFile = memFile
