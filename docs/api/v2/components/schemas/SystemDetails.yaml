@@ -83,7 +83,7 @@ properties:
       storage-safety:
         type: string
         description: The required storage safety level (e.g., 'encrypted').
-      type:
+      encryption-type:
         type: string
         description: The type of encryption (e.g., 'luks2').
       unavailable-reason:
