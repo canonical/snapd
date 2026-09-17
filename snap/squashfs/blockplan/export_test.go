@@ -118,6 +118,11 @@ func (s *xzBlockSplitter) Next() (payload []byte, uSize int, err error) {
 // The image-side types are unexported, but their fields keep the names the
 // on-disk structures go by, so an alias is enough for a test to read them.
 
+type (
+	Image     = squashfsImage
+	FileInode = fileInode
+)
+
 const (
 	SquashfsMagic         = squashfsMagic
 	SuperblockSize        = superblockSize
@@ -141,6 +146,36 @@ func (sb *superblock) CheckSupportedGeometry(imageSize int64) error {
 }
 
 func (im *squashfsImage) CheckSupported() error { return im.checkSupported() }
+
+func (im *squashfsImage) InodeExtents(fi *fileInode) ([]fileBlock, error) {
+	return im.inodeExtents(fi)
+}
+
+// --- dir.go ---
+
+type (
+	FileEntry  = fileEntry
+	MetaRegion = metaRegion
+	DirListing = dirListing
+	DirChild   = dirChild
+)
+
+// NewMetaRegion assembles a region holding a single metadata block, so the
+// listing tests can provoke framing errors that no real image can be made to
+// produce: a real directory table lives inside compressed metadata blocks, and
+// rewriting one of those means recompressing it.
+func NewMetaRegion(blob []byte) *metaRegion {
+	return &metaRegion{
+		Start:  0,
+		Blob:   blob,
+		Blocks: []metaBlock{{Offset: 0, CSize: len(blob), USize: len(blob)}},
+		index:  map[uint64]int{0: 0},
+	}
+}
+
+func (im *squashfsImage) ReadDirListing(meta *metaRegion, dirRel int64, list dirListing) ([]dirChild, error) {
+	return im.readDirListing(meta, dirRel, list)
+}
 
 // --- memfd.go ---
 
