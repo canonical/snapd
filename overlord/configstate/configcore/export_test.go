@@ -90,7 +90,7 @@ func MockLoggerSimpleSetup(f func(opts *logger.LoggerOptions)) func() {
 	return testutil.Mock(&loggerSimpleSetup, f)
 }
 
-func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo)) func() {
+func MockRestartRequest(f func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason)) func() {
 	return testutil.Mock(&restartRequest, f)
 }
 

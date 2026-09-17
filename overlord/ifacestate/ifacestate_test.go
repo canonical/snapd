@@ -268,7 +268,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snapstatetest.ReplaceDeviceCtxHook(devicestate.DeviceCtx))
 	s.MockModel(c, nil)
 
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType, _ restart.RestartReason) {
 		c.Logf("restart request: %v", t)
 	}))
 	c.Assert(err, IsNil)
@@ -2570,7 +2570,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 
 		if opts.linkSnapRestarts {
 			c.Log("requesting restart in link-snap")
-			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
+			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil, "")
 		}
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
@@ -14996,7 +14996,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 		defer st.Unlock()
 
 		c.Log("requesting restart in link-snap")
-		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil, "")
 	}, func(task *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	})
@@ -15013,7 +15013,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 
 		c.Log("requesting restart in undo unlink-current-snap")
 		// undo handler requests a restart in order to reach undo
-		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
+		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil, "")
 	})
 	s.o.TaskRunner().AddHandler("error-trigger", func(task *state.Task, tomb *tomb.Tomb) error {
 		return errors.New("mock error")
