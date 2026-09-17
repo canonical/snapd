@@ -130,8 +130,8 @@ func DefaultPatchRunTuning(maxRunUSize int) PatchRunTuning {
 		// sweep refutes it on all five pairs: 0, 0.1 and 0.25 land within 0.1%
 		// of each other -- on imx-kernel 3,486,147 / 3,483,920 / 3,483,009, on
 		// post75 -> post77 544,423 / 545,551 / 546,517 -- and 0.4 and 0.5 are
-		// then ruinous, taking imx-kernel to 7.24 and 13.95 MiB and post61 ->
-		// post60 from 100,705 bytes to 1.39 and 2.74 MiB.
+		// then ruinous, taking imx-kernel to 7,238,187 and 13,950,905 bytes and
+		// post61 -> post60 from 100,705 bytes to 1,390,666 and 2,743,381.
 		//
 		// The reason is that the two directions are not symmetric. Budget spent
 		// behind the anchor is budget not spent ahead of it, and a file's
@@ -165,21 +165,21 @@ func DefaultPatchRunTuning(maxRunUSize int) PatchRunTuning {
 		// belongs. Read the rate's effect as an exchange: bytes of device
 		// compression avoided per byte the delta grows. On 8.13.2.post77 ->
 		// 8.14.4.post129, the pair with the most churn, that exchange decays
-		// steeply -- 0.02 declines a single run and avoids 54 bytes of
-		// compression per delta byte, 0.05 avoids 42, 0.10 avoids 12 and 0.20
-		// only 8.8, by which point it is refusing runs worth having (delta
-		// 8.21 -> 10.90 MiB to bring compression 85.03 -> 62.48 MiB). On the two
-		// quieter pairs 0.02 is inert: post129 -> post194 and post75 -> post77
-		// produce the identical delta with the check off, because their runs are
-		// all comfortably worth compressing.
+		// steeply -- raising the rate from this default to 0.05 avoids 22 bytes
+		// of compression per delta byte it costs, 0.10 avoids 12, and 0.20 only
+		// 7.5, by which point it is refusing runs worth having: delta 7,870,356
+		// -> 10,753,615 bytes to bring compression 81.99 -> 62.79 MiB. At 0.40
+		// the exchange is 3.8 and the delta 29,179,327 bytes. On the quieter
+		// pairs the low rates are inert -- imx-kernel produces the identical
+		// delta at 0.02, 0.05 and 0.10, and post75 -> post77 at 0.02 and 0.05,
+		// because their runs are all comfortably worth compressing.
 		//
-		// So 0.02 sits where the check only ever removes outliers -- free on a
-		// quiet pair, and on a noisy one paying 0.34% of delta size to drop
-		// 1.7% of the device's compression. It is not the rate that minimises
-		// delta size (that is 0) nor the one that minimises device CPU (raise it
-		// until runs stop); it is the largest rate that was still purely
-		// favourable on every pair measured. A caller who wants to trade delta
-		// size for CPU in earnest raises it knowing the exchange rate above.
+		// So 0.02 sits where the check only ever removes outliers. It is not the
+		// rate that minimises delta size (that is 0) nor the one that minimises
+		// device CPU (raise it until runs stop); it is the largest rate that was
+		// still purely favourable on every pair measured. A caller who wants to
+		// trade delta size for CPU in earnest raises it knowing the exchange
+		// rate above.
 		MinSavingRate: 0.02,
 		MaxCostRatio:  0.9,
 	}
