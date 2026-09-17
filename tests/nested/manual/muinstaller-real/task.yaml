@@ -90,7 +90,7 @@ execute: |
   snap pack --filename=pc.snap pc-gadget/
 
   # Retrieve kernel assertion and snap through repack-kernel tool
-    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel edge --output-snap "$PWD/pc-kernel-from-store.snap"
+  "$TESTSTOOLS"/repack-kernel --mode download --kernel-branch "$version" --kernel-channel edge --output-snap "$PWD/pc-kernel-from-store.snap"
   # the fakestore needs this assertion
   snap ack pc-kernel.assert
 
@@ -100,7 +100,11 @@ execute: |
       # split kernel into snap and kernel-modules component
       "$TESTSTOOLS"/build_kernel_with_comps.sh efi_pstore efi-pstore
       kmods_arg="--kmods-comp pc-kernel+efi-pstore.comp"
+      kernel_snap="$PWD/pc-kernel.snap"
+  else
+      kernel_snap="$PWD/pc-kernel-from-store.snap"
   fi
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --orig-snap "$kernel_snap" --output-snap "$PWD/pc-kernel-repacked.snap"
 
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
