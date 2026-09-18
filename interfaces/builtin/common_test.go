@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -310,4 +311,15 @@ func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
 	}
 	c.Check(iface.ParallelInstancesSupportedForPlug(nil), ErrorMatches, "custom plug reason")
 	c.Check(iface.ParallelInstancesSupportedForSlot(nil), ErrorMatches, "custom slot reason")
+}
+
+func (s *commonIfaceSuite) TestParallelInstancesSystemOrGadgetSlotErr(c *C) {
+	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(systemSlot), ErrorMatches, "system slot cannot have parallel instances")
+
+	snapdSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(snapdSlot), ErrorMatches, "system slot cannot have parallel instances")
+
+	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(gadgetSlot), ErrorMatches, "gadget slot cannot have parallel instances")
 }

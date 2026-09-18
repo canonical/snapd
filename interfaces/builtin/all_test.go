@@ -503,16 +503,29 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 	unsupportedInterfaces := []string{
 		"acrn-support",
 		"adb-support",
+		"allegro-vcu",
 		"auditd-support",
+		"block-devices",
+		"broadcom-asic-control",
+		"camera",
 		"checkbox-support",
 		"classic-support",
 		"core-support",
+		"cpu-control",
 		"cuda-driver-libs",
+		"custom-device",
+		"dcdbas-control",
+		"device-buttons",
+		"display-control",
 		"dm-crypt",
 		"dm-multipath",
 		"docker-support",
+		"dvb",
 		"egl-driver-libs",
+		"firewall-control",
 		"firmware-updater-support",
+		"fpga",
+		"framebuffer",
 		"gbm-driver-libs",
 		"greengrass-support",
 		"iscsi-initiator",
@@ -537,6 +550,51 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 		plugDefiner, ok := iface.(interfaces.ParallelInstancesPlugDefiner)
 		c.Assert(ok, Equals, true, Commentf("interface %q", name))
 		c.Check(plugDefiner.ParallelInstancesSupportedForPlug(nil), NotNil, Commentf("interface %q", name))
+		slotDefiner, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
+		c.Assert(ok, Equals, true, Commentf("interface %q", name))
+		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))
+	}
+}
+
+// TestParallelInstancesUnsupportedSlotOnlyInterfaces checks interfaces that
+// unconditionally block parallel instances for slots only, while still
+// supporting parallel instances on the plug side. Interfaces where the
+// decision depends on plug/slot attributes must be tested in their own test
+// file (e.g., see shared-memory).
+func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
+	unsupportedInterfaces := []string{
+		"accel",
+		"account-control",
+		"accounts-service",
+		"alsa",
+		"appstream-metadata",
+		"audio-playback",
+		"autopilot-introspection",
+		"avahi-control",
+		"avahi-observe",
+		"bluetooth-control",
+		"bluez",
+		"browser-support",
+		"calendar-service",
+		"can-bus",
+		"cifs-mount",
+		"confdb",
+		"contacts-service",
+		"daemon-notify",
+		"desktop",
+		"desktop-launch",
+		"desktop-legacy",
+		"devlxd",
+		"docker",
+		"fuse-support",
+		"fwupd",
+	}
+	for _, name := range unsupportedInterfaces {
+		iface := builtin.Interface(name)
+		c.Assert(iface, NotNil, Commentf("interface %q is not registered", name))
+		if plugDefiner, ok := iface.(interfaces.ParallelInstancesPlugDefiner); ok {
+			c.Check(plugDefiner.ParallelInstancesSupportedForPlug(nil), IsNil, Commentf("interface %q", name))
+		}
 		slotDefiner, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
 		c.Assert(ok, Equals, true, Commentf("interface %q", name))
 		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))

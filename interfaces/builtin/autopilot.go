@@ -64,12 +64,13 @@ sendto
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "autopilot-introspection",
-		summary:               autopilotIntrospectionSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  autopilotIntrospectionBaseDeclarationSlots,
-		connectedPlugAppArmor: autopilotIntrospectionPlugAppArmor,
-		connectedPlugSecComp:  autopilotIntrospectionPlugSecComp,
+		name:                     "autopilot-introspection",
+		summary:                  autopilotIntrospectionSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     autopilotIntrospectionBaseDeclarationSlots,
+		connectedPlugAppArmor:    autopilotIntrospectionPlugAppArmor,
+		connectedPlugSecComp:     autopilotIntrospectionPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

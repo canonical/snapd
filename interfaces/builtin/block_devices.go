@@ -204,13 +204,15 @@ type blockDevicesInterface struct {
 
 func init() {
 	registerIface(&blockDevicesInterface{commonInterface{
-		name:                  "block-devices",
-		summary:               blockDevicesSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  blockDevicesBaseDeclarationPlugs,
-		baseDeclarationSlots:  blockDevicesBaseDeclarationSlots,
-		connectedPlugAppArmor: blockDevicesConnectedPlugAppArmor,
-		connectedPlugUDev:     blockDevicesConnectedPlugUDev,
+		name:                     "block-devices",
+		summary:                  blockDevicesSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     blockDevicesBaseDeclarationPlugs,
+		baseDeclarationSlots:     blockDevicesBaseDeclarationSlots,
+		connectedPlugAppArmor:    blockDevicesConnectedPlugAppArmor,
+		connectedPlugUDev:        blockDevicesConnectedPlugUDev,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
