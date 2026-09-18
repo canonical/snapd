@@ -631,10 +631,14 @@ func (s *snapResourcePairSuite) TestPrerequisites(c *C) {
 	c.Assert(err, IsNil)
 
 	prereqs := a.Prerequisites()
-	c.Assert(prereqs, HasLen, 1)
+	c.Assert(prereqs, HasLen, 2)
 	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
 		Type:       asserts.SnapDeclarationType,
 		PrimaryKey: []string{"16", "snap-id-1"},
+	})
+	c.Check(prereqs[1], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"dev-id1"},
 	})
 }
 
