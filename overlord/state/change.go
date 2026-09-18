@@ -116,16 +116,16 @@ func (s Status) String() string {
 	panic(fmt.Sprintf("internal error: unknown task status code: %d", s))
 }
 
-// taskWaitComputeStatus is used while computing the wait status of a
-// change. It keeps track of whether a task is waiting or not waiting, or the
+// taskBlockComputeStatus is used while computing whether a change is blocked.
+// It keeps track of whether a task is blocked or not blocked, or whether the
 // computation for it is still in-progress to detect cyclic dependencies.
-type taskWaitComputeStatus int
+type taskBlockComputeStatus int
 
 const (
-	taskWaitStatusNotComputed taskWaitComputeStatus = iota
-	taskWaitStatusComputing
-	taskWaitStatusNotWaiting
-	taskWaitStatusWaiting
+	taskBlockStatusNotComputed taskBlockComputeStatus = iota
+	taskBlockStatusComputing
+	taskBlockStatusNotBlocked
+	taskBlockStatusBlocked
 )
 
 // Change represents a tracked modification to the system state.
@@ -304,79 +304,85 @@ func init() {
 	}
 }
 
-func (c *Change) isTaskWaiting(visited map[string]taskWaitComputeStatus, t *Task, deps []*Task) bool {
+func (c *Change) isTaskBlocked(visited map[string]taskBlockComputeStatus, t *Task, deps []*Task, blockingStatus Status) bool {
 	taskID := t.ID()
-	// Retrieve the compute status of the wait for the task, if not
-	// computed this defaults to 0 (taskWaitStatusNotComputed).
+	// Retrieve the compute status for the task, if not
+	// computed this defaults to 0 (taskBlockStatusNotComputed).
 	computeStatus := visited[taskID]
 	switch computeStatus {
-	case taskWaitStatusComputing:
+	case taskBlockStatusComputing:
 		// Cyclic dependency detected, return false to short-circuit.
 		logger.Noticef("detected cyclic dependencies for task %q in change %q", t.Kind(), t.Change().Kind())
 		// Make sure errors show up in "snap change <id>" too
 		t.Logf("detected cyclic dependencies for task %q in change %q", t.Kind(), t.Change().Kind())
 		return false
-	case taskWaitStatusWaiting, taskWaitStatusNotWaiting:
-		return computeStatus == taskWaitStatusWaiting
+	case taskBlockStatusBlocked, taskBlockStatusNotBlocked:
+		return computeStatus == taskBlockStatusBlocked
 	}
-	visited[taskID] = taskWaitStatusComputing
+	visited[taskID] = taskBlockStatusComputing
 
-	var isWaiting bool
+	var isBlocked bool
 depscheck:
 	for _, wt := range deps {
-		switch wt.Status() {
-		case WaitStatus:
-			isWaiting = true
-		// States that can be valid when waiting
-		// - Done, Undone, ErrorStatus, HoldStatus
-		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
+		status := wt.Status()
+		if status == blockingStatus {
+			// Undo dependencies only need to be ready, so an errored task does
+			// not prevent its predecessors from being undone.
+			if blockingStatus != ErrorStatus || t.Status() == DoStatus {
+				isBlocked = true
+			}
+			continue
+		}
+		switch status {
+		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus, WaitStatus:
 			continue
 		// For 'Do' and 'Undo' we have to check whether the task is waiting
 		// for any dependencies. The logic is the same, but the set of tasks
 		// varies.
 		case DoStatus:
-			isWaiting = c.isTaskWaiting(visited, wt, wt.WaitTasks())
-			if !isWaiting {
+			isBlocked = c.isTaskBlocked(visited, wt, wt.WaitTasks(), blockingStatus)
+			if !isBlocked {
 				// Cancel early if we detect something is runnable.
 				break depscheck
 			}
 		case UndoStatus:
-			isWaiting = c.isTaskWaiting(visited, wt, wt.HaltTasks())
-			if !isWaiting {
+			isBlocked = c.isTaskBlocked(visited, wt, wt.HaltTasks(), blockingStatus)
+			if !isBlocked {
 				// Cancel early if we detect something is runnable.
 				break depscheck
 			}
 		default:
 			// When we determine the change can not be in a wait-state then
 			// break early.
-			isWaiting = false
+			isBlocked = false
 			break depscheck
 		}
 	}
-	if isWaiting {
-		visited[taskID] = taskWaitStatusWaiting
+	if isBlocked {
+		visited[taskID] = taskBlockStatusBlocked
 	} else {
-		visited[taskID] = taskWaitStatusNotWaiting
+		visited[taskID] = taskBlockStatusNotBlocked
 	}
-	return isWaiting
+	return isBlocked
 }
 
-// isChangeWaiting should only ever return true iff it determines all tasks in Do/Undo
-// are blocked by tasks in either of three states: 'DoneStatus', 'UndoneStatus' or 'WaitStatus',
-// if this fails, we default to the normal status ordering logic.
-func (c *Change) isChangeWaiting() bool {
+// isChangeBlocked reports whether every non-ready task is in DoStatus or
+// UndoStatus and is blocked by a task in blockingStatus.
+func (c *Change) isChangeBlocked(blockingStatus Status) bool {
 	// Since we might visit tasks more than once, we store results to avoid recomputing them.
-	visited := make(map[string]taskWaitComputeStatus)
+	visited := make(map[string]taskBlockComputeStatus)
 	for _, t := range c.Tasks() {
 		switch t.Status() {
+		// Only consider tasks that can actually still run, if they can't
+		// they are not blocked.
 		case WaitStatus, DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
 			continue
 		case DoStatus:
-			if !c.isTaskWaiting(visited, t, t.WaitTasks()) {
+			if !c.isTaskBlocked(visited, t, t.WaitTasks(), blockingStatus) {
 				return false
 			}
 		case UndoStatus:
-			if !c.isTaskWaiting(visited, t, t.HaltTasks()) {
+			if !c.isTaskBlocked(visited, t, t.HaltTasks(), blockingStatus) {
 				return false
 			}
 		default:
@@ -384,7 +390,7 @@ func (c *Change) isChangeWaiting() bool {
 		}
 	}
 	// If we end up here, then return true as we know we
-	// have at least one waiter in this change.
+	// have at least one blocker in this change.
 	return true
 }
 
@@ -395,7 +401,7 @@ func (c *Change) isChangeWaiting() bool {
 //
 //   - With all pending tasks blocked by other tasks in WaitStatus, return WaitStatus
 //   - With at least one task in DoStatus, return DoStatus
-//   - With at least one task in ErrorStatus, return ErrorStatus
+//   - With an errored task and all remaining tasks blocked, return ErrorStatus
 //   - Otherwise, return DoneStatus
 func (c *Change) Status() Status {
 	c.state.reading()
@@ -416,8 +422,19 @@ func (c *Change) Status() Status {
 	// or whether it's completely blocked by waiters.
 	if statusStats[WaitStatus] > 0 {
 		// Only if the change has all tasks blocked we return WaitStatus.
-		if c.isChangeWaiting() {
+		if c.isChangeBlocked(WaitStatus) {
 			return WaitStatus
+		}
+	}
+
+	// If the change has any tasks in error, then check whether we have
+	// any tasks that can still execute their undo. A task may not be able
+	// to execute their undo if they are blocked by a previous undo task
+	// that has errored.
+	if statusStats[ErrorStatus] > 0 {
+		// Make sure nothing can actually still execute
+		if c.isChangeBlocked(ErrorStatus) {
+			return ErrorStatus
 		}
 	}
 
@@ -486,6 +503,18 @@ func (c *Change) Ready() <-chan struct{} {
 }
 
 func (c *Change) detectChangeReady(excludeTask *Task) {
+	// A change can now reach a ready status while it still contains non-ready
+	// tasks. In particular, if an undo fails, tasks in UndoStatus may remain in
+	// the graph but be permanently blocked by the task in ErrorStatus. Status
+	// detects that no work can make further progress and returns ErrorStatus.
+	// Check the aggregate status before the per-task readiness scan below,
+	// otherwise that scan would find the blocked task, leave the ready channel
+	// open, and make callers using IsReady treat the failed change as active.
+	if c.Status().Ready() {
+		c.markReady()
+		return
+	}
+
 	for _, tid := range c.taskIDs {
 		task := c.state.tasks[tid]
 		if task != excludeTask && !task.status.Ready() {

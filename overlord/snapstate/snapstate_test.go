@@ -7014,6 +7014,29 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	c.Assert(conflictErr.ChangeID, Equals, chg.ID())
 }
 
+func (s *snapmgrTestSuite) TestConflictExclusiveNotBlockedByUndoError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("remodel", "...")
+	undoTask := s.state.NewTask("undo-task", "...")
+	blockedTask := s.state.NewTask("blocked-task", "...")
+	blockedTask.WaitFor(undoTask)
+	chg.AddTask(undoTask)
+	chg.AddTask(blockedTask)
+
+	undoTask.SetStatus(state.UndoingStatus)
+	err := snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+
+	undoTask.SetStatus(state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.IsReady(), Equals, true)
+
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestConflictExclusiveBlockedByRefreshOrRevert(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
