@@ -96,15 +96,17 @@ execute: |
 
   # Build kernel with initramfs with the compiled snap-bootstrap
   kmods_arg=""
+  component_args=()
   if os.query is-ubuntu-ge 24.04; then
       # split kernel into snap and kernel-modules component
-      "$TESTSTOOLS"/build_kernel_with_comps.sh efi_pstore efi-pstore
+      component_args=(
+          --component-module efi_pstore
+          --component-name efi-pstore
+          --output-component "$PWD/pc-kernel+efi-pstore.comp"
+      )
       kmods_arg="--kmods-comp pc-kernel+efi-pstore.comp"
-      kernel_snap="$PWD/pc-kernel.snap"
-  else
-      kernel_snap="$PWD/pc-kernel-from-store.snap"
   fi
-  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --orig-snap "$kernel_snap" --output-snap "$PWD/pc-kernel-repacked.snap"
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --orig-snap "$PWD/pc-kernel-from-store.snap" --output-snap "$PWD/pc-kernel-repacked.snap" "${component_args[@]}"
 
   gendeveloper1 sign-model < "$TESTSLIB"/assertions/developer1-"$version"-classic-dangerous.json > classic.model
 
