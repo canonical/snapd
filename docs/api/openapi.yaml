@@ -235,10 +235,12 @@ components:
       $ref: './v2/components/schemas/SnapshotSet.yaml'
     StoreCategory:
       $ref: './v2/components/schemas/StoreCategory.yaml'
-    SystemActionCheckPassphrase:
-      $ref: './v2/components/schemas/SystemActionCheckPassphrase.yaml'
-    SystemActionCheckPin:
-      $ref: './v2/components/schemas/SystemActionCheckPin.yaml'
+    SystemActionCheckAuthQualityResponse:
+      $ref: './v2/components/schemas/SystemActionCheckAuthQualityResponse.yaml'
+    SystemActionCheckPassphraseQuality:
+      $ref: './v2/components/schemas/SystemActionCheckPassphraseQuality.yaml'
+    SystemActionCheckPinQuality:
+      $ref: './v2/components/schemas/SystemActionCheckPinQuality.yaml'
     SystemActionCreate:
       $ref: './v2/components/schemas/SystemActionCreate.yaml'
     SystemActionDo:
@@ -247,12 +249,16 @@ components:
       $ref: './v2/components/schemas/SystemActionFixEncryptionSupport.yaml'
     SystemActionInstall:
       $ref: './v2/components/schemas/SystemActionInstall.yaml'
+    SystemActionInstallGenerateRecoveryKeyResponse:
+      $ref: './v2/components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml'
     SystemActionReboot:
       $ref: './v2/components/schemas/SystemActionReboot.yaml'
     SystemActionRemove:
       $ref: './v2/components/schemas/SystemActionRemove.yaml'
     System:
       $ref: './v2/components/schemas/System.yaml'
+    SystemDetails:
+      $ref: './v2/components/schemas/SystemDetails.yaml'
     SystemInfo:
       $ref: './v2/components/schemas/SystemInfo.yaml'
     Task:
