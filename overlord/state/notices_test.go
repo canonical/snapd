@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -84,59 +85,89 @@ func (s *noticesSuite) TestReoccur(c *C) {
 
 	prevTimestamp := timestamp
 	timestamp = timestamp.Add(5 * time.Second)
-	repeated := notice.Reoccur(timestamp, data, repeatAfter)
+	newExpireAfter := time.Duration(0)
+	repeated := notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, false)
 	n := noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 2.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// If total time since last repeated is greater than repeatAfter, should
 	// be repeated, even if time since last occurred is shorter.
 	timestamp = timestamp.Add(6 * time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 3.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// The repeatAfter value passed into Reoccur is used, rather than the value
 	// saved in the notice, so check that the former has precedence.
 	repeatAfter = time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 4.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// The saved repeatAfter is shorter, but the argument has precedence
 	prevTimestamp = timestamp
 	repeatAfter = 10 * time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, false)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 5.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// If the repeatAfter argument is 0, then always repeat
 	repeatAfter = 0
 	timestamp = timestamp.Add(time.Second)
-	repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 6.0)
 	c.Check(n["repeat-after"], IsNil)
+	c.Check(n["expire-after"], Equals, expireAfter.String())
+
+	// If the expireAfter argument is non-zero, update the value
+	repeatAfter = time.Second
+	timestamp = timestamp.Add(2 * time.Second)
+	newExpireAfter = time.Second
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 7.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, newExpireAfter.String())
+
+	timestamp = timestamp.Add(2 * time.Second)
+	newExpireAfter = -time.Second
+	repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	c.Check(repeated, Equals, true)
+	n = noticeToMap(c, notice)
+	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
+	c.Check(n["occurrences"], Equals, 8.0)
+	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, newExpireAfter.String())
 }
 
 func (s *noticesSuite) TestDeepCopy(c *C) {
@@ -261,6 +292,41 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnmarshalErrors(c *C) {
+	var n *state.Notice
+	c.Check(json.Unmarshal([]byte(`42`), &n), check.ErrorMatches, ".* cannot unmarshal .*")
+
+	type T1 struct {
+		b string
+		e error
+	}
+
+	for _, t := range []T1{
+		// validity check
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, nil},
+		// remove one field at a time:
+		{`{            "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},
+		{`{"key": "x", "type":"warning",                                           "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningFirstAdded},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, state.ErrNoWarningExpireAfter},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), check.Equals, t.e)
+	}
+
+	type T2 struct{ b, e string }
+
+	for _, t := range []T2{
+		// some bogus values
+		{`{"key": " ", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "malformed warning message"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), check.ErrorMatches, t.e)
+	}
+}
+
 func (s *noticesSuite) TestString(c *C) {
 	noticeJSON := []byte(`{
 		"id": "1",
@@ -286,7 +352,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"first-occurred": "2023-09-01T05:23:01Z",
 		"last-occurred": "2023-09-01T07:23:02Z",
 		"last-repeated": "2023-09-01T06:23:03.123456789Z",
-		"occurrences": 2
+		"occurrences": 2,
+		"expire-after": "168h0m0s"
 	}`)
 	err = json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)
