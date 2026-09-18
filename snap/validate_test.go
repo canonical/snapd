@@ -2886,3 +2886,85 @@ slots:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, strings.Join(expectedErrs, "\n"))
 }
+
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksOnSnapd(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksEmptyOnSnapd(c *C) {
+	for _, yaml := range []string{
+		`
+name: snapd
+version: 1.0
+snapd-info: {}
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks: {}
+`,
+	} {
+		info, err := InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(Validate(info), IsNil, Commentf("yaml=%s", yaml))
+	}
+}
+
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksExtraKeyOnSnapd(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(Validate(info), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksConstructedOnApp(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: foo
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
+		"18": {"latest": "18"},
+	}
+	c.Check(Validate(info), ErrorMatches, `cannot specify snapd-info except on the snapd snap`)
+}
+
+func (s *ValidateSuite) TestValidateUbuntuCoreTracksConstructedInvalid(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
+		"18": {"latest": "18/stable"},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid ubuntu-core-tracks: target track "18/stable" for boot base 18 is not a track-only channel`)
+
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
+		"18": {},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid ubuntu-core-tracks: empty track map for boot base 18`)
+
+	// such a key would never be found by uctrack.Resolve
+	info.UbuntuCoreTracks = UbuntuCoreTracks{
+		"018": {"latest": "18"},
+	}
+	c.Check(Validate(info), ErrorMatches, `invalid ubuntu-core-tracks: boot base "018" is not a plain Ubuntu Core version number`)
+}
