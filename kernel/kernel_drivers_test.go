@@ -718,14 +718,46 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {
 		{"comp2", kernel.MountPoints{kmodsConts[1].MountDir(), kmodsConts[1].MountDir()}},
 	}
 
-	// Now build the tree, will fail as no kernel was installed previously
+	// This scenario (a kernel-modules-component-only call for a kernel
+	// that was never installed at all, i.e. destDir does not exist yet in
+	// any form) never happens in real operation: components always attach
+	// to an already-linked, already-installed kernel snap. It used to fail
+	// here specifically because osutil.SwapDirs (RENAME_EXCHANGE) requires
+	// both sides to exist, and neither the live modules nor the live
+	// firmware "updates" directory existed. Both of those swaps now
+	// tolerate a missing live directory by falling back to a plain move
+	// (see EnsureKernelDriversTree), the same fix already applied for
+	// modules being reused for firmware "updates" too - so this no longer
+	// fails, it just builds everything from scratch instead.
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	_, err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
 			Target:  mountDir},
 		compsMntPts, destDir, &kernel.KernelDriversTreeOptions{KernelInstall: false})
-	c.Assert(err, ErrorMatches, `while swapping .*: no such file or directory`)
+	c.Assert(err, IsNil)
+
+	// Components are correctly wired in, in the modules subtree (a blind
+	// symlink to wherever the component mount points are, regardless of
+	// whether the ad-hoc test fixture above actually populated content
+	// there - unlike firmware, this does not need to read anything from
+	// the component mount to create the symlink).
+	modsUpdatesDir := filepath.Join(destDir, "lib", "modules", kversion, "updates")
+	_, err = os.Readlink(filepath.Join(modsUpdatesDir, "comp1"))
+	c.Check(err, IsNil)
+
+	// The firmware "updates" directory itself always gets created too
+	// (needed regardless of whether there is any component firmware
+	// content to link in right now).
+	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
+	c.Check(osutil.IsDirectory(fwUpdatesDir), Equals, true)
+
+	// Top-level firmware symlinks, however, are only ever created when
+	// opts.KernelInstall is true (see createFirmwareSymlinks's call site in
+	// EnsureKernelDriversTree) - this call did not request that, so they
+	// are correctly absent. This is the one real gap in a scenario that
+	// should not occur in practice anyway.
+	c.Check(osutil.FileExists(filepath.Join(destDir, "lib", "firmware", "blob1")), Equals, false)
 }
 
 func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOptions) {
@@ -1541,7 +1573,51 @@ func (s *kernelDriversTestSuite) TestRegenerateRemovesStaleTopLevelFirmwareSymli
 	c.Assert(err, IsNil)
 	c.Check(changed, Equals, true)
 
-	c.Check(osutil.FileExists(staleLink), Equals, false)
+	// osutil.FileExists follows symlinks (via os.Stat), so it would report
+	// "false" for this dangling symlink regardless of whether it was
+	// actually removed - use os.Lstat on the symlink itself instead, which
+	// does not follow it, to actually prove removal.
+	_, err = os.Lstat(staleLink)
+	c.Check(errors.Is(err, fs.ErrNotExist), Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestRegenerateMissingLiveFirmwareUpdatesDir(c *C) {
+	// Regression test mirroring TestRegenerateMissingLiveModulesKversionDir:
+	// osutil.SwapDirs (RENAME_EXCHANGE) requires both sides to exist, and
+	// since the firmware "updates" swap is now unconditional (see
+	// EnsureKernelDriversTree), it needs the same missing-live-directory
+	// fallback the modules subtree already has.
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	_, err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// Remove the live lib/firmware/updates directory entirely (e.g.
+	// external tampering, a partially generated tree).
+	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
+	c.Assert(os.RemoveAll(fwUpdatesDir), IsNil)
+
+	changed, err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{Regenerate: true})
+	c.Assert(err, IsNil)
+	c.Check(changed, Equals, true)
+
+	// The directory is recreated (empty, since there are no components in
+	// this test, but present - required so future component swaps have
+	// somewhere to swap into, see EnsureKernelDriversTree).
+	fi, err := os.Lstat(fwUpdatesDir)
+	c.Assert(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
+
+	v, err := kernel.ReadDriversTreeGeneratorVersion(destDir)
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, kernel.KernelDriversTreeGeneratorVersion())
 }
 
 func (s *kernelDriversTestSuite) TestRegenerateRebuildsBothModulesAndFirmwareUpdates(c *C) {

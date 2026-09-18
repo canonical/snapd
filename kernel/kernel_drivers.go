@@ -685,9 +685,28 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// both need to be kept in sync unconditionally, including in Regenerate
 	// mode - a fix to how this content is derived must actually be applied
 	// there too, not silently discarded.
+	//
+	// The live oldFwUpdates directory may not exist (e.g. a partially
+	// generated tree, or external tampering/corruption): osutil.SwapDirs
+	// (RENAME_EXCHANGE) requires both sides to exist, so fall back to a
+	// plain move in that case, exactly like the modules subtree below.
 	oldFwUpdates := filepath.Join(oldRoot, "lib", "firmware", "updates")
-	if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-		return false, fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
+	fwUpdatesExists, fwUpdatesIsDir, err := osutil.DirExists(oldFwUpdates)
+	if err != nil {
+		return false, err
+	}
+	fwUpdatesWasMissing := !(fwUpdatesExists && fwUpdatesIsDir)
+	if fwUpdatesWasMissing {
+		if err := os.MkdirAll(filepath.Dir(oldFwUpdates), 0755); err != nil {
+			return false, err
+		}
+		if err := os.Rename(updateFwDir, oldFwUpdates); err != nil {
+			return false, fmt.Errorf("while moving %q to %q: %w", updateFwDir, oldFwUpdates, err)
+		}
+	} else {
+		if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+			return false, fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
+		}
 	}
 	fwUpdatesChanged := true
 
@@ -714,8 +733,19 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		modsChanged = true
 
 		undoFwUpdatesSwapOnErr := func(context string) {
-			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-				logger.Noticef("while reverting %s: %v", context, err)
+			// Undo whichever operation was actually performed above: if
+			// oldFwUpdates was moved into place (because it did not
+			// previously exist), there is nothing live to swap back with,
+			// so just remove what was moved in, restoring the pre-call
+			// "missing" state; otherwise swap back as normal.
+			var undoErr error
+			if fwUpdatesWasMissing {
+				undoErr = RemoveKernelDriversTree(oldFwUpdates)
+			} else {
+				undoErr = osutil.SwapDirs(oldFwUpdates, updateFwDir)
+			}
+			if undoErr != nil {
+				logger.Noticef("while reverting %s: %v", context, undoErr)
 			}
 		}
 
