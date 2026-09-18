@@ -509,9 +509,7 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 }
 
-func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
-	const operationSize = uint64(1024)
-
+func (s *snapmgrTestSuite) TestDiskSpaceReservation(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -519,33 +517,110 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
 		description string
 		configured  bool
 		value       any
-		size        uint64
 		expected    uint64
-		err         string
+		err         error
 	}{
-		{description: "unset", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "nil", configured: true, value: nil, size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "invalid", configured: true, value: "invalid", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
-		{description: "numeric bytes", configured: true, value: 2048, size: operationSize, expected: operationSize + 2048},
-		{description: "string bytes", configured: true, value: "4096", size: operationSize, expected: operationSize + 4096},
-		{description: "quantity", configured: true, value: "1G", size: operationSize, expected: operationSize + 1024*1024*1024},
-		{description: "zero", configured: true, value: 0, size: operationSize, expected: operationSize},
-		{description: "configured overflow", configured: true, value: "1", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
-		{description: "default overflow", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+		{description: "unset", err: snapstate.DiskSpaceUnsetError},
+		{description: "nil", configured: true, value: nil, err: snapstate.DiskSpaceUnsetError},
+		{description: "invalid", configured: true, value: "invalid", expected: snapstate.FallbackDiskSpaceReservation},
+		{description: "numeric bytes", configured: true, value: 2048, expected: 2048},
+		{description: "string bytes", configured: true, value: "4096", expected: 4096},
+		{description: "quantity", configured: true, value: "1G", expected: 1024 * 1024 * 1024},
+		{description: "zero", configured: true, value: 0, expected: 0},
 	} {
 		tr := config.NewTransaction(s.state)
 		if tc.configured {
 			c.Assert(tr.Set("core", "disk-reservation.size", tc.value), IsNil)
 		}
 
-		reservation, err := snapstate.DiskSpaceReservation(tc.size, tr)
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
+		reservation, err := snapstate.DiskSpaceReservation(tr)
+		if tc.err != nil {
+			c.Check(err, testutil.ErrorIs, tc.err, Commentf(tc.description))
 			continue
 		}
 
 		c.Check(err, IsNil, Commentf(tc.description))
 		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
+	}
+}
+
+func (s *snapmgrTestSuite) TestCheckForAvailableSpace(c *C) {
+	rootDir := c.MkDir()
+	for _, tc := range []struct {
+		description string
+		totalSize   uint64
+		reservation uint64
+		expected    uint64
+		err         string
+	}{
+		{description: "reservation", totalSize: 1024, reservation: 2048, expected: 3072},
+		{description: "zero reservation", totalSize: 1024, expected: 1024},
+		{description: "maximum required space", totalSize: ^uint64(0) - 1, reservation: 1, expected: ^uint64(0)},
+		{description: "overflow", totalSize: ^uint64(0), reservation: 1, err: "cannot calculate required disk space: size overflow"},
+	} {
+		checkCalls := 0
+		restore := snapstate.MockOsutilCheckFreeSpace(func(path string, size uint64) error {
+			checkCalls++
+			c.Check(path, Equals, rootDir, Commentf(tc.description))
+			c.Check(size, Equals, tc.expected, Commentf(tc.description))
+			return nil
+		})
+		err := snapstate.CheckForAvailableSpace(tc.totalSize, tc.reservation, []string{"some-snap"}, "install", rootDir, "")
+		restore()
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
+			c.Check(checkCalls, Equals, 0, Commentf(tc.description))
+			continue
+		}
+
+		c.Check(err, IsNil, Commentf(tc.description))
+		c.Check(checkCalls, Equals, 1, Commentf(tc.description))
+	}
+}
+
+func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
+	rootDir := c.MkDir()
+	snaps := []string{"some-snap", "other-snap"}
+	noSpaceErr := &osutil.NotEnoughDiskSpaceError{}
+	checkErr := errors.New("cannot check free space")
+	for _, tc := range []struct {
+		description   string
+		checkError    error
+		messagePrefix string
+		expected      error
+	}{
+		{
+			description: "insufficient space",
+			checkError:  noSpaceErr,
+			expected: &snapstate.InsufficientSpaceError{
+				Path: rootDir, Snaps: snaps, ChangeKind: "remove",
+			},
+		},
+		{
+			description:   "insufficient space with prefix",
+			checkError:    noSpaceErr,
+			messagePrefix: "cannot create automatic snapshot",
+			expected: &snapstate.InsufficientSpaceError{
+				Path: rootDir, Snaps: snaps, ChangeKind: "remove",
+				Message: fmt.Sprintf("cannot create automatic snapshot: %v", noSpaceErr),
+			},
+		},
+		{
+			description:   "other error is returned unchanged",
+			checkError:    checkErr,
+			messagePrefix: "cannot create automatic snapshot",
+			expected:      checkErr,
+		},
+	} {
+		restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+			return tc.checkError
+		})
+		err := snapstate.CheckForAvailableSpace(1024, 2048, snaps, "remove", rootDir, tc.messagePrefix)
+		restore()
+		c.Check(err, DeepEquals, tc.expected, Commentf(tc.description))
+		if tc.checkError == checkErr {
+			c.Check(err, Equals, checkErr, Commentf(tc.description))
+		}
 	}
 }
 
@@ -12022,6 +12097,10 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation), IsNil)
+	tr.Commit()
 
 	downloadDir := c.MkDir()
 	_, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, downloadDir, snapstate.RevisionOptions{
