@@ -5,9 +5,10 @@ set -eu
 show_help() {
     cat <<'EOF'
 usage:
-    repack-kernel --mode prepare --core-version <16|18|20|22|24|26> [--kernel-branch <branch>] --kernel-channel <channel> --output-snap <path>
-    repack-kernel --mode nested --core-version <16|18|20|22|24|26> [--kernel-branch <branch>] --kernel-channel <channel> --output-snap <path> [--epoch-bump-time <unix-time>]
-    repack-kernel --mode initramfs --core-version <20|22|24|26> [--orig-snap <path> | [--kernel-branch <branch>] --kernel-channel <channel>] --output-snap <path> [--inject-kernel-panic-before-snap-bootstrap | --inject-kernel-panic-after-snap-bootstrap]
+    repack-kernel --mode prepare --core-version <16|18|20|22|24|26> [--kernel-branch <branch>] --kernel-channel <channel> --output-snap <path> [--component-module <module> --component-name <name> --output-component <path>]
+    repack-kernel --mode nested --core-version <16|18|20|22|24|26> [--kernel-branch <branch>] --kernel-channel <channel> --output-snap <path> [--epoch-bump-time <unix-time>] [--component-module <module> --component-name <name> --output-component <path>]
+    repack-kernel --mode initramfs --core-version <20|22|24|26> [--orig-snap <path> | [--kernel-branch <branch>] --kernel-channel <channel>] --output-snap <path> [--inject-kernel-panic-before-snap-bootstrap | --inject-kernel-panic-after-snap-bootstrap] [--component-module <module> --component-name <name> --output-component <path>]
+    repack-kernel --mode component --orig-snap <path> --output-snap <path> --component-module <module> --component-name <name> --output-component <path>
     repack-kernel --mode corrupt [--orig-snap <path> | --kernel-branch <branch> --kernel-channel <channel>] --output-snap <path> [--corruption <empty|zeros|bad-SECTION>]
     repack-kernel --mode download --kernel-branch <branch> --kernel-channel <channel> --output-snap <path>
     repack-kernel --mode rewrite-metadata --orig-snap <path> --output-snap <path> [--snap-version <version>]
@@ -16,6 +17,7 @@ Modes:
     prepare: used by tests/lib/prepare.sh (prints snap output path).
     nested:  used by tests/lib/nested.sh (prints snap output path).
     initramfs: repack an input kernel snap (local or downloaded by channel) with regenerated initramfs and print output path.
+    component: move a kernel module into a component and repack the input kernel snap.
     corrupt: repack a kernel snap with a corrupted kernel.efi and print output path.
     download: download a kernel snap by branch/channel and print output path.
     rewrite-metadata: rewrite selected snap metadata fields and print output path.
@@ -33,13 +35,21 @@ parse_value_arg() {
         --corruption) CORRUPTION="$2" ;;
         --output-snap) OUTPUT_SNAP="$2" ;;
         --snap-version) SNAP_VERSION="$2" ;;
+        --component-module) COMPONENT_MODULE="$2" ;;
+        --component-name) COMPONENT_NAME="$2" ;;
+        --output-component) OUTPUT_COMPONENT="$2" ;;
     esac
 }
 
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --mode|--kernel-channel|--core-version|--kernel-branch|--epoch-bump-time|--orig-snap|--corruption|--output-snap|--snap-version)
+            --mode|--kernel-channel|--core-version|--kernel-branch|--epoch-bump-time|--orig-snap|--corruption|--output-snap|--snap-version|--component-module|--component-name|--output-component)
+                if [ "$#" -lt 2 ]; then
+                    echo "repack-kernel: missing value for $1" >&2
+                    show_help >&2
+                    exit 1
+                fi
                 parse_value_arg "$1" "$2"
                 shift 2
                 ;;
@@ -142,6 +152,41 @@ validate_rewrite_metadata_args() {
     fi
 }
 
+validate_component_args() {
+    if [ -z "$ORIG_SNAP" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-kernel: missing required arguments for mode component" >&2
+        show_help >&2
+        exit 1
+    fi
+}
+
+validate_component_options() {
+    if [ -z "$COMPONENT_MODULE" ] && [ -z "$COMPONENT_NAME" ] && [ -z "$OUTPUT_COMPONENT" ]; then
+        if [ "$MODE" = component ]; then
+            echo "repack-kernel: mode component requires --component-module, --component-name, and --output-component" >&2
+            exit 1
+        fi
+        return
+    fi
+
+    case "$MODE" in
+        prepare|nested|initramfs|component) ;;
+        *)
+            echo "repack-kernel: component options are not supported in mode $MODE" >&2
+            exit 1
+            ;;
+    esac
+
+    if [ -z "$COMPONENT_MODULE" ] || [ -z "$COMPONENT_NAME" ] || [ -z "$OUTPUT_COMPONENT" ]; then
+        echo "repack-kernel: --component-module, --component-name, and --output-component must be used together" >&2
+        exit 1
+    fi
+    if [ "$MODE" != component ] && [ "$CORE_VERSION" -lt 24 ]; then
+        echo "repack-kernel: kernel module components require core version 24 or newer" >&2
+        exit 1
+    fi
+}
+
 validate_args() {
     if [ -z "$MODE" ]; then
         echo "repack-kernel: missing required argument: --mode" >&2
@@ -162,6 +207,9 @@ validate_args() {
         initramfs)
             validate_initramfs_args
             ;;
+        component)
+            validate_component_args
+            ;;
         download)
             validate_download_args
             ;;
@@ -174,6 +222,8 @@ validate_args() {
             exit 1
             ;;
     esac
+
+    validate_component_options
 }
 
 repack_kernel_snap_local() {
@@ -345,6 +395,45 @@ uc20_build_initramfs_kernel_snap_local() {
     rm -rf repacked-kernel
 }
 
+move_module_to_component_local() {
+    local module_name="$1"
+    local component_name="$2"
+    local output_component="$3"
+    local kernel_dir="$4"
+    local kernel_version
+    local kernel_name
+    local component_module_dir
+    local module_glob
+    local module_path
+
+    kernel_version=$(find "$kernel_dir"/modules/* -maxdepth 0 -printf "%f\n")
+    kernel_name=$(gojq -r '.name' --yaml-input "$kernel_dir/meta/snap.yaml")
+    component_module_dir="$component_name/modules/$kernel_version/kmod"
+    mkdir -p "$component_module_dir" "$component_name/meta"
+    cat <<EOF >"$component_name/meta/component.yaml"
+component: $kernel_name+$component_name
+type: kernel-modules
+version: 1.0
+summary: kernel component
+description: kernel component for testing purposes
+EOF
+    module_glob=$(printf '%s' "$module_name" | sed -r 's/[-_]/[-_]/g')
+    module_path=$(find "$kernel_dir/modules" -name "${module_glob}.ko*")
+    cp "$module_path" "$component_module_dir"
+    mkdir -p "$(dirname "$output_component")"
+    snap pack --filename="$output_component" "$component_name"
+
+    rm "$module_path"
+    mkdir -p "$kernel_dir/lib"
+    if [ ! -e "$kernel_dir/lib/modules" ]; then
+        ln -s ../modules "$kernel_dir/lib/modules"
+    fi
+    depmod -b "$kernel_dir" "$kernel_version"
+    # shellcheck disable=SC2016
+    gojq --arg COMP_NAME "$component_name" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input "$kernel_dir/meta/snap.yaml" --yaml-output >"$kernel_dir/meta/snap.yaml.new"
+    mv "$kernel_dir/meta/snap.yaml.new" "$kernel_dir/meta/snap.yaml"
+}
+
 uc24_build_initramfs_kernel_snap_local() {
     local orig_snap="$1"
     local target="$2"
@@ -402,6 +491,10 @@ uc24_build_initramfs_kernel_snap_local() {
         mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
         gojq 'del(.slots)' --yaml-input pc-kernel/meta/snap.yaml --yaml-output >pc-kernel/meta/snap.yaml.new
         mv pc-kernel/meta/snap.yaml.new pc-kernel/meta/snap.yaml
+    fi
+
+    if [ -n "$COMPONENT_NAME" ]; then
+        move_module_to_component_local "$COMPONENT_MODULE" "$COMPONENT_NAME" "$OUTPUT_COMPONENT" pc-kernel
     fi
 
     snap pack --filename="$target" pc-kernel
@@ -521,6 +614,24 @@ run_corrupt_mode() {
     build_corrupt_kernel_snap_local "$orig_snap" "$OUTPUT_SNAP" "$CORRUPTION"
 }
 
+run_component_mode() {
+    local unpack_dir
+    local repacked_dir
+
+    unpack_dir="$(mktemp -d /tmp/repacked-kernel.XXXXXXXX)"
+    repacked_dir="$(mktemp -d /tmp/repacked-kernel-output.XXXXXXXX)"
+    unsquashfs -no-progress -f -d "$unpack_dir" "$ORIG_SNAP"
+
+    move_module_to_component_local "$COMPONENT_MODULE" "$COMPONENT_NAME" "$OUTPUT_COMPONENT" "$unpack_dir"
+
+    mkdir -p "$(dirname "$OUTPUT_SNAP")"
+    snap pack --filename="$repacked_dir/kernel.snap" "$unpack_dir"
+    mv "$repacked_dir/kernel.snap" "$OUTPUT_SNAP"
+    rm -rf "$unpack_dir" "$repacked_dir"
+
+    printf '%s\n' "$OUTPUT_SNAP"
+}
+
 run_initramfs_mode() {
     local initramfs_opt=""
     local orig_snap
@@ -585,11 +696,20 @@ main() {
     OUTPUT_SNAP=
     INJECT_KERNEL_PANIC=
     SNAP_VERSION=
+    COMPONENT_MODULE=
+    COMPONENT_NAME=
+    OUTPUT_COMPONENT=
 
     parse_args "$@"
 
     if [ -z "$KERNEL_BRANCH" ] && [ -n "$CORE_VERSION" ] && [ -z "$ORIG_SNAP" ]; then
         KERNEL_BRANCH="$CORE_VERSION"
+    fi
+
+    if { [ "$MODE" = prepare ] || [ "$MODE" = nested ]; } && [ -z "$COMPONENT_NAME" ] && [ -n "${NESTED_KERNEL_MODULES_COMP-}" ]; then
+        COMPONENT_MODULE="${NESTED_COMP_KERNEL_MODULE_NAME-}"
+        COMPONENT_NAME="$NESTED_KERNEL_MODULES_COMP"
+        OUTPUT_COMPONENT="$PWD/pc-kernel+$COMPONENT_NAME.comp"
     fi
 
     validate_args
@@ -603,6 +723,9 @@ main() {
             ;;
         initramfs)
             run_initramfs_mode
+            ;;
+        component)
+            run_component_mode
             ;;
         corrupt)
             run_corrupt_mode

@@ -2,6 +2,7 @@
 
 show_help() {
     echo "usage: prepare"
+    echo "       prepare-kernel"
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-cpus PARAM] [--param-mem PARAM]"
@@ -25,6 +26,7 @@ show_help() {
     echo ""
     echo "COMMANDS:"
     echo "  prepare:                    creates all the directories needed to run a nested test"
+    echo "  prepare-kernel:             downloads and repacks the kernel snap for a nested test"
     echo "  restore:                    removes all the directories and data used by nested tests"
     echo "  build-image:                creates an image using ubuntu image tool"
     echo "  create-vm:                  creates new virtual machine and leave it running"
@@ -83,6 +85,10 @@ show_help() {
 
 prepare() {
     nested_prepare_env
+}
+
+prepare_kernel() {
+    nested_prepare_kernel
 }
 
 restore() {
