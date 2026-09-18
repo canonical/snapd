@@ -369,6 +369,9 @@ const (
 	// RestartSnapdUpdate is a restart after a snapd (or classic
 	// core/os) install or refresh.
 	RestartSnapdUpdate RestartReason = "snapd-update"
+	// RestartSnapdIdle is a restart into socket activation standby because
+	// snapd is idle.
+	RestartSnapdIdle RestartReason = "snapd-idle"
 	// RestartSnapdRevert is a restart after an explicit snap revert of
 	// snapd (or classic core/os).
 	RestartSnapdRevert RestartReason = "snapd-revert"

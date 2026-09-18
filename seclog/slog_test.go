@@ -305,19 +305,19 @@ func (s *SlogSuite) TestLogSystemRestartSnapd(c *C) {
 	logger := s.newLogger(c)
 	logger.LogEvent(
 		seclog.Event{Category: "SYS", Name: "sys_restart_snapd", Level: seclog.LevelInfo},
-		"Snapd restart with reason snapd-update",
+		"Snapd restart with reason snapd-idle",
 		seclog.Attr{Key: "snapd_version", Value: "2.78"},
-		seclog.Attr{Key: "reason", Value: "snapd-update"},
+		seclog.Attr{Key: "reason", Value: "snapd-idle"},
 	)
 
 	var obtained record
 	err := json.Unmarshal(s.buf.Bytes(), &obtained)
 	c.Assert(err, IsNil)
 	c.Check(obtained.Level, Equals, "INFO")
-	c.Check(obtained.Description, Equals, "Snapd restart with reason snapd-update")
+	c.Check(obtained.Description, Equals, "Snapd restart with reason snapd-idle")
 	c.Check(obtained.Category, Equals, "SYS")
 	c.Check(obtained.Event, Equals, "sys_restart_snapd")
-	c.Check(obtained.Reason, Equals, "snapd-update")
+	c.Check(obtained.Reason, Equals, "snapd-idle")
 	c.Check(obtained.SnapdVersion, Equals, "2.78")
 
 	keys, err := orderedKeys(s.buf.Bytes())
