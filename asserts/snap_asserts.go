@@ -823,6 +823,17 @@ func checkSnapIntegrity(headers map[string]any) ([]IntegrityData, error) {
 	return snapIntegrityDataList, nil
 }
 
+// CheckSnapRevision checks that the named header is a valid positive snap
+// revision number.
+func CheckSnapRevision(assert AssertionBase, name string) (int, error) {
+	return checkSnapRevisionWhat(assert.headers, name, "header")
+}
+
+// CheckSnapIntegrity parses the optional snap integrity header.
+func CheckSnapIntegrity(assert AssertionBase) ([]IntegrityData, error) {
+	return checkSnapIntegrity(assert.headers)
+}
+
 func assembleSnapRevision(assert AssertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
