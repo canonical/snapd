@@ -142,7 +142,7 @@ func (r *catalogRefresh) Ensure() error {
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	err = refreshCatalogs(r.state, theStore, r.ctx)
+	err = refreshCatalogs(r.ctx, r.state, theStore)
 	switch {
 	case err == nil:
 		logger.Debugf("Catalog refresh succeeded.")
@@ -166,7 +166,7 @@ var newCmdDB = advisor.Create
 
 var errSkipCatalogRefreshWhenTesting = errors.New("skipping when testing is enabled")
 
-func refreshCatalogs(st *state.State, theStore StoreService, ctx context.Context) error {
+func refreshCatalogs(ctx context.Context, st *state.State, theStore StoreService) error {
 	if snapdenv.Testing() && !osutil.GetenvBool("SNAPD_CATALOG_REFRESH") {
 		// with snapd testing enabled, SNAPD_CATALOG_REFRESH is gating
 		// the catalog refresh
