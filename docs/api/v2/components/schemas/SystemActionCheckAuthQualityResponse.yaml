@@ -6,11 +6,11 @@ title: SystemActionCheckAuthQualityResponse
 description:
   Response body containing the quality assessment of the provided passphrase or PIN for actions
   "check-passphrase-quality" and "check-pin-quality".
+required:
+  - entropy-bits
+  - min-entropy-bits
+  - optimal-entropy-bits
 properties:
-  required:
-    - entropy-bits
-    - min-entropy-bits
-    - optimal-entropy-bits
   entropy-bits:
     type: integer
     description: The calculated entropy of the passphrase or PIN in bits.

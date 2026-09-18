@@ -55,11 +55,11 @@ post:
         The action or step was handled synchronously.
 
         Response bodies depend on the action or step:
-        - actions "do" and "reboot" return an empty response body;
-        - step "generate-recovery-key" of action "install" returns the generated recovery key;
-        - actions "check-passphrase-quality" and "check-pin-quality" return a quality assessment of the provided
+        - actions `"do"` and `"reboot"` return an empty response body;
+        - step `"generate-recovery-key"` of action `"install"` returns the generated recovery key;
+        - actions `"check-passphrase-quality"` and `"check-pin-quality"` return a quality assessment of the provided
           passphrase or PIN;
-        - action "fix-encryption-support" returns the updated system details.
+        - action `"fix-encryption-support"` returns the updated system details.
       content:
         application/json:
           schema:
