@@ -215,6 +215,15 @@ func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-update"]`)
 }
 
+func (s *SecLogSuite) TestLogSystemRestartSnapdIdle(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdIdle)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-idle")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-idle"]`)
+}
+
 func (s *SecLogSuite) TestLogSystemRestartSnapdUndo(c *C) {
 	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUndo)
 

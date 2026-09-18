@@ -129,8 +129,9 @@ func (s *standbySuite) TestStartChecks(c *C) {
 
 	defer standby.MockStandbyWait(time.Millisecond)()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType, _ restart.RestartReason) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType, reason restart.RestartReason) {
 		c.Check(t, Equals, restart.RestartSocket)
+		c.Check(reason, Equals, restart.RestartSnapdIdle)
 		n++
 		ch2 <- struct{}{}
 	}))

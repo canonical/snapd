@@ -796,7 +796,7 @@ func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
 	st := d.overlord.State()
 	st.Lock()
 	restart.Request(st, restart.RestartSocket, nil, "")
-	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdUpdate)
+	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdIdle)
 	st.Unlock()
 
 	select {
@@ -809,8 +809,9 @@ func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
 	stoppedYet = true
 
 	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
-	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-idle")
 	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-idle"]`)
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
