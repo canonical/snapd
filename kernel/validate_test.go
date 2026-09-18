@@ -168,3 +168,67 @@ func (s *validateKernelSuite) TestValidateModulesMultipleKernelVersions(c *C) {
 	err := kernel.Validate(mockKernelRoot)
 	c.Assert(err, ErrorMatches, `more than one modules directory in ".*"`)
 }
+
+func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflict(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	fwDir := filepath.Join(mockKernelRoot, "firmware")
+
+	// A non-empty "updates" directory in the firmware tree conflicts with
+	// the reserved directory for kernel-modules components.
+	updatesDir := filepath.Join(fwDir, "updates")
+	c.Assert(os.MkdirAll(updatesDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(updatesDir, "some.bin"), []byte("content"), 0644), IsNil)
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain a non-empty entry named "updates", reserved for kernel-modules components`)
+}
+
+func (s *validateKernelSuite) TestValidateFirmwareEmptyUpdatesOK(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	fwDir := filepath.Join(mockKernelRoot, "firmware")
+
+	// Some kernel build tooling ships an empty "updates" directory as a
+	// harmless placeholder; this must validate fine, since it does not
+	// actually conflict with anything at runtime.
+	c.Assert(os.MkdirAll(filepath.Join(fwDir, "updates"), 0755), IsNil)
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, IsNil)
+}
+
+func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictFile(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	fwDir := filepath.Join(mockKernelRoot, "firmware")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+
+	// A regular file named "updates" conflicts just the same as a
+	// directory; the check is by name, not by type.
+	c.Assert(os.WriteFile(filepath.Join(fwDir, "updates"), []byte("content"), 0644), IsNil)
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
+}
+
+func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictSymlink(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	fwDir := filepath.Join(mockKernelRoot, "firmware")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+
+	// A symlink named "updates" conflicts just the same, even when it is
+	// dangling. Using os.Stat instead of os.Lstat here would follow the
+	// symlink, see it as missing, and wrongly let this through.
+	c.Assert(os.Symlink("nonexistent-target", filepath.Join(fwDir, "updates")), IsNil)
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
+}
+
+func (s *validateKernelSuite) TestValidateFirmwareNoUpdates(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	fwDir := filepath.Join(mockKernelRoot, "firmware", "qcom")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwDir, "foo.bin"), []byte("content"), 0644), IsNil)
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, IsNil)
+}
