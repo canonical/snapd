@@ -934,58 +934,6 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
     cp "${SNAP_CACHE}"/snapd_*.snap "${TARGET}/"
 }
 
-repack_core_snap_with_tweaks() {
-    local CORESNAP="$1"
-    local TARGET="$2"
-
-    local UNPACK_DIR
-    # TODO set up a trap to clean this up properly?
-    UNPACK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/core-unpack.XXXXXXXX")"
-    unsquashfs -no-progress -f -d "$UNPACK_DIR" "$CORESNAP"
-
-    # determine destination directory for systemd configuration files
-    # core26+ uses /usr/share/factory/writable/system-data/etc/
-    # core24 and earlier use /etc/
-    local DEST_ETC
-    if [ -e "$UNPACK_DIR/usr/share/factory/writable" ]; then
-        DEST_ETC="$UNPACK_DIR/usr/share/factory/writable/system-data/etc"
-    else
-        DEST_ETC="$UNPACK_DIR/etc"
-    fi
-
-    mkdir -p "$DEST_ETC"/systemd/journald.conf.d
-    cat <<EOF > "$DEST_ETC"/systemd/journald.conf.d/to-console.conf
-[Journal]
-ForwardToConsole=yes
-TTYPath=/dev/ttyS0
-MaxLevelConsole=debug
-EOF
-    mkdir -p "$DEST_ETC"/systemd/system/snapd.service.d
-cat <<EOF > "$DEST_ETC"/systemd/system/snapd.service.d/logging.conf
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_CONFIGURE_HOOK_TIMEOUT=30s
-StandardOutput=journal+console
-StandardError=journal+console
-EOF
-
-    if [ "${NESTED_REPACK_FOR_FAKESTORE-}" = "true" ]; then
-        cat <<EOF > "$DEST_ETC"/systemd/system/snapd.service.d/store.conf
-[Service]
-Environment=SNAPPY_FORCE_API_URL=http://10.0.2.2:11028
-EOF
-    fi
-
-    cp "${SPREAD_PATH}"/data/completion/bash/complete.sh "${UNPACK_DIR}"/usr/lib/snapd/complete.sh
-
-    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-        cp /etc/environment "${UNPACK_DIR}"/etc/environment
-    fi
-
-    snap pack --filename="$TARGET" "$UNPACK_DIR"
-
-    rm -rf "$UNPACK_DIR"
-}
-
 repack_kernel_snap() {
     local TARGET=$1
     local VERSION
@@ -1452,29 +1400,6 @@ EOF
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 }
 
-repack_gadget_w_feature_tagging_core_18() {
-    channel=$1
-    repack_dir=$2
-    snap download --basename=pc --channel="18/${channel}" pc
-    unsquashfs -d pc-gadget pc.snap
-    # UC18 boot is still driven by grub config from the gadget, so
-    # update linux cmdline entries there as well.
-    for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
-        if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
-            sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
-        fi
-    done
-    cat >> pc-gadget/meta/gadget.yaml << EOF
-defaults:
-  system:
-    journal:
-      persistent: true
-EOF
-    snap pack --filename=pc-repacked.snap pc-gadget 
-    mv pc-repacked.snap "$repack_dir"/pc-repacked.snap
-    echo "$repack_dir/pc-repacked.snap"
-}
-
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
@@ -1653,7 +1578,8 @@ EOF
             chmod 0600 pc-kernel.snap
         fi
         if [ -n "$TAG_FEATURES" ] && is_test_target_core 18; then
-            snap="$(repack_gadget_w_feature_tagging_core_18 "$GADGET_CHANNEL" "$IMAGE_HOME")"
+            snap="$IMAGE_HOME/pc-repacked.snap"
+            "$TESTSTOOLS"/repack-gadget --gadget-branch 18 --gadget-channel "$GADGET_CHANNEL" --output-snap "$snap" --persistent-journal --tag-features-grub
             EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $snap"
         fi
     fi
@@ -1682,17 +1608,11 @@ EOF
 
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        case "${BRANCH}/${GADGET_CHANNEL}" in
-            26/beta)
-                # TODO_UC26RELEASE: when core26 is release we can drop edge
-                snap download --basename=pc --channel="26/edge" pc
-                ;;
-            *)
-                snap download --basename=pc --channel="${BRANCH}/${GADGET_CHANNEL}" pc
-                ;;
-        esac
-        test -e pc.snap
-        unsquashfs -d pc-gadget pc.snap
+        selected_gadget_channel="$GADGET_CHANNEL"
+        if [ "${BRANCH}/${GADGET_CHANNEL}" = 26/beta ]; then
+            # TODO_UC26RELEASE: when core26 is released we can drop edge.
+            selected_gadget_channel=edge
+        fi
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
         # line, but we can't do this universally because the logic for the env
@@ -1703,29 +1623,30 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
-        cmdlinefeat=""
+        repack_gadget_args=(
+            --gadget-branch "$BRANCH"
+            --gadget-channel "$selected_gadget_channel"
+            --output-snap "$IMAGE_HOME/pc-repacked.snap"
+        )
         if [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
             if [ -n "$TAG_FEATURES" ]; then
+                repack_gadget_args+=(--persistent-journal)
                 cmdlinefeat=" tag.features=1"
-                cat >> pc-gadget/meta/gadget.yaml << EOF
-defaults:
-  system:
-    journal:
-      persistent: true
-EOF
+            else
+                cmdlinefeat=""
             fi
 
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example
             for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1$cmdlinefeat"; do
-                echo "$cmd" >> pc-gadget/cmdline.full
+                repack_gadget_args+=(--append-cmdline-full "$cmd")
             done
         else
             # but for other backends, just add the additional debugging things
             # on top of whatever the gadget currently is configured to use
-            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1$cmdlinefeat"; do
-                echo "$cmd" >> pc-gadget/cmdline.extra
+            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
+                repack_gadget_args+=(--append-cmdline-extra "$cmd")
             done
         fi
 
@@ -1739,9 +1660,8 @@ EOF
         SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
         SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-        nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-        snap pack --filename=pc-repacked.snap pc-gadget 
-        mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
+        repack_gadget_args+=(--sign-key "$SNAKEOIL_KEY" --sign-cert "$SNAKEOIL_CERT")
+        "$TESTSTOOLS"/repack-gadget "${repack_gadget_args[@]}"
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
     fi
 
@@ -1774,8 +1694,6 @@ EOF
         elif is_test_target_core 26; then
             BASE=core26
         fi
-        snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
-
         # we want to download the specific channel referenced by $BASE_CHANNEL, 
         # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
         # then immediately on booting, snapd will refresh from the revision that
@@ -1791,32 +1709,24 @@ EOF
         # * pc (to aid in debugging by modifying the kernel command line)
         # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
-            unsquashfs -d "${BASE}-snap" "${BASE}.snap"
-
-            # We setup the ntp server in case it is defined in the current env
-            # This is not needed in classic systems because the images already have ntp configured
-            if [ -n "${NTP_SERVER:-}" ]; then
-                if [ -e /etc/systemd/timesyncd.conf ]; then
-                    TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
-                    if [ -z "$TARGET_TIME_CONF" ]; then
-                        echo "File timesyncd.conf not found in core image"
-                        exit 1
-                    fi
-                    while IFS= read -r target; do
-                        cp /etc/systemd/timesyncd.conf "$target"
-                    done <<< "$TARGET_TIME_CONF"
-                fi
-                if [ -e "${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
-                    echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf"
-                    mkdir -p "${BASE}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d"
-                    echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" "${BASE}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d/ci-proxy.sources"
-                fi
+            selected_base_branch=latest
+            selected_base_channel="$BASE_CHANNEL"
+            if [[ "$selected_base_channel" = */* ]]; then
+                selected_base_branch="${selected_base_channel%/*}"
+                selected_base_channel="${selected_base_channel##*/}"
             fi
-
-            snap pack --filename="${BASE}-repacked.snap" "${BASE}-snap"
-            rm -r "${BASE}-snap"
-            mv "${BASE}-repacked.snap" "${IMAGE_HOME}/${BASE}.snap"
-        else 
+            repack_base_args=(
+                --base-name "$BASE"
+                --base-branch "$selected_base_branch"
+                --base-channel "$selected_base_channel"
+                --output-snap "$IMAGE_HOME/${BASE}.snap"
+            )
+            if [ -n "${NTP_SERVER:-}" ]; then
+                repack_base_args+=(--ntp-server "$NTP_SERVER")
+            fi
+            "$TESTSTOOLS"/repack-base "${repack_base_args[@]}"
+        else
+            snap download "${BASE}" --channel="$BASE_CHANNEL" --basename="${BASE}"
             mv "${BASE}.snap" "${IMAGE_HOME}/${BASE}.snap"
         fi
 

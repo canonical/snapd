@@ -44,22 +44,20 @@ execute: |
   core_version=22
   kernel_version="$(nested_get_version)"
 
-  # Retrieve the gadget
-  snap download --basename=pc --channel="$core_version/edge" pc
-  # the fakestore needs the assertion
-  snap ack pc.assert
-  # keep original blob just so we can find the assertion later
-  cp pc.snap pc.snap.orig
-
-  # New modified gadget
-  unsquashfs -d pc-gadget pc.snap
-  echo 'console=ttyS0 systemd.journald.forward_to_console=1' > pc-gadget/cmdline.extra
-  echo "Sign the shim binary"
   KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack --filename=pc.snap pc-gadget/
+  "$TESTSTOOLS"/repack-gadget \
+    --gadget-branch "$core_version" \
+    --gadget-channel edge \
+    --output-snap "$PWD/pc.snap" \
+    --output-assertion "$PWD/pc.assert" \
+    --write-cmdline-extra 'console=ttyS0 systemd.journald.forward_to_console=1' \
+    --sign-key "$SNAKEOIL_KEY" \
+    --sign-cert "$SNAKEOIL_CERT"
+
+  # the fakestore needs the assertion
+  snap ack pc.assert
 
   # Retrieve kernel
   snap download --basename=pc-kernel-from-store --channel="$kernel_version/edge" pc-kernel
