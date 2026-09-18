@@ -41,8 +41,9 @@ Other high level build and runtime dependencies are:
 Snapd [release assets](https://github.com/canonical/snapd/releases/latest)
 consist of 3 source tarballs:
 
-- `snapd_<ver>.tar.xz` (e.g. `snapd_2.72.tar.xz`) - a unified snapshot, which
-  includes the snapd source tree plus all vendored Go dependencies
+- `snapd_<ver>.vendor.tar.xz` (e.g. `snapd_2.72.vendor.tar.xz`) - a unified
+  snapshot, which includes the snapd source tree plus all vendored Go
+  dependencies
 - `snapd_<ver>.no-vendor.tar.xz` - snapshot without any Go dependencies
 - `snapd_<ver>.only-vendor.tar.xz` - snapshot of all Go dependencies only
 
@@ -57,13 +58,64 @@ The build process of snapd is split in a couple of parts:
 - configure and build the Go code
 - generate any other data files
 
-The build version is set by invoking `mkversion.sh` script like so:
+### Version
+
+The upstream version is baked into the source tarball when it is produced by
+`packaging/pack-source` (used by the release process). The tarball carries
+`snapdtool/version_generated.go` (setting `UpstreamVersion`), `cmd/VERSION` and
+`data/info`, so **downstream packaging does not need to run `mkversion.sh`**.
+
+Note that `pack-source` requires a Go toolchain: it computes the assertion
+formats recorded in `data/info` by running `go run ./asserts/info`.
+
+The packaging rules and spec files assume the source tree was produced by
+`pack-source` (i.e. a release tarball) and so already carries the version
+files. When building from a plain git checkout instead, generate the version
+files first by running `mkversion.sh --ensure`, as the snapd CI test harness
+does; it does nothing if the version files already exist (tarball build),
+otherwise it derives a version from git/the Debian changelog and execs
+`packaging/gen-version.sh` to write the files, exactly like a plain
+`mkversion.sh` invocation.
+
+Distribution packaging only needs to provide the distribution-specific version
+suffix, which is appended to the upstream version. It is set via the
+`downstream_version_suffix` variable in the generated `snapd.defines.mk` (see
+below) and baked into the binaries with a linker flag — no source patching is
+required. For example, an RPM spec sets:
+
+``` make
+downstream_version_suffix = -%{release}
+```
+
+Leave `downstream_version_suffix` unset (or empty) for unpackaged builds and
+for native packages whose changelog version equals the upstream version. For
+example, Debian packaging sets it to the Debian revision (`-1` for
+`2.77.1-1`), and Ubuntu packaging to the Ubuntu suffix (`+ubuntu26.04` for
+`2.77.1+ubuntu26.04`), both derived from the changelog version with the
+upstream version prefix stripped.
+
+Two files carry the version outside of the Go linker flags and must be stamped
+with the **full package version** (upstream version plus the distribution
+suffix, e.g. `2.77.1-1`), so that they match the binaries'
+`FullVersion()`:
+
+- `cmd/VERSION` - read by autotools (`AC_INIT`) for snap-confine, so that
+  `snap-confine --version` agrees with the Go binaries
+- `data/info` - its `VERSION` key only; `SNAPD_APPARMOR_REEXEC` and the
+  assertion formats map are kept from the source tree
+
+To do this, distribution packaging invokes `packaging/mod-version.sh` with the
+full package version, before `cmd/configure` reads `cmd/VERSION`:
 
 ``` sh
-./mkversion.sh <snapd-version>
-# e.g. 2.72.1 with Arch build tag
-./mkversion.sh 2.72.1-arch1
+packaging/mod-version.sh 2.77.1-1
 ```
+
+The script takes the version files from a source tarball (it requires them to
+exist) and fails the build when the given version does not extend the upstream
+version baked into the tarball, catching packaging metadata that drifted from
+the source. When the package version equals the upstream version (no suffix),
+calling it is a harmless no-op.
 
 ### C
 
@@ -144,6 +196,11 @@ EXTRA_GO_LDFLAGS = -compressdwarf=false
 # Enable test keys
 # NOTE this option is relevant only in builds for snapd CI
 with_testkeys = 0
+# Distribution-specific version suffix, appended to the upstream version via a
+# linker flag (e.g. -%{release} for RPM, -1 for a Debian revision, +ubuntu26.04
+# for Ubuntu). Leave unset for unpackaged builds and for native packages whose
+# changelog version equals the upstream version.
+downstream_version_suffix = -%{release}
 ```
 
 The helper is invoked like so:

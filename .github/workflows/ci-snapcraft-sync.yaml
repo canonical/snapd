@@ -24,8 +24,9 @@ jobs:
               pull_number: context.payload.pull_request.number,
               per_page: 100,
             });
-            const paths = ['build-aux/snap/snapcraft.yaml', 'build-aux/snap/snapcraft-fips.yaml'];
-            const changed = paths.filter(path => files.some(file => file.filename === path));
+            const paths = ['build-aux/snap/snapcraft.yaml', 'build-aux/snap/local/snapcraft-fips.yaml'];
+            const changed = paths.filter(path => files.some(file =>
+              file.filename === path && !(file.status === 'renamed' && file.changes === 0)));
             if (changed.length !== 1) {
               return;
             }

@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 )
 
 // Level is the importance or severity of a log event.
@@ -125,6 +126,29 @@ func LogLoggerDisabled() {
 	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_logging_disabled", Level: LevelCritical},
 		"Security logging disabled",
+	)
+}
+
+// LogSystemRestartSnapd logs a controlled snapd daemon restart using the
+// global security logger. snapdVersion is the version of the exiting snapd
+// process. reason is a [restart.RestartReason].
+func LogSystemRestartSnapd(snapdVersion string, reason restart.RestartReason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	reasonStr := string(reason)
+	if reasonStr == "" {
+		reasonStr = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_restart_snapd", Level: LevelInfo},
+		fmt.Sprintf("Snapd restart with reason %s", reasonStr),
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "reason", Value: reasonStr},
 	)
 }
 

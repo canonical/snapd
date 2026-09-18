@@ -16,6 +16,7 @@ concurrency:
 jobs:
   open-sync-pr:
     runs-on: ubuntu-latest
+    if: github.repository == 'canonical/snapd'
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -43,7 +44,7 @@ jobs:
           if ! git merge --no-ff --no-commit origin/master; then
             git rev-parse --verify MERGE_HEAD >/dev/null
           fi
-          git show origin/master:build-aux/snap/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
+          git show origin/master:build-aux/snap/local/snapcraft-fips.yaml > build-aux/snap/snapcraft.yaml
           git add build-aux/snap/snapcraft.yaml
 
           git commit -m "Merge master into fips, using snapcraft-fips.yaml"

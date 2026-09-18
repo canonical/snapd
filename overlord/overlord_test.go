@@ -1216,7 +1216,7 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.Request(st, restart.RestartDaemon, nil, "")
 }
 
 type testRestartHandler struct {
@@ -1225,7 +1225,7 @@ type testRestartHandler struct {
 	rebootVerifiedErr error
 }
 
-func (rb *testRestartHandler) HandleRestart(t restart.RestartType, ri *boot.RebootInfo) {
+func (rb *testRestartHandler) HandleRestart(t restart.RestartType, ri *boot.RebootInfo, _ restart.RestartReason) {
 	rb.restartRequested = t
 }
 
@@ -1249,7 +1249,7 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.Request(st, restart.RestartDaemon, nil, "")
 
 	c.Check(rb.restartRequested, Equals, restart.RestartDaemon)
 }
