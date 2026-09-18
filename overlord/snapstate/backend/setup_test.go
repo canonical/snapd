@@ -750,6 +750,42 @@ func (s *setupSuite) TestSetupKernelSnapPlumbsComponentsAndRegenerate(c *C) {
 	c.Check(gotNames, DeepEquals, []string{"comp1", "comp2"})
 }
 
+func (s *setupSuite) TestSetupKernelSnapPlumbsDynamicModulesWithNoComponents(c *C) {
+	// Regression test: SetupKernelSnap must derive compsMntPts (which is
+	// also what picks up the kernel's dynamic-modules mount point, unrelated
+	// to kernel-modules components) unconditionally, not only when
+	// currentComps is non-empty - otherwise a kernel using dynamic-modules
+	// with zero installed components would have that content silently
+	// dropped from a Regenerate-mode candidate tree.
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	metadir := filepath.Join(dirs.SnapMountDir, "kernel/33/meta")
+	c.Assert(os.MkdirAll(metadir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(metadir, "kernel.yaml"),
+		[]byte("dynamic-modules: $SNAP_DATA"), 0644), IsNil)
+
+	modsDir := filepath.Join(snap.DataDir(ksnap, kernRev), "modules", "6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(modsDir, "dynamic.ko"), []byte{}, 0644), IsNil)
+
+	var gotCompsMntPts []kernel.ModulesCompMountPoints
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (changed bool, err error) {
+		gotCompsMntPts = compsMntPts
+		return true, nil
+	})
+	defer r()
+
+	// No kernel-modules components at all - currentComps is nil.
+	changed, err := s.be.SetupKernelSnap(ksnap, kernRev, nil,
+		&backend.SetupKernelSnapOptions{Regenerate: true}, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(changed, Equals, true)
+
+	c.Assert(gotCompsMntPts, HasLen, 1)
+	c.Check(gotCompsMntPts[0].LinkName, Equals, ksnap+"_dyn")
+}
+
 func (s *setupSuite) TestSetupKernelSnapReturnsChangedFromEnsure(c *C) {
 	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (changed bool, err error) {
 		return false, nil

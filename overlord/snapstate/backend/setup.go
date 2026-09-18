@@ -157,14 +157,11 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, current
 		Target:  cpi.MountDir(),
 	}
 
-	var compsMntPts []kernel.ModulesCompMountPoints
-	if len(currentComps) > 0 {
-		kinfo, err := kernel.ReadInfo(kMntPts.Current)
-		if err != nil {
-			return false, err
-		}
-		compsMntPts = compsMountPoints(currentComps, instanceName, rev, kinfo)
+	kinfo, err := kernel.ReadInfo(kMntPts.Current)
+	if err != nil {
+		return false, err
 	}
+	compsMntPts := compsMountPoints(currentComps, instanceName, rev, kinfo)
 
 	// TODO:COMPS: consider components when installed jointly (currentComps
 	// is always nil for a fresh install today, see doPrepareKernelSnap)
