@@ -428,7 +428,9 @@ ConsiderTasks:
 		}
 
 		status := t.Status()
-		if status.Ready() {
+		// A change can contain non-ready tasks that are permanently blocked.
+		// They still need their cleanup handlers run.
+		if status.Ready() || t.Change().Status().Ready() {
 			if !t.IsClean() {
 				r.clean(t)
 			}
