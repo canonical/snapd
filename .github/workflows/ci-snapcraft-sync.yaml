@@ -1,0 +1,35 @@
+name: snapcraft.yaml synchronization
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: snapcraft-sync-${{ github.event.pull_request.number }}
+
+jobs:
+  snapcraft-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check snapcraft.yaml changes
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            const paths = ['build-aux/snap/snapcraft.yaml', 'build-aux/snap/local/snapcraft-fips.yaml'];
+            const changed = paths.filter(path => files.some(file =>
+              file.filename === path && !(file.status === 'renamed' && file.changes === 0)));
+            if (changed.length !== 1) {
+              return;
+            }
+            const other = paths.find(path => path !== changed[0]);
+
+            core.setFailed(`This PR changes \`${changed[0]}\` but not \`${other}\`. You probably want to update both files together.`);

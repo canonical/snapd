@@ -245,7 +245,7 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 	if err := validateFeatureFlag(st, features.Confdb); err != nil {
 		return err
 	}
-	if err := validateFeatureFlag(st, features.ConfdbControl); err != nil {
+	if err := validateFeatureFlag(st, features.RemoteDeviceManagement); err != nil {
 		return err
 	}
 

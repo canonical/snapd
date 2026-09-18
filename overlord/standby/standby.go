@@ -100,7 +100,7 @@ func (m *StandbyOpinions) Start() {
 			if m.CanStandby() {
 				logger.Noticef("standby conditions met, initiating standby...")
 				m.state.Lock()
-				restart.Request(m.state, restart.RestartSocket, nil)
+				restart.Request(m.state, restart.RestartSocket, nil, "")
 				m.state.Unlock()
 			}
 			select {

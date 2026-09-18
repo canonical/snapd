@@ -89,7 +89,6 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	defer s.st.Unlock()
 
 	setFeatureFlag(c, s.st, features.Confdb, true)
-	setFeatureFlag(c, s.st, features.ConfdbControl, true)
 
 	views := map[string]any{
 		"wifi-admin": map[string]any{
@@ -130,7 +129,7 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *confdbHandlerSuite) TestValidateFeatureDisabled(c *C) {
+func (s *confdbHandlerSuite) TestValidateConfdbFeatureDisabled(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -138,27 +137,13 @@ func (s *confdbHandlerSuite) TestValidateFeatureDisabled(c *C) {
 		confdbControl: func() (*asserts.ConfdbControl, error) { return nil, nil },
 	})
 
-	tests := []struct {
-		feature features.SnapdFeature
-	}{
-		{features.Confdb},
-		{features.ConfdbControl},
-	}
+	setFeatureFlag(c, s.st, features.Confdb, false)
 
-	for _, t := range tests {
-		cmt := Commentf("feature: %s", t.feature)
-		expectedErr := fmt.Sprintf("cannot validate message: feature flag %q is disabled", t.feature)
+	err := handler.Validate(context.Background(), s.st, &devicemgmthandlers.RequestMessage{})
+	c.Check(err, ErrorMatches, `cannot validate message: feature flag "confdb" is disabled`)
 
-		setFeatureFlag(c, s.st, t.feature, false)
-
-		err := handler.Validate(context.Background(), s.st, &devicemgmthandlers.RequestMessage{})
-		c.Check(err, ErrorMatches, expectedErr, cmt)
-
-		var authErr *devicemgmthandlers.UnauthorizedError
-		c.Check(errors.As(err, &authErr), Equals, false, cmt)
-
-		setFeatureFlag(c, s.st, t.feature, true)
-	}
+	var authErr *devicemgmthandlers.UnauthorizedError
+	c.Check(errors.As(err, &authErr), Equals, false)
 }
 
 func (s *confdbHandlerSuite) TestValidateMismatchedAuthority(c *C) {
@@ -334,9 +319,10 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	defer restore()
 
 	msg := &devicemgmthandlers.RequestMessage{
-		BaseID: "msg-1",
-		Kind:   "confdb",
-		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
+		AccountID: "operator",
+		BaseID:    "msg-1",
+		Kind:      "confdb",
+		Body:      `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
 	}
 
 	chgID, err := handler.Apply(context.Background(), s.st, msg)
@@ -345,9 +331,9 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 
 	chg := s.st.Change(chgID)
 	c.Assert(chg, NotNil)
-	var markedID string
-	c.Assert(chg.Get("mgmt-message-id", &markedID), IsNil)
-	c.Check(markedID, Equals, "msg-1")
+	var key string
+	c.Assert(chg.Get("mgmt-message-key", &key), IsNil)
+	c.Check(key, Equals, "operator/msg-1")
 }
 
 func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
@@ -371,9 +357,10 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	defer restore()
 
 	msg := &devicemgmthandlers.RequestMessage{
-		BaseID: "msg-2",
-		Kind:   "confdb",
-		Body:   `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
+		AccountID: "operator",
+		BaseID:    "msg-2",
+		Kind:      "confdb",
+		Body:      `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
 	}
 
 	chgID, err := handler.Apply(context.Background(), s.st, msg)
@@ -382,9 +369,9 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 
 	chg := s.st.Change(chgID)
 	c.Assert(chg, NotNil)
-	var markedID string
-	c.Assert(chg.Get("mgmt-message-id", &markedID), IsNil)
-	c.Check(markedID, Equals, "msg-2")
+	var key string
+	c.Assert(chg.Get("mgmt-message-key", &key), IsNil)
+	c.Check(key, Equals, "operator/msg-2")
 }
 
 func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {

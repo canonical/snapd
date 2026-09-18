@@ -352,7 +352,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
-	o, err := overlord.New(snapstatetest.MockRestartHandler(func(restartType restart.RestartType) {
+	o, err := overlord.New(snapstatetest.MockRestartHandler(func(restartType restart.RestartType, _ restart.RestartReason) {
 		c.Logf("overlord handle restart callback: %v\n", restartType)
 		if s.restartHandler != nil {
 			s.restartHandler(restartType)
