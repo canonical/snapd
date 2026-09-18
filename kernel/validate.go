@@ -22,6 +22,7 @@ package kernel
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -106,7 +107,7 @@ func validateFirmwareTree(kernelRoot string) error {
 	// kernel-modules components and must not be shipped by the
 	// kernel snap itself.
 	updatesDir := filepath.Join(fwDir, "updates")
-	e, err := os.Stat(updatesDir)
+	e, err := os.Lstat(updatesDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		// It's fine if the directory does not exist, it would be created at
 		// the staging location as needed.
@@ -121,11 +122,14 @@ func validateFirmwareTree(kernelRoot string) error {
 	// Some kernel build tooling ships an empty "updates" directory as a
 	// harmless placeholder; only a non-empty one actually conflicts with
 	// kernel-modules-component firmware at runtime.
-	updatesEntries, err := os.ReadDir(updatesDir)
+	d, err := os.Open(updatesDir)
 	if err != nil {
 		return err
 	}
-	if len(updatesEntries) > 0 {
+	defer d.Close()
+	if updatesEntries, err := d.Readdir(1); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	} else if len(updatesEntries) > 0 {
 		return fmt.Errorf("firmware directory %q must not contain a non-empty entry named %q, reserved for kernel-modules components", fwDir, e.Name())
 	}
 	return nil

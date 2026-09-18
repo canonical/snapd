@@ -209,6 +209,20 @@ func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictFile(c *C) {
 	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
 }
 
+func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictSymlink(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	fwDir := filepath.Join(mockKernelRoot, "firmware")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+
+	// A symlink named "updates" conflicts just the same, even when it is
+	// dangling. Using os.Stat instead of os.Lstat here would follow the
+	// symlink, see it as missing, and wrongly let this through.
+	c.Assert(os.Symlink("nonexistent-target", filepath.Join(fwDir, "updates")), IsNil)
+
+	err := kernel.Validate(mockKernelRoot)
+	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
+}
+
 func (s *validateKernelSuite) TestValidateFirmwareNoUpdates(c *C) {
 	mockKernelRoot := makeMockKernel(c, "", nil)
 	fwDir := filepath.Join(mockKernelRoot, "firmware", "qcom")
