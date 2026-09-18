@@ -51,22 +51,46 @@ post:
             - $ref: "../components/schemas/SystemActionFixEncryptionSupport.yaml"
   responses:
     200:
-      description: |-
-        The action or step was handled synchronously.
-
-        Response bodies depend on the action or step:
-        - actions `"do"` and `"reboot"` return an empty response body;
-        - action `"install"` with step `"generate-recovery-key"` returns the generated recovery key;
-        - actions `"check-passphrase-quality"` and `"check-pin-quality"` return a quality assessment of the provided
-          passphrase or PIN;
-        - action `"fix-encryption-support"` returns the updated system details.
+      description: The action or step was handled synchronously.
       content:
         application/json:
           schema:
-            oneOf:
-              - $ref: "../components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml"
-              - $ref: "../components/schemas/SystemActionCheckAuthQualityResponse.yaml"
-              - $ref: "../components/schemas/SystemDetails.yaml"
+            type: object
+            required:
+              - type
+              - status-code
+              - status
+              - result
+            properties:
+              type:
+                type: string
+                enum:
+                  - sync
+                description: The response type.
+              status-code:
+                type: integer
+                enum:
+                  - 200
+                description: The HTTP status code of the response.
+              status:
+                type: string
+                enum:
+                  - OK
+                description: The status of the response.
+              result:
+                type: object
+                nullable: true
+                description: |-
+                  The result of the synchronous operation, specific to each endpoint, action, or step:
+                    - `null` for actions `"do"` and `"reboot"`;
+                    - the generated recovery key for action `"install"` with step `"generate-recovery-key"`;
+                    - the quality assessment of the passphrase or PIN for actions `"check-passphrase-quality"` and
+                      `"check-pin-quality"`; and
+                    - the updated system details for action `"fix-encryption-support"`.
+                anyOf:
+                  - $ref: "../components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml"
+                  - $ref: "../components/schemas/SystemActionCheckAuthQualityResponse.yaml"
+                  - $ref: "../components/schemas/SystemDetails.yaml"
     202:
       description: The asynchronous action (e.g., most install steps, remove) was accepted and is in progress.
       $ref: "../components/responses/Accepted.yaml"
