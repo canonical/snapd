@@ -109,8 +109,16 @@ for rel; do
     curr_ver=$(dpkg-parsechangelog --show-field Version)
     initrd_ver=${curr_ver%%+*}
     next_ver="$initrd_ver"+"$SNAPD_VERSION"+"$rel"
-    dch -v "$next_ver" "Update to snapd version $SNAPD_VERSION"
+    if [ -n "${ALLOW_ANY_VERSION-}" ]; then
+        dch --force-bad-version --newversion "$next_ver" "Update to snapd version $SNAPD_VERSION"
+    else
+        dch --newversion "$next_ver" "Update to snapd version $SNAPD_VERSION"
+    fi
     dch --distribution "$series" -r ""
-    dpkg-buildpackage -S -sa -d
+    if [ -n "${UNSIGNED-}" ]; then
+        dpkg-buildpackage -S -sa -d  -us -uc
+    else
+        dpkg-buildpackage -S -sa -d
+    fi
     popd
 done
