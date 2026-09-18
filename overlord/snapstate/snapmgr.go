@@ -68,6 +68,7 @@ func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleaned")
 	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
+	swfeats.RegisterEnsure("SnapManager", "ensureDependencyRemoval")
 
 	RegisterResealingTaskKind("prepare-kernel-modules-components")
 	// TODO: consider registering these on classic only if the system is an hybrid system
@@ -1747,7 +1748,7 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 		}
 
 		removeAll := true
-		removals := map[string]bool{snapst.InstanceName(): true}
+		removals := map[string]bool{snapst.InstanceName().String(): true}
 		err = canRemove(m.state, snapInfo, snapst, removeAll, deviceCtx, removals)
 		if err != nil {
 			logger.Debugf("cannot auto-remove implicitly installed snap %q: %v", name, err)
