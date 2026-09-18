@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -685,6 +686,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 	restartSocket := d.restartSocket
 	rebootInfo := d.rebootInfo
+	restartReason := d.restartReason
 	d.mu.Unlock()
 
 	// before not accepting any new client connections we need to write the
@@ -751,7 +753,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		// If this is the case we do a "normal" snapd restart
 		// to process the new changes.
 		if !d.standbyOpinions.CanStandby() {
-			d.restartSocket = false
+			restartSocket = false
 		}
 	}
 	d.overlord.Stop()
@@ -780,15 +782,16 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if needsFullShutdown {
-		return d.doReboot(sigCh, d.requestedRestart, rebootInfo, immediateShutdown, rebootWaitTimeout)
+		return d.doReboot(sigCh, restartType, rebootInfo, immediateShutdown, rebootWaitTimeout)
 	}
 
-	if d.restartSocket {
-		return ErrRestartSocket
-	}
-
-	if d.requestedRestart == restart.RestartDaemon {
-		logger.Noticef("restarting daemon after update")
+	if restartType == restart.RestartDaemon {
+		seclog.LogSystemRestartSnapd(d.Version, restartReason)
+		if restartReason == "" {
+			logger.Noticef("restarting daemon")
+		} else {
+			logger.Noticef("restarting daemon (%s)", restartReason)
+		}
 		// This has effect only if snapd was not started by snapd.service, which is the
 		// case on seeding boot in UC (see run-snapd-from-snap script in core* bases).
 		// Otherwise we are simply restarted by systemd after exiting. For the former case,
@@ -797,6 +800,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		if err := wrappers.RestartSnapd(); err != nil {
 			logger.Noticef("while restarting snapd: %v", err)
 		}
+		return nil
+	}
+
+	if restartSocket {
+		return ErrRestartSocket
 	}
 
 	return nil
