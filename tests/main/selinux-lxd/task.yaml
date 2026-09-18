@@ -53,7 +53,7 @@ execute: |
     lxd.lxc stop --force my-ubuntu
     lxd.lxc delete --force my-ubuntu
 
-    snap remove lxd
+    snap remove --purge lxd
 
     # there is a known problem with the reference policy that disallows systemd
     # from creating a BPF map for unconfined_service_t, see:
