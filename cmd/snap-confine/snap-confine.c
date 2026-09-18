@@ -900,7 +900,7 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
            on git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git. */
         sc_ensure_mount_ns_id_ordered(group);
         sc_populate_mount_ns(aa, snap_update_ns_fd, inv, real_gid, saved_gid);
-        sc_store_ns_info(inv);
+        sc_store_ns_info(inv, distro);
 
         /* Preserve the mount namespace. */
         sc_preserve_populated_mount_ns(group);

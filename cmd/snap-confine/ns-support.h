@@ -21,6 +21,7 @@
 #include <stdbool.h>
 
 #include "../libsnap-confine-private/apparmor-support.h"
+#include "../libsnap-confine-private/classic.h"
 #include "snap-confine-invocation.h"
 
 /**
@@ -146,7 +147,7 @@ void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
 
-void sc_store_ns_info(const sc_invocation *inv);
+void sc_store_ns_info(const sc_invocation *inv, sc_distro distro);
 
 /**
  * Ensure the current mount namespace has an id that is safe to preserve.
