@@ -24,9 +24,9 @@ get:
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/SystemDetails.yaml'
+            $ref: "../components/schemas/SystemDetails.yaml"
     404:
-      $ref: '../components/responses/NotFound.yaml'
+      $ref: "../components/responses/NotFound.yaml"
 post:
   tags:
     - AuthenticatedAccess # Originally tagged as root auth
@@ -42,20 +42,35 @@ post:
       application/json:
         schema:
           oneOf:
-            - $ref: '../components/schemas/SystemActionDo.yaml'
-            - $ref: '../components/schemas/SystemActionReboot.yaml'
-            - $ref: '../components/schemas/SystemActionInstall.yaml'
-            - $ref: '../components/schemas/SystemActionRemove.yaml'
-            - $ref: '../components/schemas/SystemActionCheckPassphrase.yaml'
-            - $ref: '../components/schemas/SystemActionCheckPin.yaml'
-            - $ref: '../components/schemas/SystemActionFixEncryptionSupport.yaml'
+            - $ref: "../components/schemas/SystemActionDo.yaml"
+            - $ref: "../components/schemas/SystemActionReboot.yaml"
+            - $ref: "../components/schemas/SystemActionInstall.yaml"
+            - $ref: "../components/schemas/SystemActionRemove.yaml"
+            - $ref: "../components/schemas/SystemActionCheckPassphraseQuality.yaml"
+            - $ref: "../components/schemas/SystemActionCheckPinQuality.yaml"
+            - $ref: "../components/schemas/SystemActionFixEncryptionSupport.yaml"
   responses:
     200:
-      description: The action was successfully initiated (for synchronous actions).
+      description: |-
+        The action or step was handled synchronously.
+
+        Response bodies depend on the action or step:
+        - actions "do" and "reboot" return an empty response body;
+        - step "generate-recovery-key" of action "install" returns the generated recovery key;
+        - actions "check-passphrase-quality" and "check-pin-quality" return a quality assessment of the provided
+          passphrase or PIN;
+        - action "fix-encryption-support" returns the updated system details.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "../components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml"
+              - $ref: "../components/schemas/SystemActionCheckAuthQualityResponse.yaml"
+              - $ref: "../components/schemas/SystemDetails.yaml"
     202:
-      description: The asynchronous action (e.g., install, remove) was accepted and is in progress.
-      $ref: '../components/responses/Accepted.yaml'
+      description: The asynchronous action (e.g., most install steps, remove) was accepted and is in progress.
+      $ref: "../components/responses/Accepted.yaml"
     400:
-      $ref: '../components/responses/BadRequest.yaml'
+      $ref: "../components/responses/BadRequest.yaml"
     404:
-      $ref: '../components/responses/NotFound.yaml'
+      $ref: "../components/responses/NotFound.yaml"
