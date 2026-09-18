@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2019 Canonical Ltd
+ * Copyright (C) 2018-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -187,6 +187,14 @@ func (c *Channel) Full() string {
 // VerbatimTrackOnly returns whether the channel represents a track only.
 func (c *Channel) VerbatimTrackOnly() bool {
 	return c.Track != "" && c.Risk == "" && c.Branch == ""
+}
+
+// IsVerbatimTrackOnly reports whether s is a verbatim track-only channel name
+// (non-empty track, no risk or branch), such as "18" or "latest".
+func IsVerbatimTrackOnly(s string) bool {
+	// the architecture is irrelevant here, pass a placeholder
+	ch, err := ParseVerbatim(s, "-")
+	return err == nil && ch.VerbatimTrackOnly()
 }
 
 // VerbatimRiskOnly returns whether the channel represents a risk only.

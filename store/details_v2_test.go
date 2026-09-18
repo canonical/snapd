@@ -461,6 +461,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Layout",
 		"SideInfo.Channel",
 		"LegacyWebsite",
+		"UbuntuCoreTracks",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {

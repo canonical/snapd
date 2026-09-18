@@ -1,0 +1,207 @@
+name: Nightly test predictor report
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      minimum_history_samples:
+        description: Exclude tests with fewer history samples from both reports
+        type: number
+        required: true
+        default: 5
+
+permissions:
+  contents: read
+
+env:
+  TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
+
+jobs:
+  systems:
+    name: Collect systems
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.systems.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Collect unique backend/system targets
+        id: systems
+        run: |
+          matrix=$(jq -cs '
+            [.[].include[] | .backend as $backend | .systems | split(" ")[] | select(length > 0) | {backend: $backend, system: .}]
+            | unique
+          ' \
+            .github/workflows/data-fundamental-systems.json \
+            .github/workflows/data-nested-systems.json \
+            .github/workflows/data-non-fundamental-systems.json)
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+  predict:
+    name: Predict ${{ matrix.backend }}:${{ matrix.system }}
+    needs: systems
+    runs-on: [self-hosted, spread-enabled]
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include: ${{ fromJSON(needs.systems.outputs.matrix) }}
+    steps:
+      - name: Query test predictor
+        env:
+          BACKEND: ${{ matrix.backend }}
+          SYSTEM: ${{ matrix.system }}
+        run: |
+          mkdir -p predictor-reports
+          response=$(mktemp)
+          verbs_response=$(mktemp)
+          trap 'rm -f "${response}" "${verbs_response}"' EXIT
+
+          # Discover verbs dynamically so the report covers every predictor phase.
+          curl --fail --show-error --silent --get \
+            --retry 3 \
+            --retry-all-errors \
+            --max-time 1800 \
+            --output "${verbs_response}" \
+            "${TEST_PREDICTOR_URL}/list/verbs"
+
+          mapfile -t verbs < <(jq --exit-status --raw-output '
+            .values
+            | if type != "array" or length == 0 then error("verbs is not a non-empty array") else . end
+            | .[]
+          ' "${verbs_response}")
+
+          # Accumulate results from all verbs in one report for this backend/system.
+          report="predictor-reports/${BACKEND}--${SYSTEM}.tsv"
+          : > "${report}"
+          for verb in "${verbs[@]}"; do
+            echo "Querying verb=${verb}"
+            # The rank-risk endpoint accepts only one verb per request.
+            curl --fail --show-error --silent --get \
+              --retry 3 \
+              --retry-all-errors \
+              --max-time 1800 \
+              --output "${response}" \
+              --data-urlencode "verb=${verb}" \
+              --data-urlencode "backend=${BACKEND}" \
+              --data-urlencode "system=${SYSTEM}" \
+              "${TEST_PREDICTOR_URL}/rank-risk"
+
+            jq --arg backend "${BACKEND}" --arg system "${SYSTEM}" --arg verb "${verb}" '
+              .top_high_risk
+              | if type != "array" then error("top_high_risk is not an array") else . end
+              | .[]
+              | select(.prob < 0.8)
+              | [$backend, $system, $verb, .name, (.prob * 100), .context_len]
+              | @tsv
+            ' --raw-output "${response}" | tee --append "${report}"
+          done
+
+      - name: Upload system report
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-predictions-${{ matrix.backend }}-${{ matrix.system }}
+          path: predictor-reports/${{ matrix.backend }}--${{ matrix.system }}.tsv
+          retention-days: 28
+
+  report:
+    name: ${{ matrix.name }}
+    if: ${{ always() && needs.systems.result == 'success' }}
+    needs: [systems, predict]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Nightly report - Flaky tests
+            report: flaky
+            minimum: 30
+            maximum: 70
+            minimum_history_samples: ${{ inputs.minimum_history_samples || 5 }}
+          - name: Nightly report - Failing tests
+            report: failing
+            minimum: 0
+            maximum: 30
+            minimum_history_samples: ${{ inputs.minimum_history_samples || 5 }}
+    steps:
+      - name: Download system reports
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-predictions-*
+          path: predictor-reports
+          merge-multiple: true
+
+      - name: Create report
+        env:
+          REPORT_NAME: ${{ matrix.name }}
+          MINIMUM: ${{ matrix.minimum }}
+          MAXIMUM: ${{ matrix.maximum }}
+          MINIMUM_HISTORY_SAMPLES: ${{ matrix.minimum_history_samples }}
+          PREDICT_RESULT: ${{ needs.predict.result }}
+        run: |
+          # Reject invalid manual input before processing downloaded results.
+          if ! [[ "${MINIMUM_HISTORY_SAMPLES}" =~ ^[0-9]+$ ]]; then
+            echo "Minimum history samples must be a non-negative integer" >&2
+            exit 1
+          fi
+
+          mkdir -p predictor-reports
+          # Build the report header and convert matching TSV rows to Markdown.
+          {
+            echo "# ${REPORT_NAME}"
+            echo
+            echo "Tests with a predicted success probability from ${MINIMUM}% up to, but not including, ${MAXIMUM}%."
+            if ((MINIMUM_HISTORY_SAMPLES > 0)); then
+              echo "Tests with fewer than ${MINIMUM_HISTORY_SAMPLES} history samples are excluded."
+            fi
+            echo
+            echo "| Phase | Backend | System | Test | Success probability | History samples |"
+            echo "|---|---|---|---|---:|---:|"
+
+            # Merge all system reports, sort them, then apply probability and history filters.
+            find predictor-reports -type f -name '*.tsv' -print0 \
+              | xargs -0 -r cat \
+              | sort -t $'\t' -k3,3 -k1,1 -k2,2 -k5,5n \
+              | awk -F '\t' -v minimum="${MINIMUM}" -v maximum="${MAXIMUM}" -v min_history="${MINIMUM_HISTORY_SAMPLES}" \
+                  '$5 >= minimum && $5 < maximum && $6 >= min_history { printf "| %s | %s | %s | %s | %.2f%% | %s |\n", $3, $1, $2, $4, $5, $6 }'
+          } > "test-predictor-${{ matrix.report }}-report.md"
+
+          # Add an explicit empty state when no row matches this report's filters.
+          if ! awk -F '\t' -v minimum="${MINIMUM}" -v maximum="${MAXIMUM}" -v min_history="${MINIMUM_HISTORY_SAMPLES}" \
+              '$5 >= minimum && $5 < maximum && $6 >= min_history { found = 1; exit } END { exit !found }' predictor-reports/*.tsv; then
+            echo "| - | - | - | No tests found in this probability range | - | - |" >> "test-predictor-${{ matrix.report }}-report.md"
+          fi
+
+          # Keep available results while warning that some predictor jobs failed.
+          if [ "${PREDICT_RESULT}" != "success" ]; then
+            echo >> "test-predictor-${{ matrix.report }}-report.md"
+            echo "> Some system predictions failed." >> "test-predictor-${{ matrix.report }}-report.md"
+          fi
+
+      - name: Upload report
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-predictor-${{ matrix.report }}-report
+          path: test-predictor-${{ matrix.report }}-report.md
+          retention-days: 28
+
+  display:
+    name: Display reports
+    needs: report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download reports
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-predictor-*-report
+          path: reports
+          merge-multiple: true
+
+      - name: Display failing report
+        run: cat reports/test-predictor-failing-report.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Display flaky report
+        run: cat reports/test-predictor-flaky-report.md >> "${GITHUB_STEP_SUMMARY}"
