@@ -118,7 +118,7 @@ jobs:
           - name: Nightly report - Flaky tests
             report: flaky
             minimum: 30
-            maximum: 80
+            maximum: 70
             minimum_history_samples: ${{ inputs.minimum_history_samples || 5 }}
           - name: Nightly report - Failing tests
             report: failing
