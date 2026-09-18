@@ -678,19 +678,18 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// Swap modules directories
 	oldRoot := destDir
 
-	// Swap updates directory inside firmware dir. In Regenerate mode this
-	// is left alone entirely: managing kernel-modules-component firmware
-	// is not this mode's job (it only re-derives what components already
-	// active), so there is nothing to compare or swap here regardless of
-	// content.
+	// Swap the "updates" directory inside firmware dir. This mirrors the
+	// modules "updates" subtree (itself part of the lib/modules/<kversion>
+	// swap below): both are derived from the same compsMntPts (whichever
+	// kernel-modules components/dynamic modules are currently active), so
+	// both need to be kept in sync unconditionally, including in Regenerate
+	// mode - a fix to how this content is derived must actually be applied
+	// there too, not silently discarded.
 	oldFwUpdates := filepath.Join(oldRoot, "lib", "firmware", "updates")
-	fwUpdatesChanged := false
-	if !opts.Regenerate {
-		fwUpdatesChanged = true
-		if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-			return false, fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
-		}
+	if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+		return false, fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
 	}
+	fwUpdatesChanged := true
 
 	newMods := filepath.Join(targetDir, "lib", "modules", kversion)
 	oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
@@ -715,10 +714,8 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		modsChanged = true
 
 		undoFwUpdatesSwapOnErr := func(context string) {
-			if fwUpdatesChanged {
-				if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-					logger.Noticef("while reverting %s: %v", context, err)
-				}
+			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+				logger.Noticef("while reverting %s: %v", context, err)
 			}
 		}
 
@@ -778,8 +775,21 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// correctly swapped in, is left untouched. It still surfaces as a
 	// task error, which (see SnapManager.ensureKernelRegenerateDone) is not
 	// retried within the same snapd process, only on the next restart.
-	if err := writeDriversTreeMeta(oldRoot); err != nil {
-		return changed, err
+	//
+	// Only advance the marker for a full Regenerate pass, which is the
+	// only path that also checks/fixes the top-level lib/firmware symlinks
+	// (see syncFirmwareTopLevelSymlinks above). A plain kernel-modules-
+	// component-only change (opts.Regenerate == false, opts.KernelInstall
+	// == false) rebuilds modules and both "updates" subtrees with current
+	// logic, but never touches top-level firmware, so it must not be
+	// allowed to advance the marker: doing so would let an unrelated
+	// component change permanently mask a still-pending, unrelated fix to
+	// top-level firmware generation that a real Regenerate pass would
+	// otherwise have caught and applied.
+	if opts.Regenerate {
+		if err := writeDriversTreeMeta(oldRoot); err != nil {
+			return changed, err
+		}
 	}
 
 	return changed, nil

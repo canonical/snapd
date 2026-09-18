@@ -1015,6 +1015,51 @@ func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckCorruptMarker(c *C) {
 	c.Assert(needsCheck, Equals, true)
 }
 
+func (s *kernelDriversTestSuite) TestComponentOnlyChangeDoesNotAdvanceMarker(c *C) {
+	// Regression test: a plain kernel-modules-component-only change
+	// (KernelInstall: false, Regenerate: false) never checks/fixes
+	// top-level lib/firmware symlinks (see syncFirmwareTopLevelSymlinks,
+	// only run for opts.Regenerate), so it must not be allowed to advance
+	// the generator-version marker: doing so would let an unrelated
+	// component change permanently mask a still-pending, unrelated need
+	// for a real Regenerate pass.
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	_, err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// Simulate a tree that has never been through a full Regenerate pass
+	// (e.g. built by a snapd predating this mechanism, or simply not
+	// checked yet): remove the marker entirely.
+	markerPath := filepath.Join(destDir, "kernel.json")
+	c.Assert(os.Remove(markerPath), IsNil)
+
+	compMntDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/components/mnt/comp1/11")
+	createKernelModulesCompFiles(c, kversion, compMntDir, "comp1")
+	kmodsCont := snap.MinimalComponentContainerPlaceInfo("comp1", snap.R(11), "pc-kernel")
+	compsMntPts := []kernel.ModulesCompMountPoints{
+		{"comp1", kernel.MountPoints{kmodsCont.MountDir(), kmodsCont.MountDir()}},
+	}
+	mockCmd := testutil.MockCommand(c, "depmod", "")
+	defer mockCmd.Restore()
+
+	_, err = kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: false})
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(markerPath), Equals, false)
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Check(needsCheck, Equals, true)
+}
+
 func inodeOf(c *C, path string) uint64 {
 	st, err := os.Stat(path)
 	c.Assert(err, IsNil)
@@ -1455,11 +1500,13 @@ func (s *kernelDriversTestSuite) TestRegenerateNoModulesDir(c *C) {
 
 	// A kernel with no modules/ directory at all is valid and must not
 	// break Regenerate mode: firmware is still processed and the marker
-	// is still written.
+	// is still written. changed is still true: the firmware "updates"
+	// subtree is unconditionally rebuilt/swapped regardless of whether
+	// there are any modules at all (see EnsureKernelDriversTree).
 	changed, err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
 		&kernel.KernelDriversTreeOptions{Regenerate: true})
 	c.Assert(err, IsNil)
-	c.Check(changed, Equals, false)
+	c.Check(changed, Equals, true)
 
 	fwPath := filepath.Join(destDir, "lib", "firmware", "wifi_fw.bin")
 	c.Assert(osutil.IsSymlink(fwPath), Equals, true)
@@ -1497,7 +1544,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRemovesStaleTopLevelFirmwareSymli
 	c.Check(osutil.FileExists(staleLink), Equals, false)
 }
 
-func (s *kernelDriversTestSuite) TestRegenerateRebuildsModulesUpdatesButLeavesFirmwareUpdatesAlone(c *C) {
+func (s *kernelDriversTestSuite) TestRegenerateRebuildsBothModulesAndFirmwareUpdates(c *C) {
 	mockCmd := testutil.MockCommand(c, "depmod", "")
 	defer mockCmd.Restore()
 
@@ -1522,25 +1569,36 @@ func (s *kernelDriversTestSuite) TestRegenerateRebuildsModulesUpdatesButLeavesFi
 	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
 	modsUpdatesDir := filepath.Join(destDir, "lib", "modules", kversion, "updates")
 
-	// Put some marker content in the firmware "updates" subtree, reserved
-	// for kernel-modules components: this mode never touches it (managed
-	// by the routine kernel-modules-component install/update path, gated
-	// by !opts.Regenerate), so it must survive untouched.
-	c.Assert(os.WriteFile(filepath.Join(fwUpdatesDir, "comp_marker"), []byte("x"), 0644), IsNil)
+	// Simulate a stale entry in the firmware "updates" subtree left behind
+	// by an older/buggy generator, or by a component that is no longer
+	// active: something that does not correspond to any of the given
+	// compsMntPts.
+	staleMarker := filepath.Join(fwUpdatesDir, "stale_marker")
+	c.Assert(os.WriteFile(staleMarker, []byte("x"), 0644), IsNil)
 
-	_, err = kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir,
+	changed, err := kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir,
 		&kernel.KernelDriversTreeOptions{Regenerate: true})
 	c.Assert(err, IsNil)
+	c.Check(changed, Equals, true)
 
-	// The firmware "updates" subtree is left alone, as before.
-	c.Check(osutil.FileExists(filepath.Join(fwUpdatesDir, "comp_marker")), Equals, true)
+	// Both "updates" subtrees are unconditionally rebuilt/swapped in
+	// Regenerate mode from the given compsMntPts (see
+	// EnsureKernelDriversTree): a fix to component/dynamic-modules firmware
+	// generation must actually be applied here too, not silently discarded
+	// (a review-confirmed gap in an earlier version of this code, where
+	// firmware "updates" was left untouched in Regenerate mode while
+	// modules "updates" was not - an inconsistency with no principled
+	// reason behind it). The stale entry above does not survive the
+	// rebuild.
+	c.Check(osutil.FileExists(staleMarker), Equals, false)
 
-	// The modules "updates" subtree, unlike firmware's, is part of the
-	// lib/modules/<kversion> subtree that Regenerate always rebuilds and
-	// swaps in as a whole (see EnsureKernelDriversTree): it gets correctly
-	// re-derived from the given compsMntPts (the same components as
-	// originally installed), rather than left alone.
-	target, err := os.Readlink(filepath.Join(modsUpdatesDir, "comp1"))
+	target, err := os.Readlink(filepath.Join(fwUpdatesDir, "comp1.bin"))
+	c.Assert(err, IsNil)
+	c.Check(target, Equals, filepath.Join(compMntDir, "firmware", "comp1.bin"))
+
+	// The modules "updates" subtree, correctly re-derived from the given
+	// compsMntPts (the same components as originally installed) as before.
+	target, err = os.Readlink(filepath.Join(modsUpdatesDir, "comp1"))
 	c.Assert(err, IsNil)
 	c.Check(target, Equals, filepath.Join(compMntDir, "modules", kversion))
 }
