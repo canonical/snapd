@@ -352,7 +352,7 @@ func (s *Schema) GetViewsAffectedByPath(path []Accessor) []*View {
 
 func pathChangeAffects(modified, affected []Accessor) bool {
 	for i, affectedKey := range affected {
-		if affectedKey.Type() == IndexPlaceholderType || affectedKey.Type() == KeyPlaceholderType {
+		if isPlaceholderAccessor(affectedKey) {
 			continue
 		}
 
@@ -569,7 +569,104 @@ func newView(schema *Schema, name string, viewRules []any, paramPresence map[str
 		}
 	}
 
+	if err := checkFilteredPathConsistency(view.rules); err != nil {
+		return nil, err
+	}
+
 	return view, nil
+}
+
+// checkFilteredPathConsistency checks that readable rules with overlapping
+// request and storage paths have the same filters. Otherwise, requests could
+// match both filtered and unfiltered paths, resulting in an inconsistent merged
+// value.
+func checkFilteredPathConsistency(rules []viewRule) error {
+	for i, rule := range rules {
+		if !rule.isReadable() {
+			// TODO: take write-only rules into account once we implement filtering
+			// on write (will need to consider if rules overlap access-wise)
+			continue
+		}
+
+		for _, other := range rules[i+1:] {
+			if other.isReadable() && pathsOverlap(rule.request, other.request) &&
+				!storagePathsHaveConsistentFilters(rule.storage, other.storage) {
+				return fmt.Errorf("storage paths %q and %q access overlapping data with different field filters", rule.originalStorage, other.originalStorage)
+			}
+		}
+	}
+	return nil
+}
+
+// storagePathsHaveConsistentFilters returns true if two storage paths either
+// cover distinct data or apply the same filters to the data they can both cover.
+func storagePathsHaveConsistentFilters(left, right []Accessor) bool {
+	if !pathsOverlap(left, right) {
+		return true
+	}
+
+	commonLength := int(math.Min(float64(len(left)), float64(len(right))))
+	for i := 0; i < commonLength; i++ {
+		leftAcc, rightAcc := left[i], right[i]
+		if !equalFieldFilters(leftAcc.FieldFilters(), rightAcc.FieldFilters()) {
+			return false
+		}
+	}
+
+	// if the longer path has any filters beyond its "equivalent prefix" then we
+	// need to fail, as the short one would read unfiltered data
+	longer := left
+	if len(right) > len(left) {
+		longer = right
+	}
+	for _, acc := range longer[commonLength:] {
+		if len(acc.FieldFilters()) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// pathsOverlap reports whether two paths can cover the same data. A path that
+// is a prefix of the other overlaps it.
+func pathsOverlap[T Accessor](left, right []T) bool {
+	minLen := int(math.Min(float64(len(left)), float64(len(right))))
+	for i := 0; i < minLen; i++ {
+		leftAcc, rightAcc := left[i], right[i]
+		if accessorContainerType(leftAcc) != accessorContainerType(rightAcc) ||
+			(!isPlaceholderAccessor(leftAcc) && !isPlaceholderAccessor(rightAcc) &&
+				leftAcc.Name() != rightAcc.Name()) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalFieldFilters(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+func accessorContainerType(acc Accessor) AccessorType {
+	if acc.Type() == KeyPlaceholderType {
+		return MapKeyType
+	}
+	if acc.Type() == IndexPlaceholderType {
+		return ListIndexType
+	}
+	return acc.Type()
+}
+
+func isPlaceholderAccessor(acc Accessor) bool {
+	return acc.Type() == KeyPlaceholderType || acc.Type() == IndexPlaceholderType
 }
 
 func getFilterParams(rule viewRule) []string {
@@ -1239,8 +1336,8 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 			}
 
 			// sort placeholders before literals so the latter override the former
-			xPlaceholder := xAcc.Type() == KeyPlaceholderType || xAcc.Type() == IndexPlaceholderType
-			yPlaceholder := yAcc.Type() == KeyPlaceholderType || yAcc.Type() == IndexPlaceholderType
+			xPlaceholder := isPlaceholderAccessor(xAcc)
+			yPlaceholder := isPlaceholderAccessor(yAcc)
 			if xPlaceholder != yPlaceholder {
 				return xPlaceholder
 			}

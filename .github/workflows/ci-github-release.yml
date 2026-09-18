@@ -107,11 +107,37 @@ jobs:
           ./packaging/pack-source -o $outdir -v "$VERSION"
           ./packaging/pack-source -o $outdir -v "$VERSION" -s
 
+    - name: Verify the version is baked into the source tarballs
+      shell: bash
+      run: |
+          set -eu
+          cd "$RUNNER_TEMP/out-dir"
+          # Each tarball must carry snapdtool/version_generated.go with the
+          # release version baked in, so that downstream packaging does not
+          # need to run mkversion.sh.
+          for f in *.tar*; do
+              echo "checking $f"
+              if ! tar -tf "$f" | grep -q 'snapdtool/version_generated.go'; then
+                  # the only-vendor tarball carries no snapd sources
+                  case "$f" in
+                      *.only-vendor.tar*) echo "skipping vendor-only tarball"; continue;;
+                  esac
+                  echo "version_generated.go missing from $f" >&2
+                  exit 1
+              fi
+              baked="$(tar -xf "$f" -O --wildcards '*/snapdtool/version_generated.go' | grep 'UpstreamVersion =' || true)"
+              echo "baked version: $baked"
+              if ! echo "$baked" | grep -qF "UpstreamVersion = \"$VERSION\""; then
+                  echo "expected UpstreamVersion = \"$VERSION\" in $f" >&2
+                  exit 1
+              fi
+          done
+
     - name: Checksums
       shell: bash
       run: |
           cd "$RUNNER_TEMP/out-dir"
-          for f in *.tar.xz; do
+          for f in *.tar*; do
                sha256sum "$f"
           done
 
@@ -122,6 +148,6 @@ jobs:
       run: |
           version="${{ needs.create-release.outputs.version }}"
           cd "$RUNNER_TEMP/out-dir"
-          for f in *.tar.xz; do
+          for f in *.tar*; do
               gh release upload --repo "${{ github.repository }}" "$version" "$f"
           done

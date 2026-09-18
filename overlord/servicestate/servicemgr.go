@@ -182,7 +182,7 @@ func (m *ServiceManager) ensureSnapServicesUpdatedAfterSeed(deviceCtx snapstate.
 		// we need to immediately reboot in the hopes that this restores
 		// services to a functioning state
 
-		restart.Request(m.state, restart.RestartSystemNow, nil)
+		restart.Request(m.state, restart.RestartSystemNow, nil, "")
 		return fmt.Errorf("error trying to restart killed services, immediately rebooting: %v", err)
 	}
 

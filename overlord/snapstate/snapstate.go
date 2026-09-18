@@ -424,6 +424,11 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 // It delegates the work to restart.FinishTaskWithRestart which decides
 // on how the restart will be scheduled.
 func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
+	var reason restart.RestartReason
+	if rt == restart.RestartDaemon {
+		reason = daemonRestartReasonForTask(task, status)
+	}
+
 	var rebootRequiredSnap naming.InstanceName
 	// If system restart is requested, consider how the change the
 	// task belongs to is configured (system-restart-immediate) to
@@ -449,7 +454,18 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 		}
 	}
 
-	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap.String(), rebootInfo)
+	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap.String(), rebootInfo, reason)
+}
+
+func daemonRestartReasonForTask(task *state.Task, status state.Status) restart.RestartReason {
+	if status == state.UndoneStatus {
+		return restart.RestartSnapdUndo
+	}
+	snapsup, err := TaskSnapSetup(task)
+	if err == nil && snapsup.Flags.Revert {
+		return restart.RestartSnapdRevert
+	}
+	return restart.RestartSnapdUpdate
 }
 
 func isChangeRequestingSnapdRestart(chg *state.Change) bool {

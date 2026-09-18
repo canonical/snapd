@@ -57,6 +57,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -614,6 +616,10 @@ func (s *daemonSuite) markSeeded(d *Daemon) {
 }
 
 func (s *daemonSuite) TestStartStop(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -675,10 +681,16 @@ version: 1`, si)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
+	c.Check(seclogBuf.String(), check.Equals, "")
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 
 	var systemctlArgs [][]string
 	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
@@ -733,7 +745,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
-	restart.Request(st, restart.RestartDaemon, nil)
+	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdUpdate)
 	st.Unlock()
 
 	select {
@@ -751,6 +763,54 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 		{"start", "--no-block", "snapd.service"},
 		{"start", "--no-block", "snapd.seeded.service"},
 		{"start", "--no-block", "snapd.autoimport.service"}})
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-update"]`)
+}
+
+func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+
+	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		return nil, nil
+	})
+	defer systemctlMock()
+
+	s.markSeeded(d)
+	makeDaemonListeners(c, d)
+
+	c.Assert(d.Start(context.Background()), check.IsNil)
+	stoppedYet := false
+	defer func() {
+		if !stoppedYet {
+			d.Stop(nil)
+		}
+	}()
+
+	st := d.overlord.State()
+	st.Lock()
+	restart.Request(st, restart.RestartSocket, nil, "")
+	restart.Request(st, restart.RestartDaemon, nil, restart.RestartSnapdUpdate)
+	st.Unlock()
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("restart.Request -> daemon -> Kill chain didn't work")
+	}
+
+	c.Assert(d.Stop(nil), check.IsNil)
+	stoppedYet = true
+
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -943,7 +1003,11 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType, *boot.RebootInfo), restartKind restart.RestartType, wait time.Duration) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), doRestart func(*state.State, restart.RestartType, *boot.RebootInfo, restart.RestartReason), restartKind restart.RestartType, wait time.Duration) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -1016,7 +1080,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	<-snapDone
 
 	st.Lock()
-	doRestart(st, restartKind, nil)
+	doRestart(st, restartKind, nil, "")
 	st.Unlock()
 
 	defer func() {
@@ -1048,6 +1112,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	timeToStop := time.Since(now)
 	c.Check(timeToStop > rebootWaitTimeout+rebootNoticeWait, check.Equals, true)
 	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
 
 	c.Check(delays, check.HasLen, 2)
 	c.Check(delays[1], check.DeepEquals, wait)
@@ -1107,7 +1172,7 @@ type rstManager struct {
 func (m *rstManager) Ensure() error {
 	m.st.Lock()
 	defer m.st.Unlock()
-	restart.Request(m.st, restart.RestartSystemNow, nil)
+	restart.Request(m.st, restart.RestartSystemNow, nil, "")
 	return nil
 }
 
@@ -1136,7 +1201,7 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 		o.AddManager(wm)
 	}
 
-	nop := func(*state.State, restart.RestartType, *boot.RebootInfo) {}
+	nop := func(*state.State, restart.RestartType, *boot.RebootInfo, restart.RestartReason) {}
 
 	s.testRestartSystemWiring(c, prep, nop, restart.RestartSystemNow, 0)
 
@@ -1196,7 +1261,7 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	restart.Request(st, restart.RestartSystem, nil)
+	restart.Request(st, restart.RestartSystem, nil, "")
 	st.Unlock()
 
 	ch := make(chan os.Signal, 2)
@@ -1249,7 +1314,7 @@ func (s *daemonSuite) TestRestartShutdown(c *check.C) {
 	st := d.overlord.State()
 
 	st.Lock()
-	restart.Request(st, restart.RestartSystem, nil)
+	restart.Request(st, restart.RestartSystem, nil, "")
 	st.Unlock()
 
 	sigCh := make(chan os.Signal, 2)
@@ -1436,7 +1501,6 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	// when the daemon got a pending change it just restarts
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
-	c.Check(d.restartSocket, check.Equals, false)
 }
 
 func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
