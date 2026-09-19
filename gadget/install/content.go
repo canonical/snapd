@@ -20,6 +20,7 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -58,7 +59,12 @@ type mkfsParams struct {
 // zero, automatic values are used instead.
 func makeFilesystem(params mkfsParams) error {
 	logger.Debugf("create %s filesystem on %s with label %q", params.Type, params.Device, params.Label)
-	if err := mkfsImpl(params.Type, params.Device, params.Label, params.Size, params.SectorSize); err != nil {
+	err := mkfsImpl(context.Background(), params.Type, params.Device, &mkfs.MakeOptions{
+		Label:      params.Label,
+		DeviceSize: params.Size,
+		SectorSize: params.SectorSize,
+	})
+	if err != nil {
 		return err
 	}
 	return udevTrigger(params.Device)
