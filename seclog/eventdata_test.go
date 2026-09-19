@@ -88,7 +88,7 @@ func (s *SecLogSuite) TestPeerString(c *C) {
 
 	c.Check(seclog.Peer{Socket: "/run/snapd.socket"}.String(), Equals, "/run/snapd.socket:0:<unknown>")
 
-	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
+	c.Check(seclog.Peer{UID: seclog.PeerNobody}.String(), Equals, "<unknown>:<unknown>:<unknown>")
 }
 
 func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {
