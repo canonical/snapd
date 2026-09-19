@@ -5960,6 +5960,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	c.Assert(tsl, HasLen, 3)
 	// 1. install core
 	verifyInstallTasks(c, snap.TypeOS, runCoreConfigure, 0, tsl[0])
+	var snapsup snapstate.SnapSetup
+	err = tsl[0].Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
 	// 2 transition-connections
 	verifyTransitionConnectionsTasks(c, tsl[1])
 	// 3 remove-ubuntu-core
@@ -6510,7 +6514,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsRevision(c *C) {
 		SnapType: "os",
 	})
 
-	_, err = snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
 	c.Assert(err, IsNil)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
@@ -6525,6 +6529,13 @@ func (s *snapmgrTestSuite) TestTransitionCoreValidationSetsRevision(c *C) {
 		},
 		revno: snap.R(15),
 	})
+
+	c.Assert(tsl, HasLen, 3)
+	var snapsup snapstate.SnapSetup
+	err = tsl[0].Tasks()[0].Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
+	c.Check(snapsup.ValidationSets, DeepEquals, []snapasserts.ValidationSetKey{"16/foo/bar/3"})
 }
 
 // Keep this test even though transition-to-snapd-snap experimental feature was removed
@@ -9609,6 +9620,22 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementError(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"some-other-snap", "some-snap"})
 
+	gotAllow := make(map[string]bool)
+	for _, ts := range tss {
+		if len(ts.Tasks()) == 1 && ts.Tasks()[0].Kind() == "enforce-validation-sets" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+		if err != nil || snapsup.ComponentExclusiveOperation {
+			continue
+		}
+		gotAllow[snapsup.InstanceName().String()] = snapsup.AllowUCTrackSwitch
+	}
+	c.Check(gotAllow, DeepEquals, map[string]bool{
+		"some-snap":       true, // missing snap install
+		"some-other-snap": true, // wrong-revision refresh
+	})
+
 	chg := s.state.NewChange("refresh-to-enforce", "")
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -11511,6 +11538,57 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
 }
 
+func (s *snapmgrTestSuite) TestDownloadCopiesAllowUCTrackSwitch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		AllowUCTrackSwitch: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "stable")
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
+	c.Check(snapsup.ValidationSets, HasLen, 0)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel:            "some-channel",
+		AllowUCTrackSwitch: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Channel, Equals, "some-channel")
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Revision:           snap.R(2),
+		AllowUCTrackSwitch: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(2))
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestDownloadPreservesCallerAllowUCTrackSwitch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, false)
+
+	ts, _, err = snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel: "some-channel",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Assert(ts.MaybeEdge(snapstate.BeginEdge).Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -11808,6 +11886,10 @@ func (s *snapmgrTestSuite) TestDownloadWithComponentsWithValidationSets(c *C) {
 
 	const componentExclusive = false
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.ValidationSets, DeepEquals, vsets.Keys())
 }
 
 func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
@@ -11885,6 +11967,26 @@ func (s *snapmgrTestSuite) TestDownloadComponents(c *C) {
 
 	const componentExclusive = true
 	verifySnapAndComponentSetupsForDownload(c, begin, ts, downloadDir, componentExclusive)
+
+	ts, err = snapstate.DownloadComponents(
+		context.Background(),
+		s.state,
+		"snap-1",
+		[]string{"comp-1", "comp-2"},
+		downloadDir,
+		snapstate.RevisionOptions{
+			Channel:            "latest/stable",
+			Revision:           snap.R(11),
+			AllowUCTrackSwitch: true,
+		},
+		snapstate.Options{},
+	)
+	c.Assert(err, IsNil)
+	begin = ts.MaybeEdge(snapstate.BeginEdge)
+	c.Assert(begin, NotNil)
+	var snapsup snapstate.SnapSetup
+	c.Assert(begin.Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, true)
 }
 
 func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.TaskSet, downloadDir string, componentExclusive bool) {
@@ -11892,6 +11994,7 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 	err := begin.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.DownloadBlobDir, Equals, downloadDir)
+	c.Check(snapsup.AllowUCTrackSwitch, Equals, false)
 
 	expectedDownloadDir := downloadDir
 	if expectedDownloadDir == "" {

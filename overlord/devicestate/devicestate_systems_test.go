@@ -4594,6 +4594,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		}
 
 		c.Check(revOpts.Revision.Unset(), Equals, true)
+		// Recovery-system download policy: allow switching to a UC track (channel is from the model).
+		c.Check(revOpts.AllowUCTrackSwitch, Equals, true)
 
 		tDownload := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 
@@ -5147,6 +5149,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, error,
 	) {
 		c.Assert(revOpts.Revision, Equals, snapRevisions[name])
+		// Recovery-system component download policy: UC tracks do not apply (snapd does not have components).
+		c.Check(revOpts.AllowUCTrackSwitch, Equals, false)
 
 		si := &snap.SideInfo{
 			RealName: name,
@@ -5207,6 +5211,8 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ctx context.Context, st *state.State, name string, components []string, dir string, revOpts snapstate.RevisionOptions, opts snapstate.Options) (*state.TaskSet, *snap.Info, error,
 	) {
 		c.Assert(revOpts.Revision.Unset(), Equals, true)
+		// Recovery-system download policy: allow switching to a UC track (channel is from the model).
+		c.Check(revOpts.AllowUCTrackSwitch, Equals, true)
 
 		si := &snap.SideInfo{
 			RealName: name,
@@ -6870,6 +6876,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 		}
 
 		c.Check(revOpts.Revision.Unset(), Equals, true)
+		// Recovery-system download policy: allow switching to a UC track (channel is from the model).
+		c.Check(revOpts.AllowUCTrackSwitch, Equals, true)
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 		si := &snap.SideInfo{
