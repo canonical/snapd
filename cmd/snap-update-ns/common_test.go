@@ -90,7 +90,7 @@ func (s *commonSuite) TestLock(c *C) {
 	// since it was expecting the lock to be held. Oh, and the lock is not leaked.
 	testLock.Unlock()
 	unlock, err = s.upCtx.Lock()
-	c.Check(err, ErrorMatches, `mount namespace of snap "foo" is not locked but --from-snap-confine was used`)
+	c.Check(err, ErrorMatches, `mount namespace of snap "foo" is not locked but --from-snap-confine or --snap-already-locked was used`)
 	c.Check(unlock, IsNil)
 	c.Assert(testLock.TryLock(), IsNil)
 
