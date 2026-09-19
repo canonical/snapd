@@ -161,7 +161,7 @@ execute: |
     # make sure that ubuntu-{seed,save} is mounted with appropriate flags
     for mount in /run/mnt/ubuntu-seed /run/mnt/ubuntu-save; do
         MNT_NAME="${mount##*/}"
-        findmnt -T /run/mnt/ubuntu-save > "${MNT_NAME}.info"
+        findmnt -T "/run/mnt/${MNT_NAME}" > "${MNT_NAME}.info"
 
         # print it for debug purposes before we match flags
         cat "${MNT_NAME}.info"
@@ -169,6 +169,13 @@ execute: |
         MATCH noexec < "${MNT_NAME}.info"
         MATCH nodev < "${MNT_NAME}.info"
     done
+
+    # verify /run/mnt/data mounted nosuid
+    findmnt -T /run/mnt/data > data.info
+
+    # print it for debug purposes before we match flags
+    cat data.info
+    MATCH nosuid < data.info
 
     # ensure apparmor works, see LP: 2024637
     systemctl status apparmor.service
