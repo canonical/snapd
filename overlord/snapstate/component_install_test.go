@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -68,6 +69,16 @@ const (
 
 // opts is a bitset with compOpt* as possible values.
 func expectedComponentInstallTasks(opts int) []string {
+	// return []string{
+	// 	"prerequisites", "prepare-snap", "prepare-component", "validate-component",
+	// 	"prerequisites", "mount-component",
+	// 	"stop-snap-services", "remove-aliases", "unlink-current-snap",
+	// 	"copy-snap-data", "setup-profiles", "link-snap", "link-component",
+	// 	"auto-connect", "set-auto-aliases", "setup-aliases",
+	// 	"run-hook[install]", "start-snap-services", "cleanup",
+	// 	"run-hook[configure]", "run-hook[check-health]",
+	// 	"mock-process-delayed-security-backend-effects",
+	// }
 	beforeMount, beforeLink, link, postOpHooksAndAfter, discard := expectedComponentInstallTasksSplit(opts)
 	return append(append(append(append(beforeMount, beforeLink...), link...), postOpHooksAndAfter...), discard...)
 }
@@ -365,6 +376,11 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 		info.Confinement = snap.ClassicConfinement
 	}
 
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
+
 	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
@@ -418,6 +434,16 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 	c.Assert(osutil.FileExists(compPath), Equals, true)
 
 	var snapsup snapstate.SnapSetup
+	// []string{
+	//    "prerequisites", "prepare-snap", "prepare-component", "validate-component",
+	//    "prerequisites", "mount-component",
+	//    "stop-snap-services", "remove-aliases", "unlink-current-snap",
+	//    "copy-snap-data", "setup-profiles", "link-snap", "link-component",
+	//    "auto-connect", "set-auto-aliases", "setup-aliases",
+	//    "run-hook[install]", "start-snap-services", "cleanup",
+	//    "run-hook[configure]", "run-hook[check-health]",
+	//    "mock-process-delayed-security-backend-effects",
+	// }
 	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
 
 	// ensure that we didn't drop persistent classic flag when installing the
@@ -504,11 +530,16 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongType(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(ts, IsNil)
 	c.Assert(err.Error(), Equals,
-		`inconsistent component type ("random-comp-type" in snap, "test" in component)`)
+		`cannot open snap file: inconsistent component type ("random-comp-type" in snap, "test" in component)`)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
@@ -522,6 +553,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// set feature to true
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
 
 	// The instance is already installed to make sure it is checked
 	instanceName := snap.InstanceName(snapName, snapKey)
@@ -537,6 +573,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -573,7 +614,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathWrongSnap(c *C) {
 		snapstate.Options{})
 	c.Assert(ts, IsNil)
 	c.Assert(err, ErrorMatches,
-		`component "mysnap\+mycomp" is not a component for snap "other-snap"`)
+		`cannot open snap file: component "mysnap\+mycomp" is not a component for snap "other-snap"`)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
@@ -592,6 +633,10 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresent(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -634,6 +679,10 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentDiffSnapRe
 		Current: snapRev1,
 	})
 
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -662,6 +711,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompAlreadyInstalled(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -693,6 +747,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathSnapNotActive(c *C) {
 		Current: snapRev,
 	})
 
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
+
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err.Error(), Equals, `cannot install component "mysnap+mycomp" for disabled snap "mysnap"`)
@@ -718,6 +777,11 @@ func (s *snapmgrTestSuite) TestInstallComponentPathRemodelConflict(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(ts, IsNil)
@@ -746,6 +810,12 @@ func (s *snapmgrTestSuite) TestInstallComponentPathUpdateConflict(c *C) {
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, snap.R(33))
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
+
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(ts, IsNil)
@@ -930,6 +1000,12 @@ func (s *snapmgrTestSuite) TestInstallComponentPathCompRevisionPresentInTwoSeqPt
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
+
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err, IsNil)
@@ -958,6 +1034,12 @@ func (s *snapmgrTestSuite) TestInstallComponentPathRun(c *C) {
 
 	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, snap.R(33))
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		return info, nil
+	})
+	defer restore()
+
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath,
 		snapstate.Options{})
 	c.Assert(err, IsNil)
