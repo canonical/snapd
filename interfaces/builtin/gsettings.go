@@ -38,8 +38,6 @@ const gsettingsConnectedPlugAppArmor = `
 #include <abstractions/dbus-session-strict>
 
 #include <abstractions/dconf>
-owner /{,var/}run/user/*/dconf/user w,
-owner @{HOME}/.config/dconf/user w,
 dbus (receive, send)
     bus=session
     interface="ca.desrt.dconf.Writer"
