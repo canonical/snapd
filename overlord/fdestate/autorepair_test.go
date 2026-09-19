@@ -30,14 +30,12 @@ import (
 	sb "github.com/snapcore/secboot"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -59,50 +57,12 @@ func (s *autoRepairSuite) SetUpTest(c *C) {
 }
 
 func (s *autoRepairSuite) mockPostInstallChecks(c *C) {
-	recoveryBl := bootloadertest.Mock("recovery", "").WithTrustedAssets()
-	recoveryBl.TrustedAssetsMap = map[string]string{
-		"EFI/ubuntu/shim.efi": "ubuntu:shim",
-		"EFI/ubuntu/grub.efi": "ubuntu:grub",
-	}
-	recoveryBl.KernelBootFileBuilder = func(kernelPath string) bootloader.BootFile {
-		return bootloader.NewBootFile("some-kernel", "kernel.efi", bootloader.RoleRunMode)
-	}
-	recoveryBl.BootChainList = []bootloader.BootFile{
-		bootloader.NewBootFile("", "EFI/ubuntu/shim.efi", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "EFI/ubuntu/grub.efi", bootloader.RoleRecovery),
-		bootloader.NewBootFile("", "EFI/ubuntu/grub.efi", bootloader.RoleRunMode),
-	}
-
-	runBl := bootloadertest.Mock("run", "").WithExtractedRunKernelImage()
-	runBl.SetEnabledKernel(&snap.Info{SuggestedName: "some-kernel", InstanceKey: "x1", SnapType: snap.TypeKernel})
-
-	s.AddCleanup(fdestate.MockBootloaderFind(func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error) {
-		if opts.Role == bootloader.RoleRecovery {
-			return recoveryBl, nil
-		} else if opts.Role == bootloader.RoleRunMode {
-			return runBl, nil
-		} else {
-			c.Errorf("unexpected")
-			return nil, fmt.Errorf("unexpected")
-		}
+	s.AddCleanup(fdestate.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+		return nil, nil
 	}))
 
-	s.AddCleanup(fdestate.MockBootReadModeenv(func(rootdir string) (*boot.Modeenv, error) {
-		return &boot.Modeenv{
-			CurrentTrustedBootAssets: map[string][]string{
-				"ubuntu:grub": {
-					"hash-grub-run",
-				},
-			},
-			CurrentTrustedRecoveryBootAssets: map[string][]string{
-				"ubuntu:shim": {
-					"hash-shim-recovery",
-				},
-				"ubuntu:grub": {
-					"hash-grub-recovery",
-				},
-			},
-		}, nil
+	s.AddCleanup(fdestate.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
+		return nil, nil
 	}))
 
 	s.AddCleanup(fdestate.MockSecbootPostinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {

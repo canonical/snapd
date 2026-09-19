@@ -160,6 +160,7 @@ var (
 
 	secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 	secbootPreinstallCheck             = secboot.PreinstallCheck
+	secbootPostinstallCheck            = secboot.PostinstallCheck
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
 	secbootCheckResult                 = (*secboot.PreinstallCheckContext).CheckResult
@@ -169,7 +170,11 @@ var (
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 
-	bootUseTokens = boot.UseTokens
+	bootUseTokens        = boot.UseTokens
+	bootMaybeReadModeenv = boot.MaybeReadModeenv
+
+	bootGetRunBootChain = boot.GetRunBootChain
+	bootReadModeenv     = boot.ReadModeenv
 )
 
 // BuildKernelBootInfoOpts contains options for BuildKernelBootInfo.
@@ -245,6 +250,16 @@ func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImageFiles []boo
 	secbootPreinstallCheck = f
 	return func() {
 		secbootPreinstallCheck = old
+	}
+}
+
+// MockSecbootPostinstallCheck mocks secbootPostinstallCheck usage by the package for testing.
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	osutil.MustBeTestBinary("secbootPostinstallCheck can only be mocked in tests")
+	old := secbootPostinstallCheck
+	secbootPostinstallCheck = f
+	return func() {
+		secbootPostinstallCheck = old
 	}
 }
 
@@ -377,7 +392,6 @@ func GetEncryptionSupportInfo(
 			prevCheckContext,
 			constraints.CheckAction,
 			constraints.Model,
-			constraints.TPMMode,
 		)
 		if err != nil {
 			return res, fmt.Errorf("internal error: cannot perform secboot encryption check: %v", err)
@@ -450,19 +464,68 @@ func GetEncryptionSupportInfo(
 	return res, nil
 }
 
+type bootMode int
+
+const (
+	ubuntuISOBootMode bootMode = iota
+	runBootMode
+	ephemeralBootMode
+)
+
 func encryptionAvailabilityCheck(
 	checkContext *secboot.PreinstallCheckContext,
 	checkAction *secboot.PreinstallAction,
 	model *asserts.Model,
-	tpmMode secboot.TPMProvisionMode,
 ) (*secboot.PreinstallCheckContext, string, []secboot.PreinstallErrorDetails, error) {
+	var tpmMode secboot.TPMProvisionMode
+	var postInstall bool
+	var currentBootMode bootMode
+
+	// The model is the system we might install; modeenv is where we are
+	// running. Pre vs post install checks and which boot images to use
+	// follow the current boot, not the model.
+	modeenv, err := bootMaybeReadModeenv()
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	if modeenv == nil {
+		// No modeenv means a classic installer ISO, not a
+		// core-based installer.
+		currentBootMode = ubuntuISOBootMode
+		postInstall = false
+		tpmMode = secboot.TPMProvisionFull
+	} else {
+		switch modeenv.Mode {
+		case "install":
+			currentBootMode = ephemeralBootMode
+			postInstall = false
+			tpmMode = secboot.TPMProvisionFull
+		case "run":
+			currentBootMode = runBootMode
+			postInstall = true
+			tpmMode = secboot.TPMPartialReprovision
+		case "recover":
+			currentBootMode = ephemeralBootMode
+			postInstall = true
+			tpmMode = secboot.TPMPartialReprovision
+		case "factory-reset":
+			currentBootMode = ephemeralBootMode
+			postInstall = true
+			tpmMode = secboot.TPMPartialReprovision
+		default:
+			return nil, "", nil, fmt.Errorf("unknown boot mode %q", modeenv.Mode)
+		}
+	}
+
 	supported, err := preinstallCheckSupportedWithEnvFallback(model)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("cannot confirm preinstall check support: %v", err)
 	}
+
 	if supported {
 		// use comprehensive preinstall check
-		images, err := orderedCurrentBootImages(model)
+		images, err := orderedCurrentBootImages(modeenv, currentBootMode)
 		if err != nil {
 			return nil, "", nil, fmt.Errorf("cannot locate ordered current boot images: %v", err)
 		}
@@ -482,6 +545,8 @@ func encryptionAvailabilityCheck(
 		if checkContext != nil {
 			preinstallErrorDetails, err = secbootPreinstallCheckAction(checkContext, ctx, checkAction)
 			newCheckContext = checkContext
+		} else if postInstall {
+			newCheckContext, preinstallErrorDetails, err = secbootPostinstallCheck(ctx, images)
 		} else {
 			newCheckContext, preinstallErrorDetails, err = secbootPreinstallCheck(ctx, images)
 		}
@@ -543,16 +608,29 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 	return cmp >= 0, nil
 }
 
-func orderedCurrentBootImages(model *asserts.Model) ([]bootloader.BootFile, error) {
-	if model.HybridClassic() {
+func orderedCurrentBootImages(modeenv *boot.Modeenv, currentBootMode bootMode) ([]bootloader.BootFile, error) {
+	// modeenv may be nil if the current system does not have one.
+	// Note that currentBootMode is the boot mode of what we have booted, not what we are installing.
+	switch currentBootMode {
+	case ubuntuISOBootMode:
 		images, err := orderedCurrentBootImagesHybrid()
 		if err != nil {
 			return nil, fmt.Errorf("cannot locate hybrid system boot images: %v", err)
 		}
 		return images, nil
+	case runBootMode:
+		if modeenv == nil {
+			return nil, fmt.Errorf("internal error: missing modeenv when looking for run boot chain")
+		}
+		return bootGetRunBootChain(modeenv)
+	case ephemeralBootMode:
+		// TODO: When support for post/pre install checks in
+		// Core, we will need to find the recover boot
+		// chain. For now this is not used.
+		return nil, fmt.Errorf("pre/post-install check is not yet implemented for ephemeral boot mode")
+	default:
+		return nil, fmt.Errorf("internal error: cannot find current boot chain: unknown current boot mode %v", currentBootMode)
 	}
-	// TODO: consider support for core systems
-	return nil, nil
 }
 
 func orderedCurrentBootImagesHybrid() ([]bootloader.BootFile, error) {
