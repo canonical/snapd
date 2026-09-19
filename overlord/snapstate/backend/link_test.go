@@ -1308,18 +1308,31 @@ func (nu nullUndoer) AddUndo(f func() error) {}
 
 func (s *linkSuite) TestStopServices(c *C) {
 	var called int
+	var expectedReason snap.ServiceStopReason
 	restore := backend.MockWrappersStopServices(func(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *wrappers.StopServicesOptions, reason snap.ServiceStopReason, inter wrappers.Interacter, tm timings.Measurer) error {
 		called++
 		c.Assert(svcs, HasLen, 1)
 		c.Check(svcs[0].Name, Equals, "svc")
+		c.Check(reason, Equals, expectedReason)
+		c.Assert(opts, NotNil)
+		c.Check(opts.Disable, Equals, true)
 		return nil
 	})
 	defer restore()
 
 	apps := []*snap.AppInfo{{Name: "svc"}}
-	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, &nullUndoer{}, progress.Null, s.perfTimings)
-	c.Assert(err, IsNil)
-	c.Assert(called, Equals, 1)
+	for _, reason := range []snap.ServiceStopReason{
+		snap.StopReasonOther,
+		snap.StopReasonRefresh,
+		snap.StopReasonRemove,
+		snap.StopReasonDisable,
+		"home-migration",
+	} {
+		expectedReason = reason
+		err := s.be.StopServices(apps, nil, nil, reason, &nullUndoer{}, progress.Null, s.perfTimings)
+		c.Assert(err, IsNil)
+	}
+	c.Assert(called, Equals, 5)
 }
 
 type fakeUndoer struct {
@@ -1331,18 +1344,35 @@ func (u *fakeUndoer) AddUndo(f func() error) {
 }
 
 func (s *linkSuite) TestStopServicesWithNotNilUndoerRegistersUndo(c *C) {
+	disabledSvcs := &wrappers.DisabledServices{
+		SystemServices: []string{"disabled-svc"},
+		UserServices:   map[int][]string{1000: {"disabled-user-svc"}},
+	}
+
 	restore := backend.MockWrappersStopServices(func(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *wrappers.StopServicesOptions, reason snap.ServiceStopReason, inter wrappers.Interacter, tm timings.Measurer) error {
 		c.Assert(svcs, HasLen, 1)
 		c.Check(svcs[0].Name, Equals, "svc")
+		c.Assert(opts, NotNil)
+		c.Check(opts.Disable, Equals, true)
 		return errors.New("mock StopServices error")
+	})
+	defer restore()
+	restore = backend.MockWrappersStartServices(func(apps []*snap.AppInfo, gotDisabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error {
+		c.Assert(apps, HasLen, 1)
+		c.Check(apps[0].Name, Equals, "svc")
+		c.Check(gotDisabledSvcs, DeepEquals, disabledSvcs)
+		c.Assert(opts, NotNil)
+		c.Check(opts.Enable, Equals, true)
+		return nil
 	})
 	defer restore()
 
 	undoer := &fakeUndoer{}
 	apps := []*snap.AppInfo{{Name: "svc"}}
-	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, undoer, progress.Null, s.perfTimings)
+	err := s.be.StopServices(apps, nil, disabledSvcs, snap.StopReasonRefresh, undoer, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "mock StopServices error")
 	c.Assert(undoer.undoFuncs, HasLen, 1)
+	c.Check(undoer.undoFuncs[0](), IsNil)
 }
 
 func (s *linkSuite) TestLinkSnapNilStateUnlockerError(c *C) {

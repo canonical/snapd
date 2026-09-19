@@ -4758,10 +4758,15 @@ func (s *mgrsSuite) addSnapServices(snapInfo *snap.Info) error {
 }
 
 func (s *mgrsSuite) TestUpdateFailOnUnlinkRestores(c *C) {
+	disableCalls := 0
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		// inject an error during removal
+		// stop-snap-services disables the service first. Inject an error when
+		// unlink-current-snap idempotently disables it again before removal.
 		if cmd[0] == "--no-reload" && cmd[1] == "disable" && cmd[2] == "snap.some-snap.svc1.service" {
-			return nil, fmt.Errorf("timeout")
+			disableCalls++
+			if disableCalls == 2 {
+				return nil, fmt.Errorf("timeout")
+			}
 		}
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil

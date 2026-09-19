@@ -2996,7 +2996,7 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// XXX: stop reason not set on start task, should we have a new reason for undo?
 	var stopReason snap.ServiceStopReason
 
-	// stop the services
+	// stop and disable the services
 	st.Unlock()
 	err = m.backend.StopServices(svcs, nil, nil, stopReason, NullUndoer, progress.Null, perfTimings)
 	st.Lock()
@@ -3077,15 +3077,14 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	// 2. The result is persisted in the task state for undoStopSnapServices
 	//    to similarly know which services should remain disabled when starting
 	//    services again during undo.
-	// backend.StopServices does not change which services are disabled as it uses
-	// the default StopServicesOptions.Disable = false opts, so a single
-	// query before the stop is sufficient for both uses.
+	// backend.StopServices disables services after stopping them, so this query
+	// must happen first to capture which services were already disabled.
 	disabledServices, err := m.queryDisabledServices(currentInfo, pb)
 	if err != nil {
 		return err
 	}
 
-	// stop the services
+	// stop and disable the services
 	err = m.backend.StopServices(svcs, rmSvcs, disabledServices, stopReason, undoerUnlocked, pb, perfTimings)
 	if err != nil {
 		return err
