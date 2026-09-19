@@ -1,0 +1,10 @@
+{
+    "file_format_version" : "1.0.0",
+    "layer" : {
+        "name" : "VK_LAYER_libs_provider_core26",
+        "type" : "GLOBAL",
+        "library_path" : "libvulkanhost.so",
+        "api_version" : "1.2.170",
+        "implementation_version" : "1"
+    }
+}

@@ -67,6 +67,19 @@ var (
 	SnapVoidDir          string
 	SnapPrivateTmpDir    string
 
+	// SnapRuntimeAssemblyRoot is a private, per-snap tmpfs mounted under
+	// /run/snapd for constructing content within a consuming snap's own mount
+	// namespace without it landing on the real host filesystem. It is
+	// mounted directly (bypassing snap-update-ns's trespassing check, see
+	// cmd/snap-update-ns/system.go) because it lives under the writable,
+	// non-read-only /run/snapd, so the usual writable-mimic mechanism cannot
+	// be relied on to construct it implicitly.
+	SnapRuntimeAssemblyRoot string
+	// SnapInterfacesAssemblyRoot is the driver-libs interfaces' subtree under
+	// SnapRuntimeAssemblyRoot (see interfaces/builtin/helpers.go's
+	// assemblyRoot), currently its sole subdirectory.
+	SnapInterfacesAssemblyRoot string
+
 	SnapInterfacesRequestsRunDir   string
 	SnapInterfacesRequestsStateDir string
 
@@ -606,6 +619,9 @@ func SetRootDir(rootdir string) {
 	SnapRunLockDir = filepath.Join(SnapRunDir, "/lock")
 
 	SnapBootstrapRunDir = filepath.Join(SnapRunDir, "snap-bootstrap")
+
+	SnapRuntimeAssemblyRoot = filepath.Join(SnapRunDir, "snap")
+	SnapInterfacesAssemblyRoot = filepath.Join(SnapRuntimeAssemblyRoot, "interfaces")
 
 	SnapInterfacesRequestsRunDir = filepath.Join(SnapRunDir, "interfaces-requests")
 	SnapInterfacesRequestsStateDir = filepath.Join(rootdir, snappyDir, "interfaces-requests")

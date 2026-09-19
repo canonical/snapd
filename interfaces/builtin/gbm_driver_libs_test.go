@@ -23,14 +23,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -56,6 +59,7 @@ var _ = Suite(&GbmDriverLibsInterfaceSuite{
 // This is in fact implicit in the system
 const gbmDriverLibsConsumerYaml = `name: snapd
 version: 0
+base: core26
 plugs:
   gbm:
     interface: gbm-driver-libs
@@ -248,6 +252,24 @@ func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforeConnectPlug(s.iface, s.plug), IsNil)
 }
 
+func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlugUnsupportedBase(c *C) {
+	const consumerYaml = `name: snapd
+version: 0
+base: core24
+plugs:
+  gbm:
+    interface: gbm-driver-libs
+apps:
+  app:
+    plugs: [gbm]
+`
+	plug, plugInfo := MockConnectedPlug(c, consumerYaml,
+		&snap.SideInfo{Revision: snap.R(3)}, "gbm")
+	c.Check(interfaces.BeforeConnectPlug(s.iface, plug), IsNil)
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches,
+		`gbm-driver-libs interface is not supported on base "core24"`)
+}
+
 func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -255,6 +277,82 @@ func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		{InstanceName: "gbm-provider", SlotName: "gbm-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")}})
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestMountConnectedPlugSpec(c *C) {
+	// Populate the library dirs and the client driver.
+	snapSourceDir := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")
+	c.Assert(os.MkdirAll(snapSourceDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"), []byte{}, 0644), IsNil)
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		// The shared tmpfs mount at the assembly root, so that only the bare
+		// mountpoint directory (not the assembly tree content) is host-visible.
+		{Name: "tmpfs", Dir: "/run/snapd/snap", Type: "tmpfs", Options: []string{"mode=0755", "uid=0", "gid=0"}},
+		// Library dirs.
+		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
+			Dir: "/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		{Name: filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2"),
+			Dir: "/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2", Options: []string{"bind", "ro", osutil.XSnapdOriginLayout()}},
+		// Client driver bound as a file, keeping its original name.
+		{Name: filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"),
+			Dir: "/run/snapd/snap/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so", Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
+		// Pass 2: redistribution to the loader-scanned GBM directory, re-binding
+		// the assembly target above.
+		{Name: "/run/snapd/snap/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so",
+			Dir: fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName()), Options: []string{"bind", "ro", osutil.XSnapdKindFile(), osutil.XSnapdOriginLayout()}},
+	})
+	c.Assert(spec.LibraryPathDirs(), DeepEquals, []string{
+		"/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1",
+		"/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib2",
+	})
+}
+
+func (s *GbmDriverLibsInterfaceSuite) TestAppArmorConnectedPlugSpec(c *C) {
+	// Populate the library dirs and the client driver.
+	snapSourceDir := filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")
+	c.Assert(os.MkdirAll(snapSourceDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(snapSourceDir, "nvidia-drm_gbm.so"), []byte{}, 0644), IsNil)
+
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	updateNS := strings.Join(spec.UpdateNS(), "")
+	// Library dir bind.
+	target0 := "/run/snapd/snap/interfaces/gbm-driver-libs/lib/gbm-provider_gbm-slot/lib1"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s/\" -> \"%s{,-[0-9]*}/\",\n",
+		filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"), target0))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}/\",\n", target0))
+
+	// Client driver file bind, keeping its original name.
+	clientSrc := filepath.Join(snapSourceDir, "nvidia-drm_gbm.so")
+	clientTarget := "/run/snapd/snap/interfaces/gbm-driver-libs/share/gbm/nvidia-drm_gbm.so"
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientSrc, clientTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientTarget))
+
+	// Pass 2: redistribution authorization for the loader-scanned GBM
+	// directory, re-binding the assembly target.
+	clientLoaderTarget := fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm/nvidia-drm_gbm.so", osutil.MachineName())
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Driver-libs redistribution %s -> %s\n", clientTarget, clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  mount options=(rw, bind) \"%s\" -> \"%s{,-[0-9]*}\",\n", clientTarget, clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  remount options=(bind, ro) \"%s{,-[0-9]*}\",\n", clientLoaderTarget))
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  umount \"%s{,-[0-9]*}\",\n", clientLoaderTarget))
+
+	// The writable-mimic is authorized for the share/gbm tree.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(clientTarget)))
+	// The writable-mimic is authorized for the loader-scanned gbm dir too.
+	c.Check(updateNS, testutil.Contains, fmt.Sprintf("  # Writable mimic %s\n", filepath.Dir(clientLoaderTarget)))
+	// The app gets read access to its own assembly subtree only (the core base
+	// template does not grant /opt/** to apps), plus the loader-scanned GBM
+	// subtree for Pass 2 redistribution.
+	app := spec.SnippetForTag("snap.snapd.app")
+	c.Check(app, testutil.Contains, "/run/snapd/snap/interfaces/gbm-driver-libs/ r,")
+	c.Check(app, testutil.Contains, "/run/snapd/snap/interfaces/gbm-driver-libs/** mrkix,")
+	c.Check(app, testutil.Contains, "/usr/lib/@{multiarch}/gbm/{,**} r,")
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {

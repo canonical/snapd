@@ -20,27 +20,32 @@
 package builtin
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 const openglDriverLibsSummary = `allows exposing OpenGL driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plug on classic may only be declared by the system snap (implicit plug); on
+// Ubuntu Core any snap may declare it (see allow-installation alternatives).
 const openglDriverLibsBaseDeclarationPlugs = `
   opengl-driver-libs:
     allow-installation:
-      plug-snap-type:
-        - core
+      -
+        on-classic: true
+        plug-snap-type:
+          - core
+      -
+        on-classic: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
@@ -56,6 +61,13 @@ const openglDriverLibsBaseDeclarationSlots = `
 // openglDriverLibsInterface allows exposing OPENGL driver libraries to the system or snaps.
 type openglDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *openglDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", openglDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *openglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
@@ -81,6 +93,25 @@ func (iface *openglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 func (iface *openglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *openglDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /run/snapd/snap/interfaces directory (see mountAssemblyLibDirs).
+	if err := mountAssemblyRoot(spec); err != nil {
+		return err
+	}
+	return mountAssemblyLibDirs(spec, slot, openglDriverLibs)
+}
+
+func (iface *openglDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Grant the app read access to its own assembly subtree under
+	// /run/snapd/snap/interfaces (the core base template does not grant /opt/** to
+	// apps), then authorize snap-update-ns to construct (and eventually tear
+	// down) the assembly tree.
+	addAppArmorAssemblyRoot(spec)
+	addAppArmorAssemblyAccess(spec, openglDriverLibs)
+	return addAppArmorAssemblyLibDirs(spec, slot, openglDriverLibs)
 }
 
 const openglDriverLibs = "opengl-driver-libs"

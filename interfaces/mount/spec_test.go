@@ -342,3 +342,30 @@ func (s *specSuite) TestAddUserEnsureErrorValidate(c *C) {
 	err := s.spec.AddUserEnsureDirs(ensureDirSpecs)
 	c.Assert(err, ErrorMatches, `internal error: cannot use ensure-dir mount specification: directory that must exist "\$SNAP_HOME" prefix "\$SNAP_HOME" is not allowed`)
 }
+
+func (s *specSuite) TestLibraryPathDirs(c *C) {
+	// Nothing added yet.
+	c.Assert(s.spec.LibraryPathDirs(), IsNil)
+
+	// Added dirs are collected in insertion order internally.
+	s.spec.AddLibraryPathDir("/opt/snapd/interfaces/vulkan-driver-libs/lib/foo_vulkan/1")
+	s.spec.AddLibraryPathDir("/opt/snapd/interfaces/vulkan-driver-libs/lib/foo_vulkan/2")
+	// Returns a sorted, deduplicated copy.
+	s.spec.AddLibraryPathDir("/opt/snapd/interfaces/vulkan-driver-libs/lib/foo_vulkan/1")
+	s.spec.AddLibraryPathDir("/opt/snapd/interfaces/opengl-driver-libs/lib/bar_opengl/1")
+
+	expected := []string{
+		"/opt/snapd/interfaces/opengl-driver-libs/lib/bar_opengl/1",
+		"/opt/snapd/interfaces/vulkan-driver-libs/lib/foo_vulkan/1",
+		"/opt/snapd/interfaces/vulkan-driver-libs/lib/foo_vulkan/2",
+	}
+	c.Assert(s.spec.LibraryPathDirs(), DeepEquals, expected)
+
+	// A second call does not mutate the underlying collection and returns
+	// an equal (but independently sorted) copy.
+	c.Assert(s.spec.LibraryPathDirs(), DeepEquals, expected)
+
+	// Adding after the calls still reflects the full set.
+	s.spec.AddLibraryPathDir("/opt/snapd/interfaces/egl-driver-libs/lib/baz_egl/1")
+	c.Assert(len(s.spec.LibraryPathDirs()), Equals, 4)
+}

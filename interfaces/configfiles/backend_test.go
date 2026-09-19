@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -134,6 +135,14 @@ type: snapd
 apps:
   app:
     plugs: [egl-driver-libs, other-driver-libs]
+`
+
+const eglNonSystemConsumer = `name: test-snapd-driver-libs
+version: 0
+type: app
+apps:
+  app:
+    plugs: [egl-driver-libs]
 `
 
 func checkConfigfilesFile(c *C, path, content string) {
@@ -261,6 +270,47 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	// Only files for the connected slots are around
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/snap.a.conf"), testutil.FileAbsent)
 	checkConfigfilesFile(c, "/etc/conf2.d/snap.a.conf", "a")
+}
+
+func (s *backendSuite) TestSetupNoOpOnNonClassic(c *C) {
+	// On non-classic systems the configfiles backend delivers nothing into the
+	// classic rootfs (driver libraries are provided via the mount backend
+	// instead), so Backend.Setup() must be a no-op. In particular, it must not
+	// reject a non-system consumer snap that declares a driver-libs plug
+	// (regression test for the old "configfiles plugs can be defined only by
+	// the system snap" error that aborted the install of such a snap on
+	// Core).
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	iface := &ifacetest.TestConfigFilesInterface{
+		TestInterface: ifacetest.TestInterface{
+			InterfaceName: "egl-driver-libs",
+			ConfigfilesConnectedPlugCallback: func(spec *configfiles.Specification,
+				plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+				spec.AddPathContent(
+					filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/snap.a.conf"),
+					&osutil.MemoryFileState{Content: []byte("aaaa"), Mode: 0655})
+				return nil
+			},
+		},
+		PathPatternsCallback: func() []string {
+			return []string{filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/snap.*.conf")}
+		},
+	}
+	c.Assert(s.Repo.AddInterface(iface), IsNil)
+
+	appSet, plugInfos := s.mockPlugs(c, eglNonSystemConsumer, []string{"egl-driver-libs"})
+	_, slotInfo := s.mockSlot(c, eglProvider1, "egl-driver-libs")
+	connRef := interfaces.NewConnRef(plugInfos[0], slotInfo)
+	_, err := s.Repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{},
+		interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
+
+	// No configuration file is produced on non-classic.
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/etc/conf1.d/snap.a.conf"), testutil.FileAbsent)
 }
 
 func (s *backendSuite) TestUnmatchedPattern(c *C) {

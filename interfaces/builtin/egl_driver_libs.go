@@ -25,9 +25,11 @@ import (
 	"math"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -35,15 +37,17 @@ import (
 
 const eglDriverLibsSummary = `allows exposing EGL driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plug on classic may only be declared by the system snap (implicit plug); on
+// Ubuntu Core any snap may declare it (see allow-installation alternatives).
 const eglDriverLibsBaseDeclarationPlugs = `
   egl-driver-libs:
     allow-installation:
-      plug-snap-type:
-        - core
+      -
+        on-classic: true
+        plug-snap-type:
+          - core
+      -
+        on-classic: false
     allow-connection:
       slots-per-plug: *
     deny-auto-connection: true
@@ -59,6 +63,13 @@ const eglDriverLibsBaseDeclarationSlots = `
 // eglDriverLibsInterface allows exposing EGL driver libraries to the system or snaps.
 type eglDriverLibsInterface struct {
 	commonInterface
+}
+
+func (iface *eglDriverLibsInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if !driverLibsSupported(plug.Snap.Base) {
+		return fmt.Errorf("%s interface is not supported on base %q", eglDriverLibs, plug.Snap.Base)
+	}
+	return nil
 }
 
 func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
@@ -95,6 +106,38 @@ func (iface *eglDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
 	return addLdconfigLibDirs(spec, slot)
+}
+
+func (iface *eglDriverLibsInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// On Ubuntu Core the provider content is bound into the assembly tree under
+	// the /run/snapd/snap/interfaces directory (see mountAssemblyLibDirs).
+	if err := mountAssemblyRoot(spec); err != nil {
+		return err
+	}
+	const withPriority = true
+	if err := mountAssemblyLibDirs(spec, slot, eglDriverLibs); err != nil {
+		return err
+	}
+	// The EGL vendor metadata is bound as files under the egl_vendor.d subtree.
+	return mountAssemblySourceFiles(spec, slot, eglDriverLibs,
+		sourceDirAttr{attrName: "icd-source"}, "egl_vendor.d", checkEglIcdFile, withPriority)
+}
+
+func (iface *eglDriverLibsInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Grant the app read access to its own assembly subtree under
+	// /run/snapd/snap/interfaces (the core base template does not grant /opt/** to
+	// apps), then authorize snap-update-ns to construct (and eventually tear
+	// down) the assembly tree.
+	addAppArmorAssemblyRoot(spec)
+	addAppArmorAssemblyAccess(spec, eglDriverLibs)
+	// Grant read access to the loader-scanned metadata location (Pass 2).
+	addAppArmorRedistributionAccess(spec, eglDriverLibs)
+	const withPriority = true
+	if err := addAppArmorAssemblyLibDirs(spec, slot, eglDriverLibs); err != nil {
+		return err
+	}
+	return addAppArmorAssemblySourceFiles(spec, slot, eglDriverLibs,
+		sourceDirAttr{attrName: "icd-source"}, "egl_vendor.d", checkEglIcdFile, withPriority)
 }
 
 var _ = symlinks.ConnectedPlugCallback(&eglDriverLibsInterface{})
