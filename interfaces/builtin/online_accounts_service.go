@@ -35,7 +35,9 @@ const onlineAccountsServiceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
+        - core
+    deny-connection:
+      on-classic: false
 `
 
 const onlineAccountsServicePermanentSlotAppArmor = `
@@ -55,6 +57,10 @@ dbus (send)
 dbus (bind)
 	bus=session
 	name="com.ubuntu.OnlineAccounts.Manager",
+
+dbus (bind)
+	bus=session
+	name="com.lomiri.OnlineAccounts.Manager",
 `
 
 const onlineAccountsServiceConnectedSlotAppArmor = `
@@ -63,6 +69,12 @@ dbus (receive, send)
 	bus=session
 	path=/com/ubuntu/OnlineAccounts{,/**}
 	interface=com.ubuntu.OnlineAccounts.Manager
+	peer=(label=###PLUG_SECURITY_TAGS###),
+
+dbus (receive, send)
+	bus=session
+	path=/com/lomiri/OnlineAccounts{,/**}
+	interface=com.lomiri.OnlineAccounts.Manager
 	peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -80,11 +92,24 @@ dbus (receive, send)
     path=/com/ubuntu/OnlineAccounts{,/**}
     peer=(label=###SLOT_SECURITY_TAGS###),
 
+dbus (receive, send)
+    bus=session
+    interface=com.lomiri.OnlineAccounts.Manager
+    path=/com/lomiri/OnlineAccounts{,/**}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
 # Allow clients to introspect the service
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
     path=/com/ubuntu/OnlineAccounts
+    member=Introspect
+    peer=(label=###SLOT_SECURITY_TAGS###),
+
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path=/com/lomiri/OnlineAccounts
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
@@ -97,22 +122,20 @@ bind
 listen
 `
 
-type onlineAccountsServiceInterface struct{}
+type onlineAccountsServiceInterface struct{
+	commonInterface
+}
 
 func (iface *onlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
 }
 
-func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              onlineAccountsServiceSummary,
-		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
-	}
-}
-
 func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+	if implicitSystemConnectedSlot(slot) {
+		new = "unconfined"
+	}
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
@@ -139,5 +162,10 @@ func (iface *onlineAccountsServiceInterface) AutoConnect(plug *snap.PlugInfo, sl
 }
 
 func init() {
-	registerIface(&onlineAccountsServiceInterface{})
+	registerIface(&onlineAccountsServiceInterface{commonInterface{
+		name:				"online-accounts-service",
+		summary:			onlineAccountsServiceSummary,
+		implicitOnClassic:		true,
+		baseDeclarationSlots:		onlineAccountsServiceBaseDeclarationSlots,
+	}})
 }
