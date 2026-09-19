@@ -567,6 +567,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 
 func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	model := boottest.MakeMockUC20Model()
+	model2 := boottest.MakeMockUC20Model(map[string]any{"model": "my-model-uc20-other"})
 
 	n := 0
 	var runFDESetupHookReqs []*fde.SetupRequest
@@ -591,8 +592,6 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	savedTokens := make(map[string][]byte)
 	restore := fdeBackend.MockSecbootSealKeysWithProtector(func(kf secboot.KeyProtectorFactory, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(kf, Equals, mockFactory)
-		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.Model.Model(), Equals, model.Model())
 		if useTokens {
 			c.Check(params.AuxKeyFile, Equals, "")
 		} else {
@@ -624,6 +623,18 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 				}
 				savedTokens[fmt.Sprintf("%s/%s", container, skr.SlotName)] = out
 			}
+
+			switch skr.SlotName {
+			case "default":
+				c.Assert(skr.Models, HasLen, 1)
+				c.Check(skr.Models[0].Model(), Equals, model.Model())
+			case "default-fallback":
+				c.Assert(skr.Models, HasLen, 2)
+				c.Check(skr.Models[0].Model(), Equals, model.Model())
+				c.Check(skr.Models[1].Model(), Equals, model2.Model())
+			default:
+				c.Errorf("unexpected slot name")
+			}
 		}
 		return nil
 	})
@@ -647,6 +658,13 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 				Classic:        model.Classic(),
 				Grade:          model.Grade(),
 				ModelSignKeyID: model.SignKeyID(),
+			},
+			{
+				BrandID:        model2.BrandID(),
+				Model:          model2.Model(),
+				Classic:        model2.Classic(),
+				Grade:          model2.Grade(),
+				ModelSignKeyID: model2.SignKeyID(),
 			},
 		},
 		RoleToBlName: nil,
