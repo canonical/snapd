@@ -18,7 +18,7 @@ systems:
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
-  # FIXME: this expect stable and beta channel of kernel
+  - ubuntu-26*
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/ubuntu-core-{VERSION}-amd64.model

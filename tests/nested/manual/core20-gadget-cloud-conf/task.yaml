@@ -7,10 +7,10 @@ details: |
 
 # TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
 systems:
-  # core26 is not yet in grade that can work with a signed model
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   # use tpm + secure boot to get full disk encryption, this is explicitly needed

@@ -11,7 +11,7 @@ systems:
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
-  # FIXME: bluez is not available on 26
+  - ubuntu-26*
 
 execute: |
   echo "Build kernel with failing post-refresh hook"
