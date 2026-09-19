@@ -7,10 +7,10 @@ details: |
     attributes. The test also checks that persistent mounts survive reboots.
 
 environment:
-    MOUNT_SRC: /var/tmp/test-snapd-mount-control
+    MOUNT_SRC: /var/log/test-snapd-mount-control
     SNAP_COMMON: /var/snap/test-snapd-mount-control/common
     SNAP_NAME: test-snapd-mount-control
-    # what: /var/tmp/** | where: $SNAP_COMMON/target1 | options: [rw, bind] | persistent
+    # what: /var/log/** | where: $SNAP_COMMON/target1 | options: [rw, bind] | persistent
     MOUNT_DEST1: $SNAP_COMMON/target1
     # what: none | where: $SNAP_COMMON/target2/* | type: [tmpfs] | options: [rw]
     MOUNT_DEST2: $SNAP_COMMON/target2/path
