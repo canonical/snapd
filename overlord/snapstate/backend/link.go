@@ -74,7 +74,7 @@ type LinkContext struct {
 }
 
 func createSharedSnapDirForParallelInstance(s snap.PlaceInfo) error {
-	_, key := snap.SplitInstanceName(s.InstanceName())
+	_, key := snap.SplitInstanceName(s.InstanceName().String())
 
 	if key != "" {
 		err := os.MkdirAll(snap.BaseDir(s.SnapName().String()), 0755)
@@ -86,7 +86,7 @@ func createSharedSnapDirForParallelInstance(s snap.PlaceInfo) error {
 }
 
 func removeSharedSnapDirForParallelInstance(s snap.PlaceInfo) {
-	_, instanceKey := snap.SplitInstanceName(s.InstanceName())
+	_, instanceKey := snap.SplitInstanceName(s.InstanceName().String())
 
 	if instanceKey != "" {
 		// failure to remove is ok, there may be revisions of the
@@ -217,7 +217,7 @@ func (b Backend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx LinkContext,
 	// somehow clean up whatever updateCurrentSymlinks did
 
 	// Stop inhibiting application startup by removing the inhibitor file.
-	if err := runinhibit.Unlock(info.InstanceName(), linkCtx.StateUnlocker); err != nil {
+	if err := runinhibit.Unlock(info.InstanceName().String(), linkCtx.StateUnlocker); err != nil {
 		return err
 	}
 
@@ -397,7 +397,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 		}
 		// inhibit startup of new programs
 		inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-		err0 = runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo, linkCtx.StateUnlocker)
+		err0 = runinhibit.LockWithHint(info.InstanceName().String(), hint, inhibitInfo, linkCtx.StateUnlocker)
 	}
 
 	// remove generated services, binaries etc

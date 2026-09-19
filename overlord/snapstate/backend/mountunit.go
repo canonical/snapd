@@ -136,7 +136,7 @@ func (b Backend) ListNonSnapctlMountsInSnapRevDataDirs(info *snap.Info, opts *di
 // that are at or under any of the snap's base data directories and are not
 // created using snapctl.
 func (b Backend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
-	baseDirs, err := snapBaseDataDirs(info.InstanceName(), opts)
+	baseDirs, err := snapBaseDataDirs(info.InstanceName().String(), opts)
 	if err != nil {
 		return nil, err
 	}

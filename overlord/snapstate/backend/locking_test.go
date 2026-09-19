@@ -63,7 +63,7 @@ version: 1
 	c.Check(unlockerCalled, Equals, 1)
 	c.Check(relockCalled, Equals, 1)
 	lock.Close()
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName(), fakeUnlocker)
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName().String(), fakeUnlocker)
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "hint")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{Previous: snap.R(1)})
@@ -90,7 +90,7 @@ version: 1
 	c.Assert(lock, IsNil)
 	c.Check(unlockerCalled, Equals, 0)
 	c.Check(relockCalled, Equals, 0)
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName(), fakeUnlocker)
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName().String(), fakeUnlocker)
 	c.Assert(err, IsNil)
 	c.Check(string(hint), Equals, "")
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
@@ -109,7 +109,7 @@ version: 1
 `
 	info := snaptest.MockInfo(c, yaml, nil)
 
-	lock, err := snaplock.OpenLock(info.InstanceName())
+	lock, err := snaplock.OpenLock(info.InstanceName().String())
 	c.Assert(err, IsNil)
 	defer lock.Close()
 	c.Assert(lock.TryLock(), IsNil) // Lock is not held

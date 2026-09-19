@@ -58,14 +58,14 @@ func InstallSnap(c *check.C, st *state.State, yaml string, files [][]string, si 
 	var seq sequence.SnapSequence
 	if opts.PreserveSequence {
 		var ss snapstate.SnapState
-		err := snapstate.Get(st, info.InstanceName(), &ss)
+		err := snapstate.Get(st, info.InstanceName().String(), &ss)
 		c.Assert(err, check.IsNil)
 		seq.Revisions = append(seq.Revisions, ss.Sequence.Revisions...)
 	}
 
 	seq.Revisions = append(seq.Revisions, sequence.NewRevisionSideState(si, opts.Components))
 
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
 		SnapType:        string(t),
 		Active:          true,
 		Sequence:        seq,

@@ -188,7 +188,7 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 		ci := compSeedInfo.Info
 		if ci.Type == snap.KernelModulesComponent {
 			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
-				ci.Revision, kernInfo.SnapName().String())
+				ci.Revision, kernInfo.InstanceName())
 			modulesComps = append(modulesComps, gadgetInstall.KernelModulesComponentInfo{
 				Name:       ci.Component.ComponentName,
 				Revision:   ci.Revision,

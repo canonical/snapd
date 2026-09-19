@@ -3372,7 +3372,7 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
 	}
 	hooksup := &hookstate.HookSetup{
-		Snap:     kernelInfo.InstanceName(),
+		Snap:     kernelInfo.InstanceName().String(),
 		Revision: kernelInfo.Revision,
 		Hook:     "fde-setup",
 		// XXX: should this be configurable somehow?

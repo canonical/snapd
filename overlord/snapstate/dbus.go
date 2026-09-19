@@ -61,7 +61,7 @@ func checkDBusServiceConflicts(st *state.State, info *snap.Info) error {
 		return err
 	}
 	for instanceName, snapst := range stateMap {
-		if instanceName == info.InstanceName() {
+		if instanceName == info.InstanceName().String() {
 			continue
 		}
 

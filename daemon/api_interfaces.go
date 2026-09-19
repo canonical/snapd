@@ -90,7 +90,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		plugs := make([]*plugJSON, 0, len(info.Plugs))
 		for _, plug := range info.Plugs {
 			plugs = append(plugs, &plugJSON{
-				Snap:  plug.Snap.InstanceName(),
+				Snap:  plug.Snap.InstanceName().String(),
 				Name:  plug.Name,
 				Attrs: plug.Attrs,
 				Label: plug.Label,
@@ -99,7 +99,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 		slots := make([]*slotJSON, 0, len(info.Slots))
 		for _, slot := range info.Slots {
 			slots = append(slots, &slotJSON{
-				Snap:  slot.Snap.InstanceName(),
+				Snap:  slot.Snap.InstanceName().String(),
 				Name:  slot.Name,
 				Attrs: slot.Attrs,
 				Label: slot.Label,

@@ -109,7 +109,7 @@ func (s *quotaStateSuite) TestQuotaStateUpdate(c *C) {
 	c.Check(updated.BootID, Equals, "mock-boot-id")
 	c.Check(updated.QuotaGroupName, Equals, "test-group")
 	c.Check(updated.AppsToRestartBySnap, HasLen, 1)
-	c.Check(updated.AppsToRestartBySnap[s.testSnapInfo.InstanceName()], DeepEquals, []string{"svc1"})
+	c.Check(updated.AppsToRestartBySnap[s.testSnapInfo.InstanceName().String()], DeepEquals, []string{"svc1"})
 
 	data, err = internal.GetQuotaState(task)
 	c.Assert(err, IsNil)

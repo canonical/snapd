@@ -119,7 +119,7 @@ func (a *SnapAppSet) ExpandSliceSnapVariablesWithOrder(paths []string) []Expande
 				continue
 			}
 			cpi := snap.MinimalComponentContainerPlaceInfo(
-				ci.Component.ComponentName, ci.Revision, a.info.SnapName().String())
+				ci.Component.ComponentName, ci.Revision, a.info.InstanceName())
 			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
 				filepath.Join(cpi.MountDir(), compAndPath[1])),
 				Idx: idx,

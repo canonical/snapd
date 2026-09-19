@@ -2092,7 +2092,7 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	// backed implements the right interface
 	late, ok := s.Backend.(interfaces.SecurityBackendDiscardingLate)
 	c.Assert(ok, Equals, true)
-	err = late.RemoveLate(snapdInfo.InstanceName(), snapdInfo.Revision, snapdInfo.Type())
+	err = late.RemoveLate(snapdInfo.InstanceName().String(), snapdInfo.Revision, snapdInfo.Type())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FileAbsent)
 	// but the canary is still present
