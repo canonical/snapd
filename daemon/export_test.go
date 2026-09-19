@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -82,17 +83,27 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 
 type Ucrednet = ucrednet
 
-func NewUcrednet(instanceName, processExeName string, uid uint32, socket string) *Ucrednet {
+func MockAppArmorLabelFromPid(f func(int) (string, error)) (restore func()) {
+	restore = testutil.Backup(&apparmorLabelFromPid)
+	apparmorLabelFromPid = f
+	return restore
+}
+
+func NewUcrednet(securityTag, processExeName string, uid uint32, socket string) *Ucrednet {
+	var tag naming.SecurityTag
+	if securityTag != "" {
+		var err error
+		tag, err = naming.ParseSecurityTag(securityTag)
+		if err != nil {
+			panic(err)
+		}
+	}
 	return &ucrednet{
-		instanceName:            instanceName,
+		securityTag:             tag,
 		untrustedProcessExeName: processExeName,
 		Uid:                     uid,
 		Socket:                  socket,
 	}
-}
-
-func (un *ucrednet) SetInstanceNameErr(err error) {
-	un.instanceNameErr = err
 }
 
 func (un *ucrednet) SetUntrustedProcessExeNameErr(err error) {

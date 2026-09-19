@@ -29,7 +29,9 @@ import (
 	"sync"
 	sys "syscall"
 
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -89,8 +91,8 @@ func ucrednetAttachInterface(ctx context.Context, iface string) context.Context 
 }
 
 type ucrednet struct {
-	instanceName    string
-	instanceNameErr error
+	securityTag    naming.SecurityTag
+	securityTagErr error
 	// Uid is the peer user ID obtained from the socket credentials.
 	Uid uint32
 	// Socket is the local Unix socket path on which the connection was
@@ -103,13 +105,61 @@ type ucrednet struct {
 	untrustedProcessExeNameErr error
 }
 
-// InstanceName returns the peer snap instance name captured at acceptance.
+var (
+	apparmorLabelFromPid              = apparmor.LabelFromPid
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+)
+
+// resolveSecurityTag captures the process snap security tag. It uses the
+// tracking cgroup if the AppArmor label is not a valid snap security tag.
+func (un *ucrednet) resolveSecurityTag(pid int) {
+	// prefer the apparmor label when it identifies a snap
+	label, apparmorErr := apparmorLabelFromPid(pid)
+	if apparmorErr == nil {
+		un.securityTag, apparmorErr = naming.ParseSecurityTag(label)
+		if apparmorErr == nil {
+			return
+		}
+	}
+
+	// fall back to cgroups if the label is unreadable or is not a valid snap
+	// security tag, including when the process is unconfined.
+	path, cgroupErr := cgroupProcessPathInTrackingCgroup(pid)
+	if cgroupErr == nil {
+		un.securityTag = cgroup.SecurityTagFromCgroupPath(path)
+		if un.securityTag != nil {
+			return
+		}
+		cgroupErr = errors.New("cannot find snap security tag")
+	}
+
+	// TODO:GOVERSION: use errors.Join
+	un.securityTagErr = strutil.JoinErrors(
+		fmt.Errorf("apparmor: %w", apparmorErr),
+		fmt.Errorf("cgroup: %w", cgroupErr),
+	)
+}
+
+// InstanceName returns the snap instance name from the captured security tag.
 // It returns an error if the name is not available.
 func (un *ucrednet) InstanceName() (string, error) {
-	if un.instanceName == "" && un.instanceNameErr == nil {
-		return "", errors.New("snap instance name is not available")
+	tag, err := un.SecurityTag()
+	if err != nil {
+		return "", err
 	}
-	return un.instanceName, un.instanceNameErr
+	return tag.InstanceName(), nil
+}
+
+// SecurityTag returns the peer snap security tag captured at acceptance.
+// It returns an error if the tag is not available.
+func (un *ucrednet) SecurityTag() (naming.SecurityTag, error) {
+	if un.securityTagErr != nil {
+		return nil, un.securityTagErr
+	}
+	if un.securityTag == nil {
+		return nil, errors.New("security tag is not available")
+	}
+	return un.securityTag, nil
 }
 
 // UntrustedProcessExeName returns the peer executable path captured at
@@ -130,8 +180,8 @@ func (un *ucrednet) String() string {
 	var b strings.Builder
 
 	// prefer the snap name if we have it
-	if un.instanceName != "" {
-		fmt.Fprintf(&b, "snap=%s;", un.instanceName)
+	if instanceName, err := un.InstanceName(); err == nil {
+		fmt.Fprintf(&b, "snap=%s;", instanceName)
 	} else {
 		fmt.Fprintf(&b, "pid=%d;", un.PIDForPolkit)
 	}
@@ -155,7 +205,6 @@ type ucrednetListener struct {
 
 var getUcred = sys.GetsockoptUcred
 var osReadlink = os.Readlink
-var cgroupSnapNameFromPid = cgroup.SnapNameFromPid
 
 func (wl *ucrednetListener) Accept() (net.Conn, error) {
 	con, err := wl.Listener.Accept()
@@ -186,8 +235,9 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 			Socket:       ucon.LocalAddr().String(),
 			PIDForPolkit: ucred.Pid,
 		}
-		// non-snap clients and failed lookups must not prevent serving the connection.
-		unet.instanceName, unet.instanceNameErr = cgroupSnapNameFromPid(int(ucred.Pid))
+
+		unet.resolveSecurityTag(int(ucred.Pid))
+
 		// an unreadable executable must not prevent the connection from being served.
 		unet.untrustedProcessExeName, unet.untrustedProcessExeNameErr = osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
 	}
