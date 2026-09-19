@@ -233,6 +233,24 @@ func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
 }
 
+func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {
+	seclog.LogSystemStandbySnapd("2.78", restart.RestartSnapdIdle)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason snapd-idle")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-idle"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStandbySnapdUnknownReason(c *C) {
+	seclog.LogSystemStandbySnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason <unknown>")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
+}
+
 func (s *SecLogSuite) TestLogUserCreated(c *C) {
 	user := seclog.SnapdUser{
 		ID:             1,
