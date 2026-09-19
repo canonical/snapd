@@ -1,0 +1,48 @@
+summary: Content connections break for snaps installed before parallel-instances is enabled
+
+details: |
+    Ensure that content snaps installed before parallel instances is
+    enabled continue to work after the feature is enabled.
+    https://forum.snapcraft.io/t/parallel-instances-and-content-connections/48610
+
+prepare: |
+    # Ensure parallel instances is disabled
+    snap set system experimental.parallel-instances=false
+
+execute: |
+    (
+    cd test-snapd-content-provider
+    echo 'provider-p1-data' > special-content-file
+    rm -f test-snapd-content-provider_1.0.0_all.snap
+    snap pack
+    )
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-consumer
+
+    snap connect test-snapd-content-consumer:special-content \
+        test-snapd-content-provider:special-content
+
+    test-snapd-content-consumer.app |& tee out-before
+    MATCH "hello from app test-snapd-content-consumer" < out-before
+    MATCH '^connected-content: provider-p1-data$' < out-before
+
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap set system experimental.parallel-instances=null
+
+    (
+    cd test-snapd-content-provider
+    echo 'provider-p2-data' > special-content-file
+    rm -f test-snapd-content-provider_1.0.0_all.snap
+    snap pack
+    )
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-content-provider test-snapd-content-provider_p2
+
+    snap connect test-snapd-content-consumer:special-content \
+        test-snapd-content-provider_p2:special-content
+
+    # The original content remains visible
+    test-snapd-content-consumer.app |& tee out-after
+    MATCH "hello from app test-snapd-content-consumer" < out-after
+    MATCH '^connected-content.* provider-p1-data$' < out-after
+    MATCH '^connected-content.* provider-p2-data$' < out-after
