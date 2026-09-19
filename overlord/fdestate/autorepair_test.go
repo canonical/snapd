@@ -22,8 +22,10 @@ package fdestate_test
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -110,9 +112,35 @@ func (s *autoRepairSuite) mockPostInstallChecks(c *C) {
 	}))
 }
 
+func (s *autoRepairSuite) mockKernelKeyring(c *C) {
+	s.AddCleanup(fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
+		switch mountpoint {
+		case filepath.Join(dirs.GlobalRootDir, "run/mnt/data"):
+			return "data", nil
+		case dirs.SnapSaveDir:
+			return "save", nil
+		}
+		panic(fmt.Sprintf("missing mocked mount point %q", mountpoint))
+	}))
+
+	s.AddCleanup(fdestate.MockGetPrimaryKeyDigest(func(devicePath string, alg crypto.Hash) ([]byte, []byte, error) {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/data")
+		return []byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}, nil
+	}))
+
+	s.AddCleanup(fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/save")
+		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
+		c.Check(salt, DeepEquals, []byte{1, 2, 3, 4})
+		c.Check(digest, DeepEquals, []byte{5, 6, 7, 8})
+		return true, nil
+	}))
+}
+
 func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -174,6 +202,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 func (s *autoRepairSuite) TestAttemptAutoRepairNotNeeded(c *C) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -209,9 +238,56 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNotNeeded(c *C) {
 	c.Check(result.Recommendations, IsNil)
 }
 
+func (s *autoRepairSuite) TestAttemptAutoRepairDifferentPrimaryKeysReprovision(c *C) {
+	const onClassic = false
+	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
+	defer fdestate.MockVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt, digest []byte) (bool, error) {
+		c.Check(devicePath, Equals, "/dev/disk/by-uuid/save")
+		c.Check(alg, Equals, crypto.Hash(crypto.SHA256))
+		c.Check(salt, DeepEquals, []byte{1, 2, 3, 4})
+		c.Check(digest, DeepEquals, []byte{5, 6, 7, 8})
+		return false, nil
+	})()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	s.createUnlockedState(c, sb.ActivationSucceededWithPlatformKey)
+
+	defer fdestate.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		c.Errorf("Unexpected call")
+		return fmt.Errorf("Unexpected call")
+	})()
+
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{}
+	})()
+
+	s.mockBootAssetsStateForModeenv(c)
+
+	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
+		c.Errorf("Unexpected call")
+		return fmt.Errorf("Unexpected call")
+	})()
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
+	c.Assert(err, IsNil)
+
+	result, err := fdestate.GetRepairAttemptResult(s.st)
+	c.Assert(err, IsNil)
+
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("not-attempted"))
+	c.Check(result.Recommendations, DeepEquals, []fdestate.RecommendedRemedialAction{"require-reprovision"})
+}
+
 func (s *autoRepairSuite) testAttemptAutoRepairReprovisionRequired(c *C, actions secboot.RemedialActions, expected []fdestate.RecommendedRemedialAction) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -272,6 +348,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairPlaformResetRequired(c *C) {
 func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -468,6 +545,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoFileActivateState(c *C) {
 func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReseal(c *C) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -542,6 +620,7 @@ func (s *autoRepairSuite) TestIgnoreOldAutoRepairResult(c *C) {
 func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -592,6 +671,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
 func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecksWithDetails(c *C) {
 	const onClassic = false
 	s.startedManager(c, onClassic)
+	s.mockKernelKeyring(c)
 
 	s.st.Lock()
 	defer s.st.Unlock()
