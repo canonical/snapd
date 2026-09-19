@@ -613,7 +613,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 	}
 
 	var results snapActionResultList
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
+	resp, err := s.refreshRequestDecodeJSON(ctx, reqOptions, user, &results, nil)
 	if err != nil {
 		return nil, nil, err
 	}

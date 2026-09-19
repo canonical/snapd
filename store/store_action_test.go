@@ -914,6 +914,88 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 	c.Assert(results[0].InstanceName(), Equals, "hello-world")
 }
 
+func (s *storeActionSuite) TestSnapActionRetryOn408(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		n++
+		if n < 3 {
+			w.WriteHeader(408)
+			return
+		}
+		io.WriteString(w, `{
+  "results": [{
+     "result": "install",
+     "instance-key": "install-1",
+     "snap-id": "core24-id",
+     "name": "core24",
+     "snap": {
+       "snap-id": "core24-id",
+       "name": "core24",
+       "revision": 1,
+       "version": "24",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "core24",
+		},
+	}, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(n, Equals, 3)
+	c.Assert(results, HasLen, 1)
+	c.Check(results[0].InstanceName(), Equals, "core24")
+}
+
+func (s *storeActionSuite) TestSnapAction408Exhausted(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		n++
+		w.WriteHeader(408)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "core24",
+		},
+	}, nil, nil, nil)
+	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 408 via POST to "http://127\.0\.0\.1:.*/v2/snaps/refresh"`)
+	c.Check(err, FitsTypeOf, &store.UnexpectedHTTPStatusError{})
+	c.Check(results, HasLen, 0)
+	c.Check(n > 1, Equals, true)
+}
+
 func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
