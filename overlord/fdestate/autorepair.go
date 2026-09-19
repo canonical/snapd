@@ -21,6 +21,7 @@ package fdestate
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"os"
@@ -329,6 +330,45 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostIn
 		setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
 		return lockoutResetErr
 	} else {
+		disks, err := GetEncryptedContainers(st)
+		if err != nil {
+			return err
+		}
+		var salt []byte
+		var digest []byte
+		primaryKeysMatch := true
+		for i, disk := range disks {
+			if i == 0 {
+				var err error
+				salt, digest, err = secbootGetPrimaryKeyDigest(disk.DevPath(), crypto.Hash(defaultHashAlg))
+				if err != nil {
+					if errors.Is(err, secboot.ErrKernelKeyNotFound) {
+						break
+					}
+					return err
+				}
+			} else {
+				matches, err := secbootVerifyPrimaryKeyDigest(disk.DevPath(), crypto.Hash(defaultHashAlg), salt, digest)
+				if err != nil {
+					if errors.Is(err, secboot.ErrKernelKeyNotFound) {
+						break
+					}
+					return err
+				}
+				if !matches {
+					primaryKeysMatch = false
+				}
+			}
+		}
+		if !primaryKeysMatch {
+			logger.Noticef("WARNING: the primary keys of unlocked devices are not matching. Reprovision is required.")
+			setRepairAttemptResult(st, &repairState{
+				Result:          AutoRepairNotAttempted,
+				Recommendations: []RecommendedRemedialAction{RecommendedRemedialActionRequireReprovision},
+			})
+			return nil
+		}
+
 		remedialActions := secbootShouldAttemptRepair(s, lockoutResetErr)
 		if !remedialActions.AttemptRepair {
 			var recommendations []RecommendedRemedialAction
