@@ -1,0 +1,74 @@
+name: Enforce pull request review cap
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, reopened, converted_to_draft, closed]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+concurrency:
+  group: pr-review-cap-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PR_REVIEW_CAP_GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      EVENT_NAME: ${{ github.event_name }}
+      EVENT_ACTION: ${{ github.event.action }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_REVIEW_ORG: canonical
+      PR_REVIEW_DEVELOPMENT_TEAMS: snapd,ubuntu-core-devs
+      PR_REVIEW_DEVELOPMENT_TEAM_LIMIT: ${{ vars.PR_REVIEW_DEVELOPMENT_TEAM_LIMIT }}
+    steps:
+      - name: Check review-cap configuration
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::PR_REVIEW_CAP_GITHUB_TOKEN is not configured"
+            exit 1
+          fi
+          if [ -z "$PR_REVIEW_DEVELOPMENT_TEAM_LIMIT" ]; then
+            echo "::error::PR_REVIEW_DEVELOPMENT_TEAM_LIMIT is not configured"
+            exit 1
+          fi
+
+      # pull_request_target must only execute code from the trusted base branch.
+      - name: Checkout trusted code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Enforce review cap
+        id: review-cap
+        run: python3 .github/scripts/pr-review-cap.py
+
+      - name: Expand spread coverage after admission
+        if: >-
+          steps.review-cap.outputs.admitted == 'true' &&
+          steps.review-cap.outputs.outcome != 'already_approved' &&
+          contains(github.event.pull_request.labels.*.name, 'Run only one system')
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr edit "$PR_NUMBER" --remove-label 'Run only one system'
+          ref_head=$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)
+          run_id=$(gh run list --workflow .github/workflows/ci-test.yaml --branch "$ref_head" --limit 1 --json databaseId -q '.[0].databaseId')
+          status=$(gh run view "$run_id" --json status -q .status)
+          case "$status" in
+            in_progress|queued|requested|expected|pending|waiting)
+              message="## Unable to automatically rerun workflow - manually rerun at least the read-systems job to trigger spread tests on all systems"
+              if ! gh pr comment "$PR_NUMBER" --body "$message" --edit-last; then
+                gh pr comment "$PR_NUMBER" --body "$message"
+              fi
+              exit 0
+              ;;
+          esac
+          job_id=$(gh run view "$run_id" --json jobs --jq '.jobs[] | select(.name == "read-systems") | .databaseId')
+          echo "Rerunning the read-systems job in run https://github.com/canonical/snapd/actions/runs/$run_id"
+          gh run rerun "$run_id" --job "$job_id"
