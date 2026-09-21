@@ -638,31 +638,44 @@ jobs:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
 
-    - name: Send results to Test-Predictor
-      if: always()
-      continue-on-error: true
-      env:
-        SCENARIO: ${{ inputs.scenario }}
-      run: |
-        if [ -f results.json ]; then
-            echo "Sending results to Test-Predictor"
+  send-results-to-test-predictor:
+    name: Send results to Test-Predictor
+    needs: run-spread
+    if: always()
+    continue-on-error: true
+    runs-on: [self-hosted, spread-enabled]
+    permissions:
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCENARIO: ${{ inputs.scenario }}
+    steps:
+      - name: Download spread results
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
-            # Get the job ID of the current workflow run by matching job name and matrix group
-            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id" | head -n 1)
+      - name: Send results
+        run: |
+          if [ ! -f results.json ]; then
+              echo "No spread results found, skipping sending results to Test-Predictor"
+              exit 0
+          fi
 
-            echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.snapd.canonical.com:5000/ingest \
-              -F "file=@./results.json" \
-              -F "attempt=${{ github.run_attempt }}" \
-              -F "job_id=$JOB_ID" \
-              -F "run_id=${{ github.run_id }}" \
-              -F "scenario=$SCENARIO")
+          # Get the originating spread job ID.
+          JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"run-spread\")) | .id" | head -n 1)
 
-            if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
-                echo "Request failed with status $HTTP_CODE"
-                exit 1
-            fi
-            echo "Results sent successfully"
-        else
-            echo "No spread results log found, skipping sending results to Test-Predictor"
-        fi
+          echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.snapd.canonical.com:5000/ingest \
+            -F "file=@./results.json" \
+            -F "attempt=${{ github.run_attempt }}" \
+            -F "job_id=$JOB_ID" \
+            -F "run_id=${{ github.run_id }}" \
+            -F "scenario=$SCENARIO")
+
+          if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
+              echo "Request failed with status $HTTP_CODE"
+              exit 1
+          fi
+          echo "Results sent successfully"
