@@ -13,18 +13,15 @@ subsystem.
 
 ## Safety and approval
 
-Get explicit user approval in the current conversation before running a
-command that requires elevated privileges or mutates the local host outside
-the repository. State the expected impact before asking. This includes:
+Get explicit user approval before using root privileges or changing host state,
+including:
 
-- using `sudo` or otherwise running as root
 - installing, removing, or refreshing snaps or system packages
 - stopping, starting, or restarting host services
 - replacing or running the host's snapd daemon
 
 Prefer spread with the `garden` backend, a VM, or another isolated environment
-for system-level testing. Building artifacts, running tests confined to the
-workspace, and read-only host inspection do not require this approval.
+for system-level testing.
 
 ## Architecture essentials
 
@@ -121,14 +118,6 @@ use `DeviceCtxFromState` or another context-specific helper. See
   snapd tools. The controlled `nomanagers` subset of
   `overlord/configstate/configcore` is an exception.
 
-When adding spread tests, keep sections in this order:
-
-1. `summary` (required)
-2. `details` (required)
-3. `backends`, `systems`, `manual`, `priority`, `warn-timeout`, `kill-timeout`
-4. `environment`, `prepare`, `restore`, `debug`
-5. `execute` (required)
-
 ## Validation
 
 Start with the narrowest check that can falsify the change, then broaden based
@@ -139,12 +128,18 @@ on risk and the touched surface.
 | Go package | Run the relevant package and gocheck test pattern; use `LANG=C.UTF-8` where locale matters |
 | Shared Go behavior | Expand to affected packages, then use `./run-checks` before committing |
 | C code under `cmd` | Run the relevant target, commonly `make -C cmd check` |
+| Spread task definition | Run the focused shell and format checks below |
 | Spread test or system behavior | Follow the `run-spread-test` skill and target a specific test path |
 | Documentation only | Run the applicable linter and `git diff --check` |
 
-Do not run a bare `./run-spread`; it targets far too much. Build test snap
-artifacts and select spread systems through the repository skills rather than
-inventing local workflows.
+For one spread task, run:
+
+```sh
+./tests/lib/external/snapd-testing-tools/utils/spread-shellcheck <test-path>/task.yaml
+./tests/lib/external/snapd-testing-tools/utils/check-test-format --tests <test-path>/task.yaml
+```
+
+Use `check-test-format --dir <test-path>` to check a directory recursively.
 
 ## Authoritative references
 
@@ -158,21 +153,8 @@ inventing local workflows.
 - `HACKING.md`: local development and debugging procedures. Its host-mutating
   commands remain subject to the approval rule above.
 
-Task-specific workflows live under `.agents/skills/`:
-
-- `build-snapd-snap`: build the snapd snap used by integration tests.
-- `build-native-package`: build distribution-native packages.
-- `run-spread-test`: select and run focused spread integration tests.
-- `bump-snapd-apparmor`: update the bundled AppArmor userspace and checks.
-
 ## PR and commit conventions
 
 - Format titles and commit subjects as
   `affected/packages: short summary in lowercase`.
-- Keep production diffs around 500 lines or less where practical.
-- Separate mechanical refactoring from behavior changes. Avoid changing
-  pre-existing tests during a refactor unless necessary and keep unavoidable
-  test changes minimal.
-- Prefer "Squash and Merge". Use "Rebase and Merge" when preserving distinct
-  commits matters. Never use "Create a merge commit".
-- Do not create commits or branches unless the user explicitly requests it.
+- See `CODING.md` for the full PR and commit policy.
