@@ -20,6 +20,7 @@
 package kernel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -39,6 +40,85 @@ import (
 
 // For testing purposes
 var osSymlink = os.Symlink
+
+// atomicWriteFile is a mockable wrapper around osutil.AtomicWriteFile, used
+// by writeDriversTreeMeta, so tests can simulate a marker-write failure
+// (e.g. ENOSPC) without needing to actually exhaust disk space.
+var atomicWriteFile = osutil.AtomicWriteFile
+
+// kernelDriversTreeGeneratorVersion identifies the logic that produced a
+// kernel drivers tree (the on-disk symlinks/files under
+// <destDir>/lib/{modules,firmware}). It is written to <destDir>/kernel.json
+// after every successful build and compared against the current value on
+// snapd startup so that a fix to this generation logic can be applied
+// retroactively to an already-installed kernel snap, without requiring a
+// kernel snap revision bump.
+//
+// IMPORTANT: bump this whenever a change to EnsureKernelDriversTree, or
+// anything it calls (createModulesSubtree, createKernelModulesSymlinks,
+// createFirmwareSymlinks, setupModsFromComp), could produce a different
+// on-disk tree for the same inputs (same kernel snap content + same
+// currently active kernel-modules components). Do NOT bump it for pure
+// refactors with no behavior change — bumping is what forces every
+// already-provisioned device to redo a (cheap, but not free) check, so it
+// should only happen when the output can actually differ. Do NOT tie this
+// to the snapd version/build-id: a snapd release with no changes to this
+// code path must not force a fleet-wide recheck.
+var kernelDriversTreeGeneratorVersion = 1
+
+// driversTreeMeta is the content of the <destDir>/kernel.json marker file
+// written after every successful kernel drivers tree build.
+type driversTreeMeta struct {
+	GeneratorVersion int `json:"generator-version"`
+}
+
+func driversTreeMetaPath(destDir string) string {
+	return filepath.Join(destDir, "kernel.json")
+}
+
+// writeDriversTreeMeta records the generator version that produced destDir.
+func writeDriversTreeMeta(destDir string) error {
+	meta := driversTreeMeta{GeneratorVersion: kernelDriversTreeGeneratorVersion}
+	data, err := json.Marshal(&meta)
+	if err != nil {
+		return err
+	}
+	return atomicWriteFile(driversTreeMetaPath(destDir), data, 0644, 0)
+}
+
+// readDriversTreeGeneratorMeta returns the generator metadata recorded for
+// destDir. If no marker value is present a default zero value is returned.
+func readDriversTreeGeneratorMeta(destDir string) (driversTreeMeta, error) {
+	data, err := os.ReadFile(driversTreeMetaPath(destDir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return driversTreeMeta{}, nil
+	}
+	if err != nil {
+		return driversTreeMeta{}, err
+	}
+	var meta driversTreeMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		// Treat unparseable metadata the same as missing: needs a check, or
+		// could be corrupted?
+		return driversTreeMeta{}, nil
+	}
+	return meta, nil
+}
+
+// DriversTreeNeedsCheck reports whether destDir's recorded generator
+// version is strictly older than the version of the code currently
+// running.
+func DriversTreeNeedsCheck(destDir string) (bool, error) {
+	v, err := readDriversTreeGeneratorMeta(destDir)
+	if err != nil {
+		return false, err
+	}
+	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
+		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
+	// Only care about older (lower) versions. The tree may have been build by a
+	// newer snapd.
+	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
+}
 
 // We expect as a minimum something that starts with three numbers
 // separated by dots for the kernel version.
@@ -366,6 +446,8 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		if exists && isDir {
 			logger.Debugf("device tree %q already created on installation, not re-creating",
 				targetDir)
+			// Nothing was built here, so the existing marker (if any) is
+			// left untouched.
 			return nil
 		}
 	}
@@ -450,6 +532,15 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 		// Make sure that changes are written
 		syscall.Sync()
+	}
+
+	if opts.KernelInstall {
+		// A fresh install always leaves a fully self-consistent tree ready
+		// to be marked as current for the generator logic that just built
+		// it.
+		if err := writeDriversTreeMeta(targetDir); err != nil {
+			return err
+		}
 	}
 
 	return nil
