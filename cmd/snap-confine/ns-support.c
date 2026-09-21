@@ -519,7 +519,7 @@ static bool managed_ca_cert_db_changed(const sc_invocation *inv, sc_distro distr
 /**
  * Inspect the namespace and check if we should discard it.
  */
-static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t base_snap_dev) {
+static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t base_snap_dev, sc_distro distro) {
     sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
     mi = sc_parse_mountinfo(NULL);
@@ -540,7 +540,6 @@ static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t bas
     }
     // Reuse is only safe while the preserved namespace still exposes the same
     // cert generation that new launches would receive.
-    sc_distro distro = sc_classify_distro();
     if (managed_ca_cert_db_changed(inv, distro)) {
         return true;
     }
@@ -617,7 +616,8 @@ static bool sc_is_mount_ns_in_use(const char *snap_instance);
 // To work around this we'll fork a child and use it to probe. The child will
 // inspect the namespace and send information back via eventfd and then exit
 // unconditionally.
-static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd, const sc_invocation *inv, int snap_discard_ns_fd) {
+static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd, const sc_invocation *inv, sc_distro distro,
+                                                 int snap_discard_ns_fd) {
     char base_snap_rev[PATH_MAX] = {0};
     dev_t base_snap_dev;
     int event_fd SC_CLEANUP(sc_cleanup_close) = -1;
@@ -687,7 +687,7 @@ static int sc_inspect_and_maybe_discard_stale_ns(int mnt_fd, const sc_invocation
         // pivot_root) and the base snap is again mounted (2nd time) by
         // systemd. This makes us end up in a situation where the outer base
         // snap will never match the rootfs inside the mount namespace.
-        if (inv->is_normal_mode && should_discard_current_ns(inv, base_snap_dev)) {
+        if (inv->is_normal_mode && should_discard_current_ns(inv, base_snap_dev, distro)) {
             value = SC_DISCARD_SHOULD;
             value_str = "should";
         }
@@ -757,7 +757,7 @@ static void helper_capture_ns(struct sc_mount_ns *group, pid_t parent);
 static void helper_capture_per_user_ns(struct sc_mount_ns *group, pid_t parent);
 
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor *apparmor, const sc_invocation *inv,
-                         int snap_discard_ns_fd) {
+                         sc_distro distro, int snap_discard_ns_fd) {
     // Open the mount namespace file.
     char mnt_fname[PATH_MAX] = {0};
     sc_must_snprintf(mnt_fname, sizeof mnt_fname, "%s.mnt", group->name);
@@ -793,7 +793,7 @@ int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor *apparmor
 #endif
     if (ns_statfs_buf.f_type == NSFS_MAGIC || ns_statfs_buf.f_type == PROC_SUPER_MAGIC) {
         // Inspect and perhaps discard the preserved mount namespace.
-        if (sc_inspect_and_maybe_discard_stale_ns(mnt_fd, inv, snap_discard_ns_fd) == EAGAIN) {
+        if (sc_inspect_and_maybe_discard_stale_ns(mnt_fd, inv, distro, snap_discard_ns_fd) == EAGAIN) {
             return ESRCH;
         }
         // Move to the mount namespace of the snap we're trying to start.

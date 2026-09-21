@@ -755,7 +755,9 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
 
         // Only Ubuntu Core systems currently expect the managed certificate
         // database to be mounted into confined snaps.
-        sc_maybe_bind_mount_managed_ca_certs_dir(scratch_dir);
+        if (config->distro == SC_DISTRO_CORE_OTHER) {
+            sc_maybe_bind_mount_managed_ca_certs_dir(scratch_dir);
+        }
     }
     // Bind mount the directory where all snaps are mounted. The location of
     // the this directory on the host filesystem may not match the location in
@@ -983,10 +985,7 @@ static void sc_free_dynamic_mounts(struct sc_mount *mounts) {
 }
 
 void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, const sc_invocation *inv,
-                          const gid_t real_gid, const gid_t saved_gid) {
-    // Classify the current distribution, as claimed by /etc/os-release.
-    sc_distro distro = sc_classify_distro();
-
+                          sc_distro distro, const gid_t real_gid, const gid_t saved_gid) {
     // Check which mode we should run in, normal or legacy.
     if (inv->is_normal_mode) {
         // In normal mode we use the base snap as / and set up several bind mounts.
