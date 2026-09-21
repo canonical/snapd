@@ -4042,6 +4042,25 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	c.Assert(called, Equals, 1)
 }
 
+func (s *deviceMgrSuite) TestEnsureDoesNotApplyExtraSnapdKernelCommandLineFragmentsBeforeSeeding(c *C) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	s.state.Set("kcmdline-pending-extra-snapd-fragments", true)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	c.Check(s.state.Changes(), HasLen, 0)
+}
+
 func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

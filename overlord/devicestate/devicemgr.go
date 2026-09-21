@@ -2192,8 +2192,10 @@ func (m *DeviceManager) Ensure() error {
 
 		// This must come after all ensures that might update extra snapd
 		// kernel command line fragments.
-		if err := m.ensureExtraSnapdKernelCommandLineFragmentsApplied(); err != nil {
-			errs = append(errs, err)
+		if seeded {
+			if err := m.ensureExtraSnapdKernelCommandLineFragmentsApplied(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
