@@ -135,9 +135,9 @@ jobs:
           done
           refspecs+=('refs/public-tags/*:refs/tags/*')
 
-          # --ff-only never force-pushes. set +e so one rejected ref does not hide the rest.
+          # set +e so one rejected ref does not hide the rest.
           set +e
-          git push --ff-only --porcelain origin "${refspecs[@]}" >push.out 2>push.err
+          git push --porcelain origin "${refspecs[@]}" >push.out 2>push.err
           status=$?
           set -e
           cat push.err >&2
