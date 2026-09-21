@@ -219,6 +219,8 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     # the namespace's default trust store directory and then locking that view
     # read-only inside the namespace; although the code mounts via the public
     # merged symlink, AppArmor sees the resolved published/<generation> source
+    /var/lib/snapd/pki/v1/merged r,
+    /var/lib/snapd/pki/v1/published/*/ r,
     mount options=(rw bind) /var/lib/snapd/pki/v1/published/*/ -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
     mount options=(remount ro bind) -> /tmp/snap-private-tmp/snap.rootfs_*/etc/ssl/certs/,
 
