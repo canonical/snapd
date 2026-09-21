@@ -661,10 +661,12 @@ run_initramfs_mode() {
 }
 
 run_download_mode() {
+    local downloaded_snap="$PWD/pc-kernel.snap"
+
     mkdir -p "$(dirname "$OUTPUT_SNAP")"
     snap download --basename=pc-kernel --channel="${KERNEL_BRANCH}/${KERNEL_CHANNEL}" pc-kernel
-    if [ "$PWD/pc-kernel.snap" != "$OUTPUT_SNAP" ]; then
-        mv "$PWD/pc-kernel.snap" "$OUTPUT_SNAP"
+    if [ "$(readlink -f "$downloaded_snap")" != "$(readlink -f "$OUTPUT_SNAP")" ]; then
+        mv "$downloaded_snap" "$OUTPUT_SNAP"
     fi
     printf '%s\n' "$OUTPUT_SNAP"
 }

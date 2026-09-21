@@ -155,6 +155,8 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB"/nested.sh
 
+  version="$(nested_get_version)"
+
   remote_action_request()
   {
     local json_req="$1"
