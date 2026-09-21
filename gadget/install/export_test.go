@@ -76,7 +76,7 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 	}
 }
 
-func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error)) (restore func()) {
+func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (changed bool, err error)) (restore func()) {
 	old := kernelEnsureKernelDriversTree
 	kernelEnsureKernelDriversTree = f
 	return func() {

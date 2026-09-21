@@ -982,7 +982,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 
 	// First call to EnsureKernelDriversTree will fail
 	n := 0
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (changed bool, err error) {
 		n++
 		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String())
@@ -1015,7 +1015,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 					},
 				},
 			})
-			return nil
+			return true, nil
 		case 2:
 			c.Check(compsMntPts, DeepEquals, []kernel.ModulesCompMountPoints{
 				{
@@ -1040,10 +1040,10 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 					},
 				},
 			})
-			return fmt.Errorf("depmod error")
+			return false, fmt.Errorf("depmod error")
 		default:
 			c.Error("unexpected call to EnsureKernelDriversTree")
-			return nil
+			return false, nil
 		}
 	})
 	defer r()

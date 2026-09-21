@@ -73,7 +73,7 @@ func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) erro
 	}
 }
 
-func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error)) func() {
+func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (changed bool, err error)) func() {
 	return testutil.Mock(&kernelEnsureKernelDriversTree, f)
 }
 
