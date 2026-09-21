@@ -34,8 +34,6 @@ func ResetSdNotifySocketCache() {
 }
 
 func SdNotifyCache() *sdNotifyConnCache {
-	sdNotifyCache.Lock()
-	defer sdNotifyCache.Unlock()
 	return &sdNotifyCache
 }
 
