@@ -19,9 +19,51 @@
 
 package kernel
 
+import (
+	"os"
+
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
+)
+
 // MockEnsureInterval sets the overlord ensure interval for tests.
 func MockOsSymlink(newSymlink func(string, string) error) (restore func()) {
 	old := osSymlink
 	osSymlink = newSymlink
 	return func() { osSymlink = old }
+}
+
+// MockAtomicWriteFile mocks the osutil.AtomicWriteFile wrapper used by
+// writeDriversTreeMeta, so tests can simulate a marker-write failure.
+func MockAtomicWriteFile(f func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error) (restore func()) {
+	return testutil.Mock(&atomicWriteFile, f)
+}
+
+// WriteDriversTreeMeta is exported for testing.
+func WriteDriversTreeMeta(destDir string) error {
+	return writeDriversTreeMeta(destDir)
+}
+
+// ReadDriversTreeGeneratorVersion is exported for testing.
+func ReadDriversTreeGeneratorVersion(destDir string) (int, error) {
+	meta, err := readDriversTreeGeneratorMeta(destDir)
+	if err != nil {
+		return 0, err
+	}
+	return meta.GeneratorVersion, nil
+}
+
+// KernelDriversTreeGeneratorVersion returns the current generator version
+// constant, exported for testing.
+func KernelDriversTreeGeneratorVersion() int {
+	return kernelDriversTreeGeneratorVersion
+}
+
+// MockKernelDriversTreeGeneratorVersion overrides the generator version
+// constant for testing (e.g. to simulate a revert scenario where the
+// on-disk marker records a newer version than the running code).
+func MockKernelDriversTreeGeneratorVersion(v int) (restore func()) {
+	old := kernelDriversTreeGeneratorVersion
+	kernelDriversTreeGeneratorVersion = v
+	return func() { kernelDriversTreeGeneratorVersion = old }
 }

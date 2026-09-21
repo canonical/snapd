@@ -20,6 +20,7 @@
 package kernel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -39,6 +40,73 @@ import (
 
 // For testing purposes
 var osSymlink = os.Symlink
+
+// atomicWriteFile is a mockable wrapper around osutil.AtomicWriteFile, used
+// by writeDriversTreeMeta, so tests can simulate a marker-write failure
+// (e.g. ENOSPC) without needing to actually exhaust disk space.
+var atomicWriteFile = osutil.AtomicWriteFile
+
+// kernelDriversTreeGeneratorVersion identifies the logic that produced a
+// kernel drivers tree (the on-disk symlinks/files under
+// <destDir>/lib/{modules,firmware}).
+//
+// IMPORTANT: bump this whenever there is a change to the layout or organization of the
+// kernel drivers or firmware trees.
+var kernelDriversTreeGeneratorVersion = 1
+
+// driversTreeMeta is the content of the <destDir>/kernel.json marker file
+// written after every successful kernel drivers tree build.
+type driversTreeMeta struct {
+	GeneratorVersion int `json:"generator-version"`
+}
+
+func driversTreeMetaPath(destDir string) string {
+	return filepath.Join(destDir, "kernel.json")
+}
+
+// writeDriversTreeMeta records the generator version that produced destDir.
+func writeDriversTreeMeta(destDir string) error {
+	meta := driversTreeMeta{GeneratorVersion: kernelDriversTreeGeneratorVersion}
+	data, err := json.Marshal(&meta)
+	if err != nil {
+		return err
+	}
+	return atomicWriteFile(driversTreeMetaPath(destDir), data, 0644, 0)
+}
+
+// readDriversTreeGeneratorMeta returns the generator metadata recorded for
+// destDir. If no marker value is present a default zero value is returned.
+func readDriversTreeGeneratorMeta(destDir string) (driversTreeMeta, error) {
+	data, err := os.ReadFile(driversTreeMetaPath(destDir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return driversTreeMeta{}, nil
+	}
+	if err != nil {
+		return driversTreeMeta{}, err
+	}
+	var meta driversTreeMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		// Treat unparseable metadata the same as missing: needs a check, or
+		// could be corrupted?
+		return driversTreeMeta{}, nil
+	}
+	return meta, nil
+}
+
+// DriversTreeNeedsCheck returns true when the kernel modules & firmware tree at
+// destDir was built by an older version of the generator code, indicating it
+// may need to be checked or rebuilt.
+func DriversTreeNeedsCheck(destDir string) (bool, error) {
+	v, err := readDriversTreeGeneratorMeta(destDir)
+	if err != nil {
+		return false, err
+	}
+	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
+		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
+	// Only care about older (lower) versions. The tree may have been built by a
+	// newer snapd.
+	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
+}
 
 // We expect as a minimum something that starts with three numbers
 // separated by dots for the kernel version.
@@ -366,6 +434,8 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		if exists && isDir {
 			logger.Debugf("device tree %q already created on installation, not re-creating",
 				targetDir)
+			// Nothing was built here, so the existing marker (if any) is
+			// left untouched.
 			return nil
 		}
 	}
@@ -450,6 +520,14 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 		// Make sure that changes are written
 		syscall.Sync()
+	}
+
+	if opts.KernelInstall {
+		// Record the version of the layout used for the firmware and modules
+		// tree.
+		if err := writeDriversTreeMeta(targetDir); err != nil {
+			return err
+		}
 	}
 
 	return nil

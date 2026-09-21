@@ -923,3 +923,83 @@ func (s *kernelDriversTestSuite) TestNeedsKernelDriversTreeClassicWithWrongBase(
 		c.Assert(kernel.NeedsKernelDriversTree(uc22model), Equals, tc.result)
 	}
 }
+
+func (s *kernelDriversTestSuite) TestDriversTreeMetaRoundTrip(c *C) {
+	destDir := c.MkDir()
+
+	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+
+	v, err := kernel.ReadDriversTreeGeneratorVersion(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, kernel.KernelDriversTreeGeneratorVersion())
+
+	// The marker file lives inside destDir, so it is cleaned up by
+	// RemoveKernelDriversTree's existing os.RemoveAll.
+	c.Assert(osutil.FileExists(filepath.Join(destDir, "kernel.json")), Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckMissingMarker(c *C) {
+	destDir := c.MkDir()
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckUpToDate(c *C) {
+	destDir := c.MkDir()
+
+	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, false)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckForwardOnly(c *C) {
+	destDir := c.MkDir()
+
+	// Simulate a tree built by a newer generator than what is currently
+	// running (e.g. after a snapd revert): the marker records a version
+	// higher than the current constant.
+	func() {
+		restore := kernel.MockKernelDriversTreeGeneratorVersion(100)
+		defer restore()
+		c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+	}()
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, false)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckCorruptMarker(c *C) {
+	destDir := c.MkDir()
+
+	c.Assert(os.WriteFile(filepath.Join(destDir, "kernel.json"), []byte("not json"), 0644), IsNil)
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestKernelInstallMarkerWriteFailureDiscardsTree(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	boom := errors.New("boom: no space left on device")
+	restore := kernel.MockAtomicWriteFile(func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error {
+		return boom
+	})
+	defer restore()
+
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, Equals, boom)
+
+	c.Check(osutil.FileExists(destDir), Equals, false)
+}
