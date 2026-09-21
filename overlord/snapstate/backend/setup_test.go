@@ -982,7 +982,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 
 	// First call to EnsureKernelDriversTree will fail
 	n := 0
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
 		n++
 		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String())
