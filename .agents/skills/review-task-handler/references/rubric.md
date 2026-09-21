@@ -20,11 +20,13 @@ Count direct top-level bullets in the current checklist section. In every
 category row, `pass + partial + fail + N/A` must equal that section's current
 top-level bullet count. Recount before calculating if it does not.
 
-Use `../scripts/score.py` to validate counts and calculate the score. Send a
-JSON object on standard input. The counts below are illustrative; always recount
-them against the live checklist.
+Use [the scoring helper](../scripts/score.py) to validate counts and calculate
+the score. From the repository root, send a JSON object on standard input as
+shown below. The counts are illustrative; always recount them against the live
+checklist.
 
-```json
+```bash
+python3 .agents/skills/review-task-handler/scripts/score.py <<'JSON'
 {
   "ratings": {
     "General": {"pass": 2, "partial": 1, "fail": 1, "na": 0},
@@ -36,6 +38,7 @@ them against the live checklist.
   },
   "confirmed_severity": "medium"
 }
+JSON
 ```
 
 For no confirmed behavioral defect, use `null` for `confirmed_severity` even if

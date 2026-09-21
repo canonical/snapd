@@ -245,7 +245,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate and score a snapd task-handler quality review"
     )
-    parser.add_argument("ratings", help="ratings JSON file, or - for standard input")
+    parser.add_argument(
+        "ratings",
+        nargs="?",
+        default="-",
+        help="ratings JSON file (default: standard input)",
+    )
     parser.add_argument(
         "--checklist",
         type=Path,

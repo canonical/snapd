@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +9,47 @@ import score
 
 
 class ScoreTest(unittest.TestCase):
+    def test_main_reads_ratings_from_stdin_by_default(self) -> None:
+        checklist = """\
+## General
+- general
+## Concurrency And Coordination
+- coordination
+## State And Locking
+- state
+## Do Handler
+- do
+## Undo Handler
+- undo
+## Tests Expected
+- tests
+"""
+        ratings = {
+            "ratings": {
+                category: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
+                for category, _, _ in score.CATEGORIES
+            },
+            "confirmed_severity": None,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            checklist_path = Path(directory) / "handlers-quality.md"
+            checklist_path.write_text(checklist, encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    score.__file__,
+                    "--checklist",
+                    str(checklist_path),
+                ],
+                input=json.dumps(ratings),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Final score: 10.0", result.stdout)
+
     def test_checklist_bullet_counts_uses_top_level_bullets(self) -> None:
         checklist = """\
 ## General
