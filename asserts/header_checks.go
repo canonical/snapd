@@ -295,6 +295,16 @@ func checkOptionalBool(headers map[string]any, name string) (bool, error) {
 	return checkOptionalBoolWhat(headers, name, "header")
 }
 
+// CheckRevision checks that the named header is a valid positive revision number.
+func CheckRevision(assert AssertionBase, name string) (int, error) {
+	return checkSnapRevisionWhat(assert.headers, name, "header")
+}
+
+// CheckIntegrity parses the optional integrity header.
+func CheckIntegrity(assert AssertionBase) ([]IntegrityData, error) {
+	return checkSnapIntegrity(assert.headers)
+}
+
 // CheckNotEmptyString checks that the named header is a non-empty string.
 func CheckNotEmptyString(assert AssertionBase, name string) (string, error) {
 	return checkNotEmptyString(assert.headers, name)

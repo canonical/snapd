@@ -31,6 +31,49 @@ type headerChecksSuite struct{}
 
 var _ = Suite(&headerChecksSuite{})
 
+func (s *headerChecksSuite) TestCheckRevision(c *C) {
+	assert := asserts.NewAssertionBase(map[string]any{"snap-revision": "2"})
+
+	revision, err := asserts.CheckRevision(assert, "snap-revision")
+	c.Assert(err, IsNil)
+	c.Check(revision, Equals, 2)
+
+	assert = asserts.NewAssertionBase(map[string]any{"snap-revision": "0"})
+	_, err = asserts.CheckRevision(assert, "snap-revision")
+	c.Check(err, ErrorMatches, `"snap-revision" header must be >=1: 0`)
+}
+
+func (srs *snapRevSuite) TestCheckIntegrity(c *C) {
+	assert := asserts.NewAssertionBase(map[string]any{
+		"integrity": []any{map[string]any{
+			"type":            "dm-verity",
+			"digest":          hexSHA256,
+			"version":         "1",
+			"hash-algorithm":  "sha256",
+			"data-block-size": "4096",
+			"hash-block-size": "4096",
+			"salt":            hexSHA256,
+		}},
+	})
+
+	integrity, err := asserts.CheckIntegrity(assert)
+	c.Assert(err, IsNil)
+	c.Assert(integrity, HasLen, 1)
+	c.Check(integrity[0], DeepEquals, asserts.IntegrityData{
+		Type:          "dm-verity",
+		Version:       1,
+		HashAlg:       "sha256",
+		DataBlockSize: 4096,
+		HashBlockSize: 4096,
+		Digest:        hexSHA256,
+		Salt:          hexSHA256,
+	})
+
+	assert = asserts.NewAssertionBase(map[string]any{"integrity": "invalid"})
+	_, err = asserts.CheckIntegrity(assert)
+	c.Check(err, ErrorMatches, `"integrity" header must contain a list of integrity data`)
+}
+
 func (s *headerChecksSuite) TestCheckNotEmptyString(c *C) {
 	assert := asserts.NewAssertionBase(map[string]any{"value": "expected"})
 
