@@ -15,6 +15,8 @@
  *
  */
 
+#define _GNU_SOURCE
+
 #include "mount-support.h"
 #include "mount-support-nvidia.c"
 #include "mount-support-nvidia.h"
@@ -22,6 +24,7 @@
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <sched.h>
 
 static void sc_set_managed_ca_certs_dir(const char *dir) { sc_managed_ca_certs_dir = dir; }
 
@@ -241,6 +244,52 @@ static void test_maybe_bind_mount_managed_ca_certs_dir__destination_symlink(void
     g_test_trap_assert_stderr("*cannot bind mount managed CA certificates over a symlink*");
 }
 
+static void test_maybe_bind_mount_managed_ca_certs_dir__returns_mounted_generation(void) {
+    if (geteuid() != 0) {
+        g_test_skip("this test only runs as root");
+        return;
+    }
+
+    g_assert_cmpint(unshare(CLONE_NEWNS), ==, 0);
+    g_assert_cmpint(mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL), ==, 0);
+
+    char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
+    g_assert_nonnull(tmpdir);
+
+    char *published = create_directory_under(tmpdir, "published/gen-1");
+    char *published_parent = g_build_filename(tmpdir, "published", NULL);
+    char *merged = create_symlink_under(tmpdir, "merged", "published/gen-1");
+    char *target = create_directory_under(tmpdir, "scratch/etc/ssl/certs");
+    char *scratch = g_build_filename(tmpdir, "scratch", NULL);
+
+    sc_test_set_managed_ca_dirs(merged, published_parent);
+
+    char *generation = sc_maybe_bind_mount_managed_ca_certs_dir(scratch);
+    g_assert_cmpstr(generation, ==, "gen-1");
+
+    g_free(generation);
+    g_assert_cmpint(umount(target), ==, 0);
+    g_assert_cmpint(g_rmdir(target), ==, 0);
+    char *scratch_ssl = g_build_filename(tmpdir, "scratch/etc/ssl", NULL);
+    g_assert_cmpint(g_rmdir(scratch_ssl), ==, 0);
+    char *scratch_etc = g_build_filename(tmpdir, "scratch/etc", NULL);
+    g_assert_cmpint(g_rmdir(scratch_etc), ==, 0);
+    g_assert_cmpint(g_rmdir(scratch), ==, 0);
+    g_assert_cmpint(g_remove(merged), ==, 0);
+    g_assert_cmpint(g_rmdir(published), ==, 0);
+    g_assert_cmpint(g_rmdir(published_parent), ==, 0);
+    g_assert_cmpint(g_rmdir(tmpdir), ==, 0);
+
+    g_free(scratch_etc);
+    g_free(scratch_ssl);
+    g_free(scratch);
+    g_free(target);
+    g_free(merged);
+    g_free(published_parent);
+    g_free(published);
+    g_free(tmpdir);
+}
+
 static void test_maybe_bind_mount_managed_ca_certs_dir__missing_destination(void) {
     char *tmpdir = g_dir_make_tmp("snap-confine-mount-test-XXXXXX", NULL);
     g_assert_nonnull(tmpdir);
@@ -254,7 +303,7 @@ static void test_maybe_bind_mount_managed_ca_certs_dir__missing_destination(void
 
     sc_test_set_managed_ca_dirs(merged, published_parent);
 
-    sc_maybe_bind_mount_managed_ca_certs_dir(scratch);
+    g_assert_null(sc_maybe_bind_mount_managed_ca_certs_dir(scratch));
 
     g_assert_cmpint(access(target, F_OK), ==, -1);
     g_assert_cmpint(errno, ==, ENOENT);
@@ -294,6 +343,8 @@ static void __attribute__((constructor)) init(void) {
                     test_resolve_managed_ca_certs_dir__legacy_directory);
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/destination_symlink",
                     test_maybe_bind_mount_managed_ca_certs_dir__destination_symlink);
+    g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/returns_mounted_generation",
+                    test_maybe_bind_mount_managed_ca_certs_dir__returns_mounted_generation);
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/missing_destination",
                     test_maybe_bind_mount_managed_ca_certs_dir__missing_destination);
 }

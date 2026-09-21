@@ -899,8 +899,16 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
            fixed, always-lowest id instead of a batched one. Both commits are
            on git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git. */
         sc_ensure_mount_ns_id_ordered(group);
-        sc_populate_mount_ns(aa, snap_update_ns_fd, inv, distro, real_gid, saved_gid);
-        sc_store_ns_info(inv, distro);
+        char *managed_ca_generation SC_CLEANUP(sc_cleanup_string) = NULL;
+        sc_populate_mount_ns(&(struct sc_populate_mount_ns_options){
+            .apparmor = aa,
+            .snap_update_ns_fd = snap_update_ns_fd,
+            .inv = inv,
+            .distro = distro,
+            .real_gid = real_gid,
+            .saved_gid = saved_gid
+        }, &managed_ca_generation);
+        sc_store_ns_info(inv, managed_ca_generation);
 
         /* Preserve the mount namespace. */
         sc_preserve_populated_mount_ns(group);

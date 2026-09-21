@@ -1077,7 +1077,7 @@ void sc_wait_for_helper(struct sc_mount_ns *group) {
     sc_wait_for_capture_helper(group);
 }
 
-void sc_store_ns_info(const sc_invocation *inv, sc_distro distro) {
+void sc_store_ns_info(const sc_invocation *inv, const char *managed_ca_generation) {
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     char info_path[PATH_MAX] = {0};
     sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
@@ -1096,13 +1096,9 @@ void sc_store_ns_info(const sc_invocation *inv, sc_distro distro) {
     }
     fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
 
-    // Only record a managed CA generation for namespaces that actually mounted
-    // it, so unsupported rootfs layouts do not churn on every reuse attempt.
-    if (managed_ca_certs_mount_supported(inv, distro)) {
-        char *generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
-        if (generation != NULL) {
-            fprintf(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY "=%s\n", generation);
-        }
+    // Record exactly the generation mounted while constructing this namespace.
+    if (managed_ca_generation != NULL) {
+        fprintf(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY "=%s\n", managed_ca_generation);
     }
 
     if (ferror(stream) != 0) {
