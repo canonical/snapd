@@ -81,7 +81,9 @@ var (
 	osutilBootID = osutil.BootID
 
 	fdestateAttemptAutoRepairIfNeeded = fdestate.AttemptAutoRepairIfNeeded
-	fdestateGetRunBootChain           = fdestate.GetRunBootChain
+
+	bootGetRunBootChain = boot.GetRunBootChain
+	bootReadModeenv     = boot.ReadModeenv
 )
 
 var (
@@ -2879,7 +2881,11 @@ func (m *DeviceManager) runningSystemAndGadgetAndEncryptionInfoWithAction(
 	var checkErr error
 
 	if checkAction == nil {
-		bootChain, err := fdestateGetRunBootChain()
+		modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		bootChain, err := bootGetRunBootChain(modeenv)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -3065,7 +3071,7 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
 		logger.Noticef("rebooting system")
-		restart.Request(m.state, restart.RestartSystemNow, nil)
+		restart.Request(m.state, restart.RestartSystemNow, nil, "")
 	}
 
 	// most simple case: just reboot
@@ -3090,7 +3096,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		restart.Request(m.state, restart.RestartSystemNow, nil)
+		restart.Request(m.state, restart.RestartSystemNow, nil, "")
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -3141,7 +3147,7 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
 		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		restart.Request(m.state, restart.RestartSystemNow, nil)
+		restart.Request(m.state, restart.RestartSystemNow, nil, "")
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)

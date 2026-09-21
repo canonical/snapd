@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2021 Canonical Ltd
+ * Copyright (C) 2014-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package snap
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -57,10 +58,46 @@ type snapYaml struct {
 	SystemUsernames map[string]any           `yaml:"system-usernames,omitempty"`
 	Links           map[string][]string      `yaml:"links,omitempty"`
 	Components      map[string]componentYaml `yaml:"components,omitempty"`
+	SnapdInfo       snapdInfoYaml            `yaml:"snapd-info,omitempty"`
+	// true if the snapd-info key was present
+	snapdInfoPresent bool
 
 	// TypoLayouts is used to detect the use of the incorrect plural form of "layout"
 	TypoLayouts typoDetector `yaml:"layouts,omitempty"`
 }
+
+// snapdInfoYaml is metadata that may only appear in the snapd snap. Unknown
+// keys alongside ubuntu-core-tracks are ignored, so the envelope can grow.
+type snapdInfoYaml struct {
+	UbuntuCoreTracks UbuntuCoreTracks `yaml:"ubuntu-core-tracks,omitempty"`
+}
+
+const snapdInfoKey = "snapd-info"
+
+type ignored struct{}
+
+// UnmarshalYAML skips the value so only the map key is kept.
+func (*ignored) UnmarshalYAML(func(any) error) error { return nil }
+
+// UnmarshalYAML decodes snap.yaml and records whether the snapd-info key was present.
+func (y *snapYaml) UnmarshalYAML(unmarshal func(any) error) error {
+	// same fields, no UnmarshalYAML, so this does not recurse
+	type plain snapYaml
+	if err := unmarshal((*plain)(y)); err != nil {
+		return err
+	}
+	// key presence including null, without decoding values
+	var topLevelKeys map[string]ignored
+	if err := unmarshal(&topLevelKeys); err != nil {
+		return err
+	}
+	_, y.snapdInfoPresent = topLevelKeys[snapdInfoKey]
+	return nil
+}
+
+// errSnapdInfoNotSnapd is reported both when parsing snap.yaml and when
+// validating a constructed Info, so the two agree verbatim.
+var errSnapdInfoNotSnapd = errors.New("cannot specify snapd-info except on the snapd snap")
 
 type typoDetector struct {
 	Hint string
@@ -184,6 +221,9 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	snap := infoSkeletonFromSnapYaml(y)
+	if snap.Type() != TypeSnapd && y.snapdInfoPresent {
+		return nil, errSnapdInfoNotSnapd
+	}
 
 	// Collect top-level definitions of plugs and slots
 	if err := setPlugsFromSnapYaml(y, snap); err != nil {
@@ -249,6 +289,10 @@ func infoFromSnapYaml(yamlData []byte, strk *scopedTracker) (*Info, error) {
 	}
 
 	if err := setLinksFromSnapYaml(y, snap); err != nil {
+		return nil, err
+	}
+
+	if err := setUbuntuCoreTracks(y, snap); err != nil {
 		return nil, err
 	}
 
@@ -652,6 +696,17 @@ func setLinksFromSnapYaml(y snapYaml, snap *Info) error {
 		}
 		snap.OriginalLinks[linksKey] = links
 	}
+	return nil
+}
+
+func setUbuntuCoreTracks(y snapYaml, snap *Info) error {
+	if err := validateUbuntuCoreTracks(y.SnapdInfo.UbuntuCoreTracks, snap.Type()); err != nil {
+		return err
+	}
+	if len(y.SnapdInfo.UbuntuCoreTracks) == 0 {
+		return nil
+	}
+	snap.UbuntuCoreTracks = y.SnapdInfo.UbuntuCoreTracks
 	return nil
 }
 
