@@ -32,15 +32,15 @@ type headerChecksSuite struct{}
 var _ = Suite(&headerChecksSuite{})
 
 func (s *headerChecksSuite) TestCheckRevision(c *C) {
-	assert := asserts.NewAssertionBase(map[string]any{"snap-revision": "2"})
+	assert := asserts.NewAssertionBase(map[string]any{"revision": "2"})
 
-	revision, err := asserts.CheckRevision(assert, "snap-revision")
+	revision, err := asserts.CheckRevision(assert, "revision")
 	c.Assert(err, IsNil)
 	c.Check(revision, Equals, 2)
 
-	assert = asserts.NewAssertionBase(map[string]any{"snap-revision": "0"})
-	_, err = asserts.CheckRevision(assert, "snap-revision")
-	c.Check(err, ErrorMatches, `"snap-revision" header must be >=1: 0`)
+	assert = asserts.NewAssertionBase(map[string]any{"revision": "0"})
+	_, err = asserts.CheckRevision(assert, "revision")
+	c.Check(err, ErrorMatches, `"revision" header must be >=1: 0`)
 }
 
 func (srs *snapRevSuite) TestCheckIntegrity(c *C) {
