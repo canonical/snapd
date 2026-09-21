@@ -35,6 +35,9 @@ static void sc_set_ns_dir(const char *dir) { sc_ns_dir = dir; }
 // Set alternate managed CA certs directory.
 static void sc_set_managed_ca_certs_dir(const char *dir) { sc_managed_ca_certs_dir = dir; }
 
+// Set alternate managed CA generation directory.
+static void sc_set_managed_ca_generation_dir(const char *dir) { sc_managed_ca_generation_dir = dir; }
+
 // Set alternate system CA certs directory.
 static void sc_set_system_ca_certs_dir(const char *dir) { sc_system_ca_certs_dir = dir; }
 
@@ -69,12 +72,16 @@ static const char *sc_test_use_fake_ns_dir(void) {
 static const char *sc_test_use_fake_managed_ca_certs_dir(void) {
     char *managed_dir = g_dir_make_tmp(NULL, NULL);
     char *managed_link = g_build_filename(managed_dir, "merged", NULL);
+    char *generation_dir = g_build_filename(managed_dir, "published", NULL);
     g_assert_nonnull(managed_dir);
     g_test_queue_free(managed_dir);
     g_test_queue_free(managed_link);
+    g_test_queue_free(generation_dir);
     g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, managed_dir);
     g_test_queue_destroy((GDestroyNotify)sc_set_managed_ca_certs_dir, (gpointer)SC_MANAGED_CA_CERTS_DIR);
+    g_test_queue_destroy((GDestroyNotify)sc_set_managed_ca_generation_dir, (gpointer)SC_MANAGED_CA_GENERATION_DIR);
     sc_set_managed_ca_certs_dir(managed_link);
+    sc_set_managed_ca_generation_dir(generation_dir);
     return managed_dir;
 }
 
@@ -351,6 +358,32 @@ static void test_managed_ca_cert_db_changed__no_generation_key(void) {
     g_assert_true(managed_ca_cert_db_changed(&inv, SC_DISTRO_CORE_OTHER));
 }
 
+struct invalid_managed_ca_selector {
+    const char *target;
+    bool create_target;
+};
+
+static void test_managed_ca_cert_db_changed__no_generation_key_invalid_selector(gconstpointer user_data) {
+    const struct invalid_managed_ca_selector *selector = user_data;
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+    const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(true);
+
+    if (selector->create_target) {
+        char *target = g_build_filename(managed_dir, selector->target, NULL);
+        g_assert_cmpint(g_mkdir_with_parents(target, 0755), ==, 0);
+        g_free(target);
+    }
+    char *merged = g_build_filename(managed_dir, "merged", NULL);
+    g_assert_cmpint(symlink(selector->target, merged), ==, 0);
+    g_free(merged);
+
+    write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\n");
+
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    g_assert_false(managed_ca_cert_db_changed(&inv, SC_DISTRO_CORE_OTHER));
+}
+
 // When the recorded generation matches the current generation, the function
 // should return false.
 static void test_managed_ca_cert_db_changed__generation_unchanged(void) {
@@ -510,6 +543,18 @@ static void test_sc_store_ns_info__skips_missing_generation(void) {
 }
 
 static void __attribute__((constructor)) init(void) {
+    static const struct invalid_managed_ca_selector dangling_selector = {
+        .target = "published/missing",
+    };
+    static const struct invalid_managed_ca_selector external_selector = {
+        .target = "outside/gen-1",
+        .create_target = true,
+    };
+    static const struct invalid_managed_ca_selector nested_selector = {
+        .target = "published/gen-1/nested",
+        .create_target = true,
+    };
+
     g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
     g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
     g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
@@ -525,6 +570,12 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/ns/managed_ca_cert_db_changed/no_info_file", test_managed_ca_cert_db_changed__no_info_file);
     g_test_add_func("/ns/managed_ca_cert_db_changed/no_generation_key",
                     test_managed_ca_cert_db_changed__no_generation_key);
+    g_test_add_data_func("/ns/managed_ca_cert_db_changed/no_generation_key_dangling_selector", &dangling_selector,
+                         test_managed_ca_cert_db_changed__no_generation_key_invalid_selector);
+    g_test_add_data_func("/ns/managed_ca_cert_db_changed/no_generation_key_external_selector", &external_selector,
+                         test_managed_ca_cert_db_changed__no_generation_key_invalid_selector);
+    g_test_add_data_func("/ns/managed_ca_cert_db_changed/no_generation_key_nested_selector", &nested_selector,
+                         test_managed_ca_cert_db_changed__no_generation_key_invalid_selector);
     g_test_add_func("/ns/managed_ca_cert_db_changed/generation_unchanged",
                     test_managed_ca_cert_db_changed__generation_unchanged);
     g_test_add_func("/ns/managed_ca_cert_db_changed/generation_unchanged_missing_mount",
@@ -539,6 +590,5 @@ static void __attribute__((constructor)) init(void) {
                     test_managed_ca_cert_db_changed__legacy_directory_layout);
     g_test_add_func("/ns/sc_store_ns_info/records_mounted_generation",
                     test_sc_store_ns_info__records_mounted_generation);
-    g_test_add_func("/ns/sc_store_ns_info/skips_missing_generation",
-                    test_sc_store_ns_info__skips_missing_generation);
+    g_test_add_func("/ns/sc_store_ns_info/skips_missing_generation", test_sc_store_ns_info__skips_missing_generation);
 }

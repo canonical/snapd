@@ -127,7 +127,7 @@ static void test_resolve_managed_ca_certs_dir__symlink_to_generation(void) {
 
     sc_test_set_managed_ca_dirs(merged, published_parent);
 
-    char *resolved = sc_resolve_managed_ca_certs_dir();
+    char *resolved = sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir);
     g_assert_cmpstr(resolved, ==, published);
 
     g_free(resolved);
@@ -152,7 +152,7 @@ static void test_resolve_managed_ca_certs_dir__outside_published(void) {
 
     sc_test_set_managed_ca_dirs(merged, published_parent);
 
-    g_assert_null(sc_resolve_managed_ca_certs_dir());
+    g_assert_null(sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir));
 
     g_assert_cmpint(g_remove(merged), ==, 0);
     g_assert_cmpint(g_rmdir(outside), ==, 0);
@@ -178,7 +178,7 @@ static void test_resolve_managed_ca_certs_dir__nested_path(void) {
 
     sc_test_set_managed_ca_dirs(merged, published_parent);
 
-    g_assert_null(sc_resolve_managed_ca_certs_dir());
+    g_assert_null(sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir));
 
     g_assert_cmpint(g_remove(merged), ==, 0);
     g_assert_cmpint(g_rmdir(nested), ==, 0);
@@ -204,7 +204,7 @@ static void test_resolve_managed_ca_certs_dir__legacy_directory(void) {
 
     sc_test_set_managed_ca_dirs(merged, published_parent);
 
-    g_assert_null(sc_resolve_managed_ca_certs_dir());
+    g_assert_null(sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir));
 
     g_assert_cmpint(g_rmdir(merged), ==, 0);
     g_assert_cmpint(g_rmdir(tmpdir), ==, 0);

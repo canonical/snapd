@@ -85,6 +85,7 @@ static const char *sc_ns_dir = SC_NS_DIR;
  * We use 'const char *' so we can update sc_managed_ca_certs_dir in the testsuite
  **/
 static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
+static const char *sc_managed_ca_generation_dir = SC_MANAGED_CA_GENERATION_DIR;
 
 /**
  * Effective value of SC_SYSTEM_CA_CERTS_DIR.
@@ -350,40 +351,14 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
 // selected by /var/lib/snapd/pki/v1/merged. When merged is absent or is not a
 // symlink to a generation-backed directory, no generation is returned.
 static char *managed_ca_cert_generation(void) {
-    struct stat ca_stat;
-    if (lstat(sc_managed_ca_certs_dir, &ca_stat) != 0) {
-        // Treat a missing path as no managed cert generation, not an error.
-        if (errno == ENOENT) {
-            return NULL;
-        }
-        die("cannot stat %s", sc_managed_ca_certs_dir);
-    }
-
-    // Prior to the generations implementation, this was simply a plain folder, not
-    // a symlink, but we do not support that configuration. Ignore it until it has
-    // been migrated by snapd.
-    if (!S_ISLNK(ca_stat.st_mode)) {
+    char *resolved SC_CLEANUP(sc_cleanup_string) =
+        sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir);
+    if (resolved == NULL) {
         return NULL;
     }
 
-    char target[PATH_MAX] = {0};
-    ssize_t nread;
-    nread = readlink(sc_managed_ca_certs_dir, target, sizeof target - 1);
-    if (nread < 0) {
-        die("cannot read %s", sc_managed_ca_certs_dir);
-    }
-
-    // Though we initialized target to NULLs and passed one less to
-    // readlink, therefore guaranteeing that target is
-    // zero-terminated, perform an explicit assignment to make
-    // Coverity happy.
-    target[nread] = '\0';
-
-    char *generation = strrchr(target, '/');
-    generation = generation != NULL ? generation + 1 : target;
-    if (generation[0] == '\0') {
-        return NULL;
-    }
+    char *generation = strrchr(resolved, '/');
+    generation = generation != NULL ? generation + 1 : resolved;
     return sc_strdup(generation);
 }
 
