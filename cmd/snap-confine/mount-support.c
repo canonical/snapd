@@ -64,18 +64,14 @@ static const char *sc_managed_ca_generation_dir = SC_MANAGED_CA_GENERATION_DIR;
 
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
-// Resolve the host-managed CA certificate view to the immutable generation
-// directory currently active (/var/lib/snapd/pki/v1/merged). The merged folder
-// must be a symlink (after generations was introduced), and must be within the
-// published generations directory.
-static char *sc_resolve_managed_ca_certs_dir(void) {
+char *sc_resolve_managed_ca_certs_dir(const char *managed_ca_certs_dir, const char *managed_ca_generation_dir) {
     char resolved[PATH_MAX] = {0};
-    if (realpath(sc_managed_ca_certs_dir, resolved) == NULL) {
+    if (realpath(managed_ca_certs_dir, resolved) == NULL) {
         if (errno == ENOENT || errno == ENOTDIR) {
-            debug("entry %s does not resolve to a managed CA generation, skipping mount", sc_managed_ca_certs_dir);
+            debug("entry %s does not resolve to a managed CA generation, skipping mount", managed_ca_certs_dir);
             return NULL;
         }
-        die("cannot resolve %s", sc_managed_ca_certs_dir);
+        die("cannot resolve %s", managed_ca_certs_dir);
     }
 
     struct stat resolved_stat;
@@ -83,26 +79,26 @@ static char *sc_resolve_managed_ca_certs_dir(void) {
         die("cannot stat %s", resolved);
     }
     if (!S_ISDIR(resolved_stat.st_mode)) {
-        debug("entry %s does not resolve to a directory, skipping mount", sc_managed_ca_certs_dir);
+        debug("entry %s does not resolve to a directory, skipping mount", managed_ca_certs_dir);
         return NULL;
     }
 
-    if (!sc_startswith(resolved, sc_managed_ca_generation_dir)) {
-        debug("entry %s points outside the published generations directory, skipping mount", sc_managed_ca_certs_dir);
+    if (!sc_startswith(resolved, managed_ca_generation_dir)) {
+        debug("entry %s points outside the published generations directory, skipping mount", managed_ca_certs_dir);
         return NULL;
     }
 
-    const char *generation = resolved + strlen(sc_managed_ca_generation_dir);
-    // sc_managed_ca_generation_dir does not end with a trailing slash,
+    const char *generation = resolved + strlen(managed_ca_generation_dir);
+    // managed_ca_generation_dir does not end with a trailing slash,
     // so let's account for that if needed.
     if (generation[0] != '/') {
-        debug("entry %s points outside the published generations directory, skipping mount", sc_managed_ca_certs_dir);
+        debug("entry %s points outside the published generations directory, skipping mount", managed_ca_certs_dir);
         return NULL;
     }
     generation++;
 
     if (generation[0] == '\0' || strchr(generation, '/') != NULL) {
-        debug("entry %s does not point to a published generation directory, skipping mount", sc_managed_ca_certs_dir);
+        debug("entry %s does not point to a published generation directory, skipping mount", managed_ca_certs_dir);
         return NULL;
     }
     return sc_strdup(resolved);
@@ -115,7 +111,8 @@ static char *sc_resolve_managed_ca_certs_dir(void) {
 static char *sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
     // If the managed certs dir did not resolve cleanly, we assume that the host
     // snapd is not exposing one.
-    char *managed SC_CLEANUP(sc_cleanup_string) = sc_resolve_managed_ca_certs_dir();
+    char *managed SC_CLEANUP(sc_cleanup_string) =
+        sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir);
     if (managed == NULL) {
         return NULL;
     }
@@ -988,7 +985,7 @@ static void sc_free_dynamic_mounts(struct sc_mount *mounts) {
     free(mounts);
 }
 
-void sc_populate_mount_ns(struct sc_populate_mount_ns_options *options, char** managed_ca_generation_id) {
+void sc_populate_mount_ns(struct sc_populate_mount_ns_options *options, char **managed_ca_generation_id) {
     *managed_ca_generation_id = NULL;
 
     // Check which mode we should run in, normal or legacy.
@@ -1066,10 +1063,7 @@ void sc_populate_mount_ns(struct sc_populate_mount_ns_options *options, char** m
     setup_private_pts();
 
     // setup the security backend bind mounts
-    sc_call_snap_update_ns(
-        options->snap_update_ns_fd,
-        options->inv->snap_instance,
-        options->apparmor);
+    sc_call_snap_update_ns(options->snap_update_ns_fd, options->inv->snap_instance, options->apparmor);
 }
 
 static bool is_mounted_with_shared_option(const char *dir) __attribute__((nonnull(1)));

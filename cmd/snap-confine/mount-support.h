@@ -45,6 +45,17 @@
 #define SC_MANAGED_CA_GENERATION_DIR "/var/lib/snapd/pki/v1/published"
 #define SC_SYSTEM_CA_CERTS_DIR "/etc/ssl/certs"
 
+/**
+ * Resolve the host-managed CA certificate view to the immutable generation
+ * directory currently active (/var/lib/snapd/pki/v1/merged). The merged folder
+ * must be a symlink (after generations was introduced), and must be within the
+ * published generations directory.
+ *
+ * This function returns the path to the managed CA certificates directory,
+ * taking into account the managed CA generation directory if necessary.
+ */
+char *sc_resolve_managed_ca_certs_dir(const char *managed_ca_certs_dir, const char *managed_ca_generation_dir);
+
 struct sc_populate_mount_ns_options {
     struct sc_apparmor *apparmor;
     int snap_update_ns_fd;
