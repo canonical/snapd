@@ -150,7 +150,7 @@ void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
 
-void sc_store_ns_info(const sc_invocation *inv, sc_distro distro);
+void sc_store_ns_info(const sc_invocation *inv, const char *managed_ca_generation);
 
 /**
  * Ensure the current mount namespace has an id that is safe to preserve.

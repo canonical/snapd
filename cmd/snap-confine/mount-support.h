@@ -45,6 +45,15 @@
 #define SC_MANAGED_CA_GENERATION_DIR "/var/lib/snapd/pki/v1/published"
 #define SC_SYSTEM_CA_CERTS_DIR "/etc/ssl/certs"
 
+struct sc_populate_mount_ns_options {
+    struct sc_apparmor *apparmor;
+    int snap_update_ns_fd;
+    const sc_invocation *inv;
+    sc_distro distro;
+    const gid_t real_gid;
+    const gid_t saved_gid;
+};
+
 /**
  * Assuming a new mountspace, populate it accordingly.
  *
@@ -53,9 +62,11 @@
  * - creates private /tmp
  * - creates private /dev/pts
  * - processes mount profiles
+ *
+ * Returns the mounted managed CA generation ID in managed_ca_generation_id. The returned
+ * generation ID string must be freed by the caller if not NULL.
  **/
-void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, const sc_invocation *inv,
-                          sc_distro distro, const gid_t real_gid, const gid_t saved_gid);
+void sc_populate_mount_ns(struct sc_populate_mount_ns_options *options, char **managed_ca_generation_id);
 
 /**
  * Ensure that / or /snap is mounted with the SHARED option.

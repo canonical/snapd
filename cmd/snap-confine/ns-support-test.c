@@ -469,25 +469,19 @@ static void test_managed_ca_cert_db_changed__legacy_directory_layout(void) {
     g_assert_true(managed_ca_cert_db_changed(&inv, SC_DISTRO_CORE_OTHER));
 }
 
-static void test_sc_store_ns_info__records_generation_when_mount_supported(void) {
+static void test_sc_store_ns_info__records_mounted_generation(void) {
     if (geteuid() != 0) {
         g_test_skip("this test only runs as root");
         return;
     }
 
     const char *ns_dir = sc_test_use_fake_ns_dir();
-    const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
-    char *rootfs_dir = create_fake_rootfs(true);
-
-    char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
-    g_test_queue_free(published_dir);
 
     sc_invocation inv = {
         .snap_instance = "test-snap",
         .orig_base_snap_name = "core24",
-        .rootfs_dir = rootfs_dir,
     };
-    sc_store_ns_info(&inv, SC_DISTRO_CORE_OTHER);
+    sc_store_ns_info(&inv, "gen-1");
 
     char *contents = read_ns_info_file(ns_dir, inv.snap_instance);
     g_assert_nonnull(strstr(contents, "base-snap-name=core24\n"));
@@ -495,25 +489,19 @@ static void test_sc_store_ns_info__records_generation_when_mount_supported(void)
     g_free(contents);
 }
 
-static void test_sc_store_ns_info__skips_generation_when_mount_unsupported(void) {
+static void test_sc_store_ns_info__skips_missing_generation(void) {
     if (geteuid() != 0) {
         g_test_skip("this test only runs as root");
         return;
     }
 
     const char *ns_dir = sc_test_use_fake_ns_dir();
-    const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
-    char *rootfs_dir = create_fake_rootfs(false);
-
-    char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
-    g_test_queue_free(published_dir);
 
     sc_invocation inv = {
         .snap_instance = "test-snap",
         .orig_base_snap_name = "bare",
-        .rootfs_dir = rootfs_dir,
     };
-    sc_store_ns_info(&inv, SC_DISTRO_CORE_OTHER);
+    sc_store_ns_info(&inv, NULL);
 
     char *contents = read_ns_info_file(ns_dir, inv.snap_instance);
     g_assert_nonnull(strstr(contents, "base-snap-name=bare\n"));
@@ -549,8 +537,8 @@ static void __attribute__((constructor)) init(void) {
                     test_managed_ca_cert_db_changed__generation_changed);
     g_test_add_func("/ns/managed_ca_cert_db_changed/legacy_directory_layout",
                     test_managed_ca_cert_db_changed__legacy_directory_layout);
-    g_test_add_func("/ns/sc_store_ns_info/records_generation_when_mount_supported",
-                    test_sc_store_ns_info__records_generation_when_mount_supported);
-    g_test_add_func("/ns/sc_store_ns_info/skips_generation_when_mount_unsupported",
-                    test_sc_store_ns_info__skips_generation_when_mount_unsupported);
+    g_test_add_func("/ns/sc_store_ns_info/records_mounted_generation",
+                    test_sc_store_ns_info__records_mounted_generation);
+    g_test_add_func("/ns/sc_store_ns_info/skips_missing_generation",
+                    test_sc_store_ns_info__skips_missing_generation);
 }
