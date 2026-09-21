@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,6 +51,7 @@ func (s *ucrednetSuite) SetUpSuite(c *check.C) {
 
 func (s *ucrednetSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(apparmor.MockFeatures([]string{"mocked-kernel-feature"}, nil, nil, nil))
 	s.AddCleanup(MockAppArmorLabelFromPid(func(int) (string, error) {
 		return "unconfined", nil
 	}))
@@ -261,6 +263,30 @@ func (s *ucrednetSuite) TestAcceptConnContextAppArmor(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(name, check.Equals, "some-snap")
 	c.Check(calls, check.Equals, 1)
+}
+
+func (s *ucrednetSuite) TestAcceptConnContextAppArmorKernelProbeError(c *check.C) {
+	s.AddCleanup(apparmor.MockFeatures(nil, errors.New("cannot probe kernel features"), nil, nil))
+	s.AddCleanup(MockAppArmorLabelFromPid(func(int) (string, error) {
+		c.Error("process labels must not be read when the AppArmor kernel probe fails")
+		return "", nil
+	}))
+
+	calls := 0
+	s.AddCleanup(MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		c.Check(pid, check.Equals, 100)
+		calls++
+		return "/system.slice/snap.fallback-snap.app.service", nil
+	}))
+
+	u := s.acceptConnContext(c)
+	c.Check(calls, check.Equals, 1)
+	tag, err := u.SecurityTag()
+	c.Assert(err, check.IsNil)
+	c.Check(tag.String(), check.Equals, "snap.fallback-snap.app")
+	name, err := u.InstanceName()
+	c.Check(err, check.IsNil)
+	c.Check(name, check.Equals, "fallback-snap")
 }
 
 func (s *ucrednetSuite) TestAcceptConnContextCgroupFallback(c *check.C) {

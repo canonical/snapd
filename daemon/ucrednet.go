@@ -111,19 +111,25 @@ var (
 )
 
 // resolveSecurityTag captures the process snap security tag. It uses the
-// tracking cgroup if the AppArmor label is not a valid snap security tag.
+// tracking cgroup if AppArmor is unavailable or the label is not a valid snap
+// security tag.
 func (un *ucrednet) resolveSecurityTag(pid int) {
-	// prefer the apparmor label when it identifies a snap
-	label, apparmorErr := apparmorLabelFromPid(pid)
+	// only look up the apparmor label if the kernel supports apparmor.
+	_, apparmorErr := apparmor.KernelFeatures()
 	if apparmorErr == nil {
-		un.securityTag, apparmorErr = naming.ParseSecurityTag(label)
+		// prefer the apparmor label when it identifies a snap
+		var label string
+		label, apparmorErr = apparmorLabelFromPid(pid)
 		if apparmorErr == nil {
-			return
+			un.securityTag, apparmorErr = naming.ParseSecurityTag(label)
+			if apparmorErr == nil {
+				return
+			}
 		}
 	}
 
-	// fall back to cgroups if the label is unreadable or is not a valid snap
-	// security tag, including when the process is unconfined.
+	// fall back to cgroups if apparmor is unavailable, the label is unreadable,
+	// or the label is not a valid snap security tag.
 	path, cgroupErr := cgroupProcessPathInTrackingCgroup(pid)
 	if cgroupErr == nil {
 		un.securityTag = cgroup.SecurityTagFromCgroupPath(path)
