@@ -38,7 +38,8 @@ import (
 // with [errors.Is] rather than by comparison.
 var (
 	// ErrNotApplicable indicates that track policy does not apply to the
-	// model at all, because of its system type or its boot base.
+	// model. [Resolve] returns it for classic and hybrid classic models, for
+	// a boot base that is not a coreXX snap, and for Ubuntu Core 16.
 	ErrNotApplicable = errors.New("cannot use Ubuntu Core tracks")
 	// ErrBootBaseNotCovered indicates that the model's boot base has no
 	// entry in the map yet. Callers pass the channel through unchanged: no
@@ -51,9 +52,10 @@ var (
 )
 
 // Resolve remaps the planned store channel for model, keeping its risk and
-// dropping any branch. A channel without a track means latest, as in the
-// store. tracks is normally [snap.Info.UbuntuCoreTracks] of the snapd snap being
-// planned; an empty or nil map is valid.
+// dropping any branch. A classic model returns [ErrNotApplicable]. A channel
+// without a track means latest, as in the store. tracks is normally
+// [snap.Info.UbuntuCoreTracks] of the snapd snap being planned; an empty or
+// nil map is valid.
 //
 // It fails with [ErrNotApplicable], [ErrBootBaseNotCovered] or [ErrNoTrack]
 // when policy cannot be applied.
@@ -132,6 +134,7 @@ func systemBootBaseApplicable(model *asserts.Model) (int, error) {
 	}
 
 	bootBase, err := model.BaseCoreVersion()
+	// An error means the model base could not be read as a coreXX snap.
 	if err != nil {
 		return 0, fmt.Errorf("%w: %q is not a core boot base", ErrNotApplicable, model.Base())
 	}
