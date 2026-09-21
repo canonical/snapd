@@ -294,6 +294,40 @@ func (s *SlogSuite) TestGrantReasonLogValue(c *C) {
 	c.Check(obtained.ReasonGranted, Equals, "root-auth desktop-launch plug")
 }
 
+func (s *SlogSuite) TestLogSystemRestartSnapd(c *C) {
+	type record struct {
+		baseAttrs
+		Event        string `json:"event"`
+		SnapdVersion string `json:"snapd_version"`
+		Reason       string `json:"reason"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_restart_snapd", Level: seclog.LevelInfo},
+		"Snapd restart with reason snapd-update",
+		seclog.Attr{Key: "snapd_version", Value: "2.78"},
+		seclog.Attr{Key: "reason", Value: "snapd-update"},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd restart with reason snapd-update")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_restart_snapd")
+	c.Check(obtained.Reason, Equals, "snapd-update")
+	c.Check(obtained.SnapdVersion, Equals, "2.78")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_version", "reason",
+	})
+}
+
 func (s *SlogSuite) TestReasonLogValue(c *C) {
 	type errorRecord struct {
 		Error struct {

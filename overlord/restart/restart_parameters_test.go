@@ -39,7 +39,7 @@ func (s *restartParametersSuite) TestSetParameters(c *C) {
 			Role:        bootloader.RoleRunMode,
 			NoSlashBoot: true,
 		},
-	})
+	}, "")
 	c.Check(rt.SnapName, Equals, "some-snap")
 	c.Check(rt.RestartType, Equals, restart.RestartSystem)
 	c.Check(rt.BootloaderOptions, DeepEquals, &bootloader.Options{
@@ -51,28 +51,28 @@ func (s *restartParametersSuite) TestSetParameters(c *C) {
 func (s *restartParametersSuite) TestSetParametersPrecedences(c *C) {
 	rt := &restart.RestartParameters{}
 
-	restart.RestartParametersInit(rt, "restart", restart.RestartSystem, nil)
+	restart.RestartParametersInit(rt, "restart", restart.RestartSystem, nil, "")
 	c.Check(rt.SnapName, Equals, "restart")
 	c.Check(rt.RestartType, Equals, restart.RestartSystem)
 	c.Check(rt.BootloaderOptions, IsNil)
 
-	restart.RestartParametersInit(rt, "restart-now", restart.RestartSystemNow, nil)
+	restart.RestartParametersInit(rt, "restart-now", restart.RestartSystemNow, nil, "")
 	c.Check(rt.SnapName, Equals, "restart-now")
 	c.Check(rt.RestartType, Equals, restart.RestartSystemNow)
 	c.Check(rt.BootloaderOptions, IsNil)
 
-	restart.RestartParametersInit(rt, "halt-now", restart.RestartSystemHaltNow, nil)
+	restart.RestartParametersInit(rt, "halt-now", restart.RestartSystemHaltNow, nil, "")
 	c.Check(rt.SnapName, Equals, "halt-now")
 	c.Check(rt.RestartType, Equals, restart.RestartSystemHaltNow)
 	c.Check(rt.BootloaderOptions, IsNil)
 
-	restart.RestartParametersInit(rt, "poweroff-now", restart.RestartSystemPoweroffNow, nil)
+	restart.RestartParametersInit(rt, "poweroff-now", restart.RestartSystemPoweroffNow, nil, "")
 	c.Check(rt.SnapName, Equals, "poweroff-now")
 	c.Check(rt.RestartType, Equals, restart.RestartSystemPoweroffNow)
 	c.Check(rt.BootloaderOptions, IsNil)
 
 	// verify it's not changed after setting with *Now
-	restart.RestartParametersInit(rt, "restart", restart.RestartSystem, nil)
+	restart.RestartParametersInit(rt, "restart", restart.RestartSystem, nil, "")
 	c.Check(rt.SnapName, Equals, "poweroff-now")
 	c.Check(rt.RestartType, Equals, restart.RestartSystemPoweroffNow)
 	c.Check(rt.BootloaderOptions, IsNil)
@@ -86,7 +86,7 @@ func (s *restartParametersSuite) TestSetParametersBootloaderOptionsSetOnce(c *C)
 			PrepareImageTime: true,
 			Role:             bootloader.RoleRunMode,
 		},
-	})
+	}, "")
 	c.Check(rt.SnapName, Equals, "some-snap")
 	c.Check(rt.RestartType, Equals, restart.RestartSystem)
 	c.Check(rt.BootloaderOptions, DeepEquals, &bootloader.Options{
@@ -99,7 +99,7 @@ func (s *restartParametersSuite) TestSetParametersBootloaderOptionsSetOnce(c *C)
 		BootloaderOptions: &bootloader.Options{
 			Role: bootloader.RoleRunMode,
 		},
-	})
+	}, "")
 	c.Check(rt.SnapName, Equals, "some-snap")
 	c.Check(rt.RestartType, Equals, restart.RestartSystem)
 	c.Check(rt.BootloaderOptions, DeepEquals, &bootloader.Options{
