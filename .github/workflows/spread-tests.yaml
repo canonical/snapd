@@ -59,7 +59,11 @@ on:
         type: boolean
         required: false
         default: true
-
+      scenario:
+        description: 'The scenario to run (e.g., master, deb, kernels, features)'
+        type: string
+        required: false
+        default: 'generic'
 
 jobs:
   run-spread:
@@ -637,6 +641,8 @@ jobs:
     - name: Send results to Test-Predictor
       if: always()
       continue-on-error: true
+      env:
+        SCENARIO: ${{ inputs.scenario }}
       run: |
         if [ -f results.json ]; then
             echo "Sending results to Test-Predictor"
@@ -649,7 +655,8 @@ jobs:
               -F "file=@./results.json" \
               -F "attempt=${{ github.run_attempt }}" \
               -F "job_id=$JOB_ID" \
-              -F "run_id=${{ github.run_id }}")
+              -F "run_id=${{ github.run_id }}" \
+              -F "scenario=$SCENARIO")
 
             if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
                 echo "Request failed with status $HTTP_CODE"
