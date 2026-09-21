@@ -355,6 +355,8 @@ uc20_build_initramfs_kernel_snap_local() {
             fi
         fi
 
+        rm -rf "$initrd_dir/usr/share/doc"
+
         (
             if os.query is-arm; then
                 cd unpacked-initrd
@@ -706,7 +708,7 @@ main() {
         KERNEL_BRANCH="$CORE_VERSION"
     fi
 
-    if { [ "$MODE" = prepare ] || [ "$MODE" = nested ]; } && [ -z "$COMPONENT_NAME" ] && [ -n "${NESTED_KERNEL_MODULES_COMP-}" ]; then
+    if { [ "$MODE" = prepare ] || [ "$MODE" = nested ]; } && [ -z "$COMPONENT_NAME" ] && [ -n "${NESTED_KERNEL_MODULES_COMP-}" ] && [ -n "$CORE_VERSION" ] && [ "$CORE_VERSION" -ge 24 ]; then
         COMPONENT_MODULE="${NESTED_COMP_KERNEL_MODULE_NAME-}"
         COMPONENT_NAME="$NESTED_KERNEL_MODULES_COMP"
         OUTPUT_COMPONENT="$PWD/pc-kernel+$COMPONENT_NAME.comp"
