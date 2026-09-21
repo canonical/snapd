@@ -206,7 +206,7 @@ func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictFile(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(fwDir, "updates"), []byte("content"), 0644), IsNil)
 
 	err := kernel.Validate(mockKernelRoot)
-	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
+	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates" that is not an empty directory`)
 }
 
 func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictSymlink(c *C) {
@@ -220,7 +220,7 @@ func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictSymlink(c *C) {
 	c.Assert(os.Symlink("nonexistent-target", filepath.Join(fwDir, "updates")), IsNil)
 
 	err := kernel.Validate(mockKernelRoot)
-	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
+	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates" that is not an empty directory`)
 }
 
 func (s *validateKernelSuite) TestValidateFirmwareNoUpdates(c *C) {

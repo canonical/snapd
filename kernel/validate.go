@@ -117,7 +117,7 @@ func validateFirmwareTree(kernelRoot string) error {
 		return err
 	}
 	if !e.IsDir() {
-		return fmt.Errorf("firmware directory %q must not contain an entry named %q, reserved for kernel-modules components", fwDir, e.Name())
+		return fmt.Errorf("firmware directory %q must not contain an entry named %q that is not an empty directory", fwDir, e.Name())
 	}
 	// Some kernel build tooling ships an empty "updates" directory as a
 	// harmless placeholder; only a non-empty one actually conflicts with
