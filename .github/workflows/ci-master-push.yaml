@@ -180,11 +180,11 @@ jobs:
     strategy:
       matrix:
         runs-on:
-          - '["ubuntu-22.04"]'
-          - '["ubuntu-22.04-arm"]'
+          - '["ubuntu-24.04"]'
+          - '["ubuntu-24.04-arm"]'
         toolchain:
           - default
           - FIPS
         exclude:
-          - runs-on: '["ubuntu-22.04-arm"]'
+          - runs-on: '["ubuntu-24.04-arm"]'
             toolchain: FIPS
