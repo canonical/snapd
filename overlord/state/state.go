@@ -27,7 +27,6 @@ import (
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -184,34 +183,6 @@ func (s *State) unlock() {
 	lockHoldEnd := lockTimestamp()
 	s.mu.Unlock()
 	maybeSaveLockTime(lockWaitStart, lockHoldStart, lockHoldEnd)
-}
-
-type jsonWarning struct {
-	Message     string     `json:"message"`
-	FirstAdded  time.Time  `json:"first-added"`
-	LastAdded   time.Time  `json:"last-added"`
-	LastShown   *time.Time `json:"last-shown,omitempty"`
-	ExpireAfter string     `json:"expire-after,omitempty"`
-	RepeatAfter string     `json:"repeat-after,omitempty"`
-}
-
-// validate is used to ensure that the jsonWarning used to migrate warnings found
-// on disk to notices have valid fields.
-func (w *jsonWarning) validate() (e error) {
-	if w.Message == "" {
-		return errNoWarningMessage
-	}
-	if strings.TrimSpace(w.Message) != w.Message {
-		return errBadWarningMessage
-	}
-	if w.FirstAdded.IsZero() {
-		return errNoWarningFirstAdded
-	}
-	if w.ExpireAfter == "" {
-		return errNoWarningExpireAfter
-	}
-
-	return nil
 }
 
 type marshalledState struct {

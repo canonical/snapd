@@ -629,7 +629,6 @@ func (s *State) getNotice(userID *uint32, noticeType NoticeType, key string) *No
 		return nil
 	}
 	return notice
-
 }
 
 // flattenNotices loops over the notices map and returns all non-expired notices
