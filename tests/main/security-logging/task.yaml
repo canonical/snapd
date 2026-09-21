@@ -231,5 +231,6 @@ execute: |
         exit 0
     fi
 
-    retry -n 120 --wait 1 sh -c 'systemctl show -p ActiveState --value snapd.service | MATCH ^inactive$'
+    # systemctl show --value is unsupported on systemd 229 (Ubuntu 16.04).
+    retry -n 120 --wait 1 sh -c 'systemctl show -p ActiveState snapd.service | MATCH ^ActiveState=inactive$'
     security_event_match '"level":"INFO","description":"Snapd standby with reason snapd-idle","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_standby_snapd","snapd_version":"[^"]+","reason":"snapd-idle"'
