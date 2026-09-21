@@ -215,7 +215,7 @@ set_prepare_device_hook() {
     mkdir -p "$unpack_dir/meta/hooks"
     cat > "$unpack_dir/meta/hooks/prepare-device" <<EOF
 #!/bin/sh
-snapctl set device-service.url=$PREPARE_DEVICE_URL
+snapctl set "device-service.url=$PREPARE_DEVICE_URL"
 EOF
     chmod +x "$unpack_dir/meta/hooks/prepare-device"
 }

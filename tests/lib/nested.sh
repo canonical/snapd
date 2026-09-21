@@ -1084,6 +1084,7 @@ nested_create_core_vm() {
             # volumes must be manually added to the VM creation by the tests
             local BOOTVOLUME
             BOOTVOLUME=pc
+            local gadget_snap
             gadget_snap="$(nested_get_extra_snaps_path)/pc.snap"
             if nested_is_core_ge 20 && [ -e "$gadget_snap" ]; then
                 # this assumes core2* gadget layouts and so cannot run on uc18
