@@ -1255,7 +1255,9 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	}
 
 	// sort less nested paths before more nested ones so that writes aren't overwritten
-	getAccs := func(i int) []Accessor { return matches[i].storagePath }
+	getAccs := func(i int) ([]Accessor, changeType) {
+		return matches[i].storagePath, setChange
+	}
 	sort.Slice(matches, byAccessor(getAccs))
 
 	var expandedMatches []expandedMatch
@@ -1295,8 +1297,28 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	}
 
 	// sort again since we may have unpacked a list into many expanded matches.
-	// Since list Set()s depend on the length of the existing list, the order matters
-	getAccs = func(i int) []Accessor { return expandedMatches[i].storagePath }
+	// See byAccessor doc comment for precise order
+	getAccs = func(i int) ([]Accessor, changeType) {
+		order := setChange
+		if expandedMatches[i].value == nil {
+			order = unsetChange
+		}
+		return expandedMatches[i].storagePath, order
+	}
+
+	// filter unset paths that are completely included in more general ones. This
+	// is more efficient and avoids conflicts when removing list[1] and list[1].field,
+	// where both operations can fully remove list[1] changing the meaning of the
+	// following removal by shifting the elements.
+	filteredMatches := make([]expandedMatch, 0, len(expandedMatches))
+	for i, match := range expandedMatches {
+		if isRedundantUnset(i, len(expandedMatches), getAccs) {
+			continue
+		}
+		filteredMatches = append(filteredMatches, match)
+	}
+	expandedMatches = filteredMatches
+
 	sort.Slice(expandedMatches, byAccessor(getAccs))
 
 	for _, match := range expandedMatches {
@@ -1320,12 +1342,27 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	return nil
 }
 
-type accGetter func(i int) []Accessor
+type changeType uint8
 
+const (
+	setChange changeType = iota
+	unsetChange
+)
+
+type accGetter func(i int) ([]Accessor, changeType)
+
+// byAccessor applies the following ordering rules:
+//   - ancestors precede descendants
+//   - independent writes precede removals
+//   - writes proceed from general to specific paths, with placeholders before
+//     literals and list indexes in ascending order. e.g., we should write [2]
+//     after [1] because the opposite would fail on a clean slate
+//   - removals use the opposite order so that removing a list element cannot
+//     shift an element that still needs to be removed
 func byAccessor(getAccs accGetter) func(x, y int) bool {
 	return func(x, y int) bool {
-		xPath := getAccs(x)
-		yPath := getAccs(y)
+		xPath, xOrder := getAccs(x)
+		yPath, yOrder := getAccs(y)
 
 		minLen := int(math.Min(float64(len(xPath)), float64(len(yPath))))
 		for i := 0; i < minLen; i++ {
@@ -1335,10 +1372,19 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 				continue
 			}
 
-			// sort placeholders before literals so the latter override the former
+			if xOrder != yOrder {
+				return xOrder < yOrder
+			}
+
+			// For writes, placeholders precede literals so the latter override the
+			// former. For removals, literals precede placeholders so wildcard
+			// removals don't shift literal indexes before they're processed.
 			xPlaceholder := isPlaceholderAccessor(xAcc)
 			yPlaceholder := isPlaceholderAccessor(yAcc)
 			if xPlaceholder != yPlaceholder {
+				if xOrder == unsetChange {
+					return !xPlaceholder
+				}
 				return xPlaceholder
 			}
 
@@ -1347,13 +1393,20 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 				xNum, _ := strconv.Atoi(xAcc.Name())
 				yNum, _ := strconv.Atoi(yAcc.Name())
 
+				if xOrder == unsetChange {
+					return xNum > yNum
+				}
 				return xNum < yNum
 			}
 
 			return xAcc.Access() < yAcc.Access()
 		}
 
-		return len(xPath) < len(yPath)
+		if len(xPath) != len(yPath) {
+			return len(xPath) < len(yPath)
+		}
+
+		return xOrder < yOrder
 	}
 }
 
@@ -1374,6 +1427,22 @@ func (v *View) Unset(databag Databag, request string) error {
 		return NewNoMatchError(v, "unset", []string{request})
 	}
 
+	getAccs := func(i int) ([]Accessor, changeType) {
+		return matches[i].storagePath, unsetChange
+	}
+	filteredMatches := make([]requestMatch, 0, len(matches))
+	for i, match := range matches {
+		// filter descendant paths that are included in an ancestor
+		if isRedundantUnset(i, len(matches), getAccs) {
+			continue
+		}
+
+		filteredMatches = append(filteredMatches, match)
+	}
+
+	matches = filteredMatches
+	sort.Slice(matches, byAccessor(getAccs))
+
 	for _, match := range matches {
 		if err := databag.Unset(match.storagePath); err != nil {
 			return err
@@ -1393,6 +1462,50 @@ func (v *View) Unset(databag Databag, request string) error {
 	}
 
 	return nil
+}
+
+func isRedundantUnset(index, count int, getAccs accGetter) bool {
+	path, changeType := getAccs(index)
+	if changeType != unsetChange {
+		return false
+	}
+
+	for i := 0; i < count; i++ {
+		if i == index {
+			continue
+		}
+
+		otherPath, otherOrder := getAccs(i)
+		if otherOrder != unsetChange || !isAncestorOf(otherPath, path) {
+			continue
+		}
+
+		// If the paths cover each other, keep the first one and discard duplicates.
+		if !isAncestorOf(path, otherPath) || i < index {
+			return true
+		}
+	}
+	return false
+}
+
+func isAncestorOf(ancestor, descendant []Accessor) bool {
+	if len(ancestor) > len(descendant) {
+		return false
+	}
+
+	for i, ancestorAcc := range ancestor {
+		descendantAcc := descendant[i]
+		if accessorContainerType(ancestorAcc) != accessorContainerType(descendantAcc) {
+			return false
+		}
+
+		if !isPlaceholderAccessor(ancestorAcc) &&
+			(isPlaceholderAccessor(descendantAcc) || ancestorAcc.Name() != descendantAcc.Name()) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (v *View) matchWriteRequest(request []Accessor) ([]requestMatch, error) {
@@ -2345,7 +2458,9 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 	}
 
 	// sort matches by request to ensure that more specific and nested matches are read after
-	getAccs := func(i int) []Accessor { return requestToAccs[matches[i].request] }
+	getAccs := func(i int) ([]Accessor, changeType) {
+		return requestToAccs[matches[i].request], setChange
+	}
 	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil

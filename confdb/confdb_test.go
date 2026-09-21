@@ -4804,6 +4804,244 @@ func (*viewSuite) TestSetListIndexesInNumericOrder(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (*viewSuite) TestListUnsetSeparatePaths(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items", "storage": "items"},
+				map[string]any{"request": "foo.a", "storage": "items[0]"},
+				map[string]any{"request": "foo.b", "storage": "items[1]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "items", []any{"a", "b", "c"})
+	c.Assert(err, IsNil)
+
+	// each branch will match with one path and have its own Set() call, but this
+	// checks that the first items[0] remove doesn't interfere with items[1] by
+	// making it remove c instead of b
+	err = view.Set(bag, "foo", map[string]any{
+		"a": nil,
+		"b": nil,
+	})
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, DeepEquals, []any{"c"})
+}
+
+func (*viewSuite) TestListUnsetLiteralBeforePlaceholder(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items", "storage": "items"},
+				map[string]any{"request": "foo.all[{n}].a", "storage": "items[{n}].a"},
+				map[string]any{"request": "foo.target", "storage": "items[1].b"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "items", []any{
+		map[string]any{"a": "remove"},
+		map[string]any{"b": "target", "keep": "second"},
+		map[string]any{"b": "other", "keep": "third"},
+	})
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "foo")
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, DeepEquals, []any{
+		map[string]any{"keep": "second"},
+		map[string]any{"b": "other", "keep": "third"},
+	})
+}
+
+func (*viewSuite) TestListUnsetDescendantBeforeAncestor(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items", "storage": "items"},
+				map[string]any{"request": "foo.parent", "storage": "items[1]"},
+				map[string]any{"request": "foo.child", "storage": "items[1].field"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "items", []any{
+		map[string]any{"field": "first"},
+		map[string]any{"field": "remove"},
+		map[string]any{"field": "preserve", "keep": true},
+	})
+	c.Assert(err, IsNil)
+
+	err = view.Unset(bag, "foo")
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, DeepEquals, []any{
+		map[string]any{"field": "first"},
+		map[string]any{"field": "preserve", "keep": true},
+	})
+}
+
+func (*viewSuite) TestListSetFiltersRedundantUnsets(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items", "storage": "items"},
+				map[string]any{"request": "foo.parent", "storage": "items[1]"},
+				map[string]any{"request": "foo.child", "storage": "items[1].field"},
+				map[string]any{"request": "foo.other", "storage": "other"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "items", []any{
+		map[string]any{"field": "first"},
+		map[string]any{"field": "remove"},
+		map[string]any{"field": "preserve", "keep": true},
+	})
+	c.Assert(err, IsNil)
+
+	// The missing parent and child fields generate overlapping unsets for
+	// items[1] and items[1].field.
+	err = view.Set(bag, "foo", map[string]any{"other": true})
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, DeepEquals, []any{
+		map[string]any{"field": "first"},
+		map[string]any{"field": "preserve", "keep": true},
+	})
+}
+
+func (*viewSuite) TestListUnsetShiftsSetIndexWithPlaceholders(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items[{n}]", "storage": "items[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "items", []any{"a", "b", "c"})
+	c.Assert(err, IsNil)
+
+	// when the write paths are created there are 3 of them but only "C" is written.
+	// This checks that the removals don't break the later write
+	err = view.Set(bag, "items", []any{nil, nil, "C"})
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, DeepEquals, []any{"C"})
+}
+
+func (*viewSuite) TestListUnsetShiftsSetIndexWithLiterals(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items", "storage": "items"},
+				map[string]any{"request": "foo.second", "storage": "items[1]"},
+				map[string]any{"request": "foo.third", "storage": "items[2]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	// base data
+	err = view.Set(bag, "items", []any{"a", "b", "c"})
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "foo", map[string]any{
+		// no "second" field so it'll be unset
+		"third": "new",
+	})
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	// correct order is preserved
+	c.Assert(stored, DeepEquals, []any{"a", "new"})
+}
+
+func (*viewSuite) TestSetValueSetsAncestorUnsetsLeaf(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.old", "storage": "data"},
+				map[string]any{"request": "foo.new", "storage": "data.value"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "foo", map[string]any{"new": "value"})
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "foo.new", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, Equals, "value")
+}
+
+func (*viewSuite) TestListSetsLeafUnsetsAncestor(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "items", "storage": "items"},
+				map[string]any{"request": "foo.first", "storage": "items[0]"},
+				map[string]any{"request": "foo.name", "storage": "items[0].name"},
+				map[string]any{"request": "foo.second", "storage": "items[1]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "items", []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second"},
+		map[string]any{"name": "third"},
+	})
+	c.Assert(err, IsNil)
+
+	err = view.Set(bag, "foo", map[string]any{"name": "new"})
+	c.Assert(err, IsNil)
+
+	stored, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(stored, DeepEquals, []any{
+		map[string]any{"name": "new"},
+	})
+}
+
 func (*viewSuite) TestFieldFilteringNotString(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
