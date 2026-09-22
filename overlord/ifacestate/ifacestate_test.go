@@ -6062,95 +6062,13 @@ slots:
 	c.Check(s.secBackend.SetupCalls, HasLen, 0)
 }
 
-// TestDoRemoveStillUpdatesMidRefreshPeer checks the counterpart of
-// TestDoRemoveSkipsDisabledPeer: a peer that is merely unlinked (e.g.
-// mid-refresh) rather than fully torn down by its own remove-profiles still
-// has real, on-disk security profiles, tracked via a non-empty
-// SnapState.PendingSecurity (set by OnSnapLinkageChanged whenever a snap
-// goes inactive). Such a peer must still have its security re-applied,
-// unlike a peer whose own remove-profiles already ran (which leaves
-// PendingSecurity as the empty marker state, PendingSecurity.SideInfo nil).
-func (s *interfaceManagerSuite) TestDoRemoveStillUpdatesMidRefreshPeer(c *C) {
-	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
-	var consumerYaml = `
-name: consumer
-version: 1
-plugs:
- plug:
-  interface: test
-`
-	var producerYaml = `
-name: producer
-version: 1
-slots:
- slot:
-  interface: test
-`
-	s.mockSnap(c, consumerYaml)
-	s.mockSnap(c, producerYaml)
-
-	s.state.Lock()
-	s.state.Set("conns", map[string]any{
-		"consumer:plug producer:slot": map[string]any{"interface": "test"},
-	})
-	s.state.Unlock()
-
-	s.manager(c)
-
-	// Simulate producer being unlinked mid-refresh: Active becomes false,
-	// and OnSnapLinkageChanged (the LinkSnapParticipant hook) records a
-	// real, non-empty PendingSecurity, since its profiles are still
-	// genuinely on disk.
-	func() {
-		s.state.Lock()
-		defer s.state.Unlock()
-		var snapst snapstate.SnapState
-		c.Assert(snapstate.Get(s.state, "producer", &snapst), IsNil)
-		snapst.Active = false
-		snapstate.Set(s.state, "producer", &snapst)
-		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "producer"}}), IsNil)
-	}()
-
-	s.state.Lock()
-	var producerSnapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "producer", &producerSnapst), IsNil)
-	c.Assert(producerSnapst.PendingSecurity, NotNil)
-	c.Assert(producerSnapst.PendingSecurity.SideInfo, NotNil)
-	s.state.Unlock()
-
-	// Now disable/remove consumer.
-	func() {
-		s.state.Lock()
-		defer s.state.Unlock()
-		var snapst snapstate.SnapState
-		c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
-		snapst.Active = false
-		snapstate.Set(s.state, "consumer", &snapst)
-		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "consumer"}}), IsNil)
-	}()
-
-	change := s.addRemoveSnapSecurityChange("consumer")
-	s.se.Ensure()
-	s.se.Wait()
-	s.se.Stop()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(change.Status(), Equals, state.DoneStatus)
-
-	// producer still has real (pending) profiles on disk and must have its
-	// security re-applied to reflect the severed connection.
-	c.Check(s.secBackend.SetupCalls, HasLen, 1)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-}
-
 // TestDoRemoveMidRefreshPeerUsesPendingRevision checks that when an inactive
 // peer is processed because it has a real PendingSecurity.SideInfo (e.g.
-// mid-refresh), its app set is built from that pinned pending revision, not
-// from snapst.CurrentInfo(): Current can still point at the stale,
-// about-to-be-replaced revision until link-snap actually runs, since the
-// refreshing snap's own setup-profiles(prepare-mode) task pins
-// PendingSecurity at the new candidate revision well before that.
+// mid-refresh), it is not skipped, and its app set is built from that pinned
+// pending revision, not from snapst.CurrentInfo(): Current can still point
+// at the stale, about-to-be-replaced revision until link-snap actually
+// runs, since the refreshing snap's own setup-profiles(prepare-mode) task
+// pins PendingSecurity at the new candidate revision well before that.
 func (s *interfaceManagerSuite) TestDoRemoveMidRefreshPeerUsesPendingRevision(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	var consumerYaml = `
@@ -6182,13 +6100,29 @@ slots:
 
 	s.manager(c)
 
-	// Simulate producer mid-refresh: Current is still rev1, Active=false
-	// (unlinked), but its own setup-profiles(prepare-mode) task for the rev2
-	// candidate already ran and pinned PendingSecurity at rev2.
+	// Simulate producer being unlinked mid-refresh: Active becomes false,
+	// and OnSnapLinkageChanged (the LinkSnapParticipant hook) records a
+	// real, non-empty PendingSecurity pinned at rev1 (still Current at this
+	// point), since its profiles are still genuinely on disk.
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "producer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "producer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "producer"}}), IsNil)
+	}()
+
+	// Then simulate producer's own setup-profiles(prepare-mode) task for the
+	// rev2 candidate having already run, pinning PendingSecurity forward to
+	// rev2, while Current (and CurrentInfo()) still points at rev1 until
+	// link-snap actually runs.
 	s.state.Lock()
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "producer", &snapst), IsNil)
-	snapst.Active = false
+	c.Assert(snapst.PendingSecurity, NotNil)
+	c.Assert(snapst.PendingSecurity.SideInfo, NotNil)
 	snapst.PendingSecurity = &snapstate.PendingSecurityState{
 		SideInfo: &producerInfo2.SideInfo,
 	}
@@ -6216,8 +6150,9 @@ slots:
 	defer s.state.Unlock()
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
-	// producer's app set must be built from the pending (rev2) revision, not
-	// the stale Current (rev1) one.
+	// producer still has real (pending) profiles on disk, so it must not be
+	// skipped, and its app set must be built from the pending (rev2)
+	// revision, not the stale Current (rev1) one.
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snap.R(2))
