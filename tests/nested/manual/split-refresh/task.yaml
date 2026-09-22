@@ -57,11 +57,7 @@ execute: |
   . "$TESTSLIB"/nested.sh
   version="$(nested_get_version)"
 
-  if os.query is-ubuntu-ge 24.04; then
-    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
-  else
-    "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
-  fi
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel stable --output-snap "$PWD/pc-kernel.snap"
 
   # Prepare gadget with the right gadget.yaml
   snap download --basename=pc --channel="$version/stable" pc
