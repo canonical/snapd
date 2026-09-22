@@ -7907,6 +7907,13 @@ func (s *interfaceManagerSuite) TestUndoConnectAlreadyDisconnectedInRepo(c *C) {
 	_, err := s.manager(c).Repository().Connection(cref)
 	notConnected, _ := err.(*interfaces.NotConnectedError)
 	c.Check(notConnected, NotNil)
+
+	// Security was still (re-)applied for both snaps, exactly as in the
+	// non-retried TestUndoConnect: an implementation that returned early
+	// from the tolerated-NotConnectedError branch would skip this.
+	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
+	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(s.secBackend.SetupCalls[3].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
 }
 
 func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
