@@ -65,7 +65,7 @@ hooks:
 	s.info = snaptest.MockInfo(c, yamlText, nil)
 	s.pids = nil
 	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
-		c.Assert(instanceName, Equals, s.info.InstanceName())
+		c.Assert(instanceName, Equals, s.info.InstanceName().String())
 		return s.pids, nil
 	})
 	s.AddCleanup(restore)
