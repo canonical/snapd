@@ -131,7 +131,16 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 		if !snapst.Active && (snapst.PendingSecurity == nil || snapst.PendingSecurity.SideInfo == nil) {
 			continue
 		}
-		affectedSnapInfo, err := snapst.CurrentInfo()
+
+		var affectedSnapInfo *snap.Info
+		var err error
+		if !snapst.Active {
+			// The snap is inactive, but likely mid-refresh, so use its
+			// pending security info.
+			affectedSnapInfo, err = snap.ReadInfo(affectedInstanceName, snapst.PendingSecurity.SideInfo)
+		} else {
+			affectedSnapInfo, err = snapst.CurrentInfo()
+		}
 		if err != nil {
 			return err
 		}
@@ -139,7 +148,23 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 
-		affectedAppSet, err := appSetForSnapRevision(st, affectedSnapInfo)
+		var affectedAppSet *interfaces.SnapAppSet
+		var comps []*snap.ComponentInfo
+		if !snapst.Active {
+			for _, csi := range snapst.PendingSecurity.Components {
+				ci, err := snapstate.ReadComponentInfo(affectedSnapInfo, csi)
+				if err != nil {
+					return fmt.Errorf("cannot read component info when building app set %q: %v", affectedInstanceName, err)
+				}
+				comps = append(comps, ci)
+			}
+		} else {
+			comps, err = snapst.ComponentInfosForRevision(affectedSnapInfo.Revision)
+			if err != nil {
+				return err
+			}
+		}
+		affectedAppSet, err = interfaces.NewSnapAppSet(affectedSnapInfo, comps)
 		if err != nil {
 			return fmt.Errorf("building app set for snap %q: %v", affectingSnap, err)
 		}
