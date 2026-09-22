@@ -20,13 +20,14 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const daemonNotifySummary = `allows sending daemon status changes to service manager`
@@ -51,14 +52,18 @@ type daemoNotifyInterface struct {
 	commonInterface
 }
 
-var osGetenv = os.Getenv
+var systemdNotifySocket = systemd.NotifySocket
 
 func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// If the system has defined it, use NOTIFY_SOCKET from the environment. Note
 	// this is safe because it is examined on snapd start and snaps cannot manipulate
 	// the environment of snapd.
-	notifySocket := osGetenv("NOTIFY_SOCKET")
-	if notifySocket == "" {
+	notifySocket, err := systemdNotifySocket()
+	if err != nil {
+		if !errors.Is(err, systemd.ErrNotifySocketNotSet) {
+			return err
+		}
+		// NOTIFY_SOCKET was not set, fall back to the default socket.
 		notifySocket = "/run/systemd/notify"
 	}
 	if !strings.HasPrefix(notifySocket, "/") && !strings.HasPrefix(notifySocket, "@") {
