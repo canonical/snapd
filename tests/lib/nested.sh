@@ -1087,13 +1087,15 @@ nested_create_core_vm() {
             local gadget_snap
             gadget_snap="$(nested_get_extra_snaps_path)/pc.snap"
             if nested_is_core_ge 20 && [ -e "$gadget_snap" ]; then
+                local gadget_tmp_dir
                 local gadget_unpack_dir
-                gadget_unpack_dir="$(mktemp -d)"
+                gadget_tmp_dir="$(mktemp -d)"
+                gadget_unpack_dir="$gadget_tmp_dir/unpack"
                 # this assumes core2* gadget layouts and so cannot run on uc18
                 unsquashfs -no-progress -d "$gadget_unpack_dir" "$gadget_snap" meta/gadget.yaml >/dev/null
                 # shellcheck disable=SC2016
                 BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' "$gadget_unpack_dir/meta/gadget.yaml")"
-                rm -rf "$gadget_unpack_dir"
+                rm -rf "$gadget_tmp_dir"
                 if [ -z "$BOOTVOLUME" ]; then
                     echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in $gadget_snap"
                     echo "please inspect it and make sure it looks as expected"
