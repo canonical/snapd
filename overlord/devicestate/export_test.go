@@ -917,3 +917,7 @@ func MockKeysSaveProtectorKey(f func(key keys.ProtectorKey, path string) error) 
 func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
 	return testutil.Mock(&snapstate.ValidatedIntegrityData, f)
 }
+
+func MockSecbootIsKeyUsedByKeyring(f func(devicePath string, name string) (bool, error)) (restore func()) {
+	return testutil.Mock(&secbootIsKeyUsedByKeyring, f)
+}
