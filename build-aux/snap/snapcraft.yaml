@@ -25,18 +25,18 @@ confinement: strict
 # TODO: allow snapd-info in the store/review-tools snap.yaml schema for
 # the snapd snap.
 # TODO: allow snapd-info in Snapcraft so passthrough is not needed.
-passthrough:
-  snapd-info:
-    # Example:
-    #   ubuntu-core-tracks:
-    #     "18":
-    #       latest: "18"
-    #       fips-updates: "18-fips"
-    #     "20":
-    #       latest: "20"
-    #       fips-updates: "20-fips"
-    # Empty until the first Ubuntu Core version is onboarded.
-    ubuntu-core-tracks: {}
+#passthrough:
+#  snapd-info:
+#    # Example:
+#    #   ubuntu-core-tracks:
+#    #     "18":
+#    #       latest: "18"
+#    #       fips-updates: "18-fips"
+#    #     "20":
+#    #       latest: "20"
+#    #       fips-updates: "20-fips"
+#    # Empty until the first Ubuntu Core version is onboarded.
+#    ubuntu-core-tracks: {}
 
 # Note that this snap is unusual in that it has no "apps" section.
 #
