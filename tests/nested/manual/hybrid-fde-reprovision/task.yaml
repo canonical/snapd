@@ -164,34 +164,7 @@ execute: |
   reprovision_change_3="$(gojq --raw-output '.change' <reprovision-3.resp)"
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_3}\s+(Done|Undone|Error)'"
 
-  if remote.exec sudo snap changes | NOMATCH "^${reprovision_change_3}\s+Done"; then
-    # TODO: for now if we got in a broken state where we unlocked some disks with new keys, then we will not be able to
-    # finish reprovision. However after a attempt and a reboot, we should be able to fix that.
-    # Verify we are in such a case
-    remote.exec sudo cat /run/snapd/snap-bootstrap/unlocked.json >unlocked-post-last-reprovision.json
-    test "$(gojq -r '."ubuntu-data"."unlock-key"' <unlocked-post-last-reprovision.json)" = run
-
-    boot_id="$(tests.nested boot-id)"
-    tests.nested vm stop
-    tests.nested vm start
-    remote.wait-for reboot "${boot_id}"
-
-    remote.wait-for snap-command
-
-    wait_for_auto_repair_state autorepair-just-reboot.json not-attempted
-    api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | MATCH 'require-reprovision'
-
-    remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
-
-    echo '{"action": "generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision-4.resp
-    gojq --raw-output '.result."recovery-key"' < rkey-reprovision-4.resp > rkey-reprovision-4.out
-
-    echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >reprovision-4.resp
-
-    reprovision_change_4="$(gojq --raw-output '.change' <reprovision-4.resp)"
-    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_4}\s+(Done|Undone|Error)'"
-    remote.exec sudo snap changes | MATCH "^${reprovision_change_4}\s+Done"
-  fi
+  remote.exec sudo snap changes | MATCH "^${reprovision_change_3}\s+Done"
 
   tests.nested vm set-recovery-key ""
 

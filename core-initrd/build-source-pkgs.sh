@@ -60,6 +60,7 @@ EOF
 if [ -n "${TEST_BUILD-}" ]; then
     # Use local code for test builds
     printf "\nreplace github.com/snapcore/snapd => ../../\n" >> go.mod
+    echo "replace github.com/snapcore/secboot v0.0.0-20260814094831-dd95d855ad64 => github.com/valentindavid/secboot v0.0.0-20260923082132-b24039e2d038" >> go.mod
 fi
 # solve dependencies
 go mod tidy
