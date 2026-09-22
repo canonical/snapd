@@ -73,17 +73,9 @@ the target, and a delta that does not reproduce it is not kept.
 --format is required with --generate and has no effect on --apply, which
 recognises the format from the delta itself.
 
-Examples:
-
-$ snap delta --generate -f snap-2-1-hdiffz -s old.snap -t new.snap -d d.delta
-$ snap delta --generate -f snap-1-1-xdelta3 -s old.snap -t new.snap -d d.delta
-$ snap delta --generate -f xdelta3 -s old.snap -t new.snap -d d.delta
-$ snap delta --apply -s old.snap -d d.delta -t rebuilt.snap
-$ snap delta --apply -j 2 --max-run 4194304 -s old.snap -d d.delta -t new.snap
-$ snap delta --apply --stats -s old.snap -d d.delta -t rebuilt.snap
-
 The two snap-2-1-hdiffz groups below are read by that format alone, and are
-refused rather than ignored when passed with another one.
+refused rather than ignored when passed with another one. The resource limits
+are read by both modes; the generation tuning only by --generate.
 
 The resource limits are what an apply's memory demand is made of: --max-run
 bounds the scratch one patch run holds, since a run's plaintext and its source
@@ -94,6 +86,15 @@ The generation tuning defaults were measured over snapcraft and kernel revision
 pairs, and a knob left unset keeps its measured setting. These exist to measure
 the format, and to fit it to a device that disagrees with those measurements; a
 delta headed for the store wants none of them.
+
+Examples:
+
+$ snap delta --generate -f snap-2-1-hdiffz -s old.snap -t new.snap -d d.delta
+$ snap delta --generate -f snap-1-1-xdelta3 -s old.snap -t new.snap -d d.delta
+$ snap delta --generate -f xdelta3 -s old.snap -t new.snap -d d.delta
+$ snap delta --apply -s old.snap -d d.delta -t rebuilt.snap
+$ snap delta --apply -j 2 --max-run 4194304 -s old.snap -d d.delta -t new.snap
+$ snap delta --apply --stats -s old.snap -d d.delta -t rebuilt.snap
 `)
 
 // The options live in groups rather than directly on cmdDelta because go-flags
@@ -107,10 +108,10 @@ delta headed for the store wants none of them.
 type deltaModeOpts struct {
 	Generate bool   `long:"generate"`
 	Apply    bool   `long:"apply"`
-	Source   string `long:"source" short:"s" required:"yes" value-name:"<file>"`
-	Target   string `long:"target" short:"t" required:"yes" value-name:"<file>"`
-	Delta    string `long:"delta" short:"d" required:"yes" value-name:"<file>"`
-	Format   string `long:"format" short:"f" value-name:"<format>"`
+	Source   string `long:"source" short:"s" required:"yes"`
+	Target   string `long:"target" short:"t" required:"yes"`
+	Delta    string `long:"delta" short:"d" required:"yes"`
+	Format   string `long:"format" short:"f"`
 }
 
 // deltaLimitOpts bounds what the work costs. Both modes read these, which is
@@ -118,8 +119,8 @@ type deltaModeOpts struct {
 // accept and the run a generate will write into the delta, and those are the
 // two ends of the same negotiation.
 type deltaLimitOpts struct {
-	Jobs   int  `long:"jobs" short:"j" value-name:"<n>"`
-	MaxRun int  `long:"max-run" value-name:"<bytes>"`
+	Jobs   int  `long:"jobs" short:"j"`
+	MaxRun int  `long:"max-run"`
 	Stats  bool `long:"stats"`
 }
 
@@ -129,15 +130,15 @@ type deltaLimitOpts struct {
 // floor, --window-back=0 places the whole window after the anchor -- and a knob
 // nobody named has to keep its measured default rather than flatten it.
 type deltaTuningOpts struct {
-	MinSaving     *int     `long:"min-saving" value-name:"<bytes>"`
-	MinSavingRate *float64 `long:"min-saving-rate" value-name:"<rate>"`
-	WindowRatio   *float64 `long:"window-ratio" value-name:"<ratio>"`
-	WindowBack    *float64 `long:"window-back" value-name:"<fraction>"`
+	MinSaving     *int     `long:"min-saving"`
+	MinSavingRate *float64 `long:"min-saving-rate"`
+	WindowRatio   *float64 `long:"window-ratio"`
+	WindowBack    *float64 `long:"window-back"`
 	NoPatchRuns   bool     `long:"no-patch-runs"`
 	NoPathMatch   bool     `long:"no-path-match"`
 	NoVerify      bool     `long:"no-verify"`
 	RunLog        bool     `long:"run-log"`
-	HdiffzArgs    string   `long:"hdiffz-args" value-name:"<args>"`
+	HdiffzArgs    string   `long:"hdiffz-args"`
 }
 
 type cmdDelta struct {
