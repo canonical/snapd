@@ -569,6 +569,14 @@ jobs:
             echo "No spread log found, skipping errors reporting"
         fi
 
+    - name: Upload filtered log for Grafana
+      if: ${{ always() && runner.environment != 'self-hosted' && env.RUN_TESTS == 'true' && inputs.log-to-grafana == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        path: ${{ env.FILTERED_LOG_FILE }}
+        if-no-files-found: ignore
+
     - name: Analyze spread test results
       if: always()
       run: |
@@ -638,8 +646,8 @@ jobs:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
 
-  send-results-to-test-predictor:
-    name: Send results to Test-Predictor
+  sync-test-results:
+    name: Sync test results
     needs: run-spread
     if: always()
     continue-on-error: true
@@ -650,13 +658,19 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SCENARIO: ${{ inputs.scenario }}
     steps:
+      - name: Download filtered log for Grafana
+        if: ${{ !contains(fromJSON(inputs.runs-on), 'self-hosted') && inputs.log-to-grafana == 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+
       - name: Download spread results
         uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
-      - name: Send results
+      - name: Send results to test-predictor
         run: |
           if [ ! -f results.json ]; then
               echo "No spread results found, skipping sending results to Test-Predictor"
