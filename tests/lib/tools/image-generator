@@ -1,0 +1,271 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    image-generator --core-version <version> --model <path> --output-dir <path> [options]
+
+Options:
+    --image-size <size> (default: 10G)
+    --image-name <name> --image-base-name <name>
+    --log-file <path>
+    --work-dir <path>
+    --sector-size <size>
+    --channel <channel>
+    --base-channel <channel>
+    --preseed-sign-key <key>
+    --snap <path>
+    --component <path>
+    --gadget-yaml <path>
+    --store-url <url>
+    --snap-command <path> (default: /usr/bin/snap)
+    --debug
+EOF
+}
+
+parse_required_arg() {
+    case "$1" in
+        --core-version) CORE_VERSION="$2" ;;
+        --model) MODEL="$2" ;;
+        --output-dir) OUTPUT_DIR="$2" ;;
+    esac
+}
+
+parse_image_arg() {
+    case "$1" in
+        --image-size) IMAGE_SIZE="$2" ;;
+        --image-name) IMAGE_NAME="$2" ;;
+        --image-base-name) IMAGE_BASE_NAME="$2" ;;
+        --log-file) LOG_FILE="$2" ;;
+        --work-dir) WORK_DIR="$2" ;;
+        --sector-size) SECTOR_SIZE="$2" ;;
+    esac
+}
+
+parse_optional_arg() {
+    case "$1" in
+        --channel) CHANNEL="$2" ;;
+        --base-channel) BASE_CHANNEL="$2" ;;
+        --preseed-sign-key) PRESEED_SIGN_KEY="$2" ;;
+        --snap) EXTRA_ARGS+=(--snap "$2") ;;
+        --component) EXTRA_ARGS+=(--comp "$2") ;;
+        --gadget-yaml) GADGET_YAML="$2" ;;
+        --store-url) STORE_URL="$2" ;;
+        --snap-command) SNAP_COMMAND="$2" ;;
+    esac
+}
+
+require_value() {
+    if [ "$#" -lt 2 ]; then
+        echo "image-generator: missing value for $1" >&2
+        exit 1
+    fi
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --core-version|--model|--output-dir)
+                require_value "$@"
+                parse_required_arg "$1" "$2"
+                shift 2
+                ;;
+            --image-size|--image-name|--image-base-name|--log-file|--work-dir|--sector-size)
+                require_value "$@"
+                parse_image_arg "$1" "$2"
+                shift 2
+                ;;
+            --channel|--base-channel|--preseed-sign-key|--snap|--component|--gadget-yaml|--store-url|--snap-command)
+                require_value "$@"
+                parse_optional_arg "$1" "$2"
+                shift 2
+                ;;
+            --debug)
+                DEBUG=true
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                echo "image-generator: unsupported argument: $1" >&2
+                show_help >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+validate_args() {
+    if [ -z "$CORE_VERSION" ] || [ -z "$MODEL" ] || [ -z "$OUTPUT_DIR" ]; then
+        echo "image-generator: missing required argument" >&2
+        show_help >&2
+        exit 1
+    fi
+    if { [ -n "$IMAGE_NAME" ] && [ -z "$IMAGE_BASE_NAME" ]; } || { [ -z "$IMAGE_NAME" ] && [ -n "$IMAGE_BASE_NAME" ]; }; then
+        echo "image-generator: --image-name and --image-base-name must be used together" >&2
+        exit 1
+    fi
+    if [ -n "$GADGET_YAML" ] && [ -z "$IMAGE_NAME" ]; then
+        echo "image-generator: --gadget-yaml requires --image-name and --image-base-name" >&2
+        exit 1
+    fi
+}
+
+get_ubuntu_image_command() {
+    local tools_dir
+    local testslib_dir
+
+    tools_dir="$(dirname "$(readlink -f "$0")")"
+    testslib_dir="$(dirname "$tools_dir")"
+    # shellcheck source=tests/lib/image.sh
+    . "$testslib_dir/image.sh"
+
+    if [ "$CORE_VERSION" -eq 16 ] || os.query is-arm; then
+        if [ ! -x /snap/bin/ubuntu-image ]; then
+            if [ "$CORE_VERSION" -eq 16 ]; then
+                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
+            else
+                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
+            fi
+        fi
+        echo /snap/bin/ubuntu-image
+        return
+    fi
+
+    if [ -x "$GOHOME/bin/ubuntu-image" ]; then
+        echo "$GOHOME/bin/ubuntu-image"
+        return
+    fi
+
+    if os.query is-xenial; then
+        if [ ! -x /snap/bin/ubuntu-image ]; then
+            snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
+        fi
+        echo /snap/bin/ubuntu-image
+        return
+    fi
+
+    get_ubuntu_image >&2
+    echo "$GOHOME/bin/ubuntu-image"
+}
+
+build_command() {
+    local ubuntu_image
+
+    mkdir -p "$OUTPUT_DIR"
+    if [ -n "$LOG_FILE" ]; then
+        mkdir -p "$(dirname "$LOG_FILE")"
+    fi
+    ubuntu_image="$(get_ubuntu_image_command)"
+
+    COMMAND=(
+        "$ubuntu_image" snap
+        --image-size "$IMAGE_SIZE"
+    )
+    if [ -n "$WORK_DIR" ]; then
+        COMMAND+=(-w "$WORK_DIR")
+    fi
+    COMMAND+=("$MODEL")
+    if [ -n "$CHANNEL" ]; then
+        COMMAND+=(--channel "$CHANNEL")
+    fi
+    if [ -n "$BASE_CHANNEL" ]; then
+        COMMAND+=("$BASE_CHANNEL")
+    fi
+    if [ -n "$PRESEED_SIGN_KEY" ]; then
+        COMMAND+=(--preseed --preseed-sign-key="$PRESEED_SIGN_KEY")
+    fi
+    COMMAND+=(
+        --output-dir "$OUTPUT_DIR"
+    )
+    if [ -n "$SECTOR_SIZE" ]; then
+        COMMAND+=(--sector-size "$SECTOR_SIZE")
+    fi
+    COMMAND+=("${EXTRA_ARGS[@]}")
+    ENVIRONMENT=(
+        "SNAPPY_FORCE_SAS_URL=$STORE_URL"
+        "UBUNTU_IMAGE_SNAP_CMD=$SNAP_COMMAND"
+    )
+    if [ "$DEBUG" = true ]; then
+        ENVIRONMENT+=(SNAPD_DEBUG=1)
+    fi
+}
+
+run_ubuntu_image() {
+    local return_code
+
+    if [ -n "$LOG_FILE" ]; then
+        set +e
+        env "${ENVIRONMENT[@]}" "${COMMAND[@]}" |& tee "$LOG_FILE"
+        return_code="${PIPESTATUS[0]}"
+        set -e
+        if [ "$return_code" -ne 0 ]; then
+            echo "image-generator: ubuntu-image failed with exit code $return_code (see $LOG_FILE)" >&2
+            exit "$return_code"
+        fi
+    else
+        env "${ENVIRONMENT[@]}" "${COMMAND[@]}"
+    fi
+}
+
+postprocess_image() {
+    local boot_volume=pc
+    local image_path
+
+    if [ -z "$IMAGE_NAME" ]; then
+        return
+    fi
+
+    while IFS= read -r image_path; do
+        mv "$image_path" "$OUTPUT_DIR/$IMAGE_BASE_NAME-$(basename "$image_path")"
+    done < <(find "$OUTPUT_DIR" -maxdepth 1 -type f -name '*.img')
+
+    if [ -n "$GADGET_YAML" ]; then
+        # shellcheck disable=SC2016
+        boot_volume="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $volume | .value.structure[] | select(.name == "ubuntu-boot") | $volume' "$GADGET_YAML")"
+        if [ -z "$boot_volume" ]; then
+            echo "image-generator: cannot determine the ubuntu-boot volume from $GADGET_YAML" >&2
+            exit 1
+        fi
+    fi
+
+    ln -s "$OUTPUT_DIR/$IMAGE_BASE_NAME-$boot_volume.img" "$OUTPUT_DIR/$IMAGE_NAME"
+}
+
+generate_image() {
+    build_command
+    run_ubuntu_image
+    postprocess_image
+}
+
+main() {
+    CORE_VERSION=
+    MODEL=
+    OUTPUT_DIR=
+    IMAGE_SIZE=10G
+    IMAGE_NAME=
+    IMAGE_BASE_NAME=
+    LOG_FILE=
+    WORK_DIR=
+    SECTOR_SIZE=
+    CHANNEL=
+    BASE_CHANNEL=
+    PRESEED_SIGN_KEY=
+    GADGET_YAML=
+    STORE_URL="${SNAPPY_FORCE_SAS_URL-}"
+    SNAP_COMMAND="${UBUNTU_IMAGE_SNAP_CMD-/usr/bin/snap}"
+    DEBUG=false
+    EXTRA_ARGS=()
+    COMMAND=()
+    ENVIRONMENT=()
+
+    parse_args "$@"
+    validate_args
+    generate_image
+}
+
+main "$@"

@@ -997,13 +997,6 @@ nested_create_core_vm() {
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
-            # create the ubuntu-core image
-            local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            if os.query is-xenial; then
-                # ubuntu-image on 16.04 needs to be installed from a snap
-                UBUNTU_IMAGE=/snap/bin/ubuntu-image
-            fi
-
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 nested_prepare_snapd
                 nested_prepare_kernel
@@ -1011,102 +1004,49 @@ nested_create_core_vm() {
                 nested_prepare_base
             fi
 
-            # Invoke ubuntu image
-            local NESTED_MODEL
-            NESTED_MODEL="$(nested_get_model)"
-
-            local EXTRA_SNAPS=""
-            for mysnap in $(nested_get_extra_snaps); do
-                EXTRA_SNAPS="$EXTRA_SNAPS --snap $mysnap"
-            done
-            for mycomp in $(nested_get_extra_comps); do
-                EXTRA_SNAPS="$EXTRA_SNAPS --comp $mycomp"
-            done
-            if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
-                EXTRA_SNAPS="$EXTRA_SNAPS --comp pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp"
-            fi
-
-            # only set SNAPPY_FORCE_SAS_URL because we don't need it defined 
-            # anywhere else but here, where snap prepare-image as called by 
-            # ubuntu-image will look for assertions for the snaps we provide
-            # to it
-            SNAPPY_FORCE_SAS_URL="$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
-            export SNAPPY_FORCE_SAS_URL
-            UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
-            export UBUNTU_IMAGE_SNAP_CMD
+            local base_channel
             local image_channel
+            local -a image_generator_args
             image_channel="$(nested_get_image_channel)"
-            if [ -n "${image_channel}" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${image_channel}"
-            else
-                UBUNTU_IMAGE_CHANNEL_ARG=""
+            base_channel="$(nested_get_base_channel)"
+            image_generator_args=(
+                --core-version "$(nested_get_version)"
+                --model "$(nested_get_model)"
+                --output-dir "$NESTED_IMAGES_DIR"
+                --image-name "$IMAGE_NAME"
+                --image-base-name "$(nested_get_image_name_base core)"
+                --log-file "$NESTED_LOGS_DIR/ubuntu-image.log"
+                --sector-size "$NESTED_DISK_LOGICAL_BLOCK_SIZE"
+                --base-channel "$base_channel"
+                --store-url "$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
+                --debug
+            )
+            if [ -n "$image_channel" ]; then
+                image_generator_args+=(--channel "$image_channel")
             fi
-
-            # Starting on core26 we have different tracks depending on whether
-            # cloud-init is included in the snap or not. This won't have any
-            # effect if using an unasserted snap.
-            local BASE_CHANNEL=""
-            BASE_CHANNEL=$(nested_get_base_channel)
-
-            declare -a UBUNTU_IMAGE_PRESEED_ARGS
             if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
-                # shellcheck disable=SC2191
-                UBUNTU_IMAGE_PRESEED_ARGS+=(--preseed  --preseed-sign-key=\""$NESTED_UBUNTU_IMAGE_PRESEED_KEY"\")
+                image_generator_args+=(--preseed-sign-key "$NESTED_UBUNTU_IMAGE_PRESEED_KEY")
             fi
-            # ubuntu-image creates sparse image files
-            # shellcheck disable=SC2086
-            SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G \
-               "$NESTED_MODEL" \
-                $UBUNTU_IMAGE_CHANNEL_ARG \
-                $BASE_CHANNEL \
-                "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
-                --output-dir "$NESTED_IMAGES_DIR" \
-                --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
-                $EXTRA_SNAPS |& tee "$NESTED_LOGS_DIR/ubuntu-image.log"
-
-            return_code="${PIPESTATUS[0]}"
-            if [ "$return_code" -ne 0 ]; then
-                echo "ERROR: ubuntu-image failed with exit code $return_code (see $NESTED_LOGS_DIR/ubuntu-image.log)"
-                exit "$return_code"
+            while IFS= read -r mysnap; do
+                image_generator_args+=(--snap "$mysnap")
+            done < <(nested_get_extra_snaps)
+            while IFS= read -r mycomp; do
+                image_generator_args+=(--component "$mycomp")
+            done < <(nested_get_extra_comps)
+            if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
+                image_generator_args+=(--component "pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp")
             fi
-
-            # ubuntu-image dropped the --output parameter, so we have to rename
-            # the image ourselves, the images are named after volumes listed in
-            # gadget.yaml
-            local IMAGE_BASE_NAME
-            IMAGE_BASE_NAME="$(nested_get_image_name_base core)"
-            find "$NESTED_IMAGES_DIR/" -maxdepth 1 -name '*.img' | while read -r imgname; do
-                volname=$(basename "$imgname" .img)
-                mv "$imgname" "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$volname.img"
-            done
-
-            # get the name of the boot-volume, and then create a symlink
-            # between the regular image name and the main volume, additional
-            # volumes must be manually added to the VM creation by the tests
-            local BOOTVOLUME
-            BOOTVOLUME=pc
             local gadget_snap
-            gadget_snap="$(nested_get_extra_snaps_path)/pc.snap"
+                image_generator_args+=(--gadget-yaml pc-gadget/meta/gadget.yaml)
             if nested_is_core_ge 20 && [ -e "$gadget_snap" ]; then
                 local gadget_tmp_dir
                 local gadget_unpack_dir
                 gadget_tmp_dir="$(mktemp -d)"
                 gadget_unpack_dir="$gadget_tmp_dir/unpack"
-                # this assumes core2* gadget layouts and so cannot run on uc18
                 unsquashfs -no-progress -d "$gadget_unpack_dir" "$gadget_snap" meta/gadget.yaml >/dev/null
-                # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' "$gadget_unpack_dir/meta/gadget.yaml")"
                 rm -rf "$gadget_tmp_dir"
-                if [ -z "$BOOTVOLUME" ]; then
-                    echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in $gadget_snap"
-                    echo "please inspect it and make sure it looks as expected"
-                    exit 1
-                fi
             fi
-            ln -s "$NESTED_IMAGES_DIR/$IMAGE_BASE_NAME-$BOOTVOLUME.img" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-
-            unset SNAPPY_FORCE_SAS_URL
-            unset UBUNTU_IMAGE_SNAP_CMD
+            "$TESTSTOOLS"/image-generator "${image_generator_args[@]}"
         fi
     fi
 
