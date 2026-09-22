@@ -472,7 +472,7 @@ func MockAssertstateFetchAllValidationSets(f func(*state.State, int, *assertstat
 	return testutil.Mock(&assertstateFetchAllValidationSets, f)
 }
 
-func MockConfdbstateWriteConfdb(f func(context.Context, *state.State, *confdb.View, map[string]any) (string, error)) (restore func()) {
+func MockConfdbstateWriteConfdb(f func(context.Context, *state.State, *confdb.View, map[string]any, ...map[string]any) (string, error)) (restore func()) {
 	return testutil.Mock(&confdbstateWriteConfdb, f)
 }
 

@@ -80,8 +80,7 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 			return BadRequest(`"constraints" must be a JSON object`)
 		}
 
-		err := confdb.ValidateConstraints(constraints)
-		if err != nil {
+		if err := confdb.ValidateConstraints(constraints); err != nil {
 			return BadRequest(err.Error())
 		}
 	}
@@ -130,8 +129,9 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
 	type setAction struct {
-		Values  map[string]any `json:"values"`
-		Options struct {
+		Values      map[string]any `json:"values"`
+		Constraints map[string]any `json:"constraints"`
+		Options     struct {
 			AccessTimeout string `json:"access-timeout"`
 		}
 	}
@@ -144,6 +144,9 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	if len(action.Values) == 0 {
 		return BadRequest("cannot write confdb: request body contains no values")
+	}
+	if err := confdb.ValidateConstraints(action.Constraints); err != nil {
+		return BadRequest(err.Error())
 	}
 
 	ctx := r.Context()
@@ -169,7 +172,7 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	changeID, err := confdbstateWriteConfdb(ctx, st, view, action.Values)
+	changeID, err := confdbstateWriteConfdb(ctx, st, view, action.Values, action.Constraints)
 	if err != nil {
 		return toAPIError(err)
 	}

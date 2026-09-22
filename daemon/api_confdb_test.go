@@ -184,14 +184,20 @@ func (s *confdbSuite) TestViewSetMany(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
+	restore = daemon.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any, constraintOptions ...map[string]any) (string, error) {
 		c.Assert(view.Name, Equals, "wifi-setup")
 		c.Assert(values, DeepEquals, map[string]any{"ssid": "foo", "password": "bar"})
+		c.Assert(constraintOptions, DeepEquals, []map[string]any{{
+			"iface": "wlan0",
+		}})
 		return "123", nil
 	})
 	defer restore()
 
-	buf := bytes.NewBufferString(`{"values":{"ssid": "foo", "password": "bar"}}`)
+	buf := bytes.NewBufferString(`{
+		"values":{"ssid":"foo","password":"bar"},
+		"constraints":{"iface":"wlan0"}
+	}`)
 	req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", buf)
 	c.Assert(err, IsNil)
 
@@ -334,7 +340,7 @@ func (s *confdbSuite) TestSetView(c *C) {
 		cmt := Commentf("%s test", t.name)
 
 		var called bool
-		restoreSet := daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
+		restoreSet := daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, view *confdb.View, values map[string]any, _ ...map[string]any) (string, error) {
 			called = true
 			_, ok := ctx.Deadline()
 			c.Check(ok, Equals, false)
@@ -370,7 +376,7 @@ func (s *confdbSuite) TestSetEmpty(c *C) {
 	defer restore()
 
 	var called bool
-	restore = daemon.MockConfdbstateWriteConfdb(func(context.Context, *state.State, *confdb.View, map[string]any) (string, error) {
+	restore = daemon.MockConfdbstateWriteConfdb(func(context.Context, *state.State, *confdb.View, map[string]any, ...map[string]any) (string, error) {
 		called = true
 		return "", nil
 	})
@@ -398,7 +404,7 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	defer restore()
 
 	var called bool
-	restore = daemon.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
+	restore = daemon.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any, _ ...map[string]any) (string, error) {
 		called = true
 		c.Assert(view.Name, Equals, "wifi-setup")
 		c.Assert(values, DeepEquals, map[string]any{"ssid": nil})
@@ -439,7 +445,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 		{name: "internal", err: errors.New("internal"), status: 500},
 		{name: "bad query", err: &confdb.BadRequestError{}, status: 400},
 	} {
-		restore := daemon.MockConfdbstateWriteConfdb(func(context.Context, *state.State, *confdb.View, map[string]any) (string, error) {
+		restore := daemon.MockConfdbstateWriteConfdb(func(context.Context, *state.State, *confdb.View, map[string]any, ...map[string]any) (string, error) {
 			return "", t.err
 		})
 		cmt := Commentf("%s test", t.name)
@@ -459,7 +465,7 @@ func (s *confdbSuite) TestSetViewError(c *C) {
 func (s *confdbSuite) TestSetViewBadRequests(c *C) {
 	s.setFeatureFlag(c)
 
-	restore := daemon.MockConfdbstateWriteConfdb(func(context.Context, *state.State, *confdb.View, map[string]any) (string, error) {
+	restore := daemon.MockConfdbstateWriteConfdb(func(context.Context, *state.State, *confdb.View, map[string]any, ...map[string]any) (string, error) {
 		err := errors.New("unexpected call to confdbstate.Set")
 		c.Error(err)
 		return "", err
@@ -568,7 +574,10 @@ func (s *confdbSuite) TestGetConstraints(c *C) {
 
 	query := url.Values{}
 	query.Add("keys", "ssid")
-	cstrs, err := json.Marshal(map[string]string{"foo": "bar", "baz": "abc"})
+	cstrs, err := json.Marshal(map[string]any{
+		"foo": "bar",
+		"baz": "abc",
+	})
 	c.Assert(err, IsNil)
 	query.Add("constraints", string(cstrs))
 	endpoint := "/v2/confdb/system/network/wifi-setup?" + query.Encode()
@@ -619,15 +628,15 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 			err:        `"constraints" must be a JSON object`,
 		},
 		{
-			constraint: `{"foo": ["bar"]}`,
+			constraint: `{"foo":["bar"]}`,
 			err:        `constraint value must be non-null scalar but parameter "foo" has array constraint`,
 		},
 		{
-			constraint: `{"foo": {"bar": "baz"}}`,
+			constraint: `{"foo":{"bar":"baz"}}`,
 			err:        `constraint value must be non-null scalar but parameter "foo" has map constraint`,
 		},
 		{
-			constraint: `{"foo": null}`,
+			constraint: `{"foo":null}`,
 			err:        `constraint value must be non-null scalar but parameter "foo" has null constraint`,
 		},
 	}
@@ -730,7 +739,7 @@ func (s *confdbSuite) TestWriteAccessTimeout(c *C) {
 	})
 	defer restore()
 
-	restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {
+	restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any, _ ...map[string]any) (string, error) {
 		deadline, ok := ctx.Deadline()
 		c.Assert(ok, Equals, true)
 		c.Check(time.Until(deadline) <= 10*time.Second, Equals, true)
@@ -780,7 +789,7 @@ func (s *confdbSuite) TestWriteAccessTimeout(c *C) {
 		addUcrednet(req, "some-snap", 1000, "")
 
 		if tc.error == "" {
-			restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {
+			restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any, _ ...map[string]any) (string, error) {
 				tc.ctxCheck(ctx)
 				return "123", nil
 			})
