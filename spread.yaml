@@ -1533,19 +1533,8 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                if os.query is-arm; then
-                    distro_install_local_package qemu-efi-aarch64
-                fi
-
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
 
 
@@ -1570,10 +1559,6 @@ suites:
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
-            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
-                # This is needed because the snap in removed during on restore-each
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            fi
         restore-each: |
             "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
             tests.nested vm remove
@@ -1616,19 +1601,8 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                if os.query is-arm; then
-                    distro_install_local_package qemu-efi-aarch64
-                fi
-
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
 
             # Install the snapd built
@@ -1783,17 +1757,8 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
 
             # Install the snapd built
