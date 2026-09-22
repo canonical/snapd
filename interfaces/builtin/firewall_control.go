@@ -176,7 +176,6 @@ func init() {
 		connectedPlugAppArmor:    firewallControlConnectedPlugAppArmor,
 		connectedPlugSecComp:     firewallControlConnectedPlugSecComp,
 		connectedPlugKModModules: firewallControlConnectedPlugKmod,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -82,7 +82,6 @@ func init() {
 		baseDeclarationSlots:     cameraBaseDeclarationSlots,
 		connectedPlugAppArmor:    cameraConnectedPlugAppArmor,
 		connectedPlugUDev:        cameraConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

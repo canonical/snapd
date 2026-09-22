@@ -88,7 +88,6 @@ func init() {
 		baseDeclarationSlots:     deviceButtonsBaseDeclarationSlots,
 		connectedPlugAppArmor:    deviceButtonsConnectedPlugAppArmor,
 		connectedPlugUDev:        deviceButtonsConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

@@ -74,7 +74,6 @@ func init() {
 		connectedPlugAppArmor:    broadcomAsicControlConnectedPlugAppArmor,
 		connectedPlugKModModules: broadcomAsicControlConnectedPlugKMod,
 		connectedPlugUDev:        broadcomAsicControlConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

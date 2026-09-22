@@ -59,7 +59,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     dcdbasControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    dcdbasControlConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

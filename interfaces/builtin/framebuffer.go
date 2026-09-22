@@ -48,7 +48,6 @@ func init() {
 		baseDeclarationSlots:     framebufferBaseDeclarationSlots,
 		connectedPlugAppArmor:    framebufferConnectedPlugAppArmor,
 		connectedPlugUDev:        framebufferConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

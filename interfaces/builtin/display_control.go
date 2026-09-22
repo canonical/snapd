@@ -137,7 +137,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     displayControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    displayControlConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

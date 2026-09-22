@@ -524,10 +524,6 @@ func (iface *customDeviceInterface) ParallelInstancesSupportedForSlot(_ *snap.Sl
 	return errParallelInstancesGadgetSlot
 }
 
-func (iface *customDeviceInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) error {
-	return errParallelInstancesSharedResources
-}
-
 func init() {
 	registerIface(&customDeviceInterface{})
 }

@@ -104,7 +104,6 @@ func init() {
 		baseDeclarationSlots:     cpuControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    cpuControlConnectedPlugAppArmor,
 		connectedPlugUDev:        cpuControlConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -212,7 +212,6 @@ func init() {
 		baseDeclarationSlots:     blockDevicesBaseDeclarationSlots,
 		connectedPlugAppArmor:    blockDevicesConnectedPlugAppArmor,
 		connectedPlugUDev:        blockDevicesConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

@@ -60,7 +60,6 @@ func init() {
 		baseDeclarationSlots:     allegroVcuBaseDeclarationSlots,
 		connectedPlugAppArmor:    allegroVcuConnectedPlugAppArmor,
 		connectedPlugUDev:        allegroVcuConnectedPlugUDev,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
