@@ -957,6 +957,17 @@ func (m *SnapManager) Stop() {
 	st.RemoveChangeStatusChangedHandler(m.changeCallbackID)
 }
 
+// ShutDown implements StateShutDowner. It cancels in-progress store requests
+// that should not block daemon shutdown.
+//
+// TODO: remove this when Ensure gets the appropriate context from Overlord.
+//
+// Note: ShutDown needs to be a proper subset of Stop but currently it isn't.
+// This is acceptable for now as resolving the above TODO will remove ShutDown.
+func (m *SnapManager) ShutDown() {
+	m.catalogRefresh.ShutDown()
+}
+
 func (m *SnapManager) CanStandby() bool {
 	if n, err := NumSnaps(m.state); err == nil && n == 0 {
 		return true
