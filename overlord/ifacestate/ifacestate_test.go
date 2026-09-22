@@ -6062,6 +6062,88 @@ slots:
 	c.Check(s.secBackend.SetupCalls, HasLen, 0)
 }
 
+// TestDoRemoveStillUpdatesMidRefreshPeer checks the counterpart of
+// TestDoRemoveSkipsDisabledPeer: a peer that is merely unlinked (e.g.
+// mid-refresh) rather than fully torn down by its own remove-profiles still
+// has real, on-disk security profiles, tracked via a non-empty
+// SnapState.PendingSecurity (set by OnSnapLinkageChanged whenever a snap
+// goes inactive). Such a peer must still have its security re-applied,
+// unlike a peer whose own remove-profiles already ran (which leaves
+// PendingSecurity as the empty marker state, PendingSecurity.SideInfo nil).
+func (s *interfaceManagerSuite) TestDoRemoveStillUpdatesMidRefreshPeer(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	s.manager(c)
+
+	// Simulate producer being unlinked mid-refresh: Active becomes false,
+	// and OnSnapLinkageChanged (the LinkSnapParticipant hook) records a
+	// real, non-empty PendingSecurity, since its profiles are still
+	// genuinely on disk.
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "producer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "producer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "producer"}}), IsNil)
+	}()
+
+	s.state.Lock()
+	var producerSnapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "producer", &producerSnapst), IsNil)
+	c.Assert(producerSnapst.PendingSecurity, NotNil)
+	c.Assert(producerSnapst.PendingSecurity.SideInfo, NotNil)
+	s.state.Unlock()
+
+	// Now disable/remove consumer.
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "consumer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "consumer"}}), IsNil)
+	}()
+
+	change := s.addRemoveSnapSecurityChange("consumer")
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// producer still has real (pending) profiles on disk and must have its
+	// security re-applied to reflect the severed connection.
+	c.Check(s.secBackend.SetupCalls, HasLen, 1)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+}
+
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.MockModel(c, nil)
 

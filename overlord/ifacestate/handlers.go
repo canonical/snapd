@@ -125,8 +125,10 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			task.Errorf("skipping security profiles setup for snap %q when handling snap %q: %v", affectedInstanceName, affectingSnap, err)
 			continue
 		}
-		if !snapst.Active {
-			// Peer snap installed but disabled, all its profiles are gone already.
+		// For profiles update to be meaningful the snap has to be active, or
+		// have a PendingSecurity.SideInfo set. In all other cases, the snap
+		// has no profiles and thus nothing needing an update.
+		if !snapst.Active && (snapst.PendingSecurity == nil || snapst.PendingSecurity.SideInfo == nil) {
 			continue
 		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
