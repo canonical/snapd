@@ -5892,7 +5892,7 @@ slots:
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Snap is removed from repository
-	c.Check(repo.Plug("consumer", "slot"), IsNil)
+	c.Check(repo.Plug("consumer", "plug"), IsNil)
 
 	// Security of the snap was removed
 	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
@@ -5966,7 +5966,7 @@ plugs:
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	repo := mgr.Repository()
-	c.Check(repo.Plug("consumer", "slot"), IsNil)
+	c.Check(repo.Plug("consumer", "plug"), IsNil)
 	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
 
 	// Only producer (the actually-connected snap) had security re-applied;
