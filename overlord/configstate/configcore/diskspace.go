@@ -28,6 +28,14 @@ import (
 
 const defaultDiskSpaceReservation = uint64(5 * quantity.SizeMiB)
 
+// legacyDiskSpaceFeatures are the experimental flags superseded by
+// disk-reservation.size.
+var legacyDiskSpaceFeatures = []features.SnapdFeature{
+	features.CheckDiskSpaceInstall,
+	features.CheckDiskSpaceRefresh,
+	features.CheckDiskSpaceRemove,
+}
+
 func init() {
 	supportedConfigurations["core.disk-reservation.size"] = true
 }
@@ -47,11 +55,7 @@ func MigrateDiskSpaceReservation(tr RunTransaction) error {
 		return err
 	}
 
-	for _, feature := range []features.SnapdFeature{
-		features.CheckDiskSpaceInstall,
-		features.CheckDiskSpaceRefresh,
-		features.CheckDiskSpaceRemove,
-	} {
+	for _, feature := range legacyDiskSpaceFeatures {
 		enabled, err := features.Flag(tr, feature)
 		if err != nil {
 			return err
@@ -62,6 +66,31 @@ func MigrateDiskSpaceReservation(tr RunTransaction) error {
 	}
 
 	return nil
+}
+
+// handleDiskSpaceReservation runs the migration when a legacy experimental flag
+// is toggled at runtime, so the result matches what a snapd restart would do.
+func handleDiskSpaceReservation(tr RunTransaction, opts *fsOnlyContext) error {
+	// Only react to the legacy flags, otherwise an explicit unset of
+	// disk-reservation.size would immediately be migrated back.
+	if !changesLegacyDiskSpaceFeature(tr.Changes()) {
+		return nil
+	}
+
+	return MigrateDiskSpaceReservation(tr)
+}
+
+func changesLegacyDiskSpaceFeature(changes []string) bool {
+	for _, feature := range legacyDiskSpaceFeatures {
+		snapName, confName := feature.ConfigOption()
+		for _, change := range changes {
+			if change == snapName+"."+confName {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func validateDiskSpaceReservation(tr RunTransaction) error {
