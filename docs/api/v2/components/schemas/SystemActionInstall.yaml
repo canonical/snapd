@@ -29,10 +29,11 @@ oneOf:
         enum:
           - setup-storage-encryption
       on-volumes:
-        type: array
-        items:
-          type: string
-        description: A list of volume labels to operate on.
+        type: object
+        description: >-
+          A map of the volumes to operate on, keyed by volume name.
+        additionalProperties:
+          $ref: 'GadgetVolume.yaml'
       volumes-auth:
         type: object
         additionalProperties:
@@ -75,10 +76,11 @@ oneOf:
         enum:
           - finish
       on-volumes:
-        type: array
-        items:
-          type: string
-        description: A list of volume labels to operate on.
+        type: object
+        description: >-
+          A map of the volumes to operate on, keyed by volume name.
+        additionalProperties:
+          $ref: 'GadgetVolume.yaml'
       optional-install:
         type: object
         properties:
