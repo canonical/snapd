@@ -125,6 +125,10 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			task.Errorf("skipping security profiles setup for snap %q when handling snap %q: %v", affectedInstanceName, affectingSnap, err)
 			continue
 		}
+		if !snapst.Active {
+			// Peer snap installed but disabled, all its profiles are gone already.
+			continue
+		}
 		affectedSnapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return err

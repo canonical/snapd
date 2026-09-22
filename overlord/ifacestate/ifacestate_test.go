@@ -5975,6 +5975,93 @@ plugs:
 	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
 }
 
+// TestDoRemoveSkipsDisabledPeer checks that removing security profiles for a
+// snap does not resurrect a connected peer's security profiles if that peer
+// is itself installed but currently disabled (SnapState.Active == false).
+// Disabling a snap already tore down its own profiles and repository entry
+// via its own remove-profiles task; the durable conns entry linking it to
+// the snap being removed now is left untouched, so it must be filtered out
+// by the peer's durable activation state, not just repo/conns state.
+func (s *interfaceManagerSuite) TestDoRemoveSkipsDisabledPeer(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"consumer:plug producer:slot": map[string]any{"interface": "test"},
+	})
+	s.state.Unlock()
+
+	s.manager(c)
+
+	// Disable producer first: SnapState.Active becomes false, and its
+	// security profiles + repository entries are removed. The durable
+	// conns entry for "consumer:plug producer:slot" is left untouched.
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "producer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "producer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "producer"}}), IsNil)
+	}()
+
+	change1 := s.addRemoveSnapSecurityChange("producer")
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Check(change1.Status(), Equals, state.DoneStatus)
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"producer"})
+	s.state.Unlock()
+
+	// Reset call tracking so the assertions below only cover what happens
+	// while disabling consumer.
+	s.secBackend.SetupCalls = nil
+	s.secBackend.RemoveCalls = nil
+
+	// Now disable consumer, the still-active end of the connection.
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "consumer", &snapst), IsNil)
+		snapst.Active = false
+		snapstate.Set(s.state, "consumer", &snapst)
+		c.Check(ifacestate.OnSnapLinkageChanged(s.state, &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "consumer"}}), IsNil)
+	}()
+
+	change2 := s.addRemoveSnapSecurityChange("consumer")
+	s.se.Ensure()
+	s.se.Wait()
+	s.se.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(change2.Status(), Equals, state.DoneStatus)
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
+
+	// producer is disabled and its security profiles were already removed
+	// by its own disable; disabling consumer must NOT recreate them.
+	c.Check(s.secBackend.SetupCalls, HasLen, 0)
+}
+
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.MockModel(c, nil)
 
