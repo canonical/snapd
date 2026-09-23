@@ -526,6 +526,7 @@ func (s *interfacesSuite) testDisconnect(c *check.C, plugSnap, plugName, slotSna
 	st.Unlock()
 
 	d.Overlord().Loop()
+	defer d.Overlord().Stop()
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
