@@ -42,12 +42,13 @@ var gpioMemoryControlConnectedPlugUDev = []string{`KERNEL=="gpiomem"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gpio-memory-control",
-		summary:               gpioMemoryControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  gpioMemoryControlBaseDeclarationSlots,
-		connectedPlugAppArmor: gpioMemoryControlConnectedPlugAppArmor,
-		connectedPlugUDev:     gpioMemoryControlConnectedPlugUDev,
+		name:                     "gpio-memory-control",
+		summary:                  gpioMemoryControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     gpioMemoryControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    gpioMemoryControlConnectedPlugAppArmor,
+		connectedPlugUDev:        gpioMemoryControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

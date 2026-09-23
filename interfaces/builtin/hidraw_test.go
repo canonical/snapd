@@ -377,3 +377,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct
 func (s *HidrawInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *HidrawInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}

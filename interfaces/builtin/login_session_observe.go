@@ -118,11 +118,12 @@ type loginSessionObserveInterface struct {
 
 func init() {
 	registerIface(&loginSessionObserveInterface{commonInterface: commonInterface{
-		name:                  "login-session-observe",
-		summary:               loginSessionObserveSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  loginSessionObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: loginSessionObserveConnectedPlugAppArmor,
+		name:                     "login-session-observe",
+		summary:                  loginSessionObserveSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     loginSessionObserveBaseDeclarationSlots,
+		connectedPlugAppArmor:    loginSessionObserveConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

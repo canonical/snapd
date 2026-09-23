@@ -55,12 +55,13 @@ accept
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "kernel-crypto-api",
-		summary:               kernelCryptoAPISummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		connectedPlugAppArmor: kernelCryptoAPIConnectedPlugAppArmor,
-		connectedPlugSecComp:  kernelCryptoAPIConnectedPlugSeccomp,
-		baseDeclarationSlots:  kernelCryptoAPIBaseDeclarationSlots,
+		name:                     "kernel-crypto-api",
+		summary:                  kernelCryptoAPISummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		connectedPlugAppArmor:    kernelCryptoAPIConnectedPlugAppArmor,
+		connectedPlugSecComp:     kernelCryptoAPIConnectedPlugSeccomp,
+		baseDeclarationSlots:     kernelCryptoAPIBaseDeclarationSlots,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
