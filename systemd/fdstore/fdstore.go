@@ -100,6 +100,7 @@ var (
 	fcntl           = unix.FcntlInt
 	sdNotify        = systemd.SdNotify
 	sdNotifyWithFds = systemd.SdNotifyWithFds
+	sdNotifySocket  = systemd.NotifySocket
 	netFileListener = net.FileListener
 )
 
@@ -225,8 +226,8 @@ func checkUnsupported() error {
 	// snapd, which requires snapd to be managed by systemd. During
 	// preseeding snapd is not run by systemd (no NOTIFY_SOCKET), so the
 	// fdstore cannot be used.
-	if os.Getenv("NOTIFY_SOCKET") == "" {
-		return fmt.Errorf("%w: snapd is not running as a systemd service", ErrUnsupported)
+	if _, err := sdNotifySocket(); err != nil {
+		return fmt.Errorf("%w: %w: snapd is not running as a systemd service", ErrUnsupported, err)
 	}
 
 	// FDNAME=... was added in systemd v233, but for the sake

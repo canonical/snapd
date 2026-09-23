@@ -42,6 +42,10 @@ func MockSdNotifyWithFds(f func(notifyState string, files ...*os.File) error) (r
 	return testutil.Mock(&sdNotifyWithFds, f)
 }
 
+func MockSdNotifySocket(f func() (string, error)) (restore func()) {
+	return testutil.Mock(&sdNotifySocket, f)
+}
+
 func MockNetFileListener(f func(f *os.File) (ln net.Listener, err error)) (restore func()) {
 	return testutil.Mock(&netFileListener, f)
 }
