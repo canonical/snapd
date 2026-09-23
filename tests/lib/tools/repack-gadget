@@ -1,0 +1,282 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    repack-gadget --gadget-branch <branch> --gadget-channel <channel> --output-snap <path> [options]
+
+Options:
+    --output-assertion <path>
+    --persistent-journal
+    --tag-features-grub
+    --append-cmdline-full <arguments>
+    --append-cmdline-extra <arguments>
+    --write-cmdline-full <arguments>
+    --write-cmdline-extra <arguments>
+    --sign-key <path> --sign-cert <path>
+    --sign-grub
+    --ubuntu-save <add|remove>
+    --ubuntu-seed-size <size>
+    --prepare-device-url <url>
+EOF
+}
+
+parse_value_arg() {
+    case "$1" in
+        --gadget-branch) GADGET_BRANCH="$2" ;;
+        --gadget-channel) GADGET_CHANNEL="$2" ;;
+        --output-snap) OUTPUT_SNAP="$2" ;;
+        --output-assertion) OUTPUT_ASSERTION="$2" ;;
+        --sign-key) SIGN_KEY="$2" ;;
+        --sign-cert) SIGN_CERT="$2" ;;
+    esac
+}
+
+parse_modification_arg() {
+    case "$1" in
+        --append-cmdline-full) CMDLINE_FULL_ARGS+=("$2") ;;
+        --append-cmdline-extra) CMDLINE_EXTRA_ARGS+=("$2") ;;
+        --write-cmdline-full) WRITE_CMDLINE_FULL="$2" ;;
+        --write-cmdline-extra) WRITE_CMDLINE_EXTRA="$2" ;;
+        --ubuntu-save) UBUNTU_SAVE="$2" ;;
+        --ubuntu-seed-size) UBUNTU_SEED_SIZE="$2" ;;
+        --prepare-device-url) PREPARE_DEVICE_URL="$2" ;;
+    esac
+}
+
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --gadget-branch|--gadget-channel|--output-snap|--output-assertion|--sign-key|--sign-cert)
+                if [ "$#" -lt 2 ]; then
+                    echo "repack-gadget: missing value for $1" >&2
+                    exit 1
+                fi
+                parse_value_arg "$1" "$2"
+                shift 2
+                ;;
+            --append-cmdline-full|--append-cmdline-extra|--write-cmdline-full|--write-cmdline-extra|--ubuntu-save|--ubuntu-seed-size|--prepare-device-url)
+                if [ "$#" -lt 2 ]; then
+                    echo "repack-gadget: missing value for $1" >&2
+                    exit 1
+                fi
+                parse_modification_arg "$1" "$2"
+                shift 2
+                ;;
+            --persistent-journal)
+                PERSISTENT_JOURNAL=true
+                shift
+                ;;
+            --sign-grub)
+                SIGN_GRUB=true
+                shift
+                ;;
+            --tag-features-grub)
+                TAG_FEATURES_GRUB=true
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                echo "repack-gadget: unsupported argument: $1" >&2
+                show_help >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+validate_args() {
+    if [ -z "$GADGET_BRANCH" ] || [ -z "$GADGET_CHANNEL" ] || [ -z "$OUTPUT_SNAP" ]; then
+        echo "repack-gadget: --gadget-branch, --gadget-channel and --output-snap are required" >&2
+        show_help >&2
+        exit 1
+    fi
+    if [ -n "$SIGN_KEY" ] && [ -z "$SIGN_CERT" ] || [ -z "$SIGN_KEY" ] && [ -n "$SIGN_CERT" ]; then
+        echo "repack-gadget: --sign-key and --sign-cert must be used together" >&2
+        exit 1
+    fi
+    case "$UBUNTU_SAVE" in
+        ""|add|remove) ;;
+        *)
+            echo "repack-gadget: --ubuntu-save must be add or remove" >&2
+            exit 1
+            ;;
+    esac
+}
+
+remove_signatures() {
+    local file="$1"
+
+    while sbverify --list "$file" | grep -q '^signature [0-9]*$'; do
+        sbattach --remove "$file"
+    done
+}
+
+sign_file() {
+    local file="$1"
+
+    remove_signatures "$file"
+    sbsign --key "$SIGN_KEY" --cert "$SIGN_CERT" --output "$file" "$file"
+}
+
+set_signatures() {
+    local unpack_dir="$1"
+    local grub_efi
+
+    if [ -z "$SIGN_KEY" ]; then
+        return
+    fi
+    if [ -f "$unpack_dir/fb.efi" ]; then
+        sign_file "$unpack_dir/fb.efi"
+    fi
+    sign_file "$unpack_dir/shim.efi.signed"
+    if [ "$SIGN_GRUB" = true ]; then
+        for grub_efi in "$unpack_dir"/grub*.efi; do
+            if [ -f "$grub_efi" ]; then
+                sign_file "$grub_efi"
+            fi
+        done
+    fi
+}
+
+set_ubuntu_save() {
+    local unpack_dir="$1"
+    local output
+
+    if [ -z "$UBUNTU_SAVE" ]; then
+        return
+    fi
+    output="$unpack_dir/gadget-with-save.yaml"
+    "$TESTSLIB_DIR/ensure_ubuntu_save.py" "--$UBUNTU_SAVE" "$unpack_dir/meta/gadget.yaml" > "$output"
+    if [ -s "$output" ]; then
+        mv "$output" "$unpack_dir/meta/gadget.yaml"
+    else
+        rm -f "$output"
+    fi
+}
+
+set_persistent_journal() {
+    local unpack_dir="$1"
+
+    if [ "$PERSISTENT_JOURNAL" != true ]; then
+        return
+    fi
+    cat >> "$unpack_dir/meta/gadget.yaml" <<'EOF'
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+}
+
+set_grub_tag_features() {
+    local unpack_dir="$1"
+    local grub_cfg
+
+    if [ "$TAG_FEATURES_GRUB" != true ]; then
+        return
+    fi
+    for grub_cfg in "$unpack_dir/grub.conf" "$unpack_dir/grub.cfg"; do
+        if [ -f "$grub_cfg" ] && ! grep -q 'tag.features=1' "$grub_cfg"; then
+            sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+        fi
+    done
+}
+
+set_cmdline() {
+    local unpack_dir="$1"
+    local arguments
+
+    for arguments in "${CMDLINE_FULL_ARGS[@]}"; do
+        printf '%s\n' "$arguments" >> "$unpack_dir/cmdline.full"
+    done
+    for arguments in "${CMDLINE_EXTRA_ARGS[@]}"; do
+        printf '%s\n' "$arguments" >> "$unpack_dir/cmdline.extra"
+    done
+    if [ -n "$WRITE_CMDLINE_FULL" ]; then
+        printf '%s\n' "$WRITE_CMDLINE_FULL" > "$unpack_dir/cmdline.full"
+    fi
+    if [ -n "$WRITE_CMDLINE_EXTRA" ]; then
+        printf '%s\n' "$WRITE_CMDLINE_EXTRA" > "$unpack_dir/cmdline.extra"
+    fi
+}
+
+set_prepare_device_hook() {
+    local unpack_dir="$1"
+
+    if [ -z "$PREPARE_DEVICE_URL" ]; then
+        return
+    fi
+    mkdir -p "$unpack_dir/meta/hooks"
+    cat > "$unpack_dir/meta/hooks/prepare-device" <<EOF
+#!/bin/sh
+snapctl set device-service.url=$PREPARE_DEVICE_URL
+EOF
+    chmod +x "$unpack_dir/meta/hooks/prepare-device"
+}
+
+repack_gadget() {
+    local download_dir
+    local unpack_dir
+
+    download_dir="$(mktemp -d "${TMPDIR:-/tmp}/gadget-download.XXXXXXXX")"
+    unpack_dir="$(mktemp -d "${TMPDIR:-/tmp}/gadget-unpack.XXXXXXXX")"
+    trap 'rm -rf "$download_dir" "$unpack_dir"' EXIT
+
+    (cd "$download_dir" && snap download --basename=pc --channel="${GADGET_BRANCH}/${GADGET_CHANNEL}" pc)
+    if [ -n "$OUTPUT_ASSERTION" ]; then
+        mkdir -p "$(dirname "$OUTPUT_ASSERTION")"
+        cp "$download_dir/pc.assert" "$OUTPUT_ASSERTION"
+    fi
+    unsquashfs -no-progress -f -d "$unpack_dir" "$download_dir/pc.snap"
+    set_signatures "$unpack_dir"
+    set_ubuntu_save "$unpack_dir"
+    set_persistent_journal "$unpack_dir"
+    set_grub_tag_features "$unpack_dir"
+    set_cmdline "$unpack_dir"
+    if [ -n "$UBUNTU_SEED_SIZE" ]; then
+        "$TESTSLIB_DIR/manip_ubuntu_seed.py" "$unpack_dir/meta/gadget.yaml" "$UBUNTU_SEED_SIZE"
+    fi
+    set_prepare_device_hook "$unpack_dir"
+
+    mkdir -p "$(dirname "$OUTPUT_SNAP")"
+    snap pack --filename="$OUTPUT_SNAP" "$unpack_dir"
+    rm -rf "$download_dir" "$unpack_dir"
+    trap - EXIT
+    printf '%s\n' "$OUTPUT_SNAP"
+}
+
+main() {
+    local tools_dir
+
+    GADGET_BRANCH=
+    GADGET_CHANNEL=
+    OUTPUT_SNAP=
+    OUTPUT_ASSERTION=
+    PERSISTENT_JOURNAL=false
+    TAG_FEATURES_GRUB=false
+    CMDLINE_FULL_ARGS=()
+    CMDLINE_EXTRA_ARGS=()
+    WRITE_CMDLINE_FULL=
+    WRITE_CMDLINE_EXTRA=
+    SIGN_KEY=
+    SIGN_CERT=
+    SIGN_GRUB=false
+    UBUNTU_SAVE=
+    UBUNTU_SEED_SIZE=
+    PREPARE_DEVICE_URL=
+
+    tools_dir="$(dirname "$(readlink -f "$0")")"
+    TESTSLIB_DIR="$(dirname "$tools_dir")"
+
+    parse_args "$@"
+    validate_args
+    repack_gadget
+}
+
+main "$@"
