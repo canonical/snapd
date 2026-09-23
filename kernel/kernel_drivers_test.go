@@ -938,25 +938,25 @@ func (s *kernelDriversTestSuite) TestDriversTreeMetaRoundTrip(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(destDir, "kernel.json")), Equals, true)
 }
 
-func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckMissingMarker(c *C) {
+func (s *kernelDriversTestSuite) TestDriversTreeOutdatedMissingMarker(c *C) {
 	destDir := c.MkDir()
 
-	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	needsCheck, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
 	c.Assert(needsCheck, Equals, true)
 }
 
-func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckUpToDate(c *C) {
+func (s *kernelDriversTestSuite) TestDriversTreeOutdatedUpToDate(c *C) {
 	destDir := c.MkDir()
 
 	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
 
-	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	needsCheck, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
 	c.Assert(needsCheck, Equals, false)
 }
 
-func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckForwardOnly(c *C) {
+func (s *kernelDriversTestSuite) TestDriversTreeOutdatedForwardOnly(c *C) {
 	destDir := c.MkDir()
 
 	// Simulate a tree built by a newer generator than what is currently
@@ -968,17 +968,17 @@ func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckForwardOnly(c *C) {
 		c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
 	}()
 
-	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	needsCheck, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
 	c.Assert(needsCheck, Equals, false)
 }
 
-func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckCorruptMarker(c *C) {
+func (s *kernelDriversTestSuite) TestDriversTreeOutdatedCorruptMarker(c *C) {
 	destDir := c.MkDir()
 
 	c.Assert(os.WriteFile(filepath.Join(destDir, "kernel.json"), []byte("not json"), 0644), IsNil)
 
-	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	needsCheck, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
 	c.Assert(needsCheck, Equals, true)
 }

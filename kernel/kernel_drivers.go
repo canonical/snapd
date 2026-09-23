@@ -74,31 +74,43 @@ func writeDriversTreeMeta(destDir string) error {
 	return atomicWriteFile(driversTreeMetaPath(destDir), data, 0644, 0)
 }
 
+var (
+	errGeneratorMetaCorrupted = errors.New("metadata file is corrupted")
+)
+
 // readDriversTreeGeneratorMeta returns the generator metadata recorded for
-// destDir. If no marker value is present a default zero value is returned.
+// destDir. If no marker value is present a default zero value with
+// GeneratorVersion set to 0 is returned and no error.
 func readDriversTreeGeneratorMeta(destDir string) (driversTreeMeta, error) {
 	data, err := os.ReadFile(driversTreeMetaPath(destDir))
 	if errors.Is(err, fs.ErrNotExist) {
-		return driversTreeMeta{}, nil
+		return driversTreeMeta{
+			// Explicit zero value so that there are no misconceptions
+			// of what it means
+			GeneratorVersion: 0,
+		}, nil
 	}
 	if err != nil {
 		return driversTreeMeta{}, err
 	}
 	var meta driversTreeMeta
 	if err := json.Unmarshal(data, &meta); err != nil {
-		// Treat unparseable metadata the same as missing: needs a check, or
-		// could be corrupted?
-		return driversTreeMeta{}, nil
+		// The marker could be corrupted, which means that the tree likely needs a rebuild.
+		return driversTreeMeta{}, errGeneratorMetaCorrupted
 	}
 	return meta, nil
 }
 
-// DriversTreeNeedsCheck returns true when the kernel modules & firmware tree at
+// DriversTreeOutdated returns true when the kernel modules & firmware tree at
 // destDir was built by an older version of the generator code, indicating it
 // may need to be checked or rebuilt.
-func DriversTreeNeedsCheck(destDir string) (bool, error) {
+func DriversTreeOutdated(destDir string) (bool, error) {
 	v, err := readDriversTreeGeneratorMeta(destDir)
 	if err != nil {
+		if errors.Is(err, errGeneratorMetaCorrupted) {
+			// Corrupted metadata file warrants a rebuild.
+			return true, nil
+		}
 		return false, err
 	}
 	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
