@@ -1210,12 +1210,11 @@ EOF
     if is_test_target_core_ge 20; then
         # also add debug command line parameters to the kernel command line via
         # the gadget in case things go side ways and we need to debug
-        case "${core_branch}/${GADGET_CHANNEL}" in
-        if [ "${BRANCH}/${GADGET_CHANNEL}" = 26/beta ]; then
+        selected_gadget_channel="$GADGET_CHANNEL"
+        if [ "${core_branch}/${GADGET_CHANNEL}" = 26/beta ]; then
             # TODO_UC26RELEASE: when core26 is released we can drop edge.
             selected_gadget_channel=edge
         fi
-                snap download --basename=pc --channel="${core_branch}/${GADGET_CHANNEL}" pc
         # TODO: it would be desirable when we need to do in-depth debugging of
         # UC20 runs in google to have snapd.debug=1 always on the kernel command
         # line, but we can't do this universally because the logic for the env
@@ -1227,7 +1226,7 @@ EOF
         # nice to have this on
 
         repack_gadget_args=(
-            --gadget-branch "$BRANCH"
+            --gadget-branch "$core_branch"
             --gadget-channel "$selected_gadget_channel"
             --output-snap "$IMAGE_HOME/pc-repacked.snap"
         )
@@ -1288,7 +1287,6 @@ EOF
 
     # download the core20 snap manually from the specified channel for UC20
     if is_test_target_core_ge 20; then
-        snap download "${core_name}" --channel="$BASE_CHANNEL" --basename="${core_name}"
         # we want to download the specific channel referenced by $BASE_CHANNEL, 
         # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
         # then immediately on booting, snapd will refresh from the revision that
@@ -1304,31 +1302,24 @@ EOF
         # * pc (to aid in debugging by modifying the kernel command line)
         # * core20 (to avoid the automatic refresh issue)
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
-            unsquashfs -d "${core_name}-snap" "${core_name}.snap"
+            selected_base_branch=latest
             selected_base_channel="$BASE_CHANNEL"
             if [[ "$selected_base_channel" = */* ]]; then
                 selected_base_branch="${selected_base_channel%/*}"
                 selected_base_channel="${selected_base_channel##*/}"
-                    TARGET_TIME_CONF="$(find "${core_name}-snap" -name timesyncd.conf)"
-                if [ -e "${core_name}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
-                    echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${core_name}-snap/usr/lib/tmpfiles.d/core-writable.conf"
-                    mkdir -p "${core_name}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d"
-                    echo "pool ${NTP_SERVER} iburst maxsources 1 nts prefer" "${core_name}-snap/usr/share/factory/writable/system-data/etc/chrony/sources.d/ci-proxy.sources"
             fi
             repack_base_args=(
-                --base-name "$BASE"
+                --base-name "$core_name"
                 --base-branch "$selected_base_branch"
                 --base-channel "$selected_base_channel"
-                --output-snap "$IMAGE_HOME/${BASE}.snap"
+                --output-snap "$IMAGE_HOME/${core_name}.snap"
             )
             if [ -n "${NTP_SERVER:-}" ]; then
                 repack_base_args+=(--ntp-server "$NTP_SERVER")
             fi
             "$TESTSTOOLS"/repack-base "${repack_base_args[@]}"
-            snap pack --filename="${core_name}-repacked.snap" "${core_name}-snap"
-            rm -r "${core_name}-snap"
-            mv "${core_name}-repacked.snap" "${IMAGE_HOME}/${core_name}.snap"
         else
+            snap download "${core_name}" --channel="$BASE_CHANNEL" --basename="${core_name}"
             mv "${core_name}.snap" "${IMAGE_HOME}/${core_name}.snap"
         fi
 
