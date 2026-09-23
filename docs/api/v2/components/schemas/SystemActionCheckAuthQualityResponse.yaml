@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionCheckAuthQualityResponse
+description:
+  Response body containing the quality assessment of the provided passphrase or PIN for actions
+  "check-passphrase-quality" and "check-pin-quality".
+required:
+  - entropy-bits
+  - min-entropy-bits
+  - optimal-entropy-bits
+properties:
+  entropy-bits:
+    type: integer
+    description: The calculated entropy of the passphrase or PIN in bits.
+  min-entropy-bits:
+    type: integer
+    description:
+      The minimum required entropy for the corresponding authentication
+      mode (passphrase or PIN) in bits.
+  optimal-entropy-bits:
+    type: integer
+    description:
+      The recommended minimum entropy for the corresponding authentication
+      mode (passphrase or PIN) in bits.

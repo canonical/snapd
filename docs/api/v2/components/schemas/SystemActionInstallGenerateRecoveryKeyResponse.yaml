@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemActionInstallGenerateRecoveryKeyResponse
+description: Response body containing the generated recovery key for step "generate-recovery-key" of action "install".
+required:
+  - recovery-key
+properties:
+  recovery-key:
+    type: string
+    description:
+      A 16-byte number represented as 8 5-digit zero-extended base-10 numbers (each with range of
+      00000-65535) which may be separated by an optional '-'.
+    example: "61665-00531-54469-09783-47273-19035-40077-28287"
