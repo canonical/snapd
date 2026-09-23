@@ -47,7 +47,9 @@ jobs:
     steps:
       # Prefer the Canonical-approved GitHub App. SNAPD_SECURITY_SYNC_PAT is a
       # temporary personal fallback on this private repo only; do not set it
-      # on public snapd. Remove it once the app vars/secrets exist.
+      # on public snapd.
+      # TODO(SNAPDENG-37633): remove SNAPD_SECURITY_SYNC_PAT once the App
+      # vars and secrets exist.
       - name: Require App credentials or SNAPD_SECURITY_SYNC_PAT
         env:
           HAS_APP: ${{ vars.SNAPD_SECURITY_SYNC_APP_ID != '' }}
