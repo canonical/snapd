@@ -315,11 +315,11 @@ func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
 
 func (s *commonIfaceSuite) TestParallelInstancesSystemOrGadgetSlotErr(c *C) {
 	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}
-	c.Check(parallelInstancesSystemOrGadgetSlotErr(systemSlot), ErrorMatches, "system slot cannot have parallel instances")
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(systemSlot), Equals, errParallelInstancesSystemSlot)
 
 	snapdSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}
-	c.Check(parallelInstancesSystemOrGadgetSlotErr(snapdSlot), ErrorMatches, "system slot cannot have parallel instances")
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(snapdSlot), Equals, errParallelInstancesSystemSlot)
 
 	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
-	c.Check(parallelInstancesSystemOrGadgetSlotErr(gadgetSlot), ErrorMatches, "gadget slot cannot have parallel instances")
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(gadgetSlot), Equals, errParallelInstancesGadgetSlot)
 }

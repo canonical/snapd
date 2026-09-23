@@ -125,10 +125,6 @@ func (iface *dspInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	return nil
 }
 
-func (iface *dspInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) error {
-	return errParallelInstancesSharedResources
-}
-
 func (iface *dspInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
 	return parallelInstancesSystemOrGadgetSlotErr(slot)
 }

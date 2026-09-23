@@ -159,10 +159,6 @@ func (iface *boolFileInterface) ParallelInstancesSupportedForSlot(slot *snap.Slo
 	return parallelInstancesSystemOrGadgetSlotErr(slot)
 }
 
-func (iface *boolFileInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) error {
-	return errParallelInstancesSharedResources
-}
-
 func init() {
 	registerIface(&boolFileInterface{})
 }

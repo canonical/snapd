@@ -600,3 +600,14 @@ func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
 		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))
 	}
 }
+
+func checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c *C, iface interfaces.Interface) {
+	definer, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}
+	c.Check(definer.ParallelInstancesSupportedForSlot(systemSlot), Equals, builtin.ErrParallelInstancesSystemSlot)
+
+	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
+	c.Check(definer.ParallelInstancesSupportedForSlot(gadgetSlot), Equals, builtin.ErrParallelInstancesGadgetSlot)
+}

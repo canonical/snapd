@@ -291,18 +291,5 @@ func (s *BoolFileInterfaceSuite) TestInterfaces(c *C) {
 }
 
 func (s *BoolFileInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	definer, ok := s.iface.(interfaces.ParallelInstancesSlotDefiner)
-	c.Assert(ok, Equals, true)
-
-	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}
-	c.Check(definer.ParallelInstancesSupportedForSlot(systemSlot), ErrorMatches, "system slot cannot have parallel instances")
-
-	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
-	c.Check(definer.ParallelInstancesSupportedForSlot(gadgetSlot), ErrorMatches, "gadget slot cannot have parallel instances")
-}
-
-func (s *BoolFileInterfaceSuite) TestParallelInstancesSupportedForPlug(c *C) {
-	definer, ok := s.iface.(interfaces.ParallelInstancesPlugDefiner)
-	c.Assert(ok, Equals, true)
-	c.Check(definer.ParallelInstancesSupportedForPlug(nil), ErrorMatches, "conflicting operations on shared system resources")
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
 }
