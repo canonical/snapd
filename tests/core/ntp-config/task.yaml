@@ -113,7 +113,7 @@ execute: |
     cp "$NTP_CONF" "$NTP_CONF_VALID"
 
     echo "Invalid configuration: min-poll-interval greater than max-poll-interval is rejected"
-    check_setting_invalid_config "cannot be greater than max-poll-interval" \
+    check_setting_invalid_config "cannot be greater than or equal to max-poll-interval" \
         system system.ntp.min-poll-interval=1h
 
     echo "Invalid configuration: malformed server name is rejected"

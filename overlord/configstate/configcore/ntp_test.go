@@ -43,6 +43,11 @@ var (
 		"[Time]",
 		"NTP=192.168.15.1 ntp.ubuntu.com",
 	}
+	// A hostname of maximum length (253 chars) and one exceeding it (254
+	// chars). All labels are 63 chars or shorter, so only the total length
+	// distinguishes the two.
+	hostnameMaxLength = strings.Repeat("a", 63) + "." + strings.Repeat("a", 63) + "." + strings.Repeat("a", 63) + "." + strings.Repeat("a", 61)
+	hostnameTooLong   = strings.Repeat("a", 63) + "." + strings.Repeat("a", 63) + "." + strings.Repeat("a", 63) + "." + strings.Repeat("a", 62)
 )
 
 func (s *ntpSuite) SetUpTest(c *C) {
@@ -224,7 +229,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					"max-poll-interval": "1m",
 				},
 			},
-			expectedError: "invalid NTP configuration: min-poll-interval \\(\"30m\"\\) cannot be greater than max-poll-interval \\(\"1m\"\\)",
+			expectedError: "invalid NTP configuration: min-poll-interval \\(\"30m\"\\) cannot be greater than or equal to max-poll-interval \\(\"1m\"\\)",
 		},
 		// 10: min-poll-interval lower than minimum 16s
 		{
@@ -306,6 +311,47 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 				},
 			},
 			expectedError: `invalid NTP configuration: min-poll-interval: duration "-1h" cannot be negative`,
+		},
+		// 19: min-poll-interval equal to max-poll-interval (equality is rejected,
+		// min must be strictly smaller than max). The two intervals use different
+		// but equivalent duration strings to ensure the comparison happens on the
+		// parsed durations and not on the raw strings.
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"min-poll-interval": "60s",
+					"max-poll-interval": "1m",
+				},
+			},
+			expectedError: "invalid NTP configuration: min-poll-interval \\(\"60s\"\\) cannot be greater than or equal to max-poll-interval \\(\"1m\"\\)",
+		},
+		// 20: server hostname longer than the maximum 253 characters. Every
+		// label is valid (63 chars or less), so only the total length guard
+		// can reject it.
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"servers": []any{
+						hostnameTooLong,
+					},
+				},
+			},
+			expectedError: fmt.Sprintf("invalid NTP configuration: %q is not a valid server name", hostnameTooLong),
+		},
+		// 21: server hostname of exactly the maximum length 253 characters
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"servers": []any{
+						hostnameMaxLength,
+					},
+				},
+			},
+			expectServiceRestart: true,
+			expectedFileContent: []string{
+				"[Time]",
+				"NTP=" + hostnameMaxLength,
+			},
 		},
 	}
 

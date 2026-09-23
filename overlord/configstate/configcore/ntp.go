@@ -109,8 +109,8 @@ func validateNTPSettings(tr ConfGetter) error {
 	pollIntervalMin, pollIntervalMinString := ntpCfgTimeWithDefault("min-poll-interval", "32s")
 	pollIntervalMax, pollIntervalMaxString := ntpCfgTimeWithDefault("max-poll-interval", "2048s")
 
-	if pollIntervalMin > pollIntervalMax {
-		return fmt.Errorf("invalid NTP configuration: min-poll-interval (%q) cannot be greater than max-poll-interval (%q)", pollIntervalMinString, pollIntervalMaxString)
+	if pollIntervalMin >= pollIntervalMax {
+		return fmt.Errorf("invalid NTP configuration: min-poll-interval (%q) cannot be greater than or equal to max-poll-interval (%q)", pollIntervalMinString, pollIntervalMaxString)
 	}
 	return nil
 }
@@ -174,7 +174,10 @@ func validateNTPServers(servers []any) error {
 }
 
 func validateServerName(serverAddress string) error {
-	if net.ParseIP(serverAddress) == nil && !validHostname(serverAddress) {
+	// A hostname is limited to 253 characters in textual form (255 octets in
+	// DNS wire format). The regex only limits the length of each label, not
+	// the total length of the name.
+	if net.ParseIP(serverAddress) == nil && (len(serverAddress) > 253 || !validHostname(serverAddress)) {
 		return fmt.Errorf("%q is not a valid server name", serverAddress)
 	}
 	return nil
