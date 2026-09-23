@@ -253,17 +253,19 @@ func ntpConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
 			return false
 		}
 
-		// For duration fields, compare as time.Duration values so that equivalent
-		// representations like "40m" (user input) and "40m0s" (normalised from disk)
-		// are treated as equal. Server list fields cannot be parsed as durations so
-		// they fall back to plain string comparison.
-		oldDur, oldErr := time.ParseDuration(oldValString)
-		newDur, newErr := time.ParseDuration(newValString)
-		if oldErr == nil && newErr == nil {
-			if oldDur != newDur {
+		if key == "servers" || key == "fallback-servers" {
+			if oldValString != newValString {
 				return false
 			}
-		} else if oldValString != newValString {
+			continue
+		}
+
+		// For duration fields, compare as time.Duration values so that equivalent
+		// representations like "40m" (user input) and "40m0s" (normalised from disk)
+		// are treated as equal.
+		oldDur, oldErr := time.ParseDuration(oldValString)
+		newDur, newErr := time.ParseDuration(newValString)
+		if oldErr != nil || newErr != nil || oldDur != newDur {
 			return false
 		}
 	}

@@ -768,4 +768,22 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config11, config12), Equals, true)
 	c.Check(configcore.NTPConfigurationDeepEqual(config12, config11), Equals, true)
+
+	// Test that unparseable duration values are never equal, even when
+	// identical on both sides. The first two checks hit each error operand
+	// of the duration comparison (newErr != nil and oldErr != nil)
+	// independently. The third check pins the behaviour if the parse errors
+	// were ignored: two unparseable values would both yield a zero
+	// time.Duration and compare equal, silently skipping a configuration
+	// update.
+	config13 := map[string]any{
+		"servers": []any{
+			"192.168.1.1",
+			"ntp.ubuntu.com",
+		},
+		"max-root-time-distance": "not-a-duration",
+	}
+	c.Check(configcore.NTPConfigurationDeepEqual(config1, config13), Equals, false)
+	c.Check(configcore.NTPConfigurationDeepEqual(config13, config1), Equals, false)
+	c.Check(configcore.NTPConfigurationDeepEqual(config13, config13), Equals, false)
 }
