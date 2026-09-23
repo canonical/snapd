@@ -574,6 +574,7 @@ func (s *State) pruneWarnings(now time.Time) {
 	defer s.warningsMu.Unlock()
 	for k, w := range s.warnings {
 		if w.ExpiredBefore(now) {
+			s.writing()
 			delete(s.warnings, k)
 		}
 	}
@@ -584,6 +585,7 @@ func (s *State) pruneNotices(now time.Time) {
 	defer s.noticesMu.Unlock()
 	for k, n := range s.notices {
 		if n.Expired(now) {
+			s.writing()
 			delete(s.notices, k)
 		}
 	}
