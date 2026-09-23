@@ -96,7 +96,7 @@ validate_args() {
         show_help >&2
         exit 1
     fi
-    if [ -n "$SIGN_KEY" ] && [ -z "$SIGN_CERT" ] || [ -z "$SIGN_KEY" ] && [ -n "$SIGN_CERT" ]; then
+    if { [ -n "$SIGN_KEY" ] && [ -z "$SIGN_CERT" ]; } || { [ -z "$SIGN_KEY" ] && [ -n "$SIGN_CERT" ]; }; then
         echo "repack-gadget: --sign-key and --sign-cert must be used together" >&2
         exit 1
     fi

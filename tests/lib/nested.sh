@@ -772,11 +772,11 @@ nested_prepare_gadget() {
     if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
         if nested_is_core_ge 20; then
             # Prepare the pc gadget snap (unless provided by extra-snaps)
-            local snap_id version
+            local snap_id version existing_snap
             version="$(nested_get_version)"
             snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
 
-            existing_snap=$(find "$(nested_get_extra_snaps_path)" -name 'pc_*.snap')
+            existing_snap=$(find "$(nested_get_extra_snaps_path)" -maxdepth 1 -type f \( -name pc.snap -o -name 'pc_*.snap' \) -print -quit)
             if [ -n "$existing_snap" ]; then
                 echo "Using generated pc gadget snap $existing_snap"
                 if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -793,10 +793,11 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
+            local -a repack_gadget_args
             repack_gadget_args=(
                 --gadget-branch "$version"
                 --gadget-channel "$(nested_get_gadget_channel)"
-                --output-snap "$NESTED_ASSETS_DIR/pc-repacked.snap"
+                --output-snap "$NESTED_ASSETS_DIR/pc_repacked.snap"
                 --sign-key "$snakeoil_key"
                 --sign-cert "$snakeoil_cert"
                 --persistent-journal
@@ -845,7 +846,7 @@ nested_prepare_gadget() {
             fi
 
             "$TESTSTOOLS"/repack-gadget "${repack_gadget_args[@]}"
-            cp "$NESTED_ASSETS_DIR/pc-repacked.snap" "$(nested_get_extra_snaps_path)/pc.snap"
+            cp "$NESTED_ASSETS_DIR/pc_repacked.snap" "$(nested_get_extra_snaps_path)/pc.snap"
             rm -f "$snakeoil_key" "$snakeoil_cert"
         fi
         # sign the pc gadget snap with fakestore if requested
@@ -857,7 +858,7 @@ nested_prepare_gadget() {
             "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
         fi
         if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
-            snap="$NESTED_ASSETS_DIR/pc-repacked.snap"
+            snap="$NESTED_ASSETS_DIR/pc_repacked.snap"
             "$TESTSTOOLS"/repack-gadget --gadget-branch 18 --gadget-channel "$(nested_get_gadget_channel)" --output-snap "$snap" --persistent-journal --tag-features-grub
             cp "$snap" "$(nested_get_extra_snaps_path)/pc.snap"
         fi
@@ -1784,9 +1785,7 @@ nested_start_classic_vm() {
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
-        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-    fi
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
     # Give extra disk space for the image
     qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +4G
