@@ -59,7 +59,7 @@ var (
 	// slot represents a singleton system or session service (e.g. a
 	// well-known D-Bus name or socket): two parallel instances of the
 	// providing snap would conflict with each other for ownership of it.
-	errParallelInstancesSingletonServiceSlot = errors.New("slot providing a singleton service cannot have parallel instances")
+	errParallelInstancesSingletonServiceSlot = errors.New("slot providing a unique service cannot have parallel instances")
 )
 
 type commonInterface struct {
