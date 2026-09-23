@@ -440,6 +440,53 @@ func (s *ntpSuite) TestNTPSetErrorRemoveFileEmptyConfiguration(c *C) {
 	c.Assert(err, ErrorMatches, "cannot reset NTP configuration to defaults: remove .*/etc/systemd/timesyncd.conf: permission denied")
 }
 
+// Test that resetting the configuration to an empty document removes the
+// configuration file even when it contains no supported options (e.g. only
+// comments), and restarts the timesyncd service
+func (s *ntpSuite) TestNTPSetEmptyConfigurationNoSupportedOptionsFile(c *C) {
+	// Write a configuration file containing only comments and an unsupported
+	// option, which parses to no recognized configuration
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\n#NTP=commented.out.example\nUnsupportedOption=1\n"), 0644), IsNil)
+
+	conf := configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{},
+	})
+
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, IsNil)
+
+	// The file is removed to restore the default (unset) behavior
+	_, err = os.Lstat(s.timesyncdConfigFile)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	// And the service is restarted to pick up the defaults
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "systemd-timesyncd.service"},
+	})
+}
+
+// Test that resetting the configuration to an empty document is a no-op when
+// the configuration file does not exist: no error is returned and the
+// timesyncd service is not restarted
+func (s *ntpSuite) TestNTPSetEmptyConfigurationMissingFileIsNoOp(c *C) {
+	// Remove config file
+	c.Assert(os.Remove(s.timesyncdConfigFile), IsNil)
+
+	conf := configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{},
+	})
+
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, IsNil)
+
+	// The file is still absent
+	_, err = os.Lstat(s.timesyncdConfigFile)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	// And the service was not restarted
+	c.Check(s.systemctlArgs, IsNil)
+}
+
 func (s *ntpSuite) TestNTPSetErrorReadingDiskConfiguration(c *C) {
 	// Change file permissions to inhibit reading it
 	os.Chmod(s.timesyncdConfigFile, 0000)

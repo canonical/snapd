@@ -286,22 +286,9 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 	if opts != nil {
 		// filesystem-only context (e.g. image build)
 		rootDir = opts.RootDir
-	} else {
-		oldConfig, err := getNTPFromSystem()
-		if err != nil {
-			return err
-		}
-		if ntpConfigurationDeepEqual(oldConfig, cfg) {
-			// If the configuration has not changed, do nothing.
-			return nil
-		}
 	}
 
-	// Create systemd configuration folder, if not present
 	systemdConfigFolder := filepath.Join(rootDir, "etc", "systemd")
-	if err := os.MkdirAll(systemdConfigFolder, 0755); err != nil {
-		return err
-	}
 
 	// Configuration file path
 	// We write the main configuration file directly and not use drop-ins
@@ -311,6 +298,37 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 	// configuration values are read by timesyncd. More explanation is found in the
 	// docstring for getNTPFromSystem.
 	ntpConfigPath := filepath.Join(systemdConfigFolder, "timesyncd.conf")
+
+	if opts == nil {
+		oldConfig, err := getNTPFromSystem()
+		if err != nil {
+			return err
+		}
+
+		// If the configuration has not changed, there is nothing to do.
+		if ntpConfigurationDeepEqual(oldConfig, cfg) {
+			// Except: an empty configuration is an explicit reset to the
+			// defaults (snap set -t system system.ntp='{}'), which is
+			// achieved by removing the configuration file in the following
+			// code blocks.
+			// That reset is a no-op only if the file does not exist.
+			// getNTPFromSystem returns nil both when the file is missing and
+			// when it contains no supported options (e.g. only comments, as
+			// in the default installed file), so the existence of the file
+			// must be checked explicitly.
+			// No-op this function only if the config has not changed and
+			// it is either not empty, or the file does not need to be deleted.
+			_, err := os.Lstat(ntpConfigPath)
+			if len(cfg) != 0 || os.IsNotExist(err) {
+				return nil
+			}
+		}
+	}
+
+	// Create systemd configuration folder, if not present
+	if err := os.MkdirAll(systemdConfigFolder, 0755); err != nil {
+		return err
+	}
 
 	if len(cfg) == 0 {
 		// If the config is empty, we want to reset to defaults, which is achieved by deleting the configuration file

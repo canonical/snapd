@@ -19,7 +19,9 @@ details: |
     - invalid configurations are rejected without modifying the on-disk
       configuration file or restarting the service
     - resetting the configuration to an empty document removes the
-      configuration file and restores the default (unset) behavior
+      configuration file and restores the default (unset) behavior,
+      including when the file contains no supported options (e.g. only
+      comments)
 
 environment:
     NTP_CONF: /etc/systemd/timesyncd.conf
@@ -126,6 +128,13 @@ execute: |
 
     echo "Resetting the configuration to an empty document removes the configuration file"
     ts_before="$(get_restart_ts)"
+    snap set -t system system.ntp='{}'
+    not test -f "$NTP_CONF"
+    [ "$ts_before" != "$(get_restart_ts)" ]
+
+    echo "Resetting again removes a configuration file that contains no supported options"
+    ts_before="$(get_restart_ts)"
+    printf '[Time]\n#NTP=\n#FallbackNTP=\nUnsupportedOption=1\n' > "$NTP_CONF"
     snap set -t system system.ntp='{}'
     not test -f "$NTP_CONF"
     [ "$ts_before" != "$(get_restart_ts)" ]
