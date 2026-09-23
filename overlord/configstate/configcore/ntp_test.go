@@ -602,6 +602,26 @@ func (s *ntpSuite) TestNTPGetUnsupportedOption(c *C) {
 	})
 }
 
+// Test that options in sections other than [Time] are ignored: timesyncd only
+// reads the [Time] section, so options elsewhere must not be reported
+func (s *ntpSuite) TestNTPGetOptionsOutsideTimeSectionIgnored(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The recognised options in the [NotTime] section are ignored, while the
+	// one in [Time] is read correctly
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[NotTime]\nNTP=ignored.example.com\nRootDistanceMaxSec=1h\n[Time]\nSaveIntervalSec=10s"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, IsNil)
+	c.Assert(ntpConfig, DeepEquals, map[string]any{
+		"save-interval": "10s",
+	})
+}
+
 func (s *ntpSuite) TestNTPGetSystemdDurationsAsGoDurations(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

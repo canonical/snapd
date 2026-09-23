@@ -478,6 +478,9 @@ func getNTPFromSystem() (result map[string]any, err error) {
 
 	val := map[string]any{}
 	for _, option := range unitOptions {
+		if option.Section != "Time" {
+			continue
+		}
 		snapOptionName := mapOptionNameTimesyncdToSnap(option.Name)
 		if snapOptionName == "" {
 			// If the option name is empty, it means the option is not supported, so we skip it
