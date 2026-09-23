@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -57,6 +58,11 @@ import (
 var (
 	removeSnapChangeKind           = swfeats.RegisterChangeKind("remove-snap")
 	transitionUbuntuCoreChangeKind = swfeats.RegisterChangeKind("transition-ubuntu-core")
+	// The "regenerate-kernel-drivers-tree" task kind is not registered via
+	// swfeats: task kinds are not separately tracked in that registry
+	// elsewhere in this package (see e.g. "discard-old-kernel-snap-setup"),
+	// only change kinds are.
+	regenerateKernelDriversTreeChangeKind = swfeats.RegisterChangeKind("regenerate-kernel-drivers-tree")
 )
 
 func init() {
@@ -68,6 +74,7 @@ func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleaned")
 	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
+	swfeats.RegisterEnsure("SnapManager", "ensureKernelDriversTreeRegenerated")
 
 	RegisterResealingTaskKind("prepare-kernel-modules-components")
 	// TODO: consider registering these on classic only if the system is an hybrid system
@@ -91,6 +98,14 @@ type SnapManager struct {
 	ensuredDesktopFilesUpdated  bool
 	ensuredDownloadsCleanedNext time.Time
 	ensureStoreCacheCleanNext   time.Time
+	// ensureKernelRegenerateDone is set once ensureKernelDriversTreeRegenerated has
+	// either confirmed the on-disk generator-version marker is current, or
+	// launched a regenerate-kernel-drivers-tree change, for the lifetime of this
+	// process. It is intentionally *not* about whether that launched change
+	// (and its task) actually succeeds: a failed task is not retried within
+	// the same process, only on the next snapd restart, which re-arms this
+	// flag back to its zero value.
+	ensureKernelRegenerateDone bool
 
 	changeCallbackID int
 }
@@ -863,6 +878,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// specific set-up for the kernel snap
 	runner.AddHandler("prepare-kernel-snap", m.doPrepareKernelSnap, m.undoPrepareKernelSnap)
 	runner.AddHandler("discard-old-kernel-snap-setup", m.doDiscardOldKernelSnapSetup, m.undoDiscardOldKernelSnapSetup)
+	runner.AddHandler("regenerate-kernel-drivers-tree", m.doRegenerateKernelDriversTree, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
@@ -1703,6 +1719,105 @@ func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
 	return nil
 }
 
+// ensureKernelDriversTreeRegenerated looks at the currently active kernel snap (if
+// any) and creates a change to check it if the tree itself was generated using
+// an older format than currently supported. Its job ends at the point the
+// change is launched or the marker is confirmed current for this process.
+func (m *SnapManager) ensureKernelDriversTreeRegenerated() error {
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureKernelDriversTreeRegenerated")
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.ensureKernelRegenerateDone {
+		return nil
+	}
+
+	seeded, err := SystemSeeded(m.state)
+	if err != nil {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		// model not known yet, or similar - nothing to do
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+	if deviceCtx.Model() == nil || !kernel.NeedsKernelDriversTree(deviceCtx.Model()) {
+		return nil
+	}
+
+	kernelInfo, err := KernelInfo(m.state, deviceCtx)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, kernelInfo.InstanceName(), kernelInfo.Revision)
+	exists, isDir, err := osutil.DirExists(destDir)
+	if err != nil {
+		return err
+	}
+	if !exists || !isDir {
+		// Nothing to check against/regenerate; leave it to the normal
+		// install flow.
+		return nil
+	}
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	if err != nil {
+		return err
+	}
+	if !needsCheck {
+		// We're done, the tree is up to date, nothing more to do.
+		m.ensureKernelRegenerateDone = true
+		return nil
+	}
+
+	// Coarse pre-check: defer entirely while anything else is happening -
+	// this is what makes this run "after snapd (and everything else) is
+	// done", and naturally wait out a change that ends in a reboot (its
+	// tasks stay non-Ready across the reboot). See ensureUbuntuCoreTransition
+	// for the exact same changeInFlight guard.
+	if changeInFlight(m.state) {
+		return nil
+	}
+
+	// Precise, authoritative guard (defense in depth on top of the coarse
+	// check above): conflicts with a real in-flight kernel/component
+	// change, or our own previously-launched check that hasn't finished
+	// yet, prevent a duplicate launch.
+	if err := CheckChangeConflict(m.state, kernelInfo.InstanceName(), nil); err != nil {
+		return nil // retry next Ensure() tick
+	}
+
+	t := m.state.NewTask("regenerate-kernel-drivers-tree",
+		fmt.Sprintf(i18n.G("Regenerate kernel drivers tree for %q"), kernelInfo.InstanceName()))
+	t.Set("snap-setup", &SnapSetup{
+		SideInfo: &kernelInfo.SideInfo,
+		Type:     snap.TypeKernel,
+	})
+
+	chg := m.state.NewChange(regenerateKernelDriversTreeChangeKind,
+		fmt.Sprintf(i18n.G("Regenerate kernel drivers tree for %q"), kernelInfo.InstanceName()))
+	chg.AddTask(t)
+
+	// We're done, a change was created, nothing more to do here. This is
+	// deliberately set regardless of whether the change/task we just
+	// launched will actually succeed.
+	m.ensureKernelRegenerateDone = true
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1727,6 +1842,7 @@ func (m *SnapManager) Ensure() error {
 	if seeded {
 		errs = append(errs,
 			m.ensureUbuntuCoreTransition(),
+			m.ensureKernelDriversTreeRegenerated(),
 			// We should check for full regular refreshes before
 			// considering issuing a hint-only refresh request.
 			m.autoRefresh.Ensure(),

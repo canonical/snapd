@@ -87,7 +87,7 @@ type StoreService interface {
 type managerBackend interface {
 	// install related
 	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev snap.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
-	SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error)
+	SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, opts *backend.SetupKernelSnapOptions, meter progress.Meter) (changed bool, err error)
 	SetupComponent(compFilePath string, compPi snap.ContainerPlaceInfo, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error)
 	SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) (err error)
 	CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOptions, meter progress.Meter) error
