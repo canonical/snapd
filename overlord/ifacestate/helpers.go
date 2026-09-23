@@ -910,7 +910,7 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 	}
 
 	if task.Kind() == "auto-connect" {
-		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName(), slot.Snap.InstanceName(), task)
+		ignore, err := findSymmetricAutoconnectTask(st, plug.Snap.InstanceName().String(), slot.Snap.InstanceName().String(), task)
 		if err != nil {
 			return err
 		}
@@ -920,7 +920,7 @@ func addNewConnection(st *state.State, task *state.Task, newconns map[string]*in
 		}
 	}
 
-	if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName(), slot.Snap.InstanceName()); err != nil {
+	if err := checkAutoconnectConflicts(st, task, plug.Snap.InstanceName().String(), slot.Snap.InstanceName().String()); err != nil {
 		retry, _ := err.(*state.Retry)
 		return conflictError(retry, err)
 	}
@@ -1102,7 +1102,7 @@ func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[s
 	conflictError func(*state.Retry, error) error,
 ) error {
 	for _, plug := range plugs {
-		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
+		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName().String(), plug.Name, c.check)
 
 		if len(candSlots) == 0 {
 			continue
@@ -1736,7 +1736,7 @@ func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, erro
 	st := t.State()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, info.InstanceName().String(), &snapst); err != nil {
 		// if the snap isn't in the state, then we know that there aren't any
 		// pre-existing components to consider
 		if errors.Is(err, state.ErrNoState) {
@@ -1760,7 +1760,7 @@ func appSetForTask(t *state.Task, info *snap.Info) (*interfaces.SnapAppSet, erro
 
 func appSetForSnapRevision(st *state.State, info *snap.Info) (*interfaces.SnapAppSet, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, info.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, info.InstanceName().String(), &snapst); err != nil {
 		return nil, err
 	}
 

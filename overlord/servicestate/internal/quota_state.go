@@ -66,7 +66,7 @@ func SetQuotaState(t *state.Task, data *QuotaStateItems) error {
 		for i, app := range apps {
 			appNames[i] = app.Name
 		}
-		appNamesBySnapName[info.InstanceName()] = appNames
+		appNamesBySnapName[info.InstanceName().String()] = appNames
 	}
 	t.Set("state-updated", quotaState{
 		BootID:              bootID,

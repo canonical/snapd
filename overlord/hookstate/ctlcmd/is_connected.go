@@ -211,7 +211,7 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		matchingPlug := connRef.PlugRef.Snap == instanceName.String() && connRef.PlugRef.Name == plugOrSlot
 		matchingSlot := connRef.SlotRef.Snap == instanceName.String() && connRef.SlotRef.Name == plugOrSlot
 		if otherSnap != nil {
-			if matchingPlug && connRef.SlotRef.Snap == otherSnap.InstanceName() || matchingSlot && connRef.PlugRef.Snap == otherSnap.InstanceName() {
+			if matchingPlug && connRef.SlotRef.Snap == otherSnap.InstanceName().String() || matchingSlot && connRef.PlugRef.Snap == otherSnap.InstanceName().String() {
 				return nil
 			}
 		} else {

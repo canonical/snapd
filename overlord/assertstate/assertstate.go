@@ -188,7 +188,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 
 	var errs []error
 	for _, candInfo := range snapInfos {
-		if ignoreValidation[candInfo.InstanceName()] {
+		if ignoreValidation[candInfo.InstanceName().String()] {
 			validated = append(validated, candInfo)
 			continue
 		}

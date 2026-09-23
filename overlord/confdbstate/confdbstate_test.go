@@ -557,13 +557,13 @@ func (s *confdbTestSuite) TestGetViewNoAssertion(c *C) {
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hooks []string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
 				RealName: info.SnapName().String(),
 				Revision: info.Revision,
-				SnapID:   info.InstanceName() + "-id",
+				SnapID:   info.InstanceName().String() + "-id",
 			},
 		}),
 		Current:         info.Revision,

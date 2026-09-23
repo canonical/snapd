@@ -157,12 +157,12 @@ func (iface *gpioChardevInterface) SystemdConnectedSlot(spec *systemd.Specificat
 
 func (iface *gpioChardevInterface) SystemdConnectedPlug(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	slotName := slot.Name()
-	slotSnapName := slot.Snap().InstanceName()
+	slotInstanceName := slot.Snap().InstanceName()
 	plugName := plug.Name()
-	plugSnapName := plug.Snap().InstanceName()
+	plugInstanceName := plug.Snap().InstanceName()
 
-	target := gpio.SnapChardevPath(slotSnapName, slotName)
-	symlink := gpio.SnapChardevPath(plugSnapName, plugName)
+	target := gpio.SnapChardevPath(slotInstanceName.String(), slotName)
+	symlink := gpio.SnapChardevPath(plugInstanceName.String(), plugName)
 
 	// Create symlink pointing to exported virtual slot device.
 	serviceSuffix := fmt.Sprintf("gpio-chardev-%s", plugName)

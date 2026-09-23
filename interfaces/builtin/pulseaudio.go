@@ -161,7 +161,7 @@ func (iface *pulseAudioInterface) AppArmorConnectedPlug(spec *apparmor.Specifica
 	}
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###SLOT_SECURITY_TAGS###"
-		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		new := "snap." + slot.Snap().InstanceName().String() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(pulseaudioConnectedPlugAppArmorCore, old, new, -1)
 		spec.AddSnippet(snippet)
 	}
