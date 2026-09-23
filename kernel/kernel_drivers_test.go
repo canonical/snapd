@@ -1003,3 +1003,66 @@ func (s *kernelDriversTestSuite) TestKernelInstallMarkerWriteFailureDiscardsTree
 
 	c.Check(osutil.FileExists(destDir), Equals, false)
 }
+
+func (s *kernelDriversTestSuite) TestKernelInstallRebuildsExistingTreeWithoutMarker(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	// Simulate a tree that already exists as a directory, but was never
+	// actually finished being built (e.g. snapd was killed or the system
+	// rebooted mid-build), or was built by an older, marker-less snapd
+	// (e.g. reinstated via a revert): a directory is there, but there is
+	// no completion marker.
+	c.Assert(os.MkdirAll(destDir, 0755), IsNil)
+	strayPath := filepath.Join(destDir, "stray-leftover")
+	c.Assert(os.WriteFile(strayPath, []byte("junk"), 0644), IsNil)
+
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// The tree was actually (re)built this time, not silently left as-is:
+	// the stray leftover from the incomplete/legacy tree is gone, and a
+	// valid, current marker is now present.
+	c.Check(osutil.FileExists(strayPath), Equals, false)
+	v, err := kernel.ReadDriversTreeGeneratorVersion(destDir)
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, kernel.KernelDriversTreeGeneratorVersion())
+
+	modsRoot := filepath.Join(destDir, "lib", "modules", kversion)
+	c.Check(osutil.FileExists(filepath.Join(modsRoot, "modules.dep.bin")), Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestKernelInstallSkipsRebuildWhenMarkerIsForwardOnly(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	// Build once so the tree exists and carries a marker.
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// Simulate a marker written by a newer generator than what is
+	// currently running (e.g. after a snapd revert).
+	restore := kernel.MockKernelDriversTreeGeneratorVersion(100)
+	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+	restore()
+
+	strayPath := filepath.Join(destDir, "stray-leftover")
+	c.Assert(os.WriteFile(strayPath, []byte("junk"), 0644), IsNil)
+
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// Nothing was touched: the shortcut fired and left the tree as-is.
+	c.Check(osutil.FileExists(strayPath), Equals, true)
+}
