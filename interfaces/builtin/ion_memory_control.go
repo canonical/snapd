@@ -49,13 +49,14 @@ var ionMemoryControlConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "ion-memory-control",
-		summary:               ionMemoryControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  ionMemoryControlBaseDeclarationSlots,
-		baseDeclarationPlugs:  ionMemoryControlBaseDeclarationPlugs,
-		connectedPlugAppArmor: ionMemoryControlConnectedPlugAppArmor,
-		connectedPlugUDev:     ionMemoryControlConnectedPlugUDev,
+		name:                     "ion-memory-control",
+		summary:                  ionMemoryControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     ionMemoryControlBaseDeclarationSlots,
+		baseDeclarationPlugs:     ionMemoryControlBaseDeclarationPlugs,
+		connectedPlugAppArmor:    ionMemoryControlConnectedPlugAppArmor,
+		connectedPlugUDev:        ionMemoryControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
