@@ -1394,6 +1394,13 @@ func (s *deviceMgrSystemsCreateSuite) SetUpTest(c *C) {
 	s.bootloader = s.deviceMgrSystemsBaseSuite.bootloader.WithRecoveryAwareTrustedAssets()
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	s.AddCleanup(devicestate.MockKeyboardCurrentXKBConfig(func() (*keyboard.XKBConfig, error) {
+		return &keyboard.XKBConfig{}, nil
+	}))
+	s.AddCleanup(devicestate.MockKeyboardNewXKBConfigListener(func(ctx context.Context, cb func(config *keyboard.XKBConfig)) (*keyboard.XKBConfigListener, error) {
+		return nil, nil
+	}))
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemConflict(c *C) {
@@ -1647,10 +1654,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerEnsureTriedRecoverySystem
 	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
-	restore = devicestate.MockKeyboardCurrentXKBConfig(func() (*keyboard.XKBConfig, error) {
-		return &keyboard.XKBConfig{}, nil
-	})
-	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
