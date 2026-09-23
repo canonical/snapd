@@ -1785,7 +1785,10 @@ nested_start_classic_vm() {
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
-    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+    # Preserve images customized by tests between build-image and create-vm.
+    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+    fi
 
     # Give extra disk space for the image
     qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +4G
