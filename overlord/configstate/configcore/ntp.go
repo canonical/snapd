@@ -283,9 +283,10 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 	var cfg map[string]any
 	err := tr.Get("core", "system.ntp", &cfg)
 	if config.IsNoOption(err) {
-		return nil
-	}
-	if err != nil {
+		// The option was removed (e.g. through "snap unset"), so reset the
+		// snapd-managed configuration file to restore the system defaults.
+		cfg = map[string]any{}
+	} else if err != nil {
 		return fmt.Errorf("cannot get NTP config: %v", err)
 	}
 
@@ -313,10 +314,10 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 
 		// If the configuration has not changed, there is nothing to do.
 		if ntpConfigurationDeepEqual(oldConfig, cfg) {
-			// Except: an empty configuration is an explicit reset to the
-			// defaults (snap set -t system system.ntp='{}'), which is
-			// achieved by removing the configuration file in the following
-			// code blocks.
+			// Except: an empty configuration is a reset to the defaults, which
+			// is achieved by removing the configuration file in the following
+			// code blocks. This happens either when system.ntp is set to an
+			// empty map '{}' or removed through "snap unset".
 			// That reset is a no-op only if the file does not exist.
 			// getNTPFromSystem returns nil both when the file is missing and
 			// when it contains no supported options (e.g. only comments), so

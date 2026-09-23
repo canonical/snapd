@@ -139,16 +139,16 @@ execute: |
     check_setting_invalid_config "cannot be smaller than 1s" \
         system system.ntp.connection-retry-interval=500ms
 
-    echo "Resetting the configuration to an empty document removes the configuration file"
+    echo "Unsetting the configuration removes the configuration file"
     ts_before="$(get_restart_ts)"
-    snap set -t system system.ntp='{}'
+    snap unset system system.ntp
     not test -f "$NTP_CONF"
     [ "$ts_before" != "$(get_restart_ts)" ]
 
-    echo "Resetting again removes a configuration file that contains no supported options"
+    echo "Unsetting removes a configuration file that contains no supported options"
     ts_before="$(get_restart_ts)"
     printf '[Time]\n#NTP=\n#FallbackNTP=\nUnsupportedOption=1\n' > "$NTP_CONF"
-    snap set -t system system.ntp='{}'
+    snap unset system system.ntp
     not test -f "$NTP_CONF"
     [ "$ts_before" != "$(get_restart_ts)" ]
 

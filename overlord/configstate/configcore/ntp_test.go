@@ -487,6 +487,21 @@ func (s *ntpSuite) TestNTPSetEmptyConfigurationMissingFileIsNoOp(c *C) {
 	c.Check(s.systemctlArgs, IsNil)
 }
 
+// Test that no system.ntp option, as after "snap unset system system.ntp",
+// removes the snapd-managed configuration file and restarts timesyncd.
+func (s *ntpSuite) TestNTPUnsetRemovesConfiguration(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]any{})
+
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, IsNil)
+
+	_, err = os.Lstat(s.timesyncdConfigFile)
+	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "systemd-timesyncd.service"},
+	})
+}
+
 func (s *ntpSuite) TestNTPSetErrorReadingDiskConfiguration(c *C) {
 	// Change file permissions to inhibit reading it
 	os.Chmod(s.timesyncdConfigFile, 0000)
