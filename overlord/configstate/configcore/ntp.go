@@ -80,6 +80,13 @@ var snapToTimesyncdKeyMapping = map[string]string{
 	"save-interval":             "SaveIntervalSec",
 }
 
+const (
+	// Directory and file name of the snapd-managed drop-in configuration
+	// for systemd-timesyncd
+	timesyncdCfgSubdir = "timesyncd.conf.d"
+	timesyncdCfgFile   = "00-snapd.conf"
+)
+
 func validateNTPSettings(tr ConfGetter) error {
 	var ntpCfg map[string]any
 	if err := tr.Get("core", "system.ntp", &ntpCfg); err != nil && !config.IsNoOption(err) {
@@ -288,16 +295,15 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		rootDir = opts.RootDir
 	}
 
-	systemdConfigFolder := filepath.Join(rootDir, "etc", "systemd")
-
-	// Configuration file path
-	// We write the main configuration file directly and not use drop-ins
-	// to make the reading operation simpler, and to avoid discrepancies
-	// between `snap get` and `snap set` when other drop-in files are installed
-	// on the system, though the result might be be imprecise compared to which
-	// configuration values are read by timesyncd. More explanation is found in the
-	// docstring for getNTPFromSystem.
-	ntpConfigPath := filepath.Join(systemdConfigFolder, "timesyncd.conf")
+	// snapd manages its own drop-in configuration file,
+	// /etc/systemd/timesyncd.conf.d/00-snapd.conf, leaving the main
+	// configuration file and any other drop-ins installed on the system
+	// untouched. The "00-" prefix makes the file sort first in alphabetical
+	// order, so that other drop-ins can still override the settings written
+	// by snapd. More explanation is found in the docstring for
+	// getNTPFromSystem.
+	timesyncdCfgDir := filepath.Join(dirs.SnapSystemdDirUnder(rootDir), timesyncdCfgSubdir)
+	ntpConfigPath := filepath.Join(timesyncdCfgDir, timesyncdCfgFile)
 
 	if opts == nil {
 		oldConfig, err := getNTPFromSystem()
@@ -313,11 +319,11 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 			// code blocks.
 			// That reset is a no-op only if the file does not exist.
 			// getNTPFromSystem returns nil both when the file is missing and
-			// when it contains no supported options (e.g. only comments, as
-			// in the default installed file), so the existence of the file
-			// must be checked explicitly.
-			// No-op this function only if the config has not changed and
-			// it is either not empty, or the file does not need to be deleted.
+			// when it contains no supported options (e.g. only comments), so
+			// the existence of the file must be checked explicitly.
+			// We no-op the rest of the function when the config has not
+			// changed only if it is either not empty, or the file does not
+			// exist and cannot be deleted.
 			_, err := os.Lstat(ntpConfigPath)
 			if len(cfg) != 0 || os.IsNotExist(err) {
 				return nil
@@ -325,8 +331,8 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		}
 	}
 
-	// Create systemd configuration folder, if not present
-	if err := os.MkdirAll(systemdConfigFolder, 0755); err != nil {
+	// Create the drop-in configuration folder, if not present
+	if err := os.MkdirAll(timesyncdCfgDir, 0755); err != nil {
 		return err
 	}
 
@@ -438,42 +444,42 @@ func mapOptionNameSnapToTimesyncd(snapOption string) string {
 	return ""
 }
 
-// getNTPFromSystem reads /etc/systemd/timesyncd.conf and returns its contents as a map.
+// getNTPFromSystem reads the snapd-managed drop-in configuration file
+// /etc/systemd/timesyncd.conf.d/00-snapd.conf and returns its contents as a map.
 // Keys are translated from timesyncd names (e.g. "NTP", "RootDistanceMaxSec") to snapd-style
 // names (e.g. "servers", "max-root-time-distance"). Space-separated server lists become string
 // slices, and systemd.time duration values are converted to Go duration strings.
-// Returns nil (no error) on classic systems, when the file is absent (default timesyncd
-// settings apply), or when no recognised options are present.
-// The configuration is read from and written to the main file ignoring drop-ins that might be
-// present on the system. This should be rare on Ubuntu Core. This is a deliberate choice, that
-// simplifies the reading process and avoids merging of the drop-ins in the code.
-// The limitation is that the output of this function is not correct if drop-ins are installed
-// inside /etc/systemd/timesyncd.conf.d/.
-// Compared to the return value of getNTPFromSystem, the values set to timesyncd will have
-// the server lists in the drop-ins appended to the one from the main file, and the duration values
-// overwritten by the ones in the drop-ins.
-// This cannot be avoided by writing the snapd configuration to a drop-in file, as it is always
-// possible for the users and applications to install a configuration file that comes later in
-// alphabetical order.
+// Returns nil (no error) on classic systems, when the file is absent (no NTP
+// configuration has been set through snapd), or when no recognised options are present.
+// Only the snapd-managed drop-in is read: the main /etc/systemd/timesyncd.conf and
+// other drop-ins installed on the system are neither read nor modified by snapd.
+// This keeps `snap get` and `snap set` symmetric, as the returned configuration
+// always reflects exactly what was configured through snapd.
+// Note that the values returned by this function might not match the configuration
+// actually used by systemd-timesyncd, which merges the main configuration file with
+// all drop-ins in alphabetical order: scalar options are overwritten by later files,
+// while the NTP/FallbackNTP server lists are appended together. As the snapd drop-in
+// sorts first ("00-"), any other drop-in installed on the system takes precedence
+// over the configuration written by snapd.
 func getNTPFromSystem() (result map[string]any, err error) {
 	if release.OnClassic {
 		return nil, nil
 	}
 
-	file, err := os.Open(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "timesyncd.conf"))
+	file, err := os.Open(filepath.Join(dirs.SnapSystemdDir, timesyncdCfgSubdir, timesyncdCfgFile))
 	if os.IsNotExist(err) {
 		// A missing file is not an error, it just means that there is no custom configuration and
 		//  the system is using the defaults
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("cannot read NTP configuration file /etc/systemd/timesyncd.conf: %v", err)
+		return nil, fmt.Errorf("cannot read NTP configuration file /etc/systemd/timesyncd.conf.d/00-snapd.conf: %v", err)
 	}
 	defer file.Close()
 
 	unitOptions, err := unit.Deserialize(file)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf: %v", err)
+		return nil, fmt.Errorf("cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf.d/00-snapd.conf: %v", err)
 	}
 
 	val := map[string]any{}

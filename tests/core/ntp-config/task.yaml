@@ -3,14 +3,18 @@ summary: Check that core.system.ntp.* config options configure systemd-timesyncd
 details: |
     core.system.ntp.* configuration options allow configuring NTP time
     synchronization behavior on Ubuntu Core. Setting these options writes
-    the corresponding settings to /etc/systemd/timesyncd.conf and restarts
-    systemd-timesyncd.service to apply them.
+    the corresponding settings to the snapd-managed drop-in file
+    /etc/systemd/timesyncd.conf.d/00-snapd.conf and restarts
+    systemd-timesyncd.service to apply them. The main
+    /etc/systemd/timesyncd.conf and other drop-ins are never modified by
+    snapd.
 
     This test verifies that:
     - with no configuration set, "snap get system system.ntp" reports no
       configuration option
     - setting a full configuration writes the expected values to the
       configuration file and restarts systemd-timesyncd.service
+    - the main /etc/systemd/timesyncd.conf is left unmodified
     - "snap get" reflects the currently configured (and normalized) values
     - updating a single option preserves the other, previously configured
       options
@@ -24,20 +28,29 @@ details: |
       comments)
 
 environment:
-    NTP_CONF: /etc/systemd/timesyncd.conf
-    NTP_CONF_RESTORE: /etc/systemd/timesyncd.conf.orig
-    NTP_CONF_VALID: /etc/systemd/timesyncd.conf.valid
+    NTP_CONF: /etc/systemd/timesyncd.conf.d/00-snapd.conf
+    NTP_CONF_RESTORE: /etc/systemd/timesyncd.conf.d/00-snapd.conf.orig
+    NTP_CONF_VALID: /etc/systemd/timesyncd.conf.d/00-snapd.conf.valid
+    NTP_MAIN_CONF: /etc/systemd/timesyncd.conf
+    NTP_MAIN_CONF_COPY: /tmp/timesyncd.conf.main
 
 prepare: |
     if [ -f "$NTP_CONF" ]; then
         mv "$NTP_CONF" "$NTP_CONF_RESTORE"
     fi
+    # Save a copy of the main configuration file to verify that snapd never
+    # modifies it
+    if [ -f "$NTP_MAIN_CONF" ]; then
+        cp "$NTP_MAIN_CONF" "$NTP_MAIN_CONF_COPY"
+    fi
 
 restore: |
     rm -f "$NTP_CONF"
+    rm -f "$NTP_CONF_VALID"
     if [ -f "$NTP_CONF_RESTORE" ]; then
         mv "$NTP_CONF_RESTORE" "$NTP_CONF"
     fi
+    rm -f "$NTP_MAIN_CONF_COPY"
     systemctl reload-or-restart systemd-timesyncd.service
 
 execute: |
@@ -141,3 +154,10 @@ execute: |
 
     echo "snap get reports no configuration option again after the reset"
     not snap get system system.ntp
+
+    echo "The main /etc/systemd/timesyncd.conf was not modified by snapd"
+    if [ -f "$NTP_MAIN_CONF_COPY" ]; then
+        diff -u "$NTP_MAIN_CONF_COPY" "$NTP_MAIN_CONF"
+    else
+        not test -f "$NTP_MAIN_CONF"
+    fi

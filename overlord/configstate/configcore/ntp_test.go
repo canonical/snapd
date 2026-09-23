@@ -54,10 +54,10 @@ func (s *ntpSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 
 	// Create the config file and write a predictable configuration
-	systemdConfigFolder := filepath.Join(dirs.GlobalRootDir, "etc/systemd")
-	err := os.MkdirAll(systemdConfigFolder, 0755)
+	timesyncdCfgDir := filepath.Join(dirs.GlobalRootDir, "etc/systemd/timesyncd.conf.d")
+	err := os.MkdirAll(timesyncdCfgDir, 0755)
 	c.Assert(err, IsNil)
-	s.timesyncdConfigFile = filepath.Join(systemdConfigFolder, "timesyncd.conf")
+	s.timesyncdConfigFile = filepath.Join(timesyncdCfgDir, "00-snapd.conf")
 	err = os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
 	c.Assert(err, IsNil)
 
@@ -410,34 +410,34 @@ func (s *ntpSuite) TestNTPSetCannotCreateSystemdFolder(c *C) {
 	c.Assert(err, ErrorMatches, "mkdir /tmp/check-.*/etc/systemd: permission denied")
 }
 
-// Test that setting a valid configuration fails when the systemd folder cannot be accessed due to
+// Test that setting a valid configuration fails when the drop-in folder cannot be accessed due to
 // missing write permissions
 func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
-	systemdConfigFolder := filepath.Join(dirs.GlobalRootDir, "etc/systemd")
-	c.Assert(os.Chmod(systemdConfigFolder, 0111), IsNil)
-	defer os.Chmod(systemdConfigFolder, 0755)
+	timesyncdCfgDir := filepath.Join(dirs.GlobalRootDir, "etc/systemd/timesyncd.conf.d")
+	c.Assert(os.Chmod(timesyncdCfgDir, 0111), IsNil)
+	defer os.Chmod(timesyncdCfgDir, 0755)
 
 	conf := configcore.PlainCoreConfig(validConfigurationExample)
 
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
-	c.Assert(err, ErrorMatches, "cannot write NTP configuration: open .*/etc/systemd/timesyncd.conf.*: permission denied")
+	c.Assert(err, ErrorMatches, "cannot write NTP configuration: open .*/etc/systemd/timesyncd.conf.d/00-snapd.conf.*: permission denied")
 	s.verifyConfigfileContent(c, startingFileContent, "")
 }
 
 func (s *ntpSuite) TestNTPSetErrorRemoveFileEmptyConfiguration(c *C) {
-	// Change /etc/systemd permissions to inhibit file deletion when the configuration is empty
-	systemdConfigFolder := filepath.Join(dirs.GlobalRootDir, "etc/systemd")
-	c.Assert(os.Chmod(systemdConfigFolder, 0111), IsNil)
-	defer os.Chmod(systemdConfigFolder, 0755)
+	// Change the drop-in folder permissions to inhibit file deletion when the configuration is empty
+	timesyncdCfgDir := filepath.Join(dirs.GlobalRootDir, "etc/systemd/timesyncd.conf.d")
+	c.Assert(os.Chmod(timesyncdCfgDir, 0111), IsNil)
+	defer os.Chmod(timesyncdCfgDir, 0755)
 
 	conf := configcore.PlainCoreConfig(map[string]any{
 		"system.ntp": map[string]any{},
 	})
 
-	// The config file not being readable triggers an error and the configuration
+	// The config file not being removable triggers an error and the configuration
 	// is not updated
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
-	c.Assert(err, ErrorMatches, "cannot reset NTP configuration to defaults: remove .*/etc/systemd/timesyncd.conf: permission denied")
+	c.Assert(err, ErrorMatches, "cannot reset NTP configuration to defaults: remove .*/etc/systemd/timesyncd.conf.d/00-snapd.conf: permission denied")
 }
 
 // Test that resetting the configuration to an empty document removes the
@@ -497,7 +497,7 @@ func (s *ntpSuite) TestNTPSetErrorReadingDiskConfiguration(c *C) {
 	// The config file not being readable triggers an error and the configuration
 	// is not updated
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
-	c.Assert(err, ErrorMatches, "cannot read NTP configuration file /etc/systemd/timesyncd.conf: open .*/etc/systemd/timesyncd.conf: permission denied")
+	c.Assert(err, ErrorMatches, "cannot read NTP configuration file /etc/systemd/timesyncd.conf.d/00-snapd.conf: open .*/etc/systemd/timesyncd.conf.d/00-snapd.conf: permission denied")
 }
 
 func (s *ntpSuite) TestNTPSetMissingConfigFile(c *C) {
@@ -554,7 +554,7 @@ func (s *ntpSuite) TestNTPGetErrorOpeningFile(c *C) {
 
 	var ntpConfig map[string]any
 	err := tr.Get("core", "system.ntp", &ntpConfig)
-	c.Assert(err, ErrorMatches, "cannot read NTP configuration file /etc/systemd/timesyncd.conf: open .*/etc/systemd/timesyncd.conf: permission denied")
+	c.Assert(err, ErrorMatches, "cannot read NTP configuration file /etc/systemd/timesyncd.conf.d/00-snapd.conf: open .*/etc/systemd/timesyncd.conf.d/00-snapd.conf: permission denied")
 }
 
 func (s *ntpSuite) TestNTPGetInvalidSystemdUnit(c *C) {
@@ -568,7 +568,7 @@ func (s *ntpSuite) TestNTPGetInvalidSystemdUnit(c *C) {
 
 	var ntpConfig map[string]any
 	err := tr.Get("core", "system.ntp", &ntpConfig)
-	c.Assert(err, ErrorMatches, "cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf: unable to find end of section")
+	c.Assert(err, ErrorMatches, "cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf.d/00-snapd.conf: unable to find end of section")
 }
 
 func (s *ntpSuite) TestNTPGetEmptySystemdUnit(c *C) {
@@ -777,7 +777,7 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config6), Equals, false)
 
-	// Test server list as []string result of parsing timesyncd.conf (oldConfig), instead of
+	// Test server list as []string result of parsing 00-snapd.conf (oldConfig), instead of
 	// []any coming from tr.Get call (newConfig). The slices should be considered equal even
 	// if their type is different, as long as their content is the same.
 	config7 := map[string]any{
