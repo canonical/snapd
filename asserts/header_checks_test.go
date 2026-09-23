@@ -43,7 +43,7 @@ func (s *headerChecksSuite) TestCheckRevision(c *C) {
 	c.Check(err, ErrorMatches, `"revision" header must be >=1: 0`)
 }
 
-func (srs *snapRevSuite) TestCheckIntegrity(c *C) {
+func (s *headerChecksSuite) TestCheckIntegrity(c *C) {
 	assert := asserts.NewAssertionBase(map[string]any{
 		"integrity": []any{map[string]any{
 			"type":            "dm-verity",
