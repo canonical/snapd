@@ -53,6 +53,9 @@ var (
 	NewAuthzRecorder        = newAuthzRecorder
 )
 
+// AuthzRecorder is [authzRecorder] for tests outside package daemon.
+type AuthzRecorder = authzRecorder
+
 // RecordGranted exposes [authzRecorder.recordGranted] for tests.
 func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
 	rec.recordGranted(reason, iface, onPlugSide)
