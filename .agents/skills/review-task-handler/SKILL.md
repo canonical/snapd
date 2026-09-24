@@ -85,8 +85,17 @@ applicable section of `overlord/handlers-quality.md` as `pass`, `partial`,
 
 After assigning ratings, use [the scoring helper](./scripts/score.py). It reads
 the live checklist, rejects category counts that do not reconcile, normalizes
-weights for wholly `N/A` categories, and calculates the grade. The helper does
-not decide ratings or severity.
+weights for wholly `N/A` categories, and calculates the grade. Slow operation
+locking is the exception: while applicable, its weight remains fixed at 4% and
+other `N/A` weight is redistributed around it. The helper does not decide
+ratings or severity.
+
+The Slow Operation Locking category owns responsiveness caused by holding the
+`State` lock around slow or blocking work, including indirect helper, fallback,
+retry, and error paths. Do not also deduct the same lock-duration issue under
+State and locking or Do handler. Continue to rate distinct correctness
+consequences, such as stale-state overwrite or unsafe overlap, under their
+owning criteria.
 
 ### Rebut before reporting
 
@@ -119,6 +128,10 @@ A missing explicit `SetStatus` is not automatically a defect: explain the
 incompatible replay it permits. Likewise, an unlock is not automatically unsafe:
 identify mutable state that can change and the coordination that does or does
 not protect it.
+
+A responsiveness-only Slow Operation Locking finding is category-limited and
+does not supply `confirmed_severity`. A distinct correctness consequence may
+still supply severity under its owning criterion.
 
 Remove the finding if the rebuttal cannot be answered by code. Downgrade it to
 `Unresolved` when one controlling boundary cannot be inspected.

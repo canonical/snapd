@@ -17,6 +17,8 @@ class ScoreTest(unittest.TestCase):
 - coordination
 ## State And Locking
 - state
+## Slow Operation Locking
+- slow operation locking
 ## Do Handler
 - do
 ## Undo Handler
@@ -26,8 +28,8 @@ class ScoreTest(unittest.TestCase):
 """
         ratings = {
             "ratings": {
-                category: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
-                for category, _, _ in score.CATEGORIES
+                category.name: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
+                for category in score.CATEGORIES
             },
             "confirmed_severity": None,
         }
@@ -60,6 +62,8 @@ class ScoreTest(unittest.TestCase):
 - coordination
 ## State And Locking
 - state
+## Slow Operation Locking
+- slow operation locking
 ## Do Handler
 - do
 ## Undo Handler
@@ -77,11 +81,11 @@ class ScoreTest(unittest.TestCase):
 
     def test_validate_ratings_rejects_wrong_category_total(self) -> None:
         checklist_counts = {
-            heading: 1 for _, heading, _ in score.CATEGORIES
+            category.heading: 1 for category in score.CATEGORIES
         }
         ratings = {
-            category: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
-            for category, _, _ in score.CATEGORIES
+            category.name: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
+            for category in score.CATEGORIES
         }
         ratings["General"]["pass"] = 0
 
@@ -90,8 +94,8 @@ class ScoreTest(unittest.TestCase):
 
     def test_all_na_category_redistributes_weight(self) -> None:
         ratings = {
-            category: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
-            for category, _, _ in score.CATEGORIES
+            category.name: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
+            for category in score.CATEGORIES
         }
         ratings["Undo handler"] = {"pass": 0, "partial": 0, "fail": 0, "na": 1}
 
@@ -99,8 +103,122 @@ class ScoreTest(unittest.TestCase):
 
         self.assertAlmostEqual(raw_score, 10.0)
         undo_row = next(row for row in rows if row["category"] == "Undo handler")
+        slow_row = next(
+            row for row in rows if row["category"] == "Slow operation locking"
+        )
         self.assertEqual(undo_row["weight"], 0.0)
+        self.assertAlmostEqual(slow_row["weight"], 0.04)
         self.assertAlmostEqual(sum(row["weight"] for row in rows), 1.0)
+
+    def test_category_weights_total_one(self) -> None:
+        self.assertAlmostEqual(sum(category.weight for category in score.CATEGORIES), 1.0)
+        slow_category = next(
+            category
+            for category in score.CATEGORIES
+            if category.name == "Slow operation locking"
+        )
+        self.assertEqual(slow_category.weight, 0.04)
+        self.assertTrue(slow_category.fixed_weight)
+
+    def test_slow_operation_locking_weight_stays_fixed(self) -> None:
+        ratings = {
+            category.name: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
+            for category in score.CATEGORIES
+        }
+        ratings["Slow operation locking"] = {
+            "pass": 1,
+            "partial": 0,
+            "fail": 0,
+            "na": 1,
+        }
+        ratings["Undo handler"] = {"pass": 0, "partial": 0, "fail": 0, "na": 1}
+
+        rows, raw_score = score.calculate_rows(ratings)
+
+        slow_row = next(
+            row for row in rows if row["category"] == "Slow operation locking"
+        )
+        self.assertAlmostEqual(slow_row["weight"], 0.04)
+        self.assertAlmostEqual(slow_row["maximum"], 0.4)
+        self.assertAlmostEqual(raw_score, 10.0)
+        self.assertAlmostEqual(sum(row["weight"] for row in rows), 1.0)
+
+    def test_slow_operation_locking_na_redistributes_weight(self) -> None:
+        ratings = {
+            category.name: {"pass": 1, "partial": 0, "fail": 0, "na": 0}
+            for category in score.CATEGORIES
+        }
+        ratings["Slow operation locking"] = {
+            "pass": 0,
+            "partial": 0,
+            "fail": 0,
+            "na": 2,
+        }
+
+        rows, raw_score = score.calculate_rows(ratings)
+
+        slow_row = next(
+            row for row in rows if row["category"] == "Slow operation locking"
+        )
+        self.assertEqual(slow_row["weight"], 0.0)
+        self.assertAlmostEqual(raw_score, 10.0)
+        self.assertAlmostEqual(sum(row["weight"] for row in rows), 1.0)
+
+    def test_failed_slow_operation_locking_costs_four_tenths(self) -> None:
+        for undo_is_na in (False, True):
+            with self.subTest(undo_is_na=undo_is_na):
+                ratings = {
+                    category.name: {
+                        "pass": 1,
+                        "partial": 0,
+                        "fail": 0,
+                        "na": 0,
+                    }
+                    for category in score.CATEGORIES
+                }
+                if undo_is_na:
+                    ratings["Undo handler"] = {
+                        "pass": 0,
+                        "partial": 0,
+                        "fail": 0,
+                        "na": 1,
+                    }
+
+                _, passing_raw_score = score.calculate_rows(ratings)
+                passing_final_score, _, _ = score.score_summary(
+                    passing_raw_score, None
+                )
+
+                ratings["Slow operation locking"] = {
+                    "pass": 0,
+                    "partial": 0,
+                    "fail": 2,
+                    "na": 0,
+                }
+                _, failing_raw_score = score.calculate_rows(ratings)
+                failing_final_score, _, _ = score.score_summary(
+                    failing_raw_score, None
+                )
+
+                self.assertAlmostEqual(passing_raw_score - failing_raw_score, 0.4)
+                self.assertAlmostEqual(
+                    passing_final_score - failing_final_score, 0.4
+                )
+
+    def test_only_fixed_category_applicable_is_rejected(self) -> None:
+        ratings = {
+            category.name: {"pass": 0, "partial": 0, "fail": 0, "na": 1}
+            for category in score.CATEGORIES
+        }
+        ratings["Slow operation locking"] = {
+            "pass": 1,
+            "partial": 0,
+            "fail": 0,
+            "na": 1,
+        }
+
+        with self.assertRaisesRegex(score.InputError, "non-fixed"):
+            score.calculate_rows(ratings)
 
     def test_severity_cap_never_raises_raw_score(self) -> None:
         final_score, binding_cap, grade = score.score_summary(5.0, "medium")

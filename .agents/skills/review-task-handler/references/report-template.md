@@ -39,6 +39,9 @@ make the arithmetic reviewable. Then briefly note important positive evidence,
 especially working conflicts, blocking, recovery, or meaningful undo tests.
 When an entire category is `N/A`, state that all of its top-level criteria are
 `N/A` and give one category-level justification instead of repeating each one.
+Identify responsiveness-only Slow Operation Locking findings as category-limited;
+do not attribute a severity cap to them unless a separately rated correctness
+consequence determines severity.
 
 ## Other Observations
 

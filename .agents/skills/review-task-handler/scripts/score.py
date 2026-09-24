@@ -2,16 +2,24 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, TextIO, Tuple
+from typing import Any, Dict, List, Mapping, NamedTuple, Optional, TextIO, Tuple
+
+
+class Category(NamedTuple):
+    name: str
+    heading: str
+    weight: float
+    fixed_weight: bool = False
 
 
 CATEGORIES = (
-    ("General", "General", 0.10),
-    ("Coordination", "Concurrency And Coordination", 0.15),
-    ("State and locking", "State And Locking", 0.20),
-    ("Do handler", "Do Handler", 0.20),
-    ("Undo handler", "Undo Handler", 0.15),
-    ("Tests", "Tests Expected", 0.20),
+    Category("General", "General", 0.09),
+    Category("Coordination", "Concurrency And Coordination", 0.14),
+    Category("State and locking", "State And Locking", 0.195),
+    Category("Slow operation locking", "Slow Operation Locking", 0.04, True),
+    Category("Do handler", "Do Handler", 0.195),
+    Category("Undo handler", "Undo Handler", 0.15),
+    Category("Tests", "Tests Expected", 0.19),
 )
 RATINGS = ("pass", "partial", "fail", "na")
 SEVERITY_CAPS = {
@@ -47,7 +55,7 @@ def repository_root() -> Path:
 
 
 def checklist_bullet_counts(checklist_path: Path) -> Dict[str, int]:
-    headings = {heading for _, heading, _ in CATEGORIES}
+    headings = {category.heading for category in CATEGORIES}
     counts = {heading: 0 for heading in headings}
     current_heading: Optional[str] = None
 
@@ -94,7 +102,7 @@ def load_input(stream: TextIO) -> Tuple[Mapping[str, Any], Optional[str]]:
 def validate_ratings(
     ratings: Mapping[str, Any], checklist_counts: Mapping[str, int]
 ) -> Dict[str, Dict[str, int]]:
-    expected_categories = {name for name, _, _ in CATEGORIES}
+    expected_categories = {category.name for category in CATEGORIES}
     unknown_categories = sorted(set(ratings) - expected_categories)
     missing_categories = sorted(expected_categories - set(ratings))
     if unknown_categories:
@@ -103,10 +111,10 @@ def validate_ratings(
         raise InputError("missing rating categories: " + ", ".join(missing_categories))
 
     validated: Dict[str, Dict[str, int]] = {}
-    for category, heading, _ in CATEGORIES:
-        values = ratings[category]
+    for category in CATEGORIES:
+        values = ratings[category.name]
         if not isinstance(values, dict):
-            raise InputError(f"ratings for {category} must be a JSON object")
+            raise InputError(f"ratings for {category.name} must be a JSON object")
 
         unknown_ratings = sorted(set(values) - set(RATINGS))
         missing_ratings = sorted(set(RATINGS) - set(values))
@@ -123,17 +131,19 @@ def validate_ratings(
         for rating in RATINGS:
             value = values[rating]
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise InputError(f"{category}.{rating} must be a non-negative integer")
+                raise InputError(
+                    f"{category.name}.{rating} must be a non-negative integer"
+                )
             category_values[rating] = value
 
-        expected_count = checklist_counts[heading]
+        expected_count = checklist_counts[category.heading]
         actual_count = sum(category_values.values())
         if actual_count != expected_count:
             raise InputError(
-                f"{category} ratings total {actual_count}, expected {expected_count} "
-                f"from checklist section {heading!r}"
+                f"{category.name} ratings total {actual_count}, expected {expected_count} "
+                f"from checklist section {category.heading!r}"
             )
-        validated[category] = category_values
+        validated[category.name] = category_values
 
     return validated
 
@@ -148,23 +158,29 @@ def letter_grade(score: float) -> str:
 def calculate_rows(
     ratings: Mapping[str, Mapping[str, int]]
 ) -> Tuple[List[Dict[str, Any]], float]:
-    applicable_weights = 0.0
     applicability: Dict[str, int] = {}
-    for category, _, weight in CATEGORIES:
-        values = ratings[category]
+    fixed_weight = 0.0
+    scalable_weight = 0.0
+    for category in CATEGORIES:
+        values = ratings[category.name]
         applicable = values["pass"] + values["partial"] + values["fail"]
-        applicability[category] = applicable
+        applicability[category.name] = applicable
         if applicable > 0:
-            applicable_weights += weight
+            if category.fixed_weight:
+                fixed_weight += category.weight
+            else:
+                scalable_weight += category.weight
 
-    if applicable_weights == 0:
+    if fixed_weight == 0.0 and scalable_weight == 0.0:
         raise InputError("at least one checklist category must be applicable")
+    if scalable_weight == 0.0:
+        raise InputError("at least one non-fixed checklist category must be applicable")
 
     rows: List[Dict[str, Any]] = []
     raw_score = 0.0
-    for category, _, weight in CATEGORIES:
-        values = ratings[category]
-        applicable = applicability[category]
+    for category in CATEGORIES:
+        values = ratings[category.name]
+        applicable = applicability[category.name]
         if applicable == 0:
             category_score = None
             normalized_weight = 0.0
@@ -172,14 +188,19 @@ def calculate_rows(
             maximum = 0.0
         else:
             category_score = (values["pass"] + 0.5 * values["partial"]) / applicable
-            normalized_weight = weight / applicable_weights
+            if category.fixed_weight:
+                normalized_weight = category.weight
+            else:
+                normalized_weight = (
+                    category.weight / scalable_weight * (1.0 - fixed_weight)
+                )
             maximum = 10.0 * normalized_weight
             contribution = maximum * category_score
             raw_score += contribution
 
         rows.append(
             {
-                "category": category,
+                "category": category.name,
                 "weight": normalized_weight,
                 "values": values,
                 "category_score": category_score,

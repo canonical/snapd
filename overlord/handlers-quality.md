@@ -15,7 +15,6 @@ the surrounding task construction, conflict checks, and task-runner wiring.
 
 ## Concurrency And Coordination
 
-- Protects working-state access with the `State` lock.
 - At operation construction time, conflict checks reject a new change when an incompatible in-progress change affects the same resource.
 - Within a change, task dependencies express required execution order.
 - Lanes partition a change into independent failure and rollback domains; they do not serialize tasks.
@@ -23,8 +22,8 @@ the surrounding task construction, conflict checks, and task-runner wiring.
 
 ## State And Locking
 
+- Protects working-state access with the `State` lock.
 - Begins with `st.Lock(); defer st.Unlock()` unless its structure requires a justified variant.
-- Releases the state lock only for slow I/O or network work, and reacquires it promptly.
 - Does not read and later overwrite mutable shared state across an unlock, especially `SnapState`, unless execution is serialized at the task-runner level.
 - Performs required state validation while holding the lock, and reconsiders relevant state after reacquiring it.
 - Persists task working data needed by later tasks, undo, or restart recovery.
@@ -32,12 +31,16 @@ the surrounding task construction, conflict checks, and task-runner wiring.
 - Uses `state.Retry` for transient or deliberately deferred work rather than treating it as a terminal failure.
 - Uses `state.Wait` when progress requires an external event or manual action, with deliberate `WaitedStatus` semantics.
 
+## Slow Operation Locking
+
+- Direct handler code releases the `State` lock before potentially slow or blocking filesystem I/O, hashing, subprocess execution, polling, and network work, unless a bounded lock-held exception is required and justified.
+- Helper, fallback, retry, and error paths preserve the same boundary; the handler keeps the unlocked window scoped to slow work and reacquires the `State` lock promptly.
+
 ## Do Handler
 
 - Validates task inputs, device context, current state, and preconditions before making irreversible external changes.
 - Is idempotent: a rerun after any interruption either completes safely or recognizes completed work.
 - Records enough prior state or ownership information for a precise undo, without restoring unrelated concurrent changes.
-- Releases the lock before downloads, store requests, large copies, polling, or equivalent slow operations.
 - Handles cancellation through the supplied tomb/context where the operation supports it.
 - On an error after beginning its own external changes, cleans up its own partial work before returning the error. The task runner does not undo the failing task itself.
 - Separates essential operation failure from best-effort ancillary work, logs the latter, and does not silently hide failures that affect correctness.

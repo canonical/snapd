@@ -29,12 +29,13 @@ checklist.
 python3 .agents/skills/review-task-handler/scripts/score.py <<'JSON'
 {
   "ratings": {
-    "General": {"pass": 2, "partial": 1, "fail": 1, "na": 0},
+    "General": {"pass": 5, "partial": 1, "fail": 1, "na": 0},
     "Coordination": {"pass": 3, "partial": 0, "fail": 0, "na": 1},
-    "State and locking": {"pass": 5, "partial": 1, "fail": 0, "na": 0},
+    "State and locking": {"pass": 6, "partial": 1, "fail": 1, "na": 0},
+    "Slow operation locking": {"pass": 1, "partial": 0, "fail": 1, "na": 0},
     "Do handler": {"pass": 6, "partial": 0, "fail": 1, "na": 0},
-    "Undo handler": {"pass": 0, "partial": 0, "fail": 0, "na": 7},
-    "Tests": {"pass": 4, "partial": 2, "fail": 0, "na": 3}
+    "Undo handler": {"pass": 0, "partial": 0, "fail": 0, "na": 8},
+    "Tests": {"pass": 5, "partial": 2, "fail": 0, "na": 3}
   },
   "confirmed_severity": "medium"
 }
@@ -55,6 +56,24 @@ weight of wholly `N/A` categories, severity caps, rounding, and the letter
 grade. It prints the normalized weights, per-category contributions, raw score,
 binding cap, final score, and grade. Report those values verbatim; do not
 recompute or adjust them.
+
+The base category weights are:
+
+| Category | Weight |
+|---|---:|
+| General | 9% |
+| Coordination | 14% |
+| State and locking | 19.5% |
+| Slow operation locking | 4% |
+| Do handler | 19.5% |
+| Undo handler | 15% |
+| Tests | 19% |
+
+`Slow operation locking` is fixed at 4% whenever at least one of its criteria
+applies. Weight from other wholly `N/A` categories is redistributed only among
+the other applicable categories, so it cannot increase this category above 4%.
+When the slow-operation category is wholly `N/A`, its own weight is
+redistributed normally.
 
 Decide only what the helper cannot: each criterion's rating, whether a category
 is genuinely inapplicable, and the highest confirmed severity.
@@ -83,6 +102,13 @@ behavioral defects. Deduct them through the Tests category; they do not impose a
 severity cap unless a failing test or code trace confirms the underlying defect.
 A concern explicitly labeled unresolved does not impose a cap either.
 
+A slow-operation locking finding that only demonstrates responsiveness impact
+is category-limited: report and rate it, but do not use it to choose
+`confirmed_severity`. If the same code also causes a distinct correctness
+failure such as stale-state overwrite, incompatible replay, corruption, or
+unsafe overlap, rate that consequence under its owning State and locking, Do
+handler, or Coordination criterion and let that consequence determine severity.
+
 Report the highest confirmed severity to the helper, which applies the matching
 cap. State both the raw score and the cap only when the helper reports the cap
 as binding. If the computed grade feels wrong, revisit criterion ratings,
@@ -91,8 +117,10 @@ by intuition.
 
 ## Consistency rules
 
-- Score one root defect against every affected criterion, but report it as one
-  finding. Multiple failed criteria may legitimately lower the numeric score.
+- Score one root defect against every independently affected criterion, but
+  report it as one finding. Multiple failed criteria may legitimately lower the
+  numeric score. A lock-duration responsiveness issue belongs only to Slow
+  operation locking; do not duplicate it under State and locking or Do handler.
 - Keep correctness findings separate from test findings even when the missing
   test would have exposed the defect.
 - Base `N/A` on task semantics, not missing implementation.
