@@ -394,6 +394,9 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 // Test that setting a valid configuration fails when the systemd folder cannot be accessed due to
 // missing write permissions
 func (s *ntpSuite) TestNTPSetCannotCreateSystemdFolder(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	etcFolder := filepath.Join(dirs.GlobalRootDir, "etc")
 	systemdConfigFolder := filepath.Join(etcFolder, "systemd")
 	systemdConfigFolderAlternateName := filepath.Join(etcFolder, "systemd.bak")
@@ -407,12 +410,15 @@ func (s *ntpSuite) TestNTPSetCannotCreateSystemdFolder(c *C) {
 	conf := configcore.PlainCoreConfig(validConfigurationExample)
 
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
-	c.Assert(err, ErrorMatches, "mkdir /tmp/check-.*/etc/systemd: permission denied")
+	c.Assert(err, ErrorMatches, "mkdir .*/etc/systemd: permission denied")
 }
 
 // Test that setting a valid configuration fails when the drop-in folder cannot be accessed due to
 // missing write permissions
 func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	timesyncdCfgDir := filepath.Join(dirs.GlobalRootDir, "etc/systemd/timesyncd.conf.d")
 	c.Assert(os.Chmod(timesyncdCfgDir, 0111), IsNil)
 	defer os.Chmod(timesyncdCfgDir, 0755)
@@ -425,6 +431,9 @@ func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
 }
 
 func (s *ntpSuite) TestNTPSetErrorRemoveFileEmptyConfiguration(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	// Change the drop-in folder permissions to inhibit file deletion when the configuration is empty
 	timesyncdCfgDir := filepath.Join(dirs.GlobalRootDir, "etc/systemd/timesyncd.conf.d")
 	c.Assert(os.Chmod(timesyncdCfgDir, 0111), IsNil)
@@ -503,6 +512,9 @@ func (s *ntpSuite) TestNTPUnsetRemovesConfiguration(c *C) {
 }
 
 func (s *ntpSuite) TestNTPSetErrorReadingDiskConfiguration(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	// Change file permissions to inhibit reading it
 	os.Chmod(s.timesyncdConfigFile, 0000)
 	defer os.Chmod(s.timesyncdConfigFile, 0644)
@@ -558,6 +570,9 @@ func (s *ntpSuite) TestNTPGetMissingConfigFile(c *C) {
 }
 
 func (s *ntpSuite) TestNTPGetErrorOpeningFile(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	s.state.Lock()
 	defer s.state.Unlock()
 
