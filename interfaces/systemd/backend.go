@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	sysd "github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -103,9 +104,6 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 	// set up systemd drop-in config files
 	dropInsChanged, errDropIns := b.setUpDropIns(instanceName, spec.(*Specification))
-	if errDropIns != nil {
-		logger.Noticef("error configuring systemd drop-ins: %s", errDropIns)
-	}
 
 	// Reload systemd whenever something is added or removed
 	if !b.preseed && (len(changed) > 0 || len(removed) > 0 || dropInsChanged) {
@@ -132,7 +130,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			logger.Noticef("cannot reload systemd state after enabling the services: %s", err)
 		}
 	}
-	return errEnsure
+	return strutil.JoinErrors(errEnsure, errDropIns)
 }
 
 // Remove disables, stops and removes systemd services of a given snap.
@@ -151,9 +149,6 @@ func (b *Backend) Remove(snapName string) error {
 
 	// remove all drop-ins matching the snap glob
 	dropInsChanged, errDropIns := b.removeOtherDropIns(naming.InstanceName(snapName), nil)
-	if errDropIns != nil {
-		logger.Noticef("error removing systemd drop-ins: %s", errDropIns)
-	}
 
 	if len(removed) > 0 {
 		logger.Noticef("systemd-backend: Disable: removed services: %q", removed)
@@ -173,7 +168,7 @@ func (b *Backend) Remove(snapName string) error {
 			logger.Noticef("cannot reload systemd state: %s", err)
 		}
 	}
-	return errEnsure
+	return strutil.JoinErrors(errEnsure, errDropIns)
 }
 
 func (b *Backend) setUpDropIns(instanceName naming.InstanceName, spec *Specification) (madeChanges bool, err error) {
