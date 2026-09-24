@@ -2571,28 +2571,13 @@ func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
 func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallInfo, userID int, prqt PrereqTracker) error {
-	var featFlag features.SnapdFeature
-
 	switch changeKind {
-	case "install":
-		featFlag = features.CheckDiskSpaceInstall
-	case "refresh":
-		featFlag = features.CheckDiskSpaceRefresh
+	case "install", "refresh":
 	default:
 		return fmt.Errorf("cannot check disk space for invalid change kind %q", changeKind)
 	}
 
-	tr := config.NewTransaction(st)
-	enabled, err := features.Flag(tr, featFlag)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-
-	if !enabled {
-		return nil
-	}
-
-	reservation, err := diskSpaceReservation(tr)
+	reservation, err := diskSpaceReservation(config.NewTransaction(st))
 	if err != nil {
 		if errors.Is(err, diskSpaceUnsetError) {
 			return nil
@@ -3221,8 +3206,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	if err != nil {
 		return nil, err
 	}
-	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
-	// will only be greater than 0 if the feature is enabled.
+	// removeTasks() checks the disk space reservation, so snapshotSize
+	// will only be greater than 0 if the check is enabled.
 	if snapshotSize > 0 {
 		reservation, err := diskSpaceReservation(config.NewTransaction(st))
 		if err != nil {
@@ -3375,12 +3360,13 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
 			ts, err := AutomaticSnapshot(st, instanceName.String())
 			if err == nil {
-				tr := config.NewTransaction(st)
-				checkDiskSpaceRemove, err := features.Flag(tr, features.CheckDiskSpaceRemove)
-				if err != nil && !config.IsNoOption(err) {
+				// without a reservation there are no disk space checks, so
+				// the snapshot size does not need to be estimated
+				_, err := diskSpaceReservation(config.NewTransaction(st))
+				if err != nil && !errors.Is(err, diskSpaceUnsetError) {
 					return nil, 0, err
 				}
-				if checkDiskSpaceRemove {
+				if err == nil {
 					snapshotSize, err = EstimateSnapshotSize(st, instanceName.String(), nil)
 					if err != nil {
 						return nil, 0, err
@@ -3660,8 +3646,8 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	}
 
 	path := dirs.SnapdStateDir(dirs.GlobalRootDir)
-	// removeTasks() checks check-disk-space-remove feature flag, so totalSnapshotsSize
-	// will only be greater than 0 if the feature is enabled.
+	// removeTasks() checks the disk space reservation, so totalSnapshotsSize
+	// will only be greater than 0 if the check is enabled.
 	if totalSnapshotsSize > 0 {
 		reservation, err := diskSpaceReservation(config.NewTransaction(st))
 		if err != nil {

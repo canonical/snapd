@@ -119,6 +119,33 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationDoesNothingWhenFeaturesD
 	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }
 
+func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationRetiresFlags(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-remove", false), IsNil)
+
+	runTr := configcore.NewRunTransaction(tr, nil)
+	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
+	tr.Commit()
+
+	for _, feature := range []features.SnapdFeature{
+		features.CheckDiskSpaceInstall,
+		features.CheckDiskSpaceRefresh,
+		features.CheckDiskSpaceRemove,
+	} {
+		snapName, confName := feature.ConfigOption()
+		var value any
+		c.Check(config.IsNoOption(tr.Get(snapName, confName, &value)), Equals, true)
+	}
+
+	var reservation uint64
+	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
+	c.Check(reservation, Equals, uint64(5*1024*1024))
+}
+
 func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationOnFeatureFlagChange(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

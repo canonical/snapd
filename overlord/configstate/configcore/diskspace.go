@@ -40,32 +40,52 @@ func init() {
 	supportedConfigurations["core.disk-reservation.size"] = true
 }
 
-// MigrateDiskSpaceReservation preserves disk space checks for systems that
-// enabled one of the legacy experimental feature flags. It can be removed with
-// those flags in a later release.
+// MigrateDiskSpaceReservation converts the legacy experimental feature flags
+// into disk-reservation.size and then retires the flags, so the option stays
+// authoritative. It can be removed with those flags in a later release.
 func MigrateDiskSpaceReservation(tr RunTransaction) error {
-	var reservation any
-	err := tr.Get("core", "disk-reservation.size", &reservation)
-	// If the option is already set, we don't need to do anything.
-	if err == nil {
+	enabled, err := legacyDiskSpaceFeatureEnabled(tr)
+	if err != nil {
+		return err
+	}
+	if !enabled {
 		return nil
 	}
 
-	if !config.IsNoOption(err) {
+	var reservation any
+	err = tr.Get("core", "disk-reservation.size", &reservation)
+	switch {
+	case config.IsNoOption(err):
+		// only seed the default when the option is not configured already
+		if err := tr.Set("core", "disk-reservation.size", defaultDiskSpaceReservation); err != nil {
+			return err
+		}
+	case err != nil:
 		return err
 	}
 
 	for _, feature := range legacyDiskSpaceFeatures {
-		enabled, err := features.Flag(tr, feature)
-		if err != nil {
+		snapName, confName := feature.ConfigOption()
+		if err := tr.Set(snapName, confName, nil); err != nil {
 			return err
-		}
-		if enabled {
-			return tr.Set("core", "disk-reservation.size", defaultDiskSpaceReservation)
 		}
 	}
 
 	return nil
+}
+
+func legacyDiskSpaceFeatureEnabled(tr RunTransaction) (bool, error) {
+	for _, feature := range legacyDiskSpaceFeatures {
+		enabled, err := features.Flag(tr, feature)
+		if err != nil {
+			return false, err
+		}
+		if enabled {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // handleDiskSpaceReservation runs the migration when a legacy experimental flag
