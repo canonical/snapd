@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -279,10 +281,25 @@ func ntpConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
 	return true
 }
 
-func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
+func isNTPConfigurationSupported(base string) bool {
+	// Restrict this config to UC20+ systems
+	coreVersion, err := naming.CoreVersion(base)
+	if err != nil {
+		return false
+	}
+	return coreVersion >= 20
+}
+
+func handleNTPConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	var cfg map[string]any
 	err := tr.Get("core", "system.ntp", &cfg)
 	if config.IsNoOption(err) {
+		if opts != nil {
+			// The option is not part of the configuration applied in the
+			// filesystem-only context (e.g. image build), so there is
+			// nothing to do
+			return nil
+		}
 		// The option was removed (e.g. through "snap unset"), so reset the
 		// snapd-managed configuration file to restore the system defaults.
 		cfg = map[string]any{}
@@ -330,6 +347,15 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 				return nil
 			}
 		}
+	}
+
+	// Check if NTP configuration is supported on this system
+	// Note: It's important to check if the ntp option is actually being changed before checking
+	// if it is supported because these handlers are called even if there is no change in the
+	// configuration they are handling. This ensures that the unsupported error is only being
+	// thrown when someone is trying to set it.
+	if !isNTPConfigurationSupported(dev.Base()) {
+		return errors.New("cannot set NTP configuration: unsupported on this system, requires UC20+")
 	}
 
 	// Create the drop-in configuration folder, if not present

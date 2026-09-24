@@ -9,6 +9,10 @@ details: |
     /etc/systemd/timesyncd.conf and other drop-ins are never modified by
     snapd.
 
+    This test only runs on UC20+ as the systemd functionality to parse
+    timespans from the unit file written on disk was implemented in systemd
+    v243 and is thus not available in UC18 (v237)
+
     This test verifies that:
     - with no configuration set, "snap get system system.ntp" reports no
       configuration option
@@ -26,6 +30,12 @@ details: |
       configuration file and restores the default (unset) behavior,
       including when the file contains no supported options (e.g. only
       comments)
+
+# The feature uses `systemd-analyze timespan` command, implemented from
+# systemd v243
+# https://lists.freedesktop.org/archives/systemd-devel/2019-September/043401.html
+# so is only available starting with UC20 (v245)
+systems: [ubuntu-core-2*]
 
 environment:
     NTP_CONF: /etc/systemd/timesyncd.conf.d/00-snapd.conf

@@ -554,6 +554,78 @@ func (s *ntpSuite) TestNTPSetRestartDaemonError(c *C) {
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{{"reload-or-restart", "systemd-timesyncd.service"}})
 }
 
+// Test that on UC20, the oldest supported system, the NTP configuration can
+// be read and set without errors
+func (s *ntpSuite) TestNTPGetSetOnCore20(c *C) {
+	// Getting the configuration returns the on-disk configuration
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Check(ntpConfig, DeepEquals, map[string]any{
+		"servers":                []any{"ntp.ubuntu.com"},
+		"max-root-time-distance": "5s",
+	})
+
+	// Setting the configuration succeeds
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+	err = configcore.FilesystemOnlyRun(core20Dev, conf)
+	c.Assert(err, IsNil)
+	s.verifyConfigfileContent(c, configurationExampleFileContent, "")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "systemd-timesyncd.service"},
+	})
+}
+
+// Test that on systems older than UC20, getting the NTP configuration fails
+// transparently by reporting no configuration option, while setting it fails
+// explicitly with an error
+func (s *ntpSuite) TestNTPGetSetUnsupportedBeforeCore20(c *C) {
+	// The snapd-managed drop-in file cannot exist on pre-UC20 systems
+	c.Assert(os.Remove(s.timesyncdConfigFile), IsNil)
+
+	// Getting the configuration reports no option instead of failing
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	s.state.Unlock()
+	c.Assert(err, ErrorMatches, `snap "core" has no "system.ntp" configuration option`)
+	c.Check(ntpConfig, DeepEquals, map[string]any(nil))
+
+	// Setting the configuration fails with an explicit error
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+	err = configcore.FilesystemOnlyRun(core18Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: unsupported on this system, requires UC20\\+")
+
+	// The configuration file was not created and timesyncd was not restarted
+	_, err = os.Lstat(s.timesyncdConfigFile)
+	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(s.systemctlArgs, IsNil)
+
+	// Running the configuration handlers without NTP changes is a no-op
+	// that does not fail on pre-UC20 systems
+	err = configcore.FilesystemOnlyRun(core18Dev, configcore.PlainCoreConfig(map[string]any{}))
+	c.Assert(err, IsNil)
+	c.Check(s.systemctlArgs, IsNil)
+}
+
+// Test that applying the NTP configuration to a filesystem root (e.g. during
+// image building) fails explicitly on pre-UC20 systems, while applying
+// defaults that do not touch the NTP configuration is a no-op
+func (s *ntpSuite) TestNTPFilesystemOnlyApplyUnsupportedBeforeCore20(c *C) {
+	tmpDir := c.MkDir()
+
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+	err := configcore.FilesystemOnlyApply(core18Dev, tmpDir, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: unsupported on this system, requires UC20\\+")
+
+	err = configcore.FilesystemOnlyApply(core18Dev, tmpDir, configcore.PlainCoreConfig(map[string]any{}))
+	c.Assert(err, IsNil)
+}
+
 func (s *ntpSuite) TestNTPGetMissingConfigFile(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
