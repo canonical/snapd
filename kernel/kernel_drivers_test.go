@@ -929,9 +929,9 @@ func (s *kernelDriversTestSuite) TestDriversTreeMetaRoundTrip(c *C) {
 
 	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
 
-	v, err := kernel.ReadDriversTreeGeneratorVersion(destDir)
+	v, err := kernel.ReadDriversTreeMeta(destDir)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, kernel.KernelDriversTreeGeneratorVersion())
+	c.Assert(v.GeneratorVersion, Equals, kernel.KernelDriversTreeGeneratorVersion())
 
 	// The marker file lives inside destDir, so it is cleaned up by
 	// RemoveKernelDriversTree's existing os.RemoveAll.

@@ -75,13 +75,13 @@ func writeDriversTreeMeta(destDir string) error {
 }
 
 var (
-	errGeneratorMetaCorrupted = errors.New("metadata file is corrupted")
+	errGeneratorMetaCorrupted = errors.New("kernel drivers tree generator metadata file is corrupted")
 )
 
-// readDriversTreeGeneratorMeta returns the generator metadata recorded for
+// readDriversTreeMeta returns the generator metadata recorded for
 // destDir. If no marker value is present a default zero value with
 // GeneratorVersion set to 0 is returned and no error.
-func readDriversTreeGeneratorMeta(destDir string) (driversTreeMeta, error) {
+func readDriversTreeMeta(destDir string) (driversTreeMeta, error) {
 	data, err := os.ReadFile(driversTreeMetaPath(destDir))
 	if errors.Is(err, fs.ErrNotExist) {
 		return driversTreeMeta{
@@ -105,7 +105,7 @@ func readDriversTreeGeneratorMeta(destDir string) (driversTreeMeta, error) {
 // destDir was built by an older version of the generator code, indicating it
 // may need to be checked or rebuilt.
 func DriversTreeOutdated(destDir string) (bool, error) {
-	v, err := readDriversTreeGeneratorMeta(destDir)
+	v, err := readDriversTreeMeta(destDir)
 	if err != nil {
 		if errors.Is(err, errGeneratorMetaCorrupted) {
 			// Corrupted metadata file warrants a rebuild.
@@ -115,8 +115,11 @@ func DriversTreeOutdated(destDir string) (bool, error) {
 	}
 	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
 		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
-	// Only care about older (lower) versions. The tree may have been built by a
-	// newer snapd.
+	// A tree marked with a version *newer* than what is currently running (e.g.
+	// after a snapd revert) is deliberately NOT considered outdated: rebuilding
+	// it with older, possibly-buggy logic could regress a fix already applied
+	// by the newer generator. Only consider the kernel tree to be outdated of
+	// the current snapd version is strictly newer.
 	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
 }
 
