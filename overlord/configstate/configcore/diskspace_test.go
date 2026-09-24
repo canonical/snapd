@@ -124,8 +124,10 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationRetiresFlags(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-remove", false), IsNil)
+	installSnap, installConf := features.CheckDiskSpaceInstall.ConfigOption()
+	removeSnap, removeConf := features.CheckDiskSpaceRemove.ConfigOption()
+	c.Assert(tr.Set(installSnap, installConf, true), IsNil)
+	c.Assert(tr.Set(removeSnap, removeConf, false), IsNil)
 
 	runTr := configcore.NewRunTransaction(tr, nil)
 	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
@@ -181,7 +183,8 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationKeepsExplicitUnset(c *C)
 	defer s.state.Unlock()
 
 	setupTr := config.NewTransaction(s.state)
-	c.Assert(setupTr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	snapName, confName := features.CheckDiskSpaceInstall.ConfigOption()
+	c.Assert(setupTr.Set(snapName, confName, true), IsNil)
 	c.Assert(setupTr.Set("core", "disk-reservation.size", 0), IsNil)
 	setupTr.Commit()
 
