@@ -4,12 +4,14 @@
 type: object
 title: SystemActionFixEncryptionSupport
 description: >-
-  Payload to apply a corrective action to fix storage encryption support.
-  This action can only be performed after a pre-install check context is created
-  through a GET request to the same system label. That context is kept in memory
-  and is lost after a subsequent GET request, when snapd restarts, or when the
-  system reboots.
-
+  Payload to apply a corrective action to fix storage encryption support. Action
+  `fix-encryption-support` requires an initial GET request to the same system
+  (`GET /v2/systems/{label}`), which runs the initial pre-install check and creates
+  an in-memory pre-install check context. Each iteration of the `fix-encryption-support`
+  action applies the requested fix and runs a subsequent pre-install check, using
+  that context, so multiple actions can be performed in sequence. The pre-install
+  check context is lost if another GET request to the same system is made
+  (`GET /v2/systems/{label}`), if snapd restarts, or if the system reboots.
 required:
   - action
   - fix-action
@@ -21,9 +23,10 @@ properties:
   fix-action:
     type: string
     description: >-
-      The specific fix to apply. Valid values are the action names defined in the secboot
-      library, e.g., those in the `storage-encryption.availability-check-errors.actions`
-      array in `SystemDetails`. An empty string maps to `ActionNone` in the secboot library.
+      The specific fix to apply. An empty string maps to `ActionNone` in the secboot
+      library. Otherwise, it must be an action reported by the most recent pre-install
+      check. Actions should be attempted in the order in which they appear in the `actions`
+      array for the relevant item in `SystemDetails.storage-encryption.availability-check-errors`.
   args:
     type: object
     minProperties: 1
