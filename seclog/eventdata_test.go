@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func (s *SecLogSuite) TestReasonString(c *C) {
@@ -89,6 +90,34 @@ func (s *SecLogSuite) TestPeerString(c *C) {
 	c.Check(seclog.Peer{Socket: "/run/snapd.socket"}.String(), Equals, "/run/snapd.socket:0:<unknown>")
 
 	c.Check(seclog.Peer{UID: seclog.PeerNobody}.String(), Equals, "<unknown>:<unknown>:<unknown>")
+}
+
+func (s *SecLogSuite) TestRunnableFromSecurityTag(c *C) {
+	cases := []struct {
+		tag      string
+		runnable string
+	}{{
+		tag:      "snap.firefox.firefox",
+		runnable: "app.firefox",
+	}, {
+		tag:      "snap.firefox_foo.firefox",
+		runnable: "app.firefox",
+	}, {
+		tag:      "snap.mysnap.hook.install",
+		runnable: "hook.install",
+	}, {
+		tag:      "snap.mysnap+comp.hook.install",
+		runnable: "comp.hook.install",
+	}, {
+		tag:      "snap.mysnap_foo+comp.hook.install",
+		runnable: "comp.hook.install",
+	}}
+
+	for _, tc := range cases {
+		tag, err := naming.ParseSecurityTag(tc.tag)
+		c.Assert(err, IsNil)
+		c.Check(seclog.RunnableFromSecurityTag(tag), Equals, tc.runnable, Commentf("tag %s", tc.tag))
+	}
 }
 
 func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {

@@ -21,7 +21,6 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/seclog"
-	"github.com/snapcore/snapd/snap/naming"
 )
 
 // seclogPeerFromUcred builds a [seclog.Peer] for AUTHZ events from the
@@ -43,20 +42,7 @@ func seclogPeerFromUcred(ucred *ucrednet) seclog.Peer {
 	}
 	if tag, err := ucred.SecurityTag(); err == nil {
 		peer.Snap = tag.InstanceName()
-		peer.Runnable = seclogRunnable(tag)
+		peer.Runnable = seclog.RunnableFromSecurityTag(tag)
 	}
 	return peer
-}
-
-// seclogRunnable is the audit form of [naming.SecurityTag.CommandName].
-// Apps are prefixed with "app." so they can be told apart from hooks.
-// Component hooks omit the snap name, which is recorded on [seclog.Peer.Snap].
-func seclogRunnable(tag naming.SecurityTag) string {
-	if _, ok := tag.(naming.AppSecurityTag); ok {
-		return "app." + tag.CommandName()
-	}
-	if hook, ok := tag.(naming.HookSecurityTag); ok && hook.ComponentName() != "" {
-		return hook.ComponentName() + ".hook." + hook.HookName()
-	}
-	return tag.CommandName()
 }

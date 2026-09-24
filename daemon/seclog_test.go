@@ -43,46 +43,18 @@ func (s *seclogSuite) TestSeclogPeerFromUcredNil(c *C) {
 }
 
 func (s *seclogSuite) TestSeclogPeerFromUcred(c *C) {
-	cases := []struct {
-		tag      string
-		snap     string
-		runnable string
-	}{{
-		tag:      "snap.firefox.firefox",
-		snap:     "firefox",
-		runnable: "app.firefox",
-	}, {
-		tag:      "snap.firefox_foo.firefox",
-		snap:     "firefox_foo",
-		runnable: "app.firefox",
-	}, {
-		tag:      "snap.mysnap.hook.install",
-		snap:     "mysnap",
-		runnable: "hook.install",
-	}, {
-		tag:      "snap.mysnap+comp.hook.install",
-		snap:     "mysnap",
-		runnable: "comp.hook.install",
-	}, {
-		tag:      "snap.mysnap_foo+comp.hook.install",
-		snap:     "mysnap_foo",
-		runnable: "comp.hook.install",
-	}}
+	ucred := daemon.NewUcrednet("snap.firefox.firefox", "/usr/bin/snap", 1000, "/run/snapd.socket")
+	ucred.PIDForPolkit = 4242
 
-	for _, tc := range cases {
-		ucred := daemon.NewUcrednet(tc.tag, "/usr/bin/snap", 1000, "/run/snapd.socket")
-		ucred.PIDForPolkit = 4242
-
-		peer := daemon.SeclogPeerFromUcred(ucred)
-		c.Check(peer, DeepEquals, seclog.Peer{
-			Socket:   "/run/snapd.socket",
-			UID:      1000,
-			PID:      4242,
-			Exe:      "/usr/bin/snap",
-			Snap:     tc.snap,
-			Runnable: tc.runnable,
-		}, Commentf("tag %s", tc.tag))
-	}
+	peer := daemon.SeclogPeerFromUcred(ucred)
+	c.Check(peer, DeepEquals, seclog.Peer{
+		Socket:   "/run/snapd.socket",
+		UID:      1000,
+		PID:      4242,
+		Exe:      "/usr/bin/snap",
+		Snap:     "firefox",
+		Runnable: "app.firefox",
+	})
 }
 
 func (s *seclogSuite) TestSeclogPeerFromUcredMissingTag(c *C) {

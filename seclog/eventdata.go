@@ -45,6 +45,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // unknown is the placeholder for empty fields in descriptions.
@@ -112,11 +113,26 @@ type Peer struct {
 	// Snap is the snap instance name of the peer process, from its snap
 	// security tag. [unknown] when unavailable.
 	Snap string `json:"snap"`
-	// Runnable is the peer app or hook, from the same security tag as [Peer.Snap].
-	// Apps are "app.<name>" so they can be told apart from hooks. Component
-	// hooks are "<component>.hook.<name>" because the snap name is [Peer.Snap].
-	// [unknown] when unavailable.
+	// Runnable is the peer app or hook, from the same security tag as [Peer.Snap],
+	// formatted by [RunnableFromSecurityTag]. [unknown] when unavailable.
 	Runnable string `json:"runnable"`
+}
+
+// RunnableFromSecurityTag returns the [Peer.Runnable] value for tag.
+// Apps are "app.<name>", hooks are "hook.<name>", and component hooks are
+// "<component>.hook.<name>". The snap name is [Peer.Snap], from InstanceName.
+func RunnableFromSecurityTag(tag naming.SecurityTag) string {
+	switch t := tag.(type) {
+	case naming.AppSecurityTag:
+		return "app." + t.AppName()
+	case naming.HookSecurityTag:
+		if t.ComponentName() != "" {
+			return t.ComponentName() + ".hook." + t.HookName()
+		}
+		return "hook." + t.HookName()
+	default:
+		return ""
+	}
 }
 
 // PeerNobody and PeerNoProcess are the unknown UID and PID sentinels for [Peer].

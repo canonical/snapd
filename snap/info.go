@@ -1363,7 +1363,6 @@ type AppInfo struct {
 }
 
 // Runnable returns a Runnable for this app.
-// CommandName matches [naming.SecurityTag.CommandName].
 func (app *AppInfo) Runnable() Runnable {
 	return Runnable{
 		CommandName: app.Name,
@@ -1416,7 +1415,6 @@ type HookInfo struct {
 
 // Runnable returns a Runnable for this hook. If this hook points to a
 // component, then this runnable will represent a component hook.
-// CommandName matches [naming.SecurityTag.CommandName].
 func (hook *HookInfo) Runnable() Runnable {
 	if hook.Component == nil {
 		return Runnable{
