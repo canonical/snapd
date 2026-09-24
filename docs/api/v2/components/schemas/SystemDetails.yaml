@@ -114,7 +114,9 @@ properties:
               type: array
               items:
                 type: string
-              description: The available actions for the error kind, as mapped by the secboot library.
+              description: >-
+                The available actions for the error kind, as mapped by the secboot library.
+                Actions are listed in the order they should be attempted.
       features:
         type: array
         items:
