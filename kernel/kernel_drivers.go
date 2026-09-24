@@ -118,7 +118,7 @@ func DriversTreeOutdated(destDir string) (bool, error) {
 	// A tree marked with a version *newer* than what is currently running (e.g.
 	// after a snapd revert) is deliberately NOT considered outdated: rebuilding
 	// it with older, possibly-buggy logic could regress a fix already applied
-	// by the newer generator. Only consider the kernel tree to be outdated of
+	// by the newer generator. Only consider the kernel tree to be outdated if
 	// the current snapd version is strictly newer.
 	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
 }
