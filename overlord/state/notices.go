@@ -283,8 +283,9 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	}
 
 	if n.noticeType == WarningNotice {
-		warning := Warning{notice: n}
-		return warning.validate()
+		// n.key is the warning message, and n.firstOccurred is
+		// the warning's firstAdded value.
+		return validateWarning(n.key, n.firstOccurred, n.expireAfter)
 	}
 	return nil
 }

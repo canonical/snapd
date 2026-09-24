@@ -39,6 +39,8 @@ var (
 	errNoWarningExpireAfter = errors.New("warning has no expire-after duration")
 )
 
+// jsonWarning is not used to marshal warnings to state. It is only used for marshalling
+// warnings out over the API, and for the backwards-compatible warnings migration to notices.
 type jsonWarning struct {
 	Message     string     `json:"message"`
 	FirstAdded  time.Time  `json:"first-added"`
@@ -46,25 +48,6 @@ type jsonWarning struct {
 	LastShown   *time.Time `json:"last-shown,omitempty"`
 	ExpireAfter string     `json:"expire-after,omitempty"`
 	RepeatAfter string     `json:"repeat-after,omitempty"`
-}
-
-// validate is used to ensure that the jsonWarning used to migrate warnings found
-// on disk to notices have valid fields.
-func (w *jsonWarning) validate() (e error) {
-	if w.Message == "" {
-		return errNoWarningMessage
-	}
-	if strings.TrimSpace(w.Message) != w.Message {
-		return errBadWarningMessage
-	}
-	if w.FirstAdded.IsZero() {
-		return errNoWarningFirstAdded
-	}
-	if w.ExpireAfter == "" {
-		return errNoWarningExpireAfter
-	}
-
-	return nil
 }
 
 type Warning struct {
@@ -147,17 +130,19 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 	return json.Marshal(jw)
 }
 
-func (w *Warning) validate() (e error) {
-	if w.String() == "" {
+// validate is used to ensure that the jsonWarning used to migrate warnings found
+// on disk to notices have valid fields.
+func validateWarning(message string, firstAdded time.Time, expireAfter time.Duration) (e error) {
+	if message == "" {
 		return errNoWarningMessage
 	}
-	if strings.TrimSpace(w.String()) != w.String() {
+	if strings.TrimSpace(message) != message {
 		return errBadWarningMessage
 	}
-	if w.firstAdded().IsZero() {
+	if firstAdded.IsZero() {
 		return errNoWarningFirstAdded
 	}
-	if w.expireAfter() == 0 {
+	if expireAfter == 0 {
 		return errNoWarningExpireAfter
 	}
 
