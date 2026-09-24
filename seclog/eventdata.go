@@ -248,6 +248,7 @@ const (
 	DenialUserAuth             DenialReason = "user-auth-denied"
 	DenialRootAuth             DenialReason = "root-auth-denied"
 	DenialPolkitAuth           DenialReason = "polkit-auth-denied"
+	DenialPolkitCancelled      DenialReason = "polkit-auth-cancelled"
 )
 
 // String returns a colon-separated description of the user in the form

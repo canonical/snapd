@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/seclog"
 )
 
 type (
@@ -41,6 +42,16 @@ type (
 	ByActionAccess               = byActionAccess
 
 	InterfaceAccessReqs = interfaceAccessReqs
+
+	InterfaceAccessOutcome = interfaceAccessOutcome
+
+	AccessLevel = accessLevel
+)
+
+const (
+	AccessLevelOpen          = accessLevelOpen
+	AccessLevelAuthenticated = accessLevelAuthenticated
+	AccessLevelRoot          = accessLevelRoot
 )
 
 var (
@@ -65,10 +76,46 @@ func MockPolkitCheckAuthorization(new func(pid int32, uid uint32, actionId strin
 	}
 }
 
-func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs) *apiError) (restore func()) {
+func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs, rec AuthzRecorder, level AccessLevel) (InterfaceAccessOutcome, *apiError)) (restore func()) {
 	old := requireInterfaceApiAccess
 	requireInterfaceApiAccess = new
 	return func() {
 		requireInterfaceApiAccess = old
 	}
 }
+
+// AuthzTestRecorder records the last Record* outcome for tests.
+type AuthzTestRecorder struct {
+	GrantedReason seclog.GrantReason
+	DeniedReason  seclog.DenialReason
+}
+
+func NewAuthzTestRecorder() *AuthzTestRecorder {
+	return &AuthzTestRecorder{}
+}
+
+func (rec *AuthzTestRecorder) WithUser(seclog.SnapdUser) AuthzRecorder {
+	return rec
+}
+
+func (rec *AuthzTestRecorder) WithPeer(seclog.Peer) AuthzRecorder {
+	return rec
+}
+
+func (rec *AuthzTestRecorder) WithEndpoint(seclog.Endpoint) AuthzRecorder {
+	return rec
+}
+
+func (rec *AuthzTestRecorder) RecordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
+	rec.DeniedReason = ""
+	rec.GrantedReason = reason.WithInterface(iface, onPlugSide)
+}
+
+func (rec *AuthzTestRecorder) RecordDenied(reason seclog.DenialReason) {
+	rec.GrantedReason = ""
+	rec.DeniedReason = reason
+}
+
+func (rec *AuthzTestRecorder) Emit() {}
+
+var _ AuthzRecorder = (*AuthzTestRecorder)(nil)
