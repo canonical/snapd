@@ -646,20 +646,39 @@ jobs:
         name: "${{ github.job }}-results-${{ github.run_id }}-${{ inputs.group }}-${{ github.run_attempt }}"
         path: ${{ env.FAILED_TESTS_FILE }}
 
+    - name: Send results to Test-Predictor
+      if: ${{ always() && runner.environment == 'self-hosted' }}
+      continue-on-error: true
+      env:
+        SCENARIO: ${{ inputs.scenario }}
+      run: |
+        source .github/scripts/common.sh
+        send_results_to_test_predictor \
+          results.json \
+          "$GITHUB_REPOSITORY" \
+          "$GITHUB_RUN_ID" \
+          "$GITHUB_RUN_ATTEMPT" \
+          "${{ inputs.group }}" \
+          "$SCENARIO"
+
   sync-test-results:
     name: Sync test results
     needs: run-spread
-    if: always()
+    if: ${{ always() && !contains(fromJSON(inputs.runs-on), 'self-hosted') }}
     continue-on-error: true
     runs-on: [self-hosted, spread-enabled]
     permissions:
       actions: read
+      contents: read
     env:
       GH_TOKEN: ${{ github.token }}
       SCENARIO: ${{ inputs.scenario }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Download filtered log for Grafana
-        if: ${{ !contains(fromJSON(inputs.runs-on), 'self-hosted') && inputs.log-to-grafana == 'true' }}
+        if: ${{ inputs.log-to-grafana == 'true' }}
         uses: actions/download-artifact@v8
         with:
           name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
@@ -672,46 +691,11 @@ jobs:
 
       - name: Send results to test-predictor
         run: |
-          if [ ! -f results.json ]; then
-              echo "No spread results found, skipping sending results to Test-Predictor"
-              exit 0
-          fi
-
-          # Get the originating spread job ID.
-          JOB_ID=""
-          for attempt in 1 2 3; do
-              if JOB_IDS=$(gh api --paginate \
-                "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
-                --jq '.jobs[] | select(.name | contains("${{ inputs.group }}") and contains("run-spread")) | .id'); then
-                  JOB_ID=$(head -n 1 <<< "$JOB_IDS")
-                  if [[ "$JOB_ID" =~ ^[0-9]+$ ]]; then
-                      break
-                  fi
-                  echo "Could not find a valid spread job ID for group ${{ inputs.group }}" >&2
-              else
-                  echo "Failed to fetch jobs on attempt $attempt/3" >&2
-              fi
-
-              if [ "$attempt" -lt 3 ]; then
-                  sleep $((attempt * 2))
-              fi
-          done
-
-          if [[ ! "$JOB_ID" =~ ^[0-9]+$ ]]; then
-              echo "Unable to determine the originating spread job ID after 3 attempts" >&2
-              exit 1
-          fi
-
-          echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.snapd.canonical.com:5000/ingest \
-            -F "file=@./results.json" \
-            -F "attempt=${{ github.run_attempt }}" \
-            -F "job_id=$JOB_ID" \
-            -F "run_id=${{ github.run_id }}" \
-            -F "scenario=$SCENARIO")
-
-          if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
-              echo "Request failed with status $HTTP_CODE"
-              exit 1
-          fi
-          echo "Results sent successfully"
+          source .github/scripts/common.sh
+          send_results_to_test_predictor \
+          results.json \
+          "$GITHUB_REPOSITORY" \
+          "$GITHUB_RUN_ID" \
+          "$GITHUB_RUN_ATTEMPT" \
+          "${{ inputs.group }}" \
+          "$SCENARIO"

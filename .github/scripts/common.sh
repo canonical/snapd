@@ -44,6 +44,57 @@ gh_retry() {
     done
 }
 
+send_results_to_test_predictor() {
+    local results_file="$1"
+    local repo="$2"
+    local run_id="$3"
+    local run_attempt="$4"
+    local group="$5"
+    local scenario="$6"
+    local job_ids
+    local job_id
+    local http_code
+
+    if [ ! -f "$results_file" ]; then
+        echo "No spread results found, skipping sending results to Test-Predictor"
+        return 0
+    fi
+
+    GH_RETRY_CONTEXT="spread job lookup for run_id=$run_id group=$group"
+    if ! job_ids=$(gh_retry api --paginate \
+        "repos/$repo/actions/runs/$run_id/jobs" \
+        --jq ".jobs[] | select(.name | contains(\"$group\") and contains(\"run-spread\")) | .id"); then
+        GH_RETRY_CONTEXT=""
+        return 1
+    fi
+    GH_RETRY_CONTEXT=""
+
+    job_id=$(head -n 1 <<< "$job_ids")
+    if [[ ! "$job_id" =~ ^[0-9]+$ ]]; then
+        echo "Could not find a valid spread job ID for group $group" >&2
+        return 1
+    fi
+
+    echo "Sending $results_file with run_id: $run_id, job_id: $job_id and attempt: $run_attempt"
+    if ! http_code=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+        --request POST "${TEST_PREDICTOR_URL:-http://test-predictor.snapd.canonical.com:5000}/ingest" \
+        --form "file=@$results_file" \
+        --form "attempt=$run_attempt" \
+        --form "job_id=$job_id" \
+        --form "run_id=$run_id" \
+        --form "scenario=$scenario"); then
+        echo "Failed to send results to Test-Predictor" >&2
+        return 1
+    fi
+
+    if [[ ! "$http_code" =~ ^2[0-9]{2}$ ]]; then
+        echo "Request failed with status $http_code" >&2
+        return 1
+    fi
+
+    echo "Results sent successfully"
+}
+
 pr_has_label() {
     local pr_json="$1"
     local label="$2"
