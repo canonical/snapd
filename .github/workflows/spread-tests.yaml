@@ -678,7 +678,29 @@ jobs:
           fi
 
           # Get the originating spread job ID.
-          JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"run-spread\")) | .id" | head -n 1)
+          JOB_ID=""
+          for attempt in 1 2 3; do
+              if JOB_IDS=$(gh api --paginate \
+                "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+                --jq '.jobs[] | select(.name | contains("${{ inputs.group }}") and contains("run-spread")) | .id'); then
+                  JOB_ID=$(head -n 1 <<< "$JOB_IDS")
+                  if [[ "$JOB_ID" =~ ^[0-9]+$ ]]; then
+                      break
+                  fi
+                  echo "Could not find a valid spread job ID for group ${{ inputs.group }}" >&2
+              else
+                  echo "Failed to fetch jobs on attempt $attempt/3" >&2
+              fi
+
+              if [ "$attempt" -lt 3 ]; then
+                  sleep $((attempt * 2))
+              fi
+          done
+
+          if [[ ! "$JOB_ID" =~ ^[0-9]+$ ]]; then
+              echo "Unable to determine the originating spread job ID after 3 attempts" >&2
+              exit 1
+          fi
 
           echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.snapd.canonical.com:5000/ingest \
