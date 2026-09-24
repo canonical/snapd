@@ -512,7 +512,7 @@ func (iface *fwupdInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 func (iface *fwupdInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
 	// fwupd owns the well-known bus name org.freedesktop.fwupd on the system
 	// bus; only one snap instance can hold it at a time.
-	return errParallelInstancesSingletonServiceSlot
+	return errParallelInstancesUniqueResourceOwner
 }
 
 func init() {

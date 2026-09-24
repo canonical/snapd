@@ -205,7 +205,7 @@ func (iface *audioPlaybackInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 func (iface *audioPlaybackInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
 	// the audio server owns the well-known /run/pulse/native (or per-user
 	// /run/user/*/pulse/native) socket; only one snap instance can hold it.
-	return errParallelInstancesSingletonServiceSlot
+	return errParallelInstancesUniqueResourceOwner
 }
 
 func init() {

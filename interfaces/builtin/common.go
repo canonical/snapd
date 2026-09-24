@@ -55,11 +55,11 @@ var (
 	// TODO: add tests for *-driver-libs interfaces to check if parallel instances on
 	// slot side work and remove this error if they do.
 	errParallelInstancesLibrarySource = errors.New("library-source filenames cannot distinguish parallel instances")
-	// errParallelInstancesSingletonServiceSlot is used for interfaces whose
-	// slot represents a singleton system or session service (e.g. a
-	// well-known D-Bus name or socket): two parallel instances of the
-	// providing snap would conflict with each other for ownership of it.
-	errParallelInstancesSingletonServiceSlot = errors.New("slot providing a unique service cannot have parallel instances")
+	// errParallelInstancesUniqueResourceOwner is used for interfaces which
+	// own a globally unique resource (e.g. a well-known D-Bus name or socket):
+	// two parallel instances of the providing snap would conflict with each
+	// other for ownership of it.
+	errParallelInstancesUniqueResourceOwner = errors.New("owning a unique global resource cannot have parallel instances")
 )
 
 type commonInterface struct {

@@ -313,7 +313,7 @@ func (iface *bluezInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 func (iface *bluezInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
 	// bluez owns the well-known bus name org.bluez on the system bus; only
 	// one snap instance can hold it at a time.
-	return errParallelInstancesSingletonServiceSlot
+	return errParallelInstancesUniqueResourceOwner
 }
 
 func init() {
