@@ -51,6 +51,7 @@ send_results_to_test_predictor() {
     local run_attempt="$4"
     local group="$5"
     local scenario="$6"
+    local GH_API_RETRIES=5
     local job_ids
     local job_id
     local http_code

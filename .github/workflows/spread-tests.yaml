@@ -366,7 +366,7 @@ jobs:
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana == 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana }}
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
@@ -554,7 +554,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Report spread errors
-      if: ${{ always() && inputs.log-to-grafana == 'true' }}
+      if: ${{ always() && inputs.log-to-grafana }}
       run: |
         if [ -e results.json ]; then
             echo "Adding to the filtered log any spread errors found"
@@ -570,7 +570,7 @@ jobs:
         fi
 
     - name: Upload filtered log for Grafana
-      if: ${{ always() && runner.environment != 'self-hosted' && env.RUN_TESTS == 'true' && inputs.log-to-grafana == 'true' }}
+      if: ${{ always() && runner.environment != 'self-hosted' && env.RUN_TESTS == 'true' && inputs.log-to-grafana }}
       uses: actions/upload-artifact@v7
       with:
         name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
@@ -678,7 +678,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download filtered log for Grafana
-        if: ${{ inputs.log-to-grafana == 'true' }}
+        if: ${{ inputs.log-to-grafana }}
         uses: actions/download-artifact@v8
         with:
           name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
