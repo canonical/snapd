@@ -14,7 +14,7 @@ Homepage: https://launchpad.net/ubuntu-core-initramfs
 
 Package: ubuntu-core-initramfs
 Architecture: amd64 arm64 armhf riscv64
-Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 051-1),
+Depends: ${python3:Depends}, ${misc:Depends}, dracut-core (>= 108-1),
          cpio,
          python3:any,
          busybox-initramfs,
