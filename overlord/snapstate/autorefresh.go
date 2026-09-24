@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -722,38 +721,6 @@ func getTime(st *state.State, timeKey string) (time.Time, error) {
 	return t1, nil
 }
 
-// asyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
-//
-// This allows the, possibly slow, communication with each snapd session agent,
-// to be performed without holding the snap state lock.
-var asyncPendingRefreshNotification = func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
-	logger.Debugf("notifying agents about pending refresh for snap %q", refreshInfo.InstanceName)
-
-	go func() {
-		client := userclient.New()
-		if err := client.PendingRefreshNotification(ctx, refreshInfo); err != nil {
-			logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		}
-	}()
-}
-
-// maybeAsyncPendingRefreshNotification broadcasts desktop notification in a goroutine.
-//
-// The notification is sent only if no snap has the marker "snap-refresh-observe"
-// interface connected and the "refresh-app-awareness-ux" experimental flag is disabled.
-func maybeAsyncPendingRefreshNotification(ctx context.Context, st *state.State, refreshInfo *userclient.PendingSnapRefreshInfo) {
-
-	sendNotification, err := ShouldSendNotificationsToTheUser(st)
-	if err != nil {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		return
-	}
-	if !sendNotification {
-		return
-	}
-	asyncPendingRefreshNotification(ctx, refreshInfo)
-}
-
 type timedBusySnapError struct {
 	err           *BusySnapError
 	timeRemaining time.Duration
@@ -832,15 +799,8 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibitionDurationValue:
 		// If we are still in the allowed window then just return the error but
 		// don't change the snap state again.
-		// TODO: as time left shrinks, send additional notifications with
-		// increasing frequency, allowing the user to understand the urgency.
 		busyErr.timeRemaining = (maxInhibitionDurationValue - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
 	default:
-		// XXX: should we drop this notification?
-		// if the refresh inhibition window has ended, notify the user that the
-		// refresh is happening now and ignore the error
-		refreshInfo := busyErr.PendingSnapRefreshInfo()
-		maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 		// important to return "nil" type here instead of
 		// setting busyErr to nil as otherwise we return a nil
 		// interface which is not the nil type
@@ -915,8 +875,7 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 //
 // The warning is recorded only if:
 //  1. There is at least 1 inhibited snap.
-//  2. The "refresh-app-awareness-ux" experimental flag is enabled.
-//  3. No snap exists with the marker "snap-refresh-observe" interface connected.
+//  2. No snap exists with the marker "snap-refresh-observe" interface connected.
 //
 // Note: If no snaps are inhibited then existing inhibition warning
 // will be removed.
@@ -924,16 +883,6 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 	if len(inhibitedSnaps) == 0 {
 		// no more inhibited snaps, remove inhibition warning if it exists.
 		return removeRefreshInhibitWarning(st)
-	}
-
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if !experimentalRefreshAppAwarenessUX {
-		// snapd will send notifications directly, check maybeAsyncPendingRefreshNotification
-		return nil
 	}
 
 	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")

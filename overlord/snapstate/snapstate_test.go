@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/dot/dottest"
 	"github.com/snapcore/snapd/strutil"
-	userclient "github.com/snapcore/snapd/usersession/client"
 
 	// So it registers Configure.
 	_ "github.com/snapcore/snapd/overlord/configstate"
@@ -493,10 +492,6 @@ SNAPD_APPARMOR_REEXEC=1
 
 	s.restarts = make(map[string]int)
 	s.AddCleanup(s.mockSystemctlCallsUpdateMounts(c))
-
-	// mock so the actual notification code isn't called. It races with the SetRootDir
-	// call in the TearDown function. It's harmless but triggers go test -race
-	s.AddCleanup(snapstate.MockAsyncPendingRefreshNotification(func(context.Context, *userclient.PendingSnapRefreshInfo) {}))
 
 	restore = dottest.RegisterChangeExporter(c, s.state)
 	s.AddCleanup(restore)

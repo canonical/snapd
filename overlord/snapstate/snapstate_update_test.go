@@ -1306,7 +1306,7 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	}, expectedComponentStates))
 }
 
-func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	// we start without the auxiliary store info (or with an older one)
 	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FileAbsent)
 
@@ -1430,14 +1430,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			path:     filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 			services: []string{"svc1", "svc2", "svc3"},
 		},
-	}
-	if !refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
-			op:   "remove-snap-aliases",
-			name: "services-snap",
-		})
-	}
-	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "services-snap",
@@ -1450,7 +1442,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "services-snap/7"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -1501,7 +1493,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			name:  "services-snap",
 			revno: snap.R(11),
 		},
-	}...)
+	}
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -1590,20 +1582,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 
 	// we end up with the auxiliary store info
 	c.Check(backend.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
-}
-
-func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
-	s.testUpdateRunThrough(c, true)
-}
-
-func (s *snapmgrTestSuite) TestUpdateRunThroughNoRAAUX(c *C) {
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
-	tr.Commit()
-	s.state.Unlock()
-
-	s.testUpdateRunThrough(c, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDropsRevertStatus(c *C) {
@@ -2977,7 +2955,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -3068,14 +3046,6 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			path:  filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 			revno: snap.R(11),
 		},
-	}
-	if !refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		})
-	}
-	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
@@ -3088,7 +3058,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -3129,19 +3099,10 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 		{
 			op: "update-aliases",
 		},
-	}...)
-	// undoing everything from here down...
-	if refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
+		// undoing everything from here down...
+		{
 			op: "update-aliases",
-		})
-	} else {
-		expected = append(expected, fakeOp{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		})
-	}
-	expected = append(expected, fakeOps{
+		},
 		{
 			op:    "auto-connect:Undoing",
 			name:  "some-snap",
@@ -3174,13 +3135,6 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			op:     "maybe-set-next-boot",
 			isUndo: true,
 		},
-	}...)
-	if !refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
-			op: "update-aliases",
-		})
-	}
-	expected = append(expected, fakeOps{
 		{
 			op:    "undo-setup-snap",
 			name:  "some-snap",
@@ -3197,7 +3151,7 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			sha3: "<some-hash>",
 			path: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 		},
-	}...)
+	}
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -3223,20 +3177,6 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
-}
-
-func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
-	s.testUpdateTotalUndoRunThrough(c, true)
-}
-
-func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThroughNoRAAUX(c *C) {
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
-	tr.Commit()
-	s.state.Unlock()
-
-	s.testUpdateTotalUndoRunThrough(c, false)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
@@ -12278,18 +12218,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedWarningFal
 	s.testAutoRefreshRefreshInhibitNoticeRecorded(c, markerInterfaceConnected, warningFallback)
 }
 
-func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedWarningFallbackNoRAAUX(c *C) {
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
-	tr.Commit()
-	s.state.Unlock()
-
-	const markerInterfaceConnected = false
-	const warningFallback = false
-	s.testAutoRefreshRefreshInhibitNoticeRecorded(c, markerInterfaceConnected, warningFallback)
-}
-
 func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownloadOnly(c *C) {
 	refreshAppsCheckCalled := 0
 	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
@@ -13268,11 +13196,8 @@ func (s *snapmgrTestSuite) TestRefreshForcedOnRefreshInhibitionTimeoutError(c *C
 		},
 	}
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {})
-	defer restore()
-
 	var checkAppRunning int
-	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		checkAppRunning++
 		// pass on soft-check, fail on hard-check in unlink-current-snap
 		if checkAppRunning > 1 {
@@ -13512,10 +13437,7 @@ func (s *snapmgrTestSuite) TestPreDownloadWithIgnoreRunningRefresh(c *C) {
 		"some-snap": {SnapSetup: *snapsup},
 	})
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {})
-	defer restore()
-
-	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		c.Assert(info.InstanceName().String(), Equals, "some-snap")
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
@@ -13608,10 +13530,7 @@ func (s *snapmgrTestSuite) TestPreDownloadCleansSnapDownloads(c *C) {
 		"some-snap": {SnapSetup: *snapsup},
 	})
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {})
-	defer restore()
-
-	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		c.Assert(info.InstanceName().String(), Equals, "some-snap")
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
