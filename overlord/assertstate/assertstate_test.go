@@ -6039,28 +6039,6 @@ func (s *assertMgrSuite) testValidatedIntegrityData(c *C, params testValidatedIn
 			params.expIntegrityData.DataBlocks = uint64(si.Size()) / params.expIntegrityData.DataBlockSize
 		}
 
-		if params.createMultiple {
-			snapPath := s.makeTestSnap(c, rev.N, "")
-			digest, sz, err := asserts.SnapFileSHA3_384(snapPath)
-			c.Assert(err, IsNil)
-
-			headers := map[string]any{
-				"snap-id":       "snap-id-1",
-				"snap-sha3-384": digest,
-				"snap-size":     fmt.Sprintf("%d", sz),
-				"snap-revision": fmt.Sprintf("%d", rev),
-				"developer-id":  s.dev1Acct.AccountID(),
-				"timestamp":     time.Now().Format(time.RFC3339),
-			}
-
-			signer := assertstest.SignerDB(s.storeSigning)
-
-			snapRev, err := signer.Sign(asserts.SnapRevisionType, headers, nil, "")
-			c.Assert(err, IsNil)
-			err = s.storeSigning.Add(snapRev)
-			c.Assert(err, IsNil)
-		}
-
 		// have a model and the store assertion available
 		storeAs := s.setupModelAndStore(c)
 		err := s.storeSigning.Add(storeAs)
@@ -6124,7 +6102,7 @@ func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoneFound(c *C) {
 func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoRevisionsFound(c *C) {
 	s.testValidatedIntegrityData(c, testValidatedIntegrityDataParams{
 		createRevision: false,
-		expErr:         regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=snap-id-1, snap-revision=10)."),
+		expErr:         regexp.QuoteMeta("no integrity data found in revision: no snap-revision assertion found that matches (snap-id=snap-id-1, snap-revision=10)"),
 	})
 }
 

@@ -55,6 +55,7 @@ import (
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
@@ -780,6 +781,22 @@ func checkKernelHasUpdateAssetsTask(t *state.Task) error {
 	return ErrKernelGadgetUpdateTaskMissing
 }
 
+func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*integrity.IntegrityDataParams, error) {
+	// TODO: when policy for choosing the preferred integrity method is
+	//       implemented, not having integrity data should return an error
+	//       if enforced through some policy
+	if !snapsup.Revision().Store() {
+		return nil, nil
+	}
+	idp, err := ValidatedIntegrityData(st, snapsup.SideInfo.SnapID, snapsup.Revision())
+	if err == nil {
+		return idp, nil
+	} else if errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+		return nil, nil
+	}
+	return nil, err
+}
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -845,15 +862,15 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	setupOpts := &backend.SetupSnapOptions{
 		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
-	if snapsup.IntegrityDataInfo != nil {
-		// the snap has integrity data attached, make sure SetupSnap considers it
-		//
-		// TODO: when policy for choosing the preferred integrity method is
-		//       implemented, choose it
-		// TODO: get this from revision assertion instead using ValidatedIntegrityData
-		//       so it also works for sideloaded snaps
-		setupOpts.IntegrityDataParams = &snapsup.IntegrityDataInfo.IntegrityDataParams
+
+	st.Lock()
+	idp, err := validatedIntegrityDataFromSnapSetup(st, snapsup)
+	st.Unlock()
+	if err != nil {
+		return err
 	}
+	setupOpts.IntegrityDataParams = idp
+
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.

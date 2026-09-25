@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -176,22 +177,30 @@ func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
+	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		c.Assert(snapID, Equals, "snap-id")
+		c.Assert(rev, Equals, snap.R(33))
+		// make sure the state is locked
+		st.Unlock()
+		st.Lock()
+		return &integrity.IntegrityDataParams{
+			Digest: "some-digest",
+		}, nil
+	})
+	defer restore()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	t := s.state.NewTask("mount-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
+			SnapID:   "snap-id",
 			RealName: "foo",
 			Revision: snap.R(33),
 		},
 		SnapPath:     testSnap,
 		DownloadInfo: &snap.DownloadInfo{DownloadURL: "https://some"},
-		IntegrityDataInfo: &snap.IntegrityDataInfo{
-			IntegrityDataParams: integrity.IntegrityDataParams{
-				Digest: "some digest",
-			},
-		},
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -217,7 +226,7 @@ func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
 			path:  testSnap,
 			revno: snap.R(33),
 			integrityDataParams: integrity.IntegrityDataParams{
-				Digest: "some digest",
+				Digest: "some-digest",
 			},
 		},
 	})

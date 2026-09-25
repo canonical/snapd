@@ -68,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -495,6 +496,10 @@ SNAPD_APPARMOR_REEXEC=1
 
 	restore = dottest.RegisterChangeExporter(c, s.state)
 	s.AddCleanup(restore)
+
+	s.AddCleanup(snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		return nil, integrity.ErrNoIntegrityDataFoundInRevision
+	}))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
