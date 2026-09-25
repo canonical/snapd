@@ -1,7 +1,7 @@
 name: Tests
 on:
   pull_request:
-    branches: [ "master", "release/**", "core-snap-security-release/**", "security-release/**", "hotfix/**" ]
+    branches: [ "master", "fips", "release/**", "core-snap-security-release/**", "security-release/**", "hotfix/**" ]
   push:
     branches: [ "release/**", "core-snap-security-release/**", "security-release/**" ]
 
@@ -511,6 +511,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     outputs:
       fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
+      fips-systems: ${{ steps.read-systems.outputs.fips-systems }}
       non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
@@ -523,6 +524,7 @@ jobs:
         run: |
           set -x
           echo "fundamental-systems=$(jq -c . ./.github/workflows/data-fundamental-systems.json)" >> $GITHUB_OUTPUT
+          echo "fips-systems=$(jq -c . ./.github/workflows/data-fips-systems.json)" >> $GITHUB_OUTPUT
           echo "non-fundamental-systems=$(jq -c . ./.github/workflows/data-non-fundamental-systems.json)" >> $GITHUB_OUTPUT
           echo "nested-systems=$(jq -c . ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
 
@@ -572,10 +574,12 @@ jobs:
             if grep -q '^Skip spread$' <<<$labels; then
               github_hosted_runs_on="['ubuntu-latest']"
               fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-fundamental-systems.json)"
+              fips_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-fips-systems.json)"
               non_fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-non-fundamental-systems.json)"
               nested_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-nested-systems.json)"
 
               echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
+              echo "fips-systems=$fips_systems" >> $GITHUB_OUTPUT
               echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
               echo "nested-systems=$nested_systems" >> $GITHUB_OUTPUT
             fi
@@ -584,7 +588,7 @@ jobs:
   spread-fundamental:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: contains(needs.read-systems.outputs.fundamental-systems, 'systems')
+    if: github.base_ref != 'fips' && contains(needs.read-systems.outputs.fundamental-systems, 'systems')
     name: "spread ${{ matrix.group }}"
     secrets: inherit
     with:
@@ -608,6 +612,27 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
 
+  spread-fips:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
+    if: |
+      github.event_name == 'pull_request' &&
+      github.base_ref == 'fips' &&
+      contains(needs.read-systems.outputs.fips-systems, 'systems')
+    name: "spread ${{ matrix.group }}"
+    secrets: inherit
+    with:
+      runs-on: '${{ matrix.runs-on }}'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
+    strategy:
+      # spread cannot reliably cancel an executing job
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.fips-systems) }}
+
   spread-not-fundamental-pr:
     uses: ./.github/workflows/spread-tests.yaml
     if: |
@@ -618,6 +643,7 @@ jobs:
       needs.read-systems.result == 'success' &&
       ( needs.spread-fundamental.result == 'success' || needs.spread-fundamental.result == 'skipped' ) &&
       github.event_name == 'pull_request' && 
+      github.base_ref != 'fips' &&
       !contains(github.base_ref, 'release') && 
       !contains(github.event.pull_request.labels.*.name, 'cross-distro') && 
       contains(needs.read-systems.outputs.non-fundamental-systems, 'systems')
@@ -649,6 +675,7 @@ jobs:
   spread-not-fundamental-not-pr:
     uses: ./.github/workflows/spread-tests.yaml
     if: |
+      github.base_ref != 'fips' &&
       contains(needs.read-systems.outputs.non-fundamental-systems, 'systems') &&
       ( 
         github.event_name != 'pull_request' || 
@@ -683,7 +710,7 @@ jobs:
   spread-nested:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [unit-tests, unit-tests-c, snap-builds, read-systems]
-    if: contains(needs.read-systems.outputs.nested-systems, 'systems')
+    if: github.base_ref != 'fips' && contains(needs.read-systems.outputs.nested-systems, 'systems')
     name: "spread ${{ matrix.group }}"
     secrets: inherit
     with:
