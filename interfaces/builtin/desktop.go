@@ -921,8 +921,10 @@ func init() {
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
 			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
-			affectsPlugOnRefresh:     true,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			affectsPlugOnRefresh: true,
+			// desktop slot owns the well-known bus names (org.gtk.Settings, etc.) on the
+			// session bus; only one snap instance can hold it at a time.
+			parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 		},
 	})
 }

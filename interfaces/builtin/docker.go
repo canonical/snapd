@@ -53,12 +53,14 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "docker",
-		summary:                  dockerSummary,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     dockerBaseDeclarationSlots,
-		connectedPlugAppArmor:    dockerConnectedPlugAppArmor,
-		connectedPlugSecComp:     dockerConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "docker",
+		summary:               dockerSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  dockerBaseDeclarationSlots,
+		connectedPlugAppArmor: dockerConnectedPlugAppArmor,
+		connectedPlugSecComp:  dockerConnectedPlugSecComp,
+		// docker daemon owns the well-known /run/docker.sock; only one snap instance
+		// can hold it at a time.
+		parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 	})
 }
