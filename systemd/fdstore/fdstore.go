@@ -227,7 +227,7 @@ func checkUnsupported() error {
 	// preseeding snapd is not run by systemd (no NOTIFY_SOCKET), so the
 	// fdstore cannot be used.
 	if _, err := sdNotifySocket(); err != nil {
-		return fmt.Errorf("%w: %w: snapd is not running as a systemd service", ErrUnsupported, err)
+		return fmt.Errorf("%w: %v: snapd is not running as a systemd service", ErrUnsupported, err)
 	}
 
 	// FDNAME=... was added in systemd v233, but for the sake
