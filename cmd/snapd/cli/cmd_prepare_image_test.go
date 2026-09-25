@@ -20,6 +20,7 @@
 package cli_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -355,4 +356,108 @@ func (s *SnapPrepareImageSuite) TestPrepareImageCoreExtraAssertions(c *C) {
 		PrepareDir:           "prepare-dir",
 		ExtraAssertionsFiles: []string{"extra1", "extra2"},
 	})
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageHintsRequiresPreseed(c *C) {
+	var materialized bool
+	r := cmdsnap.MockPreseedCreateSysfsOverlayFromHints(func(hintsFile string) (string, func(), error) {
+		materialized = true
+		return "", func() {}, nil
+	})
+	defer r()
+
+	_, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--hints", "hints.json", "model", "prepare-dir"})
+	c.Assert(err, ErrorMatches, `--hints cannot be used without --preseed`)
+	// the policy check happens before any materialization
+	c.Check(materialized, Equals, false)
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageHintsExcludesSysfsOverlay(c *C) {
+	var materialized bool
+	r := cmdsnap.MockPreseedCreateSysfsOverlayFromHints(func(hintsFile string) (string, func(), error) {
+		materialized = true
+		return "", func() {}, nil
+	})
+	defer r()
+
+	_, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--hints", "hints.json", "--sysfs-overlay", "sys-overlay", "model", "prepare-dir"})
+	c.Assert(err, ErrorMatches, `--hints cannot be used together with --sysfs-overlay`)
+	c.Check(materialized, Equals, false)
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageHints(c *C) {
+	var opts *image.Options
+	prep := func(o *image.Options) error {
+		opts = o
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	var hintsFiles []string
+	var cleanedUp int
+	r = cmdsnap.MockPreseedCreateSysfsOverlayFromHints(func(hintsFile string) (string, func(), error) {
+		hintsFiles = append(hintsFiles, hintsFile)
+		return "materialized-overlay", func() { cleanedUp++ }, nil
+	})
+	defer r()
+
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--hints", "hints.json", "model", "prepare-dir"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	c.Check(hintsFiles, DeepEquals, []string{"hints.json"})
+	// the materialized overlay is handed over as a plain sysfs overlay
+	c.Check(opts, DeepEquals, &image.Options{
+		ModelFile:    "model",
+		PrepareDir:   "prepare-dir",
+		Preseed:      true,
+		SysfsOverlay: "materialized-overlay",
+	})
+	// and it is cleaned up once, after image preparation returned
+	c.Check(cleanedUp, Equals, 1)
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageHintsCleanupAfterImagePrepareError(c *C) {
+	var overlayAtPrepare string
+	prep := func(o *image.Options) error {
+		overlayAtPrepare = o.SysfsOverlay
+		return errors.New("cannot prepare image")
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	var cleanedUp int
+	r = cmdsnap.MockPreseedCreateSysfsOverlayFromHints(func(hintsFile string) (string, func(), error) {
+		return "materialized-overlay", func() { cleanedUp++ }, nil
+	})
+	defer r()
+
+	_, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--hints", "hints.json", "model", "prepare-dir"})
+	c.Assert(err, ErrorMatches, `cannot prepare image`)
+
+	// the overlay was available for the whole of image preparation and is
+	// cleaned up even when it fails
+	c.Check(overlayAtPrepare, Equals, "materialized-overlay")
+	c.Check(cleanedUp, Equals, 1)
+}
+
+func (s *SnapPrepareImageSuite) TestPrepareImageHintsError(c *C) {
+	var prepared bool
+	prep := func(o *image.Options) error {
+		prepared = true
+		return nil
+	}
+	r := cmdsnap.MockImagePrepare(prep)
+	defer r()
+
+	r = cmdsnap.MockPreseedCreateSysfsOverlayFromHints(func(hintsFile string) (string, func(), error) {
+		return "", nil, errors.New(`cannot open preseed hints file: no such file or directory`)
+	})
+	defer r()
+
+	_, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--hints", "hints.json", "model", "prepare-dir"})
+	c.Assert(err, ErrorMatches, `cannot open preseed hints file: no such file or directory`)
+	// a failed materialization does not start image preparation
+	c.Check(prepared, Equals, false)
 }
