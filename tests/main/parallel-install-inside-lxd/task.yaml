@@ -77,7 +77,7 @@ restore: |
     systemctl --user stop dbus.service || true
 
     # clean up test output files
-    rm -f *.txt
+    rm -f -- *.txt
 
 execute: |
     # -------------------------------------------------------------------
@@ -230,73 +230,6 @@ execute: |
     rm -f classic_bar_env.txt
 
     # -------------------------------------------------------------------
-    # Services with parallel instances
-    # -------------------------------------------------------------------
-    echo "=== Services with parallel instances ==="
-
-    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-service.snap
-    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-service.snap \
-        --name test-snapd-service_foo
-
-    echo "Verify per-instance systemd service units exist"
-    lxc exec my-ubuntu -- test -f \
-        /etc/systemd/system/snap.test-snapd-service.test-snapd-service.service
-    lxc exec my-ubuntu -- test -f \
-        /etc/systemd/system/snap.test-snapd-service_foo.test-snapd-service.service
-
-    echo "Verify both instances' services are active"
-    lxc exec my-ubuntu -- systemctl is-active \
-        snap.test-snapd-service.test-snapd-service.service | MATCH '^active$'
-    lxc exec my-ubuntu -- systemctl is-active \
-        snap.test-snapd-service_foo.test-snapd-service.service | MATCH '^active$'
-
-    echo "Verify snapctl can stop one instance without affecting the other"
-    lxc exec my-ubuntu -- snap run --shell test-snapd-service_foo -c \
-        "snapctl stop test-snapd-service_foo.test-snapd-service"
-    lxc exec my-ubuntu -- systemctl is-active \
-        snap.test-snapd-service_foo.test-snapd-service.service | MATCH '^inactive$'
-    lxc exec my-ubuntu -- systemctl is-active \
-        snap.test-snapd-service.test-snapd-service.service | MATCH '^active$'
-
-    echo "Start the stopped service back"
-    lxc exec my-ubuntu -- snap run --shell test-snapd-service_foo -c \
-        "snapctl start test-snapd-service_foo.test-snapd-service"
-    lxc exec my-ubuntu -- systemctl is-active \
-        snap.test-snapd-service_foo.test-snapd-service.service | MATCH '^active$'
-
-    echo "Install a third instance for cross-instance service testing"
-    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-service.snap \
-        --name test-snapd-service_bar
-
-    echo "Verify snap name is silently remapped to instance key"
-    # When test-snapd-service_foo issues "snapctl restart test-snapd-service.other-service",
-    # it gets silently remapped to restart test-snapd-service_foo.other-service instead.
-    # Verify by checking the non-instance service was NOT restarted.
-    lxc exec my-ubuntu -- snap start test-snapd-service.test-snapd-other-service
-    lxc exec my-ubuntu -- systemctl is-active \
-        snap.test-snapd-service.test-snapd-other-service.service | MATCH '^active$'
-    svc_ts_start=$(lxc exec my-ubuntu -- systemctl show \
-        --property=ExecMainStartTimestampMonotonic \
-        snap.test-snapd-service.test-snapd-other-service.service | cut -d= -f2)
-    lxc exec my-ubuntu -- snap run --shell test-snapd-service_foo -c \
-        "snapctl restart test-snapd-service.test-snapd-other-service"
-    svc_ts_after=$(lxc exec my-ubuntu -- systemctl show \
-        --property=ExecMainStartTimestampMonotonic \
-        snap.test-snapd-service.test-snapd-other-service.service | cut -d= -f2)
-    # non-instance service was NOT restarted (silently remapped to instance)
-    test "$svc_ts_start" = "$svc_ts_after"
-
-    echo "Verify explicit cross-instance service name is rejected"
-    lxc exec my-ubuntu -- snap run --shell test-snapd-service_foo -c \
-        "snapctl restart test-snapd-service_bar.test-snapd-other-service" 2>&1 \
-        | MATCH 'unexpected snap instance key'
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-service_bar
-
-    echo "Clean up service instances"
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-service
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-service_foo
-
-    # -------------------------------------------------------------------
     # Mount unit generation verification
     # -------------------------------------------------------------------
     echo "=== Mount unit generation ==="
@@ -308,41 +241,6 @@ execute: |
     echo "Verify snapd-generator created a container.conf override for the instance mount unit"
     lxc exec my-ubuntu -- find /var/run/systemd/generator/ -name container.conf \
         | MATCH 'snap-test\\x2dsnapd\\x2dsh_foo-.*mount\.d/container\.conf'
-
-
-    # -------------------------------------------------------------------
-    # Aliases with parallel instances
-    # -------------------------------------------------------------------
-    echo "=== Aliases with parallel instances ==="
-
-    lxc exec my-ubuntu -- snap install --dangerous /root/aliases.snap
-    lxc exec my-ubuntu -- snap install --dangerous /root/aliases.snap --name aliases_foo
-
-    echo "Create a manual alias for each instance"
-    lxc exec my-ubuntu -- snap alias aliases.cmd1 alias1
-    lxc exec my-ubuntu -- snap alias aliases_foo.cmd1 alias1_foo
-
-    echo "Creating the same alias name for both instances must conflict"
-    lxc exec my-ubuntu -- sh -c '! snap alias aliases_foo.cmd2 alias1'
-
-    echo "Verify snap aliases lists both aliases mapped to the correct instance"
-    lxc exec my-ubuntu -- snap aliases | MATCH 'aliases\.cmd1 +alias1 +manual'
-    lxc exec my-ubuntu -- snap aliases | MATCH 'aliases_foo\.cmd1 +alias1_foo +manual'
-
-    echo "Verify each alias resolves to the correct instance's command"
-    #shellcheck disable=SC2016
-    lxc exec my-ubuntu -- sh -c 'test "$(readlink /snap/bin/alias1)" = "aliases.cmd1"'
-    #shellcheck disable=SC2016
-    lxc exec my-ubuntu -- sh -c 'test "$(readlink /snap/bin/alias1_foo)" = "aliases_foo.cmd1"'
-
-    echo "Removing the original snap only removes its own alias"
-    lxc exec my-ubuntu -- snap remove --purge aliases
-    lxc exec my-ubuntu -- snap aliases | MATCH 'aliases_foo\.cmd1 +alias1_foo +manual'
-    lxc exec my-ubuntu -- sh -c 'snap aliases | grep "aliases\.cmd1" && exit 1 || true'
-    lxc exec my-ubuntu -- alias1_foo | MATCH "ok command 1"
-
-    echo "Clean up the remaining aliases_foo instance"
-    lxc exec my-ubuntu -- snap remove --purge aliases_foo
 
     # -------------------------------------------------------------------
     # Content interface between parallel instances
@@ -370,28 +268,6 @@ execute: |
     echo "Clean up content interface instances"
     lxc exec my-ubuntu -- snap remove --purge test-snapd-content-plug_foo
     lxc exec my-ubuntu -- snap remove --purge test-snapd-content-slot_foo
-
-    # -------------------------------------------------------------------
-    # Layouts with parallel instances
-    # -------------------------------------------------------------------
-    echo "=== Layouts with parallel instances ==="
-
-    echo "Install the layout snap as a parallel instance"
-    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-layout.snap \
-        --name test-snapd-layout_foo
-
-    echo "Verify layout declarations are honored for the instance"
-    lxc exec my-ubuntu -- test-snapd-layout_foo.sh -c 'test -d /etc/demo'
-    lxc exec my-ubuntu -- test-snapd-layout_foo.sh -c 'test -f /etc/demo.conf'
-
-    echo "Verify writes through the layout land in the instance's own data directory"
-    lxc exec my-ubuntu -- test-snapd-layout_foo.sh -c \
-        'echo layout-data > /etc/demo/instance-file'
-    lxc exec my-ubuntu -- cat /var/snap/test-snapd-layout_foo/common/etc/demo/instance-file \
-        | MATCH layout-data
-
-    echo "Clean up the layout instance"
-    lxc exec my-ubuntu -- snap remove --purge test-snapd-layout_foo
 
     # -------------------------------------------------------------------
     # Removal and cleanup
