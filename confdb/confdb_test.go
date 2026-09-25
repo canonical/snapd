@@ -5785,3 +5785,26 @@ func (s *viewSuite) TestSetNestedContentWithFieldFilter(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals, []any{map[string]any{"validation-set": "other-set", "account-id": "FOO321", "snaps": map[string]any{"name": "snapd"}, "mode": "monitor"}})
 }
+
+func (*viewSuite) TestSetMixedChangesPreservesDescendant(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.values.{key}", "storage": "{key}.c"},
+				map[string]any{"request": "foo.other", "storage": "a"},
+				map[string]any{"request": "foo.old", "storage": "b"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = schema.View("foo").Set(bag, "foo", map[string]any{
+		"values": map[string]any{"b": "value"},
+	})
+	c.Assert(err, IsNil)
+
+	stored, err := bag.Get(parsePath(c, "b.c"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(stored, Equals, "value")
+}

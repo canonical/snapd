@@ -1319,8 +1319,9 @@ func (v *View) Set(databag Databag, request string, value any) error {
 	}
 	expandedMatches = filteredMatches
 
+	// TODO: it's possible for weird rules to spawn writes and removals to the
+	// same path which is obviously absurd. We should reject those cases.
 	sort.Slice(expandedMatches, byAccessor(getAccs))
-
 	for _, match := range expandedMatches {
 		if err := databag.Set(match.storagePath, match.value); err != nil {
 			return err
@@ -1353,7 +1354,8 @@ type accGetter func(i int) ([]Accessor, changeType)
 
 // byAccessor applies the following ordering rules:
 //   - ancestors precede descendants
-//   - independent writes precede removals
+//   - writes and removals of items in the same list are sorted writes-first when
+//     the removal could impact the write by shifting the indexes
 //   - writes proceed from general to specific paths, with placeholders before
 //     literals and list indexes in ascending order. e.g., we should write [2]
 //     after [1] because the opposite would fail on a clean slate
@@ -1370,10 +1372,6 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 			yAcc := yPath[i]
 			if xAcc.Access() == yAcc.Access() {
 				continue
-			}
-
-			if xOrder != yOrder {
-				return xOrder < yOrder
 			}
 
 			// For writes, placeholders precede literals so the latter override the
@@ -1393,20 +1391,27 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 				xNum, _ := strconv.Atoi(xAcc.Name())
 				yNum, _ := strconv.Atoi(yAcc.Name())
 
-				if xOrder == unsetChange {
-					return xNum > yNum
+				// writes of indexes are sorted ascending and removals are sorted descending
+				if xOrder == yOrder {
+					return (xOrder == setChange && xNum < yNum) || (xOrder == unsetChange && xNum > yNum)
 				}
-				return xNum < yNum
+
+				if xOrder == setChange {
+					// if the first index is being written to and it's higher than the
+					// other index, it needs to go first. Otherwise, the removal would
+					// shift the index being written to
+					return yNum < xNum
+				}
+
+				// if the second index is being written to and it's higher than the first,
+				// it needs to go first for the same reasons as above
+				return !(yNum > xNum)
 			}
 
 			return xAcc.Access() < yAcc.Access()
 		}
 
-		if len(xPath) != len(yPath) {
-			return len(xPath) < len(yPath)
-		}
-
-		return xOrder < yOrder
+		return len(xPath) < len(yPath)
 	}
 }
 
