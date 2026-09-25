@@ -98,7 +98,10 @@ var ProcessDelayedSecurityBackendEffects = func(st *state.State, lanes []int, ap
 	panic("internal error: snapstate.ProcessDelayedSecurityBackendEffects is unset")
 }
 
-var cgroupMonitorSnapEnded = cgroup.MonitorSnapEnded
+var (
+	cgroupMonitorSnapEnded    = cgroup.MonitorSnapEnded
+	cgroupRemoveFreezerCgroup = cgroup.RemoveFreezerCgroup
+)
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
@@ -3605,6 +3608,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		if err != nil {
 			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 			return &state.Retry{After: 3 * time.Minute}
+		}
+		// snap-confine creates a per-snap freezer cgroup on cgroup v1 systems
+		// that nothing else removes, so drop the now-empty directory to avoid
+		// leaking it after the snap is gone. This is best effort.
+		if err := cgroupRemoveFreezerCgroup(snapsup.InstanceName()); err != nil {
+			logger.Noticef("cannot remove freezer cgroup for snap %q: %v", snapsup.InstanceName(), err)
 		}
 		err = m.backend.RemoveSnapInhibitLock(snapsup.InstanceName().String(), st.Unlocker())
 		if err != nil {
