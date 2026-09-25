@@ -9,9 +9,9 @@ description: >-
   (`GET /v2/systems/{label}`), which runs the initial pre-install check and creates
   an in-memory pre-install check context. Each iteration of the `fix-encryption-support`
   action applies the requested fix and runs a subsequent pre-install check, using
-  that context, so multiple actions can be performed in sequence. The pre-install
-  check context is lost if another GET request to the same system is made
-  (`GET /v2/systems/{label}`), if snapd restarts, or if the system reboots.
+  that context, so multiple actions can be performed in sequence. Another GET request
+  to the same system (`GET /v2/systems/{label}`) replaces this context and resets the
+  action sequence. The context is also lost if snapd restarts or the system reboots.
 required:
   - action
   - fix-action
