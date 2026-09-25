@@ -307,7 +307,7 @@ uc20_build_initramfs_kernel_snap_local() {
     mkdir -p /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd
     (
         cd "$PROJECT_PATH"
-        CGO_ENABLED=1 go build -tags nomanagers -o /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap ./cmd/snap-bootstrap
+        CGO_ENABLED=1 go build -tags 'nomanagers withtestkeys faultinject' -o /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap ./cmd/snap-bootstrap
     )
 
     local orig_snap="$1"
