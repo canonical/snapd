@@ -363,20 +363,20 @@ func handleNTPConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 		return err
 	}
 
-	if len(cfg) == 0 {
-		// If the config is empty, we want to reset to defaults, which is achieved by deleting the configuration file
-		if err := os.Remove(ntpConfigPath); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot reset NTP configuration to defaults: %v", err)
-		}
-	} else {
-		// Otherwise, we overwrite the file with the new configuration
-		if err := osutil.AtomicWriteFile(ntpConfigPath, serializeNTPConfiguration(cfg), 0644, 0); err != nil {
-			return fmt.Errorf("cannot write NTP configuration: %v", err)
+	content := map[string]osutil.FileState{}
+	if len(cfg) != 0 {
+		content[timesyncdCfgFile] = &osutil.MemoryFileState{
+			Content: serializeNTPConfiguration(cfg),
+			Mode:    0644,
 		}
 	}
-
-	// Restart systemd-timesyncd.service to pick up the updated configuration (runtime only).
-	if opts == nil {
+	changed, removed, err := osutil.EnsureDirState(timesyncdCfgDir, timesyncdCfgFile, content)
+	if err != nil {
+		return fmt.Errorf("cannot update NTP configuration: %v", err)
+	}
+	// Only restart systemd-timesyncd.service to pick up the updated configuration if content
+	// was actually changed.
+	if opts == nil && (len(changed) > 0 || len(removed) > 0) {
 		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
 		if err := sysd.ReloadOrRestart([]string{"systemd-timesyncd.service"}); err != nil {
 			return fmt.Errorf("cannot restart timesyncd daemon after configuration change: %v", err)

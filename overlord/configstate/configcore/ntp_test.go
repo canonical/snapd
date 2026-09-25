@@ -426,7 +426,7 @@ func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
 	conf := configcore.PlainCoreConfig(validConfigurationExample)
 
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
-	c.Assert(err, ErrorMatches, "cannot write NTP configuration: open .*/etc/systemd/timesyncd.conf.d/00-snapd.conf.*: permission denied")
+	c.Assert(err, ErrorMatches, "cannot update NTP configuration: open .*/etc/systemd/timesyncd.conf.d/00-snapd.conf.*: permission denied")
 	s.verifyConfigfileContent(c, startingFileContent, "")
 }
 
@@ -446,7 +446,7 @@ func (s *ntpSuite) TestNTPSetErrorRemoveFileEmptyConfiguration(c *C) {
 	// The config file not being removable triggers an error and the configuration
 	// is not updated
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
-	c.Assert(err, ErrorMatches, "cannot reset NTP configuration to defaults: remove .*/etc/systemd/timesyncd.conf.d/00-snapd.conf: permission denied")
+	c.Assert(err, ErrorMatches, "cannot update NTP configuration: remove .*/etc/systemd/timesyncd.conf.d/00-snapd.conf: permission denied")
 }
 
 // Test that resetting the configuration to an empty document removes the
