@@ -19,6 +19,13 @@
 
 package builtin
 
+import (
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+)
+
 const microovnSummary = `allows access to the MicroOVN socket`
 
 const microovnBaseDeclarationSlots = `
@@ -31,7 +38,7 @@ const microovnBaseDeclarationSlots = `
 const microovnConnectedPlugAppArmor = `
 # Description: allow access to the MicroOVN control socket.
 
-/var/snap/microovn/common/state/control.socket rw,
+/var/snap/###SLOT_INSTANCE_NAME###/common/state/control.socket rw,
 `
 
 const microovnConnectedPlugSecComp = `
@@ -40,12 +47,24 @@ const microovnConnectedPlugSecComp = `
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
+type microovnInterface struct {
+	commonInterface
+}
+
+// AppArmorConnectedPlug uses the connected slot's instance name.
+func (iface *microovnInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	old := "###SLOT_INSTANCE_NAME###"
+	new := slot.Snap().InstanceName().String()
+	snippet := strings.ReplaceAll(microovnConnectedPlugAppArmor, old, new)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "microovn",
-		summary:               microovnSummary,
-		baseDeclarationSlots:  microovnBaseDeclarationSlots,
-		connectedPlugAppArmor: microovnConnectedPlugAppArmor,
-		connectedPlugSecComp:  microovnConnectedPlugSecComp,
-	})
+	registerIface(&microovnInterface{commonInterface{
+		name:                 "microovn",
+		summary:              microovnSummary,
+		baseDeclarationSlots: microovnBaseDeclarationSlots,
+		connectedPlugSecComp: microovnConnectedPlugSecComp,
+	}})
 }
