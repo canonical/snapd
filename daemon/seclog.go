@@ -36,7 +36,8 @@ func (un *ucrednet) seclogPeer() seclog.Peer {
 	peer := seclog.Peer{
 		Socket: un.Socket,
 		UID:    un.Uid,
-		PID:    un.PIDForPolkit, // SO_PEERCRED captured at accept
+		// PIDForPolkit is the accept-time peer pid; using it here is acceptable.
+		PID: un.PIDForPolkit,
 	}
 	// Note that untrusted is just that we have low confidence in the name, not
 	// that the process itself is not trusted explicitly.
