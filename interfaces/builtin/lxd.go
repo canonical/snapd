@@ -53,8 +53,7 @@ type lxdInterface struct {
 	commonInterface
 }
 
-// AppArmorConnectedPlug uses the connected slot's own instance name so that a
-// parallel installed lxd snap is granted access to its own socket.
+// AppArmorConnectedPlug uses the connected slot's instance name.
 func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(fmt.Sprintf(lxdConnectedPlugAppArmor, slot.Snap().InstanceName()))
 	return nil
