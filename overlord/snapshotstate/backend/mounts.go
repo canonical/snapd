@@ -76,7 +76,7 @@ func stopMountUnits(mountPoints []string) (stoppedUnits []string, err error) {
 	}
 	sysd := systemd.New(systemd.SystemMode, nil)
 	for _, mp := range mountPoints {
-		unitPath := systemd.ExistingMountUnitPath(dirs.StripRootDir(mp))
+		unitPath := systemd.ExistingMountUnitPath(dirs.GlobalRootDir, dirs.StripRootDir(mp))
 		if unitPath == "" {
 			return stoppedUnits, fmt.Errorf("cannot find mount unit file for mount point %q", mp)
 		}

@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/desktop/desktopentry"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/user"
@@ -102,6 +103,7 @@ func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 	var err error
 
 	stdout, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		RunDir:     dirs.SnapSystemdRunDir,
 		Identifier: identifier,
 		Priority:   syslog.LOG_INFO,
 	})
@@ -111,6 +113,7 @@ func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 	}
 
 	stderr, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		RunDir:     dirs.SnapSystemdRunDir,
 		Identifier: identifier,
 		Priority:   syslog.LOG_WARNING,
 	})

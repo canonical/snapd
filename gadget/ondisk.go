@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -103,7 +104,7 @@ type OnDiskAndGadgetStructurePair struct {
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
 func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
-	disk, err := disks.DiskFromDeviceName(device)
+	disk, err := disks.DiskFromDeviceNameUnderRoot(dirs.GlobalRootDir, device)
 	if err != nil {
 		return nil, err
 	}

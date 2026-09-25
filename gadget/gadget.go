@@ -889,7 +889,7 @@ func MaybeDeviceForStructure(vs *VolumeStructure) (string, error) {
 // of the volume structures.
 func MaybeDeviceForVolume(volume *Volume) (string, error) {
 	if volume.AssignedDevice != "" {
-		disk, err := disks.DiskFromDeviceName(volume.AssignedDevice)
+		disk, err := disks.DiskFromDeviceNameUnderRoot(dirs.GlobalRootDir, volume.AssignedDevice)
 		if err != nil {
 			return "", err
 		}

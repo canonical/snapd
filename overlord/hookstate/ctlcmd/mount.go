@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
@@ -239,10 +240,11 @@ func (m *mountCommand) ensureMount(sysd systemd.Systemd) (string, error) {
 		Fstype:                 m.Type,
 		Options:                m.optionsList,
 		Origin:                 "mount-control",
+		RootDir:                dirs.GlobalRootDir,
 		EnsureStartIfUnchanged: true,
 	})
 	if err != nil {
-		_ = sysd.RemoveMountUnitFile(m.Positional.Where)
+		_ = sysd.RemoveMountUnitFile(dirs.GlobalRootDir, m.Positional.Where)
 	}
 	return unitName, err
 }

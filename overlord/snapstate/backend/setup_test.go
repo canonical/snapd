@@ -109,7 +109,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_14.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
+	mup := systemd.MountUnitPath(dirs.GlobalRootDir, filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
 
@@ -145,7 +145,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello_instance_14.snap")), Equals, true)
 
 	// ensure the right unit is created
-	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello_instance/14"))
+	mup := systemd.MountUnitPath(dirs.GlobalRootDir, filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello_instance/14"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello_instance/14")))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_instance_14.snap")
 
@@ -484,7 +484,7 @@ version: 1.0
 	// ensure the right unit is created
 	where := filepath.Join(dirs.StripRootDir(dirs.SnapMountDir),
 		instanceName.String()+"/components/mnt/"+compName+"/"+compRev.String())
-	mup := systemd.MountUnitPath(where)
+	mup := systemd.MountUnitPath(dirs.GlobalRootDir, where)
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", where))
 	compBlobPath := "/var/lib/snapd/snaps/" + compFileName
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What="+regexp.QuoteMeta(compBlobPath))
@@ -740,7 +740,7 @@ func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
 	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
 
 	// All has been cleaned-up
-	mup := systemd.MountUnitPath("/run/mnt/kernel-snaps/kernel/33")
+	mup := systemd.MountUnitPath(dirs.GlobalRootDir, "/run/mnt/kernel-snaps/kernel/33")
 	treedir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel/kernel/33")
 	c.Assert(osutil.FileExists(mup), Equals, false)
 	c.Assert(osutil.FileExists(treedir), Equals, false)

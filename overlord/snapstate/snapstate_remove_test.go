@@ -3014,7 +3014,7 @@ func (s *snapmgrTestSuite) TestRemoveManyWithTerminate(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveWithNFSSnapDirMustPurge(c *C) {
-	restore := osutil.MockSnapDirsUnderNFSMounts(func() (bool, error) {
+	restore := osutil.MockSnapDirsUnderNFSMounts(func(dataHomeGlobs []string) (bool, error) {
 		return true, nil
 	})
 	defer restore()
