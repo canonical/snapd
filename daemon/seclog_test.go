@@ -57,6 +57,36 @@ func (s *seclogSuite) TestSeclogPeerFromUcred(c *C) {
 	})
 }
 
+func (s *seclogSuite) TestSeclogPeerFromUcredComponentHook(c *C) {
+	ucred := daemon.NewUcrednet("snap.mysnap+widget.hook.install", "/usr/bin/snap", 1000, "/run/snapd.socket")
+	ucred.PIDForPolkit = 4242
+
+	peer := daemon.SeclogPeerFromUcred(ucred)
+	c.Check(peer, DeepEquals, seclog.Peer{
+		Socket:       "/run/snapd.socket",
+		UID:          1000,
+		PID:          4242,
+		Exe:          "/usr/bin/snap",
+		InstanceName: "mysnap",
+		Runnable:     "comp.widget.hook.install",
+	})
+}
+
+func (s *seclogSuite) TestSeclogPeerFromUcredComponentHookInstance(c *C) {
+	ucred := daemon.NewUcrednet("snap.mysnap_foo+widget.hook.install", "/usr/bin/snap", 1000, "/run/snapd.socket")
+	ucred.PIDForPolkit = 4242
+
+	peer := daemon.SeclogPeerFromUcred(ucred)
+	c.Check(peer, DeepEquals, seclog.Peer{
+		Socket:       "/run/snapd.socket",
+		UID:          1000,
+		PID:          4242,
+		Exe:          "/usr/bin/snap",
+		InstanceName: "mysnap_foo",
+		Runnable:     "comp.widget.hook.install",
+	})
+}
+
 func (s *seclogSuite) TestSeclogPeerFromUcredMissingTag(c *C) {
 	ucred := daemon.NewUcrednet("", "/usr/bin/snap", 0, "/run/snapd.socket")
 	ucred.PIDForPolkit = 10
