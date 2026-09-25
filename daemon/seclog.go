@@ -24,26 +24,26 @@ import (
 	"github.com/snapcore/snapd/snap/naming"
 )
 
-// seclogPeerFromUcred builds a [seclog.Peer] for AUTHZ events from the
+// seclogPeer builds a [seclog.Peer] for AUTHZ events from the
 // credentials captured at accept.
-func seclogPeerFromUcred(ucred *ucrednet) seclog.Peer {
-	if ucred == nil {
+func (un *ucrednet) seclogPeer() seclog.Peer {
+	if un == nil {
 		return seclog.Peer{
 			UID: seclog.PeerNobody,
 			PID: seclog.PeerNoProcess,
 		}
 	}
 	peer := seclog.Peer{
-		Socket: ucred.Socket,
-		UID:    ucred.Uid,
-		PID:    ucred.PIDForPolkit, // SO_PEERCRED captured at accept
+		Socket: un.Socket,
+		UID:    un.Uid,
+		PID:    un.PIDForPolkit, // SO_PEERCRED captured at accept
 	}
 	// Note that untrusted is just that we have low confidence in the name, not
 	// that the process itself is not trusted explicitly.
-	if exe, err := ucred.UntrustedProcessExeName(); err == nil {
+	if exe, err := un.UntrustedProcessExeName(); err == nil {
 		peer.Exe = exe
 	}
-	if tag, err := ucred.SecurityTag(); err == nil {
+	if tag, err := un.SecurityTag(); err == nil {
 		peer.InstanceName = naming.InstanceName(tag.InstanceName())
 		peer.Runnable = seclog.RunnableFromSecurityTag(tag)
 	}

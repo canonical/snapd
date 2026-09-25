@@ -32,8 +32,9 @@ type seclogSuite struct{}
 
 var _ = Suite(&seclogSuite{})
 
-func (s *seclogSuite) TestSeclogPeerFromUcredNil(c *C) {
-	peer := daemon.SeclogPeerFromUcred(nil)
+func (s *seclogSuite) TestSeclogPeerNil(c *C) {
+	var ucred *daemon.Ucrednet
+	peer := ucred.SeclogPeer()
 
 	c.Check(peer, DeepEquals, seclog.Peer{
 		UID: seclog.PeerNobody,
@@ -42,11 +43,11 @@ func (s *seclogSuite) TestSeclogPeerFromUcredNil(c *C) {
 	c.Check(peer.String(), Equals, "<unknown>:<unknown>:<unknown>")
 }
 
-func (s *seclogSuite) TestSeclogPeerFromUcred(c *C) {
+func (s *seclogSuite) TestSeclogPeer(c *C) {
 	ucred := daemon.NewUcrednet("snap.firefox.firefox", "/usr/bin/snap", 1000, "/run/snapd.socket")
 	ucred.PIDForPolkit = 4242
 
-	peer := daemon.SeclogPeerFromUcred(ucred)
+	peer := ucred.SeclogPeer()
 	c.Check(peer, DeepEquals, seclog.Peer{
 		Socket:       "/run/snapd.socket",
 		UID:          1000,
@@ -57,11 +58,11 @@ func (s *seclogSuite) TestSeclogPeerFromUcred(c *C) {
 	})
 }
 
-func (s *seclogSuite) TestSeclogPeerFromUcredComponentHook(c *C) {
+func (s *seclogSuite) TestSeclogPeerComponentHook(c *C) {
 	ucred := daemon.NewUcrednet("snap.mysnap+widget.hook.install", "/usr/bin/snap", 1000, "/run/snapd.socket")
 	ucred.PIDForPolkit = 4242
 
-	peer := daemon.SeclogPeerFromUcred(ucred)
+	peer := ucred.SeclogPeer()
 	c.Check(peer, DeepEquals, seclog.Peer{
 		Socket:       "/run/snapd.socket",
 		UID:          1000,
@@ -72,11 +73,11 @@ func (s *seclogSuite) TestSeclogPeerFromUcredComponentHook(c *C) {
 	})
 }
 
-func (s *seclogSuite) TestSeclogPeerFromUcredComponentHookInstance(c *C) {
+func (s *seclogSuite) TestSeclogPeerComponentHookInstance(c *C) {
 	ucred := daemon.NewUcrednet("snap.mysnap_foo+widget.hook.install", "/usr/bin/snap", 1000, "/run/snapd.socket")
 	ucred.PIDForPolkit = 4242
 
-	peer := daemon.SeclogPeerFromUcred(ucred)
+	peer := ucred.SeclogPeer()
 	c.Check(peer, DeepEquals, seclog.Peer{
 		Socket:       "/run/snapd.socket",
 		UID:          1000,
@@ -87,11 +88,11 @@ func (s *seclogSuite) TestSeclogPeerFromUcredComponentHookInstance(c *C) {
 	})
 }
 
-func (s *seclogSuite) TestSeclogPeerFromUcredMissingTag(c *C) {
+func (s *seclogSuite) TestSeclogPeerMissingTag(c *C) {
 	ucred := daemon.NewUcrednet("", "/usr/bin/snap", 0, "/run/snapd.socket")
 	ucred.PIDForPolkit = 10
 
-	peer := daemon.SeclogPeerFromUcred(ucred)
+	peer := ucred.SeclogPeer()
 
 	c.Check(peer, DeepEquals, seclog.Peer{
 		Socket: "/run/snapd.socket",
@@ -101,12 +102,12 @@ func (s *seclogSuite) TestSeclogPeerFromUcredMissingTag(c *C) {
 	})
 }
 
-func (s *seclogSuite) TestSeclogPeerFromUcredExeError(c *C) {
+func (s *seclogSuite) TestSeclogPeerExeError(c *C) {
 	ucred := daemon.NewUcrednet("snap.firefox.firefox", "", 1000, "/run/snapd.socket")
 	ucred.PIDForPolkit = 4242
 	ucred.SetUntrustedProcessExeNameErr(errors.New("cannot read executable"))
 
-	peer := daemon.SeclogPeerFromUcred(ucred)
+	peer := ucred.SeclogPeer()
 
 	c.Check(peer, DeepEquals, seclog.Peer{
 		Socket:       "/run/snapd.socket",

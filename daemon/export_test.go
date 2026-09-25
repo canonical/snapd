@@ -40,16 +40,21 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	CreateQuotaValues   = createQuotaValues
-	ParseOptionalTime   = parseOptionalTime
-	SeclogPeerFromUcred = seclogPeerFromUcred
+	CreateQuotaValues = createQuotaValues
+	ParseOptionalTime = parseOptionalTime
 )
+
+// SeclogPeer exposes [ucrednet.seclogPeer] for tests.
+func (un *ucrednet) SeclogPeer() seclog.Peer {
+	return un.seclogPeer()
+}
 
 func APICommands() []*Command {
 	return api
