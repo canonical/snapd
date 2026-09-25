@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -59,6 +60,9 @@ var _ = Suite(&helpersSuite{})
 
 func (s *helpersSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+
+	// needed for system key generation
+	s.AddCleanup(osutil.MockMountInfo(""))
 
 	s.ovld = overlord.Mock()
 	s.st = s.ovld.State()
@@ -477,6 +481,326 @@ apps:
 		snapstate.Set(st, snapInfo.InstanceName().String(), snapst)
 		st.Unlock()
 	}
+}
+
+func (s *helpersSuite) TestSetupSecurityByBackendRetriesOnSnapLockBusy(c *C) {
+	// The mount backend returns SnapNamespaceBusyError when it cannot take the
+	// snap lock (e.g. because a concurrent snap-confine or snap-discard-ns is
+	// operating on the mount namespace). setupSecurityByBackend must surface
+	// the affected snap names so the handler can schedule a Retry via
+	// retryOnMountNsBusy instead of failing the task. See LP#2164926.
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "mount",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			return fmt.Errorf("cannot update mount namespace of snap %q, it is locked and possibly being updated: %w",
+				appSet.InstanceName(), &interfaces.SnapBusyError{Snap: appSet.InstanceName()})
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	// Put a fake snap in the state.
+	yamlText := `
+name: foo
+version: 1
+apps:
+  test:
+    command: bin/test
+`
+	si := &snap.SideInfo{Revision: snap.R(1), RealName: "foo"}
+	snapInfo := snaptest.MockSnap(c, yamlText, si)
+	s.st.Lock()
+	snapst := &snapstate.SnapState{
+		SnapType: string(snap.TypeApp),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Active:   true,
+		Current:  snap.R(1),
+	}
+	snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+	s.st.Unlock()
+
+	// Construct and start up the interface manager.
+	mgr, err := ifacestate.Manager(s.st, nil, nil, s.ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	task := s.st.NewTask("setup-security", "setup security")
+
+	opts := []interfaces.ConfinementOptions{{}}
+	sctxs := map[string]interfaces.SetupContext{}
+	tm := timings.New(nil).StartSpan("", "")
+	busySnaps, err := mgr.SetupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, opts, sctxs, tm)
+	c.Assert(err, IsNil)
+	c.Check(busySnaps, DeepEquals, map[naming.InstanceName]bool{"foo": true})
+
+	// The handler helper turns the busy snap into a Retry and records which
+	// snap needs its mount namespace (re)applied on the retry.
+	var snapsNeeded []string
+	retryErr := ifacestate.MaybeRetryForBusySnaps(task, busySnaps)
+	retry, ok := retryErr.(*state.Retry)
+	c.Assert(ok, Equals, true, Commentf("expected a retry, got: %v", retryErr))
+	c.Check(retry.After, Equals, 500*time.Millisecond)
+	err = task.Get("snaps-needing-retry", &snapsNeeded)
+	c.Assert(err, IsNil)
+	c.Check(snapsNeeded, DeepEquals, []string{"foo"})
+	s.st.Unlock()
+}
+
+func (s *helpersSuite) TestSetupSecurityByBackendScansAllErrors(c *C) {
+	// setupSecurityByBackend must scan ALL errors returned by SetupMany: a
+	// real (non-busy) error wins and is returned, even when other snaps only
+	// hit a busy snap lock. See LP#2164926.
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			if appSet.InstanceName().String() == "bar" {
+				return errors.New("FAILED")
+			}
+			return fmt.Errorf("cannot update mount namespace of snap %q, it is locked and possibly being updated: %w",
+				appSet.InstanceName(), &interfaces.SnapBusyError{Snap: appSet.InstanceName()})
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	// Put two fake snaps in the state: foo hits a busy mount namespace lock,
+	// bar fails the setup with a real error.
+	snapInfos := make(map[string]*snap.Info, 2)
+	for _, name := range []string{"foo", "bar"} {
+		yamlText := `
+name: %NAME%
+version: 1
+apps:
+  test:
+    command: bin/test
+`
+		si := &snap.SideInfo{Revision: snap.R(1), RealName: name}
+		snapInfo := snaptest.MockSnap(c, strings.Replace(yamlText, "%NAME%", name, -1), si)
+		snapInfos[name] = snapInfo
+		s.st.Lock()
+		snapst := &snapstate.SnapState{
+			SnapType: string(snap.TypeApp),
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Active:   true,
+			Current:  snap.R(1),
+		}
+		snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+		s.st.Unlock()
+	}
+
+	// Construct and start up the interface manager.
+	mgr, err := ifacestate.Manager(s.st, nil, nil, s.ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	appSetFoo, err := interfaces.NewSnapAppSet(snapInfos["foo"], nil)
+	c.Assert(err, IsNil)
+	appSetBar, err := interfaces.NewSnapAppSet(snapInfos["bar"], nil)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	task := s.st.NewTask("setup-security", "setup security")
+
+	opts := []interfaces.ConfinementOptions{{}, {}}
+	sctxs := map[string]interfaces.SetupContext{}
+	tm := timings.New(nil).StartSpan("", "")
+	busySnaps, err := mgr.SetupSecurityByBackend(task, []*interfaces.SnapAppSet{appSetFoo, appSetBar}, opts, sctxs, tm)
+	c.Check(err, ErrorMatches, "FAILED")
+	c.Check(busySnaps, HasLen, 0)
+	s.st.Unlock()
+}
+
+func (s *helpersSuite) TestSetupSecurityByBackendAllBusySnapsAggregated(c *C) {
+	// When every snap only hits a busy mount namespace lock,
+	// setupSecurityByBackend aggregates all affected snap names and returns no
+	// error: the caller schedules a retry for just those snaps. See LP#2164926.
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			return fmt.Errorf("cannot update mount namespace of snap %q, it is locked and possibly being updated: %w",
+				appSet.InstanceName(), &interfaces.SnapBusyError{Snap: appSet.InstanceName()})
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	snapInfos := make(map[string]*snap.Info, 2)
+	for _, name := range []string{"foo", "bar"} {
+		yamlText := `
+name: %NAME%
+version: 1
+apps:
+  test:
+    command: bin/test
+`
+		si := &snap.SideInfo{Revision: snap.R(1), RealName: name}
+		snapInfo := snaptest.MockSnap(c, strings.Replace(yamlText, "%NAME%", name, -1), si)
+		snapInfos[name] = snapInfo
+		s.st.Lock()
+		snapst := &snapstate.SnapState{
+			SnapType: string(snap.TypeApp),
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Active:   true,
+			Current:  snap.R(1),
+		}
+		snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+		s.st.Unlock()
+	}
+
+	mgr, err := ifacestate.Manager(s.st, nil, nil, s.ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	appSetFoo, err := interfaces.NewSnapAppSet(snapInfos["foo"], nil)
+	c.Assert(err, IsNil)
+	appSetBar, err := interfaces.NewSnapAppSet(snapInfos["bar"], nil)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	task := s.st.NewTask("setup-security", "setup security")
+
+	opts := []interfaces.ConfinementOptions{{}, {}}
+	sctxs := map[string]interfaces.SetupContext{}
+	tm := timings.New(nil).StartSpan("", "")
+	busySnaps, err := mgr.SetupSecurityByBackend(task, []*interfaces.SnapAppSet{appSetFoo, appSetBar}, opts, sctxs, tm)
+	c.Assert(err, IsNil)
+	c.Check(busySnaps, DeepEquals, map[naming.InstanceName]bool{"foo": true, "bar": true})
+	s.st.Unlock()
+}
+
+func (s *helpersSuite) TestSetupSnapSecurityReturnsSnapBusyError(c *C) {
+	// setupSnapSecurity converts a busy backend into an
+	// *interfaces.SnapBusyError, so the caller (a task handler) can decide how
+	// to retry. See LP#2164926.
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			return fmt.Errorf("cannot update mount namespace of snap %q, it is locked and possibly being updated: %w",
+				appSet.InstanceName(), &interfaces.SnapBusyError{Snap: appSet.InstanceName()})
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	yamlText := `
+name: foo
+version: 1
+apps:
+  test:
+    command: bin/test
+`
+	si := &snap.SideInfo{Revision: snap.R(1), RealName: "foo"}
+	snapInfo := snaptest.MockSnap(c, yamlText, si)
+	s.st.Lock()
+	snapst := &snapstate.SnapState{
+		SnapType: string(snap.TypeApp),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Active:   true,
+		Current:  snap.R(1),
+	}
+	snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+	s.st.Unlock()
+
+	mgr, err := ifacestate.Manager(s.st, nil, nil, s.ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	task := s.st.NewTask("setup-security", "setup security")
+	tm := timings.New(nil).StartSpan("", "")
+	err = mgr.SetupSnapSecurity(task, appSet, interfaces.ConfinementOptions{}, tm)
+	var busyErr *interfaces.SnapBusyError
+	c.Assert(errors.As(err, &busyErr), Equals, true, Commentf("expected a SnapBusyError, got: %v", err))
+	c.Check(busyErr.Snap, Equals, naming.InstanceName("foo"))
+	s.st.Unlock()
+}
+
+func (s *helpersSuite) TestSetupSnapSecuritySetsPreviouslyBusy(c *C) {
+	// setupSnapSecurity threads the previously-recorded busy bookkeeping
+	// through to the backend as SetupContext.PreviouslyBusy. See LP#2164926.
+	var sawPreviouslyBusy bool
+	backend := &ifacetest.TestSecurityBackend{
+		BackendName: "fake",
+		SetupCallback: func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+			sawPreviouslyBusy = sctx.PreviouslyBusy
+			return nil
+		},
+	}
+	restore := ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{backend})
+	defer restore()
+
+	yamlText := `
+name: foo
+version: 1
+apps:
+  test:
+    command: bin/test
+`
+	si := &snap.SideInfo{Revision: snap.R(1), RealName: "foo"}
+	snapInfo := snaptest.MockSnap(c, yamlText, si)
+	s.st.Lock()
+	snapst := &snapstate.SnapState{
+		SnapType: string(snap.TypeApp),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Active:   true,
+		Current:  snap.R(1),
+	}
+	snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+	s.st.Unlock()
+
+	mgr, err := ifacestate.Manager(s.st, nil, nil, s.ovld.TaskRunner(), nil, nil)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+
+	s.st.Lock()
+	task := s.st.NewTask("setup-security", "setup security")
+	// a previous attempt recorded foo as busy.
+	task.Set("snaps-needing-retry", []string{"foo"})
+	tm := timings.New(nil).StartSpan("", "")
+	err = mgr.SetupSnapSecurity(task, appSet, interfaces.ConfinementOptions{}, tm)
+	c.Assert(err, IsNil)
+	c.Check(sawPreviouslyBusy, Equals, true)
+	s.st.Unlock()
+}
+
+func (s *helpersSuite) TestRetryIfSnapBusy(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// nil error passes through as nil.
+	task := s.st.NewTask("setup-security", "setup security")
+	c.Check(ifacestate.RetryIfSnapBusy(task, nil), IsNil)
+
+	// a non-busy error passes through unchanged.
+	real := errors.New("boom")
+	c.Check(ifacestate.RetryIfSnapBusy(task, real), Equals, real)
+
+	// a *interfaces.SnapBusyError is converted into a recorded Retry.
+	busyErr := &interfaces.SnapBusyError{Snap: naming.InstanceName("foo")}
+	retryErr := ifacestate.RetryIfSnapBusy(task, busyErr)
+	retry, ok := retryErr.(*state.Retry)
+	c.Assert(ok, Equals, true, Commentf("expected a retry, got: %v", retryErr))
+	c.Check(retry.After, Equals, 500*time.Millisecond)
+
+	var snapsNeeded []string
+	err := task.Get("snaps-needing-retry", &snapsNeeded)
+	c.Assert(err, IsNil)
+	c.Check(snapsNeeded, DeepEquals, []string{"foo"})
 }
 
 func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {

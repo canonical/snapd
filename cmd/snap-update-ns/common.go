@@ -66,7 +66,7 @@ func (upCtx *CommonProfileUpdateContext) Lock() (func(), error) {
 		if err := lock.TryLock(); err != osutil.ErrAlreadyLocked {
 			// If we managed to grab the lock we should drop it.
 			lock.Close()
-			return nil, fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine was used", instanceName)
+			return nil, fmt.Errorf("mount namespace of snap %q is not locked but --from-snap-confine or --snap-already-locked was used", instanceName)
 		}
 	} else {
 		if err := lock.Lock(); err != nil {

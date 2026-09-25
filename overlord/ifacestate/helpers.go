@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -700,9 +701,12 @@ func (m *InterfaceManager) removeConnections(snapName string) error {
 	return nil
 }
 
-func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) error {
+func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*interfaces.SnapAppSet, opts []interfaces.ConfinementOptions, sctxs map[string]interfaces.SetupContext, tm timings.Measurer) (
+	busySnaps map[naming.InstanceName]bool,
+	err error,
+) {
 	if len(appSets) != len(opts) {
-		return fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
+		return nil, fmt.Errorf("internal error: setupSecurityByBackend received an unexpected number of snaps (expected: %d, got %d)", len(opts), len(appSets))
 	}
 	confOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
 	for i, set := range appSets {
@@ -725,24 +729,110 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 			return interfaces.SetupContext{}
 		}, tm)
 		if len(errs) > 0 {
-			// SetupMany processes all profiles and returns all encountered errors; report just the first one
-			return errs[0]
+			// SetupMany processes all profiles and returns all encountered
+			// errors; scan all of them. A security backend (e.g. the mount
+			// backend) returns interfaces.SnapBusyError when it cannot take
+			// the snap lock because a concurrently running snap-confine or
+			// snap-discard-ns is operating on the snap's mount namespace.
+			// Collect the affected snap names so the caller can retry just
+			// those snaps, and return the first real (non-busy) error if
+			// there is one. See LP#2164926.
+			for _, setupErr := range errs {
+				var snapBusyErr *interfaces.SnapBusyError
+				if errors.As(setupErr, &snapBusyErr) {
+					if busySnaps == nil {
+						busySnaps = make(map[naming.InstanceName]bool)
+					}
+					busySnaps[snapBusyErr.Snap] = true
+					continue
+				}
+				return nil, setupErr
+			}
 		}
 	}
 
-	return nil
+	return busySnaps, nil
 }
 
+// setupSnapSecurity is a single-snap convenience wrapper around
+// setupSecurityByBackend. It owns the previously-recorded busy snap lookup
+// (so PreviouslyBusy is always threaded through correctly to the backend) and
+// surfaces busy-ness as an *interfaces.SnapBusyError. It is up to the caller
+// (a task handler) to decide whether and how to retry, typically via
+// retryIfSnapBusy. See LP#2164926.
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
+	instanceName := appSet.InstanceName()
+
+	previouslyBusy, err := previouslyRecordedBusySnaps(task)
+	if err != nil {
+		return err
+	}
+
 	sctxs := map[string]interfaces.SetupContext{
-		appSet.InstanceName().String(): {
+		instanceName.String(): {
 			Reason: interfaces.SnapSetupReasonOther,
 			// this is called only in the contexts where all backend effects
 			// are expected to be immediate
 			CanDelayEffects: false,
+			PreviouslyBusy:  previouslyBusy[instanceName],
 		},
 	}
-	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
+	busySnaps, err := m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
+	if err != nil {
+		return err
+	}
+	if busySnaps[instanceName] {
+		return &interfaces.SnapBusyError{Snap: instanceName}
+	}
+	return nil
+}
+
+func previouslyRecordedBusySnaps(task *state.Task) (map[naming.InstanceName]bool, error) {
+	var raw []string
+	if err := task.Get("snaps-needing-retry", &raw); err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, err
+	}
+
+	previouslyBusySnaps := map[naming.InstanceName]bool{}
+	for _, k := range raw {
+		previouslyBusySnaps[naming.InstanceName(k)] = true
+	}
+	return previouslyBusySnaps, nil
+}
+
+// maybeRetryForBusySnaps records for which snaps the security backend setup needs to be retried
+func maybeRetryForBusySnaps(task *state.Task, busySnaps map[naming.InstanceName]bool) error {
+	if len(busySnaps) == 0 {
+		task.Set("snaps-needing-retry", nil)
+		return nil
+	}
+
+	var raw []string
+	for k := range busySnaps {
+		raw = append(raw, k.String())
+	}
+
+	task.Set("snaps-needing-retry", raw)
+
+	return &state.Retry{After: securityProfilesSetupRetryTimeout, Reason: "security profiles could not be applied at this time"}
+}
+
+// retryIfSnapBusy converts a *interfaces.SnapBusyError in err into a recorded,
+// retryable state.Retry (records "snaps-needing-retry" bookkeeping via
+// maybeRetryForBusySnaps). If err is nil, it clears any "snaps-needing-retry"
+// bookkeeping left over from an earlier, busy-retried attempt of this same
+// task (via maybeRetryForBusySnaps(task, nil)) and returns nil. Any other
+// error is returned unchanged. This is the only place callers of
+// setupSnapSecurity need to decide retry policy. See LP#2164926.
+func retryIfSnapBusy(task *state.Task, err error) error {
+	if err == nil {
+		return maybeRetryForBusySnaps(task, nil)
+	}
+	var busyErr *interfaces.SnapBusyError
+	if errors.As(err, &busyErr) {
+		return maybeRetryForBusySnaps(task, map[naming.InstanceName]bool{busyErr.Snap: true})
+	}
+	return err
 }
 
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName string) error {

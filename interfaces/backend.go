@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -156,6 +157,10 @@ type SetupContext struct {
 	// The callback is only provided if the backend implements
 	// DelayedSideEffectsBackend.
 	DelayEffect func(backend SecurityBackend, item DelayedSideEffect)
+	// PreviouslyBusy is set to true when a previous call found some aspect of
+	// the snap installation to be in active use and the profile setup needed to
+	// be retried.
+	PreviouslyBusy bool
 }
 
 // SecurityBackend abstracts interactions between the interface system and the
@@ -233,4 +238,14 @@ type DelayedSideEffectsBackend interface {
 func SupportsDelayingEffects(backend SecurityBackend) bool {
 	_, ok := backend.(DelayedSideEffectsBackend)
 	return ok
+}
+
+// SnapBusyError is an error the security backend can return indicating that the
+// profiles could not have been applied and the attempt should be retried.
+type SnapBusyError struct {
+	Snap naming.InstanceName
+}
+
+func (e *SnapBusyError) Error() string {
+	return fmt.Sprintf("snap %q is busy, security profiles could not be applied", e.Snap)
 }

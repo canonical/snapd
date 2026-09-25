@@ -42,6 +42,10 @@ import (
 
 var connectRetryTimeout = time.Second * 5
 
+// securityProfilesSetupRetryTimeout is the delay before retrying security
+// profiles setup
+var securityProfilesSetupRetryTimeout = 500 * time.Millisecond
+
 var regenerateSecurityProfilesChangeKind = swfeats.RegisterChangeKind("regenerate-security-profiles")
 
 // ErrAlreadyConnected describes the error that occurs when attempting to connect already connected interface.

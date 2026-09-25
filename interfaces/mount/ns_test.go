@@ -115,19 +115,21 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 	for _, t := range []struct {
 		cmd    string
 		mnt    bool
+		locked bool
 		errStr string
 		res    [][]string
 	}{
 		// The mnt file present so we use snap-update-ns;
 		// The command doesn't fail and there's no error.
-		{cmd: "", mnt: true, errStr: "", res: [][]string{{"snap-update-ns", "snap-name"}}},
+		{cmd: "", mnt: true, locked: false, errStr: "", res: [][]string{{"snap-update-ns", "snap-name"}}},
 		// The mnt file is not present so we don't do anything.
-		{cmd: "", mnt: false, errStr: "", res: nil},
+		{cmd: "", mnt: false, locked: false, errStr: "", res: nil},
 		// The mnt file is present so we use snap-update-ns;
 		// The command fails and we forward the error along with the output.
 		{
 			cmd:    "echo failure; exit 1;",
 			mnt:    true,
+			locked: false,
 			errStr: `cannot update preserved mount namespace of snap "snap-name": failure`,
 			res:    [][]string{{"snap-update-ns", "snap-name"}}},
 		// The mnt file is present so we use snap-update-ns;
@@ -135,8 +137,18 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 		{
 			cmd:    "exit 1;",
 			mnt:    true,
+			locked: false,
 			errStr: `cannot update preserved mount namespace of snap "snap-name": exit status 1`,
 			res:    [][]string{{"snap-update-ns", "snap-name"}}},
+		// use snap-update-ns with --snap-already-locked
+		{cmd: "", mnt: true, locked: true, errStr: "", res: [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}}},
+		// and an error variant of it
+		{
+			cmd:    "echo 'locked variant, failure'; exit 1;",
+			mnt:    true,
+			locked: true,
+			errStr: `cannot update preserved mount namespace of snap "snap-name": locked variant, failure`,
+			res:    [][]string{{"snap-update-ns", "--snap-already-locked", "snap-name"}}},
 	} {
 		cmd := testutil.MockCommand(c, "snap-update-ns", t.cmd)
 		dirs.DistroLibExecDir = cmd.BinDir()
@@ -149,7 +161,12 @@ func (s *nsSuite) TestUpdateNamespaceMnt(c *C) {
 			c.Assert(os.RemoveAll(dirs.SnapRunNsDir), IsNil)
 		}
 
-		err := mount.UpdateSnapNamespace("snap-name")
+		var err error
+		if t.locked {
+			err = mount.UpdateLockedSnapNamespace("snap-name")
+		} else {
+			err = mount.UpdateSnapNamespace("snap-name")
+		}
 		if t.errStr != "" {
 			c.Check(err, ErrorMatches, t.errStr)
 		} else {
