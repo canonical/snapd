@@ -218,7 +218,7 @@ func (p Peer) LogValue() slog.Value {
 		slog.Int64("uid", int64(p.UID)),
 		slog.Int64("pid", int64(p.PID)),
 		slog.String("exe", fieldOrUnknown(p.Exe)),
-		slog.String("snap", fieldOrUnknown(p.Snap)),
+		slog.String("instance_name", fieldOrUnknown(p.InstanceName.String())),
 		slog.String("runnable", fieldOrUnknown(p.Runnable)),
 	)
 }

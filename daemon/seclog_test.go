@@ -48,12 +48,12 @@ func (s *seclogSuite) TestSeclogPeerFromUcred(c *C) {
 
 	peer := daemon.SeclogPeerFromUcred(ucred)
 	c.Check(peer, DeepEquals, seclog.Peer{
-		Socket:   "/run/snapd.socket",
-		UID:      1000,
-		PID:      4242,
-		Exe:      "/usr/bin/snap",
-		Snap:     "firefox",
-		Runnable: "app.firefox",
+		Socket:       "/run/snapd.socket",
+		UID:          1000,
+		PID:          4242,
+		Exe:          "/usr/bin/snap",
+		InstanceName: "firefox",
+		Runnable:     "app.firefox",
 	})
 }
 
@@ -79,10 +79,10 @@ func (s *seclogSuite) TestSeclogPeerFromUcredExeError(c *C) {
 	peer := daemon.SeclogPeerFromUcred(ucred)
 
 	c.Check(peer, DeepEquals, seclog.Peer{
-		Socket:   "/run/snapd.socket",
-		UID:      1000,
-		PID:      4242,
-		Snap:     "firefox",
-		Runnable: "app.firefox",
+		Socket:       "/run/snapd.socket",
+		UID:          1000,
+		PID:          4242,
+		InstanceName: "firefox",
+		Runnable:     "app.firefox",
 	})
 }

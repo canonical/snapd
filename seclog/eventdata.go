@@ -97,7 +97,7 @@ type SnapdUser struct {
 //
 // Socket, UID, and PID come from peer credentials and are expected to be
 // set when emitting AUTHZ events (the access gate is not reached without
-// them). Exe, Snap, and Runnable are best-effort enrichment fields.
+// them). Exe, InstanceName, and Runnable are best-effort enrichment fields.
 // When unavailable, leave them empty; [Peer.LogValue] logs empty values as
 // [unknown].
 //
@@ -110,17 +110,17 @@ type Peer struct {
 	// Exe is the executable path of the peer process, from /proc/<pid>/exe.
 	// [unknown] when unavailable.
 	Exe string `json:"exe"`
-	// Snap is the snap instance name of the peer process, from its snap
+	// InstanceName is the snap instance name of the peer process, from its snap
 	// security tag. [unknown] when unavailable.
-	Snap string `json:"snap"`
-	// Runnable is the peer app or hook, from the same security tag as [Peer.Snap],
+	InstanceName naming.InstanceName `json:"instance_name"`
+	// Runnable is the peer app or hook, from the same security tag as [Peer.InstanceName],
 	// formatted by [RunnableFromSecurityTag]. [unknown] when unavailable.
 	Runnable string `json:"runnable"`
 }
 
 // RunnableFromSecurityTag returns the [Peer.Runnable] value for tag.
 // Apps are "app.<name>", hooks are "hook.<name>", and component hooks are
-// "<component>.hook.<name>". The snap name is [Peer.Snap], from InstanceName.
+// "<component>.hook.<name>". The snap instance name is [Peer.InstanceName].
 func RunnableFromSecurityTag(tag naming.SecurityTag) string {
 	switch t := tag.(type) {
 	case naming.AppSecurityTag:
