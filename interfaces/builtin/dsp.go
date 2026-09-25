@@ -129,6 +129,10 @@ func (iface *dspInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo
 	return parallelInstancesSystemOrGadgetSlotErr(slot)
 }
 
+func (iface *dspInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errParallelInstancesSharedResources
+}
+
 func init() {
 	registerIface(&dspInterface{commonInterface{
 		name:                 "dsp",
