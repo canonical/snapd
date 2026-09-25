@@ -562,7 +562,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             do_depinstall() {
-                best_golang=golang-1.23
+                best_golang=golang-1.24
                 case "$SPREAD_SYSTEM" in
                     ubuntu-fips-*)
                         # we are limited by the FIPS variants of go toolchain
@@ -578,7 +578,7 @@ prepare_project() {
                 # We need to ensure the correct version of golang is used.
                 if [ -z "$(command -v go)" ]; then
                     # Find the path to the versioned go which was installed as a dependency
-                    for real_golang in "$best_golang" golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
+                    for real_golang in "$best_golang" golang-1.24 golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
                         real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
                         if [ -e "$real_golang_path" ]; then
                             ln -s "$real_golang_path" /usr/bin/go
