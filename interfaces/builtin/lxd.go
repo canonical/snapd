@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
@@ -39,7 +39,7 @@ const lxdConnectedPlugAppArmor = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
 
-/var/snap/%s/common/lxd/unix.socket rw,
+/var/snap/###SLOT_INSTANCE_NAME###/common/lxd/unix.socket rw,
 `
 
 const lxdConnectedPlugSecComp = `
@@ -55,7 +55,10 @@ type lxdInterface struct {
 
 // AppArmorConnectedPlug uses the connected slot's instance name.
 func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(fmt.Sprintf(lxdConnectedPlugAppArmor, slot.Snap().InstanceName()))
+	old := "###SLOT_INSTANCE_NAME###"
+	new := slot.Snap().InstanceName().String()
+	snippet := strings.ReplaceAll(lxdConnectedPlugAppArmor, old, new)
+	spec.AddSnippet(snippet)
 	return nil
 }
 
