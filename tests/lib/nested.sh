@@ -1036,15 +1036,8 @@ nested_create_core_vm() {
             if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
                 image_generator_args+=(--component "pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp")
             fi
-            local gadget_snap
+            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
                 image_generator_args+=(--gadget-yaml pc-gadget/meta/gadget.yaml)
-            if nested_is_core_ge 20 && [ -e "$gadget_snap" ]; then
-                local gadget_tmp_dir
-                local gadget_unpack_dir
-                gadget_tmp_dir="$(mktemp -d)"
-                gadget_unpack_dir="$gadget_tmp_dir/unpack"
-                unsquashfs -no-progress -d "$gadget_unpack_dir" "$gadget_snap" meta/gadget.yaml >/dev/null
-                rm -rf "$gadget_tmp_dir"
             fi
             "$TESTSTOOLS"/image-generator "${image_generator_args[@]}"
         fi
