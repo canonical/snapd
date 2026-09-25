@@ -1545,6 +1545,31 @@ plugs:
 	c.Check(err, NotNil)
 }
 
+func (s *baseDeclSuite) TestConnectionMediatekAccel(c *C) {
+	const slotYaml = `name: core
+version: 0
+type: os
+slots:
+  mediatek-accel:
+`
+
+	for _, units := range []string{
+		"[apu]",
+		"[vcu]",
+		"[apu, vcu]",
+	} {
+		plugYaml := fmt.Sprintf(`name: consumer
+version: 1.0
+plugs:
+  mediatek-accel:
+    units: %s
+`, units)
+
+		cand := s.connectCand(c, "mediatek-accel", slotYaml, plugYaml)
+		c.Check(cand.Check(), IsNil, Commentf("units %s", units))
+	}
+}
+
 func (s *baseDeclSuite) TestConnectionQualcommIpcRouter(c *C) {
 	// we let connect explicitly as long as qcipc matches
 

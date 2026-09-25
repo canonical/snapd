@@ -51,6 +51,30 @@ func (s *apparmorSuite) TestDecodeLabel(c *C) {
 	c.Assert(err, ErrorMatches, `security label "/usr/bin/ntpd" does not belong to a snap`)
 }
 
+func (s *apparmorSuite) TestLabelFromPid(c *C) {
+	label, err := apparmor.LabelFromPid(42)
+	c.Assert(err, IsNil)
+	c.Check(label, Equals, "unconfined")
+
+	procFile := filepath.Join(s.fakeroot, "proc/42/attr/apparmor/current")
+	c.Assert(os.MkdirAll(filepath.Dir(procFile), 0755), IsNil)
+	for _, t := range []struct {
+		contents string
+		label    string
+	}{
+		{"snap.foo.app", "snap.foo.app"},
+		{"snap.foo.app (enforce)\n", "snap.foo.app"},
+		{"snap.foo_instance+comp.hook.install (complain)\n", "snap.foo_instance+comp.hook.install"},
+		{"/usr/sbin/cupsd (enforce)\n", "/usr/sbin/cupsd"},
+		{"unconfined\n", "unconfined"},
+	} {
+		c.Assert(os.WriteFile(procFile, []byte(t.contents), 0644), IsNil)
+		label, err := apparmor.LabelFromPid(42)
+		c.Assert(err, IsNil)
+		c.Check(label, Equals, t.label)
+	}
+}
+
 func (s *apparmorSuite) TestDecodeLabelUnrecognisedSnapLabel(c *C) {
 	_, _, _, err := apparmor.DecodeLabel("snap.weird")
 	c.Assert(err, ErrorMatches, `unknown snap related security label "snap.weird"`)

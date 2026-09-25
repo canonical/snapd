@@ -380,6 +380,12 @@ const (
 	RestartSnapdFeatureChange RestartReason = "snapd-feature-change"
 )
 
+// Reasons for type RestartSocket.
+const (
+	// RestartSnapdIdle is socket-activation standby because snapd is idle.
+	RestartSnapdIdle RestartReason = "snapd-idle"
+)
+
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
 // reason may be empty when the caller has no more specific context yet.

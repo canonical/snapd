@@ -43,9 +43,10 @@ import (
 )
 
 var (
-	syscheckCheckSystem = syscheck.CheckSystem
-	openAuditWriter     = seclog.OpenAuditWriter
-	newSlogLogger       = seclog.NewSlogLogger
+	syscheckCheckSystem       = syscheck.CheckSystem
+	openAuditWriter           = seclog.OpenAuditWriter
+	newSlogLogger             = seclog.NewSlogLogger
+	systemdInitSdNotifySocket = systemd.InitSdNotifySocket
 )
 
 const (
@@ -64,6 +65,9 @@ func Main() {
 	} else {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
+
+	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
+	systemdInitSdNotifySocket()
 
 	// Set up security logging via the audit subsystem.
 	teardownSecurityLogging := setupSecurityLogging()

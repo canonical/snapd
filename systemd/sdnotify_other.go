@@ -27,8 +27,6 @@ import (
 
 var errUnsupported = errors.New("unsupported on non-Linux systems")
 
-var osGetenv = os.Getenv
-
 func SdNotify(notifyState string) error {
 	return errUnsupported
 }

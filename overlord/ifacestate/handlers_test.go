@@ -208,7 +208,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 
 	// Create a new quota group with a journal quota
-	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName().String()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
@@ -230,7 +230,7 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespaceMountProfileC
 	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
-	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName().String()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
 	c.Assert(err, IsNil)
 
 	opts, err := m.BuildConfinementOptions(s.st, nil, snapInfo, snapstate.Flags{})

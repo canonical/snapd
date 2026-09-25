@@ -763,6 +763,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 			snapsup.InstanceName(), snapsup.Revision(), snapsup.Channel))
 		preDownload.Set("snap-setup", snapsup)
 
+		// older snapd versions require this data when resuming after a downgrade
 		preDownload.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
 		ts.AddTask(preDownload)
 

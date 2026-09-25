@@ -161,10 +161,10 @@ jobs:
             echo "| Phase | Backend | System | Test | Success probability | History samples |"
             echo "|---|---|---|---|---:|---:|"
 
-            # Merge all system reports, sort them, then apply probability and history filters.
+            # Merge all system reports, sort by success probability, then apply probability and history filters.
             find predictor-reports -type f -name '*.tsv' -print0 \
               | xargs -0 -r cat \
-              | sort -t $'\t' -k3,3 -k1,1 -k2,2 -k5,5n \
+              | sort -t $'\t' -k5,5n -k3,3 -k1,1 -k2,2 -k4,4 \
               | awk -F '\t' -v minimum="${MINIMUM}" -v maximum="${MAXIMUM}" -v min_history="${MINIMUM_HISTORY_SAMPLES}" \
                   '$5 >= minimum && $5 < maximum && $6 >= min_history { printf "| %s | %s | %s | %s | %.2f%% | %s |\n", $3, $1, $2, $4, $5, $6 }'
           } > "test-predictor-${{ matrix.report }}-report.md"

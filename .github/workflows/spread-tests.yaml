@@ -59,7 +59,11 @@ on:
         type: boolean
         required: false
         default: true
-
+      scenario:
+        description: 'The scenario to run (e.g., master, deb, kernels, features)'
+        type: string
+        required: false
+        default: 'generic'
 
 jobs:
   run-spread:
@@ -362,7 +366,7 @@ jobs:
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana == 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana }}
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
@@ -550,7 +554,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Report spread errors
-      if: ${{ always() && inputs.log-to-grafana == 'true' }}
+      if: ${{ always() && inputs.log-to-grafana }}
       run: |
         if [ -e results.json ]; then
             echo "Adding to the filtered log any spread errors found"
@@ -564,6 +568,14 @@ jobs:
         else
             echo "No spread log found, skipping errors reporting"
         fi
+
+    - name: Upload filtered log for Grafana
+      if: ${{ always() && runner.environment != 'self-hosted' && env.RUN_TESTS == 'true' && inputs.log-to-grafana }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        path: ${{ env.FILTERED_LOG_FILE }}
+        if-no-files-found: ignore
 
     - name: Analyze spread test results
       if: always()
@@ -635,27 +647,55 @@ jobs:
         path: ${{ env.FAILED_TESTS_FILE }}
 
     - name: Send results to Test-Predictor
-      if: always()
+      if: ${{ always() && runner.environment == 'self-hosted' }}
       continue-on-error: true
+      env:
+        SCENARIO: ${{ inputs.scenario }}
       run: |
-        if [ -f results.json ]; then
-            echo "Sending results to Test-Predictor"
+        source .github/scripts/common.sh
+        send_results_to_test_predictor \
+          results.json \
+          "$GITHUB_REPOSITORY" \
+          "$GITHUB_RUN_ID" \
+          "$GITHUB_RUN_ATTEMPT" \
+          "${{ inputs.group }}" \
+          "$SCENARIO"
 
-            # Get the job ID of the current workflow run by matching job name and matrix group
-            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id" | head -n 1)
+  sync-test-results:
+    name: Sync test results
+    needs: run-spread
+    if: ${{ always() && !contains(fromJSON(inputs.runs-on), 'self-hosted') }}
+    continue-on-error: true
+    runs-on: [self-hosted, spread-enabled]
+    permissions:
+      actions: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCENARIO: ${{ inputs.scenario }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-            echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.snapd.canonical.com:5000/ingest \
-              -F "file=@./results.json" \
-              -F "attempt=${{ github.run_attempt }}" \
-              -F "job_id=$JOB_ID" \
-              -F "run_id=${{ github.run_id }}")
+      - name: Download filtered log for Grafana
+        if: ${{ inputs.log-to-grafana }}
+        uses: actions/download-artifact@v8
+        with:
+          name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
-            if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
-                echo "Request failed with status $HTTP_CODE"
-                exit 1
-            fi
-            echo "Results sent successfully"
-        else
-            echo "No spread results log found, skipping sending results to Test-Predictor"
-        fi
+      - name: Download spread results
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+
+      - name: Send results to test-predictor
+        run: |
+          source .github/scripts/common.sh
+          send_results_to_test_predictor \
+          results.json \
+          "$GITHUB_REPOSITORY" \
+          "$GITHUB_RUN_ID" \
+          "$GITHUB_RUN_ATTEMPT" \
+          "${{ inputs.group }}" \
+          "$SCENARIO"

@@ -342,7 +342,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 	snapInfo := snaptest.MockSnapInstance(c, "", coreSnapYaml, sideInfo)
 	sideInfo.RealName = snapInfo.SnapName().String()
 
-	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, snapInfo.InstanceName().String(), &snapstate.SnapState{
 		Active:      true,
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
@@ -372,7 +372,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 	snapInfo := snaptest.MockSnapInstance(c, "", snapdYaml, sideInfo)
 	sideInfo.RealName = snapInfo.SnapName().String()
 
-	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, snapInfo.InstanceName().String(), &snapstate.SnapState{
 		Active:      true,
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
@@ -382,7 +382,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 
 	inf, err := ifacestate.SystemSnapInfo(s.st)
 	c.Assert(err, IsNil)
-	c.Assert(inf.InstanceName(), Equals, "snapd")
+	c.Assert(inf.InstanceName().String(), Equals, "snapd")
 
 	s.st.Unlock()
 
@@ -425,7 +425,7 @@ apps:
 		Active:   true,
 		Current:  snap.R(1),
 	}
-	snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+	snapstate.Set(s.st, snapInfo.InstanceName().String(), snapst)
 	s.st.Unlock()
 
 	// Pretend that security profiles are out of date and mock the
@@ -474,7 +474,7 @@ apps:
 			Active:   true,
 			Current:  snap.R(1),
 		}
-		snapstate.Set(st, snapInfo.InstanceName(), snapst)
+		snapstate.Set(st, snapInfo.InstanceName().String(), snapst)
 		st.Unlock()
 	}
 }
