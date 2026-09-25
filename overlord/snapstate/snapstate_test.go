@@ -10814,8 +10814,24 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, mountContent)
 }
 
-func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
-	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withIntegrityData bool) {
+	idp := &integrity.IntegrityDataParams{
+		Type:   "dm-verity",
+		Digest: "deadbeef",
+	}
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "test-snap-id", Revision: snap.R(42)}
+	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		if !withIntegrityData {
+			return nil, integrity.ErrNoIntegrityDataFoundInRevision
+		}
+		if snapID != testSnapSideInfo.SnapID {
+			return nil, integrity.ErrNoIntegrityDataFoundInRevision
+		}
+		c.Check(rev, Equals, testSnapSideInfo.Revision)
+		return idp, nil
+	})
+	defer restore()
+
 	testSnapState := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
@@ -10831,7 +10847,7 @@ apps:
 
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
 	s.state.Unlock()
 
 	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
@@ -10841,7 +10857,7 @@ apps:
 		c.Assert(os.Remove(mountFile), IsNil)
 	}
 
-	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	restore = snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
 	s.restarts[unitName] = 0
@@ -10850,6 +10866,13 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Assert(s.restarts[unitName], Equals, 1)
+
+	options := "nodev,ro,x-gdu.hide,x-gvfs-hide"
+	if withIntegrityData {
+		integrityMountOpts, err := idp.MountOptions(info.MountFile())
+		c.Assert(err, IsNil)
+		options = options + "," + strings.Join(integrityMountOpts, ",")
+	}
 
 	expectedContent := fmt.Sprintf(`
 [Unit]
@@ -10861,15 +10884,25 @@ Before=snapd.mounts.target
 What=%s
 Where=%s/test-snap/42
 Type=squashfs
-Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+Options=%s
 LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir), options)
 
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
+	const withIntegrityData = false
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityData(c *C) {
+	const withIntegrityData = true
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData)
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {

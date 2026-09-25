@@ -785,6 +785,7 @@ func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*
 	// TODO: when policy for choosing the preferred integrity method is
 	//       implemented, not having integrity data should return an error
 	//       if enforced through some policy
+	// TODO: only base snaps should be mounted with integrity data currently
 	if !snapsup.Revision().Store() {
 		return nil, nil
 	}
