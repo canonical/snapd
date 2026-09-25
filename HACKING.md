@@ -302,7 +302,7 @@ encourage you to add tests.
 Install the following package(s) to satisfy test dependencies.
 
 ```
-sudo apt-get install python3-yamlordereddictloader dbus-x11
+sudo apt-get install python3-yamlordereddictloader dbus-x11 clang-format
 ```
 
 ### Running unit-tests
