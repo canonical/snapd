@@ -21,6 +21,7 @@ package fdestate
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"os"
@@ -225,6 +226,51 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostIn
 		setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
 		return lockoutResetErr
 	} else {
+		// First we check that unlocked primary keys are matching.
+		//  * secboot *does* unlock with unmatching primary key if the keyslot uses a protector key from the data disk.
+		//  * When primary keys do not match, we will always need reprovision.
+		//  * Unfortunately, the activation state alone cannot be used to decide whether this is a case of auto repair, or whether reprovision is required.
+		// The most likely scenario in which this can happen is a hard reset in the middle of reprovision. So we do need to restart the
+		// reprovision process.
+		disks, err := GetEncryptedContainers(st)
+		if err != nil {
+			return err
+		}
+		var salt []byte
+		var digest []byte
+		primaryKeysMatch := true
+		for i, disk := range disks {
+			if i == 0 {
+				var err error
+				salt, digest, err = secbootGetPrimaryKeyDigest(disk.DevPath(), crypto.Hash(defaultHashAlg))
+				if err != nil {
+					if errors.Is(err, secboot.ErrKernelKeyNotFound) {
+						break
+					}
+					return err
+				}
+			} else {
+				matches, err := secbootVerifyPrimaryKeyDigest(disk.DevPath(), crypto.Hash(defaultHashAlg), salt, digest)
+				if err != nil {
+					if errors.Is(err, secboot.ErrKernelKeyNotFound) {
+						break
+					}
+					return err
+				}
+				if !matches {
+					primaryKeysMatch = false
+				}
+			}
+		}
+		if !primaryKeysMatch {
+			logger.Noticef("WARNING: the primary keys of unlocked devices are not matching. Reprovision is required.")
+			setRepairAttemptResult(st, &repairState{
+				Result:          AutoRepairNotAttempted,
+				Recommendations: []RecommendedRemedialAction{RecommendedRemedialActionRequireReprovision},
+			})
+			return nil
+		}
+
 		remedialActions := secbootShouldAttemptRepair(s, lockoutResetErr)
 		if !remedialActions.AttemptRepair {
 			var recommendations []RecommendedRemedialAction

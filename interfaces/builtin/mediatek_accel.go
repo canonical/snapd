@@ -41,7 +41,9 @@ const mediatekAccelBaseDeclarationPlugs = `
   mediatek-accel:
     allow-connection:
       plug-attributes:
-        units: [apu, vcu]
+        units:
+          - apu
+          - vcu
     deny-auto-connection: true
 `
 

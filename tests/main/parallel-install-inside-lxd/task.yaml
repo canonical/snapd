@@ -1,0 +1,300 @@
+summary: Test parallel instances of snaps inside LXD containers
+
+details: |
+    Verify that parallel instances work correctly when snapd runs inside an
+    LXD container.
+
+systems: 
+    - ubuntu-2*
+
+skip:
+    - reason: No need to test when the snapd pkg is from the repository and reexec is disabled
+      if: |
+       [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
+
+prepare: |
+    echo "Pack test snaps for use inside the LXD container"
+    snap pack "$TESTSLIB/snaps/test-snapd-sh" --filename test-snapd-sh.snap
+    snap pack "$TESTSLIB/snaps/test-snapd-service" --filename test-snapd-service.snap
+    tests.cleanup defer rm -f test-snapd-sh.snap test-snapd-service.snap
+
+    snap pack "$TESTSLIB/snaps/test-snapd-classic-confinement" \
+        --filename test-snapd-classic-confinement.snap
+    tests.cleanup defer rm -f test-snapd-classic-confinement.snap
+
+    snap pack "$TESTSLIB/snaps/aliases" --filename aliases.snap
+    snap pack "$TESTSLIB/snaps/test-snapd-content-plug" --filename test-snapd-content-plug.snap
+    snap pack "$TESTSLIB/snaps/test-snapd-content-slot" --filename test-snapd-content-slot.snap
+    snap pack "$TESTSLIB/snaps/test-snapd-layout" --filename test-snapd-layout.snap
+    tests.cleanup defer rm -f aliases.snap test-snapd-content-plug.snap \
+        test-snapd-content-slot.snap test-snapd-layout.snap
+
+    "$TESTSTOOLS"/lxd-state prepare-snap
+    "$TESTSTOOLS"/lxd-state launch --name my-ubuntu
+
+    echo "Wait for container to be fully up"
+    retry --wait 1 -n 10 sh -c "lxc exec my-ubuntu -- systemctl --wait is-system-running | grep -Eq '^(running|degraded)$'"
+
+    echo "Install the snapd being tested into the container"
+    if [ "$SNAP_REEXEC" = "0" ]; then
+        lxc exec my-ubuntu -- mkdir -p "$GOHOME"
+        lxc file push --quiet "$GOHOME"/snapd_*.deb "my-ubuntu/$GOHOME/"
+        lxc exec my-ubuntu -- apt-get update
+        lxc exec my-ubuntu -- apt-get install -y "$GOHOME"/snapd_*.deb
+    else
+        snapd_snap="$(find "$SNAPD_WORK_DIR/snapd_snap" -name 'snapd_*.snap')"
+        lxc file push --quiet "$snapd_snap" "my-ubuntu/root/snapd.snap"
+        lxc exec my-ubuntu -- snap install --dangerous /root/snapd.snap
+    fi
+
+    echo "Wait for snapd to finish seeding"
+    retry --wait 1 -n 30 sh -c "lxc exec my-ubuntu -- snap wait system seed.loaded"
+
+    echo "Enable parallel instances feature"
+    lxc exec my-ubuntu -- snap set system experimental.parallel-instances=true
+
+    echo "Push test snaps into the container"
+    lxc file push --quiet test-snapd-sh.snap "my-ubuntu/root/"
+    lxc file push --quiet test-snapd-service.snap "my-ubuntu/root/"
+    lxc file push --quiet test-snapd-classic-confinement.snap "my-ubuntu/root/"
+    lxc file push --quiet aliases.snap "my-ubuntu/root/"
+    lxc file push --quiet test-snapd-content-plug.snap "my-ubuntu/root/"
+    lxc file push --quiet test-snapd-content-slot.snap "my-ubuntu/root/"
+    lxc file push --quiet test-snapd-layout.snap "my-ubuntu/root/"
+
+    echo "Set up dbus user session for snap user-level execution"
+    lxc exec my-ubuntu -- apt-get update
+    lxc exec my-ubuntu -- apt-get install -y dbus-user-session
+    lxc exec my-ubuntu -- su -l ubuntu -c "systemctl --user enable dbus.socket" || true
+
+restore: |
+    lxc stop my-ubuntu --force || true
+    lxc delete my-ubuntu || true
+    snap remove --purge lxd
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
+
+    # stop user dbus if it was started by refresh-app-awareness
+    systemctl --user stop dbus.service || true
+
+    # clean up test output files
+    rm -f -- *.txt
+
+execute: |
+    # -------------------------------------------------------------------
+    # Basic parallel instance install, run, and isolation
+    # -------------------------------------------------------------------
+    echo "=== Basic install, execution, and isolation ==="
+
+    echo "Verify a parallel instance can be installed without the base instance present"
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-sh.snap \
+        --name test-snapd-sh_foo
+    lxc exec my-ubuntu -- snap list | MATCH 'test-snapd-sh_foo '
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo standalone-instance'" | MATCH standalone-instance
+
+    echo "Verify the standalone instance can write to SNAP_DATA"
+    #shellcheck disable=SC2016
+    lxc exec my-ubuntu -- test-snapd-sh_foo.sh -c \
+        'echo standalone-data > $SNAP_DATA/standalone-file'
+    lxc exec my-ubuntu -- cat /var/snap/test-snapd-sh_foo/current/standalone-file \
+        | MATCH standalone-data
+
+    lxc exec my-ubuntu -- sh -c '! test -e /var/snap/test-snapd-sh/current'
+
+    echo "Remove the standalone parallel instance"
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-sh_foo
+    lxc exec my-ubuntu -- sh -c 'snap list' | NOMATCH test-snapd-sh_foo
+
+    echo "Install an original snap and a parallel instance"
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-sh.snap
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-sh.snap \
+        --name test-snapd-sh_foo
+
+    echo "Verify both instances appear in snap list"
+    lxc exec my-ubuntu -- snap list | MATCH 'test-snapd-sh '
+    lxc exec my-ubuntu -- snap list | MATCH 'test-snapd-sh_foo '
+
+    echo "Verify both can run as regular user"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh.sh -c 'echo regular-instance'" | MATCH regular-instance
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo parallel-instance'" | MATCH parallel-instance
+
+    echo "Verify environment variable isolation"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c env" > snap_foo_env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-sh_foo' < snap_foo_env.txt
+    MATCH 'SNAP_NAME=test-snapd-sh$'             < snap_foo_env.txt
+    MATCH 'SNAP_INSTANCE_KEY=foo'                < snap_foo_env.txt
+    MATCH 'SNAP_USER_DATA=/home/ubuntu/snap/test-snapd-sh_foo/' < snap_foo_env.txt
+    MATCH 'SNAP_USER_COMMON=/home/ubuntu/snap/test-snapd-sh_foo/common' < snap_foo_env.txt
+
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh.sh -c env" > snap_env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-sh$'    < snap_env.txt
+    MATCH 'SNAP_INSTANCE_KEY=$'                  < snap_env.txt
+    MATCH 'SNAP_USER_DATA=/home/ubuntu/snap/test-snapd-sh/' < snap_env.txt
+
+    echo "Verify /var/snap data directory separation"
+    lxc exec my-ubuntu -- test -d /var/snap/test-snapd-sh
+    lxc exec my-ubuntu -- test -d /var/snap/test-snapd-sh_foo
+
+    echo "Verify /snap mount directory separation"
+    lxc exec my-ubuntu -- test -d /snap/test-snapd-sh
+    lxc exec my-ubuntu -- test -d /snap/test-snapd-sh_foo
+
+    echo "Verify data writes are isolated (SNAP_USER_COMMON)"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo instance-data > \$SNAP_USER_COMMON/write-test'"
+    lxc exec my-ubuntu -- cat /home/ubuntu/snap/test-snapd-sh_foo/common/write-test \
+        | MATCH instance-data
+    # Non-instance does not see the instance's data
+    lxc exec my-ubuntu -- sh -c '! test -f /home/ubuntu/snap/test-snapd-sh/common/write-test'
+
+    echo "Verify data writes are isolated (SNAP_USER_DATA)"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo hello-instance > \$SNAP_USER_DATA/instance-file'"
+    lxc exec my-ubuntu -- cat /home/ubuntu/snap/test-snapd-sh_foo/current/instance-file \
+        | MATCH hello-instance
+    lxc exec my-ubuntu -- sh -c '! test -f /home/ubuntu/snap/test-snapd-sh/current/instance-file'
+
+    # -------------------------------------------------------------------
+    # Strict confinement mount namespace
+    # -------------------------------------------------------------------
+    echo "=== Strict confinement mount namespace ==="
+
+    echo "Verify SNAP env var points to non-instance name inside the snap"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo \$SNAP'" | MATCH '/snap/test-snapd-sh/'
+
+    echo "Verify SNAP_DATA maps instance dir to non-instance name"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo \$SNAP_DATA'" | MATCH '^/var/snap/test-snapd-sh/'
+
+    echo "Verify SNAP_COMMON maps instance dir to non-instance name"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'echo \$SNAP_COMMON'" | MATCH '^/var/snap/test-snapd-sh/common$'
+
+    echo "Verify the mount namespace mask works: instance sees non-instance paths"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_foo.sh -c 'ls \$SNAP'" | MATCH bin
+
+    # -------------------------------------------------------------------
+    # Classic confinement parallel instances
+    # -------------------------------------------------------------------
+    echo "=== Classic confinement parallel instances ==="
+
+    # Ensure /snap is accessible for classic confinement
+    lxc exec my-ubuntu -- sh -c 'test -d /snap || ln -sf /var/lib/snapd/snap /snap'
+
+    lxc exec my-ubuntu -- snap install --dangerous --classic \
+        /root/test-snapd-classic-confinement.snap
+    lxc exec my-ubuntu -- snap install --dangerous --classic \
+        /root/test-snapd-classic-confinement.snap --name test-snapd-classic-confinement_bar
+
+    echo "Verify classic parallel instances can run"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-classic-confinement_bar.sh -c 'echo classic-bar'" | MATCH classic-bar
+
+    echo "Verify classic instance mounts mask the instance key"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-classic-confinement_bar.sh -c 'echo \$SNAP'" \
+        | MATCH '^/snap/test-snapd-classic-confinement/'
+
+    echo "Verify classic instance env vars"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-classic-confinement_bar.sh -c env" > classic_bar_env.txt
+    MATCH 'SNAP_INSTANCE_NAME=test-snapd-classic-confinement_bar' < classic_bar_env.txt
+    MATCH 'SNAP_INSTANCE_KEY=bar'                                  < classic_bar_env.txt
+
+    echo "Verify classic data isolation"
+    #shellcheck disable=SC2016
+    lxc exec my-ubuntu -- \
+        test-snapd-classic-confinement_bar.sh -c 'echo bar-data > $SNAP_DATA/cf'
+    lxc exec my-ubuntu -- cat /var/snap/test-snapd-classic-confinement_bar/x1/cf \
+        | MATCH bar-data
+    lxc exec my-ubuntu -- sh -c \
+        '! test -f /var/snap/test-snapd-classic-confinement/x1/cf'
+
+    echo "Verify classic instance can also write to user-accessible directories"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-classic-confinement_bar.sh -c 'echo user-data > \$SNAP_USER_DATA/cf'"
+    lxc exec my-ubuntu -- cat \
+        /home/ubuntu/snap/test-snapd-classic-confinement_bar/x1/cf | MATCH user-data
+    lxc exec my-ubuntu -- sh -c \
+        '! test -f /home/ubuntu/snap/test-snapd-classic-confinement/x1/cf'
+
+    echo "Clean up classic instances"
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-classic-confinement
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-classic-confinement_bar
+    rm -f classic_bar_env.txt
+
+    # -------------------------------------------------------------------
+    # Mount unit generation verification
+    # -------------------------------------------------------------------
+    echo "=== Mount unit generation ==="
+
+    echo "Install a parallel instance to verify its mount unit gets a container.conf override"
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-sh.snap \
+        --name test-snapd-sh_foo
+
+    echo "Verify snapd-generator created a container.conf override for the instance mount unit"
+    lxc exec my-ubuntu -- find /var/run/systemd/generator/ -name container.conf \
+        | MATCH 'snap-test\\x2dsnapd\\x2dsh_foo-.*mount\.d/container\.conf'
+
+    # -------------------------------------------------------------------
+    # Content interface between parallel instances
+    # -------------------------------------------------------------------
+    echo "=== Content interface between parallel instances ==="
+
+    echo "Install plug and slot snaps as parallel instances"
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-content-plug.snap \
+        --name test-snapd-content-plug_foo
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-content-slot.snap \
+        --name test-snapd-content-slot_foo
+
+    echo "The content is not readable until the plug is connected to the slot"
+    lxc exec my-ubuntu -- sh -c \
+        '! test-snapd-content-plug_foo.content-plug 2>/dev/null | grep -q "Some shared content"'
+
+    echo "Connect the content interface between the two instances"
+    lxc exec my-ubuntu -- snap connect \
+        test-snapd-content-plug_foo:shared-content-plug \
+        test-snapd-content-slot_foo:shared-content-slot
+
+    echo "Verify the plug instance can now read the shared content from the slot instance"
+    lxc exec my-ubuntu -- test-snapd-content-plug_foo.content-plug | MATCH "Some shared content"
+
+    echo "Clean up content interface instances"
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-content-plug_foo
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-content-slot_foo
+
+    # -------------------------------------------------------------------
+    # Removal and cleanup
+    # -------------------------------------------------------------------
+    echo "=== Removal and cleanup ==="
+
+    echo "Remove the parallel instance while non-instance is still present"
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-sh_foo
+
+    echo "Non-instance snap still runs after instance removal"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh.sh -c 'echo still-here'" | MATCH still-here
+
+    echo "Parallel instance removed from snap list"
+    lxc exec my-ubuntu -- snap list | MATCH 'test-snapd-sh '
+    lxc exec my-ubuntu -- sh -c 'snap list | grep test-snapd-sh_foo && exit 1 || true'
+
+    echo "Install a new parallel instance with a different key"
+    lxc exec my-ubuntu -- snap install --dangerous /root/test-snapd-sh.snap \
+        --name test-snapd-sh_baz
+
+    echo "Now remove the non-instance snap"
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-sh
+
+    echo "Parallel instance still runs after non-instance removal"
+    lxc exec my-ubuntu -- su -l ubuntu -c \
+        "test-snapd-sh_baz.sh -c 'echo still-here-baz'" | MATCH still-here-baz
+
+    echo "Remove remaining instance"
+    lxc exec my-ubuntu -- snap remove --purge test-snapd-sh_baz

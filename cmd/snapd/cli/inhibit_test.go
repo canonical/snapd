@@ -109,7 +109,7 @@ func (s *RunSuite) TestWaitWhileInhibitedRunThrough(c *C) {
 	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	defer hintLock.Unlock()
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snapname")
+	c.Check(info.InstanceName().String(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
 
 	c.Check(startCalled, Equals, 1)
@@ -282,7 +282,7 @@ func (s *RunSuite) TestWaitWhileInhibitedGateRefreshNoNotification(c *C) {
 	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	defer hintLock.Unlock()
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snapname")
+	c.Check(info.InstanceName().String(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
 
 	c.Check(called, Equals, 1)
@@ -367,7 +367,7 @@ func (s *RunSuite) TestWaitWhileInhibitedNotInhibitedNoNotification(c *C) {
 	info, app, hintLock, err := snaprun.WaitWhileInhibited(context.TODO(), snaprun.Client(), "snapname", "app")
 	c.Assert(err, IsNil)
 	c.Assert(hintLock, IsNil)
-	c.Check(info.InstanceName(), Equals, "snapname")
+	c.Check(info.InstanceName().String(), Equals, "snapname")
 	c.Check(app.Name, Equals, "app")
 
 	c.Check(runinhibit.HintFile("snapname"), testutil.FileAbsent)

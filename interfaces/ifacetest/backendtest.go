@@ -222,7 +222,7 @@ func (s *BackendSuite) AddSnap(c *C, instanceName, snapYaml string, revision int
 	if instanceName != "" {
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
-		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+		c.Assert(snapInfo.InstanceName().String(), Equals, instanceName)
 	}
 
 	err = s.Repo.AddAppSet(appSet)
@@ -248,7 +248,7 @@ func (s *BackendSuite) InstallSnapWithComponents(c *C, opts interfaces.Confineme
 	if instanceName != "" {
 		_, instanceKey := snap.SplitInstanceName(instanceName)
 		snapInfo.InstanceKey = instanceKey
-		c.Assert(snapInfo.InstanceName(), Equals, instanceName)
+		c.Assert(snapInfo.InstanceName().String(), Equals, instanceName)
 	}
 
 	componentInfos := make([]*snap.ComponentInfo, 0, len(componentYamls))
@@ -287,7 +287,7 @@ func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, op
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
 	c.Assert(err, IsNil)
 
-	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName().String())
 
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
@@ -317,7 +317,7 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	c.Assert(err, IsNil)
 
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
-	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName().String())
 
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
@@ -329,7 +329,7 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 
 // RemoveSnap "removes" an "installed" snap.
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
-	err := s.Backend.Remove(snapInfo.InstanceName())
+	err := s.Backend.Remove(snapInfo.InstanceName().String())
 	c.Assert(err, IsNil)
-	s.Repo.RemoveSnap(snapInfo.InstanceName())
+	s.Repo.RemoveSnap(snapInfo.InstanceName().String())
 }

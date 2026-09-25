@@ -524,7 +524,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	defer s.state.Unlock()
 
 	// The instance is already installed to make sure it is checked
-	instanceName := snap.InstanceName(snapName, snapKey)
+	instanceName := snap.InstanceName(snapName, snapKey).String()
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev}
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
@@ -1084,7 +1084,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	}
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		c.Assert(info.InstanceName().String(), DeepEquals, snapName)
 		var results []store.SnapResourceResult
 		for _, compName := range components {
 			results = append(results, store.SnapResourceResult{
@@ -1394,7 +1394,7 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 	})
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		c.Assert(info.InstanceName().String(), DeepEquals, snapName)
 		var results []store.SnapResourceResult
 		for compName, compType := range compNamesToType {
 			results = append(results, store.SnapResourceResult{

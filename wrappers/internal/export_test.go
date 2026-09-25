@@ -28,6 +28,11 @@ var (
 	GenerateOnCalendarSchedules = generateOnCalendarSchedules
 )
 
+const (
+	MaxLenUnixAbstractSocketAddress = maxLenUnixAbstractSocketAddress
+	MaxLenUnixPathSocketAddress     = maxLenUnixPathSocketAddress
+)
+
 func MockUserSessionQueryServiceStatusMany(f func(units []string) (map[int][]client.ServiceUnitStatus, map[int][]client.ServiceFailure, error)) (restore func()) {
 	restore = testutil.Backup(&userSessionQueryServiceStatusMany)
 	userSessionQueryServiceStatusMany = f

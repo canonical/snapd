@@ -19,13 +19,13 @@ get:
   security:
     - PeerAuth: []
   responses:
-    '200':
+    200:
       description: Detailed information about the recovery system.
       content:
         application/json:
           schema:
             $ref: '../components/schemas/SystemDetails.yaml'
-    '404':
+    404:
       $ref: '../components/responses/NotFound.yaml'
 post:
   tags:
@@ -46,16 +46,56 @@ post:
             - $ref: '../components/schemas/SystemActionReboot.yaml'
             - $ref: '../components/schemas/SystemActionInstall.yaml'
             - $ref: '../components/schemas/SystemActionRemove.yaml'
-            - $ref: '../components/schemas/SystemActionCheckPassphrase.yaml'
-            - $ref: '../components/schemas/SystemActionCheckPin.yaml'
+            - $ref: '../components/schemas/SystemActionCheckPassphraseQuality.yaml'
+            - $ref: '../components/schemas/SystemActionCheckPinQuality.yaml'
             - $ref: '../components/schemas/SystemActionFixEncryptionSupport.yaml'
   responses:
-    '200':
-      description: The action was successfully initiated (for synchronous actions).
-    '202':
-      description: The asynchronous action (e.g., install, remove) was accepted and is in progress.
+    200:
+      description: The action or step was handled synchronously.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - type
+              - status-code
+              - status
+              - result
+            properties:
+              type:
+                type: string
+                enum:
+                  - sync
+                description: The response type.
+              status-code:
+                type: integer
+                enum:
+                  - 200
+                description: The HTTP status code of the response.
+              status:
+                type: string
+                enum:
+                  - OK
+                description: The status of the response.
+              result:
+                description: |-
+                  The result of the synchronous operation, specific to each endpoint, action, or step:
+                    - `null` for actions `'do'` and `'reboot'`;
+                    - the generated recovery key for action `'install'` with step `'generate-recovery-key'`;
+                    - the quality assessment of the passphrase or PIN for actions `'check-passphrase-quality'` and
+                      `'check-pin-quality'`; and
+                    - the updated system details for action `'fix-encryption-support'`.
+                anyOf:
+                  - $ref: '../components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml'
+                  - $ref: '../components/schemas/SystemActionCheckAuthQualityResponse.yaml'
+                  - $ref: '../components/schemas/SystemDetails.yaml'
+                  - type: object
+                    nullable: true
+                    enum:
+                      - null
+    202:
       $ref: '../components/responses/Accepted.yaml'
-    '400':
+    400:
       $ref: '../components/responses/BadRequest.yaml'
-    '404':
+    404:
       $ref: '../components/responses/NotFound.yaml'

@@ -52,8 +52,6 @@ const (
 	CheckDiskSpaceRefresh
 	// GateAutoRefreshHook enables refresh control from snaps via gate-auto-refresh hook.
 	GateAutoRefreshHook
-	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
-	RefreshAppAwarenessUX
 	// Confdb enables experimental configuration based on confdb and views.
 	Confdb
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
@@ -103,8 +101,6 @@ var featureNames = map[SnapdFeature]string{
 
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
-	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-
 	Confdb: "confdb",
 
 	AppArmorPrompting:  "apparmor-prompting",
@@ -119,9 +115,7 @@ var featureNames = map[SnapdFeature]string{
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
-var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	RefreshAppAwarenessUX: true,
-}
+var featuresEnabledWhenUnset = map[SnapdFeature]bool{}
 
 // featuresExported contains a set of features that are exported outside of snapd.
 var featuresExported = map[SnapdFeature]bool{
@@ -130,9 +124,8 @@ var featuresExported = map[SnapdFeature]bool{
 	HiddenSnapDataHomeDir: true,
 	MoveSnapHomeDir:       true,
 
-	RefreshAppAwarenessUX: true,
-	Confdb:                true,
-	AppArmorPrompting:     true,
+	Confdb:            true,
+	AppArmorPrompting: true,
 }
 
 // featuresGraduated contains features that used to be guarded by an
@@ -142,6 +135,7 @@ var featuresGraduated = map[string]bool{
 	"robust-mount-namespace-updates":    true,
 	"classic-preserves-xdg-runtime-dir": true,
 	"refresh-app-awareness":             true,
+	"refresh-app-awareness-ux":          true,
 	"dbus-activation":                   true,
 	"quota-groups":                      true,
 }
@@ -182,6 +176,16 @@ func (f SnapdFeature) String() string {
 // computed by this function.
 func (f SnapdFeature) IsEnabledWhenUnset() bool {
 	return featuresEnabledWhenUnset[f]
+}
+
+// MockFeaturesEnabledWhenUnset replaces the default-enabled features for tests.
+func MockFeaturesEnabledWhenUnset(enabled map[SnapdFeature]bool) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesEnabledWhenUnset can only be used in tests")
+	old := featuresEnabledWhenUnset
+	featuresEnabledWhenUnset = enabled
+	return func() {
+		featuresEnabledWhenUnset = old
+	}
 }
 
 // IsExported returns true if a feature is copied from snapd state to a feature file.

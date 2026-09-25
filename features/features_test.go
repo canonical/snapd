@@ -53,7 +53,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
 	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
 	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
-	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.Confdb, "confdb")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 	check(features.ContentCompatLabel, "content-compatibility-label")
@@ -91,7 +90,6 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdb, true)
 	check(features.AppArmorPrompting, true)
 	check(features.ContentCompatLabel, false)
@@ -111,6 +109,7 @@ func (*featureSuite) TestIsGraduated(c *C) {
 		c.Check(features.IsGraduated(feature), Equals, true)
 	}
 	c.Check(features.IsGraduated("quota-groups"), Equals, true)
+	c.Check(features.IsGraduated("refresh-app-awareness-ux"), Equals, true)
 	c.Check(features.IsGraduated("other-feature"), Equals, false)
 }
 
@@ -208,7 +207,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
 	check(features.ContentCompatLabel, false)
@@ -224,17 +222,16 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
-	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
 	c.Check(features.Confdb.ControlFile(), Equals, "/var/lib/snapd/features/confdb")
 	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Hotplug.ControlFile, PanicMatches, `cannot compute the control file of feature "hotplug" because that feature is not exported`)
 }
 
-func (*featureSuite) TestConfigOptionRefreshAppAwarenessUX(c *C) {
-	snapName, configName := features.RefreshAppAwarenessUX.ConfigOption()
+func (*featureSuite) TestConfigOption(c *C) {
+	snapName, configName := features.Hotplug.ConfigOption()
 	c.Check(snapName, Equals, "core")
-	c.Check(configName, Equals, "experimental.refresh-app-awareness-ux")
+	c.Check(configName, Equals, "experimental.hotplug")
 }
 
 func (s *featureSuite) TestFlag(c *C) {

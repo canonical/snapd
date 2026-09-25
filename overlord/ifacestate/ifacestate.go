@@ -322,7 +322,7 @@ func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap
 func Disconnect(st *state.State, conn *interfaces.Connection) (*state.TaskSet, error) {
 	plugSnap := conn.Plug.Snap().InstanceName()
 	slotSnap := conn.Slot.Snap().InstanceName()
-	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap, slotSnap}, ""); err != nil {
+	if err := snapstate.CheckChangeConflictMany(st, []string{plugSnap.String(), slotSnap.String()}, ""); err != nil {
 		return nil, err
 	}
 
@@ -394,18 +394,18 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 	slotName := conn.Slot.Name()
 
 	var plugSnapst, slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotSnap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotSnap.String(), &slotSnapst); err != nil {
 		return nil, err
 	}
-	if err := snapstate.Get(st, plugSnap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugSnap.String(), &plugSnapst); err != nil {
 		return nil, err
 	}
 
 	summary := fmt.Sprintf(i18n.G("Disconnect %s:%s from %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	disconnectTask := st.NewTask("disconnect", summary)
-	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	disconnectTask.Set("slot", interfaces.SlotRef{Snap: slotSnap.String(), Name: slotName})
+	disconnectTask.Set("plug", interfaces.PlugRef{Snap: plugSnap.String(), Name: plugName})
 	if flags.Forget {
 		disconnectTask.Set("forget", true)
 	}
@@ -449,13 +449,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		hookName := fmt.Sprintf("disconnect-slot-%s", slotName)
 		if slotSnapInfo.Hooks[hookName] != nil {
 			disconnectSlotHookSetup := &hookstate.HookSetup{
-				Snap:        slotSnap,
+				Snap:        slotSnap.String(),
 				Hook:        hookName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
 			}
 			undoDisconnectSlotHookSetup := &hookstate.HookSetup{
-				Snap:        slotSnap,
+				Snap:        slotSnap.String(),
 				Hook:        "connect-slot-" + slotName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
@@ -473,13 +473,13 @@ func disconnectTasks(st *state.State, conn *interfaces.Connection, flags disconn
 		hookName := fmt.Sprintf("disconnect-plug-%s", plugName)
 		if plugSnapInfo.Hooks[hookName] != nil {
 			disconnectPlugHookSetup := &hookstate.HookSetup{
-				Snap:        plugSnap,
+				Snap:        plugSnap.String(),
 				Hook:        hookName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,
 			}
 			undoDisconnectPlugHookSetup := &hookstate.HookSetup{
-				Snap:        plugSnap,
+				Snap:        plugSnap.String(),
 				Hook:        "connect-plug-" + plugName,
 				Optional:    true,
 				IgnoreError: flags.IgnoreHookError,

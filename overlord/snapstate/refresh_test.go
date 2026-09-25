@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"time"
@@ -36,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type refreshSuite struct {
@@ -65,7 +63,7 @@ hooks:
 	s.info = snaptest.MockInfo(c, yamlText, nil)
 	s.pids = nil
 	restore := snapstate.MockPidsOfSnap(func(instanceName string) (map[string][]int, error) {
-		c.Assert(instanceName, Equals, s.info.InstanceName())
+		c.Assert(instanceName, Equals, s.info.InstanceName().String())
 		return s.pids, nil
 	})
 	s.AddCleanup(restore)
@@ -126,7 +124,7 @@ func (s *refreshSuite) TestRefreshCheck(c *C) {
 func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 	err := snapstate.NewBusySnapError(s.info, nil, nil, nil)
 	refreshInfo := err.PendingSnapRefreshInfo()
-	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
+	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName().String())
 	// The information about a busy app is not populated because
 	// the original error did not have the corresponding information.
 	c.Check(refreshInfo.BusyAppName, Equals, "")
@@ -138,7 +136,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 	c.Assert(os.MkdirAll(filepath.Dir(desktopFile), 0755), IsNil)
 	c.Assert(os.WriteFile(desktopFile, nil, 0644), IsNil)
 	refreshInfo = err.PendingSnapRefreshInfo()
-	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName())
+	c.Check(refreshInfo.InstanceName, Equals, s.info.InstanceName().String())
 	c.Check(refreshInfo.BusyAppName, Equals, "app")
 	c.Check(refreshInfo.BusyAppDesktopEntry, Equals, "pkg_app")
 }
@@ -180,7 +178,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckAllowed(c *C) {
 	c.Assert(err, IsNil)
 
 	// In addition, the inhibition lock is not set.
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName(), nil)
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName().String(), nil)
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
@@ -204,7 +202,7 @@ func (s *refreshSuite) TestDoSoftRefreshCheckDisallowed(c *C) {
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks, pids: 123`)
 
 	// Validity check: the inhibition lock was not set.
-	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName(), nil)
+	hint, inhibitInfo, err := runinhibit.IsLocked(info.InstanceName().String(), nil)
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 	c.Check(inhibitInfo, Equals, runinhibit.InhibitInfo{})
@@ -280,11 +278,8 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	snapst.RefreshInhibitedTime = &pastInstant
 	snapstate.Set(s.state, snapst.InstanceName().String(), snapst)
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {})
-	defer restore()
-
 	// Pretend that the snap is running.
-	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})
 	defer restore()

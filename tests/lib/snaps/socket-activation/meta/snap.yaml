@@ -18,3 +18,5 @@ apps:
       sock-xdg:
         listen-stream: $XDG_RUNTIME_DIR/socket-xdg
         socket-mode: 0640
+      sock-abstract:
+        listen-stream: "@snap.socket-activation.abstract"

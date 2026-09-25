@@ -152,6 +152,29 @@ func LogSystemRestartSnapd(snapdVersion string, reason restart.RestartReason) {
 	)
 }
 
+// LogSystemStandbySnapd logs a completed socket-activation standby using
+// the global security logger. snapdVersion is the version of the exiting
+// snapd process. reason is a [restart.RestartReason].
+func LogSystemStandbySnapd(snapdVersion string, reason restart.RestartReason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	reasonStr := string(reason)
+	if reasonStr == "" {
+		reasonStr = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_standby_snapd", Level: LevelInfo},
+		fmt.Sprintf("Snapd standby with reason %s", reasonStr),
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "reason", Value: reasonStr},
+	)
+}
+
 // LogLoginSuccess logs a successful login using the global security logger.
 func LogLoginSuccess(user SnapdUser) {
 	lock.Lock()

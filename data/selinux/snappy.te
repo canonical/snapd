@@ -744,7 +744,7 @@ allow snappy_confine_t etc_t:file mounton;
 allow snappy_confine_t ld_so_cache_t:file mounton;
 allow snappy_confine_t home_root_t:dir mounton;
 allow snappy_confine_t ifconfig_var_run_t:dir mounton;
-allow snappy_confine_t modules_object_t:dir mounton;
+allow snappy_confine_t modules_object_t:dir { getattr mounton };
 allow snappy_confine_t lib_t:dir mounton;
 allow snappy_confine_t ptmx_t:chr_file { getattr mounton };
 allow snappy_confine_t snappy_snap_t:dir { mounton read };

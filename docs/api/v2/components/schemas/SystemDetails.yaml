@@ -74,7 +74,7 @@ properties:
     properties:
       support:
         type: string
-        enum: 
+        enum:
           - disabled
           - available
           - defective

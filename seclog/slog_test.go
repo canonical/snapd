@@ -328,6 +328,40 @@ func (s *SlogSuite) TestLogSystemRestartSnapd(c *C) {
 	})
 }
 
+func (s *SlogSuite) TestLogSystemStandbySnapd(c *C) {
+	type record struct {
+		baseAttrs
+		Event        string `json:"event"`
+		SnapdVersion string `json:"snapd_version"`
+		Reason       string `json:"reason"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_standby_snapd", Level: seclog.LevelInfo},
+		"Snapd standby with reason snapd-idle",
+		seclog.Attr{Key: "snapd_version", Value: "2.78"},
+		seclog.Attr{Key: "reason", Value: "snapd-idle"},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd standby with reason snapd-idle")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_standby_snapd")
+	c.Check(obtained.Reason, Equals, "snapd-idle")
+	c.Check(obtained.SnapdVersion, Equals, "2.78")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_version", "reason",
+	})
+}
+
 func (s *SlogSuite) TestReasonLogValue(c *C) {
 	type errorRecord struct {
 		Error struct {

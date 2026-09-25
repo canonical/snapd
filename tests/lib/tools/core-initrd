@@ -1,0 +1,100 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    core-initrd build-initramfs-deb [--install] [--deb-build-options <options>]
+
+commands:
+    build-initramfs-deb    Build ubuntu-core-initramfs .deb for the running Ubuntu release.
+
+options:
+    --install              Install the produced ubuntu-core-initramfs .deb after build.
+    --deb-build-options    Value for DEB_BUILD_OPTIONS used during dpkg-buildpackage.
+EOF
+}
+
+build_initramfs_deb() (
+    local deb_build_options="${1:-}"
+    local rel
+
+    pushd "$PROJECT_PATH"/core-initrd >/dev/null
+
+    # Required tools for source and binary package build steps.
+    quiet eatmydata apt-get install -y dpkg-dev debhelper devscripts distro-info
+
+    rel=$(lsb_release -r -s)
+    TEST_BUILD=1 ./build-source-pkgs.sh "$rel"
+
+    pushd "$rel" >/dev/null
+    quiet eatmydata apt-get build-dep -y ./
+    if [ -n "$deb_build_options" ]; then
+        DEB_BUILD_OPTIONS="$deb_build_options" dpkg-buildpackage -tc -us -uc
+    else
+        dpkg-buildpackage -tc -us -uc
+    fi
+    popd >/dev/null
+
+    popd >/dev/null
+)
+
+install_initramfs_deb() {
+    quiet eatmydata apt-get install -y "$PROJECT_PATH"/core-initrd/ubuntu-core-initramfs_*.deb
+}
+
+main() {
+    local command="${1:-}"
+    local do_install=0
+    local deb_build_options=""
+
+    case "$command" in
+        build-initramfs-deb)
+            shift
+            ;;
+        ""|-h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "core-initrd: unsupported command: $command" >&2
+            show_help >&2
+            exit 1
+            ;;
+    esac
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --install)
+                do_install=1
+                shift
+                ;;
+            --deb-build-options)
+                if [ "$#" -lt 2 ]; then
+                    echo "core-initrd: missing value for --deb-build-options" >&2
+                    show_help >&2
+                    exit 1
+                fi
+                deb_build_options="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                echo "core-initrd: unsupported argument: $1" >&2
+                show_help >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    build_initramfs_deb "$deb_build_options"
+    if [ "$do_install" -eq 1 ]; then
+        install_initramfs_deb
+    fi
+}
+
+main "$@"
