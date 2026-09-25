@@ -27,6 +27,7 @@ import (
 // seclogPeer builds a [seclog.Peer] for AUTHZ events from the
 // credentials captured at accept.
 func (un *ucrednet) seclogPeer() seclog.Peer {
+	// best-effort for logging
 	if un == nil {
 		return seclog.Peer{
 			UID: seclog.PeerNobody,
