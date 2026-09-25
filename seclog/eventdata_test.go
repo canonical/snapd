@@ -98,19 +98,19 @@ func (s *SecLogSuite) TestRunnableFromSecurityTag(c *C) {
 		runnable string
 	}{{
 		tag:      "snap.firefox.firefox",
-		runnable: "app.firefox",
+		runnable: "app=firefox",
 	}, {
 		tag:      "snap.firefox_foo.firefox",
-		runnable: "app.firefox",
+		runnable: "app=firefox",
 	}, {
 		tag:      "snap.mysnap.hook.install",
-		runnable: "hook.install",
+		runnable: "hook=install",
 	}, {
 		tag:      "snap.mysnap+widget.hook.install",
-		runnable: "comp.widget.hook.install",
+		runnable: "comp-hook=widget:install",
 	}, {
 		tag:      "snap.mysnap_foo+widget.hook.install",
-		runnable: "comp.widget.hook.install",
+		runnable: "comp-hook=widget:install",
 	}}
 
 	for _, tc := range cases {

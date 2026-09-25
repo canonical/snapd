@@ -119,17 +119,18 @@ type Peer struct {
 }
 
 // RunnableFromSecurityTag returns the [Peer.Runnable] value for tag.
-// Apps are "app.<name>", hooks are "hook.<name>", and component hooks are
-// "comp.<component>.hook.<name>". The snap instance name is [Peer.InstanceName].
+// Kinds are "app", "hook", and "comp-hook". The form is kind=name.
+// A component hook is "comp-hook=<component>:<hook>", with the component
+// name before the hook name. The snap instance name is [Peer.InstanceName].
 func RunnableFromSecurityTag(tag naming.SecurityTag) string {
 	switch t := tag.(type) {
 	case naming.AppSecurityTag:
-		return "app." + t.AppName()
+		return "app=" + t.AppName()
 	case naming.HookSecurityTag:
 		if t.ComponentName() != "" {
-			return "comp." + t.ComponentName() + ".hook." + t.HookName()
+			return "comp-hook=" + t.ComponentName() + ":" + t.HookName()
 		}
-		return "hook." + t.HookName()
+		return "hook=" + t.HookName()
 	default:
 		return ""
 	}

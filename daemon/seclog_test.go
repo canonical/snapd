@@ -54,7 +54,7 @@ func (s *seclogSuite) TestSeclogPeer(c *C) {
 		PID:          4242,
 		Exe:          "/usr/bin/snap",
 		InstanceName: "firefox",
-		Runnable:     "app.firefox",
+		Runnable:     "app=firefox",
 	})
 }
 
@@ -69,7 +69,7 @@ func (s *seclogSuite) TestSeclogPeerComponentHook(c *C) {
 		PID:          4242,
 		Exe:          "/usr/bin/snap",
 		InstanceName: "mysnap",
-		Runnable:     "comp.widget.hook.install",
+		Runnable:     "comp-hook=widget:install",
 	})
 }
 
@@ -84,7 +84,7 @@ func (s *seclogSuite) TestSeclogPeerComponentHookInstance(c *C) {
 		PID:          4242,
 		Exe:          "/usr/bin/snap",
 		InstanceName: "mysnap_foo",
-		Runnable:     "comp.widget.hook.install",
+		Runnable:     "comp-hook=widget:install",
 	})
 }
 
@@ -114,6 +114,6 @@ func (s *seclogSuite) TestSeclogPeerExeError(c *C) {
 		UID:          1000,
 		PID:          4242,
 		InstanceName: "firefox",
-		Runnable:     "app.firefox",
+		Runnable:     "app=firefox",
 	})
 }
