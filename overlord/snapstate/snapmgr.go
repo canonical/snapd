@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -111,6 +112,14 @@ type SnapSetup struct {
 	Version string `json:"version,omitempty"`
 
 	CohortKey string `json:"cohort-key,omitempty"`
+
+	// AllowUCTrackSwitch is set when UC track policy may switch this download onto a UC track
+	// so snapd stays within the UC track's feature compatibility limit.
+	AllowUCTrackSwitch bool `json:"allow-uc-track-switch,omitempty"`
+
+	// ValidationSets is the operation's planned validation-set keys.
+	// Omitted or empty means this operation has no constraints.
+	ValidationSets []snapasserts.ValidationSetKey `json:"validation-sets,omitempty"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717

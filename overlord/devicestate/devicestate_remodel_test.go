@@ -466,6 +466,8 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		if name == whatRefreshes {
 			c.Check(channel, Equals, "18")
 		}
+		// Online remodel policy: allow switching to a UC track (channel is from the model).
+		c.Check(sn.RevOpts.AllowUCTrackSwitch, Equals, true)
 
 		c.Check(opts.Flags.Required, Equals, name != whatRefreshes)
 		c.Check(opts.Flags.NoReRefresh, Equals, true)
@@ -629,6 +631,8 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 			sn := g.snaps[0]
 			name = sn.SideInfo.RealName
 			channel = sn.RevOpts.Channel
+			// Remodel (offline) policy: UC tracks do not apply (local snap blob).
+			c.Check(sn.RevOpts.AllowUCTrackSwitch, Equals, false)
 			if localSnaps != nil {
 				found := false
 				for i := range localSnaps {
@@ -642,6 +646,8 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 			sn := g.snaps[0]
 			name = sn.InstanceName
 			channel = sn.RevOpts.Channel
+			// Online remodel policy: allow switching to a UC track (channel is from the model).
+			c.Check(sn.RevOpts.AllowUCTrackSwitch, Equals, true)
 		default:
 			return nil, fmt.Errorf("unexpected goal type: %T", goal)
 		}
@@ -2906,6 +2912,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		name := sn.SideInfo.RealName
 
 		c.Check(sn.SideInfo.RealName, Equals, "app-snap")
+		// Remodel (offline) policy: UC tracks do not apply (local snap blob).
+		c.Check(sn.RevOpts.AllowUCTrackSwitch, Equals, false)
 
 		validate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		validate.Set("snap-setup",
@@ -3168,6 +3176,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		sn := g.snaps[0]
 
 		c.Check(sn.SideInfo.RealName, Equals, "app-snap")
+		// Remodel (offline) policy: UC tracks do not apply (local snap blob).
+		c.Check(sn.RevOpts.AllowUCTrackSwitch, Equals, false)
 
 		validate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", sn.SideInfo.RealName))
 		validate.Set("snap-setup",
@@ -5615,6 +5625,8 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		c.Check(si, NotNil)
 		c.Check(si.RealName, Equals, name)
 		c.Check(si.RealName, Not(Equals), "not-used-snap")
+		// Remodel (offline) policy: UC tracks do not apply (local snap blob).
+		c.Check(g.snaps[0].RevOpts.AllowUCTrackSwitch, Equals, false)
 
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup",
@@ -6592,6 +6604,8 @@ func mockSnapstateUpdateOne(c *C, snaps map[string]expectedSnap) (restore func()
 		// snapstate handles picking the right revision based on the given
 		// validation sets
 		c.Assert(rev.Unset(), Equals, true)
+		// Online remodel policy: allow switching to a UC track (channel is from the model).
+		c.Check(g.snaps[0].RevOpts.AllowUCTrackSwitch, Equals, true)
 
 		expected, ok := snaps[name]
 		c.Assert(ok, Equals, true, Commentf("unexpected snap update: %q", name))
@@ -6708,6 +6722,8 @@ func mockSnapstateUpdateOneFromFile(c *C, snaps map[string]expectedSnap) (restor
 		c.Assert(ok, Equals, true, Commentf("unexpected snap update: %q", name))
 
 		c.Assert(g.snaps[0].RevOpts.Revision, Equals, expected.revision)
+		// Remodel (offline) policy: UC tracks do not apply (local snap blob).
+		c.Check(g.snaps[0].RevOpts.AllowUCTrackSwitch, Equals, false)
 
 		if expected.path != "" {
 			c.Assert(g.snaps[0].Path, Equals, expected.path)
@@ -9743,6 +9759,8 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevision(c *
 
 		rev := g.snaps[0].RevOpts.Revision
 		c.Check(rev, Equals, snap.R(1))
+		// Remodel (installed revision) policy: UC tracks do not apply (local snap blob).
+		c.Check(g.snaps[0].RevOpts.AllowUCTrackSwitch, Equals, false)
 		opts.PrereqTracker.Add(baseInfo)
 
 		prepare := s.state.NewTask("prepare-snap", fmt.Sprintf("prepare %s", name))
