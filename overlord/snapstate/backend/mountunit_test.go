@@ -95,6 +95,7 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 		Description: "Mount unit for foo, revision 13",
 		What:        "/var/lib/snapd/snaps/foo_13.snap",
 		Where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
+		RootDir:     dirs.GlobalRootDir,
 	}
 	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []*systemd.MountUnitOptions{
 		expectedParameters,

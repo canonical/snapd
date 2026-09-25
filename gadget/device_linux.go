@@ -51,7 +51,7 @@ func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 			fsLabel = vs.Name
 		}
 		if fsLabel != "" {
-			candLabel, err := disks.CandidateByLabelPath(fsLabel)
+			candLabel, err := disks.CandidateByLabelPath(dirs.GlobalRootDir, fsLabel)
 			if err == nil {
 				candidates = append(candidates, candLabel)
 			} else {

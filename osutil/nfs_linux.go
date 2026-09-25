@@ -24,8 +24,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
 var etcFstab = "/etc/fstab"
@@ -63,13 +61,11 @@ var isHomeUsingRemoteFS = func() (bool, error) {
 	return false, nil
 }
 
-var dirsAllDataHomeGlobs = dirs.AllDataHomeGlobs
-
 // snapDirsUnderNFSMounts checks if there are any snap user data directories
 // in NFS filesystems.
-var snapDirsUnderNFSMounts = func() (bool, error) {
+var snapDirsUnderNFSMounts = func(dataHomeGlobs []string) (bool, error) {
 	var ds []string
-	for _, entry := range dirsAllDataHomeGlobs() {
+	for _, entry := range dataHomeGlobs {
 		entryPaths, err := filepath.Glob(entry)
 		if err != nil {
 			return false, err

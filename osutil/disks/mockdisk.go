@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -313,7 +312,7 @@ func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMappin
 	// we don't really validate the keys of the provided mapping
 
 	old := diskFromPartitionDeviceNode
-	diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+	diskFromPartitionDeviceNode = func(rootDir, node string) (Disk, error) {
 		disk, ok := mockedDisks[node]
 		if !ok {
 			return nil, fmt.Errorf("partition device node %q not mocked", node)
@@ -325,7 +324,7 @@ func MockPartitionDeviceNodeToDiskMapping(mockedDisks map[string]*MockDiskMappin
 	}
 }
 
-func resolveName(deviceName string) (string, error) {
+func resolveName(rootDir, deviceName string) (string, error) {
 	resolve := func(p string) (string, error) {
 		if !osutil.FileExists(p) {
 			return "", nil
@@ -344,14 +343,14 @@ func resolveName(deviceName string) (string, error) {
 		return "", err
 	} else if res == "" {
 		// did not exist, try again but with corrected path
-		if res, err := resolve(path.Join(dirs.GlobalRootDir, deviceName)); err != nil {
+		if res, err := resolve(path.Join(rootDir, deviceName)); err != nil {
 			return "", err
 		} else if res == "" {
 			// did not exist at all, meaning we assume it's the name of
 			// the device, not a path
 			return deviceName, nil
 		} else {
-			return strings.TrimPrefix(res, dirs.GlobalRootDir), nil
+			return strings.TrimPrefix(res, rootDir), nil
 		}
 	} else {
 		return res, nil
@@ -371,9 +370,9 @@ func MockDeviceNameToDiskMapping(mockedDisks map[string]*MockDiskMapping) (resto
 	// for MockMountPointDisksToPartitionMapping
 
 	old := diskFromDeviceName
-	diskFromDeviceName = func(deviceName string) (Disk, error) {
+	diskFromDeviceName = func(rootDir, deviceName string) (Disk, error) {
 		// allow symlinks to point to mocked disks
-		resolved, err := resolveName(deviceName)
+		resolved, err := resolveName(rootDir, deviceName)
 		if err != nil {
 			return nil, err
 		}
@@ -402,7 +401,7 @@ func MockDevicePathToDiskMapping(mockedDisks map[string]*MockDiskMapping) (resto
 	// for MockMountPointDisksToPartitionMapping
 
 	old := diskFromDevicePath
-	diskFromDevicePath = func(devicePath string) (Disk, error) {
+	diskFromDevicePath = func(rootDir, devicePath string) (Disk, error) {
 		disk, ok := mockedDisks[devicePath]
 		if !ok {
 			return nil, fmt.Errorf("device path %q not mocked", devicePath)
@@ -456,7 +455,7 @@ func MockMountPointDisksToPartitionMapping(mockedMountPoints map[Mountpoint]*Moc
 
 	old := diskFromMountPoint
 
-	diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
+	diskFromMountPoint = func(rootDir, mountpoint string, opts *Options) (Disk, error) {
 		if opts == nil {
 			opts = &Options{}
 		}

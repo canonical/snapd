@@ -1551,6 +1551,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 				Description:              info.MountDescription(),
 				What:                     squashfsPath,
 				Where:                    whereDir,
+				RootDir:                  dirs.GlobalRootDir,
 				PreventRestartIfModified: true,
 			}
 
