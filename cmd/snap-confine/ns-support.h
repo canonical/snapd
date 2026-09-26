@@ -21,6 +21,7 @@
 #include <stdbool.h>
 
 #include "../libsnap-confine-private/apparmor-support.h"
+#include "../libsnap-confine-private/classic.h"
 #include "snap-confine-invocation.h"
 
 /**
@@ -89,12 +90,15 @@ void sc_close_mount_ns(struct sc_mount_ns *group);
  * Technically the function opens /run/snapd/ns/${group_name}.mnt and tries to
  * use setns() with the obtained file descriptor.
  *
+ * distro must describe the host and therefore must be classified before this
+ * function enters the preserved namespace.
+ *
  * If the preserved mount namespace does not exist or exists but is stale and
  * was discarded the function returns ESRCH. If the mount namespace was joined
  * it returns zero.
  **/
 int sc_join_preserved_ns(struct sc_mount_ns *group, struct sc_apparmor *apparmor, const sc_invocation *inv,
-                         int snap_discard_ns_fd);
+                         sc_distro distro, int snap_discard_ns_fd);
 
 /**
  * Join a preserved, per-user, mount namespace if one exists.
@@ -146,7 +150,7 @@ void sc_preserve_populated_per_user_mount_ns(struct sc_mount_ns *group);
  **/
 void sc_wait_for_helper(struct sc_mount_ns *group);
 
-void sc_store_ns_info(const sc_invocation *inv);
+void sc_store_ns_info(const sc_invocation *inv, const char *managed_ca_generation);
 
 /**
  * Ensure the current mount namespace has an id that is safe to preserve.

@@ -1,0 +1,11 @@
+name: network-consumer-core24
+version: 1.0
+base: core24
+summary: Basic network consumer snap for core24
+
+description: A basic snap declaring a plug on network
+
+apps:
+  network-consumer:
+    command: bin/consumer
+    plugs: [network]
