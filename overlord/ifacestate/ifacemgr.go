@@ -52,7 +52,9 @@ type deviceData struct {
 // installed snaps to track the current set of available plugs and slots.
 type InterfaceManager struct {
 	state *state.State
-	repo  *interfaces.Repository
+	// repo is the interface repository, which holds run-time, ephemeral
+	// information about interfaces and connections
+	repo *interfaces.Repository
 
 	// Notice Manager (because interfacesRequestsManager may be a notice backend)
 	noticeManager *notices.NoticeManager
