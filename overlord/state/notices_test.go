@@ -701,6 +701,35 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	c.Check(n["key"], Equals, "foo.com/bar")
 }
 
+func (s *noticesSuite) TestPruneNoticesCheckpoint(c *C) {
+	backend := &fakeStateBackend{}
+	st := state.New(backend)
+	st.Lock()
+	old := time.Now().Add(-8 * 24 * time.Hour)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
+		Time: old,
+	})
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "456", nil)
+	st.Unlock()
+	c.Assert(backend.checkpoints, HasLen, 1)
+
+	st.Lock()
+	st.Prune(time.Now(), 0, 0, 0)
+	st.Unlock()
+	// Pruning the expired notice must mark the state modified so that the
+	// removal is checkpointed on unlock.
+	c.Assert(backend.checkpoints, HasLen, 2)
+
+	st, err := state.ReadState(nil, bytes.NewReader(backend.checkpoints[1]))
+	c.Assert(err, IsNil)
+	st.Lock()
+	defer st.Unlock()
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["key"], Equals, "456")
+}
+
 func (s *noticesSuite) TestDeleteExpired(c *C) {
 	st := state.New(nil)
 	st.Lock()
