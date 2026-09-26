@@ -37,8 +37,9 @@ type seclogSuite struct{}
 
 var _ = Suite(&seclogSuite{})
 
-// nopAuthzRecorder discards all recordings. Tests pass it to CheckAccess
-// when the security log is not what they are asserting.
+// nopAuthzRecorder implements [daemon.AuthzRecorder] and discards all
+// recordings. Tests pass it to CheckAccess when the security log is not
+// what they are asserting.
 type nopAuthzRecorder struct{}
 
 var _ daemon.AuthzRecorder = nopAuthzRecorder{}
