@@ -27,6 +27,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -299,6 +300,18 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 					logger.Notice(err.Error())
 				}
 				shouldWriteSystemKey = false
+			}
+		}
+
+		// cachePruneInterval is the maximum age of cache data relative to the
+		// the most-recently-accessed entry before it is pruned.
+		// in normal operation, we don't expect more than one snapd refresh per day
+		var cachePruneInterval = 24 * time.Hour
+		// After all profiles have been regenerated, prune stale cache
+		// entries from any backend that supports it.
+		for _, backend := range securityBackends {
+			if pruner, ok := backend.(interfaces.CachePruner); ok {
+				pruner.PruneCache(cachePruneInterval)
 			}
 		}
 	}()

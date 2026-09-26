@@ -175,8 +175,8 @@ parts:
       - pkg-config
       - wget
       - libzstd-dev
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v5.0.2/apparmor-v5.0.2.tar.gz
-    source-checksum: sha256/bef45f228c0bde2f80d9630084e56bd8020b3fc4dfa7ee48a6aca585bb5ea0ed
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v6.0.0-alpha1/apparmor-v6.0.0-alpha1.tar.gz
+    source-checksum: sha256/f5221b3d6b3d90a0a02e523d5483e8a5f2fcdf07438a057fd949c1da5123742d
     override-build: |
       # For some reason, some snapcraft version remove the "build-aux" folder
       # and move the contents up when the data is uploaded; this conditional
@@ -197,7 +197,7 @@ parts:
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
       cp -a "${LOCAL_APPARMOR_DIR}"/af_names.h .
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" WITH_STATIC_LINKING=1
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" WITH_STATIC_LINKING=1 USE_DFA_CACHE=1
       install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
       cd "${CRAFT_PART_BUILD}/profiles"
