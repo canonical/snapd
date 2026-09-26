@@ -20,7 +20,6 @@
 package swfeatstest
 
 import (
-	"bufio"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -53,7 +52,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	var ensureLogs [][]string
 	parsedMgrFile, err := newParsedFile(filename)
 	c.Assert(err, check.IsNil)
-	childEnsures := ensureCallList(parsedMgrFile.file, childEnsureFunc)
+	childEnsures := ensureCallList(parsedMgrFile.file, "Ensure", childEnsureFunc)
 	if expectChildEnsureMethods {
 		c.Assert(childEnsures, check.Not(check.HasLen), 0)
 	} else {
@@ -64,29 +63,29 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	c.Assert(ok, check.Equals, true)
 	ensureLogs = append(ensureLogs, checkFunctions(parsedMgrFile, ensureReceiver, c, logLine, func(mgr, fun string) []string { return []string{mgr, fun} }, childEnsures...)...)
 
-	submanagerCalls := ensureCallList(parsedMgrFile.file, subManagerFunc)
+	submanagerCalls := ensureCallList(parsedMgrFile.file, "Ensure", subManagerCall)
 	c.Assert(submanagerFiles, check.HasLen, len(submanagerCalls), check.Commentf(
 		"In the Ensure method, the number of submanager calls (%v) does not match the number of provided submanager files (%v). "+
 			"Did you add a new submanager in the Ensure method and not yet append its containing file to this function call?",
 		len(submanagerCalls), len(submanagerFiles),
 	))
-	foundCalls := map[string]struct{}{}
+	foundCalls := map[submanagerCall]struct{}{}
 	for _, file := range submanagerFiles {
 		subParsedFile, err := newParsedFile(file)
 		c.Assert(err, check.IsNil)
-		subreceiver, ok := subParsedFile.ensureReceiver()
+		call, ok := subParsedFile.subEnsure(submanagerCalls)
 		c.Assert(ok, check.Equals, true)
-		c.Assert(strutil.ListContains(submanagerCalls, subreceiver), check.Equals, true)
-		foundCalls[subreceiver] = struct{}{}
+		foundCalls[call] = struct{}{}
+		subreceiver, subEnsureMethod := call.receiver, call.method
 		createSubmanagerLog := func(_ string, function string) []string {
 			return []string{ensureReceiver, fmt.Sprintf("%s.%s", subreceiver, function)}
 		}
 		leftovers := subParsedFile.checkFunctionsForLog(c, func(mgr, function string) string {
 			return logLine(createSubmanagerLog(mgr, function))
-		}, "Ensure")
+		}, subEnsureMethod)
 		c.Assert(leftovers, check.HasLen, 0)
-		ensureLogs = append(ensureLogs, createSubmanagerLog(subreceiver, "Ensure"))
-		subChildEnsures := ensureCallList(subParsedFile.file, childEnsureFunc)
+		ensureLogs = append(ensureLogs, createSubmanagerLog(subreceiver, subEnsureMethod))
+		subChildEnsures := ensureCallList(subParsedFile.file, subEnsureMethod, childEnsureFunc)
 		ensureLogs = append(ensureLogs, checkFunctions(subParsedFile, ensureReceiver, c, logLine, createSubmanagerLog, subChildEnsures...)...)
 
 	}
@@ -135,6 +134,25 @@ func (p *parsedFile) ensureReceiver() (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (p *parsedFile) subEnsure(calls []submanagerCall) (submanagerCall, bool) {
+	for _, decl := range p.file.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		mgr, ok := receiver(funcDecl)
+		if !ok {
+			continue
+		}
+		for _, call := range calls {
+			if call.receiver == mgr && call.method == funcDecl.Name.Name {
+				return call, true
+			}
+		}
+	}
+	return submanagerCall{}, false
 }
 
 func (p *parsedFile) checkFunctionsForLog(c *check.C, createLogLine func(string, string) string, functions ...string) []string {
@@ -206,11 +224,16 @@ func childEnsureFunc(callExpr *ast.CallExpr) (string, bool) {
 	return "", false
 }
 
-func subManagerFunc(callExpr *ast.CallExpr) (string, bool) {
+type submanagerCall struct {
+	receiver string
+	method   string
+}
+
+func subManagerCall(callExpr *ast.CallExpr) (submanagerCall, bool) {
 	if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 		functionName := selectorExpr.Sel.Name
-		if functionName != "Ensure" {
-			return "", false
+		if !strings.HasPrefix(functionName, "Ensure") {
+			return submanagerCall{}, false
 		}
 		for {
 			if nextSelector, ok := selectorExpr.X.(*ast.SelectorExpr); ok {
@@ -220,19 +243,19 @@ func subManagerFunc(callExpr *ast.CallExpr) (string, bool) {
 			}
 		}
 		if xIdent := selectorExpr.Sel; xIdent != nil {
-			return xIdent.Name, true
+			return submanagerCall{receiver: xIdent.Name, method: functionName}, true
 		}
 	}
-	return "", false
+	return submanagerCall{}, false
 }
 
-func ensureCallList(file *ast.File, addFunc func(*ast.CallExpr) (string, bool)) []string {
+func ensureCallList[T any](file *ast.File, ensureMethod string, addFunc func(*ast.CallExpr) (T, bool)) []T {
 	for _, decl := range file.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
-		if !ok || funcDecl.Name.Name != "Ensure" {
+		if !ok || funcDecl.Name.Name != ensureMethod {
 			continue
 		}
-		var ensures []string
+		var ensures []T
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 			if callExpr, ok := n.(*ast.CallExpr); ok {
 				if name, ok := addFunc(callExpr); ok {
@@ -266,8 +289,7 @@ func checkFunctions(fileWithEnsure parsedFile, receiver string, c *check.C, logL
 	return ensureLogs
 }
 
-func fileWithFunction(receiver, function string) (string, error) {
-	pattern := fmt.Sprintf("*%s) %s(", receiver, function)
+func fileWithFunction(receiverType, function string) (string, error) {
 	items, err := os.ReadDir(".")
 	if err != nil {
 		return "", err
@@ -276,18 +298,19 @@ func fileWithFunction(receiver, function string) (string, error) {
 		if item.IsDir() || !strings.HasSuffix(item.Name(), ".go") || strings.HasSuffix(item.Name(), "_test.go") {
 			continue
 		}
-		file, err := os.Open(item.Name())
+		parsed, err := newParsedFile(item.Name())
 		if err != nil {
 			return "", err
 		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			if strings.Contains(scanner.Text(), pattern) {
+		for _, decl := range parsed.file.Decls {
+			funcDecl, ok := decl.(*ast.FuncDecl)
+			if !ok || funcDecl.Name.Name != function {
+				continue
+			}
+			if recv, ok := receiver(funcDecl); ok && recv == receiverType {
 				return item.Name(), nil
 			}
 		}
 	}
-	return "", fmt.Errorf("function %s with receiver %s not found in package", function, receiver)
+	return "", fmt.Errorf("function %s with receiver %s not found in package", function, receiverType)
 }

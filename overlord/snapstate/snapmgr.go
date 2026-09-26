@@ -62,12 +62,13 @@ var (
 func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
 	swfeats.RegisterEnsure("SnapManager", "ensureForceDevmodeDropsDevmodeFromState")
-	swfeats.RegisterEnsure("SnapManager", "ensureUbuntuCoreTransition")
-	swfeats.RegisterEnsure("SnapManager", "atSeed")
-	swfeats.RegisterEnsure("SnapManager", "ensureMountsUpdated")
-	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
-	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleaned")
-	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleaned")
+	swfeats.RegisterEnsure("SnapManager", "ensureUbuntuCoreTransitionAfterSeed")
+	swfeats.RegisterEnsure("SnapManager", "ensureAtSeed")
+	swfeats.RegisterEnsure("SnapManager", "ensureLocalInstallCleanup")
+	swfeats.RegisterEnsure("SnapManager", "ensureMountsUpdatedAfterSeed")
+	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdatedAfterSeed")
+	swfeats.RegisterEnsure("SnapManager", "ensureDownloadsCleanedAfterSeed")
+	swfeats.RegisterEnsure("SnapManager", "ensureStoreDownloadsCacheCleanedAfterSeed")
 
 	RegisterResealingTaskKind("prepare-kernel-modules-components")
 	// TODO: consider registering these on classic only if the system is an hybrid system
@@ -1315,9 +1316,9 @@ func changeInFlight(st *state.State) bool {
 	return false
 }
 
-// ensureUbuntuCoreTransition will migrate systems that use "ubuntu-core"
+// ensureUbuntuCoreTransitionAfterSeed will migrate systems that use "ubuntu-core"
 // to the new "core" snap
-func (m *SnapManager) ensureUbuntuCoreTransition() error {
+func (m *SnapManager) ensureUbuntuCoreTransitionAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1328,20 +1329,6 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	}
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
-	}
-
-	// Wait for the system to be seeded before transitioning
-	var seeded bool
-	err = m.state.Get("seeded", &seeded)
-	if err != nil {
-		if !errors.Is(err, state.ErrNoState) {
-			// already seeded or other error
-			return err
-		}
-		return nil
-	}
-	if !seeded {
-		return nil
 	}
 
 	// check that there is no change in flight already, this is a
@@ -1368,7 +1355,7 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureUbuntuCoreTransition")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureUbuntuCoreTransitionAfterSeed")
 
 	m.state.Set("ubuntu-core-transition-last-retry-time", now)
 
@@ -1392,8 +1379,8 @@ func (m *SnapManager) ensureUbuntuCoreTransition() error {
 	return nil
 }
 
-// atSeed implements at seeding policy for refreshes.
-func (m *SnapManager) atSeed() error {
+// ensureAtSeed implements at seeding policy for refreshes.
+func (m *SnapManager) ensureAtSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 	var seeded bool
@@ -1402,7 +1389,7 @@ func (m *SnapManager) atSeed() error {
 		// already seeded or other error
 		return err
 	}
-	logger.Trace("ensure", "manager", "SnapManager", "func", "atSeed")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureAtSeed")
 	if err := m.autoRefresh.AtSeed(); err != nil {
 		return err
 	}
@@ -1417,7 +1404,7 @@ var (
 	localInstallLastCleanup time.Time
 )
 
-// localInstallCleanup removes files that might've been left behind by an
+// ensureLocalInstallCleanup removes files that might've been left behind by an
 // old aborted local install.
 //
 // They're usually cleaned up, but if they're created and then snapd
@@ -1425,7 +1412,7 @@ var (
 // it'll be left behind.
 //
 // The code that creates the files is in daemon/api.go's postSnaps
-func (m *SnapManager) localInstallCleanup() error {
+func (m *SnapManager) ensureLocalInstallCleanup() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1435,6 +1422,7 @@ func (m *SnapManager) localInstallCleanup() error {
 		return nil
 	}
 	localInstallLastCleanup = now
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureLocalInstallCleanup")
 
 	d, err := os.Open(dirs.SnapBlobDir)
 	if err != nil {
@@ -1485,21 +1473,11 @@ func getSystemD() systemd.Systemd {
 	}
 }
 
-func (m *SnapManager) ensureMountsUpdated() error {
+func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	if m.ensuredMountsUpdated {
-		return nil
-	}
-
-	// only run after we are seeded
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
 		return nil
 	}
 
@@ -1508,7 +1486,7 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		return err
 	}
 
-	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureMountsUpdated")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureMountsUpdatedAfterSeed")
 
 	if len(allStates) != 0 {
 		sysd := getSystemD()
@@ -1516,11 +1494,6 @@ func (m *SnapManager) ensureMountsUpdated() error {
 		for _, snapSt := range allStates {
 			info, err := snapSt.CurrentInfo()
 			if err != nil {
-				return err
-			}
-			dev, err := DeviceCtx(m.state, nil, nil)
-			// Ignore error if model assertion not yet known
-			if err != nil && !errors.Is(err, state.ErrNoState) {
 				return err
 			}
 			squashfsPath := dirs.StripRootDir(info.MountFile())
@@ -1538,13 +1511,9 @@ func (m *SnapManager) ensureMountsUpdated() error {
 			snapType, _ := snapSt.Type()
 			// We cannot ensure for this type yet as the mount unit
 			// flags depend on the model in this case.
-			if snapType == snap.TypeKernel && dev == nil {
-				continue
-			}
-
 			// We need early mounts only for UC20+/hybrid, also 16.04
 			// systemd seems to be buggy if we enable this.
-			startBeforeDriversLoad := snapType == snap.TypeKernel && dev.HasModeenv()
+			startBeforeDriversLoad := snapType == snap.TypeKernel && deviceCtx.HasModeenv()
 
 			mountOptions := &systemd.MountUnitOptions{
 				Lifetime:                 systemd.Persistent,
@@ -1569,21 +1538,11 @@ func (m *SnapManager) ensureMountsUpdated() error {
 	return nil
 }
 
-func (m *SnapManager) ensureDesktopFilesUpdated() error {
+func (m *SnapManager) ensureDesktopFilesUpdatedAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	if m.ensuredDesktopFilesUpdated {
-		return nil
-	}
-
-	// only run after we are seeded
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
 		return nil
 	}
 
@@ -1600,7 +1559,7 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 		}
 		snaps = append(snaps, info)
 	}
-	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDesktopFilesUpdated")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDesktopFilesUpdatedAfterSeed")
 	if err := wrappers.EnsureSnapDesktopFiles(snaps); err != nil {
 		return err
 	}
@@ -1610,19 +1569,9 @@ func (m *SnapManager) ensureDesktopFilesUpdated() error {
 	return nil
 }
 
-func (m *SnapManager) ensureDownloadsCleaned() error {
+func (m *SnapManager) ensureDownloadsCleanedAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-
-	// only run after we are seeded
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
 
 	now := timeNow()
 
@@ -1630,7 +1579,7 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDownloadsCleaned")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDownloadsCleanedAfterSeed")
 
 	if err := cleanDownloads(m.state); err != nil {
 		return err
@@ -1641,37 +1590,18 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	return nil
 }
 
-// TODO consolidate with other "seeded" checks
-func isSeeded(st *state.State) (bool, error) {
-	var seeded bool
-	err := st.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return false, err
-	}
-	return seeded, nil
-}
-
 // snap downloads cache cleanup runs every 24h
 const storeCacheCleanPeriodLong = 24 * time.Hour
 
 // when cache is found busy, retry in 1h
 const storeCacheCleanupHoldOffDuration = 1 * time.Hour
 
-func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
+func (m *SnapManager) ensureStoreDownloadsCacheCleanedAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 	now := timeNow()
 
 	if !m.ensureStoreCacheCleanNext.IsZero() && m.ensureStoreCacheCleanNext.After(now) {
-		return nil
-	}
-
-	// only run after we are seeded
-	seeded, err := isSeeded(m.state)
-	if err != nil {
-		return err
-	}
-	if !seeded {
 		return nil
 	}
 
@@ -1684,9 +1614,9 @@ func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
 	m.ensureStoreCacheCleanNext = now.Add(storeCacheCleanPeriodLong)
 
 	logger.Noticef("performing periodic snap downloads cache cleanup")
-	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureStoreDownloadsCacheCleaned")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureStoreDownloadsCacheCleanedAfterSeed")
 
-	err = func() error {
+	err := func() error {
 		m.state.Unlock()
 		defer m.state.Lock()
 		return sto.CleanDownloadsCache()
@@ -1711,31 +1641,44 @@ func (m *SnapManager) Ensure() error {
 
 	// do not exit right away on error
 	errs := []error{
-		m.atSeed(),
+		m.ensureAtSeed(),
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
-		m.localInstallCleanup(),
+		m.ensureLocalInstallCleanup(),
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
 	}
 
 	m.state.Lock()
 	seeded, err := SystemSeeded(m.state)
+	var deviceCtx DeviceContext
+	if err == nil && seeded {
+		deviceCtx, err = DeviceCtx(m.state, nil, nil)
+		if err == nil && deviceCtx == nil {
+			err = fmt.Errorf("internal error: device context is nil after seeding")
+		}
+	}
 	m.state.Unlock()
 	if err != nil {
 		errs = append(errs, err)
 	}
 	if seeded {
 		errs = append(errs,
-			m.ensureUbuntuCoreTransition(),
+			m.ensureUbuntuCoreTransitionAfterSeed(),
 			// We should check for full regular refreshes before
 			// considering issuing a hint-only refresh request.
-			m.autoRefresh.Ensure(),
-			m.refreshHints.Ensure(),
-			m.catalogRefresh.Ensure(),
-			m.ensureMountsUpdated(),
-			m.ensureDesktopFilesUpdated(),
-			m.ensureDownloadsCleaned(),
-			m.ensureStoreDownloadsCacheCleaned(),
+			m.autoRefresh.EnsureAfterSeed(),
+		)
+		if deviceCtx != nil {
+			errs = append(errs,
+				m.refreshHints.EnsureAfterSeed(deviceCtx),
+				m.catalogRefresh.EnsureAfterSeed(deviceCtx),
+				m.ensureMountsUpdatedAfterSeed(deviceCtx),
+			)
+		}
+		errs = append(errs,
+			m.ensureDesktopFilesUpdatedAfterSeed(),
+			m.ensureDownloadsCleanedAfterSeed(),
+			m.ensureStoreDownloadsCacheCleanedAfterSeed(),
 		)
 	}
 

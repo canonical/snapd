@@ -4136,6 +4136,21 @@ func (f *cleaningFakeStore) CleanDownloadsCache() error {
 	return f.cleanDownloadsCacheErr
 }
 
+func (s *snapmgrTestSuite) TestEnsureContinuesIndependentSeededWorkWithoutDeviceContext(c *C) {
+	cf := cleaningFakeStore{}
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	restore := snapstatetest.MockDeviceContext(nil)
+	defer restore()
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, time.Time{})
+
+	err := s.snapmgr.Ensure()
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+}
+
 func (s *snapmgrTestSuite) TestEnsureSnapStoreCacheCleanHappy(c *C) {
 	cf := cleaningFakeStore{}
 	s.state.Lock()
@@ -6323,6 +6338,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.state.Set("seeded", false)
 	r := snapstatetest.MockDeviceModel(nil)
 	defer r()
 

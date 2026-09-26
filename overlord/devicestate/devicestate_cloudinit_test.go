@@ -258,10 +258,11 @@ func (s *cloudInitSuite) TestClassicCloudInitDoesNothing(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *cloudInitSuite) TestCloudInitEnsureBeforeSeededDoesNothing(c *C) {
+func (s *cloudInitSuite) TestDeviceManagerEnsureDoesNotRestrictCloudInitBeforeSeeded(c *C) {
 	st := s.o.State()
 	st.Lock()
 	st.Set("seeded", false)
+	st.NewChange("seed", "Initialize system state")
 	st.Unlock()
 
 	r := devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
@@ -276,7 +277,7 @@ func (s *cloudInitSuite) TestCloudInitEnsureBeforeSeededDoesNothing(c *C) {
 	})
 	defer r()
 
-	err := devicestate.EnsureCloudInitRestricted(s.mgr)
+	err := s.mgr.Ensure()
 	c.Assert(err, IsNil)
 }
 

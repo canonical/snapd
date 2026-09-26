@@ -214,7 +214,11 @@ func EnsureClassicModelAfterSeed(m *DeviceManager) error {
 }
 
 func EnsureCloudInitRestricted(m *DeviceManager) error {
-	return m.ensureCloudInitRestricted()
+	deviceCtx, err := ensureDeviceCtxForTest(m)
+	if err != nil {
+		return err
+	}
+	return m.ensureCloudInitRestrictedAfterSeed(deviceCtx)
 }
 
 func ensureDeviceCtxForTest(m *DeviceManager) (snapstate.DeviceContext, error) {

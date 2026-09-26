@@ -162,7 +162,7 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 	// this does an immediate refresh
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 
@@ -193,7 +193,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 
 		af := snapstate.NewAutoRefresh(s.state)
 		s.state.Unlock()
-		err := af.Ensure()
+		err := af.EnsureAfterSeed()
 		s.state.Lock()
 		c.Check(err, IsNil)
 		c.Check(s.store.ops, HasLen, 0)
@@ -228,7 +228,7 @@ func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -252,7 +252,7 @@ func (s *autoRefreshTestSuite) TestRefreshManagedIsRespected(c *C) {
 		for i := 0; i < 2; i++ {
 			c.Logf("ensure iteration: %v", i)
 			s.state.Unlock()
-			err := af.Ensure()
+			err := af.EnsureAfterSeed()
 			s.state.Lock()
 			c.Check(err, IsNil)
 			c.Check(s.store.ops, HasLen, 0)
@@ -269,7 +269,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 	s.state.Unlock()
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 }
@@ -277,7 +277,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	s.store.err = fmt.Errorf("random store error")
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 1)
 
@@ -287,7 +287,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 
 	// call ensure again, our back-off will prevent the store from
 	// being hit again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 1)
 
@@ -300,7 +300,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// ensure hits the store again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 2)
 
@@ -311,7 +311,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 
 	// nothing really happens yet: the previous autorefresh failed
 	// but it still counts as having tried to autorefresh
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 2)
 
@@ -321,11 +321,11 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// now yes it happens again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 3)
 	// and not *again* again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 3)
 
@@ -344,7 +344,7 @@ func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 
 	s.store.err = &httputil.PersistentNetworkError{Err: fmt.Errorf("error")}
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "persistent network error: error")
 	c.Check(s.store.ops, HasLen, 1)
 
@@ -359,7 +359,7 @@ func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// call ensure again, refresh should be attempted again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 2)
 }
@@ -391,7 +391,7 @@ func (s *autoRefreshTestSuite) TestRefreshHoldForever(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -423,7 +423,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -452,7 +452,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -522,7 +522,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLoc
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -569,7 +569,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	snapstate.MockNextRefresh(af, holdTime.Add(-2*time.Minute))
 
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -606,7 +606,7 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeastZeroTimes(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -646,7 +646,7 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeast(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -727,7 +727,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -746,7 +746,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 
 	af = snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -767,7 +767,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 
 	af = snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -912,7 +912,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 
 	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -924,7 +924,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 	// connection being metered
 	s.state.Set("last-refresh", time.Now().Add(-96*24*time.Hour))
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -948,7 +948,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 
 	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -1081,7 +1081,7 @@ func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
 	defer restore()
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -1112,7 +1112,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c
 	defer restore()
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -1196,7 +1196,7 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, "offline")
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -1212,7 +1212,7 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))
 	}))
 
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -1530,7 +1530,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 	s.store.refreshable = append(s.store.refreshable, info)
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()

@@ -40,7 +40,7 @@ import (
 var refreshHintsDelay = time.Duration(24 * time.Hour)
 
 func init() {
-	swfeats.RegisterEnsure("SnapManager", "refreshHints.Ensure")
+	swfeats.RegisterEnsure("SnapManager", "refreshHints.EnsureAfterSeed")
 }
 
 // refreshHints will ensure that we get regular data about refreshes
@@ -75,7 +75,7 @@ func (r *refreshHints) needsUpdate() (bool, error) {
 	return tHints.Before(recentEnough), nil
 }
 
-func (r *refreshHints) refresh() error {
+func (r *refreshHints) refresh(deviceCtx DeviceContext) error {
 	scheduleConf, _, _ := getRefreshScheduleConf(r.state)
 	refreshManaged := scheduleConf == "managed"
 
@@ -100,11 +100,6 @@ func (r *refreshHints) refresh() error {
 	if err != nil {
 		return err
 	}
-	deviceCtx, err := DeviceCtxFromState(r.state, nil)
-	if err != nil {
-		return err
-	}
-
 	hints, err := refreshHintsFromUpdatePlan(r.state, plan, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
@@ -131,9 +126,9 @@ func (r *refreshHints) AtSeed() error {
 	return nil
 }
 
-// Ensure will ensure that refresh hints are available on a regular
-// interval.
-func (r *refreshHints) Ensure() error {
+// EnsureAfterSeed will ensure that refresh hints are available on a regular
+// interval after seeding.
+func (r *refreshHints) EnsureAfterSeed(deviceCtx DeviceContext) error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
@@ -160,8 +155,8 @@ func (r *refreshHints) Ensure() error {
 	if !needsUpdate {
 		return nil
 	}
-	logger.Trace("ensure", "manager", "SnapManager", "func", "refreshHints.Ensure")
-	return r.refresh()
+	logger.Trace("ensure", "manager", "SnapManager", "func", "refreshHints.EnsureAfterSeed")
+	return r.refresh(deviceCtx)
 }
 
 func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {

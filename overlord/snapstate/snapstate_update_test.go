@@ -11967,7 +11967,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool
 		restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 		defer restore()
 		time.Sleep(10 * time.Millisecond)
-		// Trigger autorefresh.Ensure().
+		// Trigger autorefresh.EnsureAfterSeed().
 		err := s.snapmgr.Ensure()
 		c.Assert(err, IsNil)
 		s.state.Lock()
@@ -12156,7 +12156,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRefreshInhibitNoticeRecorded(c *C, mar
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.Ensure().
+	// Trigger autorefresh.EnsureAfterSeed().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12275,7 +12275,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	}))
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.Ensure().
+	// Trigger autorefresh.EnsureAfterSeed().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12346,7 +12346,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeNotRecorded(c *C) 
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.Ensure().
+	// Trigger autorefresh.EnsureAfterSeed().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12401,7 +12401,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnce(c *C)
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.Ensure().
+	// Trigger autorefresh.EnsureAfterSeed().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12428,7 +12428,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnce(c *C)
 		restore = snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 		defer restore()
 		time.Sleep(10 * time.Millisecond)
-		// Trigger autorefresh.Ensure().
+		// Trigger autorefresh.EnsureAfterSeed().
 		c.Assert(s.snapmgr.Ensure(), IsNil)
 		s.state.Lock()
 	}
@@ -13630,7 +13630,7 @@ func (s *snapmgrTestSuite) TestMonitoringIsPersistedAndRestored(c *C) {
 	s.state.Unlock()
 	defer s.state.Lock()
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	// restores monitoring

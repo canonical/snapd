@@ -101,12 +101,12 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureFDE")
 	swfeats.RegisterEnsure("DeviceManager", "ensureBootOk")
-	swfeats.RegisterEnsure("DeviceManager", "ensureCloudInitRestricted")
+	swfeats.RegisterEnsure("DeviceManager", "ensureCloudInitRestrictedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureInstalledAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureFactoryResetAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfigAfterSeed")
-	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystem")
-	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
+	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystemAfterSeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryResetAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemovedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdatedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExtraSnapdKernelCommandLineFragmentsApplied")
@@ -691,7 +691,7 @@ func (m *DeviceManager) ensureClassicModelAfterSeed() error {
 	return setClassicFallbackModel(m.state, device)
 }
 
-func (m *DeviceManager) ensureOperationalAfterSeed() error {
+func (m *DeviceManager) ensureOperationalAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -741,17 +741,9 @@ func (m *DeviceManager) ensureOperationalAfterSeed() error {
 		return nil
 	}
 
-	var storeID, gadget string
-	model, err := m.Model()
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if err == nil {
-		gadget = model.Gadget()
-		storeID = model.Store()
-	} else {
-		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-	}
+	model := deviceCtx.Model()
+	gadget := model.Gadget()
+	storeID := model.Store()
 
 	willRequestSerial, err := shouldRequestSerial(m.state, gadget)
 	if err != nil {
@@ -1367,22 +1359,11 @@ func (m *DeviceManager) ensureBootOk(deviceCtx snapstate.DeviceContext) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureCloudInitRestricted() error {
+func (m *DeviceManager) ensureCloudInitRestrictedAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	if m.cloudInitAlreadyRestricted {
-		return nil
-	}
-
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
-	if !seeded {
-		// we need to wait until we are seeded
 		return nil
 	}
 
@@ -1410,7 +1391,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	if err != nil {
 		return err
 	}
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureCloudInitRestricted")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureCloudInitRestrictedAfterSeed")
 	statusMsg := ""
 
 	switch cloudInitStatus {
@@ -1490,11 +1471,7 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 		statusMsg = "failed to transition to done or error state after 5 minutes"
 	}
 
-	// we should always have a model if we are seeded and are not on classic
-	model, err := m.Model()
-	if err != nil {
-		return err
-	}
+	model := deviceCtx.Model()
 
 	// For UC20, we want to always disable cloud-init after it has run on
 	// first boot unless we are in a "real cloud", i.e. not using NoCloud,
@@ -1782,7 +1759,7 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureTriedRecoverySystem(deviceCtx snapstate.DeviceContext) error {
+func (m *DeviceManager) ensureTriedRecoverySystemAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	// nothing to do if not UC20 and run mode
 	if m.SystemMode(SysHasModeenv) != "run" {
 		return nil
@@ -1797,7 +1774,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem(deviceCtx snapstate.DeviceCont
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureTriedRecoverySystem")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureTriedRecoverySystemAfterSeed")
 
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1844,7 +1821,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem(deviceCtx snapstate.DeviceCont
 	return nil
 }
 
-func (m *DeviceManager) ensurePostFactoryReset() error {
+func (m *DeviceManager) ensurePostFactoryResetAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1861,16 +1838,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 		return nil
 	}
 
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensurePostFactoryReset")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensurePostFactoryResetAfterSeed")
 
 	m.ensurePostFactoryResetRan = true
 
@@ -2142,13 +2110,13 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if seeded && deviceCtx != nil {
-			if err := m.ensureCloudInitRestricted(); err != nil {
+			if err := m.ensureCloudInitRestrictedAfterSeed(deviceCtx); err != nil {
 				errs = append(errs, err)
 			}
 		}
 
 		if seeded && deviceCtx != nil {
-			if err := m.ensureOperationalAfterSeed(); err != nil {
+			if err := m.ensureOperationalAfterSeed(deviceCtx); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -2187,7 +2155,7 @@ func (m *DeviceManager) Ensure() error {
 		// resealing tasks since it is run at most once during startup
 		// before TaskRunner.Ensure() is called.
 		if seeded && deviceCtx != nil {
-			if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
+			if err := m.ensureTriedRecoverySystemAfterSeed(deviceCtx); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -2199,7 +2167,7 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if seeded {
-			if err := m.ensurePostFactoryReset(); err != nil {
+			if err := m.ensurePostFactoryResetAfterSeed(); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -2224,8 +2192,10 @@ func (m *DeviceManager) Ensure() error {
 
 		// This must come after all ensures that might update extra snapd
 		// kernel command line fragments.
-		if err := m.ensureExtraSnapdKernelCommandLineFragmentsApplied(); err != nil {
-			errs = append(errs, err)
+		if seeded {
+			if err := m.ensureExtraSnapdKernelCommandLineFragmentsApplied(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
