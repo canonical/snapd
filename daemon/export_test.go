@@ -47,8 +47,10 @@ import (
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues         = createQuotaValues
+	ParseOptionalTime         = parseOptionalTime
+	SeclogSnapdUserFromAuth   = seclogSnapdUserFromAuth
+	SeclogEndpointFromRequest = seclogEndpointFromRequest
 )
 
 // SeclogPeer exposes [ucrednet.seclogPeer] for tests.
