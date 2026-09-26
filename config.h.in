@@ -1,0 +1,16 @@
+#ifndef _GNU_SOURCE
+# define _GNU_SOURCE
+#endif
+
+#mesondefine PACKAGE_VERSION
+#mesondefine PACKAGE
+#mesondefine STATIC_SNAP_MOUNT_DIR
+#mesondefine SNAP_MOUNT_DIR_SYSTEMD_UNIT
+#mesondefine ENABLE_BPF
+#mesondefine NVIDIA_MULTIARCH
+#mesondefine NVIDIA_BIARCH
+#mesondefine LIB32_DIR
+#mesondefine HOST_ARCH_TRIPLET
+#mesondefine HOST_ARCH32_TRIPLET
+#mesondefine HAVE_SELINUX
+#mesondefine HAVE_APPARMOR
