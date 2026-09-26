@@ -1109,18 +1109,6 @@ setup_reflash_magic() {
     UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"
     unsquashfs -no-progress -f -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
-    if os.query is-arm; then
-        snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-    elif is_test_target_core 16; then
-        # the new ubuntu-image expects mkfs to support -d option, which was not
-        # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-        snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-    else
-        # shellcheck source=tests/lib/image.sh
-        . "$TESTSLIB/image.sh"
-        get_ubuntu_image
-    fi
-
     # needs to be under /home because ubuntu-device-flash
     # uses snap-confine and that will hide parts of the hostfs
     IMAGE_HOME=/home/image
@@ -1325,19 +1313,22 @@ EOF
 
         EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap ${IMAGE_HOME}/${core_name}.snap"
     fi
-    local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-    if is_test_target_core 16 || os.query is-arm; then
-        # ubuntu-image on 16.04 needs to be installed from a snap
-        UBUNTU_IMAGE=/snap/bin/ubuntu-image
-    fi
-    # shellcheck disable=SC2086
-    "$UBUNTU_IMAGE" snap \
-                    --image-size 5G \
-                    -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
-                    --channel "$IMAGE_CHANNEL" \
-                    $EXTRA_FUNDAMENTAL \
-                    --snap "${extra_snap[0]}" \
-                    --output-dir "$IMAGE_HOME"
+    local -a extra_fundamental_args
+    local -a image_generator_args
+    # shellcheck disable=SC2206
+    extra_fundamental_args=($EXTRA_FUNDAMENTAL)
+    image_generator_args=(
+        --core-version "$(nested_get_version)"
+        --model "$IMAGE_HOME/pc.model"
+        --output-dir "$IMAGE_HOME"
+        --image-size 5G
+        --work-dir "$IMAGE_HOME"
+        --channel "$IMAGE_CHANNEL"
+        --snap-command "$IMAGE_HOME/snap"
+    )
+    image_generator_args+=("${extra_fundamental_args[@]}")
+    image_generator_args+=(--snap "${extra_snap[0]}")
+    "$TESTSTOOLS"/image-generator "${image_generator_args[@]}"
     rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core{20,22,24,26}.{snap,assert}
 
     if os.query is-arm; then
