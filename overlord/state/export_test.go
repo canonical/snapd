@@ -46,7 +46,7 @@ func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 }
 
 func (w Warning) LastAdded() time.Time {
-	return w.lastAdded
+	return w.lastAdded()
 }
 
 func (t *Task) AccumulateDoingTime(duration time.Duration) {
@@ -59,7 +59,7 @@ func (t *Task) AccumulateUndoingTime(duration time.Duration) {
 
 var (
 	DefaultWarningExpireAfter = defaultWarningExpireAfter
-	DefaultWarningRepeatAfter = defaultWarningRepeatAfter
+	DefaultWarningShowAfter   = defaultWarningShowAfter
 
 	ErrNoWarningMessage     = errNoWarningMessage
 	ErrBadWarningMessage    = errBadWarningMessage
@@ -75,4 +75,24 @@ func (s *State) NumNotices() int {
 
 func (s *State) GetLastNoticeTimestamp() time.Time {
 	return s.getLastNoticeTimestamp()
+}
+
+func (s *State) GetLastNoticeId() int {
+	return s.lastNoticeId
+}
+
+func (n *Notice) GetExpireAfter() time.Duration {
+	return n.expireAfter
+}
+
+func (n *Notice) GetNoticeFirstOccurred() time.Time {
+	return n.firstOccurred
+}
+
+func (n *Notice) GetNoticeLastOccurred() time.Time {
+	return n.lastOccurred
+}
+
+func (w *Warning) GetBackingNotice() *Notice {
+	return w.notice
 }
