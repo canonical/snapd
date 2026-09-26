@@ -427,18 +427,30 @@ func seedSnapComponentsForOptions(sn *SeedSnap) []internal.Component20 {
 
 func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) error {
 	var optionsSnaps []*internal.Snap20
+	// needsDangerous tracks whether anything in optionsSnaps can only be
+	// explained by a dangerous-only, local image-build-time override
+	// (a channel override, an unasserted/local snap, an entirely
+	// non-model extra snap, or a component attached without any
+	// validation-set requiring it). A component that is absent from the
+	// model solely because an enforced validation-set requires it is
+	// backed by a signed assertion instead, exactly like the model
+	// itself, so it does not set this.
+	needsDangerous := false
 
 	for _, sn := range snapsFromModel {
 		channelOverride := ""
 		if sn.Channel != sn.modelSnap.DefaultChannel {
 			channelOverride = sn.Channel
+			needsDangerous = true
 		}
 
 		extraComponents := false
 		for _, comp := range sn.Components {
 			if _, ok := sn.modelSnap.Components[comp.ComponentName]; !ok {
 				extraComponents = true
-				break
+				if !comp.FromValidationSet {
+					needsDangerous = true
+				}
 			}
 		}
 
@@ -448,6 +460,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 		unasserted := ""
 		if sn.Info.ID() == "" {
 			unasserted = filepath.Base(sn.Path)
+			needsDangerous = true
 		}
 
 		optionsSnaps = append(optionsSnaps, &internal.Snap20{
@@ -469,6 +482,10 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			channel = ""
 		}
 
+		// a snap entirely outside of the model can only come from a
+		// dangerous-only command-line override.
+		needsDangerous = true
+
 		optionsSnaps = append(optionsSnaps, &internal.Snap20{
 			Name:       sn.SnapName(),
 			SnapID:     sn.Info.ID(),
@@ -479,7 +496,7 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	}
 
 	if len(optionsSnaps) != 0 {
-		if tr.grade != asserts.ModelDangerous {
+		if needsDangerous && tr.grade != asserts.ModelDangerous {
 			return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
 		}
 		options20 := &internal.Options20{Snaps: optionsSnaps}
