@@ -184,6 +184,14 @@ func run(ch chan os.Signal) error {
 
 	d.Version = snapdtool.FullVersion()
 
+	// Log startup before Start, including attempts that then fail.
+	// A missing boot id is recorded as <unknown> and must not fail the attempt.
+	bootID, bootErr := osutil.BootID()
+	if bootErr != nil {
+		bootID = ""
+	}
+	seclog.LogSystemStartupSnapd(d.Version, bootID)
+
 	if err := d.Start(ctx); err != nil {
 		return err
 	}
