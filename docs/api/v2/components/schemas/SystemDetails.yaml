@@ -13,7 +13,7 @@ properties:
     description: The unique label identifying the recovery system.
   brand:
     type: object
-    title: StoreAccount         # TODO: Adding 'title' fields to inline defined objects provide greater clarity to the user.
+    title: StoreAccount # TODO: Adding 'title' fields to inline defined objects provide greater clarity to the user.
     properties:
       id:
         type: string
@@ -47,26 +47,21 @@ properties:
           type: string
         description: A list of optional snaps available for installation.
       components:
-        type: array
-        items:
-          type: string
-        description: A list of optional components available for installation.
+        type: object
+        description: >-
+          A map of snap names to the optional components available for
+          installation.
+        additionalProperties:
+          type: array
+          items:
+            type: string
   volumes:
-    type: array
-    description: A list of storage volumes defined by the system's gadget snap.
-    items:
-      type: object
-      title: VolumeInfo
-      properties:
-        name:
-          type: string
-          description: The name of the volume.
-        type:
-          type: string
-          description: The filesystem type.
-        size:
-          type: string
-          description: The size of the volume.
+    type: object
+    description: >-
+      A map of the storage volumes defined by the system's gadget snap, keyed
+      by volume name.
+    additionalProperties:
+      $ref: 'GadgetVolume.yaml'
   storage-encryption:
     type: object
     title: StorageEncryptionInfo
@@ -83,17 +78,45 @@ properties:
       storage-safety:
         type: string
         description: The required storage safety level (e.g., 'encrypted').
-      type:
+      encryption-type:
         type: string
         description: The type of encryption (e.g., 'luks2').
       unavailable-reason:
         type: string
-        description: The reason why encryption is unavailable or defective.
+        description: >-
+          The reason why storage encryption is unavailable or defective. When
+          a single availability check error is detected, unavailable-reason reports
+          the error message; when multiple errors are detected, it reports the number of
+          errors (e.g. 'availability check identified 2 errors'). Must be populated if
+          availability-check-errors is non-empty.
       availability-check-errors:
         type: array
+        description: A list of errors detected during the preinstall check, as determined by the secboot library.
         items:
-          type: string
-        description: A list of errors encountered during the availability check.
+          type: object
+          title: PreinstallErrorDetails
+          required:
+            - kind
+            - message
+          properties:
+            kind:
+              type: string
+              description: The kind of the error as classified by the secboot library.
+            message:
+              type: string
+              description: A human readable description of the error.
+            args:
+              type: object
+              additionalProperties: true
+              description: >-
+                Additional information relating to the error, as constructed by the secboot library during classification.
+            actions:
+              type: array
+              items:
+                type: string
+              description: >-
+                The available actions for the error kind, as mapped by the secboot library.
+                Actions are listed in the order they should be attempted.
       features:
         type: array
         items:
