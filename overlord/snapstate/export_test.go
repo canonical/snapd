@@ -141,6 +141,8 @@ var (
 	ReRefreshSummary                = reRefreshSummary
 
 	MaybeFindTasksetForSnap = maybeFindTasksetForSnap
+
+	CreateDependencyRemovalTasks = createDependencyRemovalTasks
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {

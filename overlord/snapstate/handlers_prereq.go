@@ -182,6 +182,9 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 				// since the desire is to inject the tasksets into the current
 				// change, set the flag to avoid generating one
 				NoDelayedSideEffects: true,
+
+				// any snap being installed as a prerequisite is implicitly installed
+				ImplicitlyInstalled: true,
 			},
 			UserID:        snapsup.UserID,
 			DeviceCtx:     dctx,
