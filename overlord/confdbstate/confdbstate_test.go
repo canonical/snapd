@@ -203,6 +203,70 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	confdbstate.ResetBlockingSignals()
 }
 
+func (s *confdbTestSuite) TestSetViaViewChecksConstraintsAcrossAllRequests(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"account": map[string]any{}},
+			"rules": []any{
+				map[string]any{"request": "sets[{n}]", "storage": "sets[{n}][.account-id={account}]"},
+				map[string]any{"request": "enabled", "storage": "enabled"},
+			},
+		},
+	}
+	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	constraints := map[string]any{"account": "canonical"}
+	err = confdbstate.SetViaView(bag, schema.View("foo"), map[string]any{
+		"sets":    []any{map[string]any{"name": "base"}},
+		"enabled": true,
+	}, constraints)
+	c.Assert(err, IsNil)
+
+	got, err := schema.View("foo").Get(bag, "sets", constraints, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(got, DeepEquals, []any{map[string]any{"account-id": "canonical", "name": "base"}})
+}
+
+func (s *confdbTestSuite) TestSetViaViewFilteredListReadsPendingTransactionChanges(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"account": map[string]any{}},
+			"rules": []any{
+				map[string]any{"request": "sets[{n}]", "storage": "sets[{n}][.account-id={account}]", "content": []any{
+					map[string]any{"storage": "name"},
+				}},
+			},
+		},
+	}
+	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tx, err := confdbstate.NewTransaction(s.state, "acc", "foo")
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "sets"), []any{
+		map[string]any{"account-id": "other", "name": "keep"},
+		map[string]any{"account-id": "canonical", "name": "old"},
+	})
+	c.Assert(err, IsNil)
+
+	constraints := map[string]any{"account": "canonical"}
+	err = confdbstate.SetViaView(tx, schema.View("foo"), map[string]any{
+		"sets": []any{map[string]any{"name": "new"}},
+	}, constraints)
+	c.Assert(err, IsNil)
+
+	got, err := tx.Get(parsePath(c, "sets"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(got, DeepEquals, []any{
+		map[string]any{"account-id": "other", "name": "keep"},
+		map[string]any{"account-id": "canonical", "name": "new"},
+	})
+}
+
 func (s *confdbTestSuite) TearDownTest(c *C) {
 	c.Assert(s.o.Stop(), IsNil)
 	if s.restoreDeviceCtx != nil {
@@ -247,7 +311,9 @@ func (s *confdbTestSuite) TestGetViewUsedConstraints(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"placeholder": "foo"}, confdb.AdminAccess)
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{
+		"placeholder": "foo",
+	}, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(res, DeepEquals, map[string]any{"private": map[string]any{"foo": "bar"}})
 }
@@ -264,7 +330,9 @@ func (s *confdbTestSuite) TestGetViewUnusedConstraints(c *C) {
 	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
 	c.Assert(err, IsNil)
 
-	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{"bla": "foo"}, confdb.AdminAccess)
+	res, err := confdbstate.GetViaView(bag, view, []string{"private"}, map[string]any{
+		"bla": "foo",
+	}, confdb.AdminAccess)
 	c.Assert(err, FitsTypeOf, &confdb.UnmatchedConstraintsError{})
 	c.Assert(err, ErrorMatches, `.*no placeholder for constraint "bla".*`)
 	c.Check(res, IsNil)
@@ -1892,9 +1960,9 @@ func (s *confdbTestSuite) TestAPIReadConfdb(c *C) {
 	var requests []string
 	c.Assert(loadTask.Get("requests", &requests), IsNil)
 	c.Assert(requests, DeepEquals, []string{"private", "ssids"})
-	var constraints map[string]string
+	var constraints map[string]any
 	c.Assert(loadTask.Get("constraints", &constraints), IsNil)
-	c.Assert(constraints, DeepEquals, map[string]string{"placeholder": "foo"})
+	c.Assert(constraints, DeepEquals, val)
 
 	var apiData map[string]any
 	err = chg.Get("api-data", &apiData)

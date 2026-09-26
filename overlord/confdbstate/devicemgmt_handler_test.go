@@ -311,7 +311,9 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	restore = confdbstate.MockConfdbstateReadConfdb(func(_ context.Context, st *state.State, view *confdb.View, requests []string, constraints map[string]any, _ confdb.Access) (string, error) {
 		c.Check(view.Name, Equals, "wifi-admin")
 		c.Check(requests, DeepEquals, []string{"ssid"})
-		c.Check(constraints, DeepEquals, map[string]any{"iface": "wlan0"})
+		c.Check(constraints, DeepEquals, map[string]any{
+			"iface": "wlan0",
+		})
 
 		chg := st.NewChange("get-confdb", "test change")
 		return chg.ID(), nil
@@ -347,7 +349,7 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	})
 	defer restore()
 
-	restore = confdbstate.MockConfdbstateWriteConfdb(func(_ context.Context, st *state.State, view *confdb.View, values map[string]any) (string, error) {
+	restore = confdbstate.MockConfdbstateWriteConfdb(func(_ context.Context, st *state.State, view *confdb.View, values map[string]any, _ ...map[string]any) (string, error) {
 		c.Check(view.Name, Equals, "wifi-admin")
 		c.Check(values, DeepEquals, map[string]any{"ssid": "my-network"})
 
@@ -448,7 +450,7 @@ func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
 	})
 	defer restore()
 
-	restore = confdbstate.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {
+	restore = confdbstate.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, _ *confdb.View, _ map[string]any, _ ...map[string]any) (string, error) {
 		return "", fmt.Errorf("cannot write confdb")
 	})
 	defer restore()
