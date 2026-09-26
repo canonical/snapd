@@ -93,7 +93,7 @@ func (s *handlersSuite) TestChangeMessageKey(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	msg := &handlers.RequestMessage{
+	msg := handlers.RequestMessage{
 		AccountID: "operator",
 		BaseID:    "message",
 		SeqNum:    3,
@@ -113,11 +113,11 @@ func (s *handlersSuite) TestChangeMessageKey(c *C) {
 
 type mockMessageHandler struct{}
 
-func (*mockMessageHandler) Validate(context.Context, *state.State, *handlers.RequestMessage) error {
+func (*mockMessageHandler) Validate(context.Context, *state.State, handlers.RequestMessage) error {
 	return nil
 }
 
-func (*mockMessageHandler) Apply(context.Context, *state.State, *handlers.RequestMessage) (string, error) {
+func (*mockMessageHandler) Apply(context.Context, *state.State, handlers.RequestMessage) (string, error) {
 	return "", nil
 }
 
