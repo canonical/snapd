@@ -105,35 +105,6 @@ func NewAuthzRecorder() AuthzRecorder {
 	return &authzRecorder{}
 }
 
-// nopAuthzRecorder discards all recordings.
-type nopAuthzRecorder struct{}
-
-// Ensure [nopAuthzRecorder] implements [AuthzRecorder].
-var _ AuthzRecorder = nopAuthzRecorder{}
-
-// NewNopAuthzRecorder returns an [AuthzRecorder] that discards all recordings.
-func NewNopAuthzRecorder() AuthzRecorder {
-	return nopAuthzRecorder{}
-}
-
-func (nopAuthzRecorder) WithUser(seclog.SnapdUser) AuthzRecorder {
-	return nopAuthzRecorder{}
-}
-
-func (nopAuthzRecorder) WithPeer(seclog.Peer) AuthzRecorder {
-	return nopAuthzRecorder{}
-}
-
-func (nopAuthzRecorder) WithEndpoint(seclog.Endpoint) AuthzRecorder {
-	return nopAuthzRecorder{}
-}
-
-func (nopAuthzRecorder) RecordGranted(seclog.GrantReason, string, bool) {}
-
-func (nopAuthzRecorder) RecordDenied(seclog.DenialReason) {}
-
-func (nopAuthzRecorder) Emit() {}
-
 func (rec *authzRecorder) WithUser(user seclog.SnapdUser) AuthzRecorder {
 	rec.user = user
 	return rec

@@ -37,6 +37,34 @@ type seclogSuite struct{}
 
 var _ = Suite(&seclogSuite{})
 
+// nopAuthzRecorder discards all recordings. Tests pass it to CheckAccess
+// when the security log is not what they are asserting.
+type nopAuthzRecorder struct{}
+
+var _ daemon.AuthzRecorder = nopAuthzRecorder{}
+
+func newNopAuthzRecorder() daemon.AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) WithUser(seclog.SnapdUser) daemon.AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) WithPeer(seclog.Peer) daemon.AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) WithEndpoint(seclog.Endpoint) daemon.AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) RecordGranted(seclog.GrantReason, string, bool) {}
+
+func (nopAuthzRecorder) RecordDenied(seclog.DenialReason) {}
+
+func (nopAuthzRecorder) Emit() {}
+
 func (s *seclogSuite) TestSeclogPeerNil(c *C) {
 	var ucred *daemon.Ucrednet
 	peer := ucred.SeclogPeer()
@@ -237,7 +265,7 @@ func (s *seclogSuite) TestNopAuthzRecorder(c *C) {
 	buf, restore := s.setupSecLog()
 	defer restore()
 
-	rec := daemon.NewNopAuthzRecorder().
+	rec := newNopAuthzRecorder().
 		WithUser(seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com"}).
 		WithPeer(seclog.Peer{Socket: "/run/snapd.socket", UID: 0, PID: 42}).
 		WithEndpoint(seclog.Endpoint{Method: "POST", Path: "/v2/snaps", Action: "install"})
