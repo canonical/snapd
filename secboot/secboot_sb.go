@@ -50,16 +50,17 @@ func sbNewLUKS2KeyDataReaderImpl(device, slot string) (sb.KeyDataReader, error) 
 }
 
 var (
-	sbFindStorageContainer       = sb.FindStorageContainer
-	sbAddLUKS2ContainerUnlockKey = sb.AddLUKS2ContainerUnlockKey
-	sbRenameLUKS2ContainerKey    = sb.RenameLUKS2ContainerKey
-	sbNewLUKS2KeyDataReader      = sbNewLUKS2KeyDataReaderImpl
-	sbSetProtectorKeys           = sb_plainkey.SetProtectorKeys
-	sbGetPrimaryKeyFromKernel    = sb.GetPrimaryKeyFromKernel
-	sbTestLUKS2ContainerKey      = sb.TestLUKS2ContainerKey
-	sbCheckPassphraseEntropy     = sb.CheckPassphraseEntropy
-	disksDevlinks                = disks.Devlinks
-	sbNewActivateContext         = sb.NewActivateContext
+	sbFindStorageContainer            = sb.FindStorageContainer
+	sbAddLUKS2ContainerUnlockKey      = sb.AddLUKS2ContainerUnlockKey
+	sbRenameLUKS2ContainerKey         = sb.RenameLUKS2ContainerKey
+	sbNewLUKS2KeyDataReader           = sbNewLUKS2KeyDataReaderImpl
+	sbSetProtectorKeys                = sb_plainkey.SetProtectorKeys
+	sbGetPrimaryKeyFromKernel         = sb.GetPrimaryKeyFromKernel
+	sbTestLUKS2ContainerKey           = sb.TestLUKS2ContainerKey
+	sbTestLUKS2ContainerKeyForKeyslot = sb.TestLUKS2ContainerKeyForKeyslot
+	sbCheckPassphraseEntropy          = sb.CheckPassphraseEntropy
+	disksDevlinks                     = disks.Devlinks
+	sbNewActivateContext              = sb.NewActivateContext
 
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
 	sbKeyDataChangePIN        = (*sb.KeyData).ChangePIN
@@ -74,6 +75,8 @@ var (
 	sbWithPassphraseTries                  = sb.WithPassphraseTries
 	sbWithPINTries                         = sb.WithPINTries
 	sbWithAuthRequestorUserVisibleName     = sb.WithAuthRequestorUserVisibleName
+
+	ErrKeyslotNameNotExist = sb.ErrKeyslotNameNotExist
 )
 
 func init() {
@@ -155,6 +158,7 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 			allKeySlotsFailWithIncompatibleRoleParams := true
 			allKeySlotsFailWithIncorrectUserAuth := true
 			allKeySlotsFailWithUserAuthUnavailable := true
+			allKeySlotsFailWithInvalidKeyData := true
 
 			for _, errorType := range activation.KeyslotErrors {
 				if errorType == sb.KeyslotErrorInvalidKeyData {
@@ -175,6 +179,7 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 					}
 					continue
 				}
+				allKeySlotsFailWithInvalidKeyData = false
 				if errorType != sb.KeyslotErrorIncorrectUserAuth {
 					allKeySlotsFailWithIncorrectUserAuth = false
 				}
@@ -184,6 +189,16 @@ func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialAction
 				if errorType != sb.KeyslotErrorUserAuthUnavailable {
 					allKeySlotsFailWithUserAuthUnavailable = false
 				}
+			}
+
+			// FIXME: Second part of the work-around with invalid key data.
+			// If everything failed with InvalidKeyData then we need
+			// reprovision.
+			if allKeySlotsFailWithInvalidKeyData && len(activation.KeyslotErrors) != 0 {
+				logger.Debugf("attempt repair: used recovery: all key data is invalid")
+				needsFixes = true
+				canFixManually = false
+				canAutoRepair = false
 			}
 
 			if allKeySlotsFailWithUserAuthUnavailable && len(activation.KeyslotErrors) != 0 {
@@ -1094,4 +1109,55 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 func validatePINImpl(pin string) error {
 	_, err := secboot.ParsePIN(pin)
 	return err
+}
+
+func findUnlockKey(devicePath string) ([]byte, error) {
+	const remove = false
+	key, err := sbGetDiskUnlockKeyFromKernel(keyringPrefix, devicePath, remove)
+	if err == nil {
+		return key, nil
+	}
+	if !errors.Is(err, sb.ErrKernelKeyNotFound) {
+		return nil, err
+	}
+
+	// Old kernels will use "by-partuuid" symlinks. So let's
+	// look at all the symlinks of the device.
+	devlinks, errDevlinks := disksDevlinks(devicePath)
+	if errDevlinks != nil {
+		return nil, err
+	}
+	var errDevlink error
+	for _, devlink := range devlinks {
+		if !strings.HasPrefix(devlink, "/dev/disk/by-partuuid/") {
+			continue
+		}
+		key, errDevlink = sbGetDiskUnlockKeyFromKernel(keyringPrefix, devlink, remove)
+		if errDevlink == nil {
+			return key, nil
+		}
+	}
+	return nil, err
+}
+
+func IsKeyUsedByKeyring(devicePath string, name string) (bool, error) {
+	unlockKey, err := findUnlockKey(devicePath)
+	if err != nil {
+		if errors.Is(err, sb.ErrKernelKeyNotFound) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	isUsed, err := sbTestLUKS2ContainerKeyForKeyslot(devicePath, name, unlockKey)
+	if err != nil {
+		if errors.Is(err, sb.ErrKeyslotNameNotExist) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+
+	return isUsed, err
 }

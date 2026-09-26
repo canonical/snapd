@@ -6143,6 +6143,7 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 
 	for _, failure := range []sb.KeyslotErrorType{
 		sb.KeyslotErrorPlatformFailure,
+		sb.KeyslotErrorInvalidKeyData,
 	} {
 		state.Activations["a"].KeyslotErrors["a"] = failure
 		actions = secboot.ShouldAttemptRepair(state, nil)
