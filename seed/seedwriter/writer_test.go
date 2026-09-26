@@ -4580,6 +4580,134 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 	c.Check(vsFound, Equals, true)
 }
 
+// TestValidateValidationSetsCore20EnforcedComponentsHappy is a regression
+// test for a bug where a component required at a specific revision by a
+// validation-set was always reported as missing by CheckValidationSets,
+// even when it had been correctly resolved and downloaded at exactly the
+// required revision. This was because Writer.installedSnaps() always
+// passed nil for a snap's Components when building the list of installed
+// snaps to check against the validation-sets.
+func (s *writerSuite) TestValidateValidationSetsCore20EnforcedComponentsHappy(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+				"components": map[string]any{
+					"comp1": "required",
+				},
+			},
+		},
+		"validation-sets": []any{
+			map[string]any{
+				"account-id": "canonical",
+				"name":       "comps-set",
+				"sequence":   "1",
+				"mode":       "enforce",
+			},
+		},
+	})
+
+	// validity
+	c.Assert(model.Grade(), Equals, asserts.ModelDangerous)
+
+	// required20's snap.yaml declares both comp1 and comp2; only comp1 is
+	// required by the model and validation-set below, comp2 is unused.
+	compRevs := map[string]snap.Revision{
+		"comp1": snap.R(22),
+		"comp2": snap.R(33),
+	}
+	s.SeedSnaps.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["required20"], nil,
+		snap.R(21), compRevs, "canonical", s.StoreSigning.Database)
+
+	// the validation-set requires required20 and its comp1 component at
+	// exactly the revisions asserted above
+	valSet, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "comps-set",
+		"sequence":     "1",
+		"snaps": []any{
+			map[string]any{
+				"name":     "required20",
+				"id":       s.AssertedSnapID("required20"),
+				"presence": "required",
+				"revision": "21",
+				"components": map[string]any{
+					"comp1": map[string]any{
+						"presence": "required",
+						"revision": "22",
+					},
+				},
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.StoreSigning.Add(valSet)
+	c.Check(err, IsNil)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	s.opts.Label = "20191122"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	localSnaps, err := w.LocalSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(localSnaps, HasLen, 0)
+
+	err = w.InfoDerived()
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 5)
+
+	for _, sn := range snaps {
+		channel := "latest/stable"
+		switch sn.SnapName() {
+		case "pc", "pc-kernel":
+			channel = "20"
+		}
+		c.Check(sn.Channel, Equals, channel)
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	// comp1 was resolved and downloaded at exactly revision 22, as the
+	// validation-set requires, so this must succeed
+	err = w.CheckValidationSets()
+	c.Assert(err, IsNil)
+}
+
 func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name": "my model",
