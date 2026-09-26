@@ -178,7 +178,13 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	authzRec := NewAuthzRecorder().
+		WithUser(seclogSnapdUserFromAuth(user)).
+		WithPeer(ucred.seclogPeer()).
+		WithEndpoint(seclogEndpointFromRequest(r.URL.Path, r.Method, action))
+	rspe := access.CheckAccess(c.d, r, ucred, user, authzRec)
+	authzRec.Emit()
+	if rspe != nil {
 		rspe.ServeHTTP(w, r)
 		return
 	}

@@ -378,10 +378,10 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError
 
-func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return f(d, r, ucred, user)
+func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
+	return f(d, r, ucred, user, rec)
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
@@ -390,7 +390,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ AuthzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -403,7 +403,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(user, check.IsNil)
 		return nil
 	})
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ AuthzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
@@ -424,12 +424,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ AuthzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ AuthzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -479,12 +479,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ AuthzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ AuthzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -514,6 +514,46 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(accessCalled, check.Equals, true)
+}
+
+func (s *daemonSuite) TestServeHTTPAuthzEndpointUsesRequestPath(c *check.C) {
+	buf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(buf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	cmd := &Command{
+		Path: "/v2/snaps/{name}",
+		d:    d,
+		GET: func(*Command, *http.Request, *auth.UserState) Response {
+			return SyncResponse(nil)
+		},
+		ReadAccess: rootAccess{},
+	}
+	req := httptest.NewRequest("GET", "/v2/snaps/firefox", nil)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(buf.String(), testutil.Contains, "GET:/v2/snaps/firefox:<none>")
+	c.Check(buf.String(), check.Not(testutil.Contains), "/v2/snaps/{name}")
+
+	buf.Reset()
+	cmd = &Command{
+		PathPrefix: "/v2/debug/pprof/",
+		d:          d,
+		GET: func(*Command, *http.Request, *auth.UserState) Response {
+			return SyncResponse(nil)
+		},
+		ReadAccess: rootAccess{},
+	}
+	req = httptest.NewRequest("GET", "/v2/debug/pprof/heap", nil)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(buf.String(), testutil.Contains, "GET:/v2/debug/pprof/heap:<none>")
+	c.Check(buf.String(), testutil.Contains, `Path:"/v2/debug/pprof/heap"`)
 }
 
 func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
