@@ -461,11 +461,12 @@ func (iface *desktopLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 func init() {
 	registerIface(&desktopLegacyInterface{
 		commonInterface: commonInterface{
-			name:                 "desktop-legacy",
-			summary:              desktopLegacySummary,
-			implicitOnClassic:    true,
-			baseDeclarationSlots: desktopLegacyBaseDeclarationSlots,
-			connectedPlugSecComp: desktopLegacyConnectedPlugSecComp,
+			name:                     "desktop-legacy",
+			summary:                  desktopLegacySummary,
+			implicitOnClassic:        true,
+			baseDeclarationSlots:     desktopLegacyBaseDeclarationSlots,
+			connectedPlugSecComp:     desktopLegacyConnectedPlugSecComp,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

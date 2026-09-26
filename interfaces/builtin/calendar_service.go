@@ -132,10 +132,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "calendar-service",
-		summary:               calendarServiceSummary,
-		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
-		baseDeclarationSlots:  calendarServiceBaseDeclarationSlots,
-		connectedPlugAppArmor: calendarServiceConnectedPlugAppArmor,
+		name:                     "calendar-service",
+		summary:                  calendarServiceSummary,
+		implicitOnClassic:        !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:     calendarServiceBaseDeclarationSlots,
+		connectedPlugAppArmor:    calendarServiceConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
