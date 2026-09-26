@@ -37,10 +37,11 @@ owner /dev/shm/jack-[0-9]*/*/* rw,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "jack1",
-		summary:               jack1Summary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  jack1BaseDeclarationSlots,
-		connectedPlugAppArmor: jack1ConnectedPlugAppArmor,
+		name:                     "jack1",
+		summary:                  jack1Summary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     jack1BaseDeclarationSlots,
+		connectedPlugAppArmor:    jack1ConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

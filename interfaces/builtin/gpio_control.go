@@ -62,13 +62,14 @@ var gpioControlConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gpio-control",
-		summary:               gpioControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  gpioControlBaseDeclarationPlugs,
-		baseDeclarationSlots:  gpioControlBaseDeclarationSlots,
-		connectedPlugAppArmor: gpioControlConnectedPlugAppArmor,
-		connectedPlugUDev:     gpioControlConnectedPlugUDev,
+		name:                     "gpio-control",
+		summary:                  gpioControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     gpioControlBaseDeclarationPlugs,
+		baseDeclarationSlots:     gpioControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    gpioControlConnectedPlugAppArmor,
+		connectedPlugUDev:        gpioControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

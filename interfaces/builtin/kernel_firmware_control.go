@@ -43,12 +43,13 @@ const kernelFirmwareControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "kernel-firmware-control",
-		summary:               kernelFirmwareControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  kernelFirmwareControlBaseDeclarationPlugs,
-		baseDeclarationSlots:  kernelFirmwareControlBaseDeclarationSlots,
-		connectedPlugAppArmor: kernelFirmwareControlConnectedPlugAppArmor,
+		name:                     "kernel-firmware-control",
+		summary:                  kernelFirmwareControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     kernelFirmwareControlBaseDeclarationPlugs,
+		baseDeclarationSlots:     kernelFirmwareControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    kernelFirmwareControlConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

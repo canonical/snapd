@@ -155,6 +155,10 @@ func (iface *boolFileInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool
 	return true
 }
 
+func (iface *boolFileInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return parallelInstancesSystemOrGadgetSlotErr(slot)
+}
+
 func init() {
 	registerIface(&boolFileInterface{})
 }

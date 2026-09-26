@@ -157,12 +157,13 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "hardware-observe",
-		summary:               hardwareObserveSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  hardwareObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: hardwareObserveConnectedPlugAppArmor,
-		connectedPlugSecComp:  hardwareObserveConnectedPlugSecComp,
+		name:                     "hardware-observe",
+		summary:                  hardwareObserveSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     hardwareObserveBaseDeclarationSlots,
+		connectedPlugAppArmor:    hardwareObserveConnectedPlugAppArmor,
+		connectedPlugSecComp:     hardwareObserveConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

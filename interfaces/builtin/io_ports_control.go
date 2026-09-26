@@ -52,13 +52,14 @@ var ioPortsControlConnectedPlugUDev = []string{`KERNEL=="port"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "io-ports-control",
-		summary:               ioPortsControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  ioPortsControlBaseDeclarationSlots,
-		connectedPlugAppArmor: ioPortsControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  ioPortsControlConnectedPlugSecComp,
-		connectedPlugUDev:     ioPortsControlConnectedPlugUDev,
+		name:                     "io-ports-control",
+		summary:                  ioPortsControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     ioPortsControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    ioPortsControlConnectedPlugAppArmor,
+		connectedPlugSecComp:     ioPortsControlConnectedPlugSecComp,
+		connectedPlugUDev:        ioPortsControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

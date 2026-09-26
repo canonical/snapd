@@ -97,12 +97,13 @@ var cpuControlConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "cpu-control",
-		summary:               cpuControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  cpuControlBaseDeclarationSlots,
-		connectedPlugAppArmor: cpuControlConnectedPlugAppArmor,
-		connectedPlugUDev:     cpuControlConnectedPlugUDev,
+		name:                     "cpu-control",
+		summary:                  cpuControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     cpuControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    cpuControlConnectedPlugAppArmor,
+		connectedPlugUDev:        cpuControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

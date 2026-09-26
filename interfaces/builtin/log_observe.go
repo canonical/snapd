@@ -85,12 +85,13 @@ var logObserveConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "log-observe",
-		summary:               logObserveSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  logObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: logObserveConnectedPlugAppArmor,
-		connectedPlugUDev:     logObserveConnectedPlugUDev,
+		name:                     "log-observe",
+		summary:                  logObserveSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     logObserveBaseDeclarationSlots,
+		connectedPlugAppArmor:    logObserveConnectedPlugAppArmor,
+		connectedPlugUDev:        logObserveConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
