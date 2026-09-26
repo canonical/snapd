@@ -923,3 +923,146 @@ func (s *kernelDriversTestSuite) TestNeedsKernelDriversTreeClassicWithWrongBase(
 		c.Assert(kernel.NeedsKernelDriversTree(uc22model), Equals, tc.result)
 	}
 }
+
+func (s *kernelDriversTestSuite) TestDriversTreeMetaRoundTrip(c *C) {
+	destDir := c.MkDir()
+
+	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+
+	v, err := kernel.ReadDriversTreeGeneratorVersion(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(v, Equals, kernel.KernelDriversTreeGeneratorVersion())
+
+	// The marker file lives inside destDir, so it is cleaned up by
+	// RemoveKernelDriversTree's existing os.RemoveAll.
+	c.Assert(osutil.FileExists(filepath.Join(destDir, "kernel.json")), Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckMissingMarker(c *C) {
+	destDir := c.MkDir()
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckUpToDate(c *C) {
+	destDir := c.MkDir()
+
+	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, false)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckForwardOnly(c *C) {
+	destDir := c.MkDir()
+
+	// Simulate a tree built by a newer generator than what is currently
+	// running (e.g. after a snapd revert): the marker records a version
+	// higher than the current constant.
+	func() {
+		restore := kernel.MockKernelDriversTreeGeneratorVersion(100)
+		defer restore()
+		c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+	}()
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, false)
+}
+
+func (s *kernelDriversTestSuite) TestDriversTreeNeedsCheckCorruptMarker(c *C) {
+	destDir := c.MkDir()
+
+	c.Assert(os.WriteFile(filepath.Join(destDir, "kernel.json"), []byte("not json"), 0644), IsNil)
+
+	needsCheck, err := kernel.DriversTreeNeedsCheck(destDir)
+	c.Assert(err, IsNil)
+	c.Assert(needsCheck, Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestKernelInstallMarkerWriteFailureDiscardsTree(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	boom := errors.New("boom: no space left on device")
+	restore := kernel.MockAtomicWriteFile(func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error {
+		return boom
+	})
+	defer restore()
+
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, Equals, boom)
+
+	c.Check(osutil.FileExists(destDir), Equals, false)
+}
+
+func (s *kernelDriversTestSuite) TestKernelInstallRebuildsExistingTreeWithoutMarker(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	// Simulate a tree that already exists as a directory, but was never
+	// actually finished being built (e.g. snapd was killed or the system
+	// rebooted mid-build), or was built by an older, marker-less snapd
+	// (e.g. reinstated via a revert): a directory is there, but there is
+	// no completion marker.
+	c.Assert(os.MkdirAll(destDir, 0755), IsNil)
+	strayPath := filepath.Join(destDir, "stray-leftover")
+	c.Assert(os.WriteFile(strayPath, []byte("junk"), 0644), IsNil)
+
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// The tree was actually (re)built this time, not silently left as-is:
+	// the stray leftover from the incomplete/legacy tree is gone, and a
+	// valid, current marker is now present.
+	c.Check(osutil.FileExists(strayPath), Equals, false)
+	v, err := kernel.ReadDriversTreeGeneratorVersion(destDir)
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, kernel.KernelDriversTreeGeneratorVersion())
+
+	modsRoot := filepath.Join(destDir, "lib", "modules", kversion)
+	c.Check(osutil.FileExists(filepath.Join(modsRoot, "modules.dep.bin")), Equals, true)
+}
+
+func (s *kernelDriversTestSuite) TestKernelInstallSkipsRebuildWhenMarkerIsForwardOnly(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+
+	// Build once so the tree exists and carries a marker.
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// Simulate a marker written by a newer generator than what is
+	// currently running (e.g. after a snapd revert).
+	restore := kernel.MockKernelDriversTreeGeneratorVersion(100)
+	c.Assert(kernel.WriteDriversTreeMeta(destDir), IsNil)
+	restore()
+
+	strayPath := filepath.Join(destDir, "stray-leftover")
+	c.Assert(os.WriteFile(strayPath, []byte("junk"), 0644), IsNil)
+
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// Nothing was touched: the shortcut fired and left the tree as-is.
+	c.Check(osutil.FileExists(strayPath), Equals, true)
+}
