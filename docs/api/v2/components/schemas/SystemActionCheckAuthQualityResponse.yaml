@@ -5,7 +5,7 @@ type: object
 title: SystemActionCheckAuthQualityResponse
 description:
   Response body containing the quality assessment of the provided passphrase or PIN for actions
-  "check-passphrase-quality" and "check-pin-quality".
+  `check-passphrase-quality` and `check-pin-quality`.
 required:
   - entropy-bits
   - min-entropy-bits

@@ -3,7 +3,7 @@
 
 type: object
 title: SystemActionInstallGenerateRecoveryKeyResponse
-description: Response body containing the generated recovery key for step "generate-recovery-key" of action "install".
+description: Response body containing the generated recovery key for step `generate-recovery-key` of action `install`.
 required:
   - recovery-key
 properties:
