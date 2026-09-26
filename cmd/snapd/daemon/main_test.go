@@ -20,6 +20,7 @@
 package daemon_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,7 +37,10 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/standby"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -96,6 +100,16 @@ func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	restore = snapd.MockCheckRunningConditionsRetryDelay(10 * time.Millisecond)
 	defer restore()
 
+	restore = snapdtool.MockVersion("2.78", "")
+	defer restore()
+
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	bootID, err := osutil.BootID()
+	c.Assert(err, IsNil)
+
 	// run the daemon
 	ch := make(chan os.Signal)
 	wg := sync.WaitGroup{}
@@ -123,12 +137,17 @@ func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
 	// disable keepliave as it would sometimes cause the daemon to be
 	// blocked when closing connections during graceful shutdown
 	cli := client.New(&client.Config{DisableKeepAlive: true})
-	_, err := cli.Abort("123")
+	_, err = cli.Abort("123")
 	c.Check(err, ErrorMatches, "system does not fully support snapd: foo failed")
 
 	// verify that the sysinfo command is still available
 	_, err = cli.SysInfo()
 	c.Check(err, IsNil)
+
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_startup_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd startup")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[boot_id="`+bootID+`"]`)
 
 	// stop the daemon
 	close(ch)
