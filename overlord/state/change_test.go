@@ -293,6 +293,30 @@ func (cs *changeSuite) TestStatusDerivedFromTasks(c *C) {
 	}
 }
 
+func (cs *changeSuite) TestStatusErrorWithBlockedTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("task1", "...")
+	t2 := st.NewTask("task2", "...")
+	t3 := st.NewTask("task3", "...")
+	t1.WaitFor(t2)
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	chg.AddTask(t3)
+
+	t1.SetStatus(state.DoStatus)
+	t2.SetStatus(state.ErrorStatus)
+	t3.SetStatus(state.UndoStatus)
+	c.Check(chg.Status(), Equals, state.UndoStatus)
+
+	t3.SetStatus(state.HoldStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.IsReady(), Equals, true)
+}
+
 func (cs *changeSuite) TestCloseReadyOnExplicitStatus(c *C) {
 	st := state.New(nil)
 	st.Lock()
