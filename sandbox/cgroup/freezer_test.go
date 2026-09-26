@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -101,6 +102,53 @@ func (s *freezerV1Suite) TestThawSnapProcessesV1(c *C) {
 	_, err = os.Stat(f)
 	c.Assert(err, IsNil)
 	c.Assert(f, testutil.FileEquals, `THAWED`)
+}
+
+func (s *freezerV1Suite) TestRemoveFreezerCgroupV1(c *C) {
+	defer cgroup.MockVersion(cgroup.V1, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	n := naming.InstanceName("foo")
+	p := filepath.Join(cgroup.FreezerCgroupV1Dir(), fmt.Sprintf("snap.%s", n))
+
+	// When the freezer cgroup doesn't exist removal is a no-op.
+	c.Assert(cgroup.RemoveFreezerCgroup(n), IsNil)
+
+	// snap-confine leaves behind an empty freezer cgroup that gets removed.
+	c.Assert(os.MkdirAll(p, 0755), IsNil)
+	c.Assert(cgroup.RemoveFreezerCgroup(n), IsNil)
+	c.Assert(p, testutil.FileAbsent)
+}
+
+func (s *freezerV1Suite) TestRemoveFreezerCgroupV1NonEmpty(c *C) {
+	defer cgroup.MockVersion(cgroup.V1, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	n := naming.InstanceName("foo")
+	p := filepath.Join(cgroup.FreezerCgroupV1Dir(), fmt.Sprintf("snap.%s", n))
+
+	// A freezer cgroup that still holds processes cannot be removed and the
+	// error is surfaced to the caller.
+	c.Assert(os.MkdirAll(p, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(p, "cgroup.procs"), []byte("1234"), 0644), IsNil)
+	c.Assert(cgroup.RemoveFreezerCgroup(n), ErrorMatches, ".*directory not empty")
+	c.Assert(p, testutil.FilePresent)
+}
+
+func (s *freezerV2Suite) TestRemoveFreezerCgroupV2NoOp(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	n := naming.InstanceName("foo")
+	// On cgroup v2 there is no per-snap freezer cgroup, so removal is a no-op
+	// even if a directory happens to exist at that path.
+	p := filepath.Join(cgroup.FreezerCgroupV1Dir(), fmt.Sprintf("snap.%s", n))
+	c.Assert(os.MkdirAll(p, 0755), IsNil)
+	c.Assert(cgroup.RemoveFreezerCgroup(n), IsNil)
+	c.Assert(p, testutil.FilePresent)
 }
 
 type freezerV2Suite struct{}
