@@ -27,6 +27,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
+// TODO: These tests do not provide sufficient coverage of the exported header
+// checks on their own; they currently rely on snap-specific assertion tests
+// for additional coverage. Expand this suite when those assertions move to
+// their own subpackage.
 type headerChecksSuite struct{}
 
 var _ = Suite(&headerChecksSuite{})
@@ -72,6 +76,16 @@ func (s *headerChecksSuite) TestCheckIntegrity(c *C) {
 	assert = asserts.NewAssertionBase(map[string]any{"integrity": "invalid"})
 	_, err = asserts.CheckIntegrity(assert)
 	c.Check(err, ErrorMatches, `"integrity" header must contain a list of integrity data`)
+
+	assert = asserts.NewAssertionBase(map[string]any{})
+	integrity, err = asserts.CheckIntegrity(assert)
+	c.Assert(err, IsNil)
+	c.Check(integrity, IsNil)
+
+	assert = asserts.NewAssertionBase(map[string]any{"integrity": []any{}})
+	integrity, err = asserts.CheckIntegrity(assert)
+	c.Assert(err, IsNil)
+	c.Check(integrity, IsNil)
 }
 
 func (s *headerChecksSuite) TestCheckNotEmptyString(c *C) {

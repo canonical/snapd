@@ -295,12 +295,22 @@ func checkOptionalBool(headers map[string]any, name string) (bool, error) {
 	return checkOptionalBoolWhat(headers, name, "header")
 }
 
-// CheckRevision checks that the named header is a valid positive revision number.
+// TODO: Consider moving the exported checks to a separate file and making
+// them the primary implementations where practical, retaining map-based
+// helpers for checks on nested header values.
+
+// CheckRevision checks and returns the named mandatory header as an integer
+// >= 1, following the rules for snap-revision and resource-revision headers.
+// These rules differ from those for an assertion's own revision header,
+// which allows zero.
 func CheckRevision(assert AssertionBase, name string) (int, error) {
 	return checkSnapRevisionWhat(assert.headers, name, "header")
 }
 
-// CheckIntegrity parses the optional integrity header.
+// CheckIntegrity checks and returns the optional integrity header using the
+// same format and validation rules as snap-revision and
+// snap-resource-revision assertions. It returns nil, nil if the header is
+// absent or an empty list. It does not verify the artifact's contents.
 func CheckIntegrity(assert AssertionBase) ([]IntegrityData, error) {
 	return checkSnapIntegrity(assert.headers)
 }
