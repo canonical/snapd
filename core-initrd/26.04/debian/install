@@ -1,4 +1,5 @@
 bin/ubuntu-core-initramfs usr/bin
+debian/dlopen-features.json usr/share/ubuntu-core-initramfs/
 postinst.d etc/kernel/
 snakeoil/* usr/lib/ubuntu-core-initramfs/snakeoil/
 debian/tmp/* usr/lib/ubuntu-core-initramfs/main

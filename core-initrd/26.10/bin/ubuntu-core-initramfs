@@ -14,7 +14,37 @@ import hashlib
 from collections import namedtuple
 from enum import Enum, auto
 import json
+import fnmatch
 
+def read_dlopen_notes_config():
+    with open("/usr/share/ubuntu-core-initramfs/dlopen-features.json") as f:
+        return json.load(f)
+
+def get_dlopen_features(basename):
+    for m, add, omit in read_dlopen_notes_config():
+        if fnmatch.fnmatch(basename, m):
+            return add, omit
+    return None
+
+def define_dlopen_features(env):
+    ret_add = []
+    ret_omit = []
+
+    for m, add, omit in read_dlopen_notes_config():
+        if len(add) != 0:
+            added = ','.join(add)
+            ret_add.append(f'{m}:{added}')
+        if len(omit) != 0:
+            omitted = ','.join(omit)
+            ret_omit.append(f'{m}:{omitted}')
+
+    ret = {}
+    ret.update(env)
+    ret.update({
+        "add_dlopen_features": " ".join(ret_add),
+        "omit_dlopen_features": " ".join(ret_omit),
+    })
+    return ret
 
 class ModTable:
 
@@ -277,13 +307,16 @@ def add_modules_from_file(dest_d, kernel_root, modules_d, fw_d, conf_file, db,
                         "--module",
                         "--optional",
                         module,
-                    ]
+                    ],
+                    env=define_dlopen_features(os.environ),
                 )
 
 
 def install_files(files, dest_dir, sysroot):
-    proc_env = os.environ.copy()
-    proc_env["LD_PRELOAD"] = ""
+    proc_env = {}
+    proc_env.update(os.environ)
+    if "LD_PRELOAD" in proc_env:
+        del proc_env["LD_PRELOAD"]
     cmd = [
         "/usr/lib/dracut/dracut-install",
         "-D", dest_dir,
@@ -292,14 +325,16 @@ def install_files(files, dest_dir, sysroot):
     # dracut-install has some bugs if you set "/" as sysroot, avoid that
     if sysroot != "/":
         cmd += ["-r", sysroot]
-    check_call(cmd + files, env=proc_env)
+    check_call(cmd + files, env=define_dlopen_features(proc_env))
 
 
 # This is useful if the destination path inside dest_dir is different
 # from the current file path.
 def install_file_to_path(file, dest_dir, dest_path, sysroot):
-    proc_env = os.environ.copy()
-    proc_env["LD_PRELOAD"] = ""
+    proc_env = {}
+    proc_env.update(os.environ)
+    if "LD_PRELOAD" in proc_env:
+        del proc_env["LD_PRELOAD"]
     cmd = [
         "/usr/lib/dracut/dracut-install",
         "-D", dest_dir,
@@ -309,7 +344,7 @@ def install_file_to_path(file, dest_dir, dest_path, sysroot):
     if sysroot != "/":
         cmd += ["-r", sysroot]
     cmd += [file, dest_path]
-    check_call(cmd, env=proc_env)
+    check_call(cmd, env=define_dlopen_features(proc_env))
 
 
 # Returns as a list the files contained in a list of deb packages.
@@ -329,7 +364,7 @@ def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     # Build list of files and directories
 
     syd_pkgs = ["systemd", "systemd-sysv"]
-    if release_higher_or_equal(ubuntu_release, (24, 10)):
+    if ubuntu_release >= (24, 10):
         syd_pkgs.append("systemd-cryptsetup")
     lines = package_files(syd_pkgs, sysroot)
     # From systemd, we pull
@@ -390,9 +425,15 @@ def install_systemd_files(dest_dir, sysroot, ubuntu_release):
     shutil.rmtree(os.path.join(dest_dir, "usr/lib/udev/hwdb.d"))
 
 
-def install_busybox(dest_dir, sysroot):
-    install_file_to_path("/usr/lib/initramfs-tools/bin/busybox", dest_dir,
-                         "usr/bin/busybox", sysroot)
+def install_busybox(dest_dir, sysroot, ubuntu_release):
+    if ubuntu_release < (26, 10):
+        # Up to 26.04 we can use a smaller busybox
+        install_file_to_path("/usr/lib/initramfs-tools/bin/busybox", dest_dir,
+                             "usr/bin/busybox", sysroot)
+    else:
+        # From 26.10, busybox-initramfs does not exist
+        install_file_to_path("/usr/bin/busybox", dest_dir,
+                             "usr/bin/busybox", sysroot)
     # Commands we want for busybox (static for more control and to help
     # with cross-building).
     cmds = ["[", "[[", "acpid", "arch", "ascii", "ash", "awk", "base32", "basename",
@@ -423,11 +464,6 @@ def install_misc(dest_dir, sysroot, deb_arch, ubuntu_release):
         "/usr/bin/mount",
         "/usr/sbin/sulogin",
         "/usr/bin/tar",
-        "/usr/lib/" + deb_arch + "/libbpf.so.1",
-        "/usr/lib/" + deb_arch + "/libgcc_s.so.1",
-        "/usr/lib/" + deb_arch + "/libkmod.so.2",
-        "/usr/lib/" + deb_arch + "/libseccomp.so.2",
-        "/usr/lib/" + deb_arch + "/libpam.so.0",
         "/usr/lib/systemd/system/dbus.service",
         "/usr/lib/systemd/system/dbus.socket",
         "/usr/lib/systemd/system/plymouth-start.service",
@@ -469,11 +505,6 @@ def install_misc(dest_dir, sysroot, deb_arch, ubuntu_release):
     files += glob.glob("/usr/share/plymouth/themes/bgrt/*")
     files += glob.glob("/usr/share/plymouth/themes/spinner/*")
 
-    # needed by systemd for stonking
-    if release_higher_or_equal(ubuntu_release, (26, 10)):
-        files.append("/usr/lib/" + deb_arch + "/libcurl.so.4")
-        files += glob.glob("/usr/lib/" + deb_arch + "/libtss2*.so.*")
-
     # Include xkb-data layouts for plymouth
     files += glob.glob("/usr/share/X11/xkb/**/*", recursive=True)
 
@@ -505,8 +536,10 @@ def install_misc(dest_dir, sysroot, deb_arch, ubuntu_release):
     # Get deps for shared objects that have not the exec bit set and that
     # are loaded with dlopen (which means that they are not pull by --ldd
     # option, instead use --resolvelazy).
-    proc_env = os.environ.copy()
-    proc_env["LD_PRELOAD"] = ""
+    proc_env = {}
+    proc_env.update(os.environ)
+    if "LD_PRELOAD" in proc_env:
+        del proc_env["LD_PRELOAD"]
     to_resolve = [
         "/usr/lib/" + deb_arch + "/plymouth/label-freetype.so",
         "/usr/lib/" + deb_arch + "/plymouth/script.so",
@@ -521,7 +554,7 @@ def install_misc(dest_dir, sysroot, deb_arch, ubuntu_release):
     # dracut-install has some bugs if you set "/" as sysroot, avoid that
     if sysroot != "/":
         cmd += ["-r", sysroot]
-    check_call(cmd + to_resolve, env=proc_env)
+    check_call(cmd + to_resolve, env=define_dlopen_features(proc_env))
     # Build ld cache (make sure /etc is there before)
     etc_d = os.path.join(dest_dir, "etc")
     os.makedirs(etc_d, exist_ok=True)
@@ -664,12 +697,20 @@ def create_initrd_pkg_list(dest_dir, sysroot):
     return manifest_path
 
 
+def max_priority(a, b):
+    if "required" in (a, b):
+        return "required"
+    elif "recommended" in (a, b):
+        return "recommend"
+    else:
+        return "suggested"
+
 # verify_missing_dlopen looks at the .notes.dlopen section of ELF
 # binaries to find libraries that are not in the dynamic section, and
 # that will be loaded with dynamically dlopen when needed.
 # See https://systemd.io/ELF_DLOPEN_METADATA/
-def verify_missing_dlopen(destdir, libdir):
-    missing = {}
+def verify_missing_dlopen(destdir, libdir, ubuntu_release):
+    has_errors = False
     for dirpath, dirs, files in os.walk(destdir):
         for f in files:
             path = os.path.join(dirpath, f)
@@ -682,42 +723,35 @@ def verify_missing_dlopen(destdir, libdir):
             split = out.splitlines()
             json_doc = b'\n'.join([s for s in split if not s[:1] == b'#'])
             doc = json.loads(json_doc)
+            if len(doc) == 0:
+                continue
+            expected_features = get_dlopen_features(f)
+            if expected_features is None:
+                print(f"ERROR: {f} has dlopen notes but is not listed in known features", file=sys.stderr)
+                has_errors = True
+                continue
+            add_features, omit_features = expected_features
             for dep in doc:
-                sonames = dep["soname"]
+                feature = dep["feature"]
                 priority = dep["priority"]
+                if feature in omit_features:
+                    continue
+                if feature not in add_features:
+                    print(f"ERROR: {f} has dlopen feature {feature} (priority {priority}) that is neither added nor omitted.", file=sys.stderr)
+                    has_errors = True
+                    continue
+                sonames = dep["soname"]
                 found_sonames = []
                 for soname in sonames:
                     dest = os.path.join(destdir, os.path.relpath(libdir, "/"), soname)
                     if os.path.exists(os.path.join(destdir, dest)):
                         found_sonames.append(soname)
                 if not found_sonames:
-                    # We did not find any library.
-                    # In this case we need to mark all sonames as
-                    # missing. This is required because some features
-                    # may have common subset of sonames and those
-                    # features might have different priorities.
-                    for soname in sonames:
-                        current_priority = missing.get(soname)
-                        if current_priority == "required":
-                            continue
-                        elif current_priority == "recommended" and priority not in ["required"]:
-                            continue
-                        elif current_priority == "suggested" and priority not in ["required", "recommended"]:
-                            continue
-                        else:
-                            missing[soname] = priority
+                    sonames_str = ', '.join(sonames)
+                    print(f"ERROR: did not find soname {sonames_str} for {f}'s dlopen feature {feature} (priority {priority}).", file=sys.stderr)
+                    has_errors = True
 
-    fatal = False
-    if missing:
-        print("WARNING: These sonames are missing:", file=sys.stderr)
-        for m, priority in missing.items():
-            print(f" * {m} ({priority})", file=sys.stderr)
-            if priority in ["required", "recommended"]:
-                fatal = True
-        if fatal:
-            print("WARNING: Some missing sonames are required or recommended. Failing.", file=sys.stderr)
-
-    return not fatal
+    return not has_errors
 
 
 def mkcpio(path, output, *, compress=True):
@@ -776,16 +810,9 @@ def get_ubuntu_release(sysroot):
         regex = re.compile('^VERSION_ID="([0-9]+)[.]([0-9]+)"$', re.MULTILINE)
         res = regex.search(f.read())
         if res:
-            return [int(res.group(1)), int(res.group(2))]
+            return (int(res.group(1)), int(res.group(2)))
     print("ERROR: cannot find Ubuntu release", file=sys.stderr)
     sys.exit(1)
-
-
-def release_higher_or_equal(release1, release2):
-    if release1[0] > release2[0] or \
-       (release1[0] == release2[0] and release1[1] >= release2[1]):
-        return True
-    return False
 
 
 def create_initrd(parser, args):
@@ -819,7 +846,7 @@ def create_initrd(parser, args):
         # copy busybox first so we get already the shell interpreter we
         # want (busybox) instead of dracut-install pulling the systemd
         # default (dash) when it pulls a shell script later.
-        install_busybox(main, rootfs)
+        install_busybox(main, rootfs, ubuntu_release)
         # Copy systemd bits
         install_systemd_files(main, rootfs, ubuntu_release)
         # Other miscelanea stuff
@@ -861,13 +888,13 @@ def create_initrd(parser, args):
                     "-r", kernel_root,
                     os.path.join(modules, modulesf),
                     os.path.join("usr/lib/modules", args.kernelver, modulesf),
-                ]
+                ],
+                env=define_dlopen_features(os.environ),
             )
         check_call(["depmod", "-a", "-b", main, args.kernelver])
 
-        if release_higher_or_equal(ubuntu_release, (24, 10)):
-            if not verify_missing_dlopen(main, os.path.join("/usr/lib", deb_arch)):
-                sys.exit(1)
+        if not verify_missing_dlopen(main, os.path.join("/usr/lib", deb_arch), ubuntu_release):
+            sys.exit(1)
 
         # Create manifest with packages with files included in the initramfs
         manifest_path = create_initrd_pkg_list(main, rootfs)
