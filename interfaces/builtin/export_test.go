@@ -37,6 +37,11 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
+
+	ErrParallelInstancesSystemPlug      = errParallelInstancesSystemPlug
+	ErrParallelInstancesSystemSlot      = errParallelInstancesSystemSlot
+	ErrParallelInstancesGadgetSlot      = errParallelInstancesGadgetSlot
+	ErrParallelInstancesSharedResources = errParallelInstancesSharedResources
 )
 
 type GbmDriverLibsInterface gbmDriverLibsInterface

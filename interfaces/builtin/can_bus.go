@@ -44,12 +44,13 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "can-bus",
-		summary:               canBusSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  canBusBaseDeclarationSlots,
-		connectedPlugAppArmor: canBusConnectedPlugAppArmor,
-		connectedPlugSecComp:  canBusConnectedPlugSecComp,
+		name:                     "can-bus",
+		summary:                  canBusSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     canBusBaseDeclarationSlots,
+		connectedPlugAppArmor:    canBusConnectedPlugAppArmor,
+		connectedPlugSecComp:     canBusConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
