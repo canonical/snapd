@@ -198,6 +198,33 @@ func (stateSuite) TestCheckpoint(c *check.C) {
 	c.Check(fmt.Sprintf("%q", ws), check.Equals, `["hello"]`)
 }
 
+func (stateSuite) TestPruneWarningsCheckpoint(c *check.C) {
+	b := &fakeStateBackend{}
+	st := state.New(b)
+	st.Lock()
+	st.AddWarning("old", &state.AddWarningOptions{
+		Time: time.Now().Add(-30 * 24 * time.Hour),
+	})
+	st.Warnf("new")
+	st.Unlock()
+	c.Assert(b.checkpoints, check.HasLen, 1)
+
+	st.Lock()
+	st.Prune(time.Now(), 0, 0, 0)
+	st.Unlock()
+	// Pruning the expired warning must mark the state modified so that the
+	// removal is checkpointed on unlock.
+	c.Assert(b.checkpoints, check.HasLen, 2)
+
+	st, err := state.ReadState(nil, bytes.NewReader(b.checkpoints[1]))
+	c.Assert(err, check.IsNil)
+	st.Lock()
+	defer st.Unlock()
+	ws := st.AllWarnings()
+	c.Assert(ws, check.HasLen, 1)
+	c.Check(ws[0].String(), check.Equals, "new")
+}
+
 func (stateSuite) TestWarningsSummaryReturnsLastLastAdded(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
