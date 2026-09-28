@@ -659,7 +659,8 @@ jobs:
           "$GITHUB_RUN_ID" \
           "$GITHUB_RUN_ATTEMPT" \
           "${{ inputs.group }}" \
-          "$SCENARIO"
+          "$SCENARIO" \
+          "${{ github.event.pull_request.number }}"
 
   sync-test-results:
     name: Sync test results
@@ -698,4 +699,5 @@ jobs:
           "$GITHUB_RUN_ID" \
           "$GITHUB_RUN_ATTEMPT" \
           "${{ inputs.group }}" \
-          "$SCENARIO"
+          "$SCENARIO" \
+          "${{ github.event.pull_request.number }}"
