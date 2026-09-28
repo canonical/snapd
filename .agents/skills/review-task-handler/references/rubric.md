@@ -16,7 +16,8 @@ Rate every applicable checklist bullet independently:
 
 Do not award `pass` merely because no defect was found. Use `partial` when the
 code looks plausible but an important recovery property lacks enough evidence.
-Count direct top-level bullets in the current checklist section. In every
+Count direct top-level bullets in the current checklist section. Section
+preamble prose is framing, not a rateable criterion. In every
 category row, `pass + partial + fail + N/A` must equal that section's current
 top-level bullet count. Recount before calculating if it does not.
 
@@ -30,11 +31,11 @@ python3 .agents/skills/review-task-handler/scripts/score.py <<'JSON'
 {
   "ratings": {
     "General": {"pass": 5, "partial": 1, "fail": 1, "na": 0},
-    "Coordination": {"pass": 3, "partial": 0, "fail": 0, "na": 1},
+    "Coordination": {"pass": 3, "partial": 0, "fail": 0, "na": 3},
     "State and locking": {"pass": 6, "partial": 1, "fail": 1, "na": 0},
     "Slow operation locking": {"pass": 1, "partial": 0, "fail": 1, "na": 0},
-    "Do handler": {"pass": 6, "partial": 0, "fail": 1, "na": 0},
-    "Undo handler": {"pass": 0, "partial": 0, "fail": 0, "na": 8},
+    "Do handler": {"pass": 5, "partial": 0, "fail": 1, "na": 0},
+    "Undo handler": {"pass": 0, "partial": 0, "fail": 0, "na": 7},
     "Tests": {"pass": 5, "partial": 2, "fail": 0, "na": 3}
   },
   "confirmed_severity": "medium"
@@ -79,10 +80,12 @@ Decide only what the helper cannot: each criterion's rating, whether a category
 is genuinely inapplicable, and the highest confirmed severity.
 
 If the task legitimately has no undo, mark the Undo Handler bullets `N/A`. Apply
-the same rule if another entire category is genuinely inapplicable.
+the same rule if another entire category is genuinely inapplicable. The General
+criterion on having an undo handler stays applicable in that case and records
+whether the omission is justified.
 
 For a coordinator with no undo, also mark undo-specific test criteria `N/A`
-when they cannot apply to the coordinator itself. Evaluate child-task rollback
+when they cannot apply to the coordinator itself. Evaluate child-task undo
 under coordination and observable workflow tests instead; do not award a pass
 for a test that cannot exist.
 
@@ -121,6 +124,8 @@ by intuition.
   report it as one finding. Multiple failed criteria may legitimately lower the
   numeric score. A lock-duration responsiveness issue belongs only to Slow
   operation locking; do not duplicate it under State and locking or Do handler.
+- Best-effort handling may be rated separately in Do handler and Undo handler,
+  but a single root defect spanning both is still reported as one finding.
 - Keep correctness findings separate from test findings even when the missing
   test would have exposed the defect.
 - Base `N/A` on task semantics, not missing implementation.

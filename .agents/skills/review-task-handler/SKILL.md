@@ -1,6 +1,6 @@
 ---
 name: review-task-handler
-description: Evaluate and review a snapd state task handler against overlord/handlers-quality.md. Use when given a state-manager package and task kind to assess do, undo, cleanup, locking, restart safety, coordination, and tests, then produce findings and a consistent weighted grade.
+description: Evaluate and review a snapd state task handler against overlord/handlers-quality.md. Use when given a state-manager package and task kind to assess do, undo, and cleanup handlers, locking, restart safety, coordination, and tests, then produce findings and a consistent weighted grade.
 metadata:
   project: snapd
   task-type: review
@@ -55,8 +55,8 @@ mapping the package.
 2. Search the package for the exact quoted task kind. Start with
    `AddHandler`, `AddCleanup`, and task creation. If registration is indirect,
    follow the local registration helper.
-3. From registration, identify the exact do, undo, and cleanup symbols. Do not
-   assume Go names derived from the task kind.
+3. From registration, identify the exact do, undo, and cleanup-handler symbols.
+   Do not assume Go names derived from the task kind.
 4. Read the handlers and direct helpers that own external effects or unlock the
    state. Record:
    - task inputs and persisted working data
@@ -64,7 +64,8 @@ mapping the package.
    - every lock release and state read or write across it
    - external mutations in execution order
    - every error exit after an external mutation
-   - explicit retry, wait, cancellation, status, restart, and cleanup behavior
+   - explicit retry, wait, cancellation, status, restart, and rollback of the
+     handler's own partial effects
 5. Locate every constructor for the task kind. Trace prerequisite ordering,
    task edges, lanes, conflict checks, summaries, and setup keys.
 6. Inspect manager-level `AddBlocked` callbacks and package conflict logic only
@@ -144,12 +145,15 @@ Remove the finding if the rebuttal cannot be answered by code. Downgrade it to
 - Lead with root causes. Do not count one defect again under every checklist
   consequence, and do not repeat it in the grade rationale.
 - Distinguish verified defects from missing tests and unresolved concerns.
-- Treat cleanup as best-effort only when failure still leaves the system
-  semantically correct and another intentional lifecycle handles leftovers.
+- Treat best-effort handling - ancillary work in do, rollback of the handler's
+  own partial effects, or a restoration step in undo - as acceptable only when
+  failure still leaves the system semantically correct and another intentional
+  lifecycle handles leftovers.
 - Do not penalize a missing undo when the task is deliberately final or
   irreversible and the omission is justified by construction. A coordinator that
-  only creates or injects child tasks is such a case; see the rubric for how to
-  mark it.
+  only creates or injects child tasks is such a case: mark the Undo Handler
+  criteria `N/A`, and rate the General criterion on having an undo handler,
+  recording why the omission is justified.
 - Give credit for relevant coordination and tests, but never use positive
   coverage to hide a correctness finding.
 - Put checklist-derived findings before observations outside the checklist, and
