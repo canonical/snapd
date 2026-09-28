@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -166,6 +167,79 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapRemovesFreezerCgroupOnFullRemoval(c *C) {
+	var removed []naming.InstanceName
+	defer snapstate.MockCgroupRemoveFreezerCgroup(func(instanceName naming.InstanceName) error {
+		removed = append(removed, instanceName)
+		return nil
+	})()
+
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+		}),
+		Current:  snap.R(3),
+		SnapType: "app",
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	// the snap is fully removed, so its leftover freezer cgroup is cleaned up
+	c.Check(removed, DeepEquals, []naming.InstanceName{"foo"})
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapKeepsFreezerCgroupWhenRevisionsRemain(c *C) {
+	var removed []naming.InstanceName
+	defer snapstate.MockCgroupRemoveFreezerCgroup(func(instanceName naming.InstanceName) error {
+		removed = append(removed, instanceName)
+		return nil
+	})()
+
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(33)},
+		}),
+		Current:  snap.R(33),
+		SnapType: "app",
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	// another revision remains, so the freezer cgroup must not be removed
+	c.Check(removed, HasLen, 0)
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {

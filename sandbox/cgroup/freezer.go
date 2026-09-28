@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const defaultFreezerCgroupV1Dir = "/sys/fs/cgroup/freezer"
@@ -131,6 +132,26 @@ var thawSnapProcessesImplV1 = func(snapName string) error {
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("cannot thaw processes of snap %q", snapName)
+	}
+	return nil
+}
+
+// RemoveFreezerCgroup removes the freezer cgroup that snap-confine creates for
+// the given snap on cgroup v1 systems. Nothing else removes this directory, so
+// it must be cleaned up when the snap is removed to avoid leaking an empty
+// cgroup. It is a no-op on cgroup v2 where no per-snap freezer cgroup exists,
+// and it only removes the directory once it is empty of processes.
+func RemoveFreezerCgroup(instanceName naming.InstanceName) error {
+	version, err := Version()
+	if err != nil {
+		return err
+	}
+	if version != V1 {
+		return nil
+	}
+	dir := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", instanceName))
+	if err := os.Remove(dir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
 	return nil
 }

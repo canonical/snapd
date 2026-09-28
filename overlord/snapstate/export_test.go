@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -563,6 +564,14 @@ func MockCgroupMonitorSnapEnded(f func(string, chan<- string) error) func() {
 	cgroupMonitorSnapEnded = f
 	return func() {
 		cgroupMonitorSnapEnded = old
+	}
+}
+
+func MockCgroupRemoveFreezerCgroup(f func(naming.InstanceName) error) func() {
+	old := cgroupRemoveFreezerCgroup
+	cgroupRemoveFreezerCgroup = f
+	return func() {
+		cgroupRemoveFreezerCgroup = old
 	}
 }
 
