@@ -203,7 +203,7 @@ func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
-	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=%s", integrityFilePath))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=/var/lib/snapd/snaps/hello_14.dmverity_aaa")
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created

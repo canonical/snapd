@@ -83,15 +83,14 @@ func (s *mountunitSuite) TestAddMountUnitAppendsIntegrityMountOptions(c *C) {
 			Digest: "e64838dh",
 		},
 	}
-	expectedIntegrityMountOpts, err := opts.IntegrityDataParams.MountOptions(info.MountFile())
-	c.Assert(err, IsNil)
 
-	err = backend.AddMountUnit(info, systemd.New(systemd.SystemMode, progress.Null), opts)
+	err := backend.AddMountUnit(info, systemd.New(systemd.SystemMode, progress.Null), opts)
 	c.Assert(err, IsNil)
 
 	c.Assert(sysd.EnsureMountUnitFileCalls, HasLen, 1)
 	c.Check(sysd.EnsureMountUnitFileCalls[0].Options, DeepEquals,
-		append([]string{"nodev", "nosuid"}, expectedIntegrityMountOpts...))
+		[]string{"nodev", "nosuid", "verity.roothash=e64838dh", "verity.hashdevice=/var/lib/snapd/snaps/foo_13.dmverity_e64838dh"},
+	)
 }
 
 func (s *mountunitSuite) TestAddMountUnitErrorOnIntegrityMountOptions(c *C) {

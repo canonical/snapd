@@ -60,7 +60,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, opts mountUni
 	}
 
 	if opts.IntegrityDataParams != nil {
-		integrityMountOpts, err := opts.IntegrityDataParams.MountOptions(c.MountFile())
+		integrityMountOpts, err := opts.IntegrityDataParams.MountOptions(squashfsPath)
 		if err != nil {
 			return err
 		}

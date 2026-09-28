@@ -1456,7 +1456,7 @@ func snapRevisionFromSnapIdAndRevision(db asserts.RODatabase, snapId string, rev
 	// therefore the check here should be redundant but we keep it to as a safeguard
 	// in case that behavior changes.
 	if len(found) > 1 {
-		return nil, fmt.Errorf("internal error: multiple snap-revision assertions found that matches (snap-id=%s, snap-revision=%s)", snapId, rev)
+		return nil, fmt.Errorf("internal error: multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%s)", snapId, rev)
 	}
 
 	return found[0].(*asserts.SnapRevision), nil
