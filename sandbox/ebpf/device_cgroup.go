@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
@@ -166,4 +167,134 @@ func FindActiveDeviceMapsForSnap(instanceName string) (tags []string, err error)
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+// DeviceDenyEvent is the structure written to the ring buffer by the BPF
+// program when a device access is denied. It must match struct
+// sc_device_deny_event in device-cgroup-support.h.
+type DeviceDenyEvent struct {
+	DevType   uint8  // 'c' or 'b'
+	Access    uint8  // BPF_DEVCG_ACC_* bitmask (1=mknod, 2=read, 4=write)
+	_pad      uint16 //nolint:unused
+	Major     uint32
+	Minor     uint32
+	PID       uint32
+	Timestamp uint64   // ktime_get_ns()
+	Comm      [16]byte // TASK_COMM_LEN
+}
+
+// DeviceDenyEventSize is the size of a packed DeviceDenyEvent.
+const DeviceDenyEventSize = 40
+
+// CommString returns the process comm as a Go string, trimming null bytes.
+func (e *DeviceDenyEvent) CommString() string {
+	n := 0
+	for n < len(e.Comm) && e.Comm[n] != 0 {
+		n++
+	}
+	return string(e.Comm[:n])
+}
+
+// AccessString returns a human-readable representation of the access flags.
+func (e *DeviceDenyEvent) AccessString() string {
+	var parts []string
+	if e.Access&1 != 0 {
+		parts = append(parts, "mknod")
+	}
+	if e.Access&2 != 0 {
+		parts = append(parts, "read")
+	}
+	if e.Access&4 != 0 {
+		parts = append(parts, "write")
+	}
+	if len(parts) == 0 {
+		return fmt.Sprintf("0x%x", e.Access)
+	}
+	return strings.Join(parts, ",")
+}
+
+// DecodeDeviceDenyEvent decodes a DeviceDenyEvent from raw bytes.
+func DecodeDeviceDenyEvent(data []byte) (*DeviceDenyEvent, error) {
+	if len(data) < DeviceDenyEventSize {
+		return nil, fmt.Errorf("short event record: %d bytes, want %d", len(data), DeviceDenyEventSize)
+	}
+
+	// TODO:GOVERSION:use binary.NativeEndian
+	e := arch.Endian()
+
+	ev := &DeviceDenyEvent{
+		DevType:   data[0],
+		Access:    data[1],
+		Major:     e.Uint32(data[4:8]),
+		Minor:     e.Uint32(data[8:12]),
+		PID:       e.Uint32(data[12:16]),
+		Timestamp: e.Uint64(data[16:24]),
+	}
+	copy(ev.Comm[:], data[24:40])
+	return ev, nil
+}
+
+// SecurityTagToDeviceDenyLogPath returns the path to the deny log
+// ring buffer for the given security tag.
+func SecurityTagToDeviceDenyLogPath(securityTag string) string {
+	tag := strings.ReplaceAll(securityTag, ".", "_")
+	return fmt.Sprintf("%s/%s@denylog", dirs.SnapBPFFSDir, tag)
+}
+
+// DiscardPinnedMaps removes the pinned BPF device map and deny ring
+// buffer for the given security tag. It is robust: if either file does
+// not exist, it logs a message via logf and continues. Returns an error
+// only if an actual removal fails for a reason other than the file not
+// existing.
+func DiscardPinnedMaps(securityTag string, logf func(string, ...any)) error {
+	mapPath := SecurityTagToBPFPath(securityTag)
+	ringPath := SecurityTagToDeviceDenyLogPath(securityTag)
+
+	var firstErr error
+	for _, path := range []string{mapPath, ringPath} {
+		if err := os.Remove(path); err != nil {
+			if os.IsNotExist(err) {
+				logf("pinned object %s does not exist, skipping", path)
+			} else {
+				logf("cannot remove %s: %v", path, err)
+				if firstErr == nil {
+					firstErr = fmt.Errorf("cannot remove %s: %v", path, err)
+				}
+			}
+		}
+	}
+	return firstErr
+}
+
+// DeviceDenyLogReader wraps a ringbuf.Reader and ensures the underlying
+// ebpf.Map is also closed when the reader is closed. ringbuf.NewReader
+// does not take ownership of the map, so we must track it separately.
+type DeviceDenyLogReader struct {
+	*ringbuf.Reader
+	m *ebpf.Map
+}
+
+func (r *DeviceDenyLogReader) Close() error {
+	err := r.Reader.Close()
+	if merr := r.m.Close(); merr != nil && err == nil {
+		err = merr
+	}
+	return err
+}
+
+// OpenDeviceDenyLog opens the pinned BPF ring buffer map for the given
+// security tag and returns a DeviceDenyLogReader. The caller is responsible
+// for closing the returned reader.
+func OpenDeviceDenyLog(securityTag string) (*DeviceDenyLogReader, error) {
+	path := SecurityTagToDeviceDenyLogPath(securityTag)
+	m, err := ebpf.LoadPinnedMap(path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load deny ring buffer at %s: %v", path, err)
+	}
+	r, err := ringbuf.NewReader(m)
+	if err != nil {
+		m.Close()
+		return nil, fmt.Errorf("cannot create ring buffer reader: %v", err)
+	}
+	return &DeviceDenyLogReader{Reader: r, m: m}, nil
 }

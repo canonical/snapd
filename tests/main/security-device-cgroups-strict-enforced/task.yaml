@@ -39,6 +39,7 @@ execute: |
 
     echo "The application is able to access the device"
     snap run test-strict-cgroup.sh -c 'touch /var/snap/test-strict-cgroup/common/started; until test -e /var/snap/test-strict-cgroup/common/ready; do sleep 1; done; dd if=/dev/zero of=/dev/full bs=1 count=1' > run.log 2>&1 &
+    APP_PID=$!
     retry -n 5 test -e /var/snap/test-strict-cgroup/common/started
 
     echo "Disallow access to /dev/full"
@@ -46,11 +47,30 @@ execute: |
     tests.device-cgroup test-strict-cgroup.sh dump | MATCH 'c 1:7 rwm'
     tests.device-cgroup --verbose test-strict-cgroup.sh deny c 1:7
 
+    # On cgroup v2, start monitoring device access denials before triggering the deny
+    LOG_PID=""
+    if [ "$(stat -f -c %T /sys/fs/cgroup)" = "cgroup2fs" ]; then
+        snap debug device-cgroup --log test-strict-cgroup > deny.log 2>&1 &
+        LOG_PID=$!
+        # give the reader a moment to attach to the ring buffer
+        sleep 0.5
+    fi
+
     # we are ready
     touch /var/snap/test-strict-cgroup/common/ready
 
-    wait || true
+    wait "$APP_PID" || true
     MATCH "dd: failed to open '/dev/full': Operation not permitted" < run.log
+
+    # On cgroup v2, verify the denial was captured in the log
+    if [ -n "$LOG_PID" ]; then
+        # give the event a moment to arrive
+        sleep 1
+        kill "$LOG_PID" 2>/dev/null || true
+        wait "$LOG_PID" 2>/dev/null || true
+        echo "Verify that the device access denial was logged"
+        MATCH "PID=[0-9]+ +dd +DENY.*char 1:7 \(write\) +/dev/full" < deny.log
+    fi
 
     echo "When restated, the device cgroup is reinitialized"
     # thus our temporary change to deny /dev/full is gone

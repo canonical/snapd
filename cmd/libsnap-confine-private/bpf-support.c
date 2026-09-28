@@ -72,6 +72,23 @@ int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, s
     return set_cloexec(fd);
 }
 
+int bpf_create_ringbuf(size_t size, const char *map_name) {
+    debug("create bpf ringbuf of size %zu, name '%s'", size, map_name != NULL ? map_name : "(none)");
+    union bpf_attr attr;
+    memset(&attr, 0, sizeof(attr));
+    attr.map_type = BPF_MAP_TYPE_RINGBUF;
+    /* ring buffer maps use max_entries for the buffer size */
+    attr.max_entries = size;
+    if (map_name != NULL) {
+        strncpy(attr.map_name, map_name, sizeof(attr.map_name) - 1);
+    }
+    int fd = sys_bpf(BPF_MAP_CREATE, &attr, sizeof(attr));
+    if (fd < 0) {
+        return fd;
+    }
+    return set_cloexec(fd);
+}
+
 int bpf_update_map(int map_fd, const void *key, const void *value) {
     union bpf_attr attr;
     memset(&attr, 0, sizeof(attr));
@@ -108,6 +125,10 @@ int bpf_get_by_path(const char *path) {
     return set_cloexec(fd);
 }
 
+/* TODO: implement 2-pass loading strategy (like libbpf): first attempt without
+ * log buffer (log_level=0) for performance, then retry with log buffer on
+ * failure to capture verifier diagnostics. This avoids ENOSPC errors when the
+ * log buffer is too small for the full verifier output on successful loads. */
 int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t insns_cnt, char *log_buf,
                   size_t log_buf_size, const char *prog_name) {
     if (type == BPF_PROG_TYPE_UNSPEC) {
