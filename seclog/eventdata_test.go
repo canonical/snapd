@@ -107,10 +107,10 @@ func (s *SecLogSuite) TestRunnableFromSecurityTag(c *C) {
 		runnable: "hook=install",
 	}, {
 		tag:      "snap.mysnap+widget.hook.install",
-		runnable: "comp-hook=widget:install",
+		runnable: "comp=widget;hook=install",
 	}, {
 		tag:      "snap.mysnap_foo+widget.hook.install",
-		runnable: "comp-hook=widget:install",
+		runnable: "comp=widget;hook=install",
 	}}
 
 	for _, tc := range cases {

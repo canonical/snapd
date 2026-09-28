@@ -69,7 +69,7 @@ func (s *seclogSuite) TestSeclogPeerComponentHook(c *C) {
 		PID:          4242,
 		Exe:          "/usr/bin/snap",
 		InstanceName: "mysnap",
-		Runnable:     "comp-hook=widget:install",
+		Runnable:     "comp=widget;hook=install",
 	})
 }
 
@@ -84,7 +84,7 @@ func (s *seclogSuite) TestSeclogPeerComponentHookInstance(c *C) {
 		PID:          4242,
 		Exe:          "/usr/bin/snap",
 		InstanceName: "mysnap_foo",
-		Runnable:     "comp-hook=widget:install",
+		Runnable:     "comp=widget;hook=install",
 	})
 }
 
