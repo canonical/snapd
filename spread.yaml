@@ -580,6 +580,9 @@ backends:
             - ubuntu-26.04-64:
                   username: root
                   password: root
+            - ubuntu-26.10-64:
+                  username: root
+                  password: root
             - debian-12-64:
                   username: root
                   password: root
