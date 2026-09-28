@@ -87,6 +87,7 @@ func (s *u2fDevicesInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `# Description: Allow write access to u2f hidraw devices.`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/hidraw* rwk,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/virtual/**/report_descriptor r,`)
 }
 
 func (s *u2fDevicesInterfaceSuite) TestUDevSpecOldSystemd(c *C) {
