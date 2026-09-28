@@ -77,21 +77,25 @@ properties:
         description: The current support status for storage encryption.
       storage-safety:
         type: string
-        description: The required storage safety level (e.g., 'encrypted').
+        description: The required storage safety level.
+        example: 'encrypted'
       encryption-type:
         type: string
-        description: The type of encryption (e.g., 'luks2').
+        enum:
+          - 'cryptsetup'
+          - 'cryptsetup-with-inline-crypto-engine'
+        description: The type of encryption.
       unavailable-reason:
         type: string
         description: >-
           The reason why storage encryption is unavailable or defective. When
-          a single availability check error is detected, unavailable-reason reports
+          a single availability check error is detected, `unavailable-reason` reports
           the error message; when multiple errors are detected, it reports the number of
-          errors (e.g. 'availability check identified 2 errors'). Must be populated if
-          availability-check-errors is non-empty.
+          errors (e.g. 'availability check identified 2 errors'). During pre-install,
+          must be populated if `availability-check-errors` is non-empty.
       availability-check-errors:
         type: array
-        description: A list of errors detected during the preinstall check, as determined by the secboot library.
+        description: A list of errors detected during the pre-install check, as determined by the secboot library.
         items:
           type: object
           title: PreinstallErrorDetails
