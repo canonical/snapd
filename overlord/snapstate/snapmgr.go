@@ -192,7 +192,7 @@ type SnapSetup struct {
 
 	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
 	//
-	// TODO: drop this and only keep DownloadInfo for the integrity data.
+	// FIXME: This should be an array to support multiple integrity data entries.
 	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
 }
 

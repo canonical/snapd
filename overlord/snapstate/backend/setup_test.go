@@ -193,17 +193,17 @@ func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
-	interityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
 
 	// after setup the snap and integrity files are copied to the right dir
 	c.Assert(snapFilePath, testutil.FilePresent)
-	c.Assert(interityFilePath, testutil.FilePresent)
+	c.Assert(integrityFilePath, testutil.FilePresent)
 
 	// ensure the right unit is created
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
-	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=%s", interityFilePath))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=%s", integrityFilePath))
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created
@@ -226,7 +226,7 @@ func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
 	c.Assert(minInfo.MountDir(), testutil.FileAbsent)
 
 	c.Assert(snapFilePath, testutil.FileAbsent)
-	c.Assert(interityFilePath, testutil.FileAbsent)
+	c.Assert(integrityFilePath, testutil.FileAbsent)
 }
 
 func (s *setupSuite) TestSetupDoUndoWithIntegrityData(c *C) {

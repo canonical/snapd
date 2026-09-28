@@ -6015,7 +6015,6 @@ func (s *assertMgrSuite) TestOfflineErrorSurfaced(c *C) {
 
 type testValidatedIntegrityDataParams struct {
 	createRevision   bool
-	createMultiple   bool
 	integrity        bool
 	expIntegrityData *integrity.IntegrityDataParams
 	expErr           string

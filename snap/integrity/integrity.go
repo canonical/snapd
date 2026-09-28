@@ -99,6 +99,8 @@ func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error
 	}
 }
 
+// MountOptions returns the mount options needed to mount snap integrity data.
+// Currently, only dm-verity is supported.
 func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, error) {
 	switch params.Type {
 	case "dm-verity":
@@ -115,7 +117,7 @@ func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, erro
 	}
 }
 
-// FileNameGlob returns the base name globs that matches snap integrity files.
+// FileNameGlobs returns base name globs that matches snap integrity files.
 func FileNameGlobs(snapPath string) []string {
 	// glob matches path/to/snap/<instance_name>_<revision>.dmverity_*
 	dmverityFileNameGlob := integrityFilePath(snapPath, "*")
