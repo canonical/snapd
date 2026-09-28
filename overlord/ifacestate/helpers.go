@@ -1244,6 +1244,10 @@ func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRe
 
 // getConns returns information about connections from the state.
 //
+// Those are both active connections and ones that are inactive as a result of
+// being previously manually disconnected or, in case of hotplug, the device
+// disappeared from the system.
+//
 // Connections are transparently re-mapped according to remapIncomingConnRef
 func getConns(st *state.State) (conns map[string]*schema.ConnState, err error) {
 	var raw *json.RawMessage
