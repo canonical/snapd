@@ -36,29 +36,98 @@ oneOf:
           $ref: 'GadgetVolume.yaml'
       volumes-auth:
         type: object
-        additionalProperties:
-          type: string
-        description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
+        required:
+          - mode
+        description: >-
+          Options for the volumes authentication mechanism (passphrase or PIN).
+          If omitted, no authentication mechanism is used.
+          If `storage-encryption.requirements` in SystemDetails contains 'volumes-auth',
+          this field is required.
+        properties:
+          mode:
+            type: string
+            enum:
+              - passphrase
+              - pin
+            description: >-
+              The authentication mode to use for the volumes. The selected mode must be
+              supported by the system and returned in `storage-encryption.features` in
+              SystemDetails ('passphrase-auth' for passphrase, 'pin-auth' for PIN).
+        oneOf:
+          - type: object
+            additionalProperties: false
+            required:
+              - mode
+              - passphrase
+            properties:
+              mode:
+                type: string
+                enum:
+                  - passphrase
+              passphrase:
+                type: string
+                format: password
+              kdf-time:
+                type: integer
+                format: int64
+                description: >-
+                  The length of time to run the key derivation function in nanoseconds.
+                  Defaults to 2 seconds.
+              kdf-type:
+                type: string
+                enum:
+                  - argon2i
+                  - argon2id
+                  - pbkdf2
+                description: >-
+                  The key derivation function to use for passphrase
+                  authentication. If omitted, snapd defaults to 'argon2id'.
+          - type: object
+            additionalProperties: false
+            required:
+              - mode
+              - pin
+            properties:
+              mode:
+                type: string
+                enum:
+                  - pin
+              pin:
+                type: string
+                format: password
+                pattern: '^[0-9]+$'
+                maxLength: 255
+              kdf-time:
+                type: integer
+                format: int64
+                description: >-
+                  The length of time to run the key derivation function in nanoseconds.
+                  Defaults to 200 milliseconds.
       keyboard-config:
         type: object
         description:
           Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g.
-          plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
+          plymouth passphrase/PIN prompt). This field is required when 'volumes-auth' is set. Values must
+          form a valid XKB configuration.
         properties:
           layout:
             type: string
-            description: The keyboard layout to use (e.g. 'us', 'uk', 'eg').
+            description: The keyboard layout to use (for example, 'us', 'uk', or 'eg').
+            example: 'us'
           model:
             type: string
-            description: The keyboard model to use (e.g. 'pc105').
+            description: The keyboard model to use.
+            example: 'pc105'
           variant:
             type: string
-            description: The keyboard variant to use (e.g. 'dvorak').
+            description: The keyboard variant to use.
+            example: 'dvorak'
           options:
             type: array
             items:
               type: string
-            description: A list of additional keyboard options to use (e.g. 'ctrl:nocaps').
+            description: A list of additional keyboard options to use.
+            example: ['ctrl:nocaps']
   - type: object
     required:
       - step
