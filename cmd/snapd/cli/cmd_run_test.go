@@ -1995,6 +1995,63 @@ kill -STOP $$
 	return traceShimCmd, readShimPid
 }
 
+func (s *RunSuite) TestSnapRunAppWithGdbserverIntegration(c *check.C) {
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	sudoCmd := testutil.MockCommand(c, "sudo", `
+read -r input
+echo "stdin: $input"
+echo "stderr output" >&2
+kill -KILL "$4"
+`)
+	defer sudoCmd.Restore()
+
+	gdbserverCmd := testutil.MockCommand(c, "gdbserver", ``)
+	defer gdbserverCmd.Restore()
+
+	traceShimCmd, shimPid := mockTraceShim(c, dirs.DistroLibExecDir)
+	defer traceShimCmd.Restore()
+	c.Assert(os.Rename(filepath.Join(dirs.DistroLibExecDir, "snap-strace-shim"), filepath.Join(dirs.DistroLibExecDir, "snap-confine")), check.IsNil)
+
+	fmt.Fprintln(s.stdin, "password")
+	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{
+		"run", "--gdbserver=127.0.0.1:2345", "--", "snapname.app", "--arg1", "arg2",
+	})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{"--arg1", "arg2"})
+	c.Check(sudoCmd.Calls(), check.DeepEquals, [][]string{
+		{"sudo", "gdbserver", "--attach", "127.0.0.1:2345", shimPid()},
+	})
+	c.Check(s.Stdout(), testutil.Contains, "stdin: password\n")
+	c.Check(s.Stderr(), check.Equals, "stderr output\n")
+}
+
+func (s *RunSuite) TestSnapRunAppWithGdbserverSudoError(c *check.C) {
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	sudoCmd := testutil.MockCommand(c, "sudo", `
+kill -KILL "$4"
+exit 12
+`)
+	defer sudoCmd.Restore()
+
+	gdbserverCmd := testutil.MockCommand(c, "gdbserver", ``)
+	defer gdbserverCmd.Restore()
+
+	traceShimCmd, _ := mockTraceShim(c, dirs.DistroLibExecDir)
+	defer traceShimCmd.Restore()
+	c.Assert(os.Rename(filepath.Join(dirs.DistroLibExecDir, "snap-strace-shim"), filepath.Join(dirs.DistroLibExecDir, "snap-confine")), check.IsNil)
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{
+		"run", "--gdbserver=127.0.0.1:2345", "snapname.app",
+	})
+	c.Assert(err, check.ErrorMatches, "exit status 12")
+}
+
 func (s *RunSuite) TestSnapRunAppWithStraceIntegration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 

@@ -1093,10 +1093,10 @@ func (x *cmdRun) runCmdUnderGdbserver(origCmd []string, envForExec envForExecFun
 	// note that only gdbserver needs to run as root, the application
 	// keeps running as the user
 	gdbSrvCmd := exec.Command("sudo", "gdbserver", "--attach", addr, strconv.Itoa(gcmd.Process.Pid))
-	if output, err := gdbSrvCmd.CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
-	return nil
+	gdbSrvCmd.Stdin = Stdin
+	gdbSrvCmd.Stdout = Stdout
+	gdbSrvCmd.Stderr = Stderr
+	return gdbSrvCmd.Run()
 }
 
 func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc) error {
