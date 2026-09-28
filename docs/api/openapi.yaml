@@ -94,6 +94,8 @@ components:
       $ref: './v2/components/responses/ServiceUnavailable.yaml'
 
   schemas:
+    AuthQualityError:
+      $ref: './v2/components/errors/AuthQualityError.yaml'
     ConfdbError:
       $ref: './v2/components/errors/ConfdbError.yaml'
     ConflictError:

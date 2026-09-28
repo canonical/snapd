@@ -23,6 +23,7 @@ content:
             - error
         result:
           oneOf:
+            - $ref: '../errors/AuthQualityError.yaml'
             - $ref: '../errors/ConfdbError.yaml'
             - $ref: '../errors/MalformedRequestError.yaml'
             - $ref: '../errors/NoSSHKeysError.yaml'
