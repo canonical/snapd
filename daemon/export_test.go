@@ -47,9 +47,27 @@ import (
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues         = createQuotaValues
+	ParseOptionalTime         = parseOptionalTime
+	SeclogSnapdUserFromAuth   = seclogSnapdUserFromAuth
+	SeclogEndpointFromRequest = seclogEndpointFromRequest
+	NewAuthzRecorder          = newAuthzRecorder
 )
+
+// RecordGranted exposes [authzRecorder.recordGranted] for tests.
+func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
+	rec.recordGranted(reason, iface, onPlugSide)
+}
+
+// RecordDenied exposes [authzRecorder.recordDenied] for tests.
+func (rec *authzRecorder) RecordDenied(reason seclog.DenialReason) {
+	rec.recordDenied(reason)
+}
+
+// Emit exposes [authzRecorder.emit] for tests.
+func (rec *authzRecorder) Emit() {
+	rec.emit()
+}
 
 // SeclogPeer exposes [ucrednet.seclogPeer] for tests.
 func (un *ucrednet) SeclogPeer() seclog.Peer {
