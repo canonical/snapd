@@ -17576,7 +17576,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		c.Assert(chg.Err(), IsNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
 	}
 
-	if opts.snapType == snap.TypeKernel {
+	if opts.snapType == snap.TypeKernel && !opts.useSameSnapRev {
 		expected = append(expected, fakeOp{
 			op: "remove-kernel-snap-setup",
 		})
@@ -19676,9 +19676,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 		})
 	}
 
-	if opts.snapType == snap.TypeKernel {
-		expected = append(expected, fakeOp{op: "remove-kernel-snap-setup"})
-	}
+	// no "remove-kernel-snap-setup": revision is unchanged (component-only
+	// update), so the drivers tree is the live one and must not be removed
 
 	for _, cs := range currentComponentStates {
 		compName := cs.SideInfo.Component.ComponentName
