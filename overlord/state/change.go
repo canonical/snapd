@@ -335,7 +335,7 @@ depscheck:
 		}
 		switch status {
 		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus, WaitStatus:
-			// We skip "ready" status'es for dependency purposes. In particular,
+			// We skip "ready" statuses for dependency purposes. In particular,
 			// WaitStatus and ErrorStatus can be the blocker we are looking for,
 			// but if they are not "blockingStatus", their dependencies cannot make
 			// this task runnable, so there is no graph to search through.
@@ -381,7 +381,7 @@ depscheck:
 //   - ErrorStatus
 //     A change can be blocked by tasks that are blocked by a previous task error.
 //     Specifically during the undo path, where a task stops undoing when the previous
-//     task has errored in it's undo handler. In this case the change is stuck.
+//     task has errored in its undo handler. In this case the change is stuck.
 func (c *Change) isChangeBlocked(tasks []*Task, blockingStatus Status) bool {
 	// Since we might visit tasks more than once, we store results to avoid recomputing them.
 	visited := make(map[string]taskBlockComputeStatus)
@@ -552,7 +552,9 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	cs := c.Status()
 	// If the task changes from ready => unready or unready => ready,
 	// update the ready status for the change.
-	if old.Ready() == new.Ready() {
+	// Also check the aggregate status: a non-ready task transition can make
+	// the change terminal when another task has already errored.
+	if old.Ready() == new.Ready() && !cs.Ready() {
 		c.notifyStatusChange(cs)
 		return
 	}
