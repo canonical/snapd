@@ -1487,7 +1487,11 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataEssentialSnap(c *C) {
 		snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 		c.Assert(err, IsNil)
 
-		c.Check(snapsup.IntegrityDataInfo, Not(IsNil), Commentf(tc.Comment))
+		c.Assert(snapsup.IntegrityDownloadInfos, HasLen, 2, Commentf(tc.Comment))
+		c.Check(snapsup.IntegrityDownloadInfos[0].Digest, Equals, "digest1")
+		c.Check(snapsup.IntegrityDownloadInfos[0].DownloadURL, Equals, "foo_1_digest1.dmverity")
+		c.Check(snapsup.IntegrityDownloadInfos[1].Digest, Equals, "digest2")
+		c.Check(snapsup.IntegrityDownloadInfos[1].DownloadURL, Equals, "foo_1_digest2.dmverity")
 	}
 }
 
@@ -1509,7 +1513,7 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataApplicationSnap(c *C) {
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
 
-	c.Check(snapsup.IntegrityDataInfo, IsNil)
+	c.Check(snapsup.IntegrityDownloadInfos, IsNil)
 }
 
 func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
@@ -1521,7 +1525,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
 			return nil
 		}
 
-		info.IntegrityData = &snap.IntegrityDataInfo{
+		info.IntegrityDownloadInfos = []snap.IntegrityDownloadInfo{{
 			IntegrityDataParams: integrity.IntegrityDataParams{
 				Version:       1,
 				Type:          "dm-verity",
@@ -1534,7 +1538,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
 			DownloadInfo: snap.DownloadInfo{
 				DownloadURL: "foo_1_digest1.dmverity",
 			},
-		}
+		}}
 
 		return nil
 	}
@@ -1568,7 +1572,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
 		}
 	}
 
-	c.Check(setup.IntegrityDataInfo, Not(IsNil))
+	c.Check(setup.IntegrityDownloadInfos, HasLen, 1)
 }
 
 func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
@@ -1580,7 +1584,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
 			return nil
 		}
 
-		info.IntegrityData = &snap.IntegrityDataInfo{
+		info.IntegrityDownloadInfos = []snap.IntegrityDownloadInfo{{
 			IntegrityDataParams: integrity.IntegrityDataParams{
 				Version:       1,
 				Type:          "dm-verity",
@@ -1593,7 +1597,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
 			DownloadInfo: snap.DownloadInfo{
 				DownloadURL: "foo_1_digest1.dmverity",
 			},
-		}
+		}}
 
 		return nil
 	}
@@ -1628,5 +1632,5 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
 	}
 
 	c.Assert(setup, NotNil)
-	c.Check(setup.IntegrityDataInfo, IsNil)
+	c.Check(setup.IntegrityDownloadInfos, IsNil)
 }

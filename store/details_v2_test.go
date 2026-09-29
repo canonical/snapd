@@ -198,6 +198,20 @@ const (
         "size": 73728,
         "url": "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a.dmverity"
       }
+    },
+    {
+      "type": "dm-verity",
+      "digest": "c224fb2116c2cebd067f7e5ded36fd8b354dd2ee488f9b1de3e5e4e689d6e39b",
+      "version": "1",
+      "salt": "6898f34704ddbd57fbaa951de387a8a7668ced3515315327999bcf4b4c87cbac",
+      "hash-algorithm": "sha512",
+      "hash-block-size": 1024,
+      "data-block-size": 1024,
+      "download": {
+        "sha3-384": "e88f3d7d5585d998163bdfeb2857bd4c1f54847df896c79f16bdf0dc543ef18...",
+        "size": 81920,
+        "url": "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_c224fb2116c2cebd067f7e5ded36fd8b354dd2ee488f9b1de3e5e4e689d6e39b.dmverity"
+      }
     }
   ],
   "resources": [
@@ -382,20 +396,38 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		SystemUsernames: map[string]*snap.SystemUsernameInfo{},
 		OriginalLinks:   map[string][]string{},
 		LegacyAliases:   map[string]*snap.AppInfo{},
-		IntegrityData: &snap.IntegrityDataInfo{
-			IntegrityDataParams: integrity.IntegrityDataParams{
-				Type:          "dm-verity",
-				Digest:        "b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
-				Version:       1,
-				Salt:          "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
-				HashAlg:       "sha256",
-				HashBlockSize: 4096,
-				DataBlockSize: 4096,
+		IntegrityDownloadInfos: []snap.IntegrityDownloadInfo{
+			{
+				IntegrityDataParams: integrity.IntegrityDataParams{
+					Type:          "dm-verity",
+					Digest:        "b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+					Version:       1,
+					Salt:          "5787e23693ccac46eaff840cd276f7f6557bdb2404204216888abe6b3a76bafb",
+					HashAlg:       "sha256",
+					HashBlockSize: 4096,
+					DataBlockSize: 4096,
+				},
+				DownloadInfo: snap.DownloadInfo{
+					Sha3_384:    "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
+					Size:        73728,
+					DownloadURL: "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a.dmverity",
+				},
 			},
-			DownloadInfo: snap.DownloadInfo{
-				Sha3_384:    "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
-				Size:        73728,
-				DownloadURL: "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a.dmverity",
+			{
+				IntegrityDataParams: integrity.IntegrityDataParams{
+					Type:          "dm-verity",
+					Digest:        "c224fb2116c2cebd067f7e5ded36fd8b354dd2ee488f9b1de3e5e4e689d6e39b",
+					Version:       1,
+					Salt:          "6898f34704ddbd57fbaa951de387a8a7668ced3515315327999bcf4b4c87cbac",
+					HashAlg:       "sha512",
+					HashBlockSize: 1024,
+					DataBlockSize: 1024,
+				},
+				DownloadInfo: snap.DownloadInfo{
+					Sha3_384:    "e88f3d7d5585d998163bdfeb2857bd4c1f54847df896c79f16bdf0dc543ef18...",
+					Size:        81920,
+					DownloadURL: "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_c224fb2116c2cebd067f7e5ded36fd8b354dd2ee488f9b1de3e5e4e689d6e39b.dmverity",
+				},
 			},
 		},
 	})
