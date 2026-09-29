@@ -1508,9 +1508,7 @@ func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.Mou
 		if err != nil {
 			return err
 		}
-		if len(integrityMountOpts) > 0 {
-			mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
-		}
+		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
 	}
 	return nil
 }

@@ -64,9 +64,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, opts mountUni
 		if err != nil {
 			return err
 		}
-		if len(integrityMountOpts) > 0 {
-			mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
-		}
+		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
 	}
 
 	_, err := sysd.EnsureMountUnitFile(mountOptions)
