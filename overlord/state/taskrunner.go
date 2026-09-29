@@ -428,9 +428,11 @@ ConsiderTasks:
 		}
 
 		status := t.Status()
-		// A change can contain non-ready tasks that are permanently blocked.
-		// They still need their cleanup handlers run.
-		if status.Ready() || t.Change().Status().Ready() {
+		// Clean task in two situations;
+		// If a task has completed
+		// Or if a task has not completed but is in a stuck change where no
+		// progress can be made.
+		if status.Ready() || t.Change().IsReady() {
 			if !t.IsClean() {
 				r.clean(t)
 			}

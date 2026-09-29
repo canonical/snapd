@@ -335,6 +335,12 @@ depscheck:
 		}
 		switch status {
 		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus, WaitStatus:
+			// We skip "ready" status'es for dependency purposes. In particular,
+			// WaitStatus and ErrorStatus can be the blocker we are looking for,
+			// but if they are not "blockingStatus", their dependencies cannot make
+			// this task runnable, so there is no graph to search through.
+			// And if they are "blockingStatus", then they are caught by the check
+			// before this switch.
 			continue
 		// For 'Do' and 'Undo' we have to check whether the task is waiting
 		// for any dependencies. The logic is the same, but the set of tasks
@@ -368,10 +374,18 @@ depscheck:
 
 // isChangeBlocked reports whether every non-ready task is in DoStatus or
 // UndoStatus and is blocked by a task in blockingStatus.
-func (c *Change) isChangeBlocked(blockingStatus Status) bool {
+// Some values that make sense (and are tested) for blockingStatus are:
+//   - WaitStatus
+//     A change can be blocked by tasks that are still waiting for external user
+//     actions like a reboot, in this case the change is considered blocked.
+//   - ErrorStatus
+//     A change can be blocked by tasks that are blocked by a previous task error.
+//     Specifically during the undo path, where a task stops undoing when the previous
+//     task has errored in it's undo handler. In this case the change is stuck.
+func (c *Change) isChangeBlocked(tasks []*Task, blockingStatus Status) bool {
 	// Since we might visit tasks more than once, we store results to avoid recomputing them.
 	visited := make(map[string]taskBlockComputeStatus)
-	for _, t := range c.Tasks() {
+	for _, t := range tasks {
 		switch t.Status() {
 		// Only consider tasks that can actually still run, if they can't
 		// they are not blocked.
@@ -420,9 +434,10 @@ func (c *Change) Status() Status {
 
 	// If the change has any waiters, check for any runnable tasks
 	// or whether it's completely blocked by waiters.
+	tasks := c.Tasks()
 	if statusStats[WaitStatus] > 0 {
 		// Only if the change has all tasks blocked we return WaitStatus.
-		if c.isChangeBlocked(WaitStatus) {
+		if c.isChangeBlocked(tasks, WaitStatus) {
 			return WaitStatus
 		}
 	}
@@ -433,7 +448,7 @@ func (c *Change) Status() Status {
 	// that has errored.
 	if statusStats[ErrorStatus] > 0 {
 		// Make sure nothing can actually still execute
-		if c.isChangeBlocked(ErrorStatus) {
+		if c.isChangeBlocked(tasks, ErrorStatus) {
 			return ErrorStatus
 		}
 	}
