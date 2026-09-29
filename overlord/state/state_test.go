@@ -222,7 +222,8 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 				{"message": " ", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
 				{"message": "", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
 				{"message": "other test warning", "first-added": "%s", "last-added": "%s","repeat-after": "%s", "last-shown": "%s"},
-				{"message": "another test warning", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"}
+				{"message": "another test warning", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "danger", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"}
 			]`,
 			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
 			firstAdded.Format(time.RFC3339), lastAddedSecondWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, // case without repeat-after and last-shown fields
@@ -231,6 +232,7 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano), // empty message
 			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339), // case with missing expire-after
 			lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339), // case with first-added as 0
+			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, "badtime", lastShown.Format(time.RFC3339Nano), // fail to parse repeat-after
 		),
 	)
 
@@ -270,13 +272,13 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 			c.Check(notice.LastData()["show-after"], check.Equals, state.DefaultWarningShowAfter.String())
 			c.Check(notice.LastData()["last-shown"], check.Equals, lastShown.Format(time.RFC3339Nano))
 			c.Check(notice.ID(), check.Equals, "1")
-			c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAddedFirstWarning.Format(time.RFC3339))
-			c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, lastAddedFirstWarning.Format(time.RFC3339))
+			c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAddedFirstWarning.UTC().Format(time.RFC3339))
+			c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, lastAddedFirstWarning.UTC().Format(time.RFC3339))
 		case 1:
 			c.Check(notice.Key(), check.Equals, "second test warning")
 			c.Check(notice.ID(), check.Equals, "2")
-			c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAddedSecondWarning.Format(time.RFC3339))
-			c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, lastAddedSecondWarning.Format(time.RFC3339))
+			c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAddedSecondWarning.UTC().Format(time.RFC3339))
+			c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, lastAddedSecondWarning.UTC().Format(time.RFC3339))
 		}
 
 		c.Check(notice.Type(), check.Equals, state.WarningNotice)
@@ -854,7 +856,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Warnf("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
-		func() { st.AddNotice(nil, state.WarningNotice, "foo", nil) },
+		func() { st.Warnf("foo") },
 		func() { st.DrainNotices(nil) },
 	}
 
