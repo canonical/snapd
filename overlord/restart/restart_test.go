@@ -549,6 +549,43 @@ func (s *restartSuite) TestStartUpWaitTasks(c *C) {
 	c.Check(chg.Has("wait-for-system-restart"), Equals, false)
 }
 
+func (s *restartSuite) TestStartUpWaitTaskWithErrorBlockedTask(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	defer release.MockOnClassic(true)()
+
+	rm, err := restart.Manager(st, "boot-id-2", nil)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("chg", "...")
+	blockedTask := st.NewTask("blocked", "...")
+	errorTask := st.NewTask("error", "...")
+	waitTask := st.NewTask("wait", "...")
+	blockedTask.WaitFor(errorTask)
+	chg.AddTask(blockedTask)
+	chg.AddTask(errorTask)
+	chg.AddTask(waitTask)
+	chg.Set("wait-for-system-restart", true)
+
+	waitTask.SetToWait(state.DoneStatus)
+	waitTask.Set("wait-for-system-restart-from-boot-id", "boot-id-1")
+	errorTask.SetStatus(state.ErrorStatus)
+	c.Assert(chg.IsReady(), Equals, false)
+
+	se := overlord.NewStateEngine(st)
+	se.AddManager(rm)
+	st.Unlock()
+	err = se.StartUp()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(waitTask.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.IsReady(), Equals, true)
+}
+
 func (s *restartSuite) TestStop(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

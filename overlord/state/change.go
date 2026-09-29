@@ -389,8 +389,16 @@ func (c *Change) isChangeBlocked(tasks []*Task, blockingStatus Status) bool {
 		switch t.Status() {
 		// Only consider tasks that can actually still run, if they can't
 		// they are not blocked.
-		case WaitStatus, DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
+		case DoneStatus, UndoneStatus, ErrorStatus, HoldStatus:
 			continue
+		case WaitStatus:
+			// A wait task is itself unresolved. It can be ignored when
+			// determining whether the change is blocked on waits, but it
+			// prevents the change from being terminally blocked on errors.
+			if blockingStatus == WaitStatus {
+				continue
+			}
+			return false
 		case DoStatus:
 			if !c.isTaskBlocked(visited, t, t.WaitTasks(), blockingStatus) {
 				return false
@@ -552,9 +560,7 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	cs := c.Status()
 	// If the task changes from ready => unready or unready => ready,
 	// update the ready status for the change.
-	// Also check the aggregate status: a non-ready task transition can make
-	// the change terminal when another task has already errored.
-	if old.Ready() == new.Ready() && !cs.Ready() {
+	if old.Ready() == new.Ready() {
 		c.notifyStatusChange(cs)
 		return
 	}

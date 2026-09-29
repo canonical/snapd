@@ -317,6 +317,30 @@ func (cs *changeSuite) TestStatusErrorWithBlockedTasks(c *C) {
 	c.Check(chg.IsReady(), Equals, true)
 }
 
+func (cs *changeSuite) TestStatusErrorWithBlockedTaskAndWaiter(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+	blockedTask := st.NewTask("blocked", "...")
+	errorTask := st.NewTask("error", "...")
+	waitTask := st.NewTask("wait", "...")
+	blockedTask.WaitFor(errorTask)
+	chg.AddTask(blockedTask)
+	chg.AddTask(errorTask)
+	chg.AddTask(waitTask)
+
+	waitTask.SetToWait(state.DoneStatus)
+	errorTask.SetStatus(state.ErrorStatus)
+	c.Check(chg.Status(), Equals, state.DoStatus)
+	c.Check(chg.IsReady(), Equals, false)
+
+	waitTask.SetStatus(state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.IsReady(), Equals, true)
+}
+
 func (cs *changeSuite) TestCloseReadyOnExplicitStatus(c *C) {
 	st := state.New(nil)
 	st.Lock()
