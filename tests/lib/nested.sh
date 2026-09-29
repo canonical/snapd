@@ -1008,7 +1008,9 @@ nested_create_core_vm() {
             local image_channel
             local -a image_generator_args
             image_channel="$(nested_get_image_channel)"
-            base_channel="$(nested_get_base_channel)"
+            if nested_is_core_26_system; then
+                base_channel="$(nested_get_base_channel)"
+            fi
             image_generator_args=(
                 --core-version "$(nested_get_version)"
                 --model "$(nested_get_model)"
@@ -1017,10 +1019,12 @@ nested_create_core_vm() {
                 --image-base-name "$(nested_get_image_name_base core)"
                 --log-file "$NESTED_LOGS_DIR/ubuntu-image.log"
                 --sector-size "$NESTED_DISK_LOGICAL_BLOCK_SIZE"
-                --base-channel "$base_channel"
                 --store-url "$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
                 --debug
             )
+            if [ -n "$base_channel" ]; then
+                image_generator_args+=(--base-channel "$base_channel")
+            fi
             if [ -n "$image_channel" ]; then
                 image_generator_args+=(--channel "$image_channel")
             fi
