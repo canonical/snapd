@@ -359,9 +359,10 @@ func init() {
 			name:    "polkit",
 			summary: polkitSummary,
 			// implicitOnCore is computed dynamically
-			implicitOnClassic:    true,
-			baseDeclarationPlugs: polkitBaseDeclarationPlugs,
-			baseDeclarationSlots: polkitBaseDeclarationSlots,
+			implicitOnClassic:        true,
+			baseDeclarationPlugs:     polkitBaseDeclarationPlugs,
+			baseDeclarationSlots:     polkitBaseDeclarationSlots,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

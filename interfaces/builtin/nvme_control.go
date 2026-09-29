@@ -91,5 +91,6 @@ func init() {
 		connectedPlugAppArmor:    nvmeControlConnectedPlugAppArmor,
 		connectedPlugKModModules: nvmeControlConnectedPlugKmod,
 		connectedPlugUDev:        nvmeControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

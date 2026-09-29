@@ -137,12 +137,13 @@ socket AF_NETLINK - NETLINK_AUDIT
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "polkit-agent",
-		summary:               polkitAgentSummary,
-		implicitOnCore:        osutil.FileExists("/usr/libexec/polkit-agent-helper-1") || osutil.FileExists("/usr/lib/polkit-1/polkit-agent-helper-1"),
-		baseDeclarationPlugs:  polkitAgentBaseDeclarationPlugs,
-		baseDeclarationSlots:  polkitAgentBaseDeclarationSlots,
-		connectedPlugAppArmor: polkitAgentConnectedPlugAppArmor,
-		connectedPlugSecComp:  polkitAgentConnectedPlugSecComp,
+		name:                     "polkit-agent",
+		summary:                  polkitAgentSummary,
+		implicitOnCore:           osutil.FileExists("/usr/libexec/polkit-agent-helper-1") || osutil.FileExists("/usr/lib/polkit-1/polkit-agent-helper-1"),
+		baseDeclarationPlugs:     polkitAgentBaseDeclarationPlugs,
+		baseDeclarationSlots:     polkitAgentBaseDeclarationSlots,
+		connectedPlugAppArmor:    polkitAgentConnectedPlugAppArmor,
+		connectedPlugSecComp:     polkitAgentConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
