@@ -27,6 +27,8 @@ environment:
   FAULT_INJECT/reset_state: reprovision-reset-state
   FAULT_INJECT/save_protector_key: reprovision-save-protector-key
 
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
+
 skip:
     - reason: This test needs test keys to be trusted
       if: |
@@ -48,8 +50,11 @@ prepare: |
 
   version="$(nested_get_version)"
 
-  # Retrieve the gadget
   snap download --basename=pc --channel="$version/edge" pc
+  unsquashfs -d pc pc.snap
+  echo "console=ttyS0 dangerous systemd.journald.forward_to_console=1 rd.systemd.journald.forward_to_console=1" >pc/cmdline.extra
+  snap pack --filename=pc-debug.snap pc
+  snap ack pc.assert
 
   kernel_channel="$(nested_get_kernel_channel)"
   "$TESTSTOOLS"/repack-kernel \
@@ -69,6 +74,8 @@ prepare: |
      --gadget-assertion pc.assert \
      --kernel pc-kernel-repacked.snap \
      --kernel-assertion pc-kernel.assert \
+     --gadget pc-debug.snap \
+     --gadget-assertion pc.assert \
      --recovery-key-out "$(pwd)"/rkey-pre-install.out
 
 restore: |
