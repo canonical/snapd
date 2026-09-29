@@ -189,7 +189,9 @@ type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
 	Tasks   map[string]*Task            `json:"tasks"`
-	// included to migrate warnings to notices
+	// Included to migrate warnings to notices. This will only ever be
+	// unmarshalled from disk, never populated into state itself or when
+	// marshalling to disk.
 	Warnings []*jsonWarning `json:"warnings,omitempty"`
 	Notices  []*Notice      `json:"notices,omitempty"`
 
@@ -290,6 +292,9 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 		}
 
 		if w.RepeatAfter != "" {
+			if _, err = time.ParseDuration(w.RepeatAfter); err != nil {
+				continue
+			}
 			addNoticeOptions.Data["show-after"] = w.RepeatAfter
 		}
 
@@ -302,7 +307,7 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 			continue
 		}
 		// doAddNotice sets firstOccurred to addNoticeOptions.Time for new notices
-		// and leaves it unchanges for reoccuring notices. firstOccurred should be
+		// and leaves it unchanged for reoccuring notices. firstOccurred should be
 		// set to the warning's FirstAdded value. This assignment has no side effects.
 		notice.firstOccurred = w.FirstAdded
 	}
