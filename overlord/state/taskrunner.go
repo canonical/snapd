@@ -154,7 +154,9 @@ func (r *TaskRunner) TaskKindHasUndo(k string) bool {
 // AddCleanup registers a function to be called after the change completes,
 // for cleaning up data left behind by tasks of the specified kind.
 // The provided function will be called no matter what the final status of the
-// task is. This mechanism enables keeping data around for a potential undo
+// task is. In some rare cases a change may even invoke the cleanup handlers for
+// tasks that have not yet started.
+// This mechanism enables keeping data around for a potential undo
 // until there's no more chance of the task being undone.
 //
 // The cleanup function is run concurrently with other cleanup functions,
