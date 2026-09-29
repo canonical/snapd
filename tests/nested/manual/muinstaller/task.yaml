@@ -43,16 +43,6 @@ restore: |
   rm -rf pc-kernel.* pc.* initrd* linux* kernel* tmp* pc-gadget pc muinstaller classic-seed fake-disk.img fdisk_output
 
 execute: |
-  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
-  # classic systems with modeenv right now (which is something we may need
-  # to fix to work from the classic installer).
-  # For now pretend we have a modeenv
-  echo "mode=run" > /var/lib/snapd/modeenv
-  tests.cleanup defer rm -f /var/lib/snapd/modeenv
-  # need snapd restart as GET /systems/<label> is only available on systems
-  # with a modeenv
-  systemctl restart snapd
-
   echo Expose the needed assertions through the fakestore
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
@@ -65,15 +55,8 @@ execute: |
   . "$TESTSLIB"/nested.sh
   version="$(nested_get_version)"
   # get an updated kernel
-  snap download --basename=pc-kernel --channel="$version/${KERNEL_CHANNEL}" pc-kernel
-  if os.query is-ubuntu-ge 24.04; then
-    uc24_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-  else
-    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
-  fi
-
-  mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
-
+  "$TESTSTOOLS"/repack-kernel --mode initramfs --core-version "$version" --kernel-branch "$version" --kernel-channel "$KERNEL_CHANNEL" --output-snap "$PWD/pc-kernel.snap"
+  
   # Prepare gadget with the right gadget.yaml
   snap download --basename=pc --channel="$version/edge" pc
   unsquashfs -d pc pc.snap

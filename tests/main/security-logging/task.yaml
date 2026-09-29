@@ -13,7 +13,15 @@ details: |
     created on first login and removed on logout. System account events
     (user_created_system, user_removed_system) are recorded when a local
     system user is created via create-user and removed via remove-user,
-    including add_reason and remove_reason fields.
+    including add_reason and remove_reason fields. Sideloading a new
+    snapd snap revision produces a "sys_restart_snapd" event with reason
+    "snapd-update" and a snapd_version field. On classic, reseeding with
+    no snaps produces a "sys_standby_snapd" event with reason "snapd-idle".
+
+environment:
+    # uploading the snapd snap can trigger OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+    OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
     python3 "$PWD/enable-audit.py"
@@ -24,9 +32,18 @@ prepare: |
         systemctl start systemd-journald-audit.socket
         systemctl restart systemd-journald.service
     fi
+
+    cp "$OVERRIDES_FILE" "$OVERRIDES_FILE.bak"
+    sed -i 's/Environment=/Environment=SNAPD_STANDBY_WAIT=1s /' "$OVERRIDES_FILE"
+    systemctl daemon-reload
     systemctl restart snapd.service
 
 restore: |
+    if [ -f "$OVERRIDES_FILE.bak" ]; then
+        mv "$OVERRIDES_FILE.bak" "$OVERRIDES_FILE"
+        systemctl daemon-reload
+    fi
+
     if [ -f audit-socket-was-inactive ]; then
         systemctl stop systemd-journald-audit.socket
         systemctl restart systemd-journald.service
@@ -34,6 +51,17 @@ restore: |
     fi
 
     snap logout || true
+
+    if [ -f extra-snapd-revision ]; then
+        extra=$(cat extra-snapd-revision)
+        snap revert snapd || true
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+        if [ "$(readlink "$SNAP_MOUNT_DIR/snapd/current")" != "$extra" ]; then
+            snap remove snapd --revision="$extra" || true
+        fi
+        rm -f extra-snapd-revision
+        snap wait system seed.loaded || true
+    fi
 
     if [ -f system-user-name ]; then
         snap remove-user "$(cat system-user-name)" || true
@@ -81,15 +109,22 @@ execute: |
         fi
     }
 
+    pin_logs() {
+        if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+            audit_pin
+        else
+            journal_pin
+        fi
+    }
+
     echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
     if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
         echo "auditd is active; security events will be checked in /var/log/audit/audit.log"
-        audit_pin
     else
         echo "auditd is not active; security events will be checked in the journal"
-        journal_pin
     fi
-    
+    pin_logs
+
     systemctl restart snapd.service
     snap wait system seed.loaded
     journal_match "security logger disabled" -u snapd.service
@@ -98,6 +133,22 @@ execute: |
     echo "Checking that restart produces disable/enable audit events"
     security_event_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
     security_event_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
+
+    echo "Checking that installing a new snapd snap revision produces a sys_restart_snapd audit event"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ ! -e "$SNAP_MOUNT_DIR/snapd/current" ]; then
+        echo "snapd snap is not installed; skipping sys_restart_snapd check"
+    else
+        pin_logs
+        current=$(readlink "$SNAP_MOUNT_DIR/snapd/current")
+        snap install --dangerous "/var/lib/snapd/snaps/snapd_${current}.snap"
+        new=$(readlink "$SNAP_MOUNT_DIR/snapd/current")
+        if [ "$new" != "$current" ]; then
+            echo "$new" > extra-snapd-revision
+        fi
+        snap wait system seed.loaded
+        security_event_match '"level":"INFO","description":"Snapd restart with reason snapd-update","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_restart_snapd","snapd_version":"[^"]+","reason":"snapd-update"'
+    fi
 
     echo "Checking that a failed login attempt produces an audit event"
     echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
@@ -158,3 +209,28 @@ execute: |
         journal_match '"description":"Removed system user '"$system_username"' \(api-remove-user\)".*"category":"USER","event":"user_removed_system"'
         journal_match '"category":"USER","event":"user_removed_system".*"system_user":"'"$system_username"'".*"force":false.*"remove_reason":"api-remove-user"'
     fi
+
+    echo "Checking that snapd-idle socket-activation standby produces a sys_standby_snapd audit event"
+    if ! os.query is-classic; then
+        echo "non-classic systems always have snaps; skipping sys_standby_snapd check"
+        exit 0
+    fi
+
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
+    tests.systemd stop-unit snapd.service snapd.socket
+    rm -f /var/lib/snapd/state.json
+    pin_logs
+    systemctl start snapd.service snapd.socket
+    wait_for_first_boot_change
+
+    # Do not call "snap list" here: that would keep snapd active.
+    if python3 -c 'import json, sys; data=json.load(open("/var/lib/snapd/state.json")).get("data", {}); sys.exit(0 if data.get("snaps") else 1)'; then
+        echo "snaps present after reseeding; skipping sys_standby_snapd check"
+        exit 0
+    fi
+
+    # systemctl show --value is unsupported on systemd 229 (Ubuntu 16.04).
+    retry -n 120 --wait 1 sh -c 'systemctl show -p ActiveState snapd.service | MATCH ^ActiveState=inactive$'
+    security_event_match '"level":"INFO","description":"Snapd standby with reason snapd-idle","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_standby_snapd","snapd_version":"[^"]+","reason":"snapd-idle"'

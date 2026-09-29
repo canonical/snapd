@@ -485,7 +485,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		rst = restart.RestartSystemPoweroffNow
 	}
 	logger.Noticef("request immediate system %s", what)
-	restart.Request(st, rst, nil)
+	restart.Request(st, rst, nil, "")
 
 	return nil
 }

@@ -204,7 +204,7 @@
         "runs-on": "['ubuntu-latest']",
         "group": "amazon (garden)",
         "backend": "garden",
-        "systems": "amazon-linux-2-64 amazon-linux-2023-64",
+        "systems": "amazon-linux-2023-64",
         "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": "main"
       },

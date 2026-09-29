@@ -40,18 +40,16 @@ var (
 	confdbstateWriteConfdb = WriteConfdb
 )
 
-// checkConfdbFeatureFlags checks that both confdb and confdb-control are enabled.
-func checkConfdbFeatureFlags(st *state.State) error {
+// checkConfdbFeatureFlag checks that confdb is enabled.
+func checkConfdbFeatureFlag(st *state.State) error {
 	tr := config.NewTransaction(st)
-	for _, feature := range []features.SnapdFeature{features.Confdb, features.ConfdbControl} {
-		enabled, err := features.Flag(tr, feature)
-		if err != nil && !config.IsNoOption(err) {
-			return fmt.Errorf("cannot check %q feature flag: %v", feature, err)
-		}
+	enabled, err := features.Flag(tr, features.Confdb)
+	if err != nil && !config.IsNoOption(err) {
+		return fmt.Errorf("cannot check %q feature flag: %v", features.Confdb, err)
+	}
 
-		if !enabled {
-			return fmt.Errorf("feature flag %q is disabled", feature)
-		}
+	if !enabled {
+		return fmt.Errorf("feature flag %q is disabled", features.Confdb)
 	}
 
 	return nil
@@ -119,7 +117,7 @@ type confdbMessageHandler struct {
 // Validate checks that the confdb request message is well-formed and that
 // the sending operator has been granted access to the requested view.
 func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) error {
-	err := checkConfdbFeatureFlags(st)
+	err := checkConfdbFeatureFlag(st)
 	if err != nil {
 		return fmt.Errorf("cannot validate message: %v", err)
 	}

@@ -31,6 +31,7 @@ import (
 
 var (
 	DeviceMgmtStateKey = deviceMgmtStateKey
+	TaskMessageKey     = taskMessageKey
 
 	DefaultExchangeLimit    = defaultExchangeLimit
 	DefaultExchangeInterval = defaultExchangeInterval
@@ -94,8 +95,8 @@ func ParseRequestMessage(msg store.Message) (*handlers.RequestMessage, error) {
 	return parseRequestMessage(msg)
 }
 
-func FindChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
-	return findChangeByMgmtMessageID(st, msgID)
+func FindChangeByMgmtMessageKey(st *state.State, msgKey string) *state.Change {
+	return findChangeByMgmtMessageKey(st, msgKey)
 }
 
 func MockTimeNow(t time.Time) func() {

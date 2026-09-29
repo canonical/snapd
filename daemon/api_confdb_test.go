@@ -136,7 +136,7 @@ func (s *confdbSuite) TestGetView(c *C) {
 
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
-		addUcrednet(req, 100, 1000, "")
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 		rspe := s.asyncReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 202, cmt)
@@ -169,7 +169,7 @@ func (s *confdbSuite) TestViewGetMany(c *C) {
 
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid,password", nil)
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -275,7 +275,7 @@ func (s *confdbSuite) TestGetErrorHandling(c *C) {
 		cmt := Commentf("%s test", t.name)
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid", nil)
 		c.Assert(err, IsNil, cmt)
-		addUcrednet(req, 100, 1000, "")
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, t.status, cmt)
@@ -304,7 +304,7 @@ func (s *confdbSuite) TestGetViewMisshapenQuery(c *C) {
 
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=,foo.bar,,[1].foo,foo,", nil)
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -541,7 +541,7 @@ func (s *confdbSuite) TestGetNoKeys(c *C) {
 
 	req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup", nil)
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -575,7 +575,7 @@ func (s *confdbSuite) TestGetConstraints(c *C) {
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	c.Assert(err, IsNil)
-	addUcrednet(req, 100, 1000, "")
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 	rspe := s.asyncReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 202)
@@ -702,7 +702,7 @@ func (s *confdbSuite) TestReadAccessTimeout(c *C) {
 	for _, tc := range tcs {
 		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid&access-timeout="+tc.timeout, nil)
 		c.Assert(err, IsNil)
-		addUcrednet(req, 100, 1000, "")
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 		if tc.error == "" {
 			restore = daemon.MockConfdbstateReadConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ []string, _ map[string]any, _ confdb.Access) (string, error) {
@@ -777,7 +777,7 @@ func (s *confdbSuite) TestWriteAccessTimeout(c *C) {
 		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", bytes.NewBufferString(body))
 		c.Assert(err, IsNil, cmt)
 		req.Header.Set("Content-Type", "application/json")
-		addUcrednet(req, 100, 1000, "")
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 
 		if tc.error == "" {
 			restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {
@@ -845,7 +845,7 @@ func (s *confdbControlSuite) setFeatureFlag(c *C, confName string) {
 
 func (s *confdbControlSuite) prereqs(c *C) {
 	s.setFeatureFlag(c, "experimental.confdb")
-	s.setFeatureFlag(c, "experimental.confdb-control")
+	s.setFeatureFlag(c, "experimental.remote-device-management")
 
 	s.st.Lock()
 	encDevKey, _ := asserts.EncodePublicKey(deviceKey.PublicKey())
@@ -888,12 +888,12 @@ func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdb-control" is disabled: set 'experimental.confdb-control' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "remote-device-management" is disabled: set 'experimental.remote-device-management' to true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {
 	s.setFeatureFlag(c, "experimental.confdb")
-	s.setFeatureFlag(c, "experimental.confdb-control")
+	s.setFeatureFlag(c, "experimental.remote-device-management")
 
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)

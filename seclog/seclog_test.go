@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/testutil"
@@ -203,6 +204,51 @@ func (s *SecLogSuite) TestLogLoggerDisabledNopSkipsNoticef(c *C) {
 	seclog.LogLoggerDisabled()
 
 	c.Check(logBuf.String(), Not(testutil.Contains), "security logger disabled")
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUpdate)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-update"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdUndo(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUndo)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-undo")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-undo"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
+	seclog.LogSystemRestartSnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason <unknown>")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {
+	seclog.LogSystemStandbySnapd("2.78", restart.RestartSnapdIdle)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason snapd-idle")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-idle"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStandbySnapdUnknownReason(c *C) {
+	seclog.LogSystemStandbySnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason <unknown>")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
 }
 
 func (s *SecLogSuite) TestLogUserCreated(c *C) {

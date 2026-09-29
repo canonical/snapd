@@ -95,6 +95,11 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$newver" "testing build"
 
+    # Packaging builds from a source tarball that already carries the version
+    # files (snapdtool/version_generated.go, cmd/VERSION, data/info). Here we
+    # build from a git checkout, so generate them with mkversion.sh first.
+    ./mkversion.sh --ensure
+
     unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys ${FIPS_BUILD_OPTION}' dpkg-buildpackage -tc -b -Zgzip -uc -us" test
     # put our debs to a safe place
@@ -557,7 +562,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             do_depinstall() {
-                best_golang=golang-1.23
+                best_golang=golang-1.24
                 case "$SPREAD_SYSTEM" in
                     ubuntu-fips-*)
                         # we are limited by the FIPS variants of go toolchain
@@ -573,7 +578,7 @@ prepare_project() {
                 # We need to ensure the correct version of golang is used.
                 if [ -z "$(command -v go)" ]; then
                     # Find the path to the versioned go which was installed as a dependency
-                    for real_golang in "$best_golang" golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
+                    for real_golang in "$best_golang" golang-1.24 golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
                         real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
                         if [ -e "$real_golang_path" ]; then
                             ln -s "$real_golang_path" /usr/bin/go
@@ -804,9 +809,7 @@ prepare_suite_each() {
     esac
 
     # Check for invariants late, in order to detect any bugs in the code above.
-    if [[ "$variant" = full ]]; then
-        "$TESTSTOOLS"/cleanup-state pre-invariant
-    fi
+    "$TESTSTOOLS"/cleanup-state pre-invariant
     tests.invariant check
 
     if [ -n "$TAG_FEATURES" ]; then

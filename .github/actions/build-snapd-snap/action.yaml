@@ -47,10 +47,18 @@ runs:
       run: |
         case "${{ inputs.toolchain }}" in
             default)
-                rm -f fips-build
+                rm -f fips-libs-from-core22
                 ;;
             FIPS)
-                touch fips-build
+                cp build-aux/snap/local/snapcraft-fips.yaml build-aux/snap/snapcraft.yaml
+                git add build-aux/snap/snapcraft.yaml
+                if ! git diff --cached --quiet -- build-aux/snap/snapcraft.yaml; then
+                    # record the substitution so build-time dirty checks remain active.
+                    git -c user.name='github-actions[bot]' \
+                        -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                        commit -m "Use snapcraft-fips.yaml for FIPS build" -- build-aux/snap/snapcraft.yaml
+                fi
+                touch fips-libs-from-core22
                 ;;
             *)
                 echo "unknown toolchain ${{ inputs.toolchain }}"

@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -53,10 +54,21 @@ type catalogRefresh struct {
 
 	nextCatalogRefresh           time.Time
 	catalogRefreshDelayWithDelta time.Duration
+
+	// ctx parent context for store requests
+	ctx context.Context
+	// cancel cancels ctx and any in-flight store request
+	cancel context.CancelFunc
 }
 
 func newCatalogRefresh(st *state.State) *catalogRefresh {
-	return &catalogRefresh{state: st}
+	// Derive from EnsureContextTODO so IsEnsureContext() still returns true.
+	ctx, cancel := context.WithCancel(auth.EnsureContextTODO())
+	return &catalogRefresh{state: st, ctx: ctx, cancel: cancel}
+}
+
+func (r *catalogRefresh) ShutDown() {
+	r.cancel()
 }
 
 // Ensure will ensure that the catalog refresh happens
@@ -130,19 +142,19 @@ func (r *catalogRefresh) Ensure() error {
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	err = refreshCatalogs(r.state, theStore)
-	switch err {
-	case nil:
+	err = refreshCatalogs(r.ctx, r.state, theStore)
+	switch {
+	case err == nil:
 		logger.Debugf("Catalog refresh succeeded.")
-	case advisor.ErrNotSupported:
-		// This may happen if Bolt is disabled (e.g. Debian on RISC V).
-		logger.Debugf("Catalog refresh is not supported on this system")
-		// Do not fail silently so that tests can have the right expectations.
-	case store.ErrTooManyRequests:
+	case errors.Is(err, store.ErrTooManyRequests):
 		logger.Debugf("Catalog refresh postponed.")
 		err = nil
-	case errSkipCatalogRefreshWhenTesting:
+	case errors.Is(err, errSkipCatalogRefreshWhenTesting):
 		logger.Debugf("Catalog refresh skipped when testing is enabled")
+		err = nil
+	case errors.Is(err, context.Canceled):
+		// Canceled catalog refresh is not treated as an error.
+		logger.Debugf("Catalog refresh canceled.")
 		err = nil
 	default:
 		logger.Debugf("Catalog refresh failed: %v.", err)
@@ -154,7 +166,7 @@ var newCmdDB = advisor.Create
 
 var errSkipCatalogRefreshWhenTesting = errors.New("skipping when testing is enabled")
 
-func refreshCatalogs(st *state.State, theStore StoreService) error {
+func refreshCatalogs(ctx context.Context, st *state.State, theStore StoreService) error {
 	if snapdenv.Testing() && !osutil.GetenvBool("SNAPD_CATALOG_REFRESH") {
 		// with snapd testing enabled, SNAPD_CATALOG_REFRESH is gating
 		// the catalog refresh
@@ -173,7 +185,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	var sections []string
 	var err error
 	timings.Run(perfTimings, "get-sections", "query store for sections", func(tm timings.Measurer) {
-		sections, err = theStore.Sections(auth.EnsureContextTODO(), nil)
+		sections, err = theStore.Sections(ctx, nil)
 	})
 	if err != nil {
 		return err
@@ -198,7 +210,7 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 	defer cmdDB.Rollback()
 
 	timings.Run(perfTimings, "write-catalogs", "query store for catalogs", func(tm timings.Measurer) {
-		err = theStore.WriteCatalogs(auth.EnsureContextTODO(), namesFile, cmdDB)
+		err = theStore.WriteCatalogs(ctx, namesFile, cmdDB)
 	})
 	if err != nil {
 		return err

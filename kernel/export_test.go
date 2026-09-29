@@ -19,9 +19,37 @@
 
 package kernel
 
+import (
+	"os"
+
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
+)
+
 // MockEnsureInterval sets the overlord ensure interval for tests.
 func MockOsSymlink(newSymlink func(string, string) error) (restore func()) {
 	old := osSymlink
 	osSymlink = newSymlink
 	return func() { osSymlink = old }
+}
+
+// MockAtomicWriteFile mocks the osutil.AtomicWriteFile wrapper used by
+// writeDriversTreeMeta, so tests can simulate a marker-write failure.
+func MockAtomicWriteFile(f func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error) (restore func()) {
+	return testutil.Mock(&atomicWriteFile, f)
+}
+
+var WriteDriversTreeMeta = writeDriversTreeMeta
+
+var ReadDriversTreeMeta = readDriversTreeMeta
+
+func KernelDriversTreeGeneratorVersion() int {
+	return kernelDriversTreeGeneratorVersion
+}
+
+// MockKernelDriversTreeGeneratorVersion overrides the generator version
+// constant for testing (e.g. to simulate a revert scenario where the
+// on-disk marker records a newer version than the running code).
+func MockKernelDriversTreeGeneratorVersion(v int) (restore func()) {
+	return testutil.Mock(&kernelDriversTreeGeneratorVersion, v)
 }

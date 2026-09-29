@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import math
 import sys
 from collections import defaultdict
 from typing import Callable, TypeAlias, cast
@@ -111,7 +112,12 @@ def success_probability(_args: argparse.Namespace) -> int:
 	if not isinstance(response, dict):
 		return 0
 	probability = response.get("success_probability")
-	if isinstance(probability, (int, float)) and not isinstance(probability, bool):
+	if (
+		isinstance(probability, (int, float))
+		and not isinstance(probability, bool)
+		and math.isfinite(probability)
+		and 0 <= probability <= 1
+	):
 		print(probability)
 	return 0
 

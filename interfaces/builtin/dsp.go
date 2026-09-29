@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 )
 
 const dspSummary = `allows controlling digital signal processors on certain boards`
@@ -122,6 +123,14 @@ func (iface *dspInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	}
 
 	return nil
+}
+
+func (iface *dspInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return parallelInstancesSystemOrGadgetSlotErr(slot)
+}
+
+func (iface *dspInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errParallelInstancesSharedResources
 }
 
 func init() {

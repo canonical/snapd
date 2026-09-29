@@ -34,6 +34,7 @@ ignore_files:
   - packaging/ubuntu-26.04/control
   - packaging/ubuntu-14.04/changelog
   - packaging/ubuntu-16.04/changelog
+  - packaging/opensuse/snapd.spec
   - tests/lib/snaps/store/test-snapd-ovmf/snapcraft.yaml
   - tests/lib/tools/tests.session
   - tests/main/remove-impacted-by-mounts/task.yaml

@@ -168,8 +168,8 @@ func (s *backendSuite) TestInstallingCreatesLdconf(c *C) {
 	s.ldconfigCmd.ForgetCalls()
 
 	// Now disconnect the first slot and set-up backends again
-	c.Assert(s.Repo.Disconnect(plugInfo.Snap.InstanceName(), plugInfo.Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfo.Snap.InstanceName().String(), plugInfo.Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 	c.Assert(s.Backend.Setup(slotAppSet1, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 	c.Assert(s.Backend.Setup(slotAppSet2, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
@@ -218,8 +218,8 @@ func (s *backendSuite) TestInstallingLdconfigFileCreatedRemoved(c *C) {
 	c.Assert(s.ldconfigCmd.Calls(), IsNil)
 
 	// disconnect and setup, ldconfig not run either
-	c.Assert(s.Repo.Disconnect(plugInfo.Snap.InstanceName(), plugInfo.Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfo.Snap.InstanceName().String(), plugInfo.Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 	c.Assert(confPath, testutil.FileAbsent)
 	c.Assert(s.ldconfigCmd.Calls(), IsNil)
@@ -258,8 +258,8 @@ func (s *backendSuite) TestInstallingLdconfigFileCreatedRemoved(c *C) {
 	c.Assert(s.ldconfigCmd.Calls(), IsNil)
 
 	// disconnect then Setup now removed the configuration and calls ldconfig
-	c.Assert(s.Repo.Disconnect(plugInfo.Snap.InstanceName(), plugInfo.Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfo.Snap.InstanceName().String(), plugInfo.Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	c.Assert(s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil), IsNil)
 	c.Assert(confPath, testutil.FileAbsent)
 	c.Assert(s.ldconfigCmd.Calls(), DeepEquals, [][]string{{"ldconfig"}})

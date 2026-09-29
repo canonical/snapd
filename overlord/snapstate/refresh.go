@@ -46,7 +46,7 @@ var IsConfdbHookname = func(string) bool {
 // refreshAppsCheck returns an error if the snap has processes running that aren't
 // services and aren't marked to be ignored (refresh-mode: "ignore-running").
 var refreshAppsCheck = func(info *snap.Info) error {
-	knownPids, err := pidsOfSnap(info.InstanceName())
+	knownPids, err := pidsOfSnap(info.InstanceName().String())
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ type BusySnapError struct {
 // and the snapd-generated desktop file name.
 func (err *BusySnapError) PendingSnapRefreshInfo() *userclient.PendingSnapRefreshInfo {
 	refreshInfo := &userclient.PendingSnapRefreshInfo{
-		InstanceName: err.SnapInfo.InstanceName(),
+		InstanceName: err.SnapInfo.InstanceName().String(),
 	}
 	for _, appName := range err.busyAppNames {
 		if app, ok := err.SnapInfo.Apps[appName]; ok {

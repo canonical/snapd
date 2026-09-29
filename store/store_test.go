@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1347,7 +1346,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
 	c.Check(result.Revision, Equals, snap.R(29))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
@@ -1457,7 +1456,7 @@ func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 
 	info, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "hello"}, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "hello")
+	c.Check(info.InstanceName().String(), Equals, "hello")
 
 	info, err = sto.SnapInfo(s.ctx, store.SnapSpec{Name: "hello"}, nil)
 	c.Check(err, Equals, store.ErrSnapNotFound)
@@ -1501,7 +1500,7 @@ func (s *storeTestSuite) TestInfoDefaultChannelIsStable(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Channel, Equals, "stable")
 }
@@ -1565,7 +1564,7 @@ func (s *storeTestSuite) TestInfo500Once(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	c.Assert(n, Equals, 2)
 }
 
@@ -1604,7 +1603,7 @@ func (s *storeTestSuite) TestInfoAndChannels(c *C) {
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 1)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 	expected := map[string]*snap.ChannelSnapInfo{
 		"latest/stable": {
 			Revision:    snap.R(29),
@@ -1736,7 +1735,7 @@ func (s *storeTestSuite) TestInfoNonDefaults(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
@@ -1766,7 +1765,7 @@ func (s *storeTestSuite) TestStoreIDFromAuthContext(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestLocation(c *C) {
@@ -1793,7 +1792,7 @@ func (s *storeTestSuite) TestLocation(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
@@ -1825,7 +1824,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContext(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
@@ -1856,7 +1855,7 @@ func (s *storeTestSuite) TestProxyStoreFromAuthContextURLFallback(c *C) {
 	}
 	result, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, IsNil)
-	c.Check(result.InstanceName(), Equals, "hello-world")
+	c.Check(result.InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeTestSuite) TestInfoOopses(c *C) {
@@ -2416,6 +2415,33 @@ func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
 	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
 }
 
+func (s *storeTestSuite) TestSectionsQueryCanceledContext(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(200)
+		io.WriteString(w, MockSectionsJSON)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	cancel()
+
+	sections, err := sto.Sections(ctx, s.user)
+	c.Check(err, testutil.ErrorIs, context.Canceled)
+	c.Check(sections, IsNil)
+	c.Check(n, Equals, 0)
+}
+
 /*
 	acquired via:
 
@@ -2542,9 +2568,6 @@ func (s *storeTestSuite) testSnapCommands(c *C, onClassic bool) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt support is disabled")
-	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -2590,9 +2613,6 @@ func (s *storeTestSuite) TestSnapCommandsTooMany(c *C) {
 	sto := store.New(&store.Config{StoreBaseURL: serverURL}, dauthCtx)
 
 	db, err := advisor.Create()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt support is disabled")
-	}
 	c.Assert(err, IsNil)
 	defer db.Rollback()
 
@@ -2695,7 +2715,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	snp := snaps[0]
-	c.Check(snp.InstanceName(), Equals, "hello-world")
+	c.Check(snp.InstanceName().String(), Equals, "hello-world")
 	c.Check(snp.Revision, Equals, snap.R(27))
 	c.Check(snp.SnapID, Equals, helloWorldSnapID)
 	c.Check(snp.Publisher, Equals, snap.StoreAccount{

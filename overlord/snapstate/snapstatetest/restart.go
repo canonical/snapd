@@ -27,13 +27,13 @@ import (
 
 // MockRestartHandler mocks a restart.Handler based on a function
 // to witness the restart requests.
-type MockRestartHandler func(restart.RestartType)
+type MockRestartHandler func(restart.RestartType, restart.RestartReason)
 
-func (h MockRestartHandler) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo) {
+func (h MockRestartHandler) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 	if h == nil {
 		return
 	}
-	h(t)
+	h(t, reason)
 }
 
 func (h MockRestartHandler) RebootAsExpected(*state.State) error {

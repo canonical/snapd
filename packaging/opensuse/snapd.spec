@@ -283,10 +283,12 @@ EXTRA_GO_BUILD_FLAGS = -v -x
 EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
-# Set the version and configuration that is compiled into the various executables/
-pushd %{indigo_srcdir}
-./mkversion.sh %{version}
-popd
+# The source tarball carries the upstream version (snapdtool/version_generated.go,
+# cmd/VERSION, data/info) and openSUSE's package version matches it, so no
+# downstream_version_suffix is needed here. Still, run mod-version.sh with the
+# package version as a sanity check: it is a no-op when the spec and the
+# tarball agree, and fails the build otherwise (a desync would otherwise
+# silently ship an info file that does not match the binaries).
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
@@ -309,6 +311,10 @@ static_pie=
 if [ -e build-with-static-pie ]; then
     static_pie=--enable-static-PIE
 fi
+
+# Stamp cmd/VERSION and data/info with the package version (see above); must
+# run before cmd/configure reads cmd/VERSION.
+%{indigo_srcdir}/packaging/mod-version.sh %{version} %{indigo_srcdir}
 
 # Generate autotools build system files.
 pushd %{indigo_srcdir}/cmd

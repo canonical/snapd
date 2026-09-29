@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2022-2023 Canonical Ltd
+ * Copyright (C) 2022-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/spdx"
 	"github.com/snapcore/snapd/strutil"
@@ -443,7 +444,7 @@ func Validate(info *Info) error {
 	if err := ValidateName(info.SnapName().String()); err != nil {
 		return err
 	}
-	if err := ValidateInstanceName(name); err != nil {
+	if err := ValidateInstanceName(name.String()); err != nil {
 		return err
 	}
 
@@ -550,7 +551,61 @@ func Validate(info *Info) error {
 		return err
 	}
 
+	if err := validateUbuntuCoreTracks(info.UbuntuCoreTracks, info.Type()); err != nil {
+		return err
+	}
+
 	return ValidateLayoutAll(info)
+}
+
+// validateUbuntuCoreTracks checks track maps. A non-empty map is only valid on the
+// snapd snap; an empty or nil map is valid on any type.
+func validateUbuntuCoreTracks(tracks UbuntuCoreTracks, typ Type) error {
+	if len(tracks) != 0 && typ != TypeSnapd {
+		return errSnapdInfoNotSnapd
+	}
+	for bootBase, redirects := range tracks {
+		if err := checkBootBaseKey(bootBase); err != nil {
+			return fmt.Errorf("invalid ubuntu-core-tracks: %v", err)
+		}
+		if err := checkUbuntuCoreTrackRedirects(bootBase, redirects); err != nil {
+			return fmt.Errorf("invalid ubuntu-core-tracks: %v", err)
+		}
+	}
+	return nil
+}
+
+// checkBootBaseKey checks that bootBase is a plain Ubuntu Core version
+// number, as looked up by uctrack.Resolve. Accepting other spellings would
+// make "018" and "18" two keys that can never both be resolved.
+func checkBootBaseKey(bootBase string) error {
+	if bootBase == "" {
+		return errors.New("empty boot base")
+	}
+	n, err := strconv.Atoi(bootBase)
+	if err != nil {
+		return fmt.Errorf("cannot parse boot base %q: %v", bootBase, err)
+	}
+	if n <= 0 || strconv.Itoa(n) != bootBase {
+		return fmt.Errorf("boot base %q is not a plain Ubuntu Core version number", bootBase)
+	}
+	return nil
+}
+
+// checkUbuntuCoreTrackRedirects checks the from-and-to track pairs of a single boot base.
+func checkUbuntuCoreTrackRedirects(bootBase string, redirects map[string]string) error {
+	if len(redirects) == 0 {
+		return fmt.Errorf("empty track map for boot base %s", bootBase)
+	}
+	for input, target := range redirects {
+		if !channel.IsVerbatimTrackOnly(input) {
+			return fmt.Errorf("input track %q for boot base %s is not a track-only channel", input, bootBase)
+		}
+		if !channel.IsVerbatimTrackOnly(target) {
+			return fmt.Errorf("target track %q for boot base %s is not a track-only channel", target, bootBase)
+		}
+	}
+	return nil
 }
 
 // ValidateBase validates the base field.
@@ -1402,7 +1457,7 @@ func maybeContentPlug(plug *PlugInfo) (contentTag, defaultProviderSnap string) {
 // provider but the default-provider is missing and/or many slots
 // are available.
 type ProviderWarning struct {
-	Snap            string
+	Snap            naming.InstanceName
 	Plug            string
 	ContentTag      string
 	DefaultProvider string
@@ -1485,7 +1540,7 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 			case 0:
 				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q or any alternative provider for content %q is missing", info.InstanceName(), defaultProvider, wantedTag))
 			case 1:
-				if candSlots[0].Snap.InstanceName() == defaultProvider {
+				if candSlots[0].Snap.InstanceName().String() == defaultProvider {
 					continue
 				}
 				// XXX TODO: consider also publisher

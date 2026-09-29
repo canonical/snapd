@@ -720,7 +720,7 @@ func (s *viewSuite) TestViewCheckAllConstraintsAreUsed(c *C) {
 			},
 			rules: []any{
 				map[string]any{"request": "foo.{bar}", "storage": "foo.{bar}[.field={baz}]"},
-				map[string]any{"request": "foo.foo.{ggg}", "storage": "foo.foo.{ggg}"},
+				map[string]any{"request": "foo.foo.{ggg}", "storage": "other.foo.{ggg}"},
 				map[string]any{"request": "xyz.{bar}.abc[{pqr}]", "storage": "xyz.{bar}.abc[{pqr}][.field={uvw}]"},
 			},
 			requests:    []string{"foo", "xyz.xyz"},
@@ -4290,6 +4290,221 @@ func (*viewSuite) TestFieldFilterPathMismatch(c *C) {
 	c.Assert(err.Error(), Equals, `cannot define view "foo": field filters can only be applied to maps but schema at foo[{m}][.bar={bar}] expects bool`)
 }
 
+func (*viewSuite) TestContentStoragePathsRequireMatchingFieldFilters(c *C) {
+	views := func(parentStorage, childStorage string) map[string]any {
+		return map[string]any{
+			"foo": map[string]any{
+				"parameters": map[string]any{"kind": map[string]any{}},
+				"rules": []any{
+					map[string]any{
+						"request": "foo", "storage": parentStorage,
+						"content": []any{map[string]any{"storage": childStorage}},
+					},
+				},
+			},
+		}
+	}
+
+	_, err := confdb.NewSchema("acc", "confdb", views("foo", "bar[.kind={kind}]"), confdb.NewJSONSchema())
+	c.Assert(err, ErrorMatches, `cannot define view "foo": storage paths "foo" and "foo.bar\[.kind=\{kind\}\]" access overlapping data with different field filters`)
+
+	_, err = confdb.NewSchema("acc", "confdb", views("foo[.kind={kind}]", "bar"), confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+}
+
+func (*viewSuite) TestMismatchedFiltersRejectedWhenRequestAndStoragePathsOverlap(c *C) {
+	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "results.{group}.{item}",
+					"storage": "shared.{group}.{item}[.kind={kind}]",
+				},
+				map[string]any{
+					"request": "results.all.{item}",
+					"storage": "shared.all.{item}",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, ErrorMatches, `cannot define view "foo": storage paths "shared.\{group\}.\{item\}\[.kind=\{kind\}\]" and "shared.all.\{item\}" access overlapping data with different field filters`)
+}
+
+func (*viewSuite) TestMismatchedFiltersAllowedWhenRequestPathsDiverge(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "results.filtered.{item}",
+					"storage": "shared.{item}[.kind={kind}]",
+				},
+				map[string]any{
+					"request": "results.all.{item}",
+					"storage": "shared.{item}",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "shared"), map[string]any{
+		"a": map[string]any{"kind": "wanted", "value": "A"},
+		"b": map[string]any{"kind": "other", "value": "B"},
+	})
+	c.Assert(err, IsNil)
+
+	value, err := schema.View("foo").Get(bag, "results", map[string]any{"kind": "wanted"}, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"filtered": map[string]any{
+			"a": map[string]any{"kind": "wanted", "value": "A"},
+		},
+		"all": map[string]any{
+			"a": map[string]any{"kind": "wanted", "value": "A"},
+			"b": map[string]any{"kind": "other", "value": "B"},
+		},
+	})
+}
+
+func (*viewSuite) TestFieldFilterConstraints(c *C) {
+	type testcase struct {
+		name  string
+		rules []any
+		err   string
+	}
+
+	tcs := []testcase{
+		{
+			name: "filtered child storage path overlaps unfiltered parent",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}].name"},
+				map[string]any{"request": "filtered", "storage": "foo"},
+			},
+			err: `storage paths "foo.{key}[.kind={kind}].name" and "foo" access overlapping data with different field filters`,
+		},
+		{
+			name: "same storage path uses different filter parameters",
+			rules: []any{
+				map[string]any{"request": "filtered.left.{key}", "storage": "foo.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={other}]"},
+			},
+			err: `storage paths "foo.{key}[.kind={kind}]" and "foo.{key}[.kind={other}]" access overlapping data with different field filters`,
+		},
+		{
+			name: "same storage data is filtered at different levels",
+			rules: []any{
+				map[string]any{"request": "filtered.value", "storage": "foo[.kind={kind}].bar"},
+				map[string]any{"request": "filtered", "storage": "foo.bar[.kind={kind}]"},
+			},
+			err: `storage paths "foo[.kind={kind}].bar" and "foo.bar[.kind={kind}]" access overlapping data with different field filters`,
+		},
+		{
+			name: "storage paths diverge after different filters",
+			rules: []any{
+				map[string]any{"request": "filtered", "storage": "foo[.kind={kind}].bar"},
+				map[string]any{"request": "filtered.other", "storage": "foo[.kind={other}].baz"},
+			},
+		},
+		{
+			name: "filter consistency excludes first write-only rule",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]", "access": "write"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar", "access": "read"},
+			},
+		},
+		{
+			name: "filter consistency excludes second write-only rule",
+			rules: []any{
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar", "access": "read"},
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]", "access": "write"},
+			},
+		},
+		{
+			name: "placeholder and literal storage paths use matching filters",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar[.kind={kind}]"},
+			},
+		},
+		{
+			name: "repeated placeholder overlaps different literal values",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar.baz"},
+			},
+			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.bar.baz" access overlapping data with different field filters`,
+		},
+		{
+			name: "differently named repeated placeholders overlap",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}.{key}[.kind={kind}]"},
+				map[string]any{"request": "filtered.{other}", "storage": "foo.{other}.{other}"},
+			},
+			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.{other}.{other}" access overlapping data with different field filters`,
+		},
+		{
+			name: "storage index placeholder overlaps literal index",
+			rules: []any{
+				map[string]any{"request": "filtered[{n}]", "storage": "foo[{n}][.kind={kind}]"},
+				map[string]any{"request": "filtered", "storage": "foo[0]"},
+			},
+			err: `storage paths "foo[{n}][.kind={kind}]" and "foo[0]" access overlapping data with different field filters`,
+		},
+		{
+			name: "equivalent literal storage indexes overlap",
+			rules: []any{
+				map[string]any{"request": "filtered.value", "storage": "foo[0][.kind={kind}]"},
+				map[string]any{"request": "filtered", "storage": "foo[00]"},
+			},
+			err: `storage paths "foo[0][.kind={kind}]" and "foo[00]" access overlapping data with different field filters`,
+		},
+		{
+			name: "map and list storage paths do not overlap",
+			rules: []any{
+				map[string]any{"request": "result.{key}", "storage": "foo.{key}[.kind={kind}]"},
+				map[string]any{"request": "result.items[{n}]", "storage": "foo[{n}]"},
+			},
+		},
+		{
+			name: "equivalent filters can be declared in different order",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}][.type={other}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar[.type={other}][.kind={kind}]"},
+			},
+		},
+		{
+			name: "same filter fields use swapped parameters",
+			rules: []any{
+				map[string]any{"request": "filtered.{key}", "storage": "foo.{key}[.kind={kind}][.type={other}]"},
+				map[string]any{"request": "filtered.bar", "storage": "foo.bar[.kind={other}][.type={kind}]"},
+			},
+			err: `storage paths "foo.{key}[.kind={kind}][.type={other}]" and "foo.bar[.kind={other}][.type={kind}]" access overlapping data with different field filters`,
+		},
+	}
+
+	for i, tc := range tcs {
+		views := map[string]any{
+			"foo": map[string]any{
+				"parameters": map[string]any{
+					"kind":  map[string]any{},
+					"other": map[string]any{},
+				},
+				"rules": tc.rules,
+			},
+		}
+		_, err := confdb.NewSchema("acc", "confdb", views, confdb.NewJSONSchema())
+		cmt := Commentf("testcase %d/%d: %s", i+1, len(tcs), tc.name)
+		if tc.err == "" {
+			c.Assert(err, IsNil, cmt)
+		} else {
+			c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cannot define view "foo": `+tc.err), cmt)
+		}
+	}
+}
+
 func (*viewSuite) TestFieldFilteringBasic(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
@@ -4352,13 +4567,19 @@ func (*viewSuite) TestFieldFilteringBasic(c *C) {
 
 func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
+		"users": map[string]any{
 			"parameters": map[string]any{
 				"age": map[string]any{},
-				"toy": map[string]any{},
 			},
 			"rules": []any{
 				map[string]any{"request": "users.{user}.{pet}", "storage": "{user}[.age={age}].{pet}"},
+			},
+		},
+		"pet-kinds": map[string]any{
+			"parameters": map[string]any{
+				"toy": map[string]any{},
+			},
+			"rules": []any{
 				map[string]any{"request": "pet-kinds.{user}.{pet}", "storage": "{user}.{pet}[.toy={toy}].kind"},
 			},
 		},
@@ -4393,7 +4614,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	view := schema.View("foo")
+	view := schema.View("users")
 	val, err := view.Get(bag, "users", map[string]any{"age": "21"}, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
@@ -4414,6 +4635,7 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 			},
 		})
 
+	view = schema.View("pet-kinds")
 	val, err = view.Get(bag, "pet-kinds", map[string]any{"toy": "ball"}, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(val, DeepEquals,
@@ -4429,12 +4651,19 @@ func (*viewSuite) TestFieldFilteringManyLevels(c *C) {
 
 func (*viewSuite) TestFilteringNoData(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
+		"top": map[string]any{
 			"parameters": map[string]any{
 				"field": map[string]any{},
 			},
 			"rules": []any{
 				map[string]any{"request": "{foo}", "storage": "{foo}[.baz={field}]"},
+			},
+		},
+		"nested": map[string]any{
+			"parameters": map[string]any{
+				"field": map[string]any{},
+			},
+			"rules": []any{
 				map[string]any{"request": "a.b.c", "storage": "a.b.c[.d={field}]"},
 			},
 		},
@@ -4443,7 +4672,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 
 	bag := confdb.NewJSONDatabag()
 
-	view := schema.View("foo")
+	view := schema.View("top")
 	_, err = view.Get(bag, "", map[string]any{"field": "baz"}, confdb.AdminAccess)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 
@@ -4462,6 +4691,7 @@ func (*viewSuite) TestFilteringNoData(c *C) {
 	c.Assert(err, IsNil)
 
 	// pruning several nested levels down
+	view = schema.View("nested")
 	val, err = view.Get(bag, "a", map[string]any{"field": "not-there"}, confdb.AdminAccess)
 	c.Assert(val, IsNil)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
@@ -5277,4 +5507,43 @@ func FuzzParsePathIntoAccessorsAllowPlaceholders(f *testing.F) {
 func FuzzParsePathIntoAccessorsAllowPlaceholdersForbidIndexes(f *testing.F) {
 	o := confdb.ParseOptions{AllowPlaceholders: true, ForbidIndexes: true}
 	fuzzHelper(f, o, "foo[.status={status}].{bar}.baz.foo[{n}][{m}]")
+}
+
+func (s *viewSuite) TestSetNestedContentWithFieldFilter(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"account-id": map[string]any{}},
+			"rules": []any{
+				map[string]any{"request": "sets[{n}]", "storage": "v1.sets[{n}][.account-id={account-id}]",
+					"content": []any{
+						map[string]any{"storage": "validation-set"},
+						map[string]any{"storage": "account-id"},
+						map[string]any{"storage": "snaps", "content": []any{
+							map[string]any{"storage": "name"},
+						}},
+						map[string]any{"storage": "mode"},
+					},
+				},
+			},
+		},
+	}
+	schema, err := confdb.NewSchema("acc", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	view := schema.View("foo")
+
+	err = view.Set(bag, "sets", []any{
+		map[string]any{"validation-set": "my-set", "account-id": "ABC123", "snaps": map[string]any{"name": "my-snap"}, "mode": "enforce"},
+		map[string]any{"validation-set": "other-set", "account-id": "FOO321", "snaps": map[string]any{"name": "snapd"}, "mode": "monitor"},
+	})
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "sets", map[string]any{"account-id": "ABC123"}, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{map[string]any{"validation-set": "my-set", "account-id": "ABC123", "snaps": map[string]any{"name": "my-snap"}, "mode": "enforce"}})
+
+	val, err = view.Get(bag, "sets", map[string]any{"account-id": "FOO321"}, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{map[string]any{"validation-set": "other-set", "account-id": "FOO321", "snaps": map[string]any{"name": "snapd"}, "mode": "monitor"}})
 }

@@ -218,7 +218,7 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
+	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType, _ restart.RestartReason) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
@@ -1385,8 +1385,8 @@ func makeMockRepoWithConnectedSnaps(c *C, st *state.State, info11, core11 *snap.
 	c.Assert(err, IsNil)
 
 	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName().String(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName().String(), Name: ifname},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	conns, err := repo.Connected("snap-with-snapd-control", "snapd-control")

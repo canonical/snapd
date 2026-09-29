@@ -1,3 +1,54 @@
+# Implementing built-in interfaces
+
+Snap applications and services run in a sandbox by default. Built-in
+interfaces encapsulate the policy governing access to system resources and
+interactions with other snaps. Security backends translate that policy into
+low-level security artifacts and manage the profiles and configuration of
+security-relevant subsystems such as AppArmor, seccomp, mount namespaces,
+udev, and kernel modules. See [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for
+the broader system context.
+
+Built-in interfaces live in this package and register themselves with
+`registerIface` from an `init` function. Every implementation satisfies
+`interfaces.Interface`, whose required methods are `Name` and `AutoConnect`.
+See [`interfaces/core.go`](../core.go) for the exact contract and
+[`all.go`](all.go) for registration.
+
+Use [`commonInterface`](common.go) when an interface can be described through
+its static metadata, declaration rules, and security snippets. For example,
+[`alsa.go`](alsa.go) is entirely data-driven. Define a dedicated type when the
+interface needs custom validation, connection behavior, or backend logic;
+[`empty.go`](empty.go) is a compact example of the available extension points.
+Nearby interfaces with similar behavior are generally the best implementation
+reference.
+
+Security backends discover optional methods implemented by an interface. These
+methods let the interface add its backend-specific policy and configuration to
+the `Specification` passed to them. Each backend's `Specification` defines the
+exact method signatures it recognizes, such as
+[`apparmor/spec.go`](../apparmor/spec.go),
+[`seccomp/spec.go`](../seccomp/spec.go), [`udev/spec.go`](../udev/spec.go), and
+[`kmod/spec.go`](../kmod/spec.go). [`all_test.go`](all_test.go) collects the
+common backend signatures used by its cross-interface checks. Implement only
+the connected or permanent plug and slot methods needed by the interface.
+
+Interfaces may also validate or normalize attributes before preparation or
+connection. The prepare-time sanitizer interfaces are defined in
+[`interfaces/core.go`](../core.go), while the connection-time contracts are
+used by [`interfaces/repo.go`](../repo.go). Follow an existing interface with
+the same kind of attributes rather than introducing a new validation pattern.
+
+Tests for a built-in interface normally live beside it in a matching
+`*_test.go` file. Cover its static information, sanitizers, auto-connection
+decision, and generated security snippets as applicable. The
+[`interfaces/ifacetest`](../ifacetest) package provides fixtures and test
+interfaces. Its `BackendSuite` supports tests of security backend setup and
+removal; it is not the default base suite for each built-in interface test.
+
+The rest of this document is the authoritative guide to declaration policy and
+its evaluation. Keep policy reasoning here instead of duplicating it in agent
+instructions or individual interface documentation.
+
 # Interface policy
 
 ## Plug and slot rules

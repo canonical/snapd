@@ -3036,7 +3036,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26SelfManagedAllowed(c *check.C
 	cgroupOptsData, err := cgroupOpts.MarshalText()
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(cgroup.SnapDeviceFile(snap.SecurityTag(info.InstanceName())),
+	c.Assert(os.WriteFile(cgroup.SnapDeviceFile(snap.SecurityTag(info.InstanceName().String())),
 		cgroupOptsData, 0644), check.IsNil)
 
 	// redirect exec
@@ -3094,7 +3094,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26NonStrictOnlyFails(c *check.C
 	cgroupOptsData, err := cgroupOpts.MarshalText()
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(cgroup.SnapDeviceFile(snap.SecurityTag(info.InstanceName())),
+	c.Assert(os.WriteFile(cgroup.SnapDeviceFile(snap.SecurityTag(info.InstanceName().String())),
 		cgroupOptsData, 0644), check.IsNil)
 
 	// redirect exec

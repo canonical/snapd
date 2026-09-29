@@ -1,0 +1,131 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: GadgetVolume
+description: A storage volume defined by the system's gadget snap.
+properties:
+  schema:
+    type: string
+    description: The partition table schema of the volume, either 'gpt' or 'mbr'.
+  bootloader:
+    type: string
+    description: The bootloader used by the volume.
+  id:
+    type: string
+    description: The 2-hex digit disk ID or the GUID of the GPT.
+  partial:
+    type: array
+    items:
+      type: string
+    description: >-
+      A list of volume properties that are only partially described in the
+      gadget and that need to be filled in by an installer.
+  structure:
+    type: array
+    description: The structures (partitions and other areas) defined within the volume.
+    items:
+      type: object
+      title: VolumeStructure
+      description: >-
+        A single structure within a volume, representing a partition, a Master Boot Record (MBR),
+        or any other contiguous range within the volume.
+      properties:
+        name:
+          type: string
+          description: The name of the structure.
+        filesystem-label:
+          type: string
+          description: The filesystem label of the structure.
+        offset:
+          type: integer
+          nullable: true
+          description: The starting offset of the structure in bytes.
+        offset-write:
+          type: object
+          nullable: true
+          description: >-
+            Describes a 32-bit address, within the volume, at which the offset of
+            the current structure will be written.
+          properties:
+            relative-to:
+              type: string
+              description: >-
+                Names the structure relative to which the location of the address
+                write will be calculated.
+            offset:
+              type: integer
+              description: A 32-bit value, expressed in bytes.
+        min-size:
+          type: integer
+          description: The minimum size of the structure in bytes.
+        size:
+          type: integer
+          description: The size of the structure in bytes.
+        type:
+          type: string
+          description: >-
+            The type of the structure, which can be an MBR partition, 36-char GUID partition,
+            comma separated <mbr>,<guid> for hybrid partition schemes, or 'bare' for structures
+            that are not partitions. 'mbr' is accepted for backwards compatibility and the structure
+            is treated as if it had the role 'mbr'.
+        role:
+          type: string
+          description: >-
+            The role of the structure. Can be 'mbr', 'system-data', 'system-boot',
+            'system-boot-image', 'system-boot-select' or 'system-recovery-select'.
+        id:
+          type: string
+          description: The GPT partition ID. For comparison purposes, it should always be uppercase.
+        filesystem:
+          type: string
+          description: >-
+            The filesystem used by the structure. Can be 'vfat', 'vfat-{16,32}', 'ext4',
+            or 'none' for bare structures. 'vfat' is a synonym for 'vfat-32'.
+        content:
+          type: array
+          nullable: true
+          description: The files or images written into the structure.
+          items:
+            type: object
+            title: VolumeContent
+            description: The files within a filesystem described by the structure or a raw image for a bare structure.
+            properties:
+              source:
+                type: string
+                description: >-
+                  The data of the partition relative to the gadget base directory.
+              target:
+                type: string
+                description: The location of the data inside the root filesystem.
+              image:
+                type: string
+                description: >-
+                  The image, relative to the gadget base directory, to be used for a
+                  bare structure.
+              offset:
+                type: integer
+                nullable: true
+                description: The offset the image is written at.
+              size:
+                type: integer
+                description: >-
+                  The declared size of the image, in bytes. When empty, the size is determined from
+                  the actual size of the image file.
+              unpack:
+                type: boolean
+                description: Whether the image is unpacked.
+        update:
+          type: object
+          title: VolumeUpdate
+          properties:
+            edition:
+              type: integer
+            preserve:
+              type: array
+              nullable: true
+              items:
+                type: string
+        device:
+          type: string
+          description: The device the structure is assigned to, when set by an installer.

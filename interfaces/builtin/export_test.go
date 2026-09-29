@@ -37,6 +37,11 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
+
+	ErrParallelInstancesSystemPlug      = errParallelInstancesSystemPlug
+	ErrParallelInstancesSystemSlot      = errParallelInstancesSystemSlot
+	ErrParallelInstancesGadgetSlot      = errParallelInstancesGadgetSlot
+	ErrParallelInstancesSharedResources = errParallelInstancesSharedResources
 )
 
 type GbmDriverLibsInterface gbmDriverLibsInterface
@@ -120,16 +125,6 @@ func MockConnectedSlot(c *C, yaml string, si *snap.SideInfo, slotName string) (*
 	panic(fmt.Sprintf("cannot find slot %q in snap %q", slotName, info.InstanceName()))
 }
 
-func MockOsGetenv(mock func(string) string) (restore func()) {
-	old := osGetenv
-	restore = func() {
-		osGetenv = old
-	}
-	osGetenv = mock
-
-	return restore
-}
-
 func MockProcCpuinfo(filename string) (restore func()) {
 	old := procCpuinfo
 	restore = func() {
@@ -164,4 +159,8 @@ func MockGpioCheckConfigfsSupport(fn func() error) (restore func()) {
 
 func AllowedKernelMountOptions() []string {
 	return allowedKernelMountOptions
+}
+
+func MockSystemdNotifySocket(f func() (string, error)) (restore func()) {
+	return testutil.Mock(&systemdNotifySocket, f)
 }

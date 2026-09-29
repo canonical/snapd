@@ -109,7 +109,7 @@ func EnsureSnapIcons(s *snap.Info) error {
 		return err
 	}
 
-	content, err := deriveIconContent(s.InstanceName(), rootDir, icons)
+	content, err := deriveIconContent(s.InstanceName().String(), rootDir, icons)
 	if err != nil {
 		return err
 	}

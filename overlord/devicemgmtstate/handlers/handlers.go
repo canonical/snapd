@@ -61,7 +61,7 @@ type RequestMessage struct {
 	RawAssertion []byte `json:"raw-assertion"`
 }
 
-// ID returns the full message identifier `BaseID[-SeqNum]`.
+// ID returns the full message identifier base-id[-sequence-number].
 func (msg *RequestMessage) ID() string {
 	if msg.SeqNum != 0 {
 		return fmt.Sprintf("%s-%d", msg.BaseID, msg.SeqNum)
@@ -70,12 +70,22 @@ func (msg *RequestMessage) ID() string {
 	return msg.BaseID
 }
 
-// ValidAt returns whether the request-message is valid at 'when' time.
+// Key returns the message's primary key account-id/base-id[-sequence-number].
+func (msg *RequestMessage) Key() string {
+	return fmt.Sprintf("%s/%s", msg.AccountID, msg.ID())
+}
+
+// SeqKey returns the message sequence's identifier account-id/base-id.
+func (msg *RequestMessage) SeqKey() string {
+	return fmt.Sprintf("%s/%s", msg.AccountID, msg.BaseID)
+}
+
+// ValidAt reports whether the message is valid at the given time.
 func (msg *RequestMessage) ValidAt(when time.Time) bool {
 	return (when.Equal(msg.ValidSince) || when.After(msg.ValidSince)) && when.Before(msg.ValidUntil)
 }
 
-// Targets returns whether the given device is listed in the message's devices header.
+// Targets reports whether the given device is listed in the message's devices header.
 func (msg *RequestMessage) Targets(devID asserts.DeviceID) bool {
 	target := devID.String()
 	for _, d := range msg.Devices {
@@ -115,25 +125,25 @@ func (e *UnauthorizedError) Error() string {
 	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
 }
 
-const mgmtMessageIDKey = "mgmt-message-id"
+const changeMarkerKey = "mgmt-message-key"
 
-// MarkChangeForMessage records the message ID on the change created by an Apply
+// MarkChangeForMessage records the message key on the change created by an Apply
 // implementation. It must be called after change creation and before releasing
 // the state lock, so that doApplyMessage can recover the change ID on retry
 // and not call the handler's Apply again.
 func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
-	chg.Set(mgmtMessageIDKey, msg.ID())
+	chg.Set(changeMarkerKey, msg.Key())
 }
 
-// ChangeMessageID returns the message ID recorded on chg by
+// ChangeMessageKey returns the message key recorded on chg by
 // MarkChangeForMessage, if any.
-func ChangeMessageID(chg *state.Change) (id string, ok bool) {
-	err := chg.Get(mgmtMessageIDKey, &id)
+func ChangeMessageKey(chg *state.Change) (key string, ok bool) {
+	err := chg.Get(changeMarkerKey, &key)
 	if err != nil {
 		return "", false
 	}
 
-	return id, true
+	return key, true
 }
 
 var registeredHandlers = map[string]MessageHandler{}

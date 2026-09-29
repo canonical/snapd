@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         gochannel:
-          - 1.23
+          - 1.24
         unit-scenario:
           - normal
 
@@ -90,7 +90,7 @@ jobs:
 
     - name: Install TICS dependencies
       run: |
-          # Version 2025.1.1 is the last version to use Go 1.23
+          # Version 2025.1.1 was built with go 1.24.1
           go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
 
     - name: TICS scan

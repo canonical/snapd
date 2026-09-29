@@ -106,13 +106,17 @@ func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeature(c *C) {
 }
 
 func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
+	defer features.MockFeaturesEnabledWhenUnset(map[features.SnapdFeature]bool{
+		features.Hotplug: true,
+	})()
+
 	r.state.Lock()
 	defer r.state.Unlock()
 
 	task := r.state.NewTask("configure", "configure")
 	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
 
-	c.Assert(tr.Set("core", "experimental.refresh-app-awareness-ux", true), IsNil)
+	c.Assert(tr.Set("core", "experimental.hotplug", true), IsNil)
 
 	r.state.Unlock()
 	c.Assert(configcore.Run(coreDev, tr), IsNil)
@@ -120,10 +124,10 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 
 	tr.Commit()
 
-	msg := "feature refresh-app-awareness-ux is enabled by default and will be permanently enabled in a future release"
+	msg := "feature hotplug is enabled by default and will be permanently enabled in a future release"
 
 	var enabled bool
-	err := tr.Get("core", "experimental.refresh-app-awareness-ux", &enabled)
+	err := tr.Get("core", "experimental.hotplug", &enabled)
 	c.Check(err, IsNil)
 	c.Check(enabled, Equals, true)
 

@@ -88,7 +88,7 @@ func (s *installSuite) SetUpTest(c *C) {
 	info1 := snaptest.MockSnapCurrent(c, string(snapWithCompsYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
-	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, info1.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{

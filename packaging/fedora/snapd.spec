@@ -579,10 +579,16 @@ EXTRA_GO_BUILD_FLAGS = -v -x -compiler gc
 EXTRA_GO_LDFLAGS = -linkmode external -extldflags '%__global_ldflags'
 EXTRA_GO_STATIC_LDFLAGS = -linkmode external -extldflags '%__global_ldflags -static'
 EXTRA_GO_BUILD_TAGS = rpm_crashtraceback $EXTRA_TAGS
+# The source tarball carries the upstream version (snapdtool/version_generated.go,
+# cmd/VERSION, data/info). Only the downstream release suffix is set here and is
+# baked into the binaries via a linker flag, without patching the source.
+downstream_version_suffix = -%{release}
 __DEFINES__
 
-# Generate version files
-DPKG_PARSECHANGELOG="" ./mkversion.sh "%{version}-%{release}"
+# Set cmd/VERSION and data/info VERSION to the full package version (upstream +
+# release), so snap-confine and the installed info file match the binaries'
+# FullVersion().
+packaging/mod-version.sh %{version}-%{release}
 
 # Build SELinux policy module
 %if 0%{?with_selinux}

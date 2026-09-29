@@ -18,10 +18,7 @@
  */
 
 // Package devicemgmtstate implements the manager and state aspects responsible
-// for message-based remote device management. It receives signed request-message
-// assertions from the store via periodic message exchanges, validates them against
-// SD187 requirements, dispatches them to subsystem-specific handlers (like confdb),
-// and sends back response-message assertions with processing results.
+// for remote device management.
 package devicemgmtstate
 
 import (
@@ -49,6 +46,7 @@ import (
 
 const (
 	deviceMgmtStateKey = "device-mgmt"
+	taskMessageKey     = "message-key"
 
 	defaultExchangeLimit    = 10
 	defaultExchangeInterval = 6 * time.Hour
@@ -72,7 +70,7 @@ type deviceBackend interface {
 	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
-// sequenceState holds the messages and progress for a single base ID,
+// sequenceState holds the messages and progress for a single sequence within an account,
 // covering both sequenced & unsequenced messages.
 type sequenceState struct {
 	// Messages holds request messages from receipt until their response is queued.
@@ -85,10 +83,10 @@ type sequenceState struct {
 
 // deviceMgmtState holds the persistent state for device management operations.
 type deviceMgmtState struct {
-	// Sequences maps base IDs to their per-base-ID state.
+	// Sequences maps sequence keys to the sequence's state.
 	Sequences map[string]*sequenceState `json:"sequences"`
 
-	// SequenceLRU tracks sequenced base IDs in least-recently-used order for eviction.
+	// SequenceLRU tracks sequence keys in least-recently-used order for eviction.
 	SequenceLRU []string `json:"sequence-lru"`
 
 	// LastReceivedToken is the token of the last message successfully stored locally,
@@ -105,16 +103,22 @@ type deviceMgmtState struct {
 }
 
 // getRequestMessage retrieves a request message from the state.
-func (ms *deviceMgmtState) getRequestMessage(id string) (*handlers.RequestMessage, error) {
+func (ms *deviceMgmtState) getRequestMessage(key string) (*handlers.RequestMessage, error) {
+	accountID, id, ok := strings.Cut(key, "/")
+	if !ok {
+		return nil, fmt.Errorf("invalid message key %q", key)
+	}
+
 	baseID, seqStr, hasSeq := strings.Cut(id, "-")
 	seqNum := 0
 	if hasSeq {
 		seqNum, _ = strconv.Atoi(seqStr)
 	}
 
-	seq := ms.Sequences[baseID]
+	seqKey := fmt.Sprintf("%s/%s", accountID, baseID)
+	seq := ms.Sequences[seqKey]
 	if seq == nil {
-		return nil, fmt.Errorf("cannot find sequence %q", baseID)
+		return nil, fmt.Errorf("cannot find sequence %q", seqKey)
 	}
 
 	// TODO:GOVERSION:1.21: replace with slices.BinarySearchFunc
@@ -125,14 +129,15 @@ func (ms *deviceMgmtState) getRequestMessage(id string) (*handlers.RequestMessag
 		return seq.Messages[i], nil
 	}
 
-	return nil, fmt.Errorf("cannot find message %q", id)
+	return nil, fmt.Errorf("cannot find message %q", key)
 }
 
 // removeRequestMessage removes a processed request message from its sequence.
 // For a sequenced message, the sequence entry is left in place so its Applied
 // progress is preserved for later messages in the same sequence.
 func (ms *deviceMgmtState) removeRequestMessage(msg *handlers.RequestMessage) {
-	seq := ms.Sequences[msg.BaseID]
+	seqKey := msg.SeqKey()
+	seq := ms.Sequences[seqKey]
 	if seq == nil {
 		return
 	}
@@ -143,7 +148,7 @@ func (ms *deviceMgmtState) removeRequestMessage(msg *handlers.RequestMessage) {
 
 			// Unsequenced messages have no Applied progress to carry forward.
 			if msg.SeqNum == 0 && len(seq.Messages) == 0 {
-				delete(ms.Sequences, msg.BaseID)
+				delete(ms.Sequences, seqKey)
 			}
 
 			return
@@ -163,10 +168,11 @@ func (ms *deviceMgmtState) enqueueRequestMessages(pollResp *store.MessageExchang
 			continue
 		}
 
-		seq := ms.Sequences[reqMsg.BaseID]
+		seqKey := reqMsg.SeqKey()
+		seq := ms.Sequences[seqKey]
 		if seq == nil {
 			seq = &sequenceState{}
-			ms.Sequences[reqMsg.BaseID] = seq
+			ms.Sequences[seqKey] = seq
 		}
 
 		// Drop any sequenced message that has already been applied.
@@ -188,8 +194,8 @@ func (ms *deviceMgmtState) enqueueRequestMessages(pollResp *store.MessageExchang
 
 		if reqMsg.SeqNum > 0 {
 			// Move to end of LRU to mark as recently used.
-			ms.removeSequenceFromLRU(reqMsg.BaseID)
-			ms.SequenceLRU = append(ms.SequenceLRU, reqMsg.BaseID)
+			ms.removeSequenceFromLRU(seqKey)
+			ms.SequenceLRU = append(ms.SequenceLRU, seqKey)
 		}
 	}
 
@@ -205,13 +211,14 @@ func (ms *deviceMgmtState) enqueueRequestMessages(pollResp *store.MessageExchang
 		ms.LastReceivedToken = ""
 	}
 
+	// The responses in this batch were sent during the exchange, so clear them.
 	ms.ReadyResponses = make(map[string]store.Message)
 }
 
 // removeSequenceFromLRU removes a sequence from the LRU list, if present.
-func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
-	for i, id := range ms.SequenceLRU {
-		if id == baseID {
+func (ms *deviceMgmtState) removeSequenceFromLRU(seqKey string) {
+	for i, key := range ms.SequenceLRU {
+		if key == seqKey {
 			ms.SequenceLRU = append(ms.SequenceLRU[:i], ms.SequenceLRU[i+1:]...)
 			return
 		}
@@ -219,10 +226,100 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 }
 
 // evictSequence deletes a sequence and removes it from the LRU.
-func (ms *deviceMgmtState) evictSequence(baseID string) {
-	delete(ms.Sequences, baseID)
-	ms.removeSequenceFromLRU(baseID)
+func (ms *deviceMgmtState) evictSequence(seqKey string) {
+	delete(ms.Sequences, seqKey)
+	ms.removeSequenceFromLRU(seqKey)
 }
+
+/* The life of a request message.
+
+   This diagram follows message N of a sequence. An unsequenced message
+   follows much the same path on its own: it waits on no earlier message,
+   and no later message waits on it.
+
+   The names on the right are the tasks that handle each step. The names
+   in brackets are the asserts.MessageStatus the message ends up with.
+
+   Received                                     <- exchange-mgmt-messages
+     |  \
+     |   \ Malformed, duplicate, or message N
+     |     already applied --> discarded, no response
+     V
+   Queued in sequence
+     |
+     V
+   Too many sequences, and this one LRU?        <- dispatch-mgmt-messages
+     |  \
+     |   \ Yes ------------------------------------\
+     |                                             |
+     | No                                          |
+     V                                             |
+   Message N-1 applied or dispatched?              |
+     |  \                                          |
+     |   \ No --> Not dispatched                   |
+     |               |                             |
+     | Yes           | Too many messages blocked   |
+     |               | in sequence?                |
+     |               |  \                          |
+     |               |   \ No --> Retried on the   |
+     |               |            next dispatch    |
+     |               | Yes                         |
+     |               |                             |
+     |               V                             |
+     |        Sequence rejected <------------------/
+     |               |
+     |               V
+     |        Message N first still pending?
+     |               |  \
+     |               |   \ No --> discarded, no response
+     |               |
+     |               | Yes
+     |               V
+     |            [rejected] ------------->\
+     V                                     |
+   Dispatched                              |
+     |                                     |
+     V                                     |
+   Valid and authorized?                   |    <- validate-mgmt-message
+     |  \                                  |
+     |   \ No --> [rejected] or            |
+     |            [unauthorized] --------->|
+     | Yes                                 |
+     V                                     |
+   Subsystem change created?               |    <- apply-mgmt-message
+     |  \                                  |
+     |   \ No --> [error] ---------------->|
+     |                                     |
+     | Yes                                 |
+     V                                     |
+   Subsystem change successful?            |    <- queue-mgmt-response
+     |  \                                  |
+     |   \ No --> [error] ---------------->|
+     |                                     |
+     | Yes                                 |
+     V                                     |
+   [success] ----------------------------->|
+                                           |
+     /-------------------------------------/
+     |
+     V
+   Response signed and queued
+     |
+     V
+   [success]?
+     |  \
+     |   \ No --> Sequence evicted,
+     |            tasks for messages N+1 onward aborted
+     | Yes                       |
+     V                           |
+   Message removed from state <--/
+     |
+     V
+   Response sent on the next exchange           <- exchange-mgmt-messages
+
+   Eviction aborts the tasks of later messages already dispatched from the same
+   sequence, which is what stops message N+1 from applying once N has failed.
+*/
 
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
@@ -270,13 +367,13 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 }
 
 // getMessageAndState retrieves the current state along with the given message.
-func (m *DeviceMgmtManager) getMessageAndState(msgID string) (*deviceMgmtState, *handlers.RequestMessage, error) {
+func (m *DeviceMgmtManager) getMessageAndState(msgKey string) (*deviceMgmtState, *handlers.RequestMessage, error) {
 	ms, err := m.getState()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	msg, err := ms.getRequestMessage(msgID)
+	msg, err := ms.getRequestMessage(msgKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -355,6 +452,24 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 
 // doExchangeMessages exchanges messages with the store: sends queued response messages,
 // acknowledges receipt of persisted request messages, and fetches new request messages.
+//
+// The store maintains a queue of request messages for the device. In each
+// exchange, the after field carries the token of the last message the device
+// received, acknowledging every message up to and including it. A message stays
+// queued until a later exchange acks it, so one lost to a crash is re-sent.
+//
+// For instance:
+//
+//	Exchange 1  -->  {after "", limit 10, no response messages}
+//	            <--  Two request messages with tokenA and tokenB.
+//	                 Both persisted locally, awaiting acknowledgement.
+//
+//	Exchange 2  -->  {after tokenB, limit 10, response messages}
+//	                 Messages with tokenA and tokenB are dropped from the queue.
+//	            <--  No new request messages.
+//	                 Nothing new arrived, so there is nothing left to ack.
+//
+//	Exchange 3  -->  {after "", limit 10, ...}
 func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -402,6 +517,30 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 }
 
 // doDispatchMessages selects pending requests for processing and queues tasks for them.
+//
+// One chain is built per sequence, so sequences run independently, while the
+// messages inside a sequence run in order. Each message's three tasks get
+// their own lane, so a failing task aborts that message and the ones after it.
+//
+// For instance:
+//
+//	dispatch-mgmt-messages
+//	   |
+//	   |--> validate --> apply --> queue-response ---\  Message N          [lane 1]
+//	   |                                             |
+//	   |    /----------------------------------------/
+//	   |    V
+//	   |    validate --> apply --> queue-response ---\  Message N+1        [lane 2]
+//	   |                                             |
+//	   |    /----------------------------------------/
+//	   |    V
+//	   |    validate --> apply --> queue-response       Message N+2        [lane 3]
+//	   |
+//	   |--> validate --> apply --> queue-response       Other sequence     [lane 4]
+//	   |
+//	   |--> validate --> apply --> queue-response       Unsequenced        [lane 5]
+//	   |
+//	   \--> queue-response                              Rejected sequence  [lane 6]
 func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -419,19 +558,19 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 	rejected := make(map[string]bool)
 	excess := len(ms.SequenceLRU) - maxSequences
 	if excess > 0 {
-		toReject := append([]string(nil), ms.SequenceLRU[:excess]...)
-		for _, baseID := range toReject {
-			err = m.rejectSequence(ms, t, baseID, "cannot process message: sequence evicted due to capacity limits")
+		seqKeys := append([]string(nil), ms.SequenceLRU[:excess]...)
+		for _, seqKey := range seqKeys {
+			err = m.rejectSequence(ms, t, seqKey, "cannot process message: sequence evicted due to capacity limits")
 			if err != nil {
 				return err
 			}
 
-			rejected[baseID] = true
+			rejected[seqKey] = true
 		}
 	}
 
-	for baseID, seq := range ms.Sequences {
-		if rejected[baseID] {
+	for seqKey, seq := range ms.Sequences {
+		if rejected[seqKey] {
 			continue
 		}
 
@@ -439,7 +578,7 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		// If nothing was dispatched, the sequence is stuck at a gap (one or more missing predecessors).
 		// Reject if too many messages have accumulated waiting on it.
 		if dispatched == 0 && len(seq.Messages) > maxBlockedMessagesPerSequence {
-			err = m.rejectSequence(ms, t, baseID, "cannot process message: too many messages waiting on missing predecessors in sequence")
+			err = m.rejectSequence(ms, t, seqKey, "cannot process message: too many messages waiting on missing predecessors in sequence")
 			if err != nil {
 				return err
 			}
@@ -489,7 +628,7 @@ func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *handlers.
 
 	addTask := func(kind, summary string) {
 		t := m.state.NewTask(kind, summary)
-		t.Set("message-id", msg.ID())
+		t.Set(taskMessageKey, msg.Key())
 		t.WaitFor(prevTask)
 		t.JoinLane(lane)
 		chg.AddTask(t)
@@ -497,9 +636,9 @@ func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *handlers.
 		prevTask = t
 	}
 
-	addTask("validate-mgmt-message", fmt.Sprintf("Validate message with id %q", msg.ID()))
-	addTask("apply-mgmt-message", fmt.Sprintf("Apply message with id %q", msg.ID()))
-	addTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", msg.ID()))
+	addTask("validate-mgmt-message", fmt.Sprintf("Validate message %q", msg.Key()))
+	addTask("apply-mgmt-message", fmt.Sprintf("Apply message %q", msg.Key()))
+	addTask("queue-mgmt-response", fmt.Sprintf("Queue response for message %q", msg.Key()))
 
 	msg.Dispatched = true
 
@@ -508,17 +647,17 @@ func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *handlers.
 
 // rejectSequence queues a rejection response for the earliest pending message
 // in a sequence and discards the rest. An empty sequence is evicted.
-func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *state.Task, baseID, reason string) error {
-	seq := ms.Sequences[baseID]
+func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *state.Task, seqKey, reason string) error {
+	seq := ms.Sequences[seqKey]
 	if seq == nil {
-		return fmt.Errorf("internal error: rejectSequence called for unknown sequence %q", baseID)
+		return fmt.Errorf("internal error: rejectSequence called for unknown sequence %q", seqKey)
 	}
 
 	if len(seq.Messages) == 0 {
 		// When rejecting the least recently used sequence, it might be empty if
 		// all its messages have already been processed in prior changes.
 		// There's no message to reject so it's simply evicted.
-		ms.evictSequence(baseID)
+		ms.evictSequence(seqKey)
 		return nil
 	}
 
@@ -534,8 +673,8 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *st
 	seq.Messages = []*handlers.RequestMessage{earliest}
 
 	lane := m.state.NewLane()
-	queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", earliest.ID()))
-	queue.Set("message-id", earliest.ID())
+	queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message %q", earliest.Key()))
+	queue.Set(taskMessageKey, earliest.Key())
 	queue.JoinLane(lane)
 	queue.WaitFor(dispatchTask)
 	dispatchTask.Change().AddTask(queue)
@@ -548,13 +687,13 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	var msgID string
-	err := t.Get("message-id", &msgID)
+	var msgKey string
+	err := t.Get(taskMessageKey, &msgKey)
 	if err != nil {
 		return err
 	}
 
-	ms, msg, err := m.getMessageAndState(msgID)
+	ms, msg, err := m.getMessageAndState(msgKey)
 	if err != nil {
 		return err
 	}
@@ -588,7 +727,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 	if fetched {
 		// The state lock was dropped during the store fetch. Concurrent tasks in
 		// other lanes may have mutated state in that window, so re-read before mutating.
-		ms, msg, err = m.getMessageAndState(msgID)
+		ms, msg, err = m.getMessageAndState(msgKey)
 		if err != nil {
 			return err
 		}
@@ -639,7 +778,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 
 		// handler.Validate may drop the state lock internally. Concurrent tasks
 		// in other lanes may have mutated the state in that window, so re-read before mutating.
-		ms, msg, err = m.getMessageAndState(msgID)
+		ms, msg, err = m.getMessageAndState(msgKey)
 		if err != nil {
 			return err
 		}
@@ -675,13 +814,13 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	var msgID string
-	err := t.Get("message-id", &msgID)
+	var msgKey string
+	err := t.Get(taskMessageKey, &msgKey)
 	if err != nil {
 		return err
 	}
 
-	ms, msg, err := m.getMessageAndState(msgID)
+	ms, msg, err := m.getMessageAndState(msgKey)
 	if err != nil {
 		return err
 	}
@@ -692,7 +831,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 	}
 
 	// Check if a change was already created for this message before persisting its ApplyChangeID.
-	chg := findChangeByMgmtMessageID(m.state, msgID)
+	chg := findChangeByMgmtMessageKey(m.state, msgKey)
 	if chg != nil {
 		msg.ApplyChangeID = chg.ID()
 		m.setState(ms)
@@ -714,7 +853,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 
 	// handler.Apply may drop the state lock internally. Concurrent tasks in
 	// other lanes may have mutated the state in that window, so re-read before mutating.
-	ms, msg, err = m.getMessageAndState(msgID)
+	ms, msg, err = m.getMessageAndState(msgKey)
 	if err != nil {
 		return err
 	}
@@ -741,13 +880,13 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 		return err
 	}
 
-	var msgID string
-	err = t.Get("message-id", &msgID)
+	var msgKey string
+	err = t.Get(taskMessageKey, &msgKey)
 	if err != nil {
 		return err
 	}
 
-	msg, err := ms.getRequestMessage(msgID)
+	msg, err := ms.getRequestMessage(msgKey)
 	if err != nil {
 		// Message already processed on a prior run.
 		return nil
@@ -763,7 +902,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 	responseStatus := msg.ResponseStatus
 	responseBody := msg.ResponseBody
 
-	ms, msg, err = m.getMessageAndState(msgID)
+	ms, msg, err = m.getMessageAndState(msgKey)
 	if err != nil {
 		return err
 	}
@@ -786,17 +925,18 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 		return fmt.Errorf("cannot sign response message: %w", err)
 	}
 
-	ms.ReadyResponses[msg.ID()] = store.Message{
+	ms.ReadyResponses[msg.Key()] = store.Message{
 		Format: "assertion",
 		Data:   string(asserts.Encode(resAs)),
 	}
 
 	if msg.SeqNum > 0 {
+		seqKey := msg.SeqKey()
 		if msg.ResponseStatus == asserts.MessageStatusSuccess {
-			ms.Sequences[msg.BaseID].Applied = msg.SeqNum
+			ms.Sequences[seqKey].Applied = msg.SeqNum
 			ms.removeRequestMessage(msg)
 		} else {
-			ms.evictSequence(msg.BaseID)
+			ms.evictSequence(seqKey)
 			// Abort all pending tasks in the sequence from message N+1 onwards.
 			chg := t.Change()
 			for _, ht := range t.HaltTasks() {
@@ -892,16 +1032,16 @@ func parseRequestMessage(msg store.Message) (*handlers.RequestMessage, error) {
 	}, nil
 }
 
-// findChangeByMgmtMessageID scans all changes for one marked with the given
-// message ID via MarkChangeForMessage.
-func findChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
+// findChangeByMgmtMessageKey scans all changes for one marked with the given
+// message key via MarkChangeForMessage.
+func findChangeByMgmtMessageKey(st *state.State, msgKey string) *state.Change {
 	for _, chg := range st.Changes() {
-		id, ok := handlers.ChangeMessageID(chg)
+		key, ok := handlers.ChangeMessageKey(chg)
 		if !ok {
 			continue
 		}
 
-		if id == msgID {
+		if key == msgKey {
 			return chg
 		}
 	}

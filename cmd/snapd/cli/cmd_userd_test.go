@@ -73,6 +73,17 @@ func (s *userdSuite) TestUserdBadCommandline(c *C) {
 	c.Assert(err, ErrorMatches, "too many arguments for command")
 }
 
+func (s *userdSuite) TestUserdInitSdNotifySocketCalled(c *C) {
+	restore := snap.MockSystemdInitSdNotifySocket(func() {
+		panic("systemd-init-sd-notify-socket-called")
+	})
+	defer restore()
+
+	c.Assert(func() {
+		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"userd"})
+	}, PanicMatches, "systemd-init-sd-notify-socket-called")
+}
+
 type mockSignal struct{}
 
 func (m *mockSignal) String() string {

@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -50,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type promptingSuite struct {
@@ -103,12 +105,16 @@ func (s *promptingSuite) SetUpTest(c *C) {
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPristine(c *C) {
 	doRestartChan := make(chan bool, 1)
-	restore := configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore := configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Check(st, Equals, s.state)
 		c.Check(t, Equals, restart.RestartDaemon)
 		c.Check(rebootInfo, IsNil)
+		c.Check(reason, Equals, restart.RestartSnapdFeatureChange)
 		doRestartChan <- true
 	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
 	defer restore()
 
 	s.mockSnapd(c)
@@ -148,17 +154,25 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartNoPrist
 			observedRestart = false
 		}
 		c.Check(observedRestart, Equals, expectedRestart)
+		if expectedRestart {
+			c.Check(logbuf.String(), testutil.Contains, "requesting daemon restart for experimental.apparmor-prompting enabled")
+		}
+		logbuf.Reset()
 	}
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartWithPristine(c *C) {
 	doRestartChan := make(chan bool, 1)
-	restore := configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore := configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Check(st, Equals, s.state)
 		c.Check(t, Equals, restart.RestartDaemon)
 		c.Check(rebootInfo, IsNil)
+		c.Check(reason, Equals, restart.RestartSnapdFeatureChange)
 		doRestartChan <- true
 	})
+	defer restore()
+
+	logbuf, restore := logger.MockLogger()
 	defer restore()
 
 	s.mockSnapd(c)
@@ -226,11 +240,19 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartWithPri
 			observedRestart = false
 		}
 		c.Check(observedRestart, Equals, expectedRestart, Commentf("with initial value %v and final value %v, expected %v but observed %v", testCase.initial, testCase.final, expectedRestart, observedRestart))
+		if expectedRestart {
+			action := "disabled"
+			if testCase.final {
+				action = "enabled"
+			}
+			c.Check(logbuf.String(), testutil.Contains, fmt.Sprintf("requesting daemon restart for experimental.apparmor-prompting %s", action))
+		}
+		logbuf.Reset()
 	}
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingDaemonRestartErrors(c *C) {
-	restore := configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore := configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -289,7 +311,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedKernel(c 
 	)
 	defer restore()
 
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -304,7 +326,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingUnsupportedParser(c 
 	)
 	defer restore()
 
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -318,7 +340,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreUnsupported(c 
 	release.MockOnCoreDesktop(false)
 	defer restore()
 
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -338,7 +360,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingOnCoreDesktop(c *C) 
 	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
 
 	restartCalled := 0
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		restartCalled++
 	})
 	defer restore()
@@ -369,7 +391,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersNone(c
 
 	s.mockSnapd(c)
 
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -386,7 +408,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersManyBu
 	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap1", hasHandler: false})
 	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap2", hasHandler: false})
 
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -402,7 +424,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDiscon
 	s.mockSnapd(c)
 	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap", hasHandler: true})
 
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		c.Errorf("unexpected restart requested")
 	})
 	defer restore()
@@ -442,7 +464,7 @@ func (s *promptingSuite) testDoExperimentalApparmorPromptingHandlerServices(c *C
 	s.mockPromptingHandler(c, mockPromptingHandlerOpts{snapName: "test-snap2", hasHandler: true})
 
 	restartCalled := 0
-	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo) {
+	restore = configcore.MockRestartRequest(func(st *state.State, t restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) {
 		restartCalled++
 	})
 	defer restore()

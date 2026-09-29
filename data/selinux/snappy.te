@@ -391,9 +391,16 @@ kernel_read_fs_sysctls(snappy_t)
 # $SNAP_COMMON, but lacking auto transition, they end up labeled as var_t
 allow snappy_t var_t:sock_file unlink;
 
-# snapd picks the process start time from /proc/<pid>/stat for polkit
-allow snappy_t unconfined_t:dir search;
-allow snappy_t unconfined_t:file { open read };
+# snapd picks the process start time from /proc/<pid>/stat for polkit, reads the
+# /proc/<pid>/exe symlink to identify the peer's executable path, and reads
+# /proc/<pid>/cgroup to map the peer pid to a snap instance name.
+# unconfined_t and unconfined_service_t (what snap services transition to) are
+# process domain types, so these patterns only ever match /proc/<pid> state,
+# never on-disk files.
+read_files_pattern(snappy_t, unconfined_t, unconfined_t)
+read_lnk_files_pattern(snappy_t, unconfined_t, unconfined_t)
+read_files_pattern(snappy_t, unconfined_service_t, unconfined_service_t)
+read_lnk_files_pattern(snappy_t, unconfined_service_t, unconfined_service_t)
 
 # Allow snapd to get file attributes in policykit{,_auth}_exec_t domain
 gen_require(`
@@ -737,7 +744,7 @@ allow snappy_confine_t etc_t:file mounton;
 allow snappy_confine_t ld_so_cache_t:file mounton;
 allow snappy_confine_t home_root_t:dir mounton;
 allow snappy_confine_t ifconfig_var_run_t:dir mounton;
-allow snappy_confine_t modules_object_t:dir mounton;
+allow snappy_confine_t modules_object_t:dir { getattr mounton };
 allow snappy_confine_t lib_t:dir mounton;
 allow snappy_confine_t ptmx_t:chr_file { getattr mounton };
 allow snappy_confine_t snappy_snap_t:dir { mounton read };

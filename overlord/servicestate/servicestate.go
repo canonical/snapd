@@ -152,10 +152,10 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 	}
 
 	for _, app := range appInfos {
-		snapName := app.Snap.InstanceName()
+		instanceName := app.Snap.InstanceName()
 		// app.String() gives "snapname.appname"
 		if requested[app.String()] {
-			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
+			explicitServices[instanceName.String()] = append(explicitServices[instanceName.String()], app.Name)
 		}
 	}
 
@@ -170,11 +170,11 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 
 	// group services by snap, we need to create one task for every affected snap
 	for _, app := range appInfos {
-		snapName := app.Snap.InstanceName()
-		if _, ok := servicesBySnap[snapName]; !ok {
-			sortedNames = append(sortedNames, snapName)
+		instanceName := app.Snap.InstanceName().String()
+		if _, ok := servicesBySnap[instanceName]; !ok {
+			sortedNames = append(sortedNames, instanceName)
 		}
-		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+		servicesBySnap[instanceName] = append(servicesBySnap[instanceName], app.Name)
 	}
 	sort.Strings(sortedNames)
 
@@ -300,11 +300,11 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *u
 	names := make([]string, len(appInfos))
 	for i, svc := range appInfos {
 		svcs = append(svcs, svc.ServiceName())
-		snapName := svc.Snap.InstanceName()
-		names[i] = snapName + "." + svc.Name
-		if snapName != lastName {
-			snapNames = append(snapNames, snapName)
-			lastName = snapName
+		instanceName := svc.Snap.InstanceName().String()
+		names[i] = instanceName + "." + svc.Name
+		if instanceName != lastName {
+			snapNames = append(snapNames, instanceName)
+			lastName = instanceName
 		}
 	}
 
@@ -465,7 +465,7 @@ func (sd *StatusDecorator) queryServiceStatus(scope snap.DaemonScope, units []st
 // client.AppInfo associated with the given snap.AppInfo.
 // If the snap is inactive or the app is not service it does nothing.
 func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
-	if appInfo.Snap != snapApp.Snap.InstanceName() || appInfo.Name != snapApp.Name {
+	if appInfo.Snap != snapApp.Snap.InstanceName().String() || appInfo.Name != snapApp.Name {
 		return fmt.Errorf("internal error: misassociated app info %v and client app info %s.%s", snapApp, appInfo.Snap, appInfo.Name)
 	}
 	if !snapApp.Snap.IsActive() || !snapApp.IsService() {
@@ -569,7 +569,7 @@ func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[st
 		return nil, err
 	}
 	for i, s := range strings.Split(vitalityStr, ",") {
-		if s == snapInfo.InstanceName() {
+		if s == snapInfo.InstanceName().String() {
 			opts.VitalityRank = i + 1
 			break
 		}
@@ -577,7 +577,7 @@ func SnapServiceOptions(st *state.State, snapInfo *snap.Info, quotaGroups map[st
 
 	// also check for quota group for this instance name
 	for _, grp := range quotaGroups {
-		if strutil.ListContains(grp.Snaps, snapInfo.InstanceName()) {
+		if strutil.ListContains(grp.Snaps, snapInfo.InstanceName().String()) {
 			opts.QuotaGroup = grp
 			break
 		}

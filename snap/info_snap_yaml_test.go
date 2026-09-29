@@ -61,7 +61,7 @@ func (s *InfoSnapYamlTestSuite) TearDownTest(c *C) {
 func (s *InfoSnapYamlTestSuite) TestSimple(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, IsNil)
-	c.Assert(info.InstanceName(), Equals, "foo")
+	c.Assert(info.InstanceName().String(), Equals, "foo")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type(), Equals, snap.TypeApp)
 	c.Assert(info.Epoch, DeepEquals, snap.E("0"))
@@ -73,7 +73,7 @@ func (s *InfoSnapYamlTestSuite) TestSnapdTypeAddedByMagic(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
 version: 1.0`))
 	c.Assert(err, IsNil)
-	c.Assert(info.InstanceName(), Equals, "snapd")
+	c.Assert(info.InstanceName().String(), Equals, "snapd")
 	c.Assert(info.Version, Equals, "1.0")
 	c.Assert(info.Type(), Equals, snap.TypeSnapd)
 }
@@ -134,7 +134,7 @@ plugs:
     network-client:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["network-client"], DeepEquals, &snap.PlugInfo{
@@ -153,7 +153,7 @@ plugs:
     net: network-client
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
@@ -173,7 +173,7 @@ plugs:
         interface: network-client
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
@@ -194,7 +194,7 @@ plugs:
         ipv6-aware: true
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
@@ -220,7 +220,7 @@ plugs:
           b: B
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["iface"], DeepEquals, &snap.PlugInfo{
@@ -249,7 +249,7 @@ plugs:
         attr: 2
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Assert(info.Plugs["net"], DeepEquals, &snap.PlugInfo{
@@ -271,7 +271,7 @@ apps:
     app:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 1)
@@ -304,7 +304,7 @@ apps:
     without-plug:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 2)
@@ -341,7 +341,7 @@ apps:
         plugs: ["net"]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 1)
@@ -369,7 +369,7 @@ apps:
         plugs: ["network-client"]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 1)
@@ -397,7 +397,7 @@ plugs:
         ipv6-aware: true
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -419,7 +419,7 @@ plugs:
         label: Disk I/O indicator
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -535,7 +535,7 @@ slots:
     network-client:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["network-client"], DeepEquals, &snap.SlotInfo{
@@ -554,7 +554,7 @@ slots:
     net: network-client
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
@@ -574,7 +574,7 @@ slots:
         interface: network-client
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
@@ -595,7 +595,7 @@ slots:
         ipv6-aware: true
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
@@ -620,7 +620,7 @@ slots:
           a: "A"
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["iface"], DeepEquals, &snap.SlotInfo{
@@ -649,7 +649,7 @@ slots:
         attr: 2
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Assert(info.Slots["net"], DeepEquals, &snap.SlotInfo{
@@ -671,7 +671,7 @@ apps:
     app:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 1)
@@ -702,7 +702,7 @@ apps:
         slots: ["net"]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 1)
@@ -730,7 +730,7 @@ apps:
         slots: ["network-client"]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 1)
@@ -758,7 +758,7 @@ slots:
         ipv6-aware: true
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
@@ -781,7 +781,7 @@ slots:
         label: Front panel LED (red)
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
@@ -804,7 +804,7 @@ hooks:
     test-hook:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
@@ -839,7 +839,7 @@ hooks:
         slots: [test-slot]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 1)
 	c.Check(info.Apps, HasLen, 0)
@@ -951,7 +951,7 @@ hooks:
     test-hook:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -981,7 +981,7 @@ hooks:
     test-hook:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -1001,7 +1001,7 @@ hooks:
     foo-hook:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -1028,7 +1028,7 @@ hooks:
         plugs: [test-plug]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -1063,7 +1063,7 @@ hooks:
     test-hook:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -1101,7 +1101,7 @@ hooks:
     without-plug:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -1142,7 +1142,7 @@ hooks:
         plugs: ["test-plug"]
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 0)
@@ -1180,7 +1180,7 @@ apps:
     test-app:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 1)
 	c.Check(info.Slots, HasLen, 0)
 	c.Check(info.Apps, HasLen, 1)
@@ -1249,7 +1249,7 @@ slots:
         interface: ptrace
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "foo")
+	c.Check(info.InstanceName().String(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.2")
 	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Epoch, DeepEquals, snap.E("1*"))
@@ -1388,7 +1388,7 @@ apps:
     foo:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Plugs, HasLen, 0)
 	c.Check(info.Slots, HasLen, 2)
 	c.Check(info.Apps, HasLen, 2)
@@ -2236,7 +2236,7 @@ components:
     description: long component description 2
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 	c.Check(info.Components, DeepEquals, map[string]*snap.Component{
 		"test1": {
 			Type:        "standard",
@@ -2270,7 +2270,7 @@ components:
           k2: v2
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 
 	component := info.Components["test1"]
 	c.Assert(component, NotNil)
@@ -2304,7 +2304,7 @@ plugs:
   network-client:
 `))
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "snap")
+	c.Check(info.InstanceName().String(), Equals, "snap")
 
 	type hook struct {
 		plugs []string
@@ -2406,4 +2406,267 @@ components:
 `))
 	c.Assert(err.Error(), Equals, `component hooks cannot have slots`)
 	c.Assert(info, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracks(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+      fips-updates: "18-fips"
+    "20":
+      latest: "20"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Type(), Equals, snap.TypeSnapd)
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
+		"18": {"latest": "18", "fips-updates": "18-fips"},
+		"20": {"latest": "20"},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksUnquotedVersion(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    18:
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
+		"18": {"latest": "18"},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksIgnoresOtherSnapdInfoKeys(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
+		"18": {"latest": "18"},
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoWithoutUbuntuCoreTracks(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UbuntuCoreTracks, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksOmitted(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: snapd
+version: 1.0
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.UbuntuCoreTracks, IsNil)
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksEmpty(c *C) {
+	for _, yaml := range []string{
+		`
+name: snapd
+version: 1.0
+snapd-info: {}
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks: {}
+`,
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(info.UbuntuCoreTracks, IsNil, Commentf("yaml=%s", yaml))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoRejectsNonMapping(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info: []
+`))
+	c.Assert(err, ErrorMatches, `(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*`)
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsTwoLevelMap(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18": "18"
+`))
+	c.Assert(err, ErrorMatches, `(?s)cannot parse snap.yaml: yaml: unmarshal errors:.*`)
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsNonTrackOnly(c *C) {
+	const tmpl = `
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      %s
+`
+	for _, t := range []struct {
+		rule string
+		err  string
+	}{
+		{`latest: "18/stable"`, `target track "18/stable" for boot base 18 is not a track-only channel`},
+		{`latest: "stable"`, `target track "stable" for boot base 18 is not a track-only channel`},
+		{`latest: ""`, `target track "" for boot base 18 is not a track-only channel`},
+		{`latest/stable: "18"`, `input track "latest/stable" for boot base 18 is not a track-only channel`},
+		{`"": "18"`, `input track "" for boot base 18 is not a track-only channel`},
+		{`stable: "18"`, `input track "stable" for boot base 18 is not a track-only channel`},
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(tmpl, t.rule)))
+		c.Check(err, ErrorMatches, `invalid ubuntu-core-tracks: `+t.err, Commentf("rule %s", t.rule))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsBadBootBase(c *C) {
+	const tmpl = `
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "%s":
+      latest: "18"
+`
+	for _, t := range []struct {
+		bootBase string
+		err      string
+	}{
+		{"", `empty boot base`},
+		{"core18", `cannot parse boot base "core18":.*`},
+		// an odd spelling would never be found by uctrack.Resolve, and
+		// normalizing it instead would let "018" and "18" collide
+		{"018", `boot base "018" is not a plain Ubuntu Core version number`},
+		{"+18", `boot base "\+18" is not a plain Ubuntu Core version number`},
+		{"-18", `boot base "-18" is not a plain Ubuntu Core version number`},
+		{"0", `boot base "0" is not a plain Ubuntu Core version number`},
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(tmpl, t.bootBase)))
+		c.Check(err, ErrorMatches, `invalid ubuntu-core-tracks: `+t.err, Commentf("boot base %q", t.bootBase))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalUbuntuCoreTracksRejectsEmptyTrackMap(c *C) {
+	_, err := snap.InfoFromSnapYaml([]byte(`
+name: snapd
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18": {}
+`))
+	c.Check(err, ErrorMatches, `invalid ubuntu-core-tracks: empty track map for boot base 18`)
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoRejectedOnApp(c *C) {
+	for _, yaml := range []string{
+		`
+name: foo
+version: 1.0
+snapd-info: {}
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks: {}
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+  other-policy: {foo: bar}
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+`,
+		`
+name: some-app
+version: 1.0
+snapd-info:
+  ubuntu-core-tracks:
+    "18":
+      latest: "18/stable"
+`,
+		// an empty value still names a snapd-only key
+		`
+name: foo
+version: 1.0
+snapd-info: null
+`,
+		`
+name: foo
+version: 1.0
+snapd-info: ~
+`,
+		`
+name: foo
+version: 1.0
+snapd-info:
+`,
+		// YAML may spell the key with an escape; presence is still presence
+		`
+name: foo
+version: 1.0
+"snapd\x2dinfo":
+  ubuntu-core-tracks:
+    "18":
+      latest: "18"
+`,
+	} {
+		_, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Check(err, ErrorMatches, `cannot specify snapd-info except on the snapd snap`, Commentf("yaml=%s", yaml))
+	}
+}
+
+func (s *YamlSuite) TestUnmarshalSnapdInfoEmptyValueOnSnapd(c *C) {
+	for _, yaml := range []string{
+		`
+name: snapd
+version: 1.0
+snapd-info: null
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info: ~
+`,
+		`
+name: snapd
+version: 1.0
+snapd-info:
+`,
+	} {
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil, Commentf("yaml=%s", yaml))
+		c.Check(info.UbuntuCoreTracks, IsNil, Commentf("yaml=%s", yaml))
+	}
 }

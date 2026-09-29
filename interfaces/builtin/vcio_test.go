@@ -90,7 +90,9 @@ func (s *VcioInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(err, IsNil)
 	spec := udev.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.coreSlot), IsNil)
-	c.Assert(spec.Snippets(), HasLen, 2)
+	c.Assert(spec.Snippets(), HasLen, 3)
+	c.Assert(spec.Snippets(), testutil.Contains, `# vcio
+SUBSYSTEM=="misc", KERNEL=="vcio", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# vcio
 SUBSYSTEM=="bcm2708_vcio", KERNEL=="vcio", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))

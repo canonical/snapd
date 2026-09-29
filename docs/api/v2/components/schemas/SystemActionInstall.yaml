@@ -29,10 +29,11 @@ oneOf:
         enum:
           - setup-storage-encryption
       on-volumes:
-        type: array
-        items:
-          type: string
-        description: A list of volume labels to operate on.
+        type: object
+        description: >-
+          A map of the volumes to operate on, keyed by volume name.
+        additionalProperties:
+          $ref: 'GadgetVolume.yaml'
       volumes-auth:
         type: object
         additionalProperties:
@@ -40,7 +41,9 @@ oneOf:
         description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
       keyboard-config:
         type: object
-        description: Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g. plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
+        description:
+          Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g.
+          plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
         properties:
           layout:
             type: string
@@ -73,16 +76,19 @@ oneOf:
         enum:
           - finish
       on-volumes:
-        type: array
-        items:
-          type: string
-        description: A list of volume labels to operate on.
+        type: object
+        description: >-
+          A map of the volumes to operate on, keyed by volume name.
+        additionalProperties:
+          $ref: 'GadgetVolume.yaml'
       optional-install:
         type: object
         properties:
           all:
             type: boolean
-            description: If true, install all optional snaps and components. Cannot be used if 'snaps' or 'components' are specified.
+            description:
+              If true, install all optional snaps and components. Cannot be used if 'snaps' or 'components'
+              are specified.
           snaps:
             type: array
             items:

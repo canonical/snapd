@@ -90,10 +90,10 @@ func (iface *pipewireInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	spec.AddSnippet(pipewireConnectedPlugAppArmor)
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###SLOT_SECURITY_TAGS###"
-		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		new := "snap." + slot.Snap().InstanceName().String() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(pipewireConnectedPlugAppArmorCore, old, new, -1)
 		old2 := "###SLOT_INSTANCE_NAME###"
-		new2 := slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /var/snap/*/common used for SNAP_COMMON
+		new2 := slot.Snap().InstanceName().String() // forms the snap-instance-specific subdirectory name of /var/snap/*/common used for SNAP_COMMON
 		snippet = strings.Replace(snippet, old2, new2, -1)
 		spec.AddSnippet(snippet)
 	}

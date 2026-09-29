@@ -34,12 +34,16 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/usersession/autostart"
 	"github.com/snapcore/snapd/usersession/userd"
 )
 
-var autostartSessionApps = autostart.AutostartSessionApps
+var (
+	autostartSessionApps      = autostart.AutostartSessionApps
+	systemdInitSdNotifySocket = systemd.InitSdNotifySocket
+)
 
 type cmdUserd struct {
 	Autostart bool `long:"autostart"`
@@ -90,6 +94,9 @@ func (x *cmdUserd) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+
+	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
+	systemdInitSdNotifySocket()
 
 	if x.Autostart {
 		// there may be two snap dirs (~/snap and ~/.snap/data)

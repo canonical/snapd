@@ -107,11 +107,11 @@ func AddSnapDBusActivationFiles(s *snap.Info) error {
 
 	// Make sure we include any service files that claim to have
 	// been written by the snap.
-	sessionServices, err := snapServiceActivationFiles(dirs.SnapDBusSessionServicesDir, s.InstanceName())
+	sessionServices, err := snapServiceActivationFiles(dirs.SnapDBusSessionServicesDir, s.InstanceName().String())
 	if err != nil {
 		return err
 	}
-	systemServices, err := snapServiceActivationFiles(dirs.SnapDBusSystemServicesDir, s.InstanceName())
+	systemServices, err := snapServiceActivationFiles(dirs.SnapDBusSystemServicesDir, s.InstanceName().String())
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func RemoveSnapDBusActivationFiles(s *snap.Info) error {
 		dirs.SnapDBusSessionServicesDir,
 		dirs.SnapDBusSystemServicesDir,
 	} {
-		toRemove, err := snapServiceActivationFiles(servicesDir, s.InstanceName())
+		toRemove, err := snapServiceActivationFiles(servicesDir, s.InstanceName().String())
 		if err != nil {
 			return err
 		}

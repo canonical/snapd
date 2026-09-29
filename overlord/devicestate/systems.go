@@ -300,7 +300,7 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 	// use the components that are already installed
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapInfo.InstanceName(), &snapst); err != nil {
+	if err := snapstate.Get(st, snapInfo.InstanceName().String(), &snapst); err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return nil, "", false, nil
 		}

@@ -225,7 +225,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshWaitOnPendingRestart(c *C) {
 		st := task.State()
 		st.Lock()
 		defer st.Unlock()
-		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, "foo", nil)
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, "foo", nil, "")
 	}, nil)
 
 	// setup the change for check-rerefresh, then we manually request for

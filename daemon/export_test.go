@@ -40,7 +40,9 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -48,6 +50,11 @@ var (
 	CreateQuotaValues = createQuotaValues
 	ParseOptionalTime = parseOptionalTime
 )
+
+// SeclogPeer exposes [ucrednet.seclogPeer] for tests.
+func (un *ucrednet) SeclogPeer() seclog.Peer {
+	return un.seclogPeer()
+}
 
 func APICommands() []*Command {
 	return api
@@ -81,6 +88,33 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 }
 
 type Ucrednet = ucrednet
+
+func MockAppArmorLabelFromPid(f func(int) (string, error)) (restore func()) {
+	restore = testutil.Backup(&apparmorLabelFromPid)
+	apparmorLabelFromPid = f
+	return restore
+}
+
+func NewUcrednet(securityTag, processExeName string, uid uint32, socket string) *Ucrednet {
+	var tag naming.SecurityTag
+	if securityTag != "" {
+		var err error
+		tag, err = naming.ParseSecurityTag(securityTag)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return &ucrednet{
+		securityTag:             tag,
+		untrustedProcessExeName: processExeName,
+		Uid:                     uid,
+		Socket:                  socket,
+	}
+}
+
+func (un *ucrednet) SetUntrustedProcessExeNameErr(err error) {
+	un.untrustedProcessExeNameErr = err
+}
 
 func AddUcrednetToRequest(r *http.Request, ucred *Ucrednet, ifaces ...string) {
 	ctx := ucrednetWithCredentials(r.Context(), ucred)

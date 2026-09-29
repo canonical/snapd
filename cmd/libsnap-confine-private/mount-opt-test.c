@@ -300,13 +300,13 @@ static void test_sc_do_umount(gconstpointer snap_debug) {
     }
 }
 
-static bool missing_mount(struct sc_fault_state *state, void *ptr) {
-    errno = ENOENT;
-    return true;
+static bool unexpected_mount(struct sc_fault_state *state, void *ptr) {
+    g_assert_not_reached();
+    return false;
 }
 
 static void test_sc_do_optional_mount_missing(void) {
-    sc_break("mount", missing_mount);
+    sc_break("mount", unexpected_mount);
     bool ok = sc_do_optional_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
     g_assert_false(ok);
     sc_reset_faults();
@@ -318,7 +318,8 @@ static void test_sc_do_optional_mount_failure(gconstpointer snap_debug) {
         if (GPOINTER_TO_INT(snap_debug) == 1) {
             g_assert_true(g_setenv("SNAP_CONFINE_DEBUG", "1", true));
         }
-        (void)sc_do_optional_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
+        // use paths that do exist so they pass the stat pre-check
+        (void)sc_do_optional_mount("/", "/", "ext4", MS_RDONLY, NULL);
 
         g_test_message("expected sc_do_mount not to return");
         sc_reset_faults();
@@ -328,14 +329,14 @@ static void test_sc_do_optional_mount_failure(gconstpointer snap_debug) {
     g_test_trap_subprocess(NULL, 0, 0);
     g_test_trap_assert_failed();
     if (GPOINTER_TO_INT(snap_debug) == 0) {
-        g_test_trap_assert_stderr("cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
+        g_test_trap_assert_stderr("cannot perform operation: mount -t ext4 -o ro / /: Permission denied\n");
     } else {
         /* with snap_debug the debug output hides the actual mount commands *but*
          * they are still shown if there was an error
          */
         g_test_trap_assert_stderr(
             "DEBUG: performing operation: (disabled) use debug build to see details\n"
-            "cannot perform operation: mount -t ext4 -o ro /foo /bar: Permission denied\n");
+            "cannot perform operation: mount -t ext4 -o ro / /: Permission denied\n");
     }
 }
 

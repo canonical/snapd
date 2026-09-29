@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -306,7 +307,7 @@ func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord
 func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	mountDir := s.MountDir()
 
-	_, instanceKey := snap.SplitInstanceName(s.InstanceName())
+	_, instanceKey := snap.SplitInstanceName(s.InstanceName().String())
 	if instanceKey != "" {
 		// always ok to remove instance specific one, failure to remove
 		// is ok, there may be other revisions
@@ -398,7 +399,7 @@ func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string, ksnapRe
 	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps)+1)
 	for _, csi := range comps {
 		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-			csi.Revision, kSnapName)
+			csi.Revision, naming.InstanceName(kSnapName))
 		if dirHasDrivers(compPlaceInfo.MountDir()) {
 			compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
 				LinkName: csi.Component.ComponentName,

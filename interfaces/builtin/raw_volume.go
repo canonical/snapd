@@ -123,7 +123,7 @@ const invalidDeviceNodeSlotPathErrFmt = "slot %q path attribute must be a valid 
 
 // Check validity of the defined slot
 func (iface *rawVolumeInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
+	_, err := verifySlotPathAttribute(&interfaces.SlotRef{Snap: slot.Snap.InstanceName().String(), Name: slot.Name}, slot, rawVolumePartitionPattern, invalidDeviceNodeSlotPathErrFmt)
 	return err
 }
 

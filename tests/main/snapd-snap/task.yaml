@@ -211,6 +211,14 @@ execute: |
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
 
+    # The snapd-info stanza is temporarily disabled in build-aux/snap/snapcraft.yaml
+    # (see PR #17691) until the review-tools store schema update is deployed.
+    # Uncomment the checks below when the stanza is restored.
+    #echo "Check meta/snap.yaml carries empty snapd-info ubuntu-core-tracks"
+    #test -f squashfs-root/meta/snap.yaml
+    #MATCH '^snapd-info:' < squashfs-root/meta/snap.yaml
+    #MATCH 'ubuntu-core-tracks: \{\}' < squashfs-root/meta/snap.yaml
+
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
     echo "Ensure we have apparmor_parser"
@@ -218,6 +226,9 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
+    # See note above about PR #17691; uncomment when the snapd-info stanza is restored.
+    #MATCH '^snapd-info:' < /snap/snapd/current/meta/snap.yaml
+    #MATCH 'ubuntu-core-tracks: \{\}' < /snap/snapd/current/meta/snap.yaml
     cat >> snapd-cleanup.sh <<EOF
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then

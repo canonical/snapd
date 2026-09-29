@@ -56,10 +56,10 @@ func InstallComponents(
 	}
 
 	var snapst SnapState
-	err := Get(st, info.InstanceName(), &snapst)
+	err := Get(st, info.InstanceName().String(), &snapst)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return nil, &snap.NotInstalledError{Snap: info.InstanceName()}
+			return nil, &snap.NotInstalledError{Snap: info.InstanceName().String()}
 		}
 		return nil, err
 	}
@@ -291,10 +291,10 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 
 	var snapst SnapState
 	// owner snap must be already installed
-	err := Get(st, info.InstanceName(), &snapst)
+	err := Get(st, info.InstanceName().String(), &snapst)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return nil, &snap.NotInstalledError{Snap: info.InstanceName()}
+			return nil, &snap.NotInstalledError{Snap: info.InstanceName().String()}
 		}
 		return nil, err
 	}
@@ -775,7 +775,7 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 		if compst == nil {
 			return nil, &snap.ComponentNotInstalledError{
 				NotInstalledError: snap.NotInstalledError{
-					Snap: info.InstanceName(),
+					Snap: info.InstanceName().String(),
 					Rev:  info.Revision,
 				},
 				Component: comp,
@@ -800,7 +800,7 @@ func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *
 	instName := info.InstanceName()
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, copts); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, instName.String(), nil, copts); err != nil {
 		return err
 	}
 
@@ -833,7 +833,7 @@ func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *
 		// if a component triggers a seed, so it is fine to leave
 		// the value in the ComponentSetupTaskIDs field empty.
 		candidate := SeedRefreshCandidate{
-			InstanceName:          info.InstanceName(),
+			InstanceName:          info.InstanceName().String(),
 			ComponentSetupTaskIDs: map[string]string{compst.SideInfo.Component.ComponentName: ""},
 		}
 		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
@@ -869,7 +869,7 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 	// impact confinement of the snap itself.
 	copyConfinementFlagsFromSnapState(&snapSup.Flags, snapst)
 
-	removeHook := SetupRemoveComponentHook(st, instName, compst.SideInfo.Component.ComponentName)
+	removeHook := SetupRemoveComponentHook(st, instName.String(), compst.SideInfo.Component.ComponentName)
 	removeHook.Set("component-setup", compSetup)
 	removeHook.Set("snap-setup", snapSup)
 
