@@ -227,10 +227,10 @@ func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOp
 		info:   sar.Info,
 		snapst: *snapst,
 		setup: SnapSetup{
-			DownloadInfo:      &sar.DownloadInfo,
-			Channel:           trackedChannel,
-			CohortKey:         revOpts.CohortKey,
-			IntegrityDataInfo: sar.IntegrityData,
+			DownloadInfo:           &sar.DownloadInfo,
+			Channel:                trackedChannel,
+			CohortKey:              revOpts.CohortKey,
+			IntegrityDownloadInfos: sar.IntegrityDownloadInfos,
 		},
 		components: components,
 	}, nil
@@ -318,12 +318,10 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		},
 	}
 
-	// TODO: only get the download info for integrity data.
-	// TODO: until dm-verity data are used for all snaps, we will only
-	// use integrity data for specific snap types (the essential snaps).
+	// FIXME: snap type-based restriction should not be on the download data level, remove the check below.
 	typ := t.info.Type()
 	if typ == snap.TypeBase || typ == snap.TypeKernel || typ == snap.TypeGadget || typ == snap.TypeSnapd {
-		snapsup.IntegrityDataInfo = t.setup.IntegrityDataInfo
+		snapsup.IntegrityDownloadInfos = t.setup.IntegrityDownloadInfos
 	}
 
 	return snapsup, compsups, nil
