@@ -680,6 +680,7 @@ jobs:
       - name: Download filtered log for Grafana
         if: ${{ inputs.log-to-grafana }}
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
@@ -690,6 +691,7 @@ jobs:
           name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
       - name: Send results to test-predictor
+        if: ${{ hashFiles('results.json') != '' }}
         run: |
           source .github/scripts/common.sh
           send_results_to_test_predictor \
