@@ -5,10 +5,10 @@ type: object
 title: SystemActionCheckPinQuality
 description: >-
   Payload to check the quality of a given PIN.
-  The target system must support passphrase authentication, indicated
-  by the 'passphrase-auth' entry in `storage-encryptions.features`
+  The target system must support PIN authentication, indicated
+  by the 'pin-auth' entry in `storage-encryption.features`
   returned by `GET /v2/systems/{label}`. Otherwise, snapd returns a
-  400 Bad Request error with result kind `unsupported`.`
+  400 Bad Request error with result kind `unsupported`.
 required:
   - action
   - pin
