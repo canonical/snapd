@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/lkenv"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
@@ -523,6 +524,16 @@ func (s *lkTestSuite) wedgeBootImageMatrix(c *C, kernel string, referenced bool)
 	return env, partUUIDFor("boot_a"), partUUIDFor("boot_b")
 }
 
+// installKernelSnap puts a kernel snap shipping the given boot image where the
+// snap files of installed kernel revisions are kept.
+func (s *lkTestSuite) installKernelSnap(c *C, kernel, bootImg string) {
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, [][]string{
+		{"boot.img", bootImg},
+	})
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	c.Assert(osutil.CopyFile(fn, filepath.Join(dirs.SnapBlobDir, kernel), osutil.CopyFlagOverwrite), IsNil)
+}
+
 func (s *lkTestSuite) TestExtractKernelAssetsRepairsDuplicateBootPartitions(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
@@ -536,11 +547,14 @@ func (s *lkTestSuite) TestExtractKernelAssetsRepairsDuplicateBootPartitions(c *C
 	c.Assert(lk, NotNil)
 
 	env, bootA, bootB := s.wedgeBootImageMatrix(c, "ubuntu-kernel_42.snap", true)
+	s.installKernelSnap(c, "ubuntu-kernel_42.snap", "kernel 42 boot image")
 
-	// both boot image partitions hold the same boot image, as they would after
-	// the duplicate was created by re-extracting the same kernel
-	c.Assert(os.WriteFile(bootA, []byte("kernel 42 boot image"), 0755), IsNil)
-	c.Assert(os.WriteFile(bootB, []byte("kernel 42 boot image"), 0755), IsNil)
+	// both boot image partitions hold the boot image of the kernel, as they
+	// would after the duplicate was created by re-extracting the same kernel,
+	// but what follows it differs: a boot image is smaller than its partition
+	// and extracting it leaves the tail of earlier, larger boot images behind
+	c.Assert(os.WriteFile(bootA, []byte("kernel 42 boot image, then leftovers of an older one"), 0755), IsNil)
+	c.Assert(os.WriteFile(bootB, []byte("kernel 42 boot image, then leftovers of a different older one"), 0755), IsNil)
 
 	// a device in this state cannot find a free boot image partition
 	_, err := env.FindFreeKernelBootPartition("ubuntu-kernel_43.snap")
@@ -574,10 +588,11 @@ func (s *lkTestSuite) TestExtractKernelAssetsRepairsDuplicateBootPartitions(c *C
 	c.Assert(err, IsNil)
 	c.Check(bootPart, Equals, "boot_b")
 
-	// and the new boot image really was written to the freed partition
+	// and the new boot image really was written to the freed partition, over
+	// the start of what was there before
 	content, err := os.ReadFile(bootB)
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "kernel 43 boot image")
+	c.Check(string(content), Equals, "kernel 43 boot image, then leftovers of a different older one")
 
 	// the duplicate is gone for good
 	duplicates, err := env.DuplicateKernelBootPartitions()
@@ -660,12 +675,13 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateWithDiffering
 	c.Assert(lk, NotNil)
 
 	env, bootA, bootB := s.wedgeBootImageMatrix(c, "ubuntu-kernel_42.snap", true)
+	s.installKernelSnap(c, "ubuntu-kernel_42.snap", "kernel 42 boot image")
 
-	// the boot image partitions hold *different* content, so one of the two
-	// references is the only record of a distinct boot image and must not be
+	// only boot_a holds the boot image of the kernel, so the reference from
+	// boot_b is the only record of a distinct boot image and must not be
 	// dropped - clearing it would leave a boot image the bootloader can no
 	// longer find and let the extraction below overwrite it
-	c.Assert(os.WriteFile(bootA, []byte("some boot image"), 0755), IsNil)
+	c.Assert(os.WriteFile(bootA, []byte("kernel 42 boot image"), 0755), IsNil)
 	c.Assert(os.WriteFile(bootB, []byte("a different boot image"), 0755), IsNil)
 
 	files := [][]string{
@@ -685,12 +701,12 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateWithDiffering
 	err = lk.ExtractKernelAssets(info, snapf)
 	c.Assert(err, ErrorMatches, "cannot find free boot image partition")
 
-	c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a and boot_b but their contents differ")
+	c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a and boot_b but they do not both hold its boot image")
 
 	// both boot image partitions are left exactly as they were
 	content, err := os.ReadFile(bootA)
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "some boot image")
+	c.Check(string(content), Equals, "kernel 42 boot image")
 	content, err = os.ReadFile(bootB)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, "a different boot image")
@@ -723,9 +739,10 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairTryKernelWithDiffering
 	env.Set("snap_try_kernel", "ubuntu-kernel_42.snap")
 	c.Assert(env.Save(), IsNil)
 	c.Check(env.IsKernelReferenced("ubuntu-kernel_42.snap"), Equals, true)
+	s.installKernelSnap(c, "ubuntu-kernel_42.snap", "kernel 42 boot image")
 
 	c.Assert(os.WriteFile(bootA, []byte("some boot image"), 0755), IsNil)
-	c.Assert(os.WriteFile(bootB, []byte("a different boot image"), 0755), IsNil)
+	c.Assert(os.WriteFile(bootB, []byte("kernel 42 boot image"), 0755), IsNil)
 
 	files := [][]string{
 		{"boot.img", "kernel 43 boot image"},
@@ -746,7 +763,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairTryKernelWithDiffering
 	// not drop the reference from boot_b on the way
 	c.Assert(lk.ExtractKernelAssets(info, snapf), IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a and boot_b but their contents differ")
+	c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a and boot_b but they do not both hold its boot image")
 
 	// the try kernel is still recorded in the boot image partition holding its
 	// boot image, so the bootloader can still find it
@@ -756,7 +773,133 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairTryKernelWithDiffering
 	c.Check(bootPart, Equals, "boot_b")
 	content, err := os.ReadFile(bootB)
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "a different boot image")
+	c.Check(string(content), Equals, "kernel 42 boot image")
+}
+
+// makeKernelSnap makes a kernel snap of the given revision shipping the given
+// boot image.
+func makeKernelSnap(c *C, revision int, bootImg string) (*snap.Info, snap.Container) {
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, [][]string{
+		{"boot.img", bootImg},
+	})
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(revision),
+	})
+	c.Assert(err, IsNil)
+	return info, snapf
+}
+
+func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateNotHoldingItsBootImage(c *C) {
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+	r := bootloader.MockLkFiles(c, s.rootdir, opts)
+	defer r()
+	lk := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(lk, NotNil)
+
+	for _, t := range []struct {
+		comment      string
+		bootA, bootB string
+	}{{
+		// the two boot image partitions agree with each other, but neither
+		// holds the boot image of the kernel recorded in them, so there is no
+		// telling which kernel the bootloader would really boot from either
+		comment: "identical content that is not the boot image",
+		bootA:   "some other boot image",
+		bootB:   "some other boot image",
+	}, {
+		// a partition too short to hold the whole boot image does not hold
+		// it, even though what it does hold matches the start of it
+		comment: "boot image cut short in one partition",
+		bootA:   "kernel 42 boot image",
+		bootB:   "kernel 42 boot",
+	}} {
+		logbuf, r := logger.MockLogger()
+		defer r()
+
+		env, bootA, bootB := s.wedgeBootImageMatrix(c, "ubuntu-kernel_42.snap", true)
+		s.installKernelSnap(c, "ubuntu-kernel_42.snap", "kernel 42 boot image")
+		c.Assert(os.WriteFile(bootA, []byte(t.bootA), 0755), IsNil)
+		c.Assert(os.WriteFile(bootB, []byte(t.bootB), 0755), IsNil)
+
+		info, snapf := makeKernelSnap(c, 43, "kernel 43 boot image")
+		err := lk.ExtractKernelAssets(info, snapf)
+		c.Assert(err, ErrorMatches, "cannot find free boot image partition", Commentf(t.comment))
+		c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a and boot_b but they do not both hold its boot image", Commentf(t.comment))
+
+		c.Assert(env.Load(), IsNil)
+		duplicates, err := env.DuplicateKernelBootPartitions()
+		c.Assert(err, IsNil)
+		c.Check(duplicates, DeepEquals, map[string][]string{
+			"ubuntu-kernel_42.snap": {"boot_a", "boot_b"},
+		}, Commentf(t.comment))
+	}
+}
+
+func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateWithoutKernelSnap(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+	r = bootloader.MockLkFiles(c, s.rootdir, opts)
+	defer r()
+	lk := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(lk, NotNil)
+
+	// the snap file of the duplicated kernel is not there, so there is nothing
+	// to confirm the boot image partitions hold its boot image against
+	env, bootA, bootB := s.wedgeBootImageMatrix(c, "ubuntu-kernel_42.snap", true)
+	c.Assert(os.WriteFile(bootA, []byte("kernel 42 boot image"), 0755), IsNil)
+	c.Assert(os.WriteFile(bootB, []byte("kernel 42 boot image"), 0755), IsNil)
+
+	info, snapf := makeKernelSnap(c, 43, "kernel 43 boot image")
+	err := lk.ExtractKernelAssets(info, snapf)
+	c.Assert(err, ErrorMatches, "cannot find free boot image partition")
+	c.Check(logbuf.String(), Matches, `(?s).*cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in more than one boot image partition but its boot image cannot be read: .*ubuntu-kernel_42.snap: no such file or directory.*`)
+
+	c.Assert(env.Load(), IsNil)
+	duplicates, err := env.DuplicateKernelBootPartitions()
+	c.Assert(err, IsNil)
+	c.Check(duplicates, HasLen, 1)
+}
+
+func (s *lkTestSuite) TestExtractKernelAssetsRepairsDuplicateOfKernelBeingExtracted(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+	r = bootloader.MockLkFiles(c, s.rootdir, opts)
+	defer r()
+	lk := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(lk, NotNil)
+
+	// the duplicated kernel is re-extracted, as when installing the system
+	// again, which may happen before its snap file is where installed kernel
+	// revisions are kept: its boot image is read from the snap being extracted
+	env, bootA, bootB := s.wedgeBootImageMatrix(c, "ubuntu-kernel_42.snap", true)
+	c.Assert(os.WriteFile(bootA, []byte("kernel 42 boot image"), 0755), IsNil)
+	c.Assert(os.WriteFile(bootB, []byte("kernel 42 boot image"), 0755), IsNil)
+
+	info, snapf := makeKernelSnap(c, 42, "kernel 42 boot image")
+	c.Assert(lk.ExtractKernelAssets(info, snapf), IsNil)
+	c.Check(logbuf.String(), testutil.Contains, "repairing lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in both boot image partitions boot_a and boot_b, freeing boot_b")
+
+	// the kernel stays where it was found first, and only there
+	c.Assert(env.Load(), IsNil)
+	bootPart, err := env.GetKernelBootPartition("ubuntu-kernel_42.snap")
+	c.Assert(err, IsNil)
+	c.Check(bootPart, Equals, "boot_a")
+	duplicates, err := env.DuplicateKernelBootPartitions()
+	c.Assert(err, IsNil)
+	c.Check(duplicates, HasLen, 0)
 }
 
 func (s *lkTestSuite) TestExtractKernelAssetsNoRepairNeeded(c *C) {

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/kcmdline"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 )
 
 const (
@@ -414,19 +415,45 @@ func (l *lk) bootPartitionPath(bootPartition string) (string, error) {
 	return path, err
 }
 
-// bootPartitionsHoldSameImage returns whether the two named boot image
-// partitions hold byte for byte identical content.
-func (l *lk) bootPartitionsHoldSameImage(bootPartition1, bootPartition2 string) (bool, error) {
-	path1, err := l.bootPartitionPath(bootPartition1)
-	if err != nil {
-		return false, err
+// openKernelBootImage opens the boot image shipped in the given kernel snap
+// blob. The kernel currently being extracted is read from its container
+// directly, any other kernel is read from its snap file in the snap blob
+// directory, where every installed kernel revision is kept.
+func (l *lk) openKernelBootImage(env *lkenv.Env, kernel string, s snap.PlaceInfo, snapf snap.Container) (interface {
+	io.ReaderAt
+	io.Closer
+	Size() int64
+}, error) {
+	if kernel != s.Filename() {
+		var err error
+		snapf, err = snapfile.Open(filepath.Join(dirs.SnapBlobDir, kernel))
+		if err != nil {
+			return nil, err
+		}
 	}
-	path2, err := l.bootPartitionPath(bootPartition2)
-	if err != nil {
-		return false, err
-	}
+	return snapf.RandomAccessFile(env.GetBootImageName())
+}
 
-	return osutil.FilesAreEqual(path1, path2), nil
+// bootPartitionHoldsBootImage returns whether the named boot image partition
+// holds the given boot image. Only as many bytes as the boot image has are
+// compared: a boot image is usually smaller than the boot image partition, and
+// io.Copy() when extracting it does not clear what lies beyond its end, so the
+// rest of the partition holds whatever was left behind by earlier, larger boot
+// images and says nothing about which boot image the partition holds.
+func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.ReaderAt, size int64) (bool, error) {
+	path, err := l.bootPartitionPath(bootPartition)
+	if err != nil {
+		return false, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	// a partition shorter than the boot image yields fewer bytes than the
+	// boot image and so never compares equal
+	return osutil.StreamsEqual(io.NewSectionReader(bootImg, 0, size), io.LimitReader(f, size)), nil
 }
 
 // repairDuplicateKernelBootPartitions repairs a boot image matrix in which the
@@ -447,15 +474,16 @@ func (l *lk) bootPartitionsHoldSameImage(bootPartition1, bootPartition2 string) 
 // references can be dropped without comparing the boot image partitions at all.
 //
 // For a kernel revision that is referenced, the redundant references are only
-// cleared once the boot image partitions have been confirmed to hold identical
-// content, so that a reference is never dropped while it is the only record of
-// where a distinct boot image actually lives - clearing such a reference would
+// cleared once every boot image partition it is recorded in has been confirmed
+// to hold the boot image shipped in that kernel revision's snap, so that a
+// reference is never dropped while it is the only record of where a distinct
+// boot image actually lives - clearing such a reference would
 // leave a boot image partition the bootloader can no longer find, and would let
 // a subsequent extraction overwrite a boot image that is still needed. The
 // reference in the boot image partition appearing first in the matrix is kept,
 // matching the partition that GetKernelBootPartition() resolves the kernel
 // revision to.
-func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
+func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env, s snap.PlaceInfo, snapf snap.Container) error {
 	duplicates, err := env.DuplicateKernelBootPartitions()
 	if err != nil {
 		return err
@@ -466,37 +494,11 @@ func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
 
 	repaired := false
 	for kernel, bootPartitions := range duplicates {
-		// a kernel revision that nothing boots from cannot be booted from
-		// whichever boot image partition it is recorded in, so the redundant
-		// references can go regardless of what the boot image partitions hold
-		referenced := env.IsKernelReferenced(kernel)
-
-		keep := bootPartitions[0]
-		for _, drop := range bootPartitions[1:] {
-			if referenced {
-				// only drop the redundant reference if both boot image
-				// partitions really do hold the same boot image, otherwise the
-				// reference is the only record of a distinct boot image that is
-				// still referenced for booting and dropping it would lose it
-				same, err := l.bootPartitionsHoldSameImage(keep, drop)
-				if err != nil {
-					return err
-				}
-				if !same {
-					logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in boot image partitions %s and %s but their contents differ", kernel, keep, drop)
-					continue
-				}
-
-				logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
-			} else {
-				logger.Noticef("repairing lk boot image matrix: unreferenced kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
-			}
-
-			if err := env.ClearKernelBootPartition(drop); err != nil {
-				return err
-			}
-			repaired = true
+		ok, err := l.repairDuplicateKernel(env, kernel, bootPartitions, s, snapf)
+		if err != nil {
+			return err
 		}
+		repaired = repaired || ok
 	}
 
 	if !repaired {
@@ -504,6 +506,62 @@ func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
 	}
 
 	return env.Save()
+}
+
+// repairDuplicateKernel drops the redundant references to a single kernel
+// revision recorded in all of the given boot image partitions, keeping the
+// first one. It returns whether any reference was dropped.
+func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions []string, s snap.PlaceInfo, snapf snap.Container) (bool, error) {
+	keep, drops := bootPartitions[0], bootPartitions[1:]
+
+	// a kernel revision that nothing boots from cannot be booted from
+	// whichever boot image partition it is recorded in, so the redundant
+	// references can go regardless of what the boot image partitions hold
+	if !env.IsKernelReferenced(kernel) {
+		for _, drop := range drops {
+			logger.Noticef("repairing lk boot image matrix: unreferenced kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
+			if err := env.ClearKernelBootPartition(drop); err != nil {
+				return false, err
+			}
+		}
+		return true, nil
+	}
+
+	// only drop a redundant reference if both boot image partitions really do
+	// hold the boot image of the kernel revision, otherwise the reference is
+	// the only record of a distinct boot image that is still referenced for
+	// booting and dropping it would lose it
+	bootImg, err := l.openKernelBootImage(env, kernel, s, snapf)
+	if err != nil {
+		logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in more than one boot image partition but its boot image cannot be read: %v", kernel, err)
+		return false, nil
+	}
+	defer bootImg.Close()
+
+	keepHolds, err := l.bootPartitionHoldsBootImage(keep, bootImg, bootImg.Size())
+	if err != nil {
+		return false, err
+	}
+
+	repaired := false
+	for _, drop := range drops {
+		dropHolds, err := l.bootPartitionHoldsBootImage(drop, bootImg, bootImg.Size())
+		if err != nil {
+			return false, err
+		}
+		if !keepHolds || !dropHolds {
+			logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in boot image partitions %s and %s but they do not both hold its boot image", kernel, keep, drop)
+			continue
+		}
+
+		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
+		if err := env.ClearKernelBootPartition(drop); err != nil {
+			return false, err
+		}
+		repaired = true
+	}
+
+	return repaired, nil
 }
 
 // ExtractKernelAssets extract kernel assets per bootloader specifics
@@ -537,7 +595,7 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// boot image partition, which leaves no free boot image partition for this
 	// kernel and would make FindFreeKernelBootPartition() below fail forever.
 	// Repair the boot image matrix first so such a device can be updated again.
-	if err := l.repairDuplicateKernelBootPartitions(env); err != nil {
+	if err := l.repairDuplicateKernelBootPartitions(env, s, snapf); err != nil {
 		return err
 	}
 
