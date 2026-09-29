@@ -174,7 +174,7 @@ build_command() {
         COMMAND+=(--channel "$CHANNEL")
     fi
     if [ -n "$BASE_CHANNEL" ]; then
-        COMMAND+=("$BASE_CHANNEL")
+        COMMAND+=(--snap "core${CORE_VERSION}=$BASE_CHANNEL")
     fi
     if [ -n "$PRESEED_SIGN_KEY" ]; then
         COMMAND+=(--preseed --preseed-sign-key="$PRESEED_SIGN_KEY")
@@ -196,16 +196,20 @@ build_command() {
 }
 
 run_ubuntu_image() {
-    local return_code
+    local -a return_codes
 
     if [ -n "$LOG_FILE" ]; then
         set +e
         env "${ENVIRONMENT[@]}" "${COMMAND[@]}" |& tee "$LOG_FILE"
-        return_code="${PIPESTATUS[0]}"
+        return_codes=("${PIPESTATUS[@]}")
         set -e
-        if [ "$return_code" -ne 0 ]; then
-            echo "image-generator: ubuntu-image failed with exit code $return_code (see $LOG_FILE)" >&2
-            exit "$return_code"
+        if [ "${return_codes[0]}" -ne 0 ]; then
+            echo "image-generator: ubuntu-image failed with exit code ${return_codes[0]} (see $LOG_FILE)" >&2
+            exit "${return_codes[0]}"
+        fi
+        if [ "${return_codes[1]}" -ne 0 ]; then
+            echo "image-generator: cannot write log file $LOG_FILE (tee exited with code ${return_codes[1]})" >&2
+            exit "${return_codes[1]}"
         fi
     else
         env "${ENVIRONMENT[@]}" "${COMMAND[@]}"
@@ -233,7 +237,7 @@ postprocess_image() {
         fi
     fi
 
-    ln -s "$OUTPUT_DIR/$IMAGE_BASE_NAME-$boot_volume.img" "$OUTPUT_DIR/$IMAGE_NAME"
+    ln -s "$IMAGE_BASE_NAME-$boot_volume.img" "$OUTPUT_DIR/$IMAGE_NAME"
 }
 
 generate_image() {
