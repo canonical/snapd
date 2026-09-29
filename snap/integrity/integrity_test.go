@@ -63,7 +63,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckSuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	digest := "test"
-	verityFilePath := "foo.dmverity_test"
+	verityFilePath := "foo_test.dmverity"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -96,7 +96,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckCrossCheckError(c *C) {
 	c.Assert(err, IsNil)
 
 	digest := "test"
-	verityFilePath := "foo.dmverity_test"
+	verityFilePath := "foo_test.dmverity"
 
 	restore := integrity.MockReadDmVeritySuperblock(func(filename string) (*dmverity.VeritySuperblock, error) {
 		c.Assert(filename, Equals, verityFilePath)
@@ -221,7 +221,7 @@ func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckNotExist(c *C) {
 	hashFileName, err := integrity.LookupDataAndCrossCheck(snapPath, &integrityDataParams)
 	c.Check(hashFileName, Equals, "")
 	c.Check(errors.Is(err, integrity.ErrDmVerityDataNotFound), Equals, true)
-	c.Check(err, ErrorMatches, `dm-verity data not found: "foo.dmverity_" doesn't exist.`)
+	c.Check(err, ErrorMatches, `dm-verity data not found: "foo_.dmverity" doesn't exist.`)
 }
 
 func (s *IntegrityTestSuite) TestLookupDataAndCrossCheckAnyError(c *C) {
@@ -309,7 +309,7 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsIntegrityFile(c *C) {
 
 	integrityFile, err := idp.IntegrityFile("/path/to/instance.snap")
 	c.Assert(err, IsNil)
-	c.Check(integrityFile, Equals, "/path/to/instance.dmverity_aaa")
+	c.Check(integrityFile, Equals, "/path/to/instance_aaa.dmverity")
 
 	idp = integrity.IntegrityDataParams{
 		Type:   "bad-type",
@@ -329,7 +329,7 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsMountOptions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, []string{
 		"verity.roothash=aaa",
-		"verity.hashdevice=/path/to/instance.dmverity_aaa",
+		"verity.hashdevice=/path/to/instance_aaa.dmverity",
 	})
 
 	idp = integrity.IntegrityDataParams{
@@ -345,10 +345,13 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 	dir := c.MkDir()
 	for _, name := range []string{
 		"foo_1.snap",
-		"foo_1.dmverity_aaa",
-		"foo_1.dmverity_bbb",
-		"foo_10.dmverity_ccc",
-		"bar_1.dmverity_aaa",
+		"foo_1_aaa.dmverity",
+		"foo_1_bbb.dmverity",
+		"foo_10_ccc.dmverity",
+		"bar_1_aaa.dmverity",
+		// instance foo_1 revision 2 must not match snap foo revision 1
+		"foo_1_2.snap",
+		"foo_1_2_ddd.dmverity",
 	} {
 		c.Assert(os.WriteFile(filepath.Join(dir, name), nil, 0644), IsNil)
 	}
@@ -360,15 +363,21 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		{
 			snapPath: filepath.Join(dir, "foo_1.snap"),
 			expectedFiles: []string{
-				filepath.Join(dir, "foo_1.dmverity_aaa"),
-				filepath.Join(dir, "foo_1.dmverity_bbb"),
+				filepath.Join(dir, "foo_1_aaa.dmverity"),
+				filepath.Join(dir, "foo_1_bbb.dmverity"),
 			},
 		},
 		{
 			snapPath: filepath.Join(dir, "foo_1"),
 			expectedFiles: []string{
-				filepath.Join(dir, "foo_1.dmverity_aaa"),
-				filepath.Join(dir, "foo_1.dmverity_bbb"),
+				filepath.Join(dir, "foo_1_aaa.dmverity"),
+				filepath.Join(dir, "foo_1_bbb.dmverity"),
+			},
+		},
+		{
+			snapPath: filepath.Join(dir, "foo_1_2.snap"),
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_2_ddd.dmverity"),
 			},
 		},
 		{
