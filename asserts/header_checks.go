@@ -295,8 +295,8 @@ func checkOptionalBool(headers map[string]any, name string) (bool, error) {
 	return checkOptionalBoolWhat(headers, name, "header")
 }
 
-// TODO: Consider moving the exported checks to a separate file and making
-// them the primary implementations where practical, retaining map-based
+// TODO:ASSERTS: Consider moving the exported checks to a separate file and
+// making them the primary implementations where practical, retaining map-based
 // helpers for checks on nested header values.
 
 // CheckRevision checks and returns the named mandatory header as an integer

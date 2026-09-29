@@ -27,10 +27,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
-// TODO: These tests do not provide sufficient coverage of the exported header
-// checks on their own; they currently rely on snap-specific assertion tests
-// for additional coverage. Expand this suite when those assertions move to
-// their own subpackage.
+// TODO:ASSERTS: These tests do not provide sufficient coverage of the exported
+// header checks on their own; they currently rely on snap-specific assertion
+// tests for additional coverage. Expand this suite when those assertions move
+// to their own subpackage.
 type headerChecksSuite struct{}
 
 var _ = Suite(&headerChecksSuite{})
