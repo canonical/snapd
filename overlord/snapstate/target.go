@@ -344,12 +344,20 @@ type storeInstallGoal struct {
 }
 
 func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
-	for _, sn := range s.snaps {
-		if sn.InstanceName == name {
-			return sn, true
+	sn, ok := s.snapByName(name)
+	if !ok {
+		return StoreSnap{}, false
+	}
+	return *sn, true
+}
+
+func (s *storeInstallGoal) snapByName(name string) (*StoreSnap, bool) {
+	for i := range s.snaps {
+		if s.snaps[i].InstanceName == name {
+			return &s.snaps[i], true
 		}
 	}
-	return StoreSnap{}, false
+	return nil, false
 }
 
 // StoreSnap represents a snap that is to be installed from the store.
@@ -422,7 +430,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName().String())
+		sn, ok := s.snapByName(r.InstanceName().String())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
@@ -430,6 +438,14 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		snapst, ok := allSnaps[r.InstanceName().String()]
 		if !ok {
 			snapst = &SnapState{}
+		}
+
+		r, localOnly, err := maybeRedirectSnapdTrack(ctx, st, r, &sn.RevOpts, snapst, opts, "install", len(sn.Components) > 0)
+		if err != nil {
+			return nil, err
+		}
+		if localOnly {
+			return nil, errors.New("internal error: snapd track redirect of uninstalled snapd returned no store revision")
 		}
 
 		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)

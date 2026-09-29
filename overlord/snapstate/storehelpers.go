@@ -580,12 +580,13 @@ func storeUpdatePlanCore(
 	}
 
 	for _, sar := range sars {
-		up, ok := updates[sar.InstanceName().String()]
+		name := sar.InstanceName().String()
+		up, ok := updates[name]
 		if !ok {
-			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", sar.InstanceName())
+			return updatePlan{}, fmt.Errorf("unsolicited snap action result: %q", name)
 		}
 
-		snapst, ok := allSnaps[sar.InstanceName().String()]
+		snapst, ok := allSnaps[name]
 		if !ok {
 			snapst = &SnapState{}
 		}
@@ -605,6 +606,24 @@ func storeUpdatePlanCore(
 		// add the additional components that the caller requested to be
 		// installed
 		compNames = unique(append(compNames, up.AdditionalComponents...))
+
+		action := "install"
+		if snapst.IsInstalled() {
+			if si := snapst.CurrentSideInfo(); si != nil && si.SnapID != "" {
+				action = "refresh"
+			}
+		}
+		sar, localOnly, err := maybeRedirectSnapdTrack(ctx, st, sar, &up.RevOpts, snapst, opts, action, len(compNames) > 0)
+		if err != nil {
+			return updatePlan{}, err
+		}
+		// A same-revision refresh builds its target from updates, so the
+		// mapped channel has to be stored before that path runs.
+		updates[name] = up
+		if localOnly {
+			hasLocalRevision[name] = snapst
+			continue
+		}
 
 		target, err := targetFromActionResult(sar, snapst, up.RevOpts, compNames)
 		if err != nil {
