@@ -67,6 +67,15 @@ var (
 	ErrNoWarningExpireAfter = errNoWarningExpireAfter
 )
 
+// MockDefaultWarningExpireAfter changes defaultWarningExpireAfter for testing.
+func MockDefaultWarningExpireAfter(d time.Duration) (restore func()) {
+	old := defaultWarningExpireAfter
+	defaultWarningExpireAfter = d
+	return func() {
+		defaultWarningExpireAfter = old
+	}
+}
+
 // NumNotices returns the total bumber of notices, including expired ones that
 // haven't yet been pruned.
 func (s *State) NumNotices() int {

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -413,8 +414,9 @@ type AddNoticeOptions struct {
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
 
-	// ExpireAfter defines how long after this notice was last repeated before
-	// it expires. If zero, a default expiration will be used.
+	// ExpireAfter defines how long after this notice was last occurred before
+	// it expires. If zero, a default expiration will be used, except for warning
+	// notices, which require an explicit duration for validation.
 	ExpireAfter time.Duration
 
 	// Time, if set, overrides time.Now() as the notice occurrence time.
@@ -490,7 +492,7 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	if !noticeType.Valid() {
 		return fmt.Errorf("cannot add notice with invalid type %q", noticeType)
 	}
-	if key == "" {
+	if key == "" || (noticeType == WarningNotice && strings.TrimSpace(key) != key) {
 		return fmt.Errorf("cannot add %s notice with invalid key %q", noticeType, key)
 	}
 	if len(key) > maxNoticeKeyLength {
@@ -498,6 +500,9 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	}
 	if noticeType == RefreshInhibitNotice && key != "-" {
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
+	}
+	if noticeType == WarningNotice && (options == nil || options.ExpireAfter == 0) {
+		return fmt.Errorf(`cannot add %s notice with no expire-after duration`, noticeType)
 	}
 	return nil
 }
