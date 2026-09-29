@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/uctrack"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -524,6 +525,45 @@ func storeUpdatePlanCore(
 		}
 	}
 
+	if snapdUpdate, ok := updates["snapd"]; ok {
+		if opts.DeviceCtx == nil {
+			return updatePlan{}, errors.New("internal error: device context is expected")
+		}
+		// A refresh of every snap copies the tracking channel in as the
+		// request. That is not a caller's --channel, so policy follows the
+		// tracking channel. A named refresh keeps the caller's channel, which
+		// [validateAndInitStoreUpdates] has left unchanged for snapd.
+		requestedChannel := snapdUpdate.RevOpts.Channel
+		if plan.refreshAll() {
+			requestedChannel = ""
+		}
+		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, installedSnapdTrackingChannel(allSnaps), requestedChannel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
+		if errors.Is(err, uctrack.ErrNotApplicable) {
+			err = nil
+		}
+		if err != nil {
+			return updatePlan{}, err
+		}
+		if snapdUCTrackChannel != "" {
+			snapdUpdate.RevOpts.Channel = snapdUCTrackChannel
+			snapdUpdate.RevOpts.snapdUCTrackChannel = snapdUCTrackChannel
+		}
+		if !plan.refreshAll() {
+			snapst := allSnaps["snapd"]
+			if snapst == nil {
+				snapst = &SnapState{}
+			}
+			fallback := snapst.TrackingChannel
+			if !snapst.IsInstalled() {
+				fallback = "stable"
+			}
+			if err := snapdUpdate.RevOpts.resolveChannelForStore("snapd", fallback, opts.DeviceCtx); err != nil {
+				return updatePlan{}, err
+			}
+		}
+		updates["snapd"] = snapdUpdate
+	}
+
 	fallbackID := fallbackUserID(user)
 
 	// hasLocalRevision keeps track of snaps that already have a local revision
@@ -605,6 +645,15 @@ func storeUpdatePlanCore(
 		// add the additional components that the caller requested to be
 		// installed
 		compNames = unique(append(compNames, up.AdditionalComponents...))
+
+		// snapdUCTrackChannel is set only when an Ubuntu Core track was resolved.
+		// Tracking stays on that requested channel. The revision's effective
+		// channel must name it, and a store redirect is ignored.
+		if up.RevOpts.snapdUCTrackChannel != "" {
+			if err := requireSnapdEffectiveChannel(&sar, up.RevOpts.snapdUCTrackChannel); err != nil {
+				return updatePlan{}, err
+			}
+		}
 
 		target, err := targetFromActionResult(sar, snapst, up.RevOpts, compNames)
 		if err != nil {
@@ -723,7 +772,10 @@ func collectCurrentSnapsAndActions(
 			return nil
 		}
 
-		if !req.RevOpts.Revision.Unset() && snapst.LastIndex(req.RevOpts.Revision) != -1 {
+		// An already installed revision can change channel without asking the
+		// store. snapd on a resolved Ubuntu Core track still asks, so a
+		// revision that is not published on that channel is rejected.
+		if req.RevOpts.snapdUCTrackChannel == "" && !req.RevOpts.Revision.Unset() && snapst.LastIndex(req.RevOpts.Revision) != -1 {
 			hasLocalRevision[snapst.InstanceName().String()] = snapst
 			return nil
 		}
@@ -747,11 +799,11 @@ func collectCurrentSnapsAndActions(
 		if err := completeStoreAction(action, req.RevOpts, ignoreValidation); err != nil {
 			return err
 		}
+		restoreSnapdUCTrackChannel(action, req.RevOpts.snapdUCTrackChannel)
 
-		// if we already have the requested revision installed, we don't need to
-		// consider this snap for a store update, but we still should return it
-		// as a target for potentially switching channels or cohort keys
-		if !action.Revision.Unset() && action.Revision == installed.Revision {
+		// The current revision can change channel without a store request.
+		// snapd on a resolved Ubuntu Core track still asks the store.
+		if req.RevOpts.snapdUCTrackChannel == "" && !action.Revision.Unset() && action.Revision == installed.Revision {
 			hasLocalRevision[installed.InstanceName] = snapst
 			return nil
 		}
@@ -862,6 +914,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 		if err := completeStoreAction(action, up.RevOpts, ignoreValidation); err != nil {
 			return nil, nil, err
 		}
+		restoreSnapdUCTrackChannel(action, up.RevOpts.snapdUCTrackChannel)
 
 		userID := snapst.UserID
 		if userID == 0 {
@@ -1023,6 +1076,7 @@ func sendInstallOrDownloadActions(ctx context.Context, st *state.State, action s
 		if err := completeStoreAction(action, sn.RevOpts, opts.Flags.IgnoreValidation); err != nil {
 			return nil, err
 		}
+		restoreSnapdUCTrackChannel(action, sn.RevOpts.snapdUCTrackChannel)
 
 		if len(sn.Components) > 0 {
 			includeResources = true

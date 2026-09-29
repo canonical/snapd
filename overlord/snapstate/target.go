@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/uctrack"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -415,6 +416,27 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
+	for i := range s.snaps {
+		if s.snaps[i].InstanceName != "snapd" {
+			continue
+		}
+		if opts.DeviceCtx == nil {
+			return nil, errors.New("internal error: device context is expected")
+		}
+		revOpts := &s.snaps[i].RevOpts
+		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, installedSnapdTrackingChannel(allSnaps), revOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
+		if errors.Is(err, uctrack.ErrNotApplicable) {
+			err = nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if snapdUCTrackChannel != "" {
+			revOpts.Channel = snapdUCTrackChannel
+			revOpts.snapdUCTrackChannel = snapdUCTrackChannel
+		}
+	}
+
 	results, err := sendInstallActions(ctx, st, s.snaps, opts)
 	if err != nil {
 		return nil, err
@@ -430,6 +452,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		snapst, ok := allSnaps[r.InstanceName().String()]
 		if !ok {
 			snapst = &SnapState{}
+		}
+
+		if sn.RevOpts.snapdUCTrackChannel != "" {
+			if err := requireSnapdEffectiveChannel(&r, sn.RevOpts.snapdUCTrackChannel); err != nil {
+				return nil, err
+			}
 		}
 
 		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
@@ -1521,8 +1549,14 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 			fallback = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
-			return err
+		// snapd's channel is resolved in [storeUpdatePlanCore], after Ubuntu
+		// Core track policy has seen the caller's channel. Defaulting to the
+		// tracking channel here would make an empty request look like
+		// --channel set to that track.
+		if sn.InstanceName != "snapd" {
+			if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
+				return err
+			}
 		}
 
 		if err := sn.RevOpts.initializeValidationSets(enforcedSetsFunc, opts); err != nil {

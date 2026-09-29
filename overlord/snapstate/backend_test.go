@@ -231,12 +231,37 @@ type fakeStore struct {
 
 	mutateSnapInfo func(*snap.Info) error
 
+	// noUpdateForChannel reports ErrNoUpdateAvailable for a refresh on that
+	// channel. Used to exercise a second snapd lookup that finds nothing.
+	noUpdateForChannel func(channel string) bool
+
+	// revisionNotAvailableOnChannel makes install, download, and refresh on
+	// that channel return RevisionNotAvailableError.
+	revisionNotAvailableOnChannel map[string]bool
+
+	// redirectForAction, when it returns a non-empty channel, sets
+	// RedirectChannel on that SnapAction result.
+	redirectForAction func(action *store.SnapAction) string
+
+	// effectiveChannelForAction, when it returns a non-empty channel, sets
+	// the result snap's channel. That field is the store effective-channel.
+	effectiveChannelForAction func(action *store.SnapAction) string
+
 	cleanupDownloadArtifactsError map[string]error
 }
 
 func (f *fakeStore) registerID(name, id string) {
 	f.namesToAssertedIDs[name] = id
 	f.idsToNames[id] = name
+}
+
+func (f *fakeStore) setEffectiveChannel(info *snap.Info, action *store.SnapAction) {
+	if f.effectiveChannelForAction == nil || info == nil {
+		return
+	}
+	if effective := f.effectiveChannelForAction(action); effective != "" {
+		info.Channel = effective
+	}
 }
 
 func (f *fakeStore) snapResources(info *snap.Info) []store.SnapResourceResult {
@@ -344,6 +369,9 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 
 	if spec.Name == "snap-unknown" {
 		return nil, store.ErrSnapNotFound
+	}
+	if f.revisionNotAvailableOnChannel[spec.Channel] {
+		return nil, &store.RevisionNotAvailableError{}
 	}
 
 	info := &snap.Info{
@@ -732,6 +760,13 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		}
 	}
 
+	if f.revisionNotAvailableOnChannel[cand.channel] {
+		return nil, &store.RevisionNotAvailableError{}
+	}
+	if f.noUpdateForChannel != nil && f.noUpdateForChannel(cand.channel) {
+		return nil, store.ErrNoUpdateAvailable
+	}
+
 	var hit snap.Revision
 	if cand.revision != revno {
 		hit = revno
@@ -759,6 +794,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	if ctx == nil {
 		panic("context required")
+	}
+	// SnapAction treats a nil options pointer as an empty RefreshOptions.
+	if opts == nil {
+		opts = &store.RefreshOptions{}
 	}
 	f.pokeStateLock()
 	if assertQuery != nil {
@@ -865,6 +904,12 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			if strings.HasSuffix(snapName, "-with-default-track") && strutil.ListContains([]string{"stable", "candidate", "beta", "edge"}, a.Channel) {
 				sar.RedirectChannel = "2.0/" + a.Channel
 			}
+			if f.redirectForAction != nil {
+				if redirect := f.redirectForAction(a); redirect != "" {
+					sar.RedirectChannel = redirect
+				}
+			}
+			f.setEffectiveChannel(info, a)
 			res = append(res, sar)
 			continue
 		}
@@ -918,10 +963,17 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 			info.Channel = ""
 		}
 		info.InstanceKey = instanceKey
-		res = append(res, store.SnapActionResult{
+		sar := store.SnapActionResult{
 			Info:      info,
 			Resources: f.snapResources(info),
-		})
+		}
+		if f.redirectForAction != nil {
+			if redirect := f.redirectForAction(a); redirect != "" {
+				sar.RedirectChannel = redirect
+			}
+		}
+		f.setEffectiveChannel(info, a)
+		res = append(res, sar)
 	}
 
 	if len(refreshErrors)+len(installErrors)+len(downloadErrors) > 0 || len(res) == 0 {
