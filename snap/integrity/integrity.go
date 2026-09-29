@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -117,11 +118,11 @@ func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, erro
 	}
 }
 
-// FileNameGlobs returns base name globs that matches snap integrity files.
-func FileNameGlobs(snapPath string) []string {
+// FindIntegrityFilesForSnap returns the paths of all integrity files found
+// next to the given snap path.
+func FindIntegrityFilesForSnap(snapPath string) ([]string, error) {
 	// glob matches path/to/snap/<instance_name>_<revision>.dmverity_*
-	dmverityFileNameGlob := integrityFilePath(snapPath, "*")
-	return []string{dmverityFileNameGlob}
+	return filepath.Glob(integrityFilePath(snapPath, "*"))
 }
 
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.

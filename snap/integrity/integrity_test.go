@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -340,23 +341,45 @@ func (s *IntegrityTestSuite) TestIntegrityDataParamsMountOptions(c *C) {
 	c.Assert(err, ErrorMatches, `unexpected integrity data type "bad-type"`)
 }
 
-func (s *IntegrityTestSuite) TestFileNameGlob(c *C) {
+func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
+	dir := c.MkDir()
+	for _, name := range []string{
+		"foo_1.snap",
+		"foo_1.dmverity_aaa",
+		"foo_1.dmverity_bbb",
+		"foo_10.dmverity_ccc",
+		"bar_1.dmverity_aaa",
+	} {
+		c.Assert(os.WriteFile(filepath.Join(dir, name), nil, 0644), IsNil)
+	}
+
 	tests := []struct {
 		snapPath      string
-		expectedGlobs []string
+		expectedFiles []string
 	}{
 		{
-			snapPath:      "/path/to/snap/foo_1.snap",
-			expectedGlobs: []string{"/path/to/snap/foo_1.dmverity_*"},
+			snapPath: filepath.Join(dir, "foo_1.snap"),
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1.dmverity_aaa"),
+				filepath.Join(dir, "foo_1.dmverity_bbb"),
+			},
 		},
 		{
-			snapPath:      "/path/to/snap/foo_1",
-			expectedGlobs: []string{"/path/to/snap/foo_1.dmverity_*"},
+			snapPath: filepath.Join(dir, "foo_1"),
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1.dmverity_aaa"),
+				filepath.Join(dir, "foo_1.dmverity_bbb"),
+			},
+		},
+		{
+			snapPath:      filepath.Join(dir, "baz_1.snap"),
+			expectedFiles: nil,
 		},
 	}
 
 	for _, tc := range tests {
-		glob := integrity.FileNameGlobs(tc.snapPath)
-		c.Check(glob, DeepEquals, tc.expectedGlobs)
+		files, err := integrity.FindIntegrityFilesForSnap(tc.snapPath)
+		c.Assert(err, IsNil)
+		c.Check(files, DeepEquals, tc.expectedFiles)
 	}
 }

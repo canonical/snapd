@@ -215,20 +215,16 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 }
 
 func removeIntegrityFilesForSnap(s snap.PlaceInfo) error {
-	// in practice only one file should match, but we do not know the exact
-	// digest, so we use a glob to match all possible integrity files for
-	// the snap
-	integrityFileNameGlobs := integrity.FileNameGlobs(s.MountFile())
+	// in practice only one file should exist, but we do not know the exact
+	// digest, so remove all integrity files found for the snap
+	integrityFiles, err := integrity.FindIntegrityFilesForSnap(s.MountFile())
+	if err != nil {
+		return err
+	}
 	var errs []error
-	for _, integrityFileNameGlob := range integrityFileNameGlobs {
-		matches, err := filepath.Glob(integrityFileNameGlob)
-		if err != nil {
-			return err
-		}
-		for _, match := range matches {
-			if err := os.RemoveAll(match); err != nil {
-				errs = append(errs, err)
-			}
+	for _, integrityFile := range integrityFiles {
+		if err := os.RemoveAll(integrityFile); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	return strutil.JoinErrors(errs...)
