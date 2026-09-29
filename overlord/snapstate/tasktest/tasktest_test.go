@@ -161,6 +161,26 @@ type taskQuerySuite struct{}
 
 var _ = Suite(&taskQuerySuite{})
 
+func (s *taskQuerySuite) TestID(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	first := st.NewTask("task", "...")
+	second := st.NewTask("task", "...")
+	selection := tasktest.NewSelection([]*state.Task{first, second})
+
+	selected := selection.Select(tasktest.ID(first.ID()))
+	c.Check(selected.Tasks(), DeepEquals, []*state.Task{first})
+
+	_, err := selection.SelectErr(tasktest.ID("missing"))
+	c.Check(err, Equals, tasktest.ErrNoMatches)
+	_, err = selected.SelectErr(tasktest.ID(second.ID()))
+	c.Check(err, Equals, tasktest.ErrNoMatches)
+	_, err = selection.SelectErr(tasktest.ID(first.ID()).WithField("missing", true))
+	c.Check(err, Equals, tasktest.ErrNoMatches)
+}
+
 func (s *taskQuerySuite) TestKind(c *C) {
 	st := state.New(nil)
 	st.Lock()

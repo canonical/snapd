@@ -178,7 +178,7 @@ func (s *snapQuerySuite) TestComponentsInstanceName(c *C) {
 	c.Check(selection.Select(tasktest.Snap("some-snap").WithComponent("comp")).Tasks(), DeepEquals, []*state.Task{other})
 }
 
-func (s *snapQuerySuite) TestWithHook(c *C) {
+func (s *snapQuerySuite) TestWithSnapAndComponentHooks(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -194,13 +194,14 @@ func (s *snapQuerySuite) TestWithHook(c *C) {
 
 	selection := tasktest.NewSelection([]*state.Task{install, configure, component})
 
-	query := tasktest.Snap("some-snap").WithHook("install")
-	c.Check(selection.Select(query.All()).Tasks(), DeepEquals, []*state.Task{install, component})
-	c.Check(selection.Select(query.WithComponent("comp")).Tasks(), DeepEquals, []*state.Task{component})
-	c.Check(selection.Select(tasktest.Snap("some-snap").WithHook("configure")).Tasks(), DeepEquals, []*state.Task{configure})
+	query := tasktest.Snap("some-snap")
+	c.Check(selection.Select(query.WithSnapHook("install")).Tasks(), DeepEquals, []*state.Task{install})
+	c.Check(selection.Select(query.WithComponentHook("install")).Tasks(), DeepEquals, []*state.Task{component})
+	c.Check(selection.Select(query.WithComponent("comp").WithComponentHook("install")).Tasks(), DeepEquals, []*state.Task{component})
+	c.Check(selection.Select(query.WithSnapHook("configure")).Tasks(), DeepEquals, []*state.Task{configure})
 }
 
-func (s *snapQuerySuite) TestWithHookInstanceName(c *C) {
+func (s *snapQuerySuite) TestWithSnapAndComponentHooksInstanceName(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -219,11 +220,13 @@ func (s *snapQuerySuite) TestWithHookInstanceName(c *C) {
 
 	selection := tasktest.NewSelection([]*state.Task{install, component, other, otherComponent})
 
-	query := tasktest.Snap("some-snap_instance").WithHook("install")
-	c.Check(selection.Select(query.All()).Tasks(), DeepEquals, []*state.Task{install, component})
-	c.Check(selection.Select(query.WithComponent("comp")).Tasks(), DeepEquals, []*state.Task{component})
+	query := tasktest.Snap("some-snap_instance")
+	c.Check(selection.Select(query.WithSnapHook("install")).Tasks(), DeepEquals, []*state.Task{install})
+	c.Check(selection.Select(query.WithComponentHook("install")).Tasks(), DeepEquals, []*state.Task{component})
+	c.Check(selection.Select(query.WithComponent("comp").WithComponentHook("install")).Tasks(), DeepEquals, []*state.Task{component})
 
-	otherQuery := tasktest.Snap("some-snap").WithHook("install")
-	c.Check(selection.Select(otherQuery.All()).Tasks(), DeepEquals, []*state.Task{other, otherComponent})
-	c.Check(selection.Select(otherQuery.WithComponent("comp")).Tasks(), DeepEquals, []*state.Task{otherComponent})
+	otherQuery := tasktest.Snap("some-snap")
+	c.Check(selection.Select(otherQuery.WithSnapHook("install")).Tasks(), DeepEquals, []*state.Task{other})
+	c.Check(selection.Select(otherQuery.WithComponentHook("install")).Tasks(), DeepEquals, []*state.Task{otherComponent})
+	c.Check(selection.Select(otherQuery.WithComponent("comp").WithComponentHook("install")).Tasks(), DeepEquals, []*state.Task{otherComponent})
 }

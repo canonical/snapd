@@ -37,6 +37,8 @@ var ErrNoMatches = errors.New("task query matched no tasks")
 type Selection struct {
 	// selected is the set of tasks currently represented by this Selection.
 	selected []*state.Task
+	// empty marks an intentionally empty selection.
+	empty bool
 
 	// universe is the full set of tasks from which the root Selection was
 	// created.
@@ -58,6 +60,42 @@ func NewSelection(tasks []*state.Task) Selection {
 		cache:        make(map[any]any),
 		reachability: reachability(tasks),
 	}
+}
+
+// Empty returns an intentionally empty selection. Intentially empty selections
+// can be used in assertions without impacting the result of the assertion.
+func Empty() Selection {
+	return Selection{empty: true}
+}
+
+// Union combines selections without imposing any order between their tasks.
+// Duplicate tasks are included once, in first-seen order.
+//
+// The result is marked intentionally empty only if all inputs are marked as
+// intentionally empty.
+func Union(selections ...Selection) Selection {
+	if len(selections) == 0 {
+		return Selection{}
+	}
+	union := selections[0]
+	union.selected = nil
+	seen := make(map[*state.Task]bool)
+	for _, selection := range selections {
+		if union.cache == nil {
+			union.universe = selection.universe
+			union.cache = selection.cache
+			union.reachability = selection.reachability
+		}
+		union.empty = union.empty && selection.empty
+		for _, task := range selection.selected {
+			if !seen[task] {
+				union.selected = append(union.selected, task)
+				seen[task] = true
+			}
+		}
+	}
+
+	return union
 }
 
 // reachability returns a mapping of each task to the tasks that transitively
@@ -102,6 +140,7 @@ func (s Selection) Filter(predicate func(*state.Task) (bool, error)) (Selection,
 
 	return Selection{
 		selected:     selected,
+		empty:        s.empty,
 		universe:     s.universe,
 		cache:        s.cache,
 		reachability: s.reachability,
@@ -125,6 +164,19 @@ type Querier interface {
 // Select wraps Selection.SelectErr and panics if an error is returned.
 func (s Selection) Select(query Querier) Selection {
 	selection, err := s.SelectErr(query)
+	if err != nil {
+		panic(err)
+	}
+	return selection
+}
+
+// SelectOptional applies a query and permits no matches.
+// Other query errors cause a panic, as with Select.
+func (s Selection) SelectOptional(query Querier) Selection {
+	selection, err := s.SelectErr(query)
+	if errors.Is(err, ErrNoMatches) {
+		return Empty()
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -207,6 +259,8 @@ func (s Selection) Successors(of Selection) Selection {
 // TaskQuery is an implementation of Querier that enables selecting a set of tasks
 // based on generic properties of the task itself.
 type TaskQuery struct {
+	// ID is the ID of the task matched by this query.
+	ID string
 	// Kind is the kind of tasks that are matched by this query.
 	Kind string
 	// Fields contains the fields that must be carried by tasks that match this
@@ -216,6 +270,11 @@ type TaskQuery struct {
 	// of zero indicates that exactly one task should be matched. A cardinality
 	// of -1 indicates that any non-zero number of tasks should be matched.
 	Cardinality int
+}
+
+// ID creates a TaskQuery that matches the task with the given ID.
+func ID(id string) TaskQuery {
+	return TaskQuery{ID: id}
 }
 
 // Kind creates a TaskQuery that matches tasks of the given kind.
@@ -265,6 +324,9 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	}
 
 	matches, err := selection.Filter(func(task *state.Task) (bool, error) {
+		if q.ID != "" && task.ID() != q.ID {
+			return false, nil
+		}
 		if q.Kind != "" && task.Kind() != q.Kind {
 			return false, nil
 		}
