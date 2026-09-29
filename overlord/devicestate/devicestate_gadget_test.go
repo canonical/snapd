@@ -739,16 +739,7 @@ volumes:
 	})
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-			"pc": {
-				0: {
-					Device: "/dev/foo",
-					Offset: quantity.OffsetMiB,
-				},
-			},
-		}, map[string]map[int]*gadget.OnDiskStructure{
-			"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-		}, nil
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {Device: "/dev/foo", Offset: quantity.OffsetMiB}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 

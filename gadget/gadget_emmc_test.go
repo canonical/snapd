@@ -337,26 +337,7 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 	rollbackDir := c.MkDir()
 
 	restore := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, newVolumes map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-			"volumename": {
-				0: {
-					Device:         "/dev/emmcblk0",
-					Offset:         quantity.OffsetMiB,
-					RootMountPoint: "/run/mnt/ubuntu-boot",
-				},
-			},
-			"my-emmc": {
-				0: {
-					Device: "/dev/emmcblk0boot0",
-				},
-				1: {
-					Device: "/dev/emmcblk0boot1",
-				},
-			},
-		}, map[string]map[int]*gadget.OnDiskStructure{
-			"volumename": gadget.OnDiskStructsFromGadget(newVolumes["volumename"]),
-			"my-emmc":    gadget.OnDiskStructsFromGadget(newVolumes["my-emmc"]),
-		}, nil
+		return map[string]map[int]gadget.StructureLocation{"volumename": {0: {Device: "/dev/emmcblk0", Offset: quantity.OffsetMiB, RootMountPoint: "/run/mnt/ubuntu-boot"}}, "my-emmc": {0: {Device: "/dev/emmcblk0boot0"}, 1: {Device: "/dev/emmcblk0boot1"}}}, map[string]map[int]*gadget.OnDiskStructure{"volumename": gadget.OnDiskStructsFromGadget(newVolumes["volumename"]), "my-emmc": gadget.OnDiskStructsFromGadget(newVolumes["my-emmc"])}, nil
 	})
 	defer restore()
 
