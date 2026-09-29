@@ -282,37 +282,29 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 			continue
 		}
 
-		data := make(map[string]string)
+		addNoticeOptions := &AddNoticeOptions{
+			Data:        map[string]string{},
+			RepeatAfter: 0,
+			ExpireAfter: expireAfter,
+			Time:        w.LastAdded,
+		}
+
 		if w.RepeatAfter != "" {
-			data["show-after"] = w.RepeatAfter
+			addNoticeOptions.Data["show-after"] = w.RepeatAfter
 		}
 
 		if w.LastShown != nil {
-			data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
+			addNoticeOptions.Data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
 		}
 
-		s.lastNoticeId++
-		notice := &Notice{
-			id:            strconv.Itoa(s.lastNoticeId),
-			userID:        nil,
-			noticeType:    WarningNotice,
-			key:           w.Message,
-			firstOccurred: w.FirstAdded,
-			lastOccurred:  w.LastAdded,
-			lastRepeated:  w.LastAdded,
-			occurrences:   1,
-			lastData:      data,
-			repeatAfter:   0,
-			expireAfter:   expireAfter,
+		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
+		if err != nil {
+			continue
 		}
-
-		// Since snapd versions with warnings backed by notices no longer
-		// marshal warnings to disk separately, if any marshalled warnings
-		// are found and we are attempting to migrate them, this is the first
-		// usage of warnings backed by notices on the system and should not have
-		// any reoccurring warning notices.
-		uniqueKey := createWarningNoticeKey(w.Message)
-		s.notices[uniqueKey] = notice
+		// doAddNotice sets firstOccurred to addNoticeOptions.Time for new notices
+		// and leaves it unchanges for reoccuring notices. firstOccurred should be
+		// set to the warning's FirstAdded value. This assignment has no side effects.
+		notice.firstOccurred = w.FirstAdded
 	}
 }
 
