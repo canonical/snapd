@@ -1532,7 +1532,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.dmverity_digest1",
+				DownloadURL: "foo_1_digest1.dmverity",
 			},
 		}
 
@@ -1591,7 +1591,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.dmverity_digest1",
+				DownloadURL: "foo_1_digest1.dmverity",
 			},
 		}
 

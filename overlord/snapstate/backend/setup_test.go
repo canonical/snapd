@@ -167,7 +167,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 
 func makeTestSnapAndIntegrityData(c *C, snapYamlContent, rootHash string) string {
 	snapPath := makeTestSnap(c, snapYamlContent)
-	integrityFileName := strings.TrimSuffix(snapPath, ".snap") + ".dmverity_" + rootHash
+	integrityFileName := strings.TrimSuffix(snapPath, ".snap") + "_" + rootHash + ".dmverity"
 	c.Assert(os.WriteFile(integrityFileName, nil, 0644), IsNil)
 	return snapPath
 }
@@ -193,7 +193,7 @@ func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
 	c.Check(snapType, Equals, snap.TypeApp)
 
 	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
-	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14_aaa.dmverity")
 
 	// after setup the snap and integrity files are copied to the right dir
 	c.Assert(snapFilePath, testutil.FilePresent)
@@ -203,7 +203,7 @@ func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
 	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
 	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
 	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
-	c.Assert(mup, testutil.FileMatches, "(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=/var/lib/snapd/snaps/hello_14.dmverity_aaa")
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=/var/lib/snapd/snaps/hello_14_aaa.dmverity")
 
 	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
 	// mount dir was created
@@ -255,7 +255,7 @@ func (s *setupSuite) TestSetupSnapWithIntegrityDataFileMissing(c *C) {
 	}
 
 	_, _, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, setupOpts, progress.Null)
-	c.Check(err, ErrorMatches, "link .*/hello_1.0_all.dmverity_aaa .*/var/lib/snapd/snaps/hello_instance_14.dmverity_aaa: no such file or directory")
+	c.Check(err, ErrorMatches, "link .*/hello_1.0_all_aaa.dmverity .*/var/lib/snapd/snaps/hello_instance_14_aaa.dmverity: no such file or directory")
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {

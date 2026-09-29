@@ -196,7 +196,7 @@ const (
       "download": {
         "sha3-384": "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
         "size": 73728,
-        "url": "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101.dmverity_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a"
+        "url": "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a.dmverity"
       }
     }
   ],
@@ -395,7 +395,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			DownloadInfo: snap.DownloadInfo{
 				Sha3_384:    "d77e2c6c4474c887052acdea1746ac3b0e43736ce785b68ef95cef40cb432fd07...",
 				Size:        73728,
-				DownloadURL: "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101.dmverity_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a",
+				DownloadURL: "https://api.snapcraft.io/api/v1/snaps/dm-verity/download/snap_is5RHGsPRN5eXmkAraS0CA8UtV75loON_101_b113ea1005b1bdac956e6d4cdc25ec7a243cc1dd377e8a0cd2d4d3d578c5d28a.dmverity",
 			},
 		},
 	})
