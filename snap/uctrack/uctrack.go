@@ -121,6 +121,18 @@ func lookupUCTrack(baseTrackMap map[string]string, inputTrack string) (string, b
 	return "", false
 }
 
+// Applicable reports whether track policy can apply to model.
+// It returns ErrNotApplicable for classic, hybrid classic, a boot base
+// that is not a coreXX snap, and Ubuntu Core 16. It does not consult a
+// track map. A nil model is an internal error.
+func Applicable(model *asserts.Model) error {
+	if model == nil {
+		return errors.New("internal error: cannot use nil model")
+	}
+	_, err := systemBootBaseApplicable(model)
+	return err
+}
+
 // systemBootBaseApplicable returns the boot base version to consult for
 // track policy, as reported by [asserts.Model.BaseCoreVersion]. It fails with
 // [ErrNotApplicable] when the model's system type or boot base puts it out of

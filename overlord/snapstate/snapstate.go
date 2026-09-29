@@ -868,18 +868,6 @@ func downloadTasks(
 		return nil, nil, err
 	}
 
-	var snapst SnapState
-	if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
-		return nil, nil, err
-	}
-	sar, localOnly, err := maybeRedirectSnapdTrack(ctx, st, sar, &revOpts, &snapst, opts, "download", len(components) > 0)
-	if err != nil {
-		return nil, nil, err
-	}
-	if localOnly {
-		return nil, nil, errors.New("internal error: snapd track redirect of download returned no store revision")
-	}
-
 	info := sar.Info
 
 	if opts.PrereqTracker != nil {
@@ -2168,6 +2156,10 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// snapdUCTrackChannel, when set, is the Ubuntu Core track channel that
+	// must be sent even if a validation-set pin clears Channel.
+	snapdUCTrackChannel string
 }
 
 func firstNonEmpty(strs ...string) string {

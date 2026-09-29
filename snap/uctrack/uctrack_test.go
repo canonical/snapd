@@ -207,6 +207,23 @@ func (s *ucSuite) TestResolveErrors(c *C) {
 	c.Check(errors.Is(err, uctrack.ErrNoTrack), Equals, true)
 }
 
+func (s *ucSuite) TestApplicable(c *C) {
+	c.Check(uctrack.Applicable(s.coreModel("core18", "pc=18", "pc-kernel=18")), IsNil)
+
+	err := uctrack.Applicable(nil)
+	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
+
+	for _, model := range []*asserts.Model{
+		s.classicModel(),
+		s.hybridClassicModel("core22"),
+		s.coreModel("bare", "pc", "pc-kernel"),
+		s.coreModel("core16", "pc", "pc-kernel"),
+	} {
+		err := uctrack.Applicable(model)
+		c.Check(errors.Is(err, uctrack.ErrNotApplicable), Equals, true, Commentf("base %q", model.Base()))
+	}
+}
+
 func (s *ucSuite) TestResolveOutOfScopeNotApplicable(c *C) {
 	for _, t := range []struct {
 		model *asserts.Model

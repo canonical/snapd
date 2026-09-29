@@ -29,217 +29,111 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/uctrack"
 	"github.com/snapcore/snapd/store"
 )
 
-// maybeRedirectSnapdTrack applies Ubuntu Core track policy after the first
-// store round-trip, which supplies snap.yaml's ubuntu-core-tracks map. When
-// the channel remaps, a second SnapAction fetches the revision to install,
-// refresh, or download.
-//
-// Only the snapd snap is considered. Classic, hybrid, UC16, a boot base that
-// is not in the map, and an unknown track keep the first result.
-// [uctrack.Resolve] keeps the risk and drops the branch.
-//
-// A pinned or requested revision is queried on the mapped track. localOnly
-// means a refresh found no update there: keep the installed revision and
-// switch tracking to the mapped channel. includeResources requests component
-// resources on the second action.
-//
-// The state lock must be held by the caller. It is released for the second
-// store round-trip.
-func maybeRedirectSnapdTrack(ctx context.Context, st *state.State, sar store.SnapActionResult, revOpts *RevisionOptions, snapst *SnapState, opts Options, action string, includeResources bool) (store.SnapActionResult, bool, error) {
-	if revOpts == nil || snapst == nil {
-		return store.SnapActionResult{}, false, errors.New("internal error: snapd track redirect is missing revision options or snap state")
-	}
-	if sar.Info == nil || sar.Info.Type() != snap.TypeSnapd || sar.InstanceName().String() != "snapd" {
-		return sar, false, nil
+// snapdTrackChannelLatestStable is the agreed source of truth for
+// [snap.Info.UbuntuCoreTracks]. Master publishes latest/stable, so that
+// snap.yaml is the most up-to-date map. A fips track or a pinned revision
+// is not consulted.
+const snapdTrackChannelLatestStable = "latest/stable"
+
+// resolveSnapdUCTrackChannel maps channel using the latest/stable
+// ubuntu-core-tracks from [latestStableSnapdTracks] and [uctrack.Resolve].
+// The channel and model are already resolved. An empty input stays empty.
+// The state lock must be held; it is released for the store round-trip.
+// "" with a nil error means the input was empty. "" with an error is unused
+// and the caller keeps its channel: [uctrack.ErrNotApplicable],
+// [uctrack.ErrBootBaseNotCovered], [uctrack.ErrNoTrack], or a store or
+// parse failure.
+func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, channel string, model *asserts.Model, sto StoreService, userID int) (snapdUCTrackChannel string, err error) {
+	if channel == "" {
+		return "", nil
 	}
 
-	model, err := deviceModelForSnapdTrack(st, opts)
+	// [uctrack.Applicable] rejects classic, hybrid, a non-core base, and Ubuntu
+	// Core 16 from the model alone. The track map cannot change that.
+	if err := uctrack.Applicable(model); err != nil {
+		return "", err
+	}
+
+	tracks, err := latestStableSnapdTracks(ctx, st, sto, userID)
 	if err != nil {
-		return store.SnapActionResult{}, false, err
-	}
-	if model == nil {
-		return sar, false, nil
+		return "", err
 	}
 
-	inputChannel := revOpts.Channel
-	if inputChannel == "" {
-		if snapst.TrackingChannel != "" {
-			inputChannel = snapst.TrackingChannel
-		} else {
-			inputChannel = "stable"
-		}
-	}
-
-	mapped, err := uctrack.Resolve(model, inputChannel, sar.Info.UbuntuCoreTracks)
+	snapdUCTrackChannel, err = uctrack.Resolve(model, channel, tracks)
 	if err != nil {
-		if errors.Is(err, uctrack.ErrNotApplicable) ||
-			errors.Is(err, uctrack.ErrBootBaseNotCovered) ||
-			errors.Is(err, uctrack.ErrNoTrack) {
-			return sar, false, nil
-		}
-		return store.SnapActionResult{}, false, err
+		return "", err
 	}
 
-	if revOpts.ValidationSets != nil {
-		pres, perr := revOpts.ValidationSets.Presence(naming.Snap("snapd"))
-		if perr != nil {
-			return store.SnapActionResult{}, false, perr
-		}
-		if !pres.Revision.Unset() && revOpts.Revision.Unset() {
-			revOpts.Revision = pres.Revision
-		}
+	if !storeChannelsEqual(channel, snapdUCTrackChannel) {
+		logger.Noticef("resolved snapd channel from %q to %q to follow Ubuntu Core tracks", channel, snapdUCTrackChannel)
 	}
-
-	alreadyMapped := storeChannelsEqual(inputChannel, mapped)
-	if alreadyMapped && revOpts.Revision.Unset() {
-		return sar, false, nil
-	}
-
-	switch action {
-	case "install", "refresh", "download":
-	default:
-		return store.SnapActionResult{}, false, fmt.Errorf("internal error: unexpected store action %q for snapd track redirect", action)
-	}
-
-	if !alreadyMapped {
-		logger.Noticef("remapping snapd from %q to %q to follow Ubuntu Core tracks", inputChannel, mapped)
-	}
-	revOpts.Channel = mapped
-
-	sa := &store.SnapAction{
-		Action:       action,
-		InstanceName: sar.InstanceName().String(),
-	}
-	if action == "refresh" {
-		sa.SnapID = sar.SnapID
-		if sa.SnapID == "" {
-			if si := snapst.CurrentSideInfo(); si != nil {
-				sa.SnapID = si.SnapID
-			}
-		}
-		if sa.SnapID == "" {
-			return store.SnapActionResult{}, false, errors.New("internal error: cannot refresh snapd onto an Ubuntu Core track without a snap id")
-		}
-	}
-	if action == "install" && snapst.IsInstalled() {
-		// An amend install carries the installed epoch, matching the first action.
-		info, err := snapst.CurrentInfo()
-		if err != nil {
-			return store.SnapActionResult{}, false, err
-		}
-		sa.Epoch = info.Epoch
-	}
-
-	ignoreValidation := opts.Flags.IgnoreValidation
-	if action == "refresh" {
-		ignoreValidation = ignoreValidationSetsForRefresh(snapst, opts)
-	}
-
-	// The second lookup is not a scheduled refresh. A throttled first
-	// response must not hide the revision on the mapped track.
-	newSAR, err := sendOneStoreAction(ctx, st, sa, *revOpts, snapst, opts, includeResources, ignoreValidation, mapped)
-	if err != nil {
-		if action == "refresh" && errors.Is(err, store.ErrNoUpdateAvailable) {
-			return store.SnapActionResult{}, true, nil
-		}
-		return store.SnapActionResult{}, false, err
-	}
-
-	if err := rejectSnapdTrackRedirect(&newSAR, mapped, action); err != nil {
-		return store.SnapActionResult{}, false, err
-	}
-	return newSAR, false, nil
+	return snapdUCTrackChannel, nil
 }
 
-// deviceModelForSnapdTrack returns the model to consult for track policy.
-// A remodel context on opts wins. No model yet is not an error: policy does
-// not apply and the caller keeps the first store result.
-func deviceModelForSnapdTrack(st *state.State, opts Options) (*asserts.Model, error) {
-	deviceCtx := opts.DeviceCtx
-	if deviceCtx == nil {
-		if DeviceCtx == nil {
-			return nil, nil
-		}
-		var err error
-		deviceCtx, err = DeviceCtx(st, nil, nil)
-		if errors.Is(err, state.ErrNoState) {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-	if deviceCtx == nil {
-		return nil, nil
-	}
-	return deviceCtx.Model(), nil
-}
-
-// sendOneStoreAction sends a single already-built store action. The caller
-// must hold the state lock; it is released for the store round-trip.
-//
-// If forceChannel is not empty, it is set on the action after
-// completeStoreAction so a validation-set pin cannot drop the channel.
-func sendOneStoreAction(ctx context.Context, st *state.State, action *store.SnapAction, revOpts RevisionOptions, snapst *SnapState, opts Options, includeResources, ignoreValidation bool, forceChannel string) (store.SnapActionResult, error) {
-	if err := completeStoreAction(action, revOpts, ignoreValidation); err != nil {
-		return store.SnapActionResult{}, err
-	}
-	if forceChannel != "" {
-		action.Channel = forceChannel
+// latestStableSnapdTracks returns ubuntu-core-tracks from the latest/stable
+// snapd snap. The action is an install with no revision, so a refresh of an
+// already-current latest/stable cannot hide the snap. It sends no installed
+// snaps and no refresh options: the action names snapd and latest/stable.
+// The userID selects the store session.
+func latestStableSnapdTracks(ctx context.Context, st *state.State, sto StoreService, userID int) (snap.UbuntuCoreTracks, error) {
+	action := &store.SnapAction{
+		Action:       "install",
+		InstanceName: "snapd",
+		Channel:      snapdTrackChannelLatestStable,
 	}
 
-	curSnaps, err := currentSnaps(st)
+	user, err := userFromUserID(st, userID)
 	if err != nil {
-		return store.SnapActionResult{}, err
+		return nil, err
 	}
-
-	refreshOpts, err := refreshOptions(st, &store.RefreshOptions{
-		IncludeResources: includeResources,
-	})
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-
-	// Prefer the user that installed the snap, then the user driving this
-	// change. A fresh install has no snap user and uses opts.UserID.
-	// Refresh drops a user with no store auth, as the first refresh does.
-	user, err := userFromUserID(st, snapst.UserID, opts.UserID)
-	if err != nil {
-		return store.SnapActionResult{}, err
-	}
-	if action.Action == "refresh" && user != nil && !user.HasStoreAuth() {
-		user = nil
-	}
-
-	str := Store(st, opts.DeviceCtx)
 
 	st.Unlock()
-	results, _, err := str.SnapAction(ctx, curSnaps, []*store.SnapAction{action}, nil, user, refreshOpts)
+	// The installed-snap list is nil because this install names snapd and
+	// latest/stable itself. That list is how a refresh matches an installed
+	// snap, and that match can hide the revision whose snap.yaml is the map.
+	// opts is nil because [store.SnapAction] turns that into an empty
+	// [store.RefreshOptions]: no schedule, no refresh-control, and no
+	// component request. The caller's user is unchanged.
+	results, _, err := sto.SnapAction(ctx, nil, []*store.SnapAction{action}, nil, user, nil)
 	st.Lock()
 
 	if err != nil {
-		return store.SnapActionResult{}, singleActionResultErr(action.InstanceName, action.Action, err)
+		return nil, singleActionResultErr("snapd", "install", err)
 	}
-	if len(results) != 1 {
-		return store.SnapActionResult{}, fmt.Errorf("internal error: expected exactly one result from store, got %d", len(results))
+	if len(results) != 1 || results[0].Info == nil {
+		return nil, errors.New("cannot read ubuntu-core-tracks: no snapd result from latest/stable")
 	}
-	return results[0], nil
+	if results[0].Info.Type() != snap.TypeSnapd {
+		return nil, fmt.Errorf("cannot read ubuntu-core-tracks: latest/stable snapd snap has type %q", results[0].Info.Type())
+	}
+	// A non-empty map was already validated while parsing snap.yaml. An empty
+	// or nil map stays nil; [uctrack.Resolve] treats that as no map.
+	return results[0].Info.UbuntuCoreTracks, nil
 }
 
-// rejectSnapdTrackRedirect requires the store to honour the mapped track.
-// A differing track is an error. Same-track or empty RedirectChannel is OK;
-// RedirectChannel is then cleared so tracking stays the mapped channel.
-func rejectSnapdTrackRedirect(sar *store.SnapActionResult, mapped, action string) error {
+// restoreSnapdUCTrackChannel puts snapdUCTrackChannel back because a
+// validation set pin clears the action channel in [completeStoreAction]. The
+// pinned revision is still requested on that track.
+func restoreSnapdUCTrackChannel(snapAction *store.SnapAction, snapdUCTrackChannel string) {
+	if snapAction.InstanceName == "snapd" && snapdUCTrackChannel != "" {
+		snapAction.Channel = snapdUCTrackChannel
+	}
+}
+
+// rejectSnapdTrackRedirect requires the store to honour the resolved track.
+// A redirect onto a different track is an error. A same-track or empty
+// [store.SnapActionResult.RedirectChannel] is cleared so tracking stays on
+// the resolved channel.
+func rejectSnapdTrackRedirect(sar *store.SnapActionResult, snapdUCTrackChannel string) error {
 	if sar.RedirectChannel == "" {
 		return nil
 	}
 
-	mappedTrack, err := channelTrack(mapped)
+	resolvedTrack, err := channelTrack(snapdUCTrackChannel)
 	if err != nil {
 		return err
 	}
@@ -247,14 +141,17 @@ func rejectSnapdTrackRedirect(sar *store.SnapActionResult, mapped, action string
 	if err != nil {
 		return fmt.Errorf("cannot parse store redirect channel %q: %v", sar.RedirectChannel, err)
 	}
-	if mappedTrack != redirectTrack {
-		return fmt.Errorf("cannot %s snapd: store redirected from %q to %q", action, mapped, sar.RedirectChannel)
+	if resolvedTrack != redirectTrack {
+		return fmt.Errorf("cannot follow Ubuntu Core track %q: store redirected to %q", snapdUCTrackChannel, sar.RedirectChannel)
 	}
 
 	sar.RedirectChannel = ""
 	return nil
 }
 
+// storeChannelsEqual reports whether a and b name the same store channel.
+// [channel.Parse] drops an implied "latest/" track, so "stable" and
+// "latest/stable" are equal. A branch or a different risk is not.
 func storeChannelsEqual(a, b string) bool {
 	ca, err1 := channel.Parse(a, "-")
 	cb, err2 := channel.Parse(b, "-")
@@ -264,6 +161,8 @@ func storeChannelsEqual(a, b string) bool {
 	return ca.String() == cb.String()
 }
 
+// channelTrack returns the track of ch, as parsed by [channel.ParseVerbatim].
+// An empty track means "latest".
 func channelTrack(ch string) (string, error) {
 	parsed, err := channel.ParseVerbatim(ch, "-")
 	if err != nil {

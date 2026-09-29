@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/uctrack"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -344,20 +345,12 @@ type storeInstallGoal struct {
 }
 
 func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
-	sn, ok := s.snapByName(name)
-	if !ok {
-		return StoreSnap{}, false
-	}
-	return *sn, true
-}
-
-func (s *storeInstallGoal) snapByName(name string) (*StoreSnap, bool) {
-	for i := range s.snaps {
-		if s.snaps[i].InstanceName == name {
-			return &s.snaps[i], true
+	for _, sn := range s.snaps {
+		if sn.InstanceName == name {
+			return sn, true
 		}
 	}
-	return nil, false
+	return StoreSnap{}, false
 }
 
 // StoreSnap represents a snap that is to be installed from the store.
@@ -423,6 +416,29 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		return nil, err
 	}
 
+	for i := range s.snaps {
+		if s.snaps[i].InstanceName != "snapd" {
+			continue
+		}
+		if opts.DeviceCtx == nil {
+			return nil, errors.New("internal error: device context is expected")
+		}
+		revOpts := &s.snaps[i].RevOpts
+		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, revOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
+		if errors.Is(err, uctrack.ErrNotApplicable) ||
+			errors.Is(err, uctrack.ErrBootBaseNotCovered) ||
+			errors.Is(err, uctrack.ErrNoTrack) {
+			err = nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if snapdUCTrackChannel != "" {
+			revOpts.Channel = snapdUCTrackChannel
+			revOpts.snapdUCTrackChannel = snapdUCTrackChannel
+		}
+	}
+
 	results, err := sendInstallActions(ctx, st, s.snaps, opts)
 	if err != nil {
 		return nil, err
@@ -430,7 +446,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snapByName(r.InstanceName().String())
+		sn, ok := s.snap(r.InstanceName().String())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
@@ -440,12 +456,10 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			snapst = &SnapState{}
 		}
 
-		r, localOnly, err := maybeRedirectSnapdTrack(ctx, st, r, &sn.RevOpts, snapst, opts, "install", len(sn.Components) > 0)
-		if err != nil {
-			return nil, err
-		}
-		if localOnly {
-			return nil, errors.New("internal error: snapd track redirect of uninstalled snapd returned no store revision")
+		if sn.RevOpts.snapdUCTrackChannel != "" {
+			if err := rejectSnapdTrackRedirect(&r, sn.RevOpts.snapdUCTrackChannel); err != nil {
+				return nil, err
+			}
 		}
 
 		target, err := targetFromActionResult(r, snapst, sn.RevOpts, sn.Components)
