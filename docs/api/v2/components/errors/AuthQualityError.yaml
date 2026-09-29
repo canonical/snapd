@@ -46,6 +46,7 @@ oneOf:
             minimum: 0
             description: The recommended minimum entropy of the PIN or passphrase in bits.
   - type: object
+    additionalProperties: false
     required:
       - kind
       - message

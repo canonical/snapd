@@ -22,7 +22,7 @@ content:
           enum:
             - error
         result:
-          oneOf:
+          anyOf:
             - $ref: '../errors/AuthQualityError.yaml'
             - $ref: '../errors/ConfdbError.yaml'
             - $ref: '../errors/MalformedRequestError.yaml'
