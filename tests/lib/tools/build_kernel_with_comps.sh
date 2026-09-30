@@ -2,70 +2,35 @@
 
 set -uxe
 
-# shellcheck source=tests/lib/prepare.sh
-. "$TESTSLIB/prepare.sh"
-#shellcheck source=tests/lib/nested.sh
-. "$TESTSLIB"/nested.sh
-
 # Modify kernel and create a component
 build_kernel_with_comp() {
-    mod_name=$1
-    comp_name=$2
-    kernel_snap_file=${3:-}
+    local module_name="$1"
+    local component_name="$2"
+    local kernel_snap_file="${3:-}"
+    local kernel_name
+    local nested_assets_dir
+    local use_provided_kernel=true
 
-    use_provided_kernel=true
-    if [ -z "${kernel_snap_file}" ]; then
+    if [ -z "$kernel_snap_file" ]; then
         use_provided_kernel=false
-    fi
-
-    if [ "${use_provided_kernel}" = false ]; then
-        nested_prepare_kernel
-        cp "$(tests.nested get extra-snaps-path)/pc-kernel.snap" "pc-kernel.snap"
+        tests.nested prepare-kernel
+        cp "$(tests.nested get extra-snaps-path)/pc-kernel.snap" pc-kernel.snap
         kernel_snap_file="pc-kernel.snap"
     fi
 
-    unsquashfs -d kernel "${kernel_snap_file}"
-    kernel_name="$(grep 'name:' kernel/meta/snap.yaml | awk '{ print $2 }')"
-    kern_ver=$(find kernel/modules/* -maxdepth 0 -printf "%f\n")
-    comp_ko_dir=$comp_name/modules/"$kern_ver"/kmod/
-    mkdir -p "$comp_ko_dir"
-    mkdir -p "$comp_name"/meta/
-    cat << EOF > "$comp_name"/meta/component.yaml
-component: ${kernel_name}+${comp_name}
-type: kernel-modules
-version: 1.0
-summary: kernel component
-description: kernel component for testing purposes
-EOF
-    # Replace _ or - with [_-], as it can be any of these
-    glob_mod_name=$(printf '%s' "$mod_name" | sed -r 's/[-_]/[-_]/g')
-    # TODO: search only in kernel/modules to avoid duplicates (pc-kernel in
-    # 26/edge has both modules/ and lib/modules/). remove this hack once
-    # the kernel snap is fixed
-    module_path=$(find kernel/modules -name "${glob_mod_name}.ko*")
-    cp "$module_path" "$comp_ko_dir"
-    snap pack --filename="${kernel_name}+${comp_name}".comp "$comp_name"
+    kernel_name=$(unsquashfs -cat "$kernel_snap_file" meta/snap.yaml | awk '$1 == "name:" { print $2; exit }')
+    "$TESTSTOOLS"/repack-kernel \
+        --mode component \
+        --orig-snap "$kernel_snap_file" \
+        --output-snap "$kernel_snap_file" \
+        --component-module "$module_name" \
+        --component-name "$component_name" \
+        --output-component "$kernel_name+$component_name.comp"
 
-    # Create kernel without the kernel module
-    rm "$module_path"
-    if [ ! -e kernel/lib/modules ]; then
-        mkdir -p kernel/lib
-        ln -s ../modules kernel/lib/modules
+    if [ "$use_provided_kernel" = false ]; then
+        nested_assets_dir=$(tests.nested get assets-path)
+        cp "$kernel_snap_file" "$nested_assets_dir/pc-kernel.snap"
     fi
-    depmod -b kernel/ "$kern_ver"
-    rm "${kernel_snap_file}"
-    # append component meta-information
-    #shellcheck disable=SC2016
-    gojq --arg COMP_NAME "${comp_name}" '.components = {$COMP_NAME:{"type":"kernel-modules"}}' --yaml-input kernel/meta/snap.yaml --yaml-output >kernel/meta/snap.yaml.new
-    mv kernel/meta/snap.yaml.new kernel/meta/snap.yaml
-    snap pack --filename="${kernel_snap_file}" kernel
-
-    if [ "${use_provided_kernel}" = false ]; then
-        # Just so that nested_prepare_kernel does not recopy the old one
-        cp "${kernel_snap_file}" "${NESTED_ASSETS_DIR}/pc-kernel.snap"
-    fi
-
-    rm -r kernel
 }
 
 build_kernel_with_comp "$@"

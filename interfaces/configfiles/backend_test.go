@@ -189,8 +189,8 @@ func (s *backendSuite) TestConnectDisconnect(c *C) {
 	checkConfigfilesFile(c, "/etc/conf1.d/snap.b.conf", "bbbb")
 
 	// Now disconnect the first slot and set-up backends again
-	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName().String(), plugInfos[0].Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only files for the connected slots are around
@@ -254,8 +254,8 @@ func (s *backendSuite) TestTwoPlugs(c *C) {
 	checkConfigfilesFile(c, "/etc/conf2.d/snap.a.conf", "a")
 
 	// Now disconnect the first slot and set-up backends again
-	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName(), plugInfos[0].Name,
-		slotInfo1.Snap.InstanceName(), slotInfo1.Name), IsNil)
+	c.Assert(s.Repo.Disconnect(plugInfos[0].Snap.InstanceName().String(), plugInfos[0].Name,
+		slotInfo1.Snap.InstanceName().String(), slotInfo1.Name), IsNil)
 	s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, nil)
 
 	// Only files for the connected slots are around

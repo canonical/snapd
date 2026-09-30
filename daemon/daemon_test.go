@@ -77,8 +77,8 @@ type daemonSuite struct {
 	notified   []string
 }
 
-func addUcrednet(r *http.Request, snapName string, uid uint32, socket string, ifaces ...string) {
-	AddUcrednetToRequest(r, NewUcrednet(snapName, "", uid, socket), ifaces...)
+func addUcrednet(r *http.Request, securityTag string, uid uint32, socket string, ifaces ...string) {
+	AddUcrednetToRequest(r, NewUcrednet(securityTag, "", uid, socket), ifaces...)
 }
 
 var _ = check.Suite(&daemonSuite{})
@@ -173,7 +173,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		req.Header.Add("User-Agent", fakeUserAgent)
 
 		rec := httptest.NewRecorder()
-		addUcrednet(req, "some-snap", 1001, dirs.SnapdSocket)
+		addUcrednet(req, "snap.some-snap.app", 1001, dirs.SnapdSocket)
 		cmd.ServeHTTP(rec, req)
 		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
 
@@ -186,7 +186,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	}
 
 	req := httptest.NewRequest("POTATO", "/", nil)
-	addUcrednet(req, "some-snap", 1001, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 1001, dirs.SnapdSocket)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -219,7 +219,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 		c.Check(rec.Code, check.Equals, 403, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
-		addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+		addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
@@ -227,7 +227,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	}
 
 	req := httptest.NewRequest("POTATO", "/", nil)
-	addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -244,7 +244,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	addUcrednet(req, "some-snap", 42, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 42, dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -350,7 +350,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	addUcrednet(req, "some-snap", 42, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 42, dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -409,7 +409,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
-	addUcrednet(req, "some-snap", 42, "xyz")
+	addUcrednet(req, "snap.some-snap.app", 42, "xyz")
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
@@ -444,7 +444,7 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
-	addUcrednet(req, "some-snap", 42, "xyz")
+	addUcrednet(req, "snap.some-snap.app", 42, "xyz")
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
@@ -452,7 +452,7 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 
 	accessCalled = false
 	req = httptest.NewRequest("POST", "/", nil)
-	addUcrednet(req, "some-snap", 42, "xyz")
+	addUcrednet(req, "snap.some-snap.app", 42, "xyz")
 	rec = httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
@@ -500,7 +500,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 
 	req := httptest.NewRequest("PUT", "/", nil)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
-	addUcrednet(req, "some-snap", 1001, "xyz")
+	addUcrednet(req, "snap.some-snap.app", 1001, "xyz")
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
@@ -509,7 +509,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	accessCalled = false
 	req = httptest.NewRequest("POST", "/", nil)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
-	addUcrednet(req, "some-snap", 1001, "xyz")
+	addUcrednet(req, "snap.some-snap.app", 1001, "xyz")
 	rec = httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
@@ -533,7 +533,7 @@ func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
 	}
 
 	req := httptest.NewRequest("POST", "/", nil)
-	addUcrednet(req, "some-snap", 1001, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 1001, dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 403)
@@ -811,6 +811,7 @@ func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
 	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
 	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
 	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -1433,10 +1434,15 @@ func (s *daemonSuite) TestRestartExpectedRebootGiveUp(c *check.C) {
 }
 
 func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1459,9 +1465,18 @@ func (s *daemonSuite) TestRestartIntoSocketModeNoNewChanges(c *check.C) {
 	err := d.Stop(nil)
 	c.Check(err, check.Equals, ErrRestartSocket)
 	c.Check(d.restartSocket, check.Equals, true)
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd standby with reason snapd-idle")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-idle"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
 }
 
 func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	restore := standby.MockStandbyWait(5 * time.Millisecond)
 	defer restore()
 
@@ -1501,6 +1516,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	// when the daemon got a pending change it just restarts
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
+	c.Check(seclogBuf.String(), check.Equals, "")
 }
 
 func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
@@ -1517,7 +1533,7 @@ func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
 
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(mth, "/", nil)
-	addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	return rec
@@ -2234,7 +2250,7 @@ func (s *daemonSuite) TestTraceSnapdAPI(c *check.C) {
 				return SyncResponse(nil)
 			}
 			cmdHTTP.WriteAccess = openAccess{}
-			addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+			addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 			httprec := httptest.NewRecorder()
 			cmdHTTP.ServeHTTP(httprec, req)
 			c.Check(httprec.Code, check.Equals, tc.wantStatus, cmt)
@@ -2292,7 +2308,7 @@ func (s *daemonSuite) TestServeHTTPTraceExtractsActionPreservesBody(c *check.C) 
 
 	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 
@@ -2321,7 +2337,7 @@ func (s *daemonSuite) TestServeHTTPOversizeBodyRejected(c *check.C) {
 
 		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+		addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
 
@@ -2349,7 +2365,7 @@ func (s *daemonSuite) TestServeHTTPUnreadableBodyRejected(c *check.C) {
 		iotest.ErrReader(simulatedErr),
 	))
 	req.Header.Set("Content-Type", "application/json")
-	addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 
@@ -2375,7 +2391,7 @@ func (s *daemonSuite) TestServeHTTPTrailingDataRejected(c *check.C) {
 
 		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+		addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
 
@@ -2410,7 +2426,7 @@ func (s *daemonSuite) TestServeHTTPSkippedOversizeBodyStillServed(c *check.C) {
 		if tc.contentType != "" {
 			req.Header.Set("Content-Type", tc.contentType)
 		}
-		addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+		addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 		rec := httptest.NewRecorder()
 		cmd.ServeHTTP(rec, req)
 
@@ -2438,7 +2454,7 @@ func (s *daemonSuite) TestServeHTTPTraceInvalidJSONStillServed(c *check.C) {
 
 	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	addUcrednet(req, "some-snap", 0, dirs.SnapdSocket)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 

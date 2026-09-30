@@ -426,7 +426,7 @@ slots:
 func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
 	c.Check(info.SnapName().String(), Equals, "name")
-	c.Check(info.InstanceName(), Equals, "name")
+	c.Check(info.InstanceName().String(), Equals, "name")
 
 	for _, persp := range []snap.ExpandSnapPerspective{snap.PerspectiveSelf, snap.PerspectiveOther} {
 		c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
@@ -449,7 +449,7 @@ func (s *ContentSuite) TestResolveSpecialVariableParallel(c *C) {
 	info := snaptest.MockInfo(c, "{name: name, version: 0}", &snap.SideInfo{Revision: snap.R(42)})
 	info.InstanceKey = "foo"
 	c.Check(info.SnapName().String(), Equals, "name")
-	c.Check(info.InstanceName(), Equals, "name_foo")
+	c.Check(info.InstanceName().String(), Equals, "name_foo")
 
 	persp := snap.PerspectiveOther
 	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))

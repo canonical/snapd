@@ -805,7 +805,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	appId := "snap." + plug.Snap().InstanceName()
+	appId := "snap." + plug.Snap().InstanceName().String()
 	spec.AddUserMountEntry(osutil.MountEntry{
 		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
 		Dir:     "$XDG_RUNTIME_DIR/doc",
@@ -922,6 +922,9 @@ func init() {
 			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
 			affectsPlugOnRefresh: true,
+			// desktop slot owns the well-known bus names (org.gtk.Settings, etc.) on the
+			// session bus; only one snap instance can hold it at a time.
+			parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 		},
 	})
 }

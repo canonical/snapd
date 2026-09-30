@@ -92,7 +92,7 @@ func (e *SnapNotClassicError) Error() string {
 // compatible with the given *snap.Info
 func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error {
 	if flags.Classic && !info.NeedsClassic() {
-		return &SnapNotClassicError{Snap: info.InstanceName()}
+		return &SnapNotClassicError{Snap: info.InstanceName().String()}
 	}
 
 	switch c := info.Confinement; c {
@@ -105,11 +105,11 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 			return nil
 		}
 		return &SnapNeedsDevModeError{
-			Snap: info.InstanceName(),
+			Snap: info.InstanceName().String(),
 		}
 	case snap.ClassicConfinement:
 		if !release.OnClassic {
-			return &SnapNeedsClassicSystemError{Snap: info.InstanceName()}
+			return &SnapNeedsClassicSystemError{Snap: info.InstanceName().String()}
 		}
 
 		if flags.Classic {
@@ -121,7 +121,7 @@ func validateFlagsForInfo(info *snap.Info, snapst *SnapState, flags Flags) error
 		}
 
 		return &SnapNeedsClassicError{
-			Snap: info.InstanceName(),
+			Snap: info.InstanceName().String(),
 		}
 	default:
 		return fmt.Errorf("unknown confinement %q", c)
@@ -305,7 +305,7 @@ func checkGadgetOrKernel(st *state.State, snapInfo, curInfo *snap.Info, snapf sn
 	if errors.Is(err, state.ErrNoState) {
 		// check if we are in the remodel case
 		if deviceCtx != nil && deviceCtx.ForRemodeling() {
-			if whichName(deviceCtx.Model()) == snapInfo.InstanceName() {
+			if whichName(deviceCtx.Model()) == snapInfo.InstanceName().String() {
 				return nil
 			}
 		}
@@ -541,7 +541,7 @@ func checkDesktopFileIDsConflicts(st *state.State, info *snap.Info) error {
 		return err
 	}
 	for instanceName, snapst := range stateMap {
-		if instanceName == info.InstanceName() {
+		if instanceName == info.InstanceName().String() {
 			continue
 		}
 

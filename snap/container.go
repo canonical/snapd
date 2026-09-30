@@ -305,7 +305,7 @@ func ValidateSnapContainer(c Container, s *Info, logf func(format string, v ...a
 		}
 	}
 
-	return validateContainer(c, needsrx, needsx, needsr, needsf, noskipd, "snap", s.InstanceName(), logf)
+	return validateContainer(c, needsrx, needsx, needsr, needsf, noskipd, "snap", s.InstanceName().String(), logf)
 }
 
 // validateContainer validates data from a container. Arguments are the

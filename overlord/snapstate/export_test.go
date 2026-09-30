@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
-	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type (
@@ -286,14 +285,6 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	}
 }
 
-func MockAsyncPendingRefreshNotification(fn func(context.Context, *userclient.PendingSnapRefreshInfo)) (restore func()) {
-	old := asyncPendingRefreshNotification
-	asyncPendingRefreshNotification = fn
-	return func() {
-		asyncPendingRefreshNotification = old
-	}
-}
-
 func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error)) (restore func()) {
 	old := HasActiveConnection
 	HasActiveConnection = fn
@@ -406,11 +397,10 @@ var (
 
 // autorefresh
 var (
-	InhibitRefresh                       = inhibitRefresh
-	MaxDuration                          = maxDuration
-	MaxInhibitionDuration                = maxInhibitionDuration
-	MaybeAddRefreshInhibitNotice         = maybeAddRefreshInhibitNotice
-	MaybeAsyncPendingRefreshNotification = maybeAsyncPendingRefreshNotification
+	InhibitRefresh               = inhibitRefresh
+	MaxDuration                  = maxDuration
+	MaxInhibitionDuration        = maxInhibitionDuration
+	MaybeAddRefreshInhibitNotice = maybeAddRefreshInhibitNotice
 )
 
 type RefreshCandidate = refreshCandidate

@@ -178,7 +178,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 
 	switch t {
 	case snap.TypeKernel:
-		if s.InstanceName() != dev.Kernel() {
+		if s.InstanceName().String() != dev.Kernel() {
 			// a remodel might leave behind installed a kernel that
 			// is not the device kernel anymore, ignore such a
 			// kernel by checking the name
@@ -189,7 +189,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		if base == "" {
 			base = "core"
 		}
-		if s.InstanceName() != base {
+		if s.InstanceName().String() != base {
 			return false
 		}
 	case snap.TypeGadget:
@@ -197,7 +197,7 @@ func applicable(s snap.PlaceInfo, t snap.Type, dev snap.Device) bool {
 		// Second condition: a remodel might leave behind installed a
 		// gadget that is not the device gadget anymore, ignore such a
 		// gadget by checking the name
-		if !dev.HasModeenv() || s.InstanceName() != dev.Gadget() {
+		if !dev.HasModeenv() || s.InstanceName().String() != dev.Gadget() {
 			return false
 		}
 	default:

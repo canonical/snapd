@@ -15,33 +15,34 @@ prepare: |
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
-    echo "Grab and prepare the gadget snap"
     VERSION="$(tests.nested show version)"
-    snap download --basename=pc --channel="$VERSION/edge" pc
-    unsquashfs -d pc-gadget pc.snap
+    gadget_args=(
+        --gadget-branch "$VERSION"
+        --gadget-channel edge
+        --sign-key "$SNAKEOIL_KEY"
+        --sign-cert "$SNAKEOIL_CERT"
+    )
+    "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}" \
+        --output-snap "$(tests.nested get extra-snaps-path)/pc_1.snap" \
+        --write-cmdline-extra 'snapd.debug=1 hello from test'
+    "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}" \
+        --output-snap pc-gadget-cmdline-extra-updated.snap \
+        --write-cmdline-extra 'snapd.debug=1 updated hello from test'
 
-    echo "Sign the shim binary"
-    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-
-    echo 'snapd.debug=1 hello from test' > pc-gadget/cmdline.extra
-    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
-
-    echo 'snapd.debug=1 updated hello from test' > pc-gadget/cmdline.extra
-    snap pack pc-gadget --filename=pc-gadget-cmdline-extra-updated.snap
-
-    rm pc-gadget/cmdline.extra
     # keep the console so that we get some logging
-    cat <<'EOF' > pc-gadget/cmdline.full
+    cmdline_full=$(cat <<'EOF'
     snapd.debug=1
     # keep the console
     console=ttyS0
     full hello from
     test
     EOF
-    snap pack pc-gadget --filename=pc-gadget-cmdline-full.snap
-
-    rm pc-gadget/cmdline.full
-    snap pack pc-gadget --filename=pc-gadget-cmdline-none.snap
+    )
+    "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}" \
+        --output-snap pc-gadget-cmdline-full.snap \
+        --write-cmdline-full "$cmdline_full"
+    "$TESTSTOOLS"/repack-gadget "${gadget_args[@]}" \
+        --output-snap pc-gadget-cmdline-none.snap
 
     tests.nested build-image core
     tests.nested create-vm core

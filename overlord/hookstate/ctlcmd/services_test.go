@@ -189,7 +189,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		Revision: snap.R(1),
 	})
 
-	snapstate.Set(s.st, info1.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, info1.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
@@ -200,7 +200,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		}),
 		Current: info1.Revision,
 	})
-	snapstate.Set(s.st, info2.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, info2.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
@@ -211,7 +211,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 		}),
 		Current: info2.Revision,
 	})
-	snapstate.Set(s.st, infoFoo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, infoFoo.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
@@ -798,7 +798,7 @@ apps:
 		info := snaptest.MockSnapCurrent(c, fmt.Sprintf(testSnapYaml, snapName), &snap.SideInfo{
 			Revision: snap.R(1),
 		})
-		snapstate.Set(s.st, info.InstanceName(), &snapstate.SnapState{
+		snapstate.Set(s.st, info.InstanceName().String(), &snapstate.SnapState{
 			Active: true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 				{
@@ -1321,7 +1321,7 @@ test-snap.test-service  enabled  active   -
 }
 
 func (s *servicectlSuite) DecorateWithStatus(appInfo *client.AppInfo, snapApp *snap.AppInfo) error {
-	name := snapApp.Snap.InstanceName() + "." + appInfo.Name
+	name := snapApp.Snap.InstanceName().String() + "." + appInfo.Name
 	dec, ok := s.decoratorResults[name]
 	if !ok {
 		return fmt.Errorf("%s not found in expected test decorator results", name)

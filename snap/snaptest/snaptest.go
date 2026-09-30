@@ -55,7 +55,7 @@ func mockSnap(c *check.C, instanceName, yamlText string, sideInfo *snap.SideInfo
 		snapInfo.InstanceKey = instanceKey
 
 		// Make sure snap name/instance name checks out
-		c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
+		c.Assert(snapInfo.InstanceName().String(), check.Equals, instanceName)
 		c.Assert(snapInfo.SnapName().String(), check.Equals, snapName)
 	}
 
@@ -105,7 +105,7 @@ func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.Compon
 	c.Assert(err, check.IsNil)
 
 	// Put the component.yaml on disk, in the right spot.
-	mountDir := snap.ComponentMountDir(infoForName.Component.ComponentName, csi.Revision, info.InstanceName())
+	mountDir := snap.ComponentMountDir(infoForName.Component.ComponentName, csi.Revision, info.InstanceName().String())
 	metaDir := filepath.Join(mountDir, "meta")
 	err = os.MkdirAll(metaDir, 0755)
 	c.Assert(err, check.IsNil)
@@ -121,7 +121,7 @@ func MockComponent(c *check.C, yamlText string, info *snap.Info, csi snap.Compon
 	cpi := snap.MinimalComponentContainerPlaceInfo(
 		csi.Component.ComponentName,
 		csi.Revision,
-		info.SnapName().String(),
+		info.InstanceName(),
 	)
 	err = os.Rename(compPath, cpi.MountFile())
 	c.Assert(err, check.IsNil)
@@ -157,8 +157,8 @@ func MockSnapCurrent(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap
 func MockComponentCurrent(c *check.C, yamlText string, info *snap.Info, csi snap.ComponentSideInfo) *snap.ComponentInfo {
 	ci := MockComponent(c, yamlText, info, csi)
 
-	mountDir := snap.ComponentMountDir(ci.Component.ComponentName, ci.Revision, info.InstanceName())
-	link := filepath.Join(snap.ComponentsBaseDir(info.InstanceName()), info.Revision.String(), ci.Component.ComponentName)
+	mountDir := snap.ComponentMountDir(ci.Component.ComponentName, ci.Revision, info.InstanceName().String())
+	link := filepath.Join(snap.ComponentsBaseDir(info.InstanceName().String()), info.Revision.String(), ci.Component.ComponentName)
 	err := os.MkdirAll(filepath.Dir(link), 0755)
 	c.Assert(err, check.IsNil)
 

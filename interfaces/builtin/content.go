@@ -304,7 +304,7 @@ func resolveComponentSource(snapInfo *snap.Info, compInfo *snap.ComponentInfo, s
 	// TODO this could use a helper in 'snap'
 	source = filepath.Clean(filepath.Join(
 		dirs.CoreSnapMountDir,
-		snapInfo.InstanceName(),
+		snapInfo.InstanceName().String(),
 		"components", "mnt",
 		compName, compInfo.Revision.String(),
 		subPath,

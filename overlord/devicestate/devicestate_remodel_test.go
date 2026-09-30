@@ -5799,7 +5799,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		Revision: snap.R(1),
 		RealName: "pc",
 	})
-	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.state, info.InstanceName().String(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
@@ -6178,7 +6178,7 @@ plugs:
 	})
 
 	if missingWhen != "install" {
-		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+		snapstate.Set(s.state, info.InstanceName().String(), &snapstate.SnapState{
 			SnapType:        string(info.Type()),
 			Active:          true,
 			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
@@ -6416,7 +6416,7 @@ plugs:
 		Revision: snap.R(1),
 		RealName: "bar-missing-deps",
 	})
-	snapstate.Set(s.state, barInfo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.state, barInfo.InstanceName().String(), &snapstate.SnapState{
 		SnapType:        string(barInfo.Type()),
 		Active:          true,
 		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&barInfo.SideInfo}),
@@ -6815,7 +6815,7 @@ func mockSnapstateInstallComponentPath(c *C, snaps map[string]expectedSnap) (res
 		path string,
 		opts snapstate.Options,
 	) (*state.TaskSet, error) {
-		sn, ok := snaps[info.InstanceName()]
+		sn, ok := snaps[info.InstanceName().String()]
 		c.Assert(ok, Equals, true, Commentf("unexpected component installation for snap: %q", info.InstanceName()))
 		c.Assert(info.Revision, Equals, sn.revision)
 
@@ -6876,7 +6876,7 @@ func mockSnapstateInstallComponents(c *C, snaps map[string]expectedSnap) (restor
 		// sort this for test consistency
 		sort.Strings(names)
 
-		sn, ok := snaps[info.InstanceName()]
+		sn, ok := snaps[info.InstanceName().String()]
 		c.Assert(ok, Equals, true, Commentf("unexpected component installation for snap: %q", info.InstanceName()))
 		c.Assert(info.Revision, Equals, sn.revision)
 

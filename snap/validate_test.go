@@ -313,6 +313,20 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAbstractSocket(
 	}
 }
 
+func (s *ValidateSuite) TestValidateAppSocketsAbstractSocketParallelInstanceUsesSnapNamePrefix(c *C) {
+	app := createSampleApp()
+	app.Snap.InstanceKey = "inst1"
+	socket := app.Sockets["sock"]
+
+	socket.ListenStream = "@snap.mysnap.my.socket"
+	err := ValidateApp(app)
+	c.Assert(err, IsNil)
+
+	socket.ListenStream = "@snap.mysnap_inst1.my.socket"
+	err = ValidateApp(app)
+	c.Assert(err, ErrorMatches, `invalid definition of socket "sock": path for "listen-stream" must be prefixed with.*`)
+}
+
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamAddress(c *C) {
 	app := createSampleApp()
 	app.Daemon = "simple"

@@ -475,7 +475,7 @@ components:
 			sequence.NewComponentState(csi, snap.KernelModulesComponent))
 		snaptest.MockComponent(c, compYaml, kernelInfo, *csi)
 		compFn := snaptest.MakeTestComponentWithFiles(c, comp.name, compYaml, nil)
-		cpi := snap.MinimalComponentContainerPlaceInfo(comp.name, comp.rev, kernelInfo.SnapName().String())
+		cpi := snap.MinimalComponentContainerPlaceInfo(comp.name, comp.rev, kernelInfo.InstanceName())
 		err := os.Rename(compFn, cpi.MountFile())
 		c.Assert(err, IsNil)
 	}

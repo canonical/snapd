@@ -65,14 +65,6 @@ func MockPolkitCheckAuthorization(new func(pid int32, uid uint32, actionId strin
 	}
 }
 
-func MockCgroupSnapNameFromPid(new func(pid int) (string, error)) (restore func()) {
-	old := cgroupSnapNameFromPid
-	cgroupSnapNameFromPid = new
-	return func() {
-		cgroupSnapNameFromPid = old
-	}
-}
-
 func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs) *apiError) (restore func()) {
 	old := requireInterfaceApiAccess
 	requireInterfaceApiAccess = new

@@ -245,7 +245,7 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	//   /snap/core/111/usr/lib/snapd/snap-confine
 	// becomes
 	//   snap-confine.core.111
-	patchedProfileName := snapConfineProfileName(info.InstanceName(), info.Revision)
+	patchedProfileName := snapConfineProfileName(info.InstanceName().String(), info.Revision)
 	// remove other generated profiles, which is only relevant for the
 	// 'core' snap on classic system where we reexec, on core systems the
 	// profile is already a part of the rootfs snap
@@ -455,7 +455,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 		return nil, fmt.Errorf("cannot create directory for apparmor profiles %q: %s", dir, err)
 	}
 
-	globs := profileGlobs(snapInfo.InstanceName())
+	globs := profileGlobs(snapInfo.InstanceName().String())
 
 	changed, removedPaths, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
 	// XXX: in the old code this error was reported late, after doing load/removeCached.
@@ -750,7 +750,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	policy := templatePattern.ReplaceAllStringFunc(updateNSTemplate, func(placeholder string) string {
 		switch placeholder {
 		case "###SNAP_INSTANCE_NAME###":
-			return snapInfo.InstanceName()
+			return snapInfo.InstanceName().String()
 		case "###SNIPPETS###":
 			if overlayRoot, _ := isRootWritableOverlay(); overlayRoot != "" {
 				snippets += strings.Replace(apparmor_sandbox.OverlayRootSnippet, "###UPPERDIR###", overlayRoot, -1)
@@ -773,7 +773,7 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 	})
 
 	// Ensure that the snap-update-ns profile is on disk.
-	profileName := nsProfile(snapInfo.InstanceName())
+	profileName := nsProfile(snapInfo.InstanceName().String())
 	content[profileName] = &osutil.MemoryFileState{
 		Content: []byte(policy),
 		Mode:    0644,

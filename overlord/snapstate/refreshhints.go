@@ -169,7 +169,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 		ignoreValidation := make(map[string]bool, len(plan.targets))
 		for _, t := range plan.targets {
 			if t.setup.IgnoreValidation {
-				ignoreValidation[t.info.InstanceName()] = true
+				ignoreValidation[t.info.InstanceName().String()] = true
 			}
 		}
 
@@ -187,7 +187,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 	for _, t := range plan.targets {
 		info := t.info
 		var snapst SnapState
-		if err := Get(st, info.InstanceName(), &snapst); err != nil {
+		if err := Get(st, info.InstanceName().String(), &snapst); err != nil {
 			return nil, err
 		}
 
@@ -204,14 +204,14 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 			Flags:     flags,
 		})
 		if err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", info.InstanceName(), err)
+			logger.Debugf("update hint for %q is not applicable: %v", info.InstanceName().String(), err)
 			continue
 		}
 
-		hints[info.InstanceName()] = &refreshCandidate{
+		hints[info.InstanceName().String()] = &refreshCandidate{
 			SnapSetup:  snapsup,
 			Components: compsups,
-			Monitored:  IsSnapMonitored(st, info.InstanceName()),
+			Monitored:  IsSnapMonitored(st, info.InstanceName().String()),
 		}
 	}
 	return hints, nil

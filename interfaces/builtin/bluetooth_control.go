@@ -65,13 +65,14 @@ var bluetoothControlConnectedPlugUDev = []string{`SUBSYSTEM=="bluetooth"`, `SUBS
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "bluetooth-control",
-		summary:               bluetoothControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  bluetoothControlBaseDeclarationSlots,
-		connectedPlugAppArmor: bluetoothControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  bluetoothControlConnectedPlugSecComp,
-		connectedPlugUDev:     bluetoothControlConnectedPlugUDev,
+		name:                     "bluetooth-control",
+		summary:                  bluetoothControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     bluetoothControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    bluetoothControlConnectedPlugAppArmor,
+		connectedPlugSecComp:     bluetoothControlConnectedPlugSecComp,
+		connectedPlugUDev:        bluetoothControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 type: object
-title: SystemActionCheckPin
+title: SystemActionCheckPinQuality
 description: Payload to check the quality of a given PIN.
 required:
   - action
@@ -11,7 +11,7 @@ properties:
   action:
     type: string
     enum:
-      - check-pin
+      - check-pin-quality
   pin:
     type: string
     format: password

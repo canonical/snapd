@@ -6143,6 +6143,7 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 
 	for _, failure := range []sb.KeyslotErrorType{
 		sb.KeyslotErrorPlatformFailure,
+		sb.KeyslotErrorInvalidKeyData,
 	} {
 		state.Activations["a"].KeyslotErrors["a"] = failure
 		actions = secboot.ShouldAttemptRepair(state, nil)
@@ -6150,6 +6151,16 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 			RequireReprovision: true,
 		})
 	}
+
+	// We ignore invalid key data when we see other errors
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorInvalidKeyData
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+
+	delete(state.Activations["a"].KeyslotErrors, "b")
 
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
 	actions = secboot.ShouldAttemptRepair(state, nil)

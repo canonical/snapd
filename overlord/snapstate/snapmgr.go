@@ -194,7 +194,7 @@ type SnapSetup struct {
 }
 
 func (snapsup *SnapSetup) InstanceName() naming.InstanceName {
-	return naming.InstanceName(snap.InstanceName(snapsup.SnapName().String(), snapsup.InstanceKey))
+	return snap.InstanceName(snapsup.SnapName().String(), snapsup.InstanceKey)
 }
 
 func (snapsup *SnapSetup) SnapName() naming.SnapName {
@@ -290,7 +290,7 @@ func (compsu *ComponentSetup) BlobPath(instanceName string) string {
 	cpi := snap.MinimalComponentContainerPlaceInfo(
 		compsu.CompSideInfo.Component.ComponentName,
 		compsu.CompSideInfo.Revision,
-		instanceName,
+		naming.InstanceName(instanceName),
 	)
 
 	return filepath.Join(blobDir,
@@ -672,7 +672,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 		return nil, ErrNoCurrent
 	}
 
-	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey).String()
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
@@ -710,7 +710,7 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 
 	revState := snapst.Sequence.Revisions[index]
 
-	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey).String()
 	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
 	if err != nil {
 		return nil, err
@@ -751,7 +751,7 @@ func (snapst *SnapState) InstanceName() naming.InstanceName {
 	if cur == nil {
 		return ""
 	}
-	return naming.InstanceName(snap.InstanceName(cur.RealName, snapst.InstanceKey))
+	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
 }
 
 // RefreshInhibitProceedTime is the time after which a pending refresh is forced
@@ -955,6 +955,17 @@ func (m *SnapManager) Stop() {
 	defer st.Unlock()
 
 	st.RemoveChangeStatusChangedHandler(m.changeCallbackID)
+}
+
+// ShutDown implements StateShutDowner. It cancels in-progress store requests
+// that should not block daemon shutdown.
+//
+// TODO: remove this when Ensure gets the appropriate context from Overlord.
+//
+// Note: ShutDown needs to be a proper subset of Stop but currently it isn't.
+// This is acceptable for now as resolving the above TODO will remove ShutDown.
+func (m *SnapManager) ShutDown() {
+	m.catalogRefresh.ShutDown()
 }
 
 func (m *SnapManager) CanStandby() bool {

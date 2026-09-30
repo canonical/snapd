@@ -31,7 +31,7 @@ import (
 func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	if iface.Name() != plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize plug %q (interface %q) using interface %q",
-			PlugRef{Snap: plugInfo.Snap.InstanceName(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
+			PlugRef{Snap: plugInfo.Snap.InstanceName().String(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(PlugSanitizer); ok {
@@ -43,7 +43,7 @@ func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 func BeforeConnectPlug(iface Interface, plug *ConnectedPlug) error {
 	if iface.Name() != plug.plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize connection for plug %q (interface %q) using interface %q",
-			PlugRef{Snap: plug.plugInfo.Snap.InstanceName(), Name: plug.plugInfo.Name}, plug.plugInfo.Interface, iface.Name())
+			PlugRef{Snap: plug.plugInfo.Snap.InstanceName().String(), Name: plug.plugInfo.Name}, plug.plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(ConnPlugSanitizer); ok {
@@ -82,7 +82,7 @@ func (ref PlugRef) SortsBefore(other PlugRef) bool {
 func BeforePrepareSlot(iface Interface, slotInfo *snap.SlotInfo) error {
 	if iface.Name() != slotInfo.Interface {
 		return fmt.Errorf("cannot sanitize slot %q (interface %q) using interface %q",
-			SlotRef{Snap: slotInfo.Snap.InstanceName(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
+			SlotRef{Snap: slotInfo.Snap.InstanceName().String(), Name: slotInfo.Name}, slotInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(SlotSanitizer); ok {
@@ -135,8 +135,8 @@ type ConnRef struct {
 // NewConnRef creates a connection reference for given plug and slot
 func NewConnRef(plug *snap.PlugInfo, slot *snap.SlotInfo) *ConnRef {
 	return &ConnRef{
-		PlugRef: PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name},
-		SlotRef: SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name},
+		PlugRef: PlugRef{Snap: plug.Snap.InstanceName().String(), Name: plug.Name},
+		SlotRef: SlotRef{Snap: slot.Snap.InstanceName().String(), Name: slot.Name},
 	}
 }
 
