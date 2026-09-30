@@ -17,7 +17,6 @@ on:
         options:
           - spread-nightly
           - spread-test-build-from-current
-          - spread-test-experimental
           - spread-test-openstack
           - spread-test-with-kernels
           - spread-master-fundamental
@@ -50,6 +49,7 @@ jobs:
       tasks: 'tests/nightly/...'
       rules: ''
       use-snapd-snap-from-master: true
+      scenario: master
 
   spread-test-build-from-current:
     if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-build-from-current') }}
@@ -63,6 +63,7 @@ jobs:
       tasks: 'tests/...'
       rules: ''
       use-snapd-snap-from-master: true
+      scenario: deb
       spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC=0 SPREAD_SNAP_REEXEC=0"
     strategy:
       fail-fast: false
@@ -71,20 +72,6 @@ jobs:
           - group: openstack
             backend: openstack
             systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 debian-12-64 debian-sid-64'
-
-  spread-test-experimental:
-    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}
-    uses: ./.github/workflows/spread-tests.yaml
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: openstack
-      backend: openstack
-      systems: 'ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 ubuntu-core-24-64'
-      tasks: 'tests/...'
-      rules: ''
-      use-snapd-snap-from-master: true
-      spread-experimental-features: gate-auto-refresh-hook
 
   read-systems:
     runs-on: ubuntu-latest
@@ -123,6 +110,7 @@ jobs:
       rules: ${{ matrix.rules }}
       is-fundamental: true
       use-snapd-snap-from-master: true
+      scenario: master
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -145,6 +133,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
+      scenario: master
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -167,6 +156,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
+      scenario: master
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
@@ -214,6 +204,7 @@ jobs:
       rules: ''
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_UPDATE_UBUNTU_KERNEL_PATTERN=${{ matrix.kernel }}"
+      scenario: kernels
     strategy:
       fail-fast: false
       matrix:

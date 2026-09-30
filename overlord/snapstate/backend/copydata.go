@@ -122,7 +122,7 @@ func (b Backend) SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progr
 		return nil
 	}
 
-	saveDir := snap.CommonDataSaveDir(info.InstanceName())
+	saveDir := snap.CommonDataSaveDir(info.InstanceName().String())
 	return os.MkdirAll(saveDir, 0755)
 }
 

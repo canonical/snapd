@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/mkfs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -166,7 +167,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 		compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(kSnapInfo.ModulesComps))
 		for _, c := range kSnapInfo.ModulesComps {
 			cpi := snap.MinimalComponentContainerPlaceInfo(c.Name,
-				c.Revision, kSnapInfo.Name)
+				c.Revision, naming.InstanceName(kSnapInfo.Name))
 			compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
 				LinkName: c.Name,
 				MountPoints: kernel.MountPoints{

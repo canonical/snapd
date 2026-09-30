@@ -61,7 +61,6 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
-	userclient "github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -535,23 +534,17 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 			return err
 		}
 
-		var refreshInfo *userclient.PendingSnapRefreshInfo
-		if err := t.Get("refresh-info", &refreshInfo); err != nil {
-			return err
-		}
-
-		return asyncRefreshOnSnapClose(m.state, instanceName.String(), refreshInfo)
+		return asyncRefreshOnSnapClose(m.state, instanceName.String())
 	}
 
 	return continueInhibitedAutoRefresh(st, instanceName.String())
 }
 
-// asyncRefreshOnSnapClose asynchronously waits for the snap the close, notifies
-// the user and then triggers an auto-refresh.
-func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *userclient.PendingSnapRefreshInfo) error {
-	// there's already a goroutine waiting for this snap to close so just notify
+// asyncRefreshOnSnapClose asynchronously waits for the snap to close and then
+// triggers an auto-refresh.
+func asyncRefreshOnSnapClose(st *state.State, snapName string) error {
+	// there's already a goroutine waiting for this snap to close
 	if IsSnapMonitored(st, snapName) {
-		maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 		return nil
 	}
 
@@ -569,9 +562,6 @@ func asyncRefreshOnSnapClose(st *state.State, snapName string, refreshInfo *user
 		// refresh candidate missing, no need to monitor
 		return nil
 	}
-
-	// notify the user about the blocked refresh
-	maybeAsyncPendingRefreshNotification(context.TODO(), st, refreshInfo)
 
 	go continueRefreshOnSnapClose(st, snapName, done, refreshCtx)
 	return nil
@@ -1093,7 +1083,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 		return err
 	}
 
-	tr := config.NewTransaction(st)
 	refreshAppAwarenessEnabled := !excludeFromRefreshAppAwareness(snapsup.Type)
 	if refreshAppAwarenessEnabled && !snapsup.Flags.IgnoreRunning {
 		// Invoke the hard refresh flow. Upon success the returned lock will be
@@ -1104,9 +1093,8 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 		if err != nil {
 			var busyErr *timedBusySnapError
 			if errors.As(err, &busyErr) {
-				// notify user to close the snap and trigger the auto-refresh once it's closed
-				refreshInfo := busyErr.PendingSnapRefreshInfo()
-				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName().String(), refreshInfo); err != nil {
+				// trigger the auto-refresh once the snap is closed
+				if err := asyncRefreshOnSnapClose(m.state, snapsup.InstanceName().String()); err != nil {
 					return err
 				}
 			}
@@ -1161,13 +1149,9 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 		if err := t.Get("unlink-reason", &reason); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
-		experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
-		if err != nil && !config.IsNoOption(err) {
-			return err
-		}
-		skipBinaries := reason == unlinkCurrentSnapReasonRefresh && refreshAppAwarenessEnabled && experimentalRefreshAppAwarenessUX
+		skipBinaries := reason == unlinkCurrentSnapReasonRefresh && refreshAppAwarenessEnabled
 
-		otherInstances, err := hasOtherInstances(st, oldInfo.InstanceName())
+		otherInstances, err := hasOtherInstances(st, oldInfo.InstanceName().String())
 		if err != nil {
 			return err
 		}
@@ -1952,7 +1936,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 		return err
 	}
 
-	otherInstances, err := hasOtherInstances(st, newInfo.InstanceName())
+	otherInstances, err := hasOtherInstances(st, newInfo.InstanceName().String())
 	if err != nil {
 		return err
 	}
@@ -3310,7 +3294,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 		return err
 	}
 
-	otherInstances, err := hasOtherInstances(st, info.InstanceName())
+	otherInstances, err := hasOtherInstances(st, info.InstanceName().String())
 	if err != nil {
 		return err
 	}
@@ -3397,7 +3381,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName().String(), snapst)
 
-	otherInstances, err := hasOtherInstances(st, info.InstanceName())
+	otherInstances, err := hasOtherInstances(st, info.InstanceName().String())
 	if err != nil {
 		return err
 	}
@@ -3752,29 +3736,6 @@ const (
 	removeAliasesReasonRemove  removeAliasesReason = "remove"
 )
 
-// shouldSkipRemoveAliases checks if we should skip removal of aliases for
-// experimental RAA UX features, where the app is perceived to be present
-// during a refresh.
-func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, snapType snap.Type) (skip bool, err error) {
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
-	if err != nil && !config.IsNoOption(err) {
-		return false, err
-	}
-
-	if removeReason != removeAliasesReasonRefresh {
-		return false, nil
-	}
-	if !experimentalRefreshAppAwarenessUX {
-		return false, nil
-	}
-	if excludeFromRefreshAppAwareness(snapType) {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -3790,11 +3751,7 @@ func (m *SnapManager) doRemoveAliases(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	skip, err := shouldSkipRemoveAliases(st, removeReason, snapsup.Type)
-	if err != nil {
-		return err
-	}
-	if skip {
+	if removeReason == removeAliasesReasonRefresh && !excludeFromRefreshAppAwareness(snapsup.Type) {
 		// skip removing aliases, setup-aliases will prune old aliases later.
 		return nil
 	}
@@ -4666,7 +4623,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
 		newToUpdate := make(map[string]*refreshCandidate, len(snaps))
 		for _, candidate := range snaps {
-			newToUpdate[candidate.InstanceName()] = candidate
+			newToUpdate[candidate.InstanceName().String()] = candidate
 		}
 		t.Set("snaps", newToUpdate)
 
@@ -5186,7 +5143,7 @@ func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) e
 			fmt.Sprintf("discard previous kernel snap set-up %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.RemoveKernelSnapSetup(
-					currInfo.InstanceName(), prevKernelRev, pm)
+					currInfo.InstanceName().String(), prevKernelRev, pm)
 			})
 		st.Lock()
 		if err != nil {
@@ -5235,7 +5192,7 @@ func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb)
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName(), prevKernelRev, pm)
+					currInfo.InstanceName().String(), prevKernelRev, pm)
 			})
 		st.Lock()
 		if err != nil {

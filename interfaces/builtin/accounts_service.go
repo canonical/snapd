@@ -71,10 +71,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "accounts-service",
-		summary:               accountsServiceSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  accountsServiceBaseDeclarationSlots,
-		connectedPlugAppArmor: accountsServiceConnectedPlugAppArmor,
+		name:                     "accounts-service",
+		summary:                  accountsServiceSummary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     accountsServiceBaseDeclarationSlots,
+		connectedPlugAppArmor:    accountsServiceConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

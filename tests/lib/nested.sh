@@ -676,17 +676,6 @@ nested_model_authority() {
     grep "authority-id:" "$model"|cut -d ' ' -f2
 }
 
-nested_ensure_ubuntu_save() {
-    local GADGET_DIR="$1"
-    shift
-    "$TESTSLIB"/ensure_ubuntu_save.py "$@" "$GADGET_DIR"/meta/gadget.yaml > /tmp/gadget-with-save.yaml
-    if [ "$(cat /tmp/gadget-with-save.yaml)" != "" ]; then
-        mv /tmp/gadget-with-save.yaml "$GADGET_DIR"/meta/gadget.yaml
-    else
-        rm -f /tmp/gadget-with-save.yaml
-    fi
-}
-
 nested_prepare_snapd() {
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         echo "Repacking snapd snap"
@@ -727,41 +716,39 @@ nested_prepare_kernel() {
     # allow repacking the kernel
     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
         echo "Repacking kernel snap"
-        local kernel_snap output_name snap_id version
+        local kernel_snap output_name snap_id version core_branch
         output_name="pc-kernel.snap"
         snap_id="pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
         version="$(nested_get_version)"
+        if [ "$version" = 16 ]; then
+            core_branch=latest
+        else
+            core_branch="$version"
+        fi
 
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
-            if nested_is_core_le 18; then
-                kernel_snap=pc-kernel-new.snap
-                repack_kernel_snap "$kernel_snap"
+            local epoch_bump_time kernel_channel
+            local -a repack_kernel_args
+            kernel_snap="$NESTED_ASSETS_DIR/$output_name"
 
-            elif nested_is_core_ge 20; then
-                snap download --basename=pc-kernel --channel="$version/$(nested_get_kernel_channel)" pc-kernel
+            kernel_channel="$(nested_get_kernel_channel)"
+            repack_kernel_args=(
+                --mode nested
+                --core-version "$version"
+                --kernel-branch "$core_branch"
+                --kernel-channel "$kernel_channel"
+                --output-snap "$kernel_snap"
+            )
 
-                # set the unix bump time if the NESTED_* var is set,
-                # otherwise leave it empty
-                local epochBumpTime
-                epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
-                if [ -n "$epochBumpTime" ]; then
-                    epochBumpTime="--epoch-bump-time=$epochBumpTime"
+            # For UC20+, pass epoch bump when configured.
+            if nested_is_core_ge 20; then
+                epoch_bump_time=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                if [ -n "$epoch_bump_time" ]; then
+                    repack_kernel_args+=(--epoch-bump-time "$epoch_bump_time")
                 fi
-
-                if nested_is_core_ge 24; then
-                    # shellcheck source=tests/lib/prepare.sh
-                    . "$TESTSLIB"/prepare.sh
-                    uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                else
-                    uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                fi
-                rm -f "pc-kernel.snap" "pc-kernel.assert"
-
-                # Prepare the pc kernel snap
-                kernel_snap=$(ls "$NESTED_ASSETS_DIR"/pc-kernel_*.snap)
-                chmod 0600 "$kernel_snap"
             fi
-            mv "$kernel_snap" "$NESTED_ASSETS_DIR/$output_name"
+
+            "$TESTSTOOLS"/repack-kernel "${repack_kernel_args[@]}"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
@@ -785,11 +772,11 @@ nested_prepare_gadget() {
     if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
         if nested_is_core_ge 20; then
             # Prepare the pc gadget snap (unless provided by extra-snaps)
-            local snap_id version gadget_snap
+            local snap_id version existing_snap
             version="$(nested_get_version)"
             snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
 
-            existing_snap=$(find "$(nested_get_extra_snaps_path)" -name 'pc_*.snap')
+            existing_snap=$(find "$(nested_get_extra_snaps_path)" -maxdepth 1 -type f \( -name pc.snap -o -name 'pc_*.snap' \) -print -quit)
             if [ -n "$existing_snap" ]; then
                 echo "Using generated pc gadget snap $existing_snap"
                 if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -806,32 +793,28 @@ nested_prepare_gadget() {
             snakeoil_key="$PWD/$key_name.key"
             snakeoil_cert="$PWD/$key_name.pem"
 
-            snap download --basename=pc --channel="$version/$(nested_get_gadget_channel)" pc
-            unsquashfs -d pc-gadget pc.snap
-            nested_secboot_sign_gadget pc-gadget "$snakeoil_key" "$snakeoil_cert"
+            local -a repack_gadget_args
+            repack_gadget_args=(
+                --gadget-branch "$version"
+                --gadget-channel "$(nested_get_gadget_channel)"
+                --output-snap "$NESTED_ASSETS_DIR/pc_repacked.snap"
+                --sign-key "$snakeoil_key"
+                --sign-cert "$snakeoil_cert"
+                --persistent-journal
+            )
             case "${NESTED_UBUNTU_SAVE:-}" in
                 add)
                     # ensure that ubuntu-save is present
-                    nested_ensure_ubuntu_save pc-gadget --add
+                    repack_gadget_args+=(--ubuntu-save add)
                     touch ubuntu-save-added
                     ;;
                 remove)
                     # ensure that ubuntu-save is removed
-                    nested_ensure_ubuntu_save pc-gadget --remove
+                    repack_gadget_args+=(--ubuntu-save remove)
                     touch ubuntu-save-removed
                     ;;
             esac
 
-            # also make logging persistent for easier debugging of
-            # test failures, otherwise we have no way to see what
-            # happened during a failed nested VM boot where we
-            # weren't able to login to a device
-            cat >> pc-gadget/meta/gadget.yaml << EOF
-defaults:
-  system:
-    journal:
-      persistent: true
-EOF
             local GADGET_EXTRA_CMDLINE=""
             if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
                 # add snapd debug and log to serial console for extra
@@ -851,27 +834,20 @@ EOF
 
             if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
                 echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
-                echo "$GADGET_EXTRA_CMDLINE" > pc-gadget/cmdline.extra
+                repack_gadget_args+=(--write-cmdline-extra "$GADGET_EXTRA_CMDLINE")
             fi
 
             if [ -n "$NESTED_UBUNTU_SEED_SIZE" ]; then
-                "$TESTSLIB"/manip_ubuntu_seed.py pc-gadget/meta/gadget.yaml "$NESTED_UBUNTU_SEED_SIZE"
+                repack_gadget_args+=(--ubuntu-seed-size "$NESTED_UBUNTU_SEED_SIZE")
             fi
 
             if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
-                cat > pc-gadget/meta/hooks/prepare-device << EOF
-#!/bin/sh
-snapctl set device-service.url=http://10.0.2.2:11029
-EOF
-                chmod +x pc-gadget/meta/hooks/prepare-device
+                repack_gadget_args+=(--prepare-device-url http://10.0.2.2:11029)
             fi
 
-            # pack the gadget
-            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
-
-            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
-            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
-            rm -f "pc.snap" "pc.assert" "$snakeoil_key" "$snakeoil_cert"
+            "$TESTSTOOLS"/repack-gadget "${repack_gadget_args[@]}"
+            cp "$NESTED_ASSETS_DIR/pc_repacked.snap" "$(nested_get_extra_snaps_path)/pc.snap"
+            rm -f "$snakeoil_key" "$snakeoil_cert"
         fi
         # sign the pc gadget snap with fakestore if requested
         if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
@@ -882,7 +858,8 @@ EOF
             "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
         fi
         if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
-            snap="$(repack_gadget_w_feature_tagging_core_18 "$(nested_get_gadget_channel)" "$NESTED_ASSETS_DIR")"
+            snap="$NESTED_ASSETS_DIR/pc_repacked.snap"
+            "$TESTSTOOLS"/repack-gadget --gadget-branch 18 --gadget-channel "$(nested_get_gadget_channel)" --output-snap "$snap" --persistent-journal --tag-features-grub
             cp "$snap" "$(nested_get_extra_snaps_path)/pc.snap"
         fi
     fi
@@ -890,6 +867,9 @@ EOF
 
 nested_prepare_base() {
     if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
+    local base_branch base_channel
+    local -a repack_base_args
+
         if nested_is_core_16_system; then
             echo "No base snap to prepare in core 16"
             return
@@ -925,11 +905,27 @@ nested_prepare_base() {
 
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
             echo "Repacking $snap_name snap"
-            snap download --channel="$(nested_get_base_channel)" --basename="$snap_name" "$snap_name"
-            repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
-            rm -f "$snap_name".snap "$snap_name".assert
-
-            mv "new-${snap_name}.snap" "$NESTED_ASSETS_DIR/$output_name"
+            base_branch=latest
+            base_channel="$(nested_get_base_channel)"
+            if [[ "$base_channel" = */* ]]; then
+                base_branch="${base_channel%/*}"
+                base_channel="${base_channel##*/}"
+            fi
+            repack_base_args=(
+                --base-name "$snap_name"
+                --base-branch "$base_branch"
+                --base-channel "$base_channel"
+                --output-snap "$NESTED_ASSETS_DIR/$output_name"
+                --enable-test-logging
+                --completion-file "$SPREAD_PATH/data/completion/bash/complete.sh"
+            )
+            if [ "$NESTED_REPACK_FOR_FAKESTORE" = true ]; then
+                repack_base_args+=(--store-url http://10.0.2.2:11028)
+            fi
+            if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+                repack_base_args+=(--proxy-env /etc/environment)
+            fi
+            "$TESTSTOOLS"/repack-base "${repack_base_args[@]}"
         fi
         cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
 
@@ -1089,12 +1085,20 @@ nested_create_core_vm() {
             # volumes must be manually added to the VM creation by the tests
             local BOOTVOLUME
             BOOTVOLUME=pc
-            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
+            local gadget_snap
+            gadget_snap="$(nested_get_extra_snaps_path)/pc.snap"
+            if nested_is_core_ge 20 && [ -e "$gadget_snap" ]; then
+                local gadget_tmp_dir
+                local gadget_unpack_dir
+                gadget_tmp_dir="$(mktemp -d)"
+                gadget_unpack_dir="$gadget_tmp_dir/unpack"
                 # this assumes core2* gadget layouts and so cannot run on uc18
+                unsquashfs -no-progress -d "$gadget_unpack_dir" "$gadget_snap" meta/gadget.yaml >/dev/null
                 # shellcheck disable=SC2016
-                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
+                BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' "$gadget_unpack_dir/meta/gadget.yaml")"
+                rm -rf "$gadget_tmp_dir"
                 if [ -z "$BOOTVOLUME" ]; then
-                    echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in pc-gadget/meta/gadget.yaml"
+                    echo "was not able to deduce the ubuntu-boot partition from gadget.yaml in $gadget_snap"
                     echo "please inspect it and make sure it looks as expected"
                     exit 1
                 fi
@@ -1781,7 +1785,8 @@ nested_start_classic_vm() {
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
+    # Preserve images customized by tests between build-image and create-vm.
+    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     fi
 

@@ -743,7 +743,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	shw, err := backend.Save(context.TODO(), shID, info, cfg, []string{"snapuser"}, dynSnapshotOpts, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(shw.SetID, check.Equals, shID)
-	c.Check(shw.Snap, check.Equals, info.InstanceName())
+	c.Check(shw.Snap, check.Equals, info.InstanceName().String())
 	c.Check(shw.SnapID, check.Equals, info.SnapID)
 	c.Check(shw.Version, check.Equals, info.Version)
 	c.Check(shw.Epoch, check.DeepEquals, epoch)
@@ -768,7 +768,7 @@ func (s *snapshotSuite) testHappyRoundtrip(c *check.C, marker string) {
 	for label, sh := range map[string]*client.Snapshot{"open": &shr.Snapshot, "list": shs[0].Snapshots[0]} {
 		comm := check.Commentf("%q", label)
 		c.Check(sh.SetID, check.Equals, shID, comm)
-		c.Check(sh.Snap, check.Equals, info.InstanceName(), comm)
+		c.Check(sh.Snap, check.Equals, info.InstanceName().String(), comm)
 		c.Check(sh.SnapID, check.Equals, info.SnapID, comm)
 		c.Check(sh.Version, check.Equals, info.Version, comm)
 		c.Check(sh.Epoch, check.DeepEquals, epoch)

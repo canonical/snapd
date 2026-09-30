@@ -166,10 +166,10 @@ func (iface *audioPlaybackInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	}
 	if !implicitSystemConnectedSlot(slot) {
 		old := "###SLOT_SECURITY_TAGS###"
-		new := "snap." + slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
+		new := "snap." + slot.Snap().InstanceName().String() // forms the snap-instance-specific subdirectory name of /run/user/*/ used for XDG_RUNTIME_DIR
 		snippet := strings.Replace(audioPlaybackConnectedPlugAppArmorCore, old, new, -1)
 		old2 := "###SLOT_INSTANCE_NAME###"
-		new2 := slot.Snap().InstanceName() // forms the snap-instance-specific subdirectory name of /var/snap/*/common used for SNAP_COMMON
+		new2 := slot.Snap().InstanceName().String() // forms the snap-instance-specific subdirectory name of /var/snap/*/common used for SNAP_COMMON
 		snippet = strings.Replace(snippet, old2, new2, -1)
 		spec.AddSnippet(snippet)
 	}
@@ -200,6 +200,12 @@ func (iface *audioPlaybackInterface) SecCompPermanentSlot(spec *seccomp.Specific
 
 func (iface *audioPlaybackInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
+}
+
+func (iface *audioPlaybackInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the audio server owns the well-known /run/pulse/native (or per-user
+	// /run/user/*/pulse/native) socket; only one snap instance can hold it.
+	return errParallelInstancesUniqueResourceOwner
 }
 
 func init() {

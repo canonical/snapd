@@ -20,7 +20,6 @@
 package snapstate_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,7 +55,6 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
-	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type linkSnapSuite struct {
@@ -751,11 +749,8 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 		RefreshInhibitedTime: &pastInstant,
 	})
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(_ context.Context, pendingInfo *userclient.PendingSnapRefreshInfo) {})
-	defer restore()
-
 	var appCheckCalled int
-	restore = snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {
 		appCheckCalled++
 		return snapstate.NewBusySnapError(info, []int{123}, nil, nil)
 	})

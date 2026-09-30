@@ -29,7 +29,10 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func labelFromPid(pid int) (string, error) {
+// LabelFromPid returns the process AppArmor label without the mode suffix or
+// trailing newline. If the process attribute file does not exist, it returns
+// "unconfined" with no error.
+func LabelFromPid(pid int) (string, error) {
 	// first check new kernel path, /proc/<pid>/attr/apparmor/current, falling
 	// back to the old path if that doesn't exist
 	procFile := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/attr/apparmor/current", pid))
@@ -68,7 +71,7 @@ func DecodeLabel(label string) (snap, app, hook string, err error) {
 }
 
 func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
-	label, err := labelFromPid(pid)
+	label, err := LabelFromPid(pid)
 	if err != nil {
 		return "", "", "", err
 	}

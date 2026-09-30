@@ -419,10 +419,10 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := slot.Snap.InstanceName()
+	instanceName := slot.Snap.InstanceName().String()
 
 	// Reject snaps with invalid names
-	if err := snap.ValidateInstanceName(snapName); err != nil {
+	if err := snap.ValidateInstanceName(instanceName); err != nil {
 		return err
 	}
 	// Reject slots with invalid names
@@ -434,19 +434,19 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 	if i == nil {
 		return fmt.Errorf("cannot add slot, interface %q is not known", slot.Interface)
 	}
-	if _, ok := r.slots[snapName][slot.Name]; ok {
-		return fmt.Errorf("snap %q has slots conflicting on name %q", snapName, slot.Name)
+	if _, ok := r.slots[instanceName][slot.Name]; ok {
+		return fmt.Errorf("snap %q has slots conflicting on name %q", instanceName, slot.Name)
 	}
-	if _, ok := r.plugs[snapName][slot.Name]; ok {
-		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", snapName, slot.Name)
+	if _, ok := r.plugs[instanceName][slot.Name]; ok {
+		return fmt.Errorf("snap %q has plug and slot conflicting on name %q", instanceName, slot.Name)
 	}
-	if r.appSets[snapName] == nil {
-		return fmt.Errorf("cannot add slot, snap %q is not known", snapName)
+	if r.appSets[instanceName] == nil {
+		return fmt.Errorf("cannot add slot, snap %q is not known", instanceName)
 	}
-	if r.slots[snapName] == nil {
-		r.slots[snapName] = make(map[string]*snap.SlotInfo)
+	if r.slots[instanceName] == nil {
+		r.slots[instanceName] = make(map[string]*snap.SlotInfo)
 	}
-	r.slots[snapName][slot.Name] = slot
+	r.slots[instanceName][slot.Name] = slot
 	return nil
 }
 
@@ -1032,33 +1032,33 @@ func (r *Repository) AddAppSet(appSet *SnapAppSet) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	snapName := snapInfo.InstanceName()
+	instanceName := snapInfo.InstanceName().String()
 
 	// just checking for the name's existence in r.appSets should be enough
-	if r.appSets[snapName] != nil {
-		return fmt.Errorf("cannot register interfaces for snap %q more than once", snapName)
+	if r.appSets[instanceName] != nil {
+		return fmt.Errorf("cannot register interfaces for snap %q more than once", instanceName)
 	}
 
-	r.appSets[snapName] = appSet
+	r.appSets[instanceName] = appSet
 
 	for plugName, plugInfo := range snapInfo.Plugs {
 		if _, ok := r.ifaces[plugInfo.Interface]; !ok {
 			continue
 		}
-		if r.plugs[snapName] == nil {
-			r.plugs[snapName] = make(map[string]*snap.PlugInfo)
+		if r.plugs[instanceName] == nil {
+			r.plugs[instanceName] = make(map[string]*snap.PlugInfo)
 		}
-		r.plugs[snapName][plugName] = plugInfo
+		r.plugs[instanceName][plugName] = plugInfo
 	}
 
 	for slotName, slotInfo := range snapInfo.Slots {
 		if _, ok := r.ifaces[slotInfo.Interface]; !ok {
 			continue
 		}
-		if r.slots[snapName] == nil {
-			r.slots[snapName] = make(map[string]*snap.SlotInfo)
+		if r.slots[instanceName] == nil {
+			r.slots[instanceName] = make(map[string]*snap.SlotInfo)
 		}
-		r.slots[snapName][slotName] = slotInfo
+		r.slots[instanceName][slotName] = slotInfo
 	}
 	return nil
 }
@@ -1127,7 +1127,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 	result := make([]string, 0, len(seen))
 	for info := range seen {
-		result = append(result, info.InstanceName())
+		result = append(result, info.InstanceName().String())
 	}
 	sort.Strings(result)
 	return result, nil
@@ -1167,7 +1167,7 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName, plugName string, po
 			}
 			iface := slotInfo.Interface
 
-			slotAppSet := r.appSets[slotInfo.Snap.InstanceName()]
+			slotAppSet := r.appSets[slotInfo.Snap.InstanceName().String()]
 			if slotAppSet == nil {
 				continue
 			}
@@ -1214,7 +1214,7 @@ func (r *Repository) AutoConnectCandidatePlugs(slotSnapName, slotName string, po
 			}
 			iface := slotInfo.Interface
 
-			plugAppSet := r.appSets[plugInfo.Snap.InstanceName()]
+			plugAppSet := r.appSets[plugInfo.Snap.InstanceName().String()]
 			if plugAppSet == nil {
 				continue
 			}

@@ -2129,7 +2129,7 @@ func createKernelModulesMountUnits(writableRootDir, snapRoot, driversDir, kernel
 	// now create the component units
 	for comp := range compSet {
 		cpi := snap.MinimalComponentContainerPlaceInfo(
-			comp.Component.ComponentName, comp.Revision, kernelName)
+			comp.Component.ComponentName, comp.Revision, naming.InstanceName(kernelName))
 		squashfsPath := filepath.Join(writableRootDir, dirs.StripRootDir(cpi.MountFile()))
 		where := filepath.Join(dirs.GlobalRootDir, snapRoot, dirs.StripRootDir(cpi.MountDir()))
 		if err := writeInitramfsMountUnit(squashfsPath, where, squashfsUnit); err != nil {

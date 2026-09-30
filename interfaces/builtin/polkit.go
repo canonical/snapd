@@ -319,7 +319,7 @@ func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 
 	// Check if both attributes are not set.
 	if policyErr != nil && ruleErr != nil {
-		return &polkitMissingAttrErr{plug.Snap.InstanceName()}
+		return &polkitMissingAttrErr{plug.Snap.InstanceName().String()}
 	}
 	return nil
 }

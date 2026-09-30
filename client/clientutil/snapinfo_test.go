@@ -174,7 +174,7 @@ type testStatusDecorator struct {
 
 func (sd *testStatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, app *snap.AppInfo) error {
 	sd.calls++
-	if appInfo.Snap != app.Snap.InstanceName() || appInfo.Name != app.Name {
+	if appInfo.Snap != app.Snap.InstanceName().String() || appInfo.Name != app.Name {
 		panic("mismatched")
 	}
 	appInfo.Enabled = true

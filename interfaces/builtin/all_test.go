@@ -509,13 +509,12 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 		"core-support",
 		"cuda-driver-libs",
 		"dm-crypt",
-		"dm-multipath",
 		"docker-support",
 		"egl-driver-libs",
 		"firmware-updater-support",
+		"fpga",
 		"gbm-driver-libs",
 		"greengrass-support",
-		"iscsi-initiator",
 		"kubernetes-support",
 		"lxd-support",
 		"microceph-support",
@@ -541,4 +540,74 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 		c.Assert(ok, Equals, true, Commentf("interface %q", name))
 		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))
 	}
+}
+
+// TestParallelInstancesUnsupportedSlotOnlyInterfaces checks interfaces that
+// unconditionally block parallel instances for slots only, while still
+// supporting parallel instances on the plug side. Interfaces where the
+// decision depends on plug/slot attributes must be tested in their own test
+// file (e.g., see shared-memory).
+func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
+	unsupportedInterfaces := []string{
+		"accel",
+		"account-control",
+		"accounts-service",
+		"allegro-vcu",
+		"alsa",
+		"appstream-metadata",
+		"audio-playback",
+		"autopilot-introspection",
+		"avahi-control",
+		"avahi-observe",
+		"block-devices",
+		"bluetooth-control",
+		"bluez",
+		"broadcom-asic-control",
+		"browser-support",
+		"calendar-service",
+		"camera",
+		"can-bus",
+		"cifs-mount",
+		"confdb",
+		"contacts-service",
+		"cpu-control",
+		"custom-device",
+		"daemon-notify",
+		"dcdbas-control",
+		"desktop",
+		"desktop-launch",
+		"desktop-legacy",
+		"device-buttons",
+		"devlxd",
+		"display-control",
+		"dm-multipath",
+		"docker",
+		"dvb",
+		"firewall-control",
+		"framebuffer",
+		"fuse-support",
+		"fwupd",
+		"iscsi-initiator",
+	}
+	for _, name := range unsupportedInterfaces {
+		iface := builtin.Interface(name)
+		c.Assert(iface, NotNil, Commentf("interface %q is not registered", name))
+		if plugDefiner, ok := iface.(interfaces.ParallelInstancesPlugDefiner); ok {
+			c.Check(plugDefiner.ParallelInstancesSupportedForPlug(nil), IsNil, Commentf("interface %q", name))
+		}
+		slotDefiner, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
+		c.Assert(ok, Equals, true, Commentf("interface %q", name))
+		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))
+	}
+}
+
+func checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c *C, iface interfaces.Interface) {
+	definer, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
+	c.Assert(ok, Equals, true)
+
+	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}
+	c.Check(definer.ParallelInstancesSupportedForSlot(systemSlot), Equals, builtin.ErrParallelInstancesSystemSlot)
+
+	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
+	c.Check(definer.ParallelInstancesSupportedForSlot(gadgetSlot), Equals, builtin.ErrParallelInstancesGadgetSlot)
 }

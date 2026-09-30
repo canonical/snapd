@@ -444,7 +444,7 @@ func Validate(info *Info) error {
 	if err := ValidateName(info.SnapName().String()); err != nil {
 		return err
 	}
-	if err := ValidateInstanceName(name); err != nil {
+	if err := ValidateInstanceName(name.String()); err != nil {
 		return err
 	}
 
@@ -1457,7 +1457,7 @@ func maybeContentPlug(plug *PlugInfo) (contentTag, defaultProviderSnap string) {
 // provider but the default-provider is missing and/or many slots
 // are available.
 type ProviderWarning struct {
-	Snap            string
+	Snap            naming.InstanceName
 	Plug            string
 	ContentTag      string
 	DefaultProvider string
@@ -1540,7 +1540,7 @@ func (prqt *SelfContainedSetPrereqTracker) Check() (warnings, errs []error) {
 			case 0:
 				errs = append(errs, fmt.Errorf("cannot use snap %q: default provider %q or any alternative provider for content %q is missing", info.InstanceName(), defaultProvider, wantedTag))
 			case 1:
-				if candSlots[0].Snap.InstanceName() == defaultProvider {
+				if candSlots[0].Snap.InstanceName().String() == defaultProvider {
 					continue
 				}
 				// XXX TODO: consider also publisher

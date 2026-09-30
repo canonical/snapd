@@ -159,6 +159,7 @@ jobs:
       upload-artifacts: true
       skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
       log-to-grafana: false
+      scenario: features
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.systems) }}

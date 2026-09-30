@@ -142,7 +142,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 				if !(baseName == snapInfo.Base || (alsoCore16 && snapInfo.Base == "core16")) {
 					continue
 				}
-				usedBy[snapInfo.InstanceName()] = true
+				usedBy[snapInfo.InstanceName().String()] = true
 				break
 			}
 		}

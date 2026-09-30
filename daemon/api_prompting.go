@@ -91,10 +91,6 @@ var (
 	}
 )
 
-var (
-	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
-)
-
 // getUserID returns the UID specified by the user-id parameter of the query,
 // otherwise the UID of the connection.
 //

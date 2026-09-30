@@ -180,7 +180,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 	}
 
 	for _, plug := range ifaces.Plugs {
-		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName(), Name: plug.Name}
+		plugRef := interfaces.PlugRef{Snap: plug.Snap.InstanceName().String(), Name: plug.Name}
 		connectedSlots, connected := plugConns[plugRef.String()]
 		if !connected && filter.connected {
 			continue
@@ -205,7 +205,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		connsjson.Plugs = append(connsjson.Plugs, pj)
 	}
 	for _, slot := range ifaces.Slots {
-		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}
+		slotRef := interfaces.SlotRef{Snap: slot.Snap.InstanceName().String(), Name: slot.Name}
 		connectedPlugs, connected := slotConns[slotRef.String()]
 		if !connected && filter.connected {
 			continue

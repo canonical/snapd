@@ -51,20 +51,29 @@ type StateWaiter interface {
 	Wait()
 }
 
-// StateShutDowner is optionally implemented by StateManagers that have
-// running activities that should be cleaned up prior to stopping the daemon's
-// HTTP server.
+// StateShutDowner is optionally implemented by StateManagers that can start
+// quiescing ahead of final shutdown. For example, a manager may stop accepting
+// new requests and finish handling existing requests before the daemon's HTTP
+// server is stopped.
+//
+// ShutDown is an optional optimization in the shutdown sequence. The main daemon
+// shutdown flow calls ShutDown before Stop, but other callers of Overlord or
+// StateEngine, such as tests, may call Stop directly. For managers implementing
+// both interfaces, the activities and resources handled by ShutDown must be a
+// subset of those handled by Stop; ShutDown must not be required for correct
+// cleanup.
 type StateShutDowner interface {
-	// ShutDown asks the manager to stop accepting new requests and
-	// finish handling existing requests.
+	// ShutDown asks the manager to begin quiescing.
 	ShutDown()
 }
 
 // StateStopper is optionally implemented by StateManagers that have
-// running activities that can be terminated.
+// running activities or resources that must be cleaned up during final
+// shutdown.
 type StateStopper interface {
-	// Stop asks the manager to terminate all activities running
-	// concurrently.  It must not return before these activities
+	// Stop asks the manager to terminate all activities running concurrently
+	// and perform all required cleanup. It must work correctly whether or not
+	// ShutDown was called first, and must not return before these activities
 	// are finished.
 	Stop()
 }
@@ -199,8 +208,9 @@ func (se *StateEngine) Wait() {
 	}
 }
 
-// ShutDown asks all managers to stop accepting new requests and
-// finish handling existing requests.
+// ShutDown asks all managers implementing StateShutDowner to begin quiescing.
+// This is an optional phase before Stop and is a noop after the first
+// invocation.
 func (se *StateEngine) ShutDown() {
 	se.mgrLock.Lock()
 	defer se.mgrLock.Unlock()
@@ -215,7 +225,9 @@ func (se *StateEngine) ShutDown() {
 	se.shutdown = true
 }
 
-// Stop asks all managers to terminate activities running concurrently.
+// Stop asks all managers implementing StateStopper to terminate activities
+// running concurrently and perform all required cleanup, whether or not
+// ShutDown was called first. It is a noop after the first invocation.
 func (se *StateEngine) Stop() {
 	se.mgrLock.Lock()
 	defer se.mgrLock.Unlock()

@@ -122,7 +122,7 @@ type componentPlaceInfo struct {
 	compName     string
 	compRevision Revision
 	// snapInstance identifies the snap that uses this component.
-	snapInstance string
+	snapInstance naming.InstanceName
 }
 
 var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
@@ -130,7 +130,7 @@ var _ ContainerPlaceInfo = (*componentPlaceInfo)(nil)
 // MinimalComponentContainerPlaceInfo returns a ContainerPlaceInfo with just
 // the location information for a component of the given name and revision that
 // is used by a snapInstance.
-func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance string) ContainerPlaceInfo {
+func MinimalComponentContainerPlaceInfo(compName string, compRev Revision, snapInstance naming.InstanceName) ContainerPlaceInfo {
 	return &componentPlaceInfo{
 		compName:     compName,
 		compRevision: compRev,
@@ -152,7 +152,7 @@ func (c *componentPlaceInfo) Filename() string {
 // will be of the form:
 // /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
 func (c *componentPlaceInfo) MountDir() string {
-	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance)
+	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance.String())
 }
 
 // MountFile returns the path of the file to be mounted for a component,

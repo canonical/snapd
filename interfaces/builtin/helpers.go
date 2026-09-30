@@ -124,7 +124,7 @@ func addConfigfilesForSystemLibrarySourcePaths(iface string, spec *configfiles.S
 		return err
 	}
 	content := strings.Join(slot.AppSet().ExpandSliceSnapVariablesInRootfs(libDirs), "\n") + "\n"
-	return spec.AddPathContent(systemLibrarySourcePath(slot.Snap().InstanceName(), slot.Name(), iface),
+	return spec.AddPathContent(systemLibrarySourcePath(slot.Snap().InstanceName().String(), slot.Name(), iface),
 		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
 
@@ -254,7 +254,7 @@ func symlinksForSourceDir(
 		instance := slot.Snap().InstanceName()
 		splitNum := 3
 		compSuffix := ""
-		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance)) {
+		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance.String())) {
 			splitNum = 6
 			compSuffix = "+"
 		}

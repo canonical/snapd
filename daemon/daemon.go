@@ -776,6 +776,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			if needsFullShutdown {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
+				// Wait failed: this is an aborted shutdown, not a
+				// completed controlled restart or standby, so do
+				// not emit sys_restart_snapd or sys_standby_snapd.
 				return err
 			}
 		}
@@ -804,6 +807,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	}
 
 	if restartSocket {
+		seclog.LogSystemStandbySnapd(d.Version, restartReason)
+		if restartReason == "" {
+			logger.Noticef("entering standby")
+		} else {
+			logger.Noticef("entering standby (%s)", restartReason)
+		}
 		return ErrRestartSocket
 	}
 

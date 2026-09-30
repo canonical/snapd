@@ -102,7 +102,7 @@ const defaultDiskSpaceReservation = 5 * 1024 * 1024
 var TestingLeaveOutKernelUpdateGadgetAssets bool = false
 
 type minimalInstallInfo interface {
-	InstanceName() string
+	InstanceName() naming.InstanceName
 	Revision() snap.Revision
 	Type() snap.Type
 	SnapBase() string
@@ -153,33 +153,6 @@ func (e *InsufficientSpaceError) Error() string {
 		return fmt.Sprintf("insufficient space in %q to perform %q change for the following snaps: %s", e.Path, e.ChangeKind, snaps)
 	}
 	return fmt.Sprintf("insufficient space in %q", e.Path)
-}
-
-// Allows to know if snapd should send desktop notifications to the user.
-// If there is a snap connected to the snap-refresh-observe slot, then
-// no notification should be sent, delegating all the job to that snap.
-func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
-	if err != nil && !config.IsNoOption(err) {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		return false, err
-	}
-	if experimentalRefreshAppAwarenessUX {
-		// use notices + warnings fallback flow instead
-		return false, nil
-	}
-
-	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
-	if err != nil {
-		logger.Noticef("Cannot send notification about pending refresh: %v", err)
-		return false, err
-	}
-	if markerExists {
-		// found snap with marker interface, skip notification
-		return false, nil
-	}
-	return true, nil
 }
 
 func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
@@ -407,7 +380,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().String() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -1110,7 +1083,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 
 	installed := make([]string, 0, len(infos))
 	for _, info := range infos {
-		installed = append(installed, info.InstanceName())
+		installed = append(installed, info.InstanceName().String())
 	}
 
 	return installed, tss, err
@@ -2410,15 +2383,15 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	fromChange := ""
 	for _, t := range plan.targets {
 		name := t.info.InstanceName()
-		if _, ok := hints[name]; !ok {
+		if _, ok := hints[name.String()]; !ok {
 			// filtered out by refreshHintsFromCandidates
 			continue
 		}
 
-		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, name.String(), &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", name, err)
 		} else {
-			updates = append(updates, name)
+			updates = append(updates, name.String())
 		}
 	}
 
@@ -2621,7 +2594,7 @@ func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, i
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
-			snaps[i] = up.InstanceName()
+			snaps[i] = up.InstanceName().String()
 		}
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 			return &InsufficientSpaceError{
@@ -2840,7 +2813,7 @@ func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.Ta
 
 	// Switching to a new model base may require regenerating the managed
 	// certificate database.
-	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName(), info.Type(), deviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName().String(), info.Type(), deviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		add(updateCertDB)
 	}
@@ -3146,7 +3119,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName().String()}
 		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
@@ -4333,12 +4306,12 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 	}
 
 	// keep revisions in snap's sequence
-	for snapName, snapst := range snapStates {
+	for instanceName, snapst := range snapStates {
 		for _, rss := range snapst.Sequence.Revisions {
-			keepBlob(snap.MountFile(snapName, rss.Snap.Revision))
+			keepBlob(snap.MountFile(instanceName, rss.Snap.Revision))
 			for _, comp := range rss.Components {
 				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
-					comp.SideInfo.Revision, snapName)
+					comp.SideInfo.Revision, naming.InstanceName(instanceName))
 				keepBlob(cpi.MountFile())
 			}
 		}
@@ -4373,7 +4346,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 				// download task runs, which may, or may not have run already.
 				if compsup.CompPath == "" {
 					cpi := snap.MinimalComponentContainerPlaceInfo(compsup.ComponentName(),
-						compsup.Revision(), snapsup.InstanceName().String())
+						compsup.Revision(), snapsup.InstanceName())
 					keepBlob(cpi.MountFile())
 				} else {
 					keepBlob(compsup.CompPath)
@@ -4521,7 +4494,7 @@ func unmountSnap(snapst *SnapState) error {
 			cpi := snap.MinimalComponentContainerPlaceInfo(
 				compName,
 				c.SideInfo.Revision,
-				snapst.InstanceName().String(),
+				snapst.InstanceName(),
 			)
 
 			mountDir := cpi.MountDir()

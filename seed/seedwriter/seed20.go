@@ -249,7 +249,7 @@ func (tr *tree20) componentPath(sn *SeedSnap, sc *SeedComponent) (string, error)
 		return "", err
 	}
 
-	cpi := snap.MinimalComponentContainerPlaceInfo(sc.ComponentName, sc.Info.Revision, sc.SnapName)
+	cpi := snap.MinimalComponentContainerPlaceInfo(sc.ComponentName, sc.Info.Revision, naming.InstanceName(sc.SnapName))
 	return filepath.Join(componentsDir, cpi.Filename()), nil
 }
 

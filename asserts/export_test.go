@@ -35,6 +35,10 @@ func init() {
 	NumAssertionType = len(typeRegistry)
 }
 
+func NewAssertionBase(headers map[string]any) AssertionBase {
+	return AssertionBase{headers: headers}
+}
+
 // v1FixedTimestamp exposed for tests
 var V1FixedTimestamp = v1FixedTimestamp
 

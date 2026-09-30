@@ -166,7 +166,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	found := make(map[string]bool)
 	appInfos := make([]*snap.AppInfo, 0, len(requested))
 	for _, snp := range snaps {
-		snapName := snp.info.InstanceName()
+		instanceName := snp.info.InstanceName().String()
 		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
 		for _, app := range snp.info.Apps {
 			if !opts.service || app.IsService() {
@@ -174,18 +174,18 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 			}
 		}
 
-		if len(apps) == 0 && requested[snapName] {
-			return nil, AppNotFound("snap %q has no %ss", snapName, opts)
+		if len(apps) == 0 && requested[instanceName] {
+			return nil, AppNotFound("snap %q has no %ss", instanceName, opts)
 		}
 
-		includeAll := len(requested) == 0 || requested[snapName]
+		includeAll := len(requested) == 0 || requested[instanceName]
 		if includeAll {
 			// want all services in a snap
-			found[snapName] = true
+			found[instanceName] = true
 		}
 
 		for _, app := range apps {
-			appName := snapName + "." + app.Name
+			appName := instanceName + "." + app.Name
 			if includeAll || requested[appName] {
 				appInfos = append(appInfos, app)
 				found[appName] = true

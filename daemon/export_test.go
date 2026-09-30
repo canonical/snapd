@@ -40,14 +40,38 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues       = createQuotaValues
+	ParseOptionalTime       = parseOptionalTime
+	SeclogSnapdUserFromAuth = seclogSnapdUserFromAuth
+	NewAuthzRecorder        = newAuthzRecorder
 )
+
+// RecordGranted exposes [authzRecorder.recordGranted] for tests.
+func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
+	rec.recordGranted(reason, iface, onPlugSide)
+}
+
+// RecordDenied exposes [authzRecorder.recordDenied] for tests.
+func (rec *authzRecorder) RecordDenied(reason seclog.DenialReason) {
+	rec.recordDenied(reason)
+}
+
+// Log exposes [authzRecorder.log] for tests.
+func (rec *authzRecorder) Log() {
+	rec.log()
+}
+
+// SeclogPeer exposes [ucrednet.seclogPeer] for tests.
+func (un *ucrednet) SeclogPeer() seclog.Peer {
+	return un.seclogPeer()
+}
 
 func APICommands() []*Command {
 	return api
@@ -82,17 +106,27 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 
 type Ucrednet = ucrednet
 
-func NewUcrednet(instanceName, processExeName string, uid uint32, socket string) *Ucrednet {
+func MockAppArmorLabelFromPid(f func(int) (string, error)) (restore func()) {
+	restore = testutil.Backup(&apparmorLabelFromPid)
+	apparmorLabelFromPid = f
+	return restore
+}
+
+func NewUcrednet(securityTag, processExeName string, uid uint32, socket string) *Ucrednet {
+	var tag naming.SecurityTag
+	if securityTag != "" {
+		var err error
+		tag, err = naming.ParseSecurityTag(securityTag)
+		if err != nil {
+			panic(err)
+		}
+	}
 	return &ucrednet{
-		instanceName:            instanceName,
+		securityTag:             tag,
 		untrustedProcessExeName: processExeName,
 		Uid:                     uid,
 		Socket:                  socket,
 	}
-}
-
-func (un *ucrednet) SetInstanceNameErr(err error) {
-	un.instanceNameErr = err
 }
 
 func (un *ucrednet) SetUntrustedProcessExeNameErr(err error) {
