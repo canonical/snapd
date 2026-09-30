@@ -454,56 +454,56 @@ func (r *Repository) AddSlot(slot *snap.SlotInfo) error {
 // RemoveSlot removes a named slot from the given snap.
 // Removing a slot that doesn't exist returns an error.
 // Removing a slot that is connected to a plug returns an error.
-func (r *Repository) RemoveSlot(snapName naming.InstanceName, slotName string) error {
+func (r *Repository) RemoveSlot(instanceName naming.InstanceName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// Ensure that such slot exists
-	slot := r.slots[snapName][slotName]
+	slot := r.slots[instanceName][slotName]
 	if slot == nil {
-		return fmt.Errorf("cannot remove slot %q from snap %q, no such slot", slotName, snapName)
+		return fmt.Errorf("cannot remove slot %q from snap %q, no such slot", slotName, instanceName)
 	}
 	// Ensure that the slot is not using any plugs
 	if len(r.slotPlugs[slot]) > 0 {
-		return fmt.Errorf("cannot remove slot %q from snap %q, it is still connected", slotName, snapName)
+		return fmt.Errorf("cannot remove slot %q from snap %q, it is still connected", slotName, instanceName)
 	}
-	delete(r.slots[snapName], slotName)
-	if len(r.slots[snapName]) == 0 {
-		delete(r.slots, snapName)
+	delete(r.slots[instanceName], slotName)
+	if len(r.slots[instanceName]) == 0 {
+		delete(r.slots, instanceName)
 	}
 	return nil
 }
 
 // ResolveConnect resolves potentially missing plug or slot names and returns a
 // fully populated connection reference.
-func (r *Repository) ResolveConnect(plugSnapName naming.InstanceName, plugName string, slotSnapName naming.InstanceName, slotName string) (*ConnRef, error) {
+func (r *Repository) ResolveConnect(plugInstanceName naming.InstanceName, plugName string, slotInstanceName naming.InstanceName, slotName string) (*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	if plugSnapName == "" {
+	if plugInstanceName == "" {
 		return nil, fmt.Errorf("cannot resolve connection, plug snap name is empty")
 	}
 	if plugName == "" {
 		return nil, fmt.Errorf("cannot resolve connection, plug name is empty")
 	}
 	// Ensure that such plug exists
-	plug := r.plugs[plugSnapName][plugName]
+	plug := r.plugs[plugInstanceName][plugName]
 	if plug == nil {
 		return nil, &NoPlugOrSlotError{
 			message: fmt.Sprintf("snap %q has no plug named %q",
-				plugSnapName, plugName),
+				plugInstanceName, plugName),
 		}
 	}
 
-	if slotSnapName == "" {
+	if slotInstanceName == "" {
 		// Use the core snap if the slot-side snap name is empty
 		switch {
 		case r.slots["snapd"] != nil:
-			slotSnapName = "snapd"
+			slotInstanceName = "snapd"
 		case r.slots["core"] != nil:
-			slotSnapName = "core"
+			slotInstanceName = "core"
 		case r.slots["ubuntu-core"] != nil:
-			slotSnapName = "ubuntu-core"
+			slotInstanceName = "ubuntu-core"
 		default:
 			// XXX: perhaps this should not be an error and instead it should
 			// silently assume "core" now?
@@ -513,7 +513,7 @@ func (r *Repository) ResolveConnect(plugSnapName naming.InstanceName, plugName s
 	if slotName == "" {
 		// Find the unambiguous slot that satisfies plug requirements
 		var candidates []string
-		for candidateSlotName, candidateSlot := range r.slots[slotSnapName] {
+		for candidateSlotName, candidateSlot := range r.slots[slotInstanceName] {
 			// TODO: use some smarter matching (e.g. against $attrs)
 			if candidateSlot.Interface == plug.Interface {
 				candidates = append(candidates, candidateSlotName)
@@ -521,26 +521,26 @@ func (r *Repository) ResolveConnect(plugSnapName naming.InstanceName, plugName s
 		}
 		switch len(candidates) {
 		case 0:
-			return nil, fmt.Errorf("snap %q has no %q interface slots", slotSnapName, plug.Interface)
+			return nil, fmt.Errorf("snap %q has no %q interface slots", slotInstanceName, plug.Interface)
 		case 1:
 			slotName = candidates[0]
 		default:
 			sort.Strings(candidates)
-			return nil, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotSnapName, plug.Interface, strings.Join(candidates, ", "))
+			return nil, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotInstanceName, plug.Interface, strings.Join(candidates, ", "))
 		}
 	}
 
 	// Ensure that such slot exists
-	slot := r.slots[slotSnapName][slotName]
+	slot := r.slots[slotInstanceName][slotName]
 	if slot == nil {
 		return nil, &NoPlugOrSlotError{
-			message: fmt.Sprintf("snap %q has no slot named %q", slotSnapName, slotName),
+			message: fmt.Sprintf("snap %q has no slot named %q", slotInstanceName, slotName),
 		}
 	}
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
 		return nil, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
-			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
+			plugInstanceName, plugName, plug.Interface, slotInstanceName, slotName, slot.Interface)
 	}
 	return NewConnRef(plug, slot), nil
 }
@@ -676,18 +676,18 @@ func (e *NoPlugOrSlotError) Error() string {
 // Disconnect() finds a specific slot and a specific plug and disconnects that
 // plug from that slot. It is an error if plug or slot cannot be found or if
 // the connect does not exist.
-func (r *Repository) Disconnect(plugSnapName naming.InstanceName, plugName string, slotSnapName naming.InstanceName, slotName string) error {
+func (r *Repository) Disconnect(plugInstanceName naming.InstanceName, plugName string, slotInstanceName naming.InstanceName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	// Validity check
-	if plugSnapName == "" {
+	if plugInstanceName == "" {
 		return fmt.Errorf("cannot disconnect, plug snap name is empty")
 	}
 	if plugName == "" {
 		return fmt.Errorf("cannot disconnect, plug name is empty")
 	}
-	if slotSnapName == "" {
+	if slotInstanceName == "" {
 		return fmt.Errorf("cannot disconnect, slot snap name is empty")
 	}
 	if slotName == "" {
@@ -695,26 +695,26 @@ func (r *Repository) Disconnect(plugSnapName naming.InstanceName, plugName strin
 	}
 
 	// Ensure that such plug exists
-	plug := r.plugs[plugSnapName][plugName]
+	plug := r.plugs[plugInstanceName][plugName]
 	if plug == nil {
 		return &NoPlugOrSlotError{
 			message: fmt.Sprintf("snap %q has no plug named %q",
-				plugSnapName, plugName),
+				plugInstanceName, plugName),
 		}
 	}
 	// Ensure that such slot exists
-	slot := r.slots[slotSnapName][slotName]
+	slot := r.slots[slotInstanceName][slotName]
 	if slot == nil {
 		return &NoPlugOrSlotError{
 			message: fmt.Sprintf("snap %q has no slot named %q",
-				slotSnapName, slotName),
+				slotInstanceName, slotName),
 		}
 	}
 	// Ensure that slot and plug are connected
 	if r.slotPlugs[slot][plug] == nil {
 		return &NotConnectedError{
 			message: fmt.Sprintf("cannot disconnect %s:%s from %s:%s, it is not connected",
-				plugSnapName, plugName, slotSnapName, slotName),
+				plugInstanceName, plugName, slotInstanceName, slotName),
 		}
 	}
 	r.disconnect(plug, slot)
@@ -723,17 +723,17 @@ func (r *Repository) Disconnect(plugSnapName naming.InstanceName, plugName strin
 
 // Connected returns references for all connections that are currently
 // established with the provided plug or slot.
-func (r *Repository) Connected(snapName naming.InstanceName, plugOrSlotName string) ([]*ConnRef, error) {
+func (r *Repository) Connected(instanceName naming.InstanceName, plugOrSlotName string) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.connected(snapName, plugOrSlotName)
+	return r.connected(instanceName, plugOrSlotName)
 }
 
-func (r *Repository) connected(snapName naming.InstanceName, plugOrSlotName string) ([]*ConnRef, error) {
-	if snapName == "" {
-		snapName, _ = r.guessSystemSnapName()
-		if snapName == "" {
+func (r *Repository) connected(instanceName naming.InstanceName, plugOrSlotName string) ([]*ConnRef, error) {
+	if instanceName == "" {
+		instanceName, _ = r.guessSystemSnapName()
+		if instanceName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
@@ -742,21 +742,21 @@ func (r *Repository) connected(snapName naming.InstanceName, plugOrSlotName stri
 		return nil, fmt.Errorf("plug or slot name is empty")
 	}
 	// Check if plugOrSlotName actually maps to anything
-	if r.plugs[snapName][plugOrSlotName] == nil && r.slots[snapName][plugOrSlotName] == nil {
+	if r.plugs[instanceName][plugOrSlotName] == nil && r.slots[instanceName][plugOrSlotName] == nil {
 		return nil, &NoPlugOrSlotError{
 			message: fmt.Sprintf("snap %q has no plug or slot named %q",
-				snapName, plugOrSlotName)}
+				instanceName, plugOrSlotName)}
 	}
 	// Collect all the relevant connections
 
-	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
+	if plug, ok := r.plugs[instanceName][plugOrSlotName]; ok {
 		for slotInfo := range r.plugSlots[plug] {
 			connRef := NewConnRef(plug, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
 
-	if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
+	if slot, ok := r.slots[instanceName][plugOrSlotName]; ok {
 		for plugInfo := range r.slotPlugs[slot] {
 			connRef := NewConnRef(plugInfo, slot)
 			conns = append(conns, connRef)
@@ -832,25 +832,25 @@ func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.Ho
 	return nil, fmt.Errorf("cannot find hotplug slot for interface %s and hotplug key %q", ifaceName, hotplugKey)
 }
 
-func (r *Repository) Connections(snapName naming.InstanceName) ([]*ConnRef, error) {
+func (r *Repository) Connections(instanceName naming.InstanceName) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	if snapName == "" {
-		snapName, _ = r.guessSystemSnapName()
-		if snapName == "" {
+	if instanceName == "" {
+		instanceName, _ = r.guessSystemSnapName()
+		if instanceName == "" {
 			return nil, fmt.Errorf("internal error: cannot obtain core snap name while computing connections")
 		}
 	}
 
 	var conns []*ConnRef
-	for _, plugInfo := range r.plugs[snapName] {
+	for _, plugInfo := range r.plugs[instanceName] {
 		for slotInfo := range r.plugSlots[plugInfo] {
 			connRef := NewConnRef(plugInfo, slotInfo)
 			conns = append(conns, connRef)
 		}
 	}
-	for _, slotInfo := range r.slots[snapName] {
+	for _, slotInfo := range r.slots[instanceName] {
 		for plugInfo := range r.slotPlugs[slotInfo] {
 			// self-connection, ignore here as we got it already in the plugs loop above
 			if plugInfo.Snap == slotInfo.Snap {
@@ -1072,31 +1072,31 @@ func (r *Repository) AddAppSet(appSet *SnapAppSet) error {
 // RemoveSnap does not remove connections. The caller is responsible for
 // ensuring that connections are broken before calling this method. If this
 // constraint is violated then no changes are made and an error is returned.
-func (r *Repository) RemoveSnap(snapName naming.InstanceName) error {
+func (r *Repository) RemoveSnap(instanceName naming.InstanceName) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	for plugName, plug := range r.plugs[snapName] {
+	for plugName, plug := range r.plugs[instanceName] {
 		if len(r.plugSlots[plug]) > 0 {
-			return fmt.Errorf("cannot remove connected plug %s.%s", snapName, plugName)
+			return fmt.Errorf("cannot remove connected plug %s.%s", instanceName, plugName)
 		}
 	}
-	for slotName, slot := range r.slots[snapName] {
+	for slotName, slot := range r.slots[instanceName] {
 		if len(r.slotPlugs[slot]) > 0 {
-			return fmt.Errorf("cannot remove connected slot %s.%s", snapName, slotName)
+			return fmt.Errorf("cannot remove connected slot %s.%s", instanceName, slotName)
 		}
 	}
 
-	for _, plug := range r.plugs[snapName] {
+	for _, plug := range r.plugs[instanceName] {
 		delete(r.plugSlots, plug)
 	}
-	delete(r.plugs, snapName)
-	for _, slot := range r.slots[snapName] {
+	delete(r.plugs, instanceName)
+	for _, slot := range r.slots[instanceName] {
 		delete(r.slotPlugs, slot)
 	}
-	delete(r.slots, snapName)
+	delete(r.slots, instanceName)
 
-	delete(r.appSets, snapName)
+	delete(r.appSets, instanceName)
 
 	return nil
 }
@@ -1104,13 +1104,13 @@ func (r *Repository) RemoveSnap(snapName naming.InstanceName) error {
 // DisconnectSnap disconnects all the connections to and from a given snap.
 //
 // The return value is a list of names that were affected.
-func (r *Repository) DisconnectSnap(snapName naming.InstanceName) ([]naming.InstanceName, error) {
+func (r *Repository) DisconnectSnap(instanceName naming.InstanceName) ([]naming.InstanceName, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	seen := make(map[*snap.Info]bool)
 
-	for _, plug := range r.plugs[snapName] {
+	for _, plug := range r.plugs[instanceName] {
 		for slot := range r.plugSlots[plug] {
 			r.disconnect(plug, slot)
 			seen[plug.Snap] = true
@@ -1118,7 +1118,7 @@ func (r *Repository) DisconnectSnap(snapName naming.InstanceName) ([]naming.Inst
 		}
 	}
 
-	for _, slot := range r.slots[snapName] {
+	for _, slot := range r.slots[instanceName] {
 		for plug := range r.slotPlugs[slot] {
 			r.disconnect(plug, slot)
 			seen[plug.Snap] = true
@@ -1147,16 +1147,16 @@ type SideArity interface {
 
 // AutoConnectCandidateSlots finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidateSlots(plugSnapName naming.InstanceName, plugName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, SideArity, error)) ([]*snap.SlotInfo, []SideArity) {
+func (r *Repository) AutoConnectCandidateSlots(plugInstanceName naming.InstanceName, plugName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, SideArity, error)) ([]*snap.SlotInfo, []SideArity) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	plugInfo := r.plugs[plugSnapName][plugName]
+	plugInfo := r.plugs[plugInstanceName][plugName]
 	if plugInfo == nil {
 		return nil, nil
 	}
 
-	plugAppSet := r.appSets[plugSnapName]
+	plugAppSet := r.appSets[plugInstanceName]
 	if plugAppSet == nil {
 		return nil, nil
 	}
@@ -1195,16 +1195,16 @@ func (r *Repository) AutoConnectCandidateSlots(plugSnapName naming.InstanceName,
 
 // AutoConnectCandidatePlugs finds and returns viable auto-connection candidates
 // for a given slot.
-func (r *Repository) AutoConnectCandidatePlugs(slotSnapName naming.InstanceName, slotName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, SideArity, error)) []*snap.PlugInfo {
+func (r *Repository) AutoConnectCandidatePlugs(slotInstanceName naming.InstanceName, slotName string, policyCheck func(*ConnectedPlug, *ConnectedSlot) (bool, SideArity, error)) []*snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	slotInfo := r.slots[slotSnapName][slotName]
+	slotInfo := r.slots[slotInstanceName][slotName]
 	if slotInfo == nil {
 		return nil
 	}
 
-	slotAppSet := r.appSets[slotSnapName]
+	slotAppSet := r.appSets[slotInstanceName]
 	if slotAppSet == nil {
 		return nil
 	}

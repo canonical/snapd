@@ -487,7 +487,7 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 // provide consistent error messages.
 func (m *InterfaceManager) ResolveDisconnect(plugInstanceName naming.InstanceName, plugName string, slotInstanceName naming.InstanceName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
 	var connected func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error)
-	var connectedPlugOrSlot func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
+	var connectedPlugOrSlot func(instanceName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
 
 	if forget {
 		conns, err := getConns(m.state)

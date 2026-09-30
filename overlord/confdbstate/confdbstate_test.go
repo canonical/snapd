@@ -924,7 +924,7 @@ slots:
 	err = repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
-	mockSnap := func(snapName naming.InstanceName, isCustodian bool, hooks []string) {
+	mockSnap := func(instanceName naming.InstanceName, isCustodian bool, hooks []string) {
 		var custodianSnippet string
 		if isCustodian {
 			custodianSnippet = `    role: custodian`
@@ -945,7 +945,7 @@ plugs:
     account: %[2]s
     view: other/other
 %[3]s
-`, snapName, s.devAccID, custodianSnippet)
+`, instanceName, s.devAccID, custodianSnippet)
 
 		info := mockInstalledSnap(c, s.state, snapYaml, hooks)
 		for _, hook := range hooks {
@@ -961,11 +961,11 @@ plugs:
 		c.Assert(err, IsNil)
 
 		setupRef := &interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "setup"},
+			PlugRef: interfaces.PlugRef{Snap: instanceName, Name: "setup"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 		}
 		otherRef := &interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "other"},
+			PlugRef: interfaces.PlugRef{Snap: instanceName, Name: "other"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 		}
 
