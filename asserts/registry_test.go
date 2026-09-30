@@ -51,18 +51,14 @@ func (a *externalAssertion) CheckConsistency(asserts.RODatabase, *asserts.Accoun
 	return nil
 }
 
-func mustNewType(c *C, definition asserts.TypeDefinition) *asserts.AssertionType {
-	assertionType, err := asserts.NewAssertionType(definition)
-	c.Assert(err, IsNil)
-	return assertionType
-}
-
 func newExternalType(c *C, name string) *asserts.AssertionType {
-	return mustNewType(c, asserts.TypeDefinition{
+	assertionType, err := asserts.NewAssertionType(asserts.TypeDefinition{
 		Name:       name,
 		PrimaryKey: []string{"external-id"},
 		Assembler:  assembleExternal,
 	})
+	c.Assert(err, IsNil)
+	return assertionType
 }
 
 func (s *registrySuite) TestNewAssertionType(c *C) {
@@ -146,6 +142,8 @@ func (s *registrySuite) TestConfigureExternalTypesIsAtomicAndRetryable(c *C) {
 
 	err = asserts.ConfigureExternalTypes(newExternalType(c, "another-external"))
 	c.Check(err, ErrorMatches, "assertion types are already configured")
+	c.Check(asserts.Type("another-external"), IsNil)
+	c.Check(asserts.Type("external-atomic"), Equals, externalType)
 	err = asserts.ConfigureExternalTypes()
 	c.Assert(err, IsNil)
 }
@@ -162,7 +160,9 @@ func (s *registrySuite) TestConfiguredTypeUsesExistingPaths(c *C) {
 	names := asserts.TypeNames()
 	pos := sort.SearchStrings(names, externalType.Name)
 	c.Check(pos < len(names) && names[pos] == externalType.Name, Equals, true)
-	c.Check(asserts.MaxSupportedFormats(0)[externalType.Name], Equals, 0)
+	maxFormat, ok := asserts.MaxSupportedFormats(0)[externalType.Name]
+	c.Check(ok, Equals, true)
+	c.Check(maxFormat, Equals, 0)
 
 	backstore, err := asserts.OpenFSBackstore(c.MkDir())
 	c.Assert(err, IsNil)
