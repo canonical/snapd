@@ -279,6 +279,14 @@ func NextCatalogRefresh(cr *catalogRefresh) time.Time {
 	return cr.nextCatalogRefresh
 }
 
+func WaitCatalogRefresh(cr *catalogRefresh) {
+	cr.wg.Wait()
+}
+
+func StopCatalogRefresh(m *SnapManager) {
+	m.catalogRefresh.Stop()
+}
+
 func MockRefreshRetryDelay(d time.Duration) func() {
 	origRefreshRetryDelay := refreshRetryDelay
 	refreshRetryDelay = d

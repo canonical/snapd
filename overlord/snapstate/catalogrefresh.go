@@ -26,6 +26,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/advisor"
@@ -59,6 +60,9 @@ type catalogRefresh struct {
 	ctx context.Context
 	// cancel cancels ctx and any in-flight store request
 	cancel context.CancelFunc
+
+	// wg tracks the in-flight background refresh
+	wg sync.WaitGroup
 }
 
 func newCatalogRefresh(st *state.State) *catalogRefresh {
@@ -69,6 +73,13 @@ func newCatalogRefresh(st *state.State) *catalogRefresh {
 
 func (r *catalogRefresh) ShutDown() {
 	r.cancel()
+}
+
+// Stop cancels any in-flight refresh and waits for it to finish. It must be
+// called without holding the state lock.
+func (r *catalogRefresh) Stop() {
+	r.cancel()
+	r.wg.Wait()
 }
 
 // EnsureAfterSeed will ensure that the catalog refresh happens after seeding.
@@ -125,24 +136,31 @@ func (r *catalogRefresh) EnsureAfterSeed(deviceCtx DeviceContext) error {
 
 	logger.Debugf("Catalog refresh starting now; next scheduled for %s.", next)
 
-	err = refreshCatalogs(r.ctx, r.state, theStore)
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		r.state.Lock()
+		defer r.state.Unlock()
+		r.refresh(theStore)
+	}()
+	return nil
+}
+
+func (r *catalogRefresh) refresh(theStore StoreService) {
+	err := refreshCatalogs(r.ctx, r.state, theStore)
 	switch {
 	case err == nil:
 		logger.Debugf("Catalog refresh succeeded.")
 	case errors.Is(err, store.ErrTooManyRequests):
 		logger.Debugf("Catalog refresh postponed.")
-		err = nil
 	case errors.Is(err, errSkipCatalogRefreshWhenTesting):
 		logger.Debugf("Catalog refresh skipped when testing is enabled")
-		err = nil
 	case errors.Is(err, context.Canceled):
 		// Canceled catalog refresh is not treated as an error.
 		logger.Debugf("Catalog refresh canceled.")
-		err = nil
 	default:
-		logger.Debugf("Catalog refresh failed: %v.", err)
+		logger.Noticef("Catalog refresh failed: %v.", err)
 	}
-	return err
 }
 
 var newCmdDB = advisor.Create

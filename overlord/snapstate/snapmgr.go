@@ -948,9 +948,11 @@ func (m *SnapManager) StartUp() error {
 	return nil
 }
 
-// Stop implements StateStopper. It will unregister the change callback
-// handler from state.
+// Stop implements StateStopper. It will stop any background catalog refresh
+// and unregister the change callback handler from state.
 func (m *SnapManager) Stop() {
+	m.catalogRefresh.Stop()
+
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
