@@ -370,7 +370,7 @@ func (c *refreshCommand) proceed() error {
 			return err
 		}
 		if !gateAutoRefreshHook {
-			return fmt.Errorf("cannot proceed without experimental.gate-auto-refresh feature enabled")
+			return fmt.Errorf("cannot proceed: gate-auto-refresh-hook is disabled")
 		}
 
 		return autoRefreshForGatingSnap(st, ctx.InstanceName().String())

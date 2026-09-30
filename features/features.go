@@ -50,8 +50,6 @@ const (
 	CheckDiskSpaceInstall
 	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
 	CheckDiskSpaceRefresh
-	// GateAutoRefreshHook enables refresh control from snaps via gate-auto-refresh hook.
-	GateAutoRefreshHook
 	// Confdb enables experimental configuration based on confdb and views.
 	Confdb
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
@@ -67,8 +65,18 @@ const (
 	SeedRefresh
 	// SnapDeltaFormat enables deltas that use the "snap delta" format
 	SnapDeltaFormat
-	// lastFeature is the final known feature, it is only used for testing.
+	// lastFeature marks the end of the features available for configuration.
 	lastFeature
+
+	// Permanently disabled features retain their identities and implementation,
+	// but are not enumerated by KnownFeatures.
+
+	// GateAutoRefreshHook enabled refresh control from snaps via
+	// gate-auto-refresh hook.
+	//
+	// TODO:GATEREFRESH: this feature is permanently disabled and code for it
+	// will be removed in a future release.
+	GateAutoRefreshHook
 )
 
 var knownFeaturesImpl = func() []SnapdFeature {
@@ -99,8 +107,6 @@ var featureNames = map[SnapdFeature]string{
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
 	CheckDiskSpaceRemove:  "check-disk-space-remove",
 
-	GateAutoRefreshHook: "gate-auto-refresh-hook",
-
 	Confdb: "confdb",
 
 	AppArmorPrompting:  "apparmor-prompting",
@@ -112,6 +118,9 @@ var featureNames = map[SnapdFeature]string{
 	SeedRefresh: "seed-refresh",
 
 	SnapDeltaFormat: "snap-delta-format",
+
+	// permanently disabled features
+	GateAutoRefreshHook: "gate-auto-refresh-hook",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -138,6 +147,12 @@ var featuresGraduated = map[string]bool{
 	"refresh-app-awareness-ux":          true,
 	"dbus-activation":                   true,
 	"quota-groups":                      true,
+}
+
+// featuresPermanentlyDisabled contains features whose implementation is
+// retained but which cannot be enabled through configuration.
+var featuresPermanentlyDisabled = map[SnapdFeature]bool{
+	GateAutoRefreshHook: true,
 }
 
 var (
@@ -167,6 +182,21 @@ func (f SnapdFeature) String() string {
 		return name
 	}
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
+}
+
+// IsPermanentlyDisabled reports whether a feature cannot be enabled in this build.
+func (f SnapdFeature) IsPermanentlyDisabled() bool {
+	return featuresPermanentlyDisabled[f]
+}
+
+// MockFeaturesPermanentlyDisabled replaces the permanently disabled features for tests.
+func MockFeaturesPermanentlyDisabled(disabled map[SnapdFeature]bool) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesPermanentlyDisabled can only be used in tests")
+	old := featuresPermanentlyDisabled
+	featuresPermanentlyDisabled = disabled
+	return func() {
+		featuresPermanentlyDisabled = old
+	}
 }
 
 // IsEnabledWhenUnset returns true if a feature is enabled when not set.
@@ -254,6 +284,10 @@ func (f SnapdFeature) IsEnabled() bool {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
 	}
 
+	if f.IsPermanentlyDisabled() {
+		return false
+	}
+
 	// TODO: this returns false on errors != ErrNotExist.
 	// Consider using os.Stat and handling other errors
 	return osutil.FileExists(f.ControlFile())
@@ -265,6 +299,10 @@ type confGetter interface {
 
 // Flag returns whether the given feature flag is enabled.
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
+	if feature.IsPermanentlyDisabled() {
+		return false, nil
+	}
+
 	var isEnabled any
 	snapName, confName := feature.ConfigOption()
 	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
