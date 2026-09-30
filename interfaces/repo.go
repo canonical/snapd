@@ -610,7 +610,7 @@ func (r *Repository) Connect(ref *ConnRef, plugStaticAttrs, plugDynamicAttrs, sl
 
 	slotAppSet := r.appSets[slotInstanceName]
 	if slotAppSet == nil {
-		return nil, fmt.Errorf("internal error: no app set for plug snap %q", plugInstanceName)
+		return nil, fmt.Errorf("internal error: no app set for slot snap %q", slotInstanceName)
 	}
 
 	cplug := NewConnectedPlug(plug, plugAppSet, plugStaticAttrs, plugDynamicAttrs)
