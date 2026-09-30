@@ -49,6 +49,9 @@ type catalogStore struct {
 	tooMany bool
 	// wrapCtxErr wraps ctx errors
 	wrapCtxErr bool
+	// sectionsStarted, if set, is closed when Sections is called, which
+	// then blocks until ctx is canceled
+	sectionsStarted chan struct{}
 }
 
 func (r *catalogStore) ctxErr(ctx context.Context) error {
@@ -82,6 +85,10 @@ func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.S
 func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, error) {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
+	}
+	if r.sectionsStarted != nil {
+		close(r.sectionsStarted)
+		<-ctx.Done()
 	}
 	if err := r.ctxErr(ctx); err != nil {
 		return nil, err
@@ -135,6 +142,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 
 	// next now has a delta (next refresh is not before t0 + delta)
 	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(cr7.GetCatalogRefreshDelayWithDelta())), Equals, false)
@@ -167,6 +175,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 
 	err := cr7.Ensure()
 	c.Check(err, IsNil) // !!
+	snapstate.WaitCatalogRefresh(cr7)
 
 	// next now has a delta (next refresh is not before t0 + delta)
 	c.Check(snapstate.NextCatalogRefresh(cr7).Before(t0.Add(cr7.GetCatalogRefreshDelayWithDelta())), Equals, false)
@@ -185,6 +194,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNotNeeded(c *C) {
 	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Now().Add(1*time.Hour))
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 	c.Check(s.store.ops, HasLen, 0)
 	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
@@ -203,6 +213,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshNewEnough(c *C) {
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 	err := cr7.Ensure()
 	c.Assert(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 	c.Check(s.store.ops, HasLen, 0)
 	next := snapstate.NextCatalogRefresh(cr7)
 	// next is no longer zero,
@@ -222,6 +233,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 }
 
@@ -237,6 +249,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUnSeeded(c *C) {
 
 	err := cr7.Ensure()
 	c.Assert(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 
 	// next should be still zero as we skipped refresh on unseeded system
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
@@ -262,6 +275,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
 
 	err := cr7.Ensure()
 	c.Assert(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 
 	// next should be still zero as we skipped refresh on unseeded system
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
@@ -289,6 +303,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 
 	c.Check(s.store.ops, HasLen, 0)
 
@@ -306,6 +321,7 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 
 	err = cr7.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 
 	// refresh happened
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
@@ -323,6 +339,7 @@ func (s *catalogRefreshTestSuite) testCatalogRefreshShutDown(c *C, wrapCtxErr bo
 
 	err := cr7.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(cr7)
 	// store was not contacted after shutdown
 	c.Check(s.store.ops, HasLen, 0)
 }
@@ -338,6 +355,22 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDownWrappedCancelError(c
 	s.testCatalogRefreshShutDown(c, wrapCtxErr)
 }
 
+func (s *catalogRefreshTestSuite) TestCatalogRefreshEnsureDoesNotBlockAndStopWaits(c *C) {
+	s.store.sectionsStarted = make(chan struct{})
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	err := cr7.Ensure()
+	c.Assert(err, IsNil)
+
+	// the refresh is in a background goroutine
+	<-s.store.sectionsStarted
+
+	cr7.Stop()
+
+	c.Check(s.store.ops, HasLen, 0)
+	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
+}
+
 func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, "offline")
 
@@ -351,6 +384,7 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 
 	err = af.Ensure()
 	c.Check(err, IsNil)
+	snapstate.WaitCatalogRefresh(af)
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 }
