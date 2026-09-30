@@ -332,7 +332,7 @@ func openSecretStateFile() (f *os.File, retErr error) {
 	}()
 	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupported) {
 		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupported)
-		fd, err := sysMemfdSecret(unix.FD_CLOEXEC)
+		fd, err := sysMemfdSecret(unix.O_CLOEXEC)
 		if err != nil {
 			// fallback to memfd-create if memfd-secret is not supported
 			logger.Debugf("cannot create memfd-secret (%v), falling back to memfd-create", err)

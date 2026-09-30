@@ -165,6 +165,13 @@ execute: |
   MATCH '"status": "Bad Request"' < resp
   MATCH "invalid recovery key" < resp
 
+  # Check that memfd-secret was used not the memfd-create fallback
+  snapd_pid="$(remote.exec "systemctl show -p MainPID --value snapd")"
+  remote.exec "sudo ls -l /proc/$snapd_pid/fd" > snapd-fds.out
+  MATCH '/secretmem \(deleted\)' < snapd-fds.out
+  NOMATCH 'memfd:secret-state' < snapd-fds.out
+
+
   # We can boot with new recovery key
   tests.nested vm set-recovery-key "$(cat rkey-post-install.out)"
   clear_tpm_and_reboot
