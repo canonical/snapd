@@ -78,12 +78,12 @@ jobs:
       matrix:
         runs-on:
           - '["ubuntu-24.04"]'
-          - ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
         toolchain:
           - default
           - FIPS
         exclude:
-          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
             toolchain: FIPS
   
   read-systems:
