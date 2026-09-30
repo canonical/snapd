@@ -5061,7 +5061,7 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	// Always set the previous-kernel-rev, even the revision actually isn't
+	// Always set the previous-kernel-rev, even when the revision actually isn't
 	// changed. The other task handlers need to make checks to only apply their
 	// effects when that makes sense.
 	setupTask.Set("previous-kernel-rev", snapSt.Current)
