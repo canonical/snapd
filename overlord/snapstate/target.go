@@ -292,11 +292,12 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 
 	snapsup := SnapSetup{
-		Channel:      t.setup.Channel,
-		CohortKey:    t.setup.CohortKey,
-		DownloadInfo: t.setup.DownloadInfo,
-		SnapPath:     t.setup.SnapPath,
-		AlwaysUpdate: t.setup.AlwaysUpdate,
+		Channel:                t.setup.Channel,
+		CohortKey:              t.setup.CohortKey,
+		DownloadInfo:           t.setup.DownloadInfo,
+		IntegrityDownloadInfos: t.setup.IntegrityDownloadInfos,
+		SnapPath:               t.setup.SnapPath,
+		AlwaysUpdate:           t.setup.AlwaysUpdate,
 
 		Base:               t.info.Base,
 		Prereq:             keys(providerContentAttrs),
@@ -316,12 +317,6 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			// XXX we store this for the benefit of old snapd
 			Website: t.info.Website(),
 		},
-	}
-
-	// FIXME: snap type-based restriction should not be on the download data level, remove the check below.
-	typ := t.info.Type()
-	if typ == snap.TypeBase || typ == snap.TypeKernel || typ == snap.TypeGadget || typ == snap.TypeSnapd {
-		snapsup.IntegrityDownloadInfos = t.setup.IntegrityDownloadInfos
 	}
 
 	return snapsup, compsups, nil
