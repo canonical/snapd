@@ -49,6 +49,7 @@ type TypeDefinition struct {
 	// Name is the process-wide unique assertion type name.
 	Name string
 	// PrimaryKey lists the headers that uniquely identify an assertion.
+	// At least one header is required.
 	PrimaryKey []string
 	// Assembler validates and constructs the concrete assertion.
 	Assembler func(assert AssertionBase) (Assertion, error)
@@ -119,6 +120,9 @@ func (at *AssertionType) validateForRegistration() error {
 	}
 	if at.assembler == nil {
 		return fmt.Errorf("assertion type %q assembler cannot be nil", at.Name)
+	}
+	if len(at.PrimaryKey) == 0 {
+		return fmt.Errorf("assertion type %q must have at least one primary key header", at.Name)
 	}
 	primaryKeys := make(map[string]bool, len(at.PrimaryKey))
 	for _, name := range at.PrimaryKey {

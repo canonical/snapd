@@ -21,7 +21,6 @@ package asserts_test
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -46,7 +45,10 @@ func assembleExternal(assert asserts.AssertionBase) (asserts.Assertion, error) {
 }
 
 func (a *externalAssertion) CheckConsistency(asserts.RODatabase, *asserts.AccountKey) error {
-	return fmt.Errorf("external consistency check")
+	if a.HeaderString("external-id") == "rejected" {
+		return fmt.Errorf("external consistency check")
+	}
+	return nil
 }
 
 func mustNewType(c *C, definition asserts.TypeDefinition) *asserts.AssertionType {
@@ -87,6 +89,10 @@ func (s *registrySuite) TestNewAssertionTypeValidation(c *C) {
 		{asserts.TypeDefinition{Assembler: validAssembler}, "assertion type name cannot be empty"},
 		{asserts.TypeDefinition{Name: "../external", Assembler: validAssembler}, `invalid assertion type name: "\.\./external"`},
 		{asserts.TypeDefinition{Name: "external"}, `assertion type "external" assembler cannot be nil`},
+		{asserts.TypeDefinition{Name: "external", Assembler: validAssembler},
+			`assertion type "external" must have at least one primary key header`},
+		{asserts.TypeDefinition{Name: "external", PrimaryKey: []string{}, Assembler: validAssembler},
+			`assertion type "external" must have at least one primary key header`},
 		{asserts.TypeDefinition{
 			Name: "external", PrimaryKey: []string{"invalid/name"}, Assembler: validAssembler,
 		}, `assertion type "external" has invalid primary key header name "invalid/name"`},
@@ -122,6 +128,13 @@ func (s *registrySuite) TestConfigureExternalTypesIsAtomicAndRetryable(c *C) {
 	c.Check(err, ErrorMatches, `cannot configure assertion types: invalid assertion type name: "\.\./renamed"`)
 	externalType.Name = "external-atomic"
 
+	keylessType := newExternalType(c, "external-keyless")
+	keylessType.PrimaryKey = nil
+	err = asserts.ConfigureExternalTypes(externalType, keylessType)
+	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-keyless" must have at least one primary key header`)
+	c.Check(asserts.Type("external-atomic"), IsNil)
+	c.Check(asserts.Type("external-keyless"), IsNil)
+
 	err = asserts.ConfigureExternalTypes(externalType, asserts.AccountType)
 	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "account" is already registered`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
@@ -151,7 +164,14 @@ func (s *registrySuite) TestConfiguredTypeUsesExistingPaths(c *C) {
 	c.Check(pos < len(names) && names[pos] == externalType.Name, Equals, true)
 	c.Check(asserts.MaxSupportedFormats(0)[externalType.Name], Equals, 0)
 
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{Backstore: asserts.NewMemoryBackstore()})
+	backstore, err := asserts.OpenFSBackstore(c.MkDir())
+	c.Assert(err, IsNil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: backstore,
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountKeyForTest("external-authority", testPrivKey1.PublicKey()),
+		},
+	})
 	c.Assert(err, IsNil)
 	err = db.ImportKey(testPrivKey1)
 	c.Assert(err, IsNil)
@@ -163,18 +183,28 @@ func (s *registrySuite) TestConfiguredTypeUsesExistingPaths(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, externalType)
 	c.Check(a.(*externalAssertion).HeaderString("external-id"), Equals, "one")
-	c.Check(asserts.CheckCrossConsistency(a, nil, db, time.Time{}, time.Time{}), ErrorMatches, "external consistency check")
 
 	encoded := asserts.Encode(a)
 	decoded, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	c.Check(decoded.Type(), Equals, externalType)
 
-	backstore, err := asserts.OpenFSBackstore(c.MkDir())
+	c.Assert(db.Check(decoded), IsNil)
+	err = db.Add(decoded)
 	c.Assert(err, IsNil)
-	err = backstore.Put(externalType, a)
-	c.Assert(err, IsNil)
-	fromDisk, err := backstore.Get(externalType, []string{"one"}, externalType.MaxSupportedFormat())
+	fromDisk, err := db.Find(externalType, map[string]string{"external-id": "one"})
 	c.Assert(err, IsNil)
 	c.Check(fromDisk.Type(), Equals, externalType)
+	c.Check(fromDisk, FitsTypeOf, &externalAssertion{})
+	c.Check(asserts.Encode(fromDisk), DeepEquals, encoded)
+
+	rejected, err := db.Sign(externalType, map[string]any{
+		"authority-id": "external-authority",
+		"external-id":  "rejected",
+	}, nil, testPrivKey1.PublicKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(db.Check(rejected), ErrorMatches, "external consistency check")
+	c.Check(db.Add(rejected), ErrorMatches, "external consistency check")
+	_, err = db.Find(externalType, map[string]string{"external-id": "rejected"})
+	c.Check(err, FitsTypeOf, &asserts.NotFoundError{})
 }
