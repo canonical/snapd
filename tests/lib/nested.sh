@@ -1004,10 +1004,13 @@ nested_create_core_vm() {
                 nested_prepare_base
             fi
 
-            local base_channel
+            local base_channel=""
             local image_channel
             local -a image_generator_args
             image_channel="$(nested_get_image_channel)"
+
+            # Core 26 may need a base channel (for example cloud-init/edge) that
+            # differs from the image-wide channel used by earlier Core versions.
             if nested_is_core_26_system; then
                 base_channel="$(nested_get_base_channel)"
             fi
