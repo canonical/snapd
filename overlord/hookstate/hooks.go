@@ -308,6 +308,13 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 	return true, nil
 }
 
+// NewGateAutoRefreshHookHandler returns a handler for the gate-auto-refresh
+// hook. The hook manager does not register this handler, thus the hook does not
+// run. Tasks for the hook from an older snapd complete without an effect,
+// because the hook is optional.
+//
+// TODO:GATEREFRESH: remove the handler with the rest of the
+// gate-auto-refresh-hook feature.
 func NewGateAutoRefreshHookHandler(context *Context) *gateAutoRefreshHookHandler {
 	return &gateAutoRefreshHookHandler{
 		context: context,
@@ -349,13 +356,9 @@ func setupHooks(hookMgr *HookManager) {
 	handlerGenerator := func(context *Context) Handler {
 		return &SnapHookHandler{}
 	}
-	gateAutoRefreshHandlerGenerator := func(context *Context) Handler {
-		return NewGateAutoRefreshHookHandler(context)
-	}
 
 	hookMgr.Register(regexp.MustCompile("^install$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^post-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^pre-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
-	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), gateAutoRefreshHandlerGenerator)
 }

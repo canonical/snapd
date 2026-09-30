@@ -932,6 +932,12 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
+	// remove what the gate-auto-refresh-hook feature of an older snapd left
+	// behind. this must happen before the task runner resumes any tasks.
+	if err := cleanupGateAutoRefreshFeature(m.state); err != nil {
+		logger.Noticef("cannot clean up gate-auto-refresh leftovers: %v", err)
+	}
+
 	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
 		// This handler records a refresh-inhibit notice when the set of inhibited snaps is changed.
 		processInhibitedAutoRefresh(chg, old, new)

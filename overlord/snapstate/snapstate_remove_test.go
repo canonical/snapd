@@ -2089,10 +2089,7 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	st.Lock()
 	defer st.Unlock()
 
-	// enable gate-auto-refresh-hook feature
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
-	tr.Commit()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	for _, sn := range []string{"some-snap", "another-snap", "foo-snap"} {
 		si := snap.SideInfo{
@@ -2170,6 +2167,7 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	t := time.Now()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
