@@ -85,8 +85,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 
 	prevTimestamp := timestamp
 	timestamp = timestamp.Add(5 * time.Second)
-	newExpireAfter := time.Duration(0)
-	notice, repeated := notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	notice, repeated := notice.Reoccur(timestamp, data, repeatAfter)
 	c.Check(repeated, Equals, false)
 	n := noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -98,7 +97,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// If total time since last repeated is greater than repeatAfter, should
 	// be repeated, even if time since last occurred is shorter.
 	timestamp = timestamp.Add(6 * time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -111,7 +110,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// saved in the notice, so check that the former has precedence.
 	repeatAfter = time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -124,7 +123,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	prevTimestamp = timestamp
 	repeatAfter = 10 * time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
 	c.Check(repeated, Equals, false)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -136,7 +135,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// If the repeatAfter argument is 0, then always repeat
 	repeatAfter = 0
 	timestamp = timestamp.Add(time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter, newExpireAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -148,7 +147,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// Reoccur does not mutate the existing notice, instead creates a deep copy
 	newTimestamp := timestamp.Add(time.Second)
 	newData := map[string]string{"something": "changed"}
-	newNotice, repeated := notice.Reoccur(newTimestamp, newData, repeatAfter, newExpireAfter)
+	newNotice, repeated := notice.Reoccur(newTimestamp, newData, repeatAfter)
 	c.Check(repeated, Equals, true)
 	newN := noticeToMap(c, newNotice)
 	c.Check(newN["last-occurred"], Equals, newTimestamp.Format(time.RFC3339Nano))
