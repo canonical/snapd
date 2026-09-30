@@ -141,18 +141,6 @@ func (s *seclogSuite) TestSeclogSnapdUserFromAuth(c *C) {
 	})
 }
 
-func (s *seclogSuite) TestSeclogEndpointFromRequest(c *C) {
-	c.Check(daemon.SeclogEndpointFromRequest("/v2/snaps", "POST", "install"), DeepEquals, seclog.Endpoint{
-		Method: "POST",
-		Path:   "/v2/snaps",
-		Action: "install",
-	})
-	c.Check(daemon.SeclogEndpointFromRequest("/v2/snaps", "GET", ""), DeepEquals, seclog.Endpoint{
-		Method: "GET",
-		Path:   "/v2/snaps",
-	})
-}
-
 func (s *seclogSuite) setupSecLog() (*bytes.Buffer, func()) {
 	buf := &bytes.Buffer{}
 	seclog.Setup(seclogtest.MockSecurityLogger(buf))
@@ -161,7 +149,7 @@ func (s *seclogSuite) setupSecLog() (*bytes.Buffer, func()) {
 	}
 }
 
-func (s *seclogSuite) TestAuthzRecorderEmitGranted(c *C) {
+func (s *seclogSuite) TestAuthzRecorderLogGranted(c *C) {
 	buf, restore := s.setupSecLog()
 	defer restore()
 
@@ -171,7 +159,7 @@ func (s *seclogSuite) TestAuthzRecorderEmitGranted(c *C) {
 
 	rec := daemon.NewAuthzRecorder(user, peer, endpoint)
 	rec.RecordGranted(seclog.GrantRootAuth, "desktop-launch", true)
-	rec.Emit()
+	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, "authz_admin")
 	c.Check(buf.String(), testutil.Contains, "admin@example.com")
@@ -180,13 +168,13 @@ func (s *seclogSuite) TestAuthzRecorderEmitGranted(c *C) {
 	c.Check(buf.String(), Not(testutil.Contains), "authz_fail")
 }
 
-func (s *seclogSuite) TestAuthzRecorderEmitSlotSide(c *C) {
+func (s *seclogSuite) TestAuthzRecorderLogSlotSide(c *C) {
 	buf, restore := s.setupSecLog()
 	defer restore()
 
 	rec := daemon.NewAuthzRecorder(seclog.SnapdUser{}, seclog.Peer{}, seclog.Endpoint{})
 	rec.RecordGranted(seclog.GrantRootAuth, "fwupd", false)
-	rec.Emit()
+	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, `[reason_granted="root-auth fwupd slot"]`)
 }
@@ -203,7 +191,7 @@ func (s *seclogSuite) TestAuthzRecorderReplaceOutcome(c *C) {
 
 	rec.RecordGranted(seclog.GrantRootAuth, "desktop-launch", true)
 	rec.RecordDenied(seclog.DenialUserAuth)
-	rec.Emit()
+	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, "authz_fail")
 	c.Check(buf.String(), testutil.Contains, `[reason_denied="user-auth-denied"]`)
@@ -211,14 +199,14 @@ func (s *seclogSuite) TestAuthzRecorderReplaceOutcome(c *C) {
 
 	buf.Reset()
 	rec.RecordGranted(seclog.GrantUserAuth, "", false)
-	rec.Emit()
+	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, "authz_admin")
 	c.Check(buf.String(), testutil.Contains, `[reason_granted="user-auth"]`)
 	c.Check(buf.String(), Not(testutil.Contains), "authz_fail")
 }
 
-func (s *seclogSuite) TestAuthzRecorderEmitWithoutOutcome(c *C) {
+func (s *seclogSuite) TestAuthzRecorderLogWithoutOutcome(c *C) {
 	buf, restore := s.setupSecLog()
 	defer restore()
 
@@ -226,7 +214,7 @@ func (s *seclogSuite) TestAuthzRecorderEmitWithoutOutcome(c *C) {
 		seclog.SnapdUser{ID: 1},
 		seclog.Peer{UID: 0},
 		seclog.Endpoint{Method: "GET", Path: "/v2/snaps"},
-	).Emit()
+	).Log()
 
 	c.Check(buf.String(), Equals, "")
 }

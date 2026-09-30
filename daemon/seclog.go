@@ -53,19 +53,9 @@ func (un *ucrednet) seclogPeer() seclog.Peer {
 	return peer
 }
 
-// seclogEndpointFromRequest builds a [seclog.Endpoint] for AUTHZ audit events.
-// action is the value cached by ServeHTTP, empty when the request has none.
-func seclogEndpointFromRequest(path, method, action string) seclog.Endpoint {
-	return seclog.Endpoint{
-		Method: method,
-		Path:   path,
-		Action: action,
-	}
-}
-
 // authzRecorder accumulates one AUTHZ audit event during an access check.
 // User, peer, and endpoint are set at construction. Record the outcome via
-// recordGranted or recordDenied, then call emit.
+// recordGranted or recordDenied, then call log.
 type authzRecorder struct {
 	user          seclog.SnapdUser
 	peer          seclog.Peer
@@ -101,9 +91,9 @@ func (rec *authzRecorder) recordDenied(reason seclog.DenialReason) {
 	rec.reasonDenied = reason
 }
 
-// emit writes the accumulated event. It is a no-op when no outcome was
+// log writes the accumulated event. It is a no-op when no outcome was
 // recorded.
-func (rec *authzRecorder) emit() {
+func (rec *authzRecorder) log() {
 	switch {
 	case rec.reasonDenied != "":
 		seclog.LogUnauthorizedAccess(rec.user, rec.peer, rec.endpoint, rec.reasonDenied)
