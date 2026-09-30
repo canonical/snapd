@@ -40,7 +40,7 @@ type Repository struct {
 	ifaces map[string]Interface
 	// subset of ifaces that implement HotplugDeviceAdded method
 	hotplugIfaces map[string]Interface
-	// indexed by [snapName][plugName]
+	// indexed by [instanceName][plugName]
 	plugs map[naming.InstanceName]map[string]*snap.PlugInfo
 	slots map[naming.InstanceName]map[string]*snap.SlotInfo
 	// given a slot and a plug, are they connected?
@@ -48,7 +48,7 @@ type Repository struct {
 	// given a plug and a slot, are they connected?
 	plugSlots map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection
 	backends  []SecurityBackend
-	// mapping of snap name to app set that was added to the repo with AddAppSet
+	// mapping of instance name to app set that was added to the repo with AddAppSet
 	appSets map[naming.InstanceName]*SnapAppSet
 	// indexed by [ifaceName1][ifaceName2] indicates that interface "ifaceName1"
 	// cannot be connected if interface "ifaceName2" already has a connection
@@ -311,12 +311,12 @@ func (r *Repository) AllPlugs(interfaceName string) []*snap.PlugInfo {
 }
 
 // Plugs returns the plugs offered by the named snap.
-func (r *Repository) Plugs(snapName naming.InstanceName) []*snap.PlugInfo {
+func (r *Repository) Plugs(instanceName naming.InstanceName) []*snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	var result []*snap.PlugInfo
-	for _, plug := range r.plugs[snapName] {
+	for _, plug := range r.plugs[instanceName] {
 		result = append(result, plug)
 	}
 	sort.Sort(byPlugSnapAndName(result))
@@ -324,12 +324,12 @@ func (r *Repository) Plugs(snapName naming.InstanceName) []*snap.PlugInfo {
 }
 
 // ConnectedPlugs returns the plugs which are connected.
-func (r *Repository) ConnectedPlugs(snapName naming.InstanceName) []*snap.PlugInfo {
+func (r *Repository) ConnectedPlugs(instanceName naming.InstanceName) []*snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	var result []*snap.PlugInfo
-	for _, plugInfo := range r.plugs[snapName] {
+	for _, plugInfo := range r.plugs[instanceName] {
 		if len(r.plugSlots[plugInfo]) > 0 {
 			result = append(result, plugInfo)
 		}
@@ -339,11 +339,11 @@ func (r *Repository) ConnectedPlugs(snapName naming.InstanceName) []*snap.PlugIn
 }
 
 // Plug returns the specified plug from the named snap.
-func (r *Repository) Plug(snapName naming.InstanceName, plugName string) *snap.PlugInfo {
+func (r *Repository) Plug(instanceName naming.InstanceName, plugName string) *snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.plugs[snapName][plugName]
+	return r.plugs[instanceName][plugName]
 }
 
 // Connection returns the specified Connection object or an error.
@@ -393,12 +393,12 @@ func (r *Repository) AllSlots(interfaceName string) []*snap.SlotInfo {
 }
 
 // Slots returns the slots offered by the named snap.
-func (r *Repository) Slots(snapName naming.InstanceName) []*snap.SlotInfo {
+func (r *Repository) Slots(instanceName naming.InstanceName) []*snap.SlotInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	var result []*snap.SlotInfo
-	for _, slot := range r.slots[snapName] {
+	for _, slot := range r.slots[instanceName] {
 		result = append(result, slot)
 	}
 	sort.Sort(bySlotSnapAndName(result))
@@ -406,11 +406,11 @@ func (r *Repository) Slots(snapName naming.InstanceName) []*snap.SlotInfo {
 }
 
 // Slot returns the specified slot from the named snap.
-func (r *Repository) Slot(snapName naming.InstanceName, slotName string) *snap.SlotInfo {
+func (r *Repository) Slot(instanceName naming.InstanceName, slotName string) *snap.SlotInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.slots[snapName][slotName]
+	return r.slots[instanceName][slotName]
 }
 
 // AddSlot adds a new slot to the repository.

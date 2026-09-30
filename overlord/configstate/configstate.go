@@ -56,21 +56,21 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
-func canConfigure(st *state.State, snapName naming.InstanceName) error {
+func canConfigure(st *state.State, instanceName naming.InstanceName) error {
 	// the "core" snap/pseudonym can always be configured as it
 	// is handled internally
-	if snapName == "core" {
+	if instanceName == naming.Core {
 		return nil
 	}
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, snapName.String(), &snapst)
+	err := snapstate.Get(st, instanceName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	if !snapst.IsInstalled() {
-		return &snap.NotInstalledError{Snap: snapName.String()}
+		return &snap.NotInstalledError{Snap: instanceName.String()}
 	}
 
 	// the "snapd" snap cannot be configured yet
@@ -88,10 +88,10 @@ func canConfigure(st *state.State, snapName naming.InstanceName) error {
 		return err
 	}
 	if typ == snap.TypeBase {
-		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", snapName)
+		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", instanceName)
 	}
 
-	return snapstate.CheckChangeConflict(st, snapName, nil)
+	return snapstate.CheckChangeConflict(st, instanceName, nil)
 }
 
 // ConfigureInstalled returns a taskset to apply the given

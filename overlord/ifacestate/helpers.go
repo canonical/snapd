@@ -583,13 +583,13 @@ ConnsLoop:
 			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
 				// only do anything about this connection if snap isn't in a broken state, otherwise
 				// leave the connection untouched.
-				for _, snapName := range []naming.InstanceName{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
-					broken, err := isBroken(m.state, snapName.String())
+				for _, instanceName := range []naming.InstanceName{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
+					broken, err := isBroken(m.state, instanceName.String())
 					if err != nil {
 						return nil, nil, err
 					}
 					if broken {
-						logger.Noticef("Snap %q is broken, ignored by reloadConnections", snapName)
+						logger.Noticef("Snap %q is broken, ignored by reloadConnections", instanceName)
 						continue ConnsLoop
 					}
 				}
@@ -674,7 +674,7 @@ ConnsLoop:
 
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
 // has no connections in the state. State must be locked by the caller.
-func (m *InterfaceManager) removeConnections(snapName naming.InstanceName) error {
+func (m *InterfaceManager) removeConnections(instanceName naming.InstanceName) error {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return err
@@ -684,12 +684,12 @@ func (m *InterfaceManager) removeConnections(snapName naming.InstanceName) error
 		if err != nil {
 			return err
 		}
-		if connRef.PlugRef.Snap == snapName || connRef.SlotRef.Snap == snapName {
-			return fmt.Errorf("internal error: cannot remove connections of snap %s from the repository while its connections are present in the state", snapName)
+		if connRef.PlugRef.Snap == instanceName || connRef.SlotRef.Snap == instanceName {
+			return fmt.Errorf("internal error: cannot remove connections of snap %s from the repository while its connections are present in the state", instanceName)
 		}
 	}
 
-	repoConns, err := m.repo.Connections(snapName)
+	repoConns, err := m.repo.Connections(instanceName)
 	if err != nil {
 		return fmt.Errorf("internal error: %v", err)
 	}

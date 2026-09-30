@@ -485,7 +485,7 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 // In both cases the snap name can be omitted to implicitly refer to the core
 // snap. If there's no core snap it is simply assumed to be called "core" to
 // provide consistent error messages.
-func (m *InterfaceManager) ResolveDisconnect(plugSnapName naming.InstanceName, plugName string, slotSnapName naming.InstanceName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
+func (m *InterfaceManager) ResolveDisconnect(plugInstanceName naming.InstanceName, plugName string, slotInstanceName naming.InstanceName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
 	var connected func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error)
 	var connectedPlugOrSlot func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
 
@@ -503,17 +503,17 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName naming.InstanceName, p
 			return ok, nil
 		}
 
-		connectedPlugOrSlot = func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+		connectedPlugOrSlot = func(instanceName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
 			var refs []*interfaces.ConnRef
 			for connID := range conns {
 				cref, err := interfaces.ParseConnRef(connID)
 				if err != nil {
 					return nil, err
 				}
-				if cref.PlugRef.Snap == snapName && cref.PlugRef.Name == plugOrSlotName {
+				if cref.PlugRef.Snap == instanceName && cref.PlugRef.Name == plugOrSlotName {
 					refs = append(refs, cref)
 				}
-				if cref.SlotRef.Snap == snapName && cref.SlotRef.Name == plugOrSlotName {
+				if cref.SlotRef.Snap == instanceName && cref.SlotRef.Name == plugOrSlotName {
 					refs = append(refs, cref)
 				}
 			}
@@ -534,8 +534,8 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName naming.InstanceName, p
 			return true, nil
 		}
 
-		connectedPlugOrSlot = func(snapName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
-			return m.repo.Connected(snapName, plugOrSlotName)
+		connectedPlugOrSlot = func(instanceName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+			return m.repo.Connected(instanceName, plugOrSlotName)
 		}
 	}
 
@@ -547,47 +547,47 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName naming.InstanceName, p
 	// Return exactly one plug/slot or an error if it doesn't exist.
 	case plugName != "" && slotName != "":
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if plugSnapName == "" {
-			plugSnapName = coreSnapName
+		if plugInstanceName == "" {
+			plugInstanceName = coreSnapName
 		}
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if slotSnapName == "" {
-			slotSnapName = coreSnapName
+		if slotInstanceName == "" {
+			slotInstanceName = coreSnapName
 		}
 		// Ensure that slot and plug are connected
-		isConnected, err := connected(plugSnapName, plugName, slotSnapName, slotName)
+		isConnected, err := connected(plugInstanceName, plugName, slotInstanceName, slotName)
 		if err != nil {
 			return nil, err
 		}
 		if !isConnected {
 			if forget {
 				return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected",
-					plugSnapName, plugName, slotSnapName, slotName)
+					plugInstanceName, plugName, slotInstanceName, slotName)
 			}
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
-				plugSnapName, plugName, slotSnapName, slotName)
+				plugInstanceName, plugName, slotInstanceName, slotName)
 		}
 		return []*interfaces.ConnRef{
 			{
-				PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
-				SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
+				PlugRef: interfaces.PlugRef{Snap: plugInstanceName, Name: plugName},
+				SlotRef: interfaces.SlotRef{Snap: slotInstanceName, Name: slotName},
 			}}, nil
 	// 2: <snap>:<plug or slot> (through 1st pair)
 	// Return a list of connections involving specified plug or slot.
-	case plugName != "" && slotName == "" && slotSnapName == "":
+	case plugName != "" && slotName == "" && slotInstanceName == "":
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if plugSnapName == "" {
-			plugSnapName = coreSnapName
+		if plugInstanceName == "" {
+			plugInstanceName = coreSnapName
 		}
-		return connectedPlugOrSlot(plugSnapName, plugName)
+		return connectedPlugOrSlot(plugInstanceName, plugName)
 	// 2: <snap>:<plug or slot> (through 2nd pair)
 	// Return a list of connections involving specified plug or slot.
-	case plugSnapName == "" && plugName == "" && slotName != "":
+	case plugInstanceName == "" && plugName == "" && slotName != "":
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if slotSnapName == "" {
-			slotSnapName = coreSnapName
+		if slotInstanceName == "" {
+			slotInstanceName = coreSnapName
 		}
-		return connectedPlugOrSlot(slotSnapName, slotName)
+		return connectedPlugOrSlot(slotInstanceName, slotName)
 	default:
 		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
 	}
