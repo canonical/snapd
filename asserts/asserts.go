@@ -45,6 +45,7 @@ const (
 )
 
 // TypeDefinition contains the information needed to define an assertion type.
+// External types require a definite authority and support only format 0.
 type TypeDefinition struct {
 	// Name is the process-wide unique assertion type name.
 	Name string
@@ -300,7 +301,7 @@ func init() {
 
 // ConfigureExternalTypes extends the process-wide set of assertion types. It must be
 // called during application initialization and complete before concurrent
-// assertion processing can encounter the additional types. A non-empty
+// assertion processing or assertion type lookups begin. A non-empty
 // configuration can be successfully applied only once. Empty calls are no-ops.
 // Failed calls leave the active set unchanged and may be retried. Assertion
 // types must not be mutated after a successful non-empty call.
