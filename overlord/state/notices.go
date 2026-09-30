@@ -130,7 +130,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // timestamp may be updated. Returns whether the notice was repeated. It is the
 // caller's responsibility to replace the receiver with the new notice in the
 // notice backend from whence it came.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) (newNotice *Notice, repeated bool) {
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
 	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
 	var newData map[string]string
 	if data != nil {
@@ -158,9 +158,6 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 	newNotice.lastOccurred = now
 	newNotice.lastData = newData
 	newNotice.repeatAfter = repeatAfter
-	if expireAfter != 0 {
-		n.expireAfter = expireAfter
-	}
 	return newNotice, repeated
 }
 
@@ -476,7 +473,7 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter, expireAfter)
+		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
 		s.notices[uniqueKey] = notice
 	}
 
