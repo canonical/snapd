@@ -495,11 +495,11 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 	c.Assert(found, DeepEquals, found)
 }
 
-// TestParallelInstancesUnsupportedPlugAndSlotInterfaces checks interfaces that
+// TestParallelInstancesUnsupportedOnPlugAndSlotSides checks interfaces that
 // unconditionally block parallel instances for plugs and slots. Interfaces
 // where the decision depends on plug/slot attributes must be tested in their
 // own test file (e.g., see shared-memory).
-func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
+func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 	unsupportedInterfaces := []string{
 		"acrn-support",
 		"adb-support",
@@ -542,12 +542,12 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 	}
 }
 
-// TestParallelInstancesUnsupportedSlotOnlyInterfaces checks interfaces that
+// TestParallelInstancesUnsupportedOnOnlySlotSide checks interfaces that
 // unconditionally block parallel instances for slots only, while still
 // supporting parallel instances on the plug side. Interfaces where the
 // decision depends on plug/slot attributes must be tested in their own test
 // file (e.g., see shared-memory).
-func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
+func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 	unsupportedInterfaces := []string{
 		"accel",
 		"account-control",
