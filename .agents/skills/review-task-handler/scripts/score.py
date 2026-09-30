@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, TextIO, Tuple
 
@@ -21,6 +22,9 @@ CATEGORIES = (
     Category("Undo handler", "Undo Handler", 0.15),
     Category("Tests", "Tests Expected", 0.19),
 )
+# unrated checklist sections
+OTHER_CHECKLIST_HEADINGS = frozenset({"Sources"})
+PAYLOAD_KEYS = ("ratings", "confirmed_severity")
 RATINGS = ("pass", "partial", "fail", "na")
 SEVERITY_CAPS = {
     "critical": 3.9,
@@ -64,12 +68,26 @@ def checklist_bullet_counts(checklist_path: Path) -> Dict[str, int]:
     except OSError as error:
         raise InputError(f"cannot read checklist {checklist_path}: {error}") from error
 
+    in_fence = False
     for line in lines:
-        if line.startswith("## "):
+        if line.startswith(("```", "~~~")):
+            in_fence = not in_fence
+        elif in_fence:
+            continue
+        elif line.startswith("## "):
             heading = line[3:].strip()
+            if heading not in headings and heading not in OTHER_CHECKLIST_HEADINGS:
+                raise InputError(f"unknown checklist section: {heading!r}")
             current_heading = heading if heading in headings else None
+        elif current_heading is not None and line.startswith("###"):
+            raise InputError(
+                f"unsupported subheading in checklist section {current_heading!r}: "
+                f"{line.strip()!r}"
+            )
         elif current_heading is not None and line.startswith("- "):
             counts[current_heading] += 1
+    if in_fence:
+        raise InputError("unterminated code fence in checklist")
 
     missing = sorted(heading for heading, count in counts.items() if count == 0)
     if missing:
@@ -88,12 +106,21 @@ def load_input(stream: TextIO) -> Tuple[Mapping[str, Any], Optional[str]]:
     if not isinstance(payload, dict):
         raise InputError("ratings input must be a JSON object")
 
-    ratings = payload.get("ratings")
+    unknown_keys = sorted(set(payload) - set(PAYLOAD_KEYS))
+    missing_keys = [key for key in PAYLOAD_KEYS if key not in payload]
+    if unknown_keys:
+        raise InputError("unknown ratings input keys: " + ", ".join(unknown_keys))
+    if missing_keys:
+        raise InputError("missing ratings input keys: " + ", ".join(missing_keys))
+
+    ratings = payload["ratings"]
     if not isinstance(ratings, dict):
         raise InputError("ratings must be a JSON object")
 
-    severity = payload.get("confirmed_severity")
-    if severity is not None and severity not in SEVERITY_CAPS:
+    severity = payload["confirmed_severity"]
+    if severity is not None and (
+        not isinstance(severity, str) or severity not in SEVERITY_CAPS
+    ):
         choices = ", ".join(sorted(SEVERITY_CAPS))
         raise InputError(f"confirmed_severity must be null or one of: {choices}")
     return ratings, severity
@@ -120,11 +147,11 @@ def validate_ratings(
         missing_ratings = sorted(set(RATINGS) - set(values))
         if unknown_ratings:
             raise InputError(
-                f"unknown ratings for {category}: " + ", ".join(unknown_ratings)
+                f"unknown ratings for {category.name}: " + ", ".join(unknown_ratings)
             )
         if missing_ratings:
             raise InputError(
-                f"missing ratings for {category}: " + ", ".join(missing_ratings)
+                f"missing ratings for {category.name}: " + ", ".join(missing_ratings)
             )
 
         category_values: Dict[str, int] = {}
@@ -171,8 +198,6 @@ def calculate_rows(
             else:
                 scalable_weight += category.weight
 
-    if fixed_weight == 0.0 and scalable_weight == 0.0:
-        raise InputError("at least one checklist category must be applicable")
     if scalable_weight == 0.0:
         raise InputError("at least one non-fixed checklist category must be applicable")
 
@@ -211,20 +236,32 @@ def calculate_rows(
     return rows, raw_score
 
 
-def score_summary(
-    raw_score: float, severity: Optional[str]
-) -> Tuple[float, Optional[float], str]:
+class ScoreSummary(NamedTuple):
+    raw_score: float
+    final_score: float
+    binding_cap: Optional[float]
+    grade: str
+
+
+def round_score(score: float) -> float:
+    # absorb float summation noise so that x.x5 ties round half up
+    exact = Decimal(f"{score:.9f}")
+    return float(exact.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
+def score_summary(raw_score: float, severity: Optional[str]) -> ScoreSummary:
     cap = SEVERITY_CAPS[severity] if severity is not None else 10.0
-    # round before grading so the reported score and letter always agree
-    final_score = round(min(raw_score, cap), 1)
+    # round once so the reported raw score, cap, final score and letter agree
+    raw_score = round_score(raw_score)
+    final_score = min(raw_score, cap)
     binding_cap = cap if cap < raw_score else None
-    return final_score, binding_cap, letter_grade(final_score)
+    return ScoreSummary(raw_score, final_score, binding_cap, letter_grade(final_score))
 
 
 def print_report(
     rows: List[Dict[str, Any]], raw_score: float, severity: Optional[str]
 ) -> None:
-    raw_score = round(raw_score, 1)
+    summary = score_summary(raw_score, severity)
     print("| Category | Weight | Pass | Partial | Fail | N/A | Raw contribution |")
     print("|---|---:|---:|---:|---:|---:|---:|")
     for row in rows:
@@ -233,6 +270,7 @@ def print_report(
             weight = "N/A"
             contribution = "N/A"
         else:
+            # rows are rounded independently and need not sum to the raw score or 100%
             weight = f"{100.0 * row['weight']:.1f}%"
             contribution = f"{row['contribution']:.1f}/{row['maximum']:.1f}"
         print(
@@ -240,17 +278,18 @@ def print_report(
             f"{values['partial']} | {values['fail']} | {values['na']} | "
             f"{contribution} |"
         )
-    print(f"| **Raw score** | **100.0%** | | | | | **{raw_score:.1f}/10.0** |")
+    print(
+        f"| **Raw score** | **100.0%** | | | | | **{summary.raw_score:.1f}/10.0** |"
+    )
 
-    final_score, binding_cap, grade = score_summary(raw_score, severity)
     print()
-    print(f"Raw score: {raw_score:.1f}")
-    if binding_cap is not None:
-        print(f"Binding cap: {binding_cap:.1f} ({severity})")
+    print(f"Raw score: {summary.raw_score:.1f}")
+    if summary.binding_cap is not None:
+        print(f"Binding cap: {summary.binding_cap:.1f} ({severity})")
     else:
         print("Binding cap: none")
-    print(f"Final score: {final_score:.1f}")
-    print(f"Grade: {grade}")
+    print(f"Final score: {summary.final_score:.1f}")
+    print(f"Grade: {summary.grade}")
 
 
 def open_ratings(path: str) -> TextIO:

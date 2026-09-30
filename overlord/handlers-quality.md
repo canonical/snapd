@@ -4,9 +4,13 @@ This checklist is intended as review input for snapd state task handlers and
 the surrounding task construction, conflict checks, and task-runner wiring.
 
 The `##` headings and top-level `- ` bullets below are parsed by
-`.agents/skills/review-task-handler/scripts/score.py`: renaming a heading, or
-wrapping a criterion so a continuation line starts with `- `, changes the
-expected rating counts and breaks scoring.
+`.agents/skills/review-task-handler/scripts/score.py`. Every heading other than
+`Sources` must match a scored category there, so renaming or adding one also
+requires updating `score.py`; `###` subheadings are not supported inside them.
+Each top-level `- ` line outside code fences counts as one criterion, so never
+wrap a criterion onto a continuation line starting with `- `. When adding or
+removing criteria, update the expected counts in
+`.agents/skills/review-task-handler/scripts/test_score.py`.
 
 ## General
 
