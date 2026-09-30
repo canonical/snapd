@@ -60,6 +60,10 @@ systemd_unit_file(snappy_unit_file_t)
 type snappy_tmp_t;
 files_tmp_file(snappy_tmp_t)
 
+# memfd_create() files, e.g. the FDE secret state
+type snappy_tmpfs_t;
+files_tmpfs_file(snappy_tmpfs_t)
+
 # actual snap
 type snappy_snap_t;
 # XXX: snappy_snap_t should be declared a filesystem, but due to how modules are
@@ -247,6 +251,14 @@ allow snappy_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 # Grant snapd access to /tmp
 admin_pattern(snappy_t, snappy_tmp_t)
 files_tmp_filetrans(snappy_t, snappy_tmp_t, { file dir })
+
+# Allow snapd to use memfd_create() files, including when received back
+# from the systemd fdstore
+gen_require(`
+	type tmpfs_t;
+')
+type_transition snappy_t tmpfs_t:file snappy_tmpfs_t;
+allow snappy_t snappy_tmpfs_t:file { manage_file_perms map };
 
 # snap command completions, symlinks going back to snap mount directory
 gen_require(`
@@ -961,6 +973,9 @@ allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
 # declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
 # instead
 allow init_t snappy_snap_t:filesystem remount;
+# systemd holds snapd's memfd secret state in the fdstore across restarts
+allow init_t snappy_tmpfs_t:file { read write };
+
 
 ########################################
 #
