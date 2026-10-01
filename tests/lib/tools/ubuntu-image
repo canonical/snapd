@@ -22,7 +22,7 @@ EOF
 
 ensure_ubuntu_image() {
     if command -v ubuntu-image >/dev/null 2>&1; then
-        echo "$(command -v ubuntu-image)"
+        command -v ubuntu-image
         return
     fi
 
@@ -54,24 +54,22 @@ ensure_ubuntu_image() {
 
 build_ubuntu_image() {
     if command -v ubuntu-image >/dev/null 2>&1; then
-        echo "$(command -v ubuntu-image)"
+        command -v ubuntu-image
         return
     fi
 
     if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
         (
-            export GO111MODULE=off
-            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            GO111MODULE=off go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            GO111MODULE=off go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
         )
     else
         (
-            export GO111MODULE=on
             unset GOPATH
             cd /tmp || exit 1
             git clone https://github.com/canonical/ubuntu-image
             cd ubuntu-image || exit 1
-            go build -tags 'withtestkeys' ./cmd/ubuntu-image
+            GO111MODULE=on go build -tags 'withtestkeys' ./cmd/ubuntu-image
         )
         mv /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
     fi
