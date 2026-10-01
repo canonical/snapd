@@ -1152,6 +1152,41 @@ func (s *ValidateSuite) TestValidateLayout(c *C) {
 	c.Check(ValidateLayout(&Layout{Snap: si, Path: "$SNAP/data", Symlink: "$SNAP_DATA"}, nil), IsNil)
 }
 
+func (s *ValidateSuite) TestValidatePathVariablesWithOptions(c *C) {
+	opts := &PathVariablesOptions{AllowSnapInstanceName: true}
+	for _, path := range []string{
+		"$SNAP/foo/$SNAP_INSTANCE_NAME",
+		"$SNAP_DATA/$SNAP_INSTANCE_NAME/foo",
+		"$SNAP_COMMON/$SNAP_INSTANCE_NAME",
+		"foo/$SNAP_INSTANCE_NAME",
+	} {
+		c.Check(ValidatePathVariablesWithOptions(path, opts), IsNil, Commentf("path: %s", path))
+	}
+
+	// Existing callers do not opt into the new variable.
+	c.Check(ValidatePathVariables("$SNAP/foo/$SNAP_INSTANCE_NAME"),
+		ErrorMatches, `reference to unknown variable "\$SNAP_INSTANCE_NAME"`)
+	c.Check(ValidatePathVariablesWithOptions("$SNAP_INSTANCE_NAME/foo", opts),
+		ErrorMatches, `path cannot start with variable "\$SNAP_INSTANCE_NAME"`)
+	c.Check(ValidatePathVariablesWithOptions("$SNAP_DATA/$FOO", opts),
+		ErrorMatches, `reference to unknown variable "\$FOO"`)
+}
+
+func (s *ValidateSuite) TestValidatePathVariablesInstanceNameMultipleOccurrences(c *C) {
+	opts := &PathVariablesOptions{AllowSnapInstanceName: true}
+	// Multiple $SNAP_INSTANCE_NAME references are allowed, including at the
+	// end of the path.
+	for _, path := range []string{
+		"$SNAP_DATA/$SNAP_INSTANCE_NAME/$SNAP_INSTANCE_NAME",
+		"$SNAP/$SNAP_INSTANCE_NAME/$SNAP_INSTANCE_NAME/foo",
+	} {
+		c.Check(ValidatePathVariablesWithOptions(path, opts), IsNil, Commentf("path: %s", path))
+	}
+	// Even with multiple occurrences, none may start the path.
+	c.Check(ValidatePathVariablesWithOptions("$SNAP_INSTANCE_NAME/$SNAP_INSTANCE_NAME", opts),
+		ErrorMatches, `path cannot start with variable "\$SNAP_INSTANCE_NAME"`)
+}
+
 func (s *ValidateSuite) TestValidateLayoutAll(c *C) {
 	// /usr/foo prevents /usr/foo/bar from being valid (tmpfs)
 	const yaml1 = `

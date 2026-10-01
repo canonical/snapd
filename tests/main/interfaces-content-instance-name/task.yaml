@@ -1,0 +1,70 @@
+summary: Ensure $SNAP_INSTANCE_NAME works in content interface paths
+
+details: |
+    Content providers and consumers can refer to $SNAP_INSTANCE_NAME inside
+    their source and target paths. The variable must expand to the instance
+    name of the snap owning each path, both when the mount is computed and when
+    the snaps access it.
+
+    The variable cannot be the first element of the path, as content can only
+    be shared out of $SNAP, $SNAP_DATA or $SNAP_COMMON. Such a slot is rejected
+    and the snap is installed without it.
+
+environment:
+    PROVIDER: test-snapd-content-inst-slot
+    PROVIDER_INST: test-snapd-content-inst-slot_s1
+    PROVIDER_BAD: test-snapd-content-inst-bad-slot
+    CONSUMER: test-snapd-content-inst-plug
+    CONSUMER_INST: test-snapd-content-inst-plug_p1
+
+prepare: |
+    # Acknowledge any warnings unrelated to this test.
+    snap okay || true
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+execute: |
+    echo "Install the content provider under its own name and as an instance"
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER"
+    "$TESTSTOOLS"/snaps-state install-local-as "$PROVIDER" "$PROVIDER_INST"
+    "$TESTSTOOLS"/snaps-state install-local-as "$CONSUMER" "$CONSUMER_INST"
+
+    echo "Both instances provide the shared content"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER}:assets"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER_INST}:assets"
+
+    echo "The mount sources are instance specific"
+    fstab="/var/lib/snapd/mount/snap.$CONSUMER_INST.fstab"
+    MATCH "/var/snap/$PROVIDER/x[0-9]+/assets/$PROVIDER " < "$fstab"
+    MATCH "/var/snap/$PROVIDER_INST/x[0-9]+/assets/$PROVIDER_INST " < "$fstab"
+
+    echo "The mount targets contain the consumer instance name"
+    MATCH "/var/snap/$CONSUMER/x[0-9]+/assets/$CONSUMER_INST/$PROVIDER " < "$fstab"
+    MATCH "/var/snap/$CONSUMER/x[0-9]+/assets/$CONSUMER_INST/$PROVIDER_INST " < "$fstab"
+
+    echo "Each provider writes into its own directory"
+    for name in "$PROVIDER" "$PROVIDER_INST"; do
+        #shellcheck disable=SC2016
+        "${name}.sh" -c 'mkdir -p "$SNAP_DATA/assets/$SNAP_INSTANCE_NAME"'
+        #shellcheck disable=SC2016
+        "${name}.sh" -c 'echo '"$name"' > "$SNAP_DATA/assets/$SNAP_INSTANCE_NAME/canary"'
+    done
+
+    echo "And the consumer sees both, each under the providing instance name"
+    for name in "$PROVIDER" "$PROVIDER_INST"; do
+        #shellcheck disable=SC2016
+        "${CONSUMER_INST}.sh" -c 'cat $SNAP_DATA/assets/$SNAP_INSTANCE_NAME/'"$name"'/canary' | MATCH "$name"
+    done
+
+    echo "A slot with a path rooted at the SNAP_INSTANCE_NAME variable is rejected"
+    #shellcheck disable=SC2016
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_BAD" 2>&1 | MATCH 'path cannot start with variable "\$SNAP_INSTANCE_NAME"'
+
+    echo "The slot is not present"
+    snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:assets"
+
+    echo "And connecting to it fails"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER_BAD}:assets" 2>&1 | MATCH 'has no slot named "assets"'
+    #shellcheck disable=SC2016
+    snap warnings | tr '\n' ' ' | tr -s ' ' | MATCH 'path cannot start with variable "\$SNAP_INSTANCE_NAME"'
+    snap okay

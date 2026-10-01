@@ -91,6 +91,20 @@ func validatePath(path string) error {
 	return nil
 }
 
+// validatePathWithSnapVariables validates a path that is subject to $SNAP*
+// variable expansion. It is not used for component subpaths, which are used
+// verbatim.
+func validatePathWithSnapVariables(path string) error {
+	if err := validatePath(path); err != nil {
+		return err
+	}
+	opts := &snap.PathVariablesOptions{AllowSnapInstanceName: true}
+	if err := snap.ValidatePathVariablesWithOptions(path, opts); err != nil {
+		return fmt.Errorf("content interface path is invalid: %v", err)
+	}
+	return nil
+}
+
 // componentPrefix is the marker introducing a component-relative path in a
 // content slot attribute, e.g. $SNAP_COMPONENT(mycomp)/share. The same
 // constant is also defined in interfaces/builtin/helpers.go (for
@@ -105,10 +119,10 @@ const componentPrefix = "$SNAP_COMPONENT("
 //
 // If it is a component path, compName holds the component name and subPath
 // holds the remainder (possibly empty, meaning the whole component is shared).
-// err is set when the path is malformed, or when the subpath (when present)
-// does not pass the same validation as ordinary paths. Whole-component
-// sharing is allowed: both $SNAP_COMPONENT(foo) and $SNAP_COMPONENT(foo)/
-// resolve with subPath == "".
+// The subpath is used verbatim, no variable expansion takes place in it.
+// err is set when the path is malformed, or when the subpath (when present) is
+// not a clean relative path. Whole-component sharing is allowed: both
+// $SNAP_COMPONENT(foo) and $SNAP_COMPONENT(foo)/ resolve with subPath == "".
 func parseComponentPath(path string) (compName, subPath string, isComponent bool, err error) {
 	if !strings.HasPrefix(path, componentPrefix) {
 		return "", "", false, nil
@@ -194,7 +208,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			return fmt.Errorf("component paths can only be used with read, not write: %q", p)
 		}
 
-		if err := validatePath(p); err != nil {
+		if err := validatePathWithSnapVariables(p); err != nil {
 			return err
 		}
 	}
@@ -211,7 +225,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			continue
 		}
 
-		if err := validatePath(p); err != nil {
+		if err := validatePathWithSnapVariables(p); err != nil {
 			return err
 		}
 	}
@@ -230,7 +244,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if err := validatePath(target); err != nil {
+	if err := validatePathWithSnapVariables(target); err != nil {
 		return err
 	}
 
@@ -271,25 +285,28 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 	return out
 }
 
-// resolveSpecialVariable resolves one of the three $SNAP* variables at the
-// beginning of a given path. The variables are $SNAP, $SNAP_DATA and
-// $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
-// (this is the behavior that was used before the variables were supported). The
-// perspective parameter controls how $SNAP is expanded accounting for features
-// like parallel installs: PerspectiveOther uses the most precise instance name
-// (e.g. snap_key), while PerspectiveSelf uses the snap name (e.g. snap).
+// resolveSpecialVariable resolves the $SNAP* variables of a given path. The
+// path may start with $SNAP, $SNAP_DATA or $SNAP_COMMON and may refer to
+// $SNAP_INSTANCE_NAME anywhere but at the beginning. If the path does not start
+// with a supported variable, $SNAP is implicitly assumed (this is the behavior
+// that was used before variables were supported). The perspective parameter
+// controls how $SNAP is expanded accounting for features like parallel
+// installs: PerspectiveOther uses the most precise instance name (e.g.
+// snap_key), while PerspectiveSelf uses the snap name (e.g. snap).
+// $SNAP_INSTANCE_NAME always expands to the instance name.
 func resolveSpecialVariable(path string, snapInfo *snap.Info, perspective snap.ExpandSnapPerspective) string {
 	// Content cannot be mounted at arbitrary locations, validate the path
 	// for extra safety.
-	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
-		// The path starts with $ and ValidatePathVariables() ensures
-		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
-		// other $VARs are present.
-		return snapInfo.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, perspective)
+	opts := &snap.PathVariablesOptions{AllowSnapInstanceName: true}
+	if err := snap.ValidatePathVariablesWithOptions(path, opts); err == nil && strings.HasPrefix(path, "$") {
+		// The path starts with $ and validation ensures that
+		// the leading variable is one of $SNAP, $SNAP_DATA or $SNAP_COMMON
+		// and that no unknown $VARs are present.
+		return snapInfo.ExpandSnapVariablesSetSnapMountDirWithOptions(path, dirs.CoreSnapMountDir, perspective, opts)
 	}
 	// Always prefix with $SNAP if nothing else is provided or the path
 	// contains invalid variables.
-	return snapInfo.ExpandSnapVariablesSetSnapMountDir(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, perspective)
+	return snapInfo.ExpandSnapVariablesSetSnapMountDirWithOptions(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, perspective, opts)
 }
 
 // resolveComponentSource resolves the source path and the basename to use for

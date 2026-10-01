@@ -188,6 +188,51 @@ slots:
 	}
 }
 
+func (s *ContentSuite) TestSanitizeSlotInstanceNameVariable(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  content: mycont
+`
+	for _, rw := range []string{
+		"read: [$SNAP_DATA/assets/$SNAP_INSTANCE_NAME]",
+		"write: [$SNAP_COMMON/assets/$SNAP_INSTANCE_NAME]",
+		"source: {read: [$SNAP/assets/$SNAP_INSTANCE_NAME]}",
+		"source: {write: [$SNAP_DATA/$SNAP_INSTANCE_NAME]}",
+	} {
+		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
+		slot := info.Slots["content-slot"]
+		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil, Commentf("attribute: %s", rw))
+	}
+}
+
+func (s *ContentSuite) TestSanitizeSlotBadVariables(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  content: mycont
+`
+	for _, tc := range []struct {
+		attr   string
+		errMsg string
+	}{
+		{"read: [$SNAP_INSTANCE_NAME/assets]", `path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
+		{"write: [$SNAP_INSTANCE_NAME/assets]", `path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
+		{"source: {read: [$SNAP_INSTANCE_NAME/assets]}", `path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
+		{"read: [$SNAP_DATA/$FOO]", `reference to unknown variable "\$FOO"`},
+		{"write: [$FOO/assets]", `reference to unknown variable "\$FOO"`},
+	} {
+		info := snaptest.MockInfo(c, mockSnapYaml+"  "+tc.attr, nil)
+		slot := info.Slots["content-slot"]
+		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+			"content interface path is invalid: "+tc.errMsg, Commentf("attribute: %s", tc.attr))
+	}
+}
+
 func (s *ContentSuite) TestSanitizeSlotSourceAndLegacy(c *C) {
 	slot := MockSlot(c, `name: snap
 version: 0
@@ -379,9 +424,14 @@ plugs:
 		{target: "/import"},
 		// bare root, ends up as $SNAP
 		{target: "/"},
+		// the instance name may be referred to anywhere but at the start
+		{target: "$SNAP_DATA/import/$SNAP_INSTANCE_NAME"},
+		{target: "import/$SNAP_INSTANCE_NAME"},
 
 		// trailing slash is not a clean path, inconsistent with the rest
 		{target: "$SNAP/", errMsg: `content interface path is not clean: .*`},
+		{target: "$SNAP_INSTANCE_NAME/import", errMsg: `content interface path is invalid: path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
+		{target: "$FOO/import", errMsg: `content interface path is invalid: reference to unknown variable "\$FOO"`},
 	} {
 		info := snaptest.MockInfo(c, fmt.Sprintf(snapYamlTemplate, tc.target), nil)
 		plug := info.Plugs["content-plug"]
@@ -436,6 +486,7 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp), Equals, "/var/snap/name/42")
 		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp), Equals, "/var/snap/name/common")
 		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp), Equals, "/var/snap/name/42/")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp), Equals, "/var/snap/name/42/foo/name")
 		// automatically prefixed with $SNAP
 		c.Check(builtin.ResolveSpecialVariable("foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 		c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp), Equals, "/snap/name/42/foo/snap/bar")
@@ -459,6 +510,8 @@ func (s *ContentSuite) TestResolveSpecialVariableParallel(c *C) {
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp), Equals, "/var/snap/name_foo/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp), Equals, "/var/snap/name_foo/common")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp), Equals, "/var/snap/name_foo/42/")
+	// $SNAP_INSTANCE_NAME is instance specific regardless of the perspective
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp), Equals, "/var/snap/name_foo/42/foo/name_foo")
 	// automatically prefixed with $SNAP
 	c.Check(builtin.ResolveSpecialVariable("foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp), Equals, "/snap/name_foo/42/foo/snap/bar")
@@ -474,12 +527,116 @@ func (s *ContentSuite) TestResolveSpecialVariableParallel(c *C) {
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp), Equals, "/var/snap/name/42")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp), Equals, "/var/snap/name/common")
 	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp), Equals, "/var/snap/name/42/")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp), Equals, "/var/snap/name/42/foo/name_foo")
 	// automatically prefixed with $SNAP
 	c.Check(builtin.ResolveSpecialVariable("foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
 	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp), Equals, "/snap/name/42/foo/snap/bar")
 	// contain invalid variables
 	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp), Equals, "/snap/name/42//bar")
 	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp), Equals, "/snap/name/42/bar//foo")
+}
+
+// A parallel installed provider can share per-instance content by referring to
+// $SNAP_INSTANCE_NAME in the source path.
+func (s *ContentSuite) TestConnectedPlugInstanceNameVariableInSource(c *C) {
+	const slotYaml = `name: producer
+version: 0
+slots:
+  content:
+    interface: content
+    source:
+      read:
+        - $SNAP_DATA/package-assets/$SNAP_INSTANCE_NAME
+`
+	const plugYaml = `name: consumer
+version: 0
+plugs:
+  content:
+    interface: content
+    target: $SNAP_DATA/package-assets
+apps:
+  app:
+    plugs: [content]
+`
+	plug, _ := MockConnectedPlug(c, plugYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
+	slot, _ := MockConnectedSlot(c, slotYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
+	slot.AppSet().Info().InstanceKey = "s1"
+
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
+	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/snap/producer_s1/5/package-assets/producer_s1",
+		Dir:     "/var/snap/consumer/7/package-assets/producer_s1",
+		Options: []string{"bind", "ro"},
+	}})
+}
+
+// A parallel installed consumer can refer to its instance name in the target
+// path while $SNAP_DATA retains the consumer's own perspective.
+func (s *ContentSuite) TestConnectedPlugInstanceNameVariableInTarget(c *C) {
+	const slotYaml = `name: producer
+version: 0
+slots:
+  content:
+    interface: content
+    read:
+      - $SNAP_DATA/package-assets
+`
+	const plugYaml = `name: consumer
+version: 0
+plugs:
+  content:
+    interface: content
+    target: $SNAP_DATA/import/$SNAP_INSTANCE_NAME
+apps:
+  app:
+    plugs: [content]
+`
+	plug, _ := MockConnectedPlug(c, plugYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
+	slot, _ := MockConnectedSlot(c, slotYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
+	plug.AppSet().Info().InstanceKey = "p1"
+
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
+	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/snap/producer/5/package-assets",
+		Dir:     "/var/snap/consumer/7/import/consumer_p1",
+		Options: []string{"bind", "ro"},
+	}})
+}
+
+// A parallel installed provider can share a writable per-instance directory by
+// referring to $SNAP_INSTANCE_NAME in a write source path.
+func (s *ContentSuite) TestConnectedPlugInstanceNameVariableWrite(c *C) {
+	const slotYaml = `name: producer
+version: 0
+slots:
+  content:
+    interface: content
+    write:
+      - $SNAP_COMMON/export/$SNAP_INSTANCE_NAME
+`
+	const plugYaml = `name: consumer
+version: 0
+plugs:
+  content:
+    interface: content
+    target: $SNAP_COMMON/import
+apps:
+  app:
+    plugs: [content]
+`
+	plug, _ := MockConnectedPlug(c, plugYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
+	slot, _ := MockConnectedSlot(c, slotYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
+	slot.AppSet().Info().InstanceKey = "s1"
+
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
+	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/snap/producer_s1/common/export/producer_s1",
+		Dir:     "/var/snap/consumer/common/import",
+		Options: []string{"bind"},
+	}})
 }
 
 // Check that legacy syntax works and allows sharing read-only snap content
@@ -1560,6 +1717,43 @@ func (s *ContentSuite) TestConnectedPlugComponentRead(c *C) {
 		fmt.Sprintf(`  mount options=(bind) "%s/" -> "/snap/consumer/7/import{,-[0-9]*}/",`, compShare))
 	c.Check(updateNS, testutil.Contains,
 		`  remount options=(bind, ro) "/snap/consumer/7/import{,-[0-9]*}/",`)
+}
+
+// Component subpaths are used verbatim: $SNAP_INSTANCE_NAME is not expanded
+// in them, unlike regular content paths.
+func (s *ContentSuite) TestConnectedPlugComponentSubpathNoInstanceNameExpansion(c *C) {
+	const yaml = `name: producer
+version: 0
+slots:
+  content:
+    interface: content
+    read:
+      - $SNAP_COMPONENT(comp1)/$SNAP_INSTANCE_NAME/share
+components:
+  comp1:
+    type: standard
+`
+	// Sanitization succeeds: validatePath (not validatePathWithSnapVariables)
+	// is used for component subpaths, so $SNAP_INSTANCE_NAME is not rejected.
+	slotInfo := MockSlot(c, yaml, nil, "content")
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), IsNil)
+
+	plug, _ := MockConnectedPlug(c, contentComponentPlugYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
+	comps := []compRawInfo{
+		{"component: producer+comp1\ntype: standard", snap.R(11)},
+	}
+	slot, _ := mockConnectedSlotWithComps(c, yaml, &snap.SideInfo{Revision: snap.R(5)}, comps, "content")
+
+	// The mount source contains the literal $SNAP_INSTANCE_NAME string — it
+	// is not expanded because component subpaths are used verbatim.
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
+	compShare := filepath.Join(dirs.CoreSnapMountDir, "producer/components/mnt/comp1/11/$SNAP_INSTANCE_NAME/share")
+	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    compShare,
+		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
+		Options: []string{"bind", "ro"},
+	}})
 }
 
 // Check that whole-component sharing resolves to the component mount dir.
