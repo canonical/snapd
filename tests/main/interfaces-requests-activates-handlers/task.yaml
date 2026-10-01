@@ -2,7 +2,8 @@ summary: Check that enabling prompting requests will activate handler services
 
 details: |
     The test verifies that activation of apparmor prompting feature will
-    activate handler services.
+    activate handler services even without a session agent, and that a handler
+    startup failure prevents enabling prompting.
 
 systems:
   - ubuntu-2*
@@ -23,6 +24,15 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
+    if [ -f handler-drop-in ]; then
+        drop_in="$(cat handler-drop-in)"
+        rm -f "$drop_in"
+        tests.session -u test exec systemctl --user daemon-reload
+        rm handler-drop-in
+    fi
+    user_service_agent_restore test
     snap unset system experimental.user-daemons
     snap remove --purge test-snapd-prompt-handler || true
     tests.session -u test restore
@@ -40,16 +50,30 @@ debug: |
     snap debug api /v2/system-info
 
 execute: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
     not tests.session -u test exec systemctl --user is-active \
         snap.test-snapd-prompt-handler.prompt-handler.service
     not tests.session -u test exec systemctl --user is-enabled \
         snap.test-snapd-prompt-handler.prompt-handler.service
 
-    echo "Check status of user session service"
-    tests.session -u test exec systemctl --user is-active snapd.session-agent.socket
+    echo "Keep the user manager and regular bus available without the session agent"
+    user_service_agent_mask test
 
-    echo "...and ensure it is stopped"
-    tests.session -u test exec systemctl --user stop snapd.session-agent.socket
+    echo "Make the handler fail synchronously when started"
+    drop_in="/run/user/$(id -u test)/systemd/user/snap.test-snapd-prompt-handler.prompt-handler.service.d/spread-activation-failure.conf"
+    test ! -e "$drop_in"
+    test ! -L "$drop_in"
+    tests.session -u test exec mkdir -p "$(dirname "$drop_in")"
+    echo "$drop_in" > handler-drop-in
+    cat > "$drop_in" <<'EOF'
+    [Service]
+    Type=oneshot
+    ExecStart=
+    ExecStart=/bin/false
+    Restart=no
+    EOF
+    tests.session -u test exec systemctl --user daemon-reload
 
     echo "Check that the prompting feature cannot be enabled"
     # due to failure starting the handler service
@@ -60,8 +84,14 @@ execute: |
         exit 1
     fi
 
-    echo "Start user session agent socket again"
-    tests.session -u test exec systemctl --user start snapd.session-agent.socket
+    user_service_agent_check test
+
+    echo "Restore the working handler while leaving the session agent masked"
+    rm "$drop_in"
+    rm handler-drop-in
+    tests.session -u test exec systemctl --user daemon-reload
+    tests.session -u test exec systemctl --user reset-failed \
+        snap.test-snapd-prompt-handler.prompt-handler.service
 
     echo "Check that the prompting feature can be successfully enabled now"
     snap set system experimental.apparmor-prompting=true
@@ -71,3 +101,4 @@ execute: |
         snap.test-snapd-prompt-handler.prompt-handler.service
     tests.session -u test exec systemctl --user is-enabled \
         snap.test-snapd-prompt-handler.prompt-handler.service
+    user_service_agent_check test
