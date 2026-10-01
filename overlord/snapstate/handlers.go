@@ -786,10 +786,10 @@ func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*
 	//       implemented, not having integrity data should return an error
 	//       if enforced through some policy
 	// TODO: only base snaps should be mounted with integrity data currently
-	if !snapsup.Revision().Store() {
+	if snapsup.SideInfo == nil || !snapsup.SideInfo.Revision.Store() {
 		return nil, nil
 	}
-	idp, err := ValidatedIntegrityData(st, snapsup.SideInfo.SnapID, snapsup.Revision())
+	idp, err := ValidatedIntegrityData(st, snapsup.SideInfo.SnapID, snapsup.SideInfo.Revision)
 	if err == nil {
 		return idp, nil
 	} else if errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
@@ -864,9 +864,12 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
 
-	st.Lock()
-	idp, err := validatedIntegrityDataFromSnapSetup(st, snapsup)
-	st.Unlock()
+	var idp *integrity.IntegrityDataParams
+	func() {
+		st.Lock()
+		defer st.Unlock()
+		idp, err = validatedIntegrityDataFromSnapSetup(st, snapsup)
+	}()
 	if err != nil {
 		return err
 	}

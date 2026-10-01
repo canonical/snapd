@@ -82,6 +82,7 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+// TODO: consider handling for snap components
 func integrityFilePath(snapPath, digest string) string {
 	// strip .snap suffix
 	basePath := strings.TrimSuffix(snapPath, ".snap")
