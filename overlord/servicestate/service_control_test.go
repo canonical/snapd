@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -81,6 +82,7 @@ apps:
 
 func (s *serviceControlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(servicetest.MockSystemd())
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })

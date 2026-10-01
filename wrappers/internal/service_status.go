@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
-	"github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/usersession/service"
 )
 
 // ServiceStatus represents the status of a service, and any of its activation
@@ -111,31 +111,41 @@ func serviceIsSlotActivated(app *snap.AppInfo) bool {
 	return len(app.ActivatesOn) > 0
 }
 
-var userSessionQueryServiceStatusMany = func(units []string) (map[int][]client.ServiceUnitStatus, map[int][]client.ServiceFailure, error) {
+var userSessionQueryServiceStatusMany = func(units []string) (map[int][]*systemd.UnitStatus, error) {
 	// Avoid any expensive call if there are no user daemons
 	if len(units) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	cli := client.New()
-	return cli.ServiceStatus(ctx, units)
+	targets, err := service.Select(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	statuses, result := targets.Status(ctx, units)
+	return statuses, result.Err()
 }
 
-func mapServiceStatusMany(stss []client.ServiceUnitStatus) map[string]*systemd.UnitStatus {
+func mapServiceStatusMany(stss []*systemd.UnitStatus) map[string]*systemd.UnitStatus {
 	stsMap := make(map[string]*systemd.UnitStatus, len(stss))
 	for _, sts := range stss {
-		stsMap[sts.Name] = sts.SystemdUnitStatus()
+		stsMap[sts.Name] = sts
 	}
 	return stsMap
 }
 
 func queryUserServiceStatusMany(apps []*snap.AppInfo, units []string) (map[int][]*ServiceStatus, error) {
-	usrUnitStss, _, err := userSessionQueryServiceStatusMany(units)
+	usrUnitStss, err := userSessionQueryServiceStatusMany(units)
 	if err != nil {
 		return nil, err
 	}
+	return UserServiceStatusFromUnits(apps, usrUnitStss)
+}
+
+// UserServiceStatusFromUnits combines primary and activation units without
+// performing I/O, allowing restart to select units while holding a per-UID gate.
+func UserServiceStatusFromUnits(apps []*snap.AppInfo, usrUnitStss map[int][]*systemd.UnitStatus) (map[int][]*ServiceStatus, error) {
 
 	constructStatus := func(app *snap.AppInfo, stss map[string]*systemd.UnitStatus) *ServiceStatus {
 		primarySvcName, activators := SnapServiceUnits(app)
@@ -176,9 +186,8 @@ func queryUserServiceStatusMany(apps []*snap.AppInfo, units []string) (map[int][
 			}
 			svc := constructStatus(app, stsMap)
 			if svc == nil {
-				// In theory should not happen, we either receive *all* requested statuses from the REST service
-				// or none if something goes wrong with querying one of them. If we receive none, then the entry
-				// won't exist in usrUnitStss and we shouldn't even be in this loop.
+				// Each manager query must return every requested status or an
+				// error, never an incomplete disabled-service snapshot.
 				return nil, fmt.Errorf("internal error: no status received for service %s", app.ServiceName())
 			}
 			svcs = append(svcs, svc)
@@ -227,7 +236,7 @@ func querySystemServiceStatusMany(sysd systemd.Systemd, apps []*snap.AppInfo, un
 }
 
 // QueryServiceStatusMany queries service statuses for all the provided apps. A list of system-service statuses
-// is returned, and a map detailing the statuses of services per logged in user.
+// is returned, and a map detailing the statuses for each running user manager.
 func QueryServiceStatusMany(apps []*snap.AppInfo, sysd systemd.Systemd) (sysSvcs []*ServiceStatus, userSvcs map[int][]*ServiceStatus, err error) {
 	sysUnits, usrUnits := appServiceUnitsMany(apps)
 	sysSvcs, err = querySystemServiceStatusMany(sysd, apps, sysUnits)

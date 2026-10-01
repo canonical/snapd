@@ -75,6 +75,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
+	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -259,6 +260,7 @@ func (s *snapmgrBaseTest) mockSystemctlCallsUpdateMounts(c *C) (restore func()) 
 
 func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(servicetest.MockSystemd())
 	rd := c.MkDir()
 	dirstest.MustMockCanonicalSnapMountDir(rd)
 	dirs.SetRootDir(rd)
@@ -8250,6 +8252,33 @@ func (s *snapmgrTestSuite) TestStopSnapServicesStartsStoppedServicesOnStopFailur
 
 func (s *snapmgrTestSuite) TestStopSnapServicesDoesNotStartStoppedServicesOnStopFailureForRemove(c *C) {
 	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonRemove)
+}
+
+func (s *snapmgrTestSuite) TestRemovalStillStopsServicesWhenStatusIsUnavailable(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	si := &snap.SideInfo{RealName: "hello-snap", SnapID: "hello-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, servicesSnap, si)
+	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
+		Active: true, Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}), Current: si.Revision, SnapType: "app",
+	})
+	chg := s.state.NewChange("remove", "")
+	t := s.state.NewTask("stop-snap-services", "")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	t.Set("stop-reason", snap.StopReasonRemove)
+	chg.AddTask(t)
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "current-snap-service-states" {
+			return fmt.Errorf("user manager unavailable")
+		}
+		return nil
+	}
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Assert(s.fakeBackend.ops.First("stop-snap-services:remove"), NotNil)
+	c.Assert(s.fakeBackend.ops.First("start-snap-services"), IsNil)
 }
 
 func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {

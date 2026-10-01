@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 	"github.com/snapcore/snapd/wrappers/internal"
 )
@@ -47,11 +48,13 @@ type serviceStatusSuite struct {
 	sysdLog                           [][]string
 	systemctlRestorer, delaysRestorer func()
 	agent                             *agent.SessionAgent
+	managersRestorer                  func()
 }
 
 var _ = Suite(&serviceStatusSuite{})
 
 func (s *serviceStatusSuite) SetUpTest(c *C) {
+	s.managersRestorer = servicetest.MockSystemd()
 	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
 	s.sysdLog = nil
@@ -72,6 +75,7 @@ func (s *serviceStatusSuite) SetUpTest(c *C) {
 }
 
 func (s *serviceStatusSuite) TearDownTest(c *C) {
+	defer s.managersRestorer()
 	if s.agent != nil {
 		err := s.agent.Stop()
 		c.Check(err, IsNil)
@@ -518,7 +522,8 @@ NeedDaemonReload=no
 
 	sysd := systemd.New(systemd.SystemMode, progress.Null)
 	svcs, usrSvcs, err := internal.QueryServiceStatusMany(sorted, sysd)
-	c.Assert(err, IsNil)
+	// A failed query must not look like a user with no disabled services.
+	c.Assert(err, ErrorMatches, "uid [0-9]+: oh no snap.test-snap.foo.service does not exist")
 	c.Assert(svcs, HasLen, 0)
 	c.Assert(usrSvcs, HasLen, 0)
 
