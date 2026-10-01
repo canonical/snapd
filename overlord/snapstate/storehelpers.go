@@ -51,7 +51,11 @@ var EnforceLocalValidationSets func(*state.State, map[string][]string, map[strin
 var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error
 
 // ValidatedIntegrityData allows to hook fetching integrity data for snap-revisions that
-// have been already validated by inclusion in the assertion database. It's hooked from assertstate.
+// have been already validated by inclusion in the assertion database. It's hooked from
+// assertstate.
+//
+// integrity.ErrNoIntegrityDataFoundInRevision is returned if no matching
+// snap-revision assertion was found containing integrity data.
 var ValidatedIntegrityData func(*state.State, string, snap.Revision) (*integrity.IntegrityDataParams, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {

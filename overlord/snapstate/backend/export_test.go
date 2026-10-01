@@ -32,6 +32,7 @@ import (
 )
 
 type IsUnderAnyDirOptions = isUnderAnyDirOptions
+type MountUnitOptions = mountUnitOptions
 
 var (
 	AddMountUnit       = addMountUnit

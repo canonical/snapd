@@ -55,6 +55,7 @@ import (
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
@@ -780,6 +781,32 @@ func checkKernelHasUpdateAssetsTask(t *state.Task) error {
 	return ErrKernelGadgetUpdateTaskMissing
 }
 
+var integrityLookupDataAndCrossCheck = integrity.LookupDataAndCrossCheck
+
+func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*integrity.IntegrityDataParams, error) {
+	// TODO: when policy for choosing the preferred integrity method is
+	//       implemented, not having integrity data should return an error
+	//       if enforced through some policy
+	// TODO: only base snaps should be mounted with integrity data currently
+	if snapsup.SideInfo == nil || !snapsup.SideInfo.Revision.Store() {
+		return nil, nil
+	}
+	idp, err := ValidatedIntegrityData(st, snapsup.SideInfo.SnapID, snapsup.SideInfo.Revision)
+	if errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if _, err := integrityLookupDataAndCrossCheck(snapsup.SnapPath, idp); err != nil {
+		// ignore integrity data if no matching file is found
+		logger.Noticef("cannot validate integrity data for snap %q: %v", snapsup.InstanceName(), err)
+		return nil, nil
+	}
+
+	return idp, err
+}
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -845,6 +872,18 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	setupOpts := &backend.SetupSnapOptions{
 		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
+
+	var idp *integrity.IntegrityDataParams
+	func() {
+		st.Lock()
+		defer st.Unlock()
+		idp, err = validatedIntegrityDataFromSnapSetup(st, snapsup)
+	}()
+	if err != nil {
+		return err
+	}
+	setupOpts.IntegrityDataParams = idp
+
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.

@@ -318,7 +318,8 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		},
 	}
 
-	// TODO until dm-verity data are used for all snaps, we will only
+	// TODO: only get the download info for integrity data.
+	// TODO: until dm-verity data are used for all snaps, we will only
 	// use integrity data for specific snap types (the essential snaps).
 	typ := t.info.Type()
 	if typ == snap.TypeBase || typ == snap.TypeKernel || typ == snap.TypeGadget || typ == snap.TypeSnapd {
@@ -1699,6 +1700,7 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		return target{}, err
 	}
 
+	// TODO: support integrity data for local snaps
 	return target{
 		setup: SnapSetup{
 			SnapPath:  update.Path,

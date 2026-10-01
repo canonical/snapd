@@ -81,7 +81,9 @@ type fakeOp struct {
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
 	unlinkSkipBinaries     bool
-	skipKernelExtraction   bool
+
+	skipKernelExtraction bool
+	integrityDataParams  integrity.IntegrityDataParams
 
 	services             []string
 	removedServices      []string
@@ -481,7 +483,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.snap.dmverity_digest1",
+				DownloadURL: "foo_1.dmverity_digest1",
 			},
 		}
 	}
@@ -1164,14 +1166,19 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	if si != nil {
 		revno = si.Revision
 	}
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:    "setup-snap",
 		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
-
-		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
-	})
+	}
+	if opts != nil {
+		op.skipKernelExtraction = opts.SkipKernelExtraction
+		if opts.IntegrityDataParams != nil {
+			op.integrityDataParams = *opts.IntegrityDataParams
+		}
+	}
+	f.appendOp(op)
 	snapType := snap.TypeApp
 	switch si.RealName {
 	case "core":
