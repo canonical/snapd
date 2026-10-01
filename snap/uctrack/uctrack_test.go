@@ -233,6 +233,12 @@ func (s *ucSuite) TestResolveRequestedChannelOnResolvedTrack(c *C) {
 		requested string
 		want      string
 	}{
+		// The same store channel as tracking is not a switch. Shorter spellings
+		// match, and the tracking channel is returned on the resolved track.
+		{"latest/stable", "latest/stable", "18/stable"},
+		{"latest/stable", "stable", "18/stable"},
+		{"latest", "latest/stable", "18/stable"},
+		{"latest/stable/mybranch", "stable/mybranch", "18/stable/mybranch"},
 		// The requested risk and branch are kept. The track is the resolved
 		// tracking track, not a second lookup.
 		{"latest/stable", "18/stable", "18/stable"},
@@ -338,10 +344,9 @@ func (s *ucSuite) TestResolveRequestedTrackDiffersFromResolved(c *C) {
 		requestedTrack string
 		resolvedTrack  string
 	}{
-		// An omitted requested track means latest, which is not the resolved track.
-		{"latest/stable", "stable", "latest", "18"},
-		{"latest/stable", "latest/stable", "latest", "18"},
+		// A different risk or branch is a switch. An omitted track means latest.
 		{"latest/stable", "latest/edge", "latest", "18"},
+		{"latest/stable", "stable/mybranch", "latest", "18"},
 		{"latest/stable", "fips-updates/stable", "fips-updates", "18"},
 		{"latest/stable", "other/stable", "other", "18"},
 		{"latest/stable", "20/stable", "20", "18"},

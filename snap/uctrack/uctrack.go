@@ -84,11 +84,14 @@ func SystemBootBaseApplicable(model *asserts.Model) (int, error) {
 // own channel.
 //
 // When trackingChannel resolves, an empty requestedChannel returns that
-// channel. A requestedChannel is honored only when its track is already that
+// channel. A requested channel whose cleaned name equals the tracking channel
+// is ignored, and the tracking channel is returned on the resolved track.
+// A requestedChannel is honored only when its track is already that
 // resolved track; the track is copied onto it and is not looked up again.
 // The returned channel keeps the risk and branch of the channel it returns:
-// the tracking channel when requested is empty, otherwise the requested
-// channel. A different track fails with [ErrRequestedChannelProhibited].
+// the tracking channel when requested is empty or the same store channel,
+// otherwise the requested channel. A different track fails with
+// [ErrRequestedChannelProhibited].
 //
 // A channel without a track means latest, as in the store. tracks is normally
 // [snap.Info.UbuntuCoreTracks] of the snapd snap being planned; an empty or
@@ -116,21 +119,24 @@ func Resolve(model *asserts.Model, trackingChannel, requestedChannel string, tra
 		return "", err
 	}
 
-	if requestedChannel == "" {
-		normTrackingChannel.Track = resolvedTrack
-		return normTrackingChannel.Clean().String(), nil
+	if requestedChannel != "" {
+		normRequestedChannel, err := normalizeChannel(requestedChannel, "requested")
+		if err != nil {
+			return "", err
+		}
+		// Same store channel as tracking, including shorter spellings such as
+		// "stable" for "latest/stable". Not a switch.
+		if normTrackingChannel.Clean().String() != normRequestedChannel.Clean().String() {
+			if resolvedTrack != normRequestedChannel.Track {
+				return "", fmt.Errorf("%w %q: resolved track is %q",
+					ErrRequestedChannelProhibited, normRequestedChannel.Track, resolvedTrack)
+			}
+			normRequestedChannel.Track = resolvedTrack
+			return normRequestedChannel.Clean().String(), nil
+		}
 	}
-
-	normRequestedChannel, err := normalizeChannel(requestedChannel, "requested")
-	if err != nil {
-		return "", err
-	}
-	if resolvedTrack != normRequestedChannel.Track {
-		return "", fmt.Errorf("%w %q: resolved track is %q",
-			ErrRequestedChannelProhibited, normRequestedChannel.Track, resolvedTrack)
-	}
-	normRequestedChannel.Track = resolvedTrack
-	return normRequestedChannel.Clean().String(), nil
+	normTrackingChannel.Track = resolvedTrack
+	return normTrackingChannel.Clean().String(), nil
 }
 
 // normalizeChannel parses channel for track policy. An omitted track is
