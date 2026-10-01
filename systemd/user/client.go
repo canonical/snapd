@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 
@@ -55,25 +56,28 @@ type pendingJob struct {
 // closing the underlying connection. Methods may be called concurrently, but
 // compound service operations must also be serialized by the connection owner.
 type Client struct {
-	conn     *dbus.Conn
-	owner    string
-	ctx      context.Context
-	cancel   context.CancelFunc
-	signals  chan *dbus.Signal
-	done     chan struct{}
-	overflow <-chan struct{}
-	jobs     chan struct{}
-	mu       sync.Mutex
-	pending  *pendingJob
-	err      error
+	conn       *dbus.Conn
+	owner      string
+	ownerReady chan string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	signals    chan *dbus.Signal
+	done       chan struct{}
+	overflow   <-chan struct{}
+	jobs       chan struct{}
+	mu         sync.Mutex
+	pending    *pendingJob
+	err        error
 }
 
 // New subscribes to job completion and manager-owner changes. It never activates
-// a manager: the public bus name must already have an owner. ctx bounds setup;
-// subsequent method contexts are independent of it.
+// a manager, but allows an existing manager to finish attaching to a freshly
+// socket-activated bus. ctx bounds setup; subsequent calls are independent of it.
 func New(ctx context.Context, conn *dbus.Conn, signals *SignalHandler) (*Client, error) {
+	ctx, setupCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer setupCancel()
 	lifetime, cancel := context.WithCancel(conn.Context())
-	c := &Client{conn: conn, ctx: lifetime, cancel: cancel, signals: make(chan *dbus.Signal, maxPendingSignals), done: make(chan struct{}), jobs: make(chan struct{}, 1)}
+	c := &Client{conn: conn, ctx: lifetime, cancel: cancel, signals: make(chan *dbus.Signal, maxPendingSignals), done: make(chan struct{}), jobs: make(chan struct{}, 1), ownerReady: make(chan string, 1)}
 	if signals != nil {
 		c.overflow = signals.overflow
 	}
@@ -90,7 +94,19 @@ func New(ctx context.Context, conn *dbus.Conn, signals *SignalHandler) (*Client,
 	}
 	var owner string
 	if err := conn.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.GetNameOwner", 0, managerName).Store(&owner); err != nil {
-		return nil, fmt.Errorf("cannot find running user manager: %w", err)
+		if e, ok := err.(dbus.Error); !ok || e.Name != "org.freedesktop.DBus.Error.NameHasNoOwner" {
+			return nil, fmt.Errorf("cannot find running user manager: %w", err)
+		}
+		// Connecting to dbus.socket starts the bus daemon. Its Hello reply
+		// can precede the existing manager's RequestName, so wait for the
+		// owner signal we subscribed to before GetNameOwner.
+		select {
+		case owner = <-c.ownerReady:
+		case <-ctx.Done():
+			return nil, fmt.Errorf("cannot find running user manager: %w", ctx.Err())
+		case <-c.ctx.Done():
+			return nil, c.failure()
+		}
 	}
 	c.mu.Lock()
 	c.owner = owner
@@ -159,7 +175,15 @@ func (c *Client) watch() {
 func (c *Client) handleSignal(s *dbus.Signal) {
 	if s.Name == "org.freedesktop.DBus.NameOwnerChanged" && s.Sender == "org.freedesktop.DBus" && s.Path == "/org/freedesktop/DBus" {
 		var name, old, next string
-		if dbus.Store(s.Body, &name, &old, &next) == nil && name == managerName && c.owner != "" && next != c.owner {
+		if dbus.Store(s.Body, &name, &old, &next) != nil || name != managerName {
+			return
+		}
+		if c.owner == "" && next != "" {
+			select {
+			case c.ownerReady <- next:
+			default:
+			}
+		} else if c.owner != "" && next != c.owner {
 			c.err = fmt.Errorf("user manager owner changed")
 			c.cancel()
 		}

@@ -28,6 +28,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/user"
 	"github.com/snapcore/snapd/testutil"
@@ -225,4 +226,52 @@ func (s *clientSuite) TestSignalOverflowFailsOperation(c *C) {
 	defer s.signals.RemoveSignal(blocked)
 	s.signals.DeliverSignal("", "", &dbus.Signal{})
 	c.Assert(s.client.Start(s.ctx, "snap.test.service"), ErrorMatches, `.*user manager signal queue overflow`)
+}
+
+func (s *clientSuite) TestWaitForManagerAttachingToFreshBus(c *C) {
+	ownerQueries := 0
+	conn, err := dbustest.Connection(func(msg *dbus.Message, _ int) ([]*dbus.Message, error) {
+		reply := &dbus.Message{Type: dbus.TypeMethodReply, Headers: map[dbus.HeaderField]dbus.Variant{dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial())}}
+		if msg.Headers[dbus.FieldMember].Value() != "GetNameOwner" {
+			return []*dbus.Message{reply}, nil
+		}
+		ownerQueries++
+		if ownerQueries == 1 {
+			reply.Type = dbus.TypeError
+			reply.Headers[dbus.FieldErrorName] = dbus.MakeVariant("org.freedesktop.DBus.Error.NameHasNoOwner")
+			reply.Headers[dbus.FieldSignature] = dbus.MakeVariant(dbus.SignatureOf(""))
+			reply.Body = []any{"manager has not attached yet"}
+			acquired := &dbus.Message{Type: dbus.TypeSignal, Headers: map[dbus.HeaderField]dbus.Variant{
+				dbus.FieldSender:    dbus.MakeVariant("org.freedesktop.DBus"),
+				dbus.FieldPath:      dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/DBus")),
+				dbus.FieldInterface: dbus.MakeVariant("org.freedesktop.DBus"),
+				dbus.FieldMember:    dbus.MakeVariant("NameOwnerChanged"),
+				dbus.FieldSignature: dbus.MakeVariant(dbus.SignatureOf("", "", "")),
+			}, Body: []any{"org.freedesktop.systemd1", "", ":1.42"}}
+			return []*dbus.Message{reply, acquired}, nil
+		}
+		reply.Headers[dbus.FieldSignature] = dbus.MakeVariant(dbus.SignatureOf(""))
+		reply.Body = []any{":1.42"}
+		return []*dbus.Message{reply}, nil
+	})
+	c.Assert(err, IsNil)
+	defer conn.Close()
+	client, err := user.New(s.ctx, conn, nil)
+	c.Assert(err, IsNil)
+	defer client.Close()
+	c.Assert(ownerQueries, Equals, 2)
+}
+
+func (s *clientSuite) TestMissingManagerWaitIsBounded(c *C) {
+	_, err := s.SessionBus.ReleaseName("org.freedesktop.systemd1")
+	c.Assert(err, IsNil)
+	signals := user.NewSignalHandler()
+	conn, err := dbus.ConnectSessionBus(dbus.WithSignalHandler(signals))
+	c.Assert(err, IsNil)
+	defer conn.Close()
+	ctx, cancel := context.WithTimeout(s.ctx, 20*time.Millisecond)
+	defer cancel()
+	client, err := user.New(ctx, conn, signals)
+	c.Assert(client, IsNil)
+	c.Assert(errors.Is(err, context.DeadlineExceeded), Equals, true)
 }
