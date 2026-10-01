@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -1385,7 +1386,14 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 		defer cancel()
 		units := serviceUnitsFromApps(userApps, true)
+		var timingMu sync.Mutex
 		return cli.do(ctx, func(uid int, m service.Manager) error {
+			// Timings trees are not concurrent containers. Each user owns a
+			// separate subtree, attached under the shared parent while locked.
+			timingMu.Lock()
+			userTiming := tm.StartSpan("restart-user-services", fmt.Sprintf("restart services for uid %d", uid))
+			timingMu.Unlock()
+			defer userTiming.Stop()
 			sts, err := m.Status(ctx, units)
 			if err != nil {
 				return err
@@ -1396,7 +1404,7 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 			}
 			// Keep status, selection and every restart in the same operation.
 			perUser := &userServiceClient{manager: m, context: ctx, inter: inter}
-			return restartServicesByStatus(byUID[uid], explicitServices, opts, sysd, perUser, tm)
+			return restartServicesByStatus(byUID[uid], explicitServices, opts, sysd, perUser, userTiming)
 		})
 	}
 	return nil

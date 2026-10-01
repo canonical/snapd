@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	managerName      = "org.freedesktop.systemd1"
-	managerPath      = dbus.ObjectPath("/org/freedesktop/systemd1")
-	managerInterface = managerName + ".Manager"
+	managerName       = "org.freedesktop.systemd1"
+	managerPath       = dbus.ObjectPath("/org/freedesktop/systemd1")
+	managerInterface  = managerName + ".Manager"
+	maxPendingSignals = 1024
 )
 
 type jobResult struct {
@@ -72,7 +73,7 @@ type Client struct {
 // subsequent method contexts are independent of it.
 func New(ctx context.Context, conn *dbus.Conn, signals *SignalHandler) (*Client, error) {
 	lifetime, cancel := context.WithCancel(conn.Context())
-	c := &Client{conn: conn, ctx: lifetime, cancel: cancel, signals: make(chan *dbus.Signal, 64), done: make(chan struct{}), jobs: make(chan struct{}, 1)}
+	c := &Client{conn: conn, ctx: lifetime, cancel: cancel, signals: make(chan *dbus.Signal, maxPendingSignals), done: make(chan struct{}), jobs: make(chan struct{}, 1)}
 	if signals != nil {
 		c.overflow = signals.overflow
 	}
@@ -177,7 +178,7 @@ func (c *Client) handleSignal(s *dbus.Signal) {
 	// JobRemoved names the canonical unit, even when the request used an
 	// alias. Correlate by job path, not by the requested unit name.
 	if p.path == "" {
-		if len(p.early) == 64 {
+		if len(p.early) == maxPendingSignals {
 			c.err = fmt.Errorf("too many early user manager job completions")
 			c.cancel()
 			return
@@ -260,7 +261,9 @@ func (c *Client) runJob(ctx context.Context, method, unit string) error {
 		if c.ctx.Err() != nil {
 			return c.failure()
 		}
-		if result != "done" {
+		// systemctl also treats a skipped job (for example, an unmet unit
+		// condition) as successful, rather than as a startup failure.
+		if result != "done" && result != "skipped" {
 			return fmt.Errorf("cannot %s %q: job result %s", method, unit, result)
 		}
 		return nil

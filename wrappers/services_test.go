@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -50,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/service"
 	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -70,6 +72,43 @@ type servicesTestSuite struct {
 }
 
 var _ = Suite(&servicesTestSuite{})
+
+type restartUserManager struct {
+	service.Manager
+	ready   chan<- struct{}
+	release <-chan struct{}
+}
+
+func (m *restartUserManager) Status(_ context.Context, units []string) ([]*systemd.UnitStatus, error) {
+	m.ready <- struct{}{}
+	<-m.release
+	var statuses []*systemd.UnitStatus
+	for _, unit := range units {
+		statuses = append(statuses, &systemd.UnitStatus{Name: unit, Id: unit, Active: true, Enabled: true})
+	}
+	return statuses, nil
+}
+
+func (m *restartUserManager) Start(context.Context, string) error { return nil }
+func (m *restartUserManager) Stop(context.Context, string) error  { return nil }
+
+func (s *servicesTestSuite) TestConcurrentUserRestartsOwnTheirTimings(c *C) {
+	ready := make(chan struct{}, 2)
+	release := make(chan struct{})
+	restore := service.MockManagers(func(context.Context) ([]int, error) { return []int{1000, 1001}, nil }, func(context.Context, int) (service.Manager, func(), error) {
+		return &restartUserManager{ready: ready, release: release}, func() {}, nil
+	})
+	defer restore()
+	go func() { <-ready; <-ready; close(release) }()
+	info := snaptest.MockSnap(c, `name: test-snap
+version: 1.0
+apps:
+  svc:
+    daemon: simple
+    daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(1)})
+	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
+}
 
 func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.managersRestorer = servicetest.MockSystemd()

@@ -151,6 +151,13 @@ func (s *clientSuite) TestJobFailure(c *C) {
 	c.Assert(s.client.Start(s.ctx, "snap.test.service"), ErrorMatches, `cannot StartUnit "snap.test.service": job result dependency`)
 }
 
+func (s *clientSuite) TestSkippedJobSucceedsLikeSystemctl(c *C) {
+	s.manager.mu.Lock()
+	s.manager.result = "skipped"
+	s.manager.mu.Unlock()
+	c.Assert(s.client.Start(s.ctx, "snap.test.service"), IsNil)
+}
+
 func (s *clientSuite) TestCancellationDoesNotStopUnit(c *C) {
 	s.manager.mu.Lock()
 	s.manager.result = ""
