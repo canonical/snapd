@@ -306,7 +306,7 @@ func validateUnits(units []string) error {
 }
 
 // Start starts units individually in order and cleans up partial starts on error.
-// Enable/disable behavior intentionally matches the retained agent endpoint.
+// Enable/disable behavior preserves the historical session-agent semantics.
 func Start(ctx context.Context, m Manager, units []string, enable bool) (retErr error) {
 	if err := validateUnits(units); err != nil {
 		return err

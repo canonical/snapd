@@ -53,7 +53,9 @@ generation. Manager loss and signal-buffer overflow fail outstanding work.
 The bounded signal handler preserves wire ordering without unbounded deferred
 signal-delivery goroutines.
 
-The session agent still provides notifications and its compatibility endpoints.
-Notification target discovery continues to use agent sockets. The retained
-endpoints have their original serialization; manual/legacy calls through them,
-like external systemctl calls, do not participate in snapd's per-UID gates.
+The session agent provides notifications and session information. Notification
+target discovery continues to use agent sockets. Its former `/v1/service-control`
+and `/v1/service-status` endpoints are retired and return HTTP 404. Older daemons
+that require these endpoints cannot manage services through this version of the
+agent, including mixed-version refresh or rollback configurations. External
+systemctl clients do not participate in snapd's per-UID gates.

@@ -103,6 +103,26 @@ func (s *sessionAgentSuite) TestStartStop(c *C) {
 	c.Check(agent.Stop(), IsNil)
 }
 
+func (s *sessionAgentSuite) TestServiceEndpointsRetired(c *C) {
+	agent, err := agent.New()
+	c.Assert(err, IsNil)
+	agent.Start()
+	defer func() { c.Check(agent.Stop(), IsNil) }()
+
+	for _, tc := range []struct{ method, path string }{
+		{"POST", "/v1/service-control"},
+		{"GET", "/v1/service-status?services=snap.foo.service"},
+	} {
+		req, err := http.NewRequest(tc.method, "http://localhost"+tc.path, bytes.NewBufferString(`{"action":"start","services":["snap.foo.service"]}`))
+		c.Assert(err, IsNil)
+		req.Header.Set("Content-Type", "application/json")
+		response, err := s.client.Do(req)
+		c.Assert(err, IsNil)
+		c.Check(response.StatusCode, Equals, 404)
+		response.Body.Close()
+	}
+}
+
 func (s *sessionAgentSuite) TestDying(c *C) {
 	agent, err := agent.New()
 	c.Assert(err, IsNil)
