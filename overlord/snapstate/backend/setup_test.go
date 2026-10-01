@@ -709,7 +709,7 @@ func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(fwdir, "bar.bin"), []byte{}, 0644), IsNil)
 
 	// Run set-up
-	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
+	err := s.be.SetupKernelSnap("kernel", snap.R(33), nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Kernel files are created
@@ -719,6 +719,68 @@ func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
 	// Now test cleaning-up
 	s.be.RemoveKernelSnapSetup("kernel", snap.R(33), progress.Null)
 	c.Assert(osutil.FileExists(filepath.Join(treedir, "lib/firmware/bar.bin")), Equals, false)
+}
+
+func (s *setupSuite) TestSetupKernelSnapPlumbsComponentsAndRegenerate(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+	currentComps := createKModsComps(c, 1, 2, ksnap, kernRev)
+
+	var gotOpts *kernel.KernelDriversTreeOptions
+	var gotCompsMntPts []kernel.ModulesCompMountPoints
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
+		gotOpts = opts
+		gotCompsMntPts = compsMntPts
+		return nil
+	})
+	defer r()
+
+	err := s.be.SetupKernelSnap(ksnap, kernRev, currentComps,
+		&backend.SetupKernelSnapOptions{Regenerate: true}, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotOpts, DeepEquals, &kernel.KernelDriversTreeOptions{KernelInstall: false, Regenerate: true})
+	c.Assert(gotCompsMntPts, HasLen, len(currentComps))
+	gotNames := make([]string, len(gotCompsMntPts))
+	for i, cmp := range gotCompsMntPts {
+		gotNames[i] = cmp.LinkName
+	}
+	c.Check(gotNames, DeepEquals, []string{"comp1", "comp2"})
+}
+
+func (s *setupSuite) TestSetupKernelSnapPlumbsDynamicModulesWithNoComponents(c *C) {
+	// Regression test: SetupKernelSnap must derive compsMntPts (which is
+	// also what picks up the kernel's dynamic-modules mount point, unrelated
+	// to kernel-modules components) unconditionally, not only when
+	// currentComps is non-empty - otherwise a kernel using dynamic-modules
+	// with zero installed components would have that content silently
+	// dropped from a Regenerate-mode candidate tree.
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	metadir := filepath.Join(dirs.SnapMountDir, "kernel/33/meta")
+	c.Assert(os.MkdirAll(metadir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(metadir, "kernel.yaml"),
+		[]byte("dynamic-modules: $SNAP_DATA"), 0644), IsNil)
+
+	modsDir := filepath.Join(snap.DataDir(ksnap, kernRev), "modules", "6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(modsDir, "dynamic.ko"), []byte{}, 0644), IsNil)
+
+	var gotCompsMntPts []kernel.ModulesCompMountPoints
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
+		gotCompsMntPts = compsMntPts
+		return nil
+	})
+	defer r()
+
+	// No kernel-modules components at all - currentComps is nil.
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil,
+		&backend.SetupKernelSnapOptions{Regenerate: true}, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotCompsMntPts, HasLen, 1)
+	c.Check(gotCompsMntPts[0].LinkName, Equals, ksnap+"_dyn")
 }
 
 func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
@@ -736,7 +798,7 @@ func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
 	// Force failure via unexpected file type
 	c.Assert(syscall.Mkfifo(filepath.Join(fwdir, "fifo"), 0666), IsNil)
 
-	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
+	err := s.be.SetupKernelSnap("kernel", snap.R(33), nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
 
 	// All has been cleaned-up
@@ -814,7 +876,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsNoComps(c *C) {
 	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
 
 	// Run kernel set-up
-	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Run modules set-up
@@ -943,7 +1005,7 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
 
 	// Run kernel set-up
-	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Run modules set-up
@@ -977,12 +1039,12 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
 
 	// Run kernel set-up
-	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	// First call to EnsureKernelDriversTree will fail
 	n := 0
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
 		n++
 		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String())

@@ -309,7 +309,7 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, kMntPoint
 	if isCore {
 		dataDir = "system-data/_writable_defaults"
 	}
-	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
 		c.Check(kMntPts, Equals,
 			kernel.MountPoints{
 				Current: kMntPoint,
@@ -503,7 +503,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeIdempotent(c *C)
 	}
 
 	var calls int
-	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
 		calls++
 		c.Check(kMntPts, Equals,
 			kernel.MountPoints{
