@@ -612,6 +612,104 @@ func (s *ntpSuite) TestNTPGetSetUnsupportedBeforeCore20(c *C) {
 	c.Check(s.systemctlArgs, IsNil)
 }
 
+// Test that options requiring a UC version newer than the UC20 minimum of the
+// NTP configuration itself are rejected on older systems, while accepted on
+// systems recent enough
+func (s *ntpSuite) TestNTPSetOptionsRequireNewerCoreVersion(c *C) {
+	// connection-retry-interval requires UC22, so it cannot be set on UC20
+	conf := configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"connection-retry-interval": "5s",
+		},
+	})
+	err := configcore.FilesystemOnlyRun(core20Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: option connection-retry-interval is not supported on this system, requires UC22\\+")
+
+	// save-interval requires UC24, so it cannot be set on UC20
+	conf = configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"save-interval": "20s",
+		},
+	})
+	err = configcore.FilesystemOnlyRun(core20Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: option save-interval is not supported on this system, requires UC24\\+")
+
+	// When both unsupported options are set, the reported error is
+	// deterministic and names the alphabetically first one
+	conf = configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"save-interval":             "20s",
+			"connection-retry-interval": "5s",
+		},
+	})
+	err = configcore.FilesystemOnlyRun(core20Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: option connection-retry-interval is not supported on this system, requires UC22\\+")
+
+	// The rejected configurations did not modify the configuration file and
+	// timesyncd was not restarted
+	s.verifyConfigfileContent(c, startingFileContent, "")
+	c.Check(s.systemctlArgs, IsNil)
+
+	// connection-retry-interval is supported starting with UC22, while
+	// save-interval is still rejected there
+	conf = configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"connection-retry-interval": "5s",
+		},
+	})
+	err = configcore.FilesystemOnlyRun(core22Dev, conf)
+	c.Assert(err, IsNil)
+	s.verifyConfigfileContent(c, []string{
+		"[Time]",
+		"ConnectionRetrySec=5s",
+	}, "")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "systemd-timesyncd.service"},
+	})
+	s.systemctlArgs = nil
+
+	conf = configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"save-interval": "20s",
+		},
+	})
+	err = configcore.FilesystemOnlyRun(core22Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: option save-interval is not supported on this system, requires UC24\\+")
+	c.Check(s.systemctlArgs, IsNil)
+
+	// Both options are accepted on UC24
+	conf = configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"connection-retry-interval": "5s",
+			"save-interval":             "20s",
+		},
+	})
+	err = configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, IsNil)
+	s.verifyConfigfileContent(c, []string{
+		"[Time]",
+		"SaveIntervalSec=20s",
+		"ConnectionRetrySec=5s",
+	}, "")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"reload-or-restart", "systemd-timesyncd.service"},
+	})
+}
+
+// Test that setting the NTP configuration fails with a clear error when the
+// base of the system is not a core snap, as the required UC version cannot be
+// determined
+func (s *ntpSuite) TestNTPSetNotACoreBase(c *C) {
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+
+	err := configcore.FilesystemOnlyRun(mockDev{classic: false, base: "ubuntu"}, conf)
+	c.Assert(err, ErrorMatches, "cannot set NTP configuration: not a core base")
+
+	// The configuration file was not modified and timesyncd was not restarted
+	s.verifyConfigfileContent(c, startingFileContent, "")
+	c.Check(s.systemctlArgs, IsNil)
+}
+
 // Test that applying the NTP configuration to a filesystem root (e.g. during
 // image building) fails explicitly on pre-UC20 systems, while applying
 // defaults that do not touch the NTP configuration is a no-op

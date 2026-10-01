@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -281,13 +282,36 @@ func ntpConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
 	return true
 }
 
-func isNTPConfigurationSupported(base string) bool {
+func isNTPConfigurationSupported(coreVersion int) bool {
 	// Restrict this config to UC20+ systems
-	coreVersion, err := naming.CoreVersion(base)
-	if err != nil {
-		return false
-	}
 	return coreVersion >= 20
+}
+
+// minimumUCVersionForOption maps NTP options to the minimum UC version that
+// supports them, as they map to systemd-timesyncd settings that only exist in
+// newer systemd releases. Options not listed are supported on all systems
+// where NTP configuration is supported (UC20+).
+var minimumUCVersionForOption = map[string]int{
+	"connection-retry-interval": 22,
+	"save-interval":             24,
+}
+
+// checkNTPOptionsSupportedOnBase returns an error if any option in cfg
+// requires a UC version newer than the one of the given base. Options are
+// checked in sorted order so that the reported error is deterministic when
+// multiple unsupported options are set.
+func checkNTPOptionsSupportedOnBase(cfg map[string]any, coreVersion int) error {
+	options := make([]string, 0, len(cfg))
+	for option := range cfg {
+		options = append(options, option)
+	}
+	sort.Strings(options)
+	for _, option := range options {
+		if minVersion, ok := minimumUCVersionForOption[option]; ok && coreVersion < minVersion {
+			return fmt.Errorf("option %s is not supported on this system, requires UC%d+", option, minVersion)
+		}
+	}
+	return nil
 }
 
 func handleNTPConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
@@ -354,8 +378,18 @@ func handleNTPConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyCon
 	// if it is supported because these handlers are called even if there is no change in the
 	// configuration they are handling. This ensures that the unsupported error is only being
 	// thrown when someone is trying to set it.
-	if !isNTPConfigurationSupported(dev.Base()) {
+	coreVersion, err := naming.CoreVersion(dev.Base())
+	if err != nil {
+		return fmt.Errorf("cannot set NTP configuration: %v", err)
+	}
+	if !isNTPConfigurationSupported(coreVersion) {
 		return errors.New("cannot set NTP configuration: unsupported on this system, requires UC20+")
+	}
+	// Check that the individual options are supported on this system: some
+	// options require a UC version newer than the UC20 minimum of the NTP
+	// configuration itself.
+	if err := checkNTPOptionsSupportedOnBase(cfg, coreVersion); err != nil {
+		return fmt.Errorf("cannot set NTP configuration: %v", err)
 	}
 
 	// Create the drop-in configuration folder, if not present

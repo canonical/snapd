@@ -221,6 +221,7 @@ var (
 
 	core18Dev = mockDev{classic: false, base: "core18"}
 	core20Dev = mockDev{classic: false, base: "core20"}
+	core22Dev = mockDev{classic: false, base: "core22"}
 	core24Dev = mockDev{classic: false, base: "core24"}
 )
 
