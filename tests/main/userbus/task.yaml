@@ -1,0 +1,37 @@
+summary: Access a user's systemd API through the Go user bus bridge
+
+details: |
+    Root connects to the test user's regular bus through the credential-switched
+    snapd helper. Verify the bus identity and helper credentials, subscribe to
+    JobRemoved, and launch a transient service with three passed descriptors.
+    The service must run in the selected user's manager and report the expected
+    UID, GID, stdin, stdout and stderr. Also run the bridge's disposable-bus tests
+    as root to exercise real credential switching between different UIDs.
+
+systems: [-ubuntu-14.04-*, -ubuntu-16.04-*]
+
+prepare: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" != /snap ] && [ ! -e /snap ] && [ ! -L /snap ]; then
+        # The snap's ELF interpreter uses /snap even on distributions with a
+        # different mount directory.
+        ln -s "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+    tests.session -u test prepare
+    mkdir -p build/usr/lib/snapd
+    ln -s "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snapd" build/usr/lib/snapd/snapd
+    (cd "$PROJECT_PATH" && go build -o "$PWD/tests/main/userbus/build/usr/lib/snapd/userbus-driver" ./tests/main/userbus)
+
+restore: |
+    tests.session -u test restore
+    rm -rf build
+
+debug: |
+    journalctl -u "user@$(id -u test).service" --no-pager
+    pgrep -af 'snapd-userbus|userbus-driver' || true
+
+execute: |
+    (cd "$PROJECT_PATH" && go test -v ./usersession/userbus ./cmd/snapd/tool/snapd-userbus ./cmd/snapd)
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent-userbus \
+        ./build/usr/lib/snapd/userbus-driver "$(id -u test)"
