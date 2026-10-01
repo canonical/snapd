@@ -84,12 +84,40 @@ const ambarellaDspConnectedPlugApparmor = `
 /proc/ambarella/usbphy0 rw,
 `
 
+const hexagonDspConnectedPlugApparmor = `
+# Description: can manage and control the Qualcomm Hexagon digital signal
+# processors via the FastRPC subsystem. This allows privileged access to
+# hardware and kernel drivers for the aDSP, cDSP, and gDSP cores, and thus
+# is only allowed on specific devices providing the slot via a gadget and is
+# also not auto-connected.
+
+# FastRPC device nodes for the DSPs
+/dev/fastrpc-[a-z]dsp rw,
+/dev/fastrpc-[a-z]dsp-secure rw,
+/dev/fastrpc-[a-z]dsp[0-9] rw,
+/dev/fastrpc-[a-z]dsp[0-9]-secure rw,
+
+# DMA heap devices used by FastRPC clients to allocate shared memory for DSP
+/dev/dma_heap/system rw,
+/dev/dma_heap/qcom,system rw,
+`
+
 var ambarellaDspConnectedPlugUDev = []string{
 	`KERNEL=="iav"`,
 	`KERNEL=="cavalry"`,
 	`KERNEL=="ucode"`,
 	`KERNEL=="lens"`,
 	`KERNEL=="ambad"`,
+}
+
+var hexagonDspConnectedPlugUDev = []string{
+	`KERNEL=="fastrpc-[a-z]dsp"`,
+	`KERNEL=="fastrpc-[a-z]dsp-secure"`,
+	`KERNEL=="fastrpc-[a-z]dsp[0-9]"`,
+	`KERNEL=="fastrpc-[a-z]dsp[0-9]-secure"`,
+	`KERNEL=="dma_heap"`,
+	`KERNEL=="dma_heap/system"`,
+	`KERNEL=="dma_heap/qcom,system"`,
 }
 
 type dspInterface struct {
@@ -105,6 +133,8 @@ func (iface *dspInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	// only supported flavor for now
 	case "ambarella":
 		spec.AddSnippet(ambarellaDspConnectedPlugApparmor)
+	case "hexagon":
+		spec.AddSnippet(hexagonDspConnectedPlugApparmor)
 	}
 
 	return nil
@@ -118,6 +148,10 @@ func (iface *dspInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 	// only supported flavor for now
 	case "ambarella":
 		for _, rule := range ambarellaDspConnectedPlugUDev {
+			spec.TagDevice(rule)
+		}
+	case "hexagon":
+		for _, rule := range hexagonDspConnectedPlugUDev {
 			spec.TagDevice(rule)
 		}
 	}
