@@ -1491,7 +1491,7 @@ func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) erro
 			// of snap files if the units are modified as services
 			// in the snap have a Requires= on them. Otherwise the
 			// services would be restarted.
-			//   This is especially relevant for the snapd snap as if
+			// This is especially relevant for the snapd snap as if
 			// this happens, it would end up in a bad state after
 			// an update.
 			// TODO Ensure mounts of snap components as well
