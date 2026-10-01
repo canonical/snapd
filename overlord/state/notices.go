@@ -380,8 +380,7 @@ type AddNoticeOptions struct {
 	RepeatAfter time.Duration
 
 	// ExpireAfter defines how long after this notice was last occurred before
-	// it expires. If zero, a default expiration will be used, except for warning
-	// notices, which require an explicit duration for validation.
+	// it expires. If zero, a default expiration will be used.
 	ExpireAfter time.Duration
 
 	// Time, if set, overrides time.Now() as the notice occurrence time.
@@ -393,10 +392,6 @@ type AddNoticeOptions struct {
 func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
 	if options == nil {
 		options = &AddNoticeOptions{}
-	}
-	err := ValidateNotice(noticeType, key, options)
-	if err != nil {
-		return "", fmt.Errorf("internal error: %w", err)
 	}
 
 	s.writing()
@@ -413,13 +408,22 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 // doAddNotice records an occurrence of a notice with the specified type and
 // key and options. Returns a pointer to the notice.
 //
-// The caller is responsible for ensuring that the given parameters have been
-// validated, and for holding the notices mutex for writing.
+// The caller is responsible for holding the notices mutex for writing.
 func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
 	expireAfter := options.ExpireAfter
 	if expireAfter == 0 {
-		expireAfter = defaultNoticeExpireAfter
+		switch noticeType {
+		case WarningNotice:
+			expireAfter = defaultWarningExpireAfter
+		default:
+			expireAfter = defaultNoticeExpireAfter
+		}
 	}
+
+	if err := ValidateNotice(noticeType, key, options); err != nil {
+		return nil, fmt.Errorf("internal error: %w", err)
+	}
+
 	now := options.Time
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
@@ -456,17 +460,14 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	if !noticeType.Valid() {
 		return fmt.Errorf("cannot add notice with invalid type %q", noticeType)
 	}
-	if key == "" || (noticeType == WarningNotice && strings.TrimSpace(key) != key) {
+	if key == "" || strings.TrimSpace(key) != key {
 		return fmt.Errorf("cannot add %s notice with invalid key %q", noticeType, key)
 	}
-	if len(key) > maxNoticeKeyLength {
+	if noticeType != WarningNotice && len(key) > maxNoticeKeyLength {
 		return fmt.Errorf("cannot add %s notice with invalid key: key must be %d bytes or less", noticeType, maxNoticeKeyLength)
 	}
 	if noticeType == RefreshInhibitNotice && key != "-" {
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
-	}
-	if noticeType == WarningNotice && (options == nil || options.ExpireAfter == 0) {
-		return fmt.Errorf(`cannot add %s notice with no expire-after duration`, noticeType)
 	}
 	return nil
 }
