@@ -379,6 +379,10 @@ func RemoveKernelDriversTree(treeRoot string) (err error) {
 type KernelDriversTreeOptions struct {
 	// Set if we are building the tree for a kernel we are installing right now
 	KernelInstall bool
+	// Regenerate rebuilds and swaps in place the tree of an already
+	// installed, active kernel (never a fresh install). Must be used
+	// with KernelInstall: false.
+	Regenerate bool
 }
 
 // MountPoints describes mount points for a snap or a component.
@@ -436,6 +440,8 @@ type ModulesCompMountPoints struct {
 // to the currently available content, and then replace those links with the
 // expected mounts in the running system.
 func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, opts *KernelDriversTreeOptions) (err error) {
+	// TODO add support for regenerate
+
 	// The temporal dir when installing only components can be fixed as a
 	// task installing/updating a kernel-modules component must conflict
 	// with changes containing this same task. This helps with clean-ups if

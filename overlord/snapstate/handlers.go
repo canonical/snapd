@@ -5045,8 +5045,13 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "prepare-kernel-snap",
 		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
+			// TODO pass information on components if running for an
+			// already installed kernel
+
+			// TODO explicitly indicate when we could be regenerating the
+			// drivers tree as a result of a refresh to the same revision.
 			err = m.backend.SetupKernelSnap(
-				snapsup.InstanceName().String(), snapsup.Revision(), pm)
+				snapsup.InstanceName().String(), snapsup.Revision(), nil, nil, pm)
 		})
 	st.Lock()
 	if err != nil {
@@ -5055,11 +5060,13 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	perfTimings.Save(st)
 
-	// Needed so the old drivers tree can be removed later
 	setupTask, err := snapSetupTask(t)
 	if err != nil {
 		return err
 	}
+	// Always set the previous-kernel-rev, even when the revision actually isn't
+	// changed. The other task handlers need to make checks to only apply their
+	// effects when that makes sense.
 	setupTask.Set("previous-kernel-rev", snapSt.Current)
 
 	// Make sure we won't be rerun
@@ -5074,22 +5081,29 @@ func (m *SnapManager) undoPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 	defer st.Unlock()
 
 	perfTimings := state.TimingsForTask(t)
-	snapsup, _, err := snapSetupAndState(t)
+	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
 		return err
 	}
 
-	st.Unlock()
-	pm := NewTaskProgressAdapterUnlocked(t)
-	timings.Run(perfTimings, "remove-kernel-snap-setup",
-		fmt.Sprintf("remove kernel snap setup %q", snapsup.InstanceName()),
-		func(timings.Measurer) {
-			err = m.backend.RemoveKernelSnapSetup(
-				snapsup.InstanceName().String(), snapsup.Revision(), pm)
-		})
-	st.Lock()
-	if err != nil {
-		return err
+	sameRevision := snapst.Current == snapsup.Revision()
+
+	// We do not want to brick the system so only attempt to remove the kernel
+	// snap drivers tree if we are dealing with different revision than the
+	// current one.
+	if !sameRevision {
+		st.Unlock()
+		pm := NewTaskProgressAdapterUnlocked(t)
+		timings.Run(perfTimings, "remove-kernel-snap-setup",
+			fmt.Sprintf("remove kernel snap setup %q", snapsup.InstanceName()),
+			func(timings.Measurer) {
+				err = m.backend.RemoveKernelSnapSetup(
+					snapsup.InstanceName().String(), snapsup.Revision(), pm)
+			})
+		st.Lock()
+		if err != nil {
+			return err
+		}
 	}
 
 	perfTimings.Save(st)
@@ -5136,7 +5150,9 @@ func (m *SnapManager) doDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 
-	if !prevKernelRev.Unset() {
+	// Never remove the tree matching the current revision, regardless of how
+	// previous-kernel-rev got set.
+	if !prevKernelRev.Unset() && prevKernelRev != currInfo.Revision {
 		st.Unlock()
 		pm := NewTaskProgressAdapterUnlocked(t)
 		timings.Run(perfTimings, "discard-old-kernel-snap-setup",
@@ -5178,21 +5194,23 @@ func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb)
 	if err != nil {
 		return err
 	}
+
 	var prevKernelRev snap.Revision
 	err = setupTask.Get("previous-kernel-rev", &prevKernelRev)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	// Now we must re-do the previous revision kernel drivers tree
-	if !prevKernelRev.Unset() {
+	// We only re-do the previous kernel if its revision is actually different,
+	// to keep the symmetry with the 'do' path.
+	if !prevKernelRev.Unset() && prevKernelRev != currInfo.Revision {
 		st.Unlock()
 		pm := NewTaskProgressAdapterUnlocked(t)
 		timings.Run(perfTimings, "undo-remove-old-kernel-snap-setup",
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName().String(), prevKernelRev, pm)
+					currInfo.InstanceName().String(), prevKernelRev, nil, nil, pm)
 			})
 		st.Lock()
 		if err != nil {
