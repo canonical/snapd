@@ -1535,6 +1535,7 @@ suites:
                 distro_install_local_package qemu-efi-aarch64
             fi
 
+            "$TESTSTOOLS"/ubuntu-image ensure
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
@@ -1667,19 +1668,11 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                if os.query is-arm; then
-                    distro_install_local_package qemu-efi-aarch64
-                fi
-
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                prepare_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
+
+            "$TESTSTOOLS"/ubuntu-image ensure
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb

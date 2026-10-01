@@ -1,0 +1,102 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    ubuntu-image [ensure|install|get|build|help]
+
+Ensure the ubuntu-image binary is available in the test environment and print the
+path to the binary. This mirrors the legacy helper logic previously provided by
+tests/lib/image.sh, but is exposed as a standalone tool for use from spread.yaml.
+
+Commands:
+    ensure      make sure ubuntu-image is available and print its path
+    install    same as ensure
+    get        same as ensure
+    build      build ubuntu-image from source
+    help       show this help
+EOF
+}
+
+ensure_ubuntu_image() {
+    if command -v ubuntu-image >/dev/null 2>&1; then
+        echo "$(command -v ubuntu-image)"
+        return
+    fi
+
+    if [ -x "$GOHOME/bin/ubuntu-image" ]; then
+        echo "$GOHOME/bin/ubuntu-image"
+        return
+    fi
+
+    if os.query is-arm; then
+        wget -q -c -O ubuntu-image-withtestkeys.tar.gz \
+            https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-arm64.tar.gz
+        tar xvzf ubuntu-image-withtestkeys.tar.gz
+        rm -f ubuntu-image-withtestkeys.tar.gz
+
+        test -x ubuntu-image
+        mv ubuntu-image "$GOHOME/bin"
+        echo "$GOHOME/bin/ubuntu-image"
+        return
+    fi
+
+    wget -q -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
+    tar xvzf ubuntu-image-withtestkeys.tar.gz
+    rm -f ubuntu-image-withtestkeys.tar.gz
+
+    test -x ubuntu-image
+    mv ubuntu-image "$GOHOME/bin"
+    echo "$GOHOME/bin/ubuntu-image"
+}
+
+build_ubuntu_image() {
+    if command -v ubuntu-image >/dev/null 2>&1; then
+        echo "$(command -v ubuntu-image)"
+        return
+    fi
+
+    if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
+        (
+            export GO111MODULE=off
+            go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
+            go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
+        )
+    else
+        (
+            export GO111MODULE=on
+            unset GOPATH
+            cd /tmp || exit 1
+            git clone https://github.com/canonical/ubuntu-image
+            cd ubuntu-image || exit 1
+            go build -tags 'withtestkeys' ./cmd/ubuntu-image
+        )
+        mv /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
+    fi
+
+    echo "$GOHOME/bin/ubuntu-image"
+}
+
+main() {
+    case "${1:-ensure}" in
+        -h|--help|help)
+            show_help
+            exit 0
+            ;;
+        ensure)
+            ensure_ubuntu_image
+            ;;
+        build)
+            build_ubuntu_image
+            ;;
+        *)
+            echo "ubuntu-image: unsupported command: $1" >&2
+            show_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

@@ -116,40 +116,15 @@ validate_args() {
 }
 
 get_ubuntu_image_command() {
-    local tools_dir
-    local testslib_dir
-
-    tools_dir="$(dirname "$(readlink -f "$0")")"
-    testslib_dir="$(dirname "$tools_dir")"
-    # shellcheck source=tests/lib/image.sh
-    . "$testslib_dir/image.sh"
-
-    if [ "$CORE_VERSION" -eq 16 ] || os.query is-arm; then
+    if os.query is-arm; then
         if [ ! -x /snap/bin/ubuntu-image ]; then
-            if [ "$CORE_VERSION" -eq 16 ]; then
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
-            else
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
-            fi
+            snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
         fi
         echo /snap/bin/ubuntu-image
         return
     fi
 
-    if [ -x "$GOHOME/bin/ubuntu-image" ]; then
-        echo "$GOHOME/bin/ubuntu-image"
-        return
-    fi
-
-    if os.query is-xenial; then
-        if [ ! -x /snap/bin/ubuntu-image ]; then
-            snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
-        fi
-        echo /snap/bin/ubuntu-image
-        return
-    fi
-
-    get_ubuntu_image >&2
+    "$TESTSTOOLS"/ubuntu-image ensure >&2
     echo "$GOHOME/bin/ubuntu-image"
 }
 
