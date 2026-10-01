@@ -78,6 +78,10 @@ func runDispatch(args []string) (called string, argsAtCall []string) {
 			called = "snap-gpio-helper"
 			argsAtCall = append([]string(nil), os.Args...)
 		},
+		"snapd-userbus": func() {
+			called = "snapd-userbus"
+			argsAtCall = append([]string(nil), os.Args...)
+		},
 	})
 	defer restoreTools()
 
@@ -171,6 +175,13 @@ func (s *dispatchSuite) TestArgv0SnapdArgv1SnapGpioHelperDispatches(c *C) {
 }
 
 // --- arg stripping ---
+
+func (s *dispatchSuite) TestUserBusDispatch(c *C) {
+	c.Assert(snapdmain.ToolMains["snapd-userbus"], NotNil)
+	called, args := runDispatch([]string{"snapd", "snapd-userbus", "1234"})
+	c.Check(called, Equals, "snapd-userbus")
+	c.Check(args, DeepEquals, []string{"snapd-userbus", "1234"})
+}
 
 // When a tool is dispatched, argv[1] (the tool name) must be stripped so that
 // the tool sees its own arguments starting at argv[1], not at argv[2].

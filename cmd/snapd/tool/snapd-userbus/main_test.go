@@ -1,0 +1,42 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build linux
+
+/*
+ * Copyright (C) 2026 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package snapd_userbus_test
+
+import (
+	"testing"
+
+	. "gopkg.in/check.v1"
+
+	helper "github.com/snapcore/snapd/cmd/snapd/tool/snapd-userbus"
+)
+
+func Test(t *testing.T) { TestingT(t) }
+
+type helperSuite struct{}
+
+var _ = Suite(&helperSuite{})
+
+func (s *helperSuite) TestInvalidArguments(c *C) {
+	c.Check(helper.Run(nil), ErrorMatches, "expected a numeric uid")
+	c.Check(helper.Run([]string{"1000", "extra"}), ErrorMatches, "expected a numeric uid")
+	for _, uid := range []string{"-1", "4294967296", "name", ""} {
+		c.Check(helper.Run([]string{uid}), ErrorMatches, "cannot parse uid: .*")
+	}
+}
