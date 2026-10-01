@@ -116,11 +116,18 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 	rs := as.RestrictionsFor(path)
 	switch kind {
 	case "":
-		err = MkdirAll(path, mode, uid, gid, rs)
+		// Pass "as" through so that MkdirAll/MkPrefix look up the mode for
+		// each intermediate directory individually (via as.ModeForPath),
+		// rather than stamping the leaf's mode ("mode" above) onto every
+		// directory created along the way. Without this, creating e.g.
+		// .../snap-private-tmp/snap.foo/tmp/.X11-unix (whose mode hint is
+		// 0777|sticky) would incorrectly also apply 0777|sticky to the
+		// snap.foo base directory, which must stay 0700.
+		err = MkdirAll(path, mode, uid, gid, rs, as)
 	case "file":
-		err = MkfileAll(path, mode, uid, gid, rs)
+		err = MkfileAll(path, mode, uid, gid, rs, as)
 	case "symlink":
-		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs)
+		err = MksymlinkAll(path, mode, uid, gid, c.Entry.XSnapdSymlink(), rs, as)
 	case "ensure-dir":
 		uid = sysGetuid()
 		gid = sysGetgid()
