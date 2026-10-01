@@ -81,7 +81,9 @@ type fakeOp struct {
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
 	unlinkSkipBinaries     bool
-	skipKernelExtraction   bool
+
+	skipKernelExtraction bool
+	integrityDataParams  integrity.IntegrityDataParams
 
 	services             []string
 	removedServices      []string
@@ -470,18 +472,34 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			},
 		}
 	case "channel-with-integrity-data":
-		info.IntegrityData = &snap.IntegrityDataInfo{
-			IntegrityDataParams: integrity.IntegrityDataParams{
-				Version:       1,
-				Type:          "dm-verity",
-				HashAlg:       "sha256",
-				DataBlockSize: 1000,
-				HashBlockSize: 1000,
-				Salt:          "salt",
-				Digest:        "digest",
+		info.IntegrityDownloadInfos = []snap.IntegrityDownloadInfo{
+			{
+				IntegrityDataParams: integrity.IntegrityDataParams{
+					Version:       1,
+					Type:          "dm-verity",
+					HashAlg:       "sha256",
+					DataBlockSize: 1000,
+					HashBlockSize: 1000,
+					Salt:          "salt",
+					Digest:        "digest1",
+				},
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "foo_1_digest1.dmverity",
+				},
 			},
-			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.snap.dmverity_digest1",
+			{
+				IntegrityDataParams: integrity.IntegrityDataParams{
+					Version:       1,
+					Type:          "dm-verity",
+					HashAlg:       "sha512",
+					DataBlockSize: 4096,
+					HashBlockSize: 4096,
+					Salt:          "salt",
+					Digest:        "digest2",
+				},
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "foo_1_digest2.dmverity",
+				},
 			},
 		}
 	}
@@ -1164,14 +1182,19 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	if si != nil {
 		revno = si.Revision
 	}
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:    "setup-snap",
 		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
-
-		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
-	})
+	}
+	if opts != nil {
+		op.skipKernelExtraction = opts.SkipKernelExtraction
+		if opts.IntegrityDataParams != nil {
+			op.integrityDataParams = *opts.IntegrityDataParams
+		}
+	}
+	f.appendOp(op)
 	snapType := snap.TypeApp
 	switch si.RealName {
 	case "core":

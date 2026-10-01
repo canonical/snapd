@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -162,6 +163,99 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+}
+
+func makeTestSnapAndIntegrityData(c *C, snapYamlContent, rootHash string) string {
+	snapPath := makeTestSnap(c, snapYamlContent)
+	integrityFileName := strings.TrimSuffix(snapPath, ".snap") + ".dmverity_" + rootHash
+	c.Assert(os.WriteFile(integrityFileName, nil, 0644), IsNil)
+	return snapPath
+}
+
+func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(installRecord, NotNil)
+	c.Check(snapType, Equals, snap.TypeApp)
+
+	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+
+	// after setup the snap and integrity files are copied to the right dir
+	c.Assert(snapFilePath, testutil.FilePresent)
+	c.Assert(integrityFilePath, testutil.FilePresent)
+
+	// ensure the right unit is created
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=/var/lib/snapd/snaps/hello_14.dmverity_aaa")
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	// mount dir was created
+	c.Assert(minInfo.MountDir(), testutil.FilePresent)
+
+	// now the undo/remove path
+	switch variant {
+	case "with-undo":
+		err = s.be.UndoSetupSnap(minInfo, "app", nil, mockDev, progress.Null)
+	case "with-remove":
+		err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	default:
+		c.Errorf("unexpected variant %q", variant)
+		return
+	}
+	c.Assert(err, IsNil)
+
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(minInfo.MountDir(), testutil.FileAbsent)
+
+	c.Assert(snapFilePath, testutil.FileAbsent)
+	c.Assert(integrityFilePath, testutil.FileAbsent)
+}
+
+func (s *setupSuite) TestSetupDoUndoWithIntegrityData(c *C) {
+	const variant = "with-undo"
+	s.testSetupWithIntegrityData(c, variant)
+}
+
+func (s *setupSuite) TestRemoveSnapFilesWithIntegrityData(c *C) {
+	const variant = "with-remove"
+	s.testSetupWithIntegrityData(c, variant)
+}
+
+func (s *setupSuite) TestSetupSnapWithIntegrityDataFileMissing(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := &backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+
+	_, _, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, setupOpts, progress.Null)
+	c.Check(err, ErrorMatches, "link .*/hello_1.0_all.dmverity_aaa .*/var/lib/snapd/snaps/hello_instance_14.dmverity_aaa: no such file or directory")
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {

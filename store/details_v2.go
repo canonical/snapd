@@ -371,7 +371,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 
 	addCategories(info, d.Categories)
 
-	if err := addIntegrityData(info, d.IntegrityData); err != nil {
+	if err := addIntegrityDownloadInfos(info, d.IntegrityData); err != nil {
 		return nil, err
 	}
 
@@ -417,39 +417,37 @@ func addComponents(info *snap.Info, resources []storeResource) {
 	}
 }
 
-func addIntegrityData(info *snap.Info, integrityData []storeIntegrity) error {
+func addIntegrityDownloadInfos(info *snap.Info, integrityData []storeIntegrity) error {
 	if len(integrityData) == 0 {
 		return nil
 	}
 
-	// TODO: Currently there can only be one entry of integrity data therefore it is the one selected.
-	// In the future, an entry will be selected from the list to be downloaded based on extra information
-	// gathered from the system (such as preferred algorithm, preferred block size etc.)
-	i := integrityData[0]
+	downloadInfos := make([]snap.IntegrityDownloadInfo, 0, len(integrityData))
+	for _, i := range integrityData {
+		version, err := strconv.ParseUint(i.Version, 10, 32)
+		if err != nil {
+			return err
+		}
 
-	version, err := strconv.ParseUint(i.Version, 10, 32)
-	if err != nil {
-		return err
+		downloadInfos = append(downloadInfos, snap.IntegrityDownloadInfo{
+			IntegrityDataParams: integrity.IntegrityDataParams{
+				Type:          i.Type,
+				Version:       uint(version),
+				HashAlg:       i.HashAlg,
+				DataBlockSize: uint64(i.DataBlockSize),
+				HashBlockSize: uint64(i.HashBlockSize),
+				Digest:        i.Digest,
+				Salt:          i.Salt,
+			},
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: i.Download.URL,
+				Size:        i.Download.Size,
+				Sha3_384:    i.Download.Sha3_384,
+			},
+		})
 	}
 
-	integrity := &snap.IntegrityDataInfo{
-		IntegrityDataParams: integrity.IntegrityDataParams{
-			Type:          i.Type,
-			Version:       uint(version),
-			HashAlg:       i.HashAlg,
-			DataBlockSize: uint64(i.DataBlockSize),
-			HashBlockSize: uint64(i.HashBlockSize),
-			Digest:        i.Digest,
-			Salt:          i.Salt,
-		},
-		DownloadInfo: snap.DownloadInfo{
-			DownloadURL: i.Download.URL,
-			Size:        i.Download.Size,
-			Sha3_384:    i.Download.Sha3_384,
-		},
-	}
-
-	info.IntegrityData = integrity
+	info.IntegrityDownloadInfos = downloadInfos
 
 	return nil
 }
