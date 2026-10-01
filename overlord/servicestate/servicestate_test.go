@@ -48,16 +48,13 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/usersession/agent"
 	"github.com/snapcore/snapd/usersession/service"
 	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 type statusDecoratorSuite struct {
-	testutil.DBusTest
 	tempdir          string
-	agent            *agent.SessionAgent
 	managersRestorer func()
 }
 
@@ -103,27 +100,15 @@ func (s *statusDecoratorSuite) TestUserStatusRequestOwnsOneConnection(c *C) {
 }
 
 func (s *statusDecoratorSuite) SetUpTest(c *C) {
-	s.managersRestorer = servicetest.MockSystemd()
-	s.DBusTest.SetUpTest(c)
+	s.managersRestorer = servicetest.MockSystemd(os.Getuid())
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
-	s.agent.Start()
 }
 
 func (s *statusDecoratorSuite) TearDownTest(c *C) {
 	defer s.managersRestorer()
-	if s.agent != nil {
-		err := s.agent.Stop()
-		c.Check(err, IsNil)
-	}
 	dirs.SetRootDir("")
-	s.DBusTest.TearDownTest(c)
 }
 
 func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {

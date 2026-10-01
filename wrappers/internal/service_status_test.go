@@ -34,28 +34,22 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
-	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/usersession/agent"
-	"github.com/snapcore/snapd/usersession/client"
 	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 	"github.com/snapcore/snapd/wrappers/internal"
 )
 
 type serviceStatusSuite struct {
-	testutil.DBusTest
 	tempdir                           string
 	sysdLog                           [][]string
 	systemctlRestorer, delaysRestorer func()
-	agent                             *agent.SessionAgent
 	managersRestorer                  func()
 }
 
 var _ = Suite(&serviceStatusSuite{})
 
 func (s *serviceStatusSuite) SetUpTest(c *C) {
-	s.managersRestorer = servicetest.MockSystemd()
-	s.DBusTest.SetUpTest(c)
+	s.managersRestorer = servicetest.MockSystemd(os.Getuid())
 	s.tempdir = c.MkDir()
 	s.sysdLog = nil
 	dirs.SetRootDir(s.tempdir)
@@ -66,24 +60,13 @@ func (s *serviceStatusSuite) SetUpTest(c *C) {
 	})
 	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
-	s.agent.Start()
 }
 
 func (s *serviceStatusSuite) TearDownTest(c *C) {
 	defer s.managersRestorer()
-	if s.agent != nil {
-		err := s.agent.Stop()
-		c.Check(err, IsNil)
-	}
 	s.systemctlRestorer()
 	s.delaysRestorer()
 	dirs.SetRootDir("")
-	s.DBusTest.TearDownTest(c)
 }
 
 // addSnapServices adds service units for the snap applications which
@@ -558,12 +541,12 @@ apps:
 		return sorted[i].Name < sorted[j].Name
 	})
 
-	r := internal.MockUserSessionQueryServiceStatusMany(func(units []string) (map[int][]client.ServiceUnitStatus, map[int][]client.ServiceFailure, error) {
-		return map[int][]client.ServiceUnitStatus{
+	r := internal.MockUserSessionQueryServiceStatusMany(func(units []string) (map[int][]*systemd.UnitStatus, error) {
+		return map[int][]*systemd.UnitStatus{
 			1000: {
 				{Name: fooSrvFile},
 			},
-		}, nil, nil
+		}, nil
 	})
 	defer r()
 

@@ -23,7 +23,6 @@ package servicetest
 import (
 	"context"
 
-	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/systemd"
 	systemduser "github.com/snapcore/snapd/systemd/user"
@@ -56,11 +55,12 @@ func (m manager) Status(_ context.Context, units []string) ([]*systemd.UnitStatu
 	return result, nil
 }
 
-// MockSystemd uses existing test session fixtures to select fake managers. It
-// preserves systemctl expectations while exercising root-side orchestration.
-// Discovery and D-Bus protocol behavior have independent tests without agents.
-func MockSystemd() func() {
-	return service.MockManagers(func(context.Context) ([]int, error) { return clientutil.AvailableUserSessions() }, func(context.Context, int) (service.Manager, func(), error) {
+// MockSystemd selects fake managers for the given UIDs. With no UIDs it selects
+// no managers. It preserves systemctl expectations while exercising root-side
+// orchestration; discovery and D-Bus protocol behavior have independent tests.
+func MockSystemd(uids ...int) func() {
+	available := append([]int(nil), uids...)
+	return service.MockManagers(func(context.Context) ([]int, error) { return available, nil }, func(context.Context, int) (service.Manager, func(), error) {
 		return manager{systemd.New(systemd.UserMode, progress.Null)}, func() {}, nil
 	})
 }
