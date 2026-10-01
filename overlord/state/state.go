@@ -272,12 +272,8 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 	now := time.Now()
 	for _, w := range oldWarnings {
 		expireAfter, err := time.ParseDuration(w.ExpireAfter)
-		if err != nil {
-			continue
-		}
-
-		if err := validateWarning(w.Message, w.FirstAdded, expireAfter); err != nil {
-			continue
+		if err != nil || expireAfter == 0 {
+			expireAfter = defaultWarningExpireAfter
 		}
 
 		if w.LastAdded.Add(expireAfter).Before(now) {
@@ -291,17 +287,16 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 			Time:        w.LastAdded,
 		}
 
-		if w.RepeatAfter != "" {
-			if _, err = time.ParseDuration(w.RepeatAfter); err != nil {
-				continue
-			}
-			addNoticeOptions.Data["show-after"] = w.RepeatAfter
+		if _, err = time.ParseDuration(w.RepeatAfter); err != nil {
+			w.RepeatAfter = defaultWarningShowAfter.String()
 		}
+		addNoticeOptions.Data["show-after"] = w.RepeatAfter
 
 		if w.LastShown != nil {
 			addNoticeOptions.Data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
 		}
 
+		// doAddNotice validates of the warning message before the creation of the notice.
 		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
 		if err != nil {
 			continue

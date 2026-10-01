@@ -222,11 +222,6 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 		addNoticeOptions.Data["show-after"] = options.ShowAfter.String()
 	}
 
-	if err := ValidateNotice(WarningNotice, message, addNoticeOptions); err != nil {
-		logger.Panicf("internal error: %v", err)
-		return
-	}
-
 	// Get the existing notice data, if present, to persist the "last-shown" value
 	if existing := s.getWarningBackingNotice(message); existing != nil {
 		if lastShown, ok := existing.lastData["last-shown"]; ok {
@@ -240,7 +235,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 
 	if _, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions); err != nil {
 		// programming error!
-		logger.Panicf("internal error, please report: attempted to add invalid warning notice: %v", err)
+		logger.Panicf("%v", err)
 		return
 	}
 }
@@ -262,18 +257,18 @@ func (s *State) RemoveWarning(message string) error {
 		return ErrNoState
 	}
 
-	uniqueKey := getWarningNoticeKey(message)
+	uniqueKey := warningNoticeKey(message)
 	delete(s.notices, uniqueKey)
 	return nil
 }
 
-func getWarningNoticeKey(key string) noticeKey {
+func warningNoticeKey(key string) noticeKey {
 	uid, hasUserID := flattenUserID(nil)
 	return noticeKey{hasUserID, uid, WarningNotice, key}
 }
 
 func (s *State) getWarningBackingNotice(key string) *Notice {
-	uniqueKey := getWarningNoticeKey(key)
+	uniqueKey := warningNoticeKey(key)
 	notice, ok := s.notices[uniqueKey]
 	if !ok {
 		return nil

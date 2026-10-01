@@ -745,7 +745,7 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	backend := &fakeStateBackend{}
 	st := state.New(backend)
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
 
@@ -758,7 +758,7 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/bar")
 }
 
@@ -767,7 +767,7 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	old := time.Now().Add(-8 * 24 * time.Hour)
+	old := time.Now().Add(-28 * 24 * time.Hour)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", &state.AddNoticeOptions{
 		Time: old,
 	})
