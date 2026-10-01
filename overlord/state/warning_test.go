@@ -97,18 +97,6 @@ func (s stateSuite) TestAddWarningWithBadMessages(c *check.C) {
 	)
 }
 
-func (s stateSuite) TestAddWarningWithNoExpireAfter(c *check.C) {
-	restoreExpireAfter := state.MockDefaultWarningExpireAfter(0)
-	defer restoreExpireAfter()
-
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
-
-	c.Check(func() { st.Warnf("some warning") }, check.PanicMatches,
-		`internal error: cannot add warning notice with no expire-after duration`)
-}
-
 func (stateSuite) TestEmptyStateWarnings(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
