@@ -83,6 +83,9 @@ apps:
   hugepages-control:
     command: bin/run
     plugs: [ hugepages-control ]
+  infiniband:
+    command: bin/run
+    plugs: [ infiniband ]
   intel-mei:
     command: bin/run
     plugs: [ intel-mei ]
