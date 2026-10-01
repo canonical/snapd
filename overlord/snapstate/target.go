@@ -425,9 +425,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 		}
 		revOpts := &s.snaps[i].RevOpts
 		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, revOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
-		if errors.Is(err, uctrack.ErrNotApplicable) ||
-			errors.Is(err, uctrack.ErrBootBaseNotCovered) ||
-			errors.Is(err, uctrack.ErrNoTrack) {
+		if errors.Is(err, uctrack.ErrNotApplicable) {
 			err = nil
 		}
 		if err != nil {

@@ -44,17 +44,17 @@ const snapdTrackChannelLatestStable = "latest/stable"
 // The channel and model are already resolved. An empty input stays empty.
 // The state lock must be held; it is released for the store round-trip.
 // "" with a nil error means the input was empty. "" with an error is unused
-// and the caller keeps its channel: [uctrack.ErrNotApplicable],
-// [uctrack.ErrBootBaseNotCovered], [uctrack.ErrNoTrack], or a store or
+// and the caller keeps its channel: [uctrack.ErrNotApplicable], or a store or
 // parse failure.
 func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, channel string, model *asserts.Model, sto StoreService, userID int) (snapdUCTrackChannel string, err error) {
 	if channel == "" {
 		return "", nil
 	}
 
-	// [uctrack.Applicable] rejects classic, hybrid, a non-core base, and Ubuntu
-	// Core 16 from the model alone. The track map cannot change that.
-	if err := uctrack.Applicable(model); err != nil {
+	// [uctrack.SystemBootBaseApplicable] rejects classic, hybrid, a non-core
+	// base, and Ubuntu Core 16 from the model alone. The track map cannot
+	// change that.
+	if _, err := uctrack.SystemBootBaseApplicable(model); err != nil {
 		return "", err
 	}
 
@@ -63,7 +63,7 @@ func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, channel st
 		return "", err
 	}
 
-	snapdUCTrackChannel, err = uctrack.Resolve(model, channel, tracks)
+	snapdUCTrackChannel, err = uctrack.Resolve(model, "", channel, tracks)
 	if err != nil {
 		return "", err
 	}
