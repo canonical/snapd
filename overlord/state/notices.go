@@ -263,6 +263,9 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	n.noticeType = NoticeType(jn.Type)
 	n.key = jn.Key
 	n.firstOccurred = jn.FirstOccurred
+	if n.firstOccurred.IsZero() {
+		return fmt.Errorf("invalid first-occurred time: %v", n.firstOccurred)
+	}
 	n.lastOccurred = jn.LastOccurred
 	n.lastRepeated = jn.LastRepeated
 	n.occurrences = jn.Occurrences
@@ -280,12 +283,11 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	if n.noticeType == WarningNotice {
-		// n.key is the warning message, and n.firstOccurred is
-		// the warning's firstAdded value.
-		return validateWarning(n.key, n.firstOccurred, n.expireAfter)
-	}
-	return nil
+	return ValidateNotice(n.noticeType, n.key, &AddNoticeOptions{
+		Data:        n.lastData,
+		RepeatAfter: n.repeatAfter,
+		ExpireAfter: n.expireAfter,
+	})
 }
 
 type NoticeType string
@@ -410,13 +412,12 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 //
 // The caller is responsible for holding the notices mutex for writing.
 func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
-	expireAfter := options.ExpireAfter
-	if expireAfter == 0 {
+	if options.ExpireAfter == 0 {
 		switch noticeType {
 		case WarningNotice:
-			expireAfter = defaultWarningExpireAfter
+			options.ExpireAfter = defaultWarningExpireAfter
 		default:
-			expireAfter = defaultNoticeExpireAfter
+			options.ExpireAfter = defaultNoticeExpireAfter
 		}
 	}
 
@@ -440,7 +441,7 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, expireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, options.ExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
@@ -468,6 +469,28 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	}
 	if noticeType == RefreshInhibitNotice && key != "-" {
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
+	}
+
+	// ValidateNotice is called with nil options from the daemon and NoticeBackend.
+	// In daemon/api_notices.go, any notice type can be validated but only
+	// SnapRunInhibitNotice types can be created with the api.
+	//
+	// Warning notices are not created by a backend but through
+	// Warnf->AddWarning which specifies options.
+	if noticeType == WarningNotice && options != nil {
+		if showAfter, ok := options.Data["show-after"]; ok {
+			if _, err := time.ParseDuration(showAfter); err != nil {
+				return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
+			}
+		}
+		if lastShown, ok := options.Data["last-shown"]; ok {
+			if _, err := time.Parse(time.RFC3339Nano, lastShown); err != nil {
+				return fmt.Errorf("cannot add %s notice with invalid last-shown time: %w", noticeType, err)
+			}
+		}
+		if options.ExpireAfter == 0 {
+			return fmt.Errorf("cannot add %s notice with no expire-after duration", noticeType)
+		}
 	}
 	return nil
 }

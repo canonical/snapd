@@ -271,28 +271,20 @@ func (s *noticesSuite) TestUnmarshalErrors(c *C) {
 	var n *state.Notice
 	c.Check(json.Unmarshal([]byte(`42`), &n), check.ErrorMatches, ".* cannot unmarshal .*")
 
-	type T1 struct {
-		b string
-		e error
-	}
+	type T struct{ b, e string }
 
-	for _, t := range []T1{
-		// validity check
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, nil},
+	// validity check
+	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`
+	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
+	for _, t := range []T{
 		// remove one field at a time:
-		{`{            "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},
-		{`{"key": "x", "type":"warning",                                           "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningFirstAdded},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, state.ErrNoWarningExpireAfter},
-	} {
-		var n *state.Notice
-		c.Check(json.Unmarshal([]byte(t.b), &n), check.Equals, t.e)
-	}
-
-	type T2 struct{ b, e string }
-
-	for _, t := range []T2{
+		{`{            "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "cannot add warning notice with invalid key \"\""},
+		{`{"key": "x", "type":"warning",                                           "expire-after": "1h", "repeat-after": "1h"}`, "invalid first-occurred time: .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, "cannot add warning notice with no expire-after duration"},
 		// some bogus values
-		{`{"key": " ", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "malformed warning message"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h", "last-data": {"show-after": "24d"}}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h", "last-data": {"show-after": "24h", "last-shown": "2006"}}`, ".* invalid last-shown time: parsing time .* cannot parse .*"},
+		{`{"key": " ", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "cannot add warning notice with invalid key \" \""},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
