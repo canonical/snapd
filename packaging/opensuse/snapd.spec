@@ -131,7 +131,7 @@ BuildRequires:  m4
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
 BuildRequires:  glibc-devel-static
-BuildRequires:  go >= 1.18
+BuildRequires:  go >= 1.20
 BuildRequires:  gpg2
 BuildRequires:  libcap-devel
 BuildRequires:  openssh-common

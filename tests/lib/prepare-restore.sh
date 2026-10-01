@@ -415,7 +415,7 @@ prepare_project() {
         quiet eatmydata apt-get install -y --force-yes apparmor libapparmor1 seccomp libseccomp2 systemd cgroup-lite util-linux
     fi
 
-    # ubuntu-16.04 is EOL so the updated go-1.18 is only available via
+    # ubuntu-16.04 is EOL so updated Go toolchains are only available via
     # the ppa:snappy-dev/image ppa for now. if needed the package could
     # be copied from the PPA to the ESM archive.
     if os.query is-xenial; then
@@ -578,7 +578,7 @@ prepare_project() {
                 # We need to ensure the correct version of golang is used.
                 if [ -z "$(command -v go)" ]; then
                     # Find the path to the versioned go which was installed as a dependency
-                    for real_golang in "$best_golang" golang-1.24 golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
+                    for real_golang in "$best_golang" golang-1.24 golang-1.23 golang-1.22 golang-1.21 golang-1.20 ; do
                         real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
                         if [ -e "$real_golang_path" ]; then
                             ln -s "$real_golang_path" /usr/bin/go
@@ -594,8 +594,8 @@ prepare_project() {
             else
                 # we only run a limited set of tests on 14.04, hence only Go is
                 # needed to build the dependencies, but that's all
-                eatmydata apt-get install -y golang-1.18
-                ln -s "/usr/lib/go-1.18/bin/go" /usr/bin/go
+                eatmydata apt-get install -y golang-1.20
+                ln -s "/usr/lib/go-1.20/bin/go" /usr/bin/go
             fi
             ;;
     esac
