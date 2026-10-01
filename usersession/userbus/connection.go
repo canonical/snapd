@@ -99,7 +99,9 @@ func (p *bridgeProcess) stop() {
 // separate contexts for individual D-Bus calls. Setup I/O is additionally
 // bounded to 30 seconds. No system bus fallback or session autolaunch is used.
 // Unix FD negotiation must succeed. The caller must eventually call Close.
-func Connect(ctx context.Context, uid uint32) (*Connection, error) {
+// Options can install a signal handler or other godbus connection behavior;
+// authentication is always EXTERNAL through the credential-switched helper.
+func Connect(ctx context.Context, uid uint32, options ...dbus.ConnOption) (*Connection, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -145,7 +147,7 @@ func Connect(ctx context.Context, uid uint32) (*Connection, error) {
 		wire.Close()
 	}()
 
-	conn, err := connectBridge(wire, uid)
+	conn, err := connectBridge(wire, uid, options...)
 	if err != nil {
 		p.stop()
 		if ctx.Err() != nil {
@@ -163,7 +165,7 @@ func Connect(ctx context.Context, uid uint32) (*Connection, error) {
 	return &Connection{Conn: conn, bridge: p}, nil
 }
 
-func connectBridge(wire *net.UnixConn, uid uint32) (*dbus.Conn, error) {
+func connectBridge(wire *net.UnixConn, uid uint32, options ...dbus.ConnOption) (*dbus.Conn, error) {
 	if err := wire.SetDeadline(time.Now().Add(setupTimeout)); err != nil {
 		return nil, err
 	}
@@ -187,7 +189,8 @@ func connectBridge(wire *net.UnixConn, uid uint32) (*dbus.Conn, error) {
 	if string(ready[:len(readyMagic)]) != readyMagic || binary.LittleEndian.Uint32(ready[len(readyMagic):]) != uid {
 		return nil, fmt.Errorf("invalid user bus bridge greeting")
 	}
-	conn, err := dbus.ConnectUnix(wire, dbus.WithAuth(dbus.AuthExternal("")))
+	options = append(options, dbus.WithAuth(dbus.AuthExternal("")))
+	conn, err := dbus.ConnectUnix(wire, options...)
 	if err != nil {
 		return nil, err
 	}
