@@ -180,8 +180,8 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/chai2010/gettext-go)
 BuildRequires: golang(github.com/cilium/ebpf)
-BuildRequires: golang(github.com/godbus/dbus/v5)
-BuildRequires: golang(github.com/godbus/dbus/v5/introspect)
+BuildRequires: golang(github.com/godbus/dbus/v5) >= 5.2.2
+BuildRequires: golang(github.com/godbus/dbus/v5/introspect) >= 5.2.2
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
 BuildRequires: golang(github.com/juju/ratelimit)
@@ -275,8 +275,8 @@ BuildArch:     noarch
 %if ! 0%{?with_bundled}
 Requires:      golang(github.com/bmatcuk/doublestar/v4)
 Requires:      golang(github.com/chai2010/gettext-go)
-Requires:      golang(github.com/godbus/dbus/v5)
-Requires:      golang(github.com/godbus/dbus/v5/introspect)
+Requires:      golang(github.com/godbus/dbus/v5) >= 5.2.2
+Requires:      golang(github.com/godbus/dbus/v5/introspect) >= 5.2.2
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
 Requires:      golang(github.com/juju/ratelimit)

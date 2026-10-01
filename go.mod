@@ -11,7 +11,7 @@ require (
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.16.2
 	github.com/chai2010/gettext-go v1.0.3
-	github.com/godbus/dbus/v5 v5.1.0
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gorilla/mux v1.8.0
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
 	github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df
@@ -25,7 +25,7 @@ require (
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.21.0
+	golang.org/x/sys v0.27.0
 	golang.org/x/text v0.15.0
 	golang.org/x/time v0.10.0
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
