@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -209,9 +210,11 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 
 func (stateSuite) TestMigrateWarnings(c *check.C) {
 	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
 	firstAdded := now.Add(-5 * time.Minute)
-	lastAddedFirstWarning := now.Add(-3 * time.Minute)
-	lastAddedSecondWarning := now.Add(-2 * time.Minute)
+	lastAdded := now.Add(-3 * time.Minute)
 	lastShown := now.Add(-1 * time.Minute)
 
 	oldWarning := json.RawMessage(
@@ -219,20 +222,33 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 			[
 				{"message": "first test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
 				{"message": "second test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s"},
+				{"message": "other test warning", "first-added": "%s", "last-added": "%s","repeat-after": "%s", "last-shown": "%s"},
+				{"message": "warn", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "danger", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
 				{"message": " ", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
 				{"message": "", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
-				{"message": "other test warning", "first-added": "%s", "last-added": "%s","repeat-after": "%s", "last-shown": "%s"},
 				{"message": "another test warning", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
-				{"message": "danger", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"}
+				{"message": "some warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s"}
 			]`,
-			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
-			firstAdded.Format(time.RFC3339), lastAddedSecondWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, // case without repeat-after and last-shown fields
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// case without repeat-after and last-shown fields, repeat after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(1*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter,
+			// no expire-after field falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(2*time.Second).Format(time.RFC3339), state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339),
+
 			// the following cases should not result in notices being created
-			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano), // whitespace message
-			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano), // empty message
-			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339), // case with missing expire-after
-			lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339), // case with first-added as 0
-			firstAdded.Format(time.RFC3339), lastAddedFirstWarning.Format(time.RFC3339), state.DefaultWarningExpireAfter, "badtime", lastShown.Format(time.RFC3339Nano), // fail to parse repeat-after
+			// invalid expire-after
+			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), "2006", state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// invalid show-after
+			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter, "2006", lastShown.Format(time.RFC3339Nano),
+			// whitespace message
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// empty message
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// first-added is 0
+			lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339),
+			// expired warning
+			firstAdded.Format(time.RFC3339), now.Add(-2*time.Hour).Format(time.RFC3339), time.Hour.String(), state.DefaultWarningShowAfter,
 		),
 	)
 
@@ -259,28 +275,30 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 	c.Assert(err, check.IsNil)
 	st.Unlock()
 
-	c.Assert(st.NumNotices(), check.Equals, 2)
+	c.Assert(st.NumNotices(), check.Equals, 3)
 	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
-	c.Assert(notices, check.HasLen, 2)
+	c.Assert(notices, check.HasLen, 3)
 
-	c.Check(st.GetLastNoticeId(), check.Equals, 2)
+	c.Check(st.GetLastNoticeId(), check.Equals, 3)
 
 	for idx, notice := range notices {
+		increment := time.Duration(idx)
+		expectedLastAdded := lastAdded.Add(increment * time.Second).UTC().Format(time.RFC3339)
 		switch idx {
 		case 0:
 			c.Check(notice.Key(), check.Equals, "first test warning")
 			c.Check(notice.LastData()["show-after"], check.Equals, state.DefaultWarningShowAfter.String())
 			c.Check(notice.LastData()["last-shown"], check.Equals, lastShown.Format(time.RFC3339Nano))
-			c.Check(notice.ID(), check.Equals, "1")
-			c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAddedFirstWarning.UTC().Format(time.RFC3339))
-			c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, lastAddedFirstWarning.UTC().Format(time.RFC3339))
 		case 1:
 			c.Check(notice.Key(), check.Equals, "second test warning")
-			c.Check(notice.ID(), check.Equals, "2")
-			c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, lastAddedSecondWarning.UTC().Format(time.RFC3339))
-			c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, lastAddedSecondWarning.UTC().Format(time.RFC3339))
+		case 2:
+			c.Check(notice.Key(), check.Equals, "other test warning")
+		default:
+			c.Error("unexpected warning notice")
 		}
-
+		c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, expectedLastAdded)
+		c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, expectedLastAdded)
+		c.Check(notice.ID(), check.Equals, strconv.Itoa(idx+1))
 		c.Check(notice.Type(), check.Equals, state.WarningNotice)
 		c.Check(notice.GetNoticeFirstOccurred().Format(time.RFC3339), check.Equals, firstAdded.Format(time.RFC3339))
 		c.Check(notice.GetExpireAfter(), check.Equals, state.DefaultWarningExpireAfter)

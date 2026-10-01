@@ -21,9 +21,7 @@ package state
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -32,11 +30,6 @@ import (
 var (
 	defaultWarningShowAfter   = time.Hour * 24
 	defaultWarningExpireAfter = time.Hour * 24 * 28
-
-	errNoWarningMessage     = errors.New("warning has no message")
-	errBadWarningMessage    = errors.New("malformed warning message")
-	errNoWarningFirstAdded  = errors.New("warning has no first-added timestamp")
-	errNoWarningExpireAfter = errors.New("warning has no expire-after duration")
 )
 
 // jsonWarning is not used to marshal warnings to state. It is only used for marshalling
@@ -128,25 +121,6 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 	jw.RepeatAfter = showAfter.String()
 
 	return json.Marshal(jw)
-}
-
-// validate is used to ensure that the jsonWarning used to migrate warnings found
-// on disk to notices have valid fields.
-func validateWarning(message string, firstAdded time.Time, expireAfter time.Duration) (e error) {
-	if message == "" {
-		return errNoWarningMessage
-	}
-	if strings.TrimSpace(message) != message {
-		return errBadWarningMessage
-	}
-	if firstAdded.IsZero() {
-		return errNoWarningFirstAdded
-	}
-	if expireAfter == 0 {
-		return errNoWarningExpireAfter
-	}
-
-	return nil
 }
 
 func (w *Warning) ExpiredBefore(now time.Time) bool {
@@ -298,7 +272,7 @@ func (s *State) allWarningsNow() ([]*Warning, time.Time) {
 	// retrieve all notices with a lastRepeated timestamp before the timestamp
 	// we return, and it's impossible to add a new notice to the state with a
 	// timestamp before now.
-	now := time.Now().UTC()
+	now := timeNow().UTC()
 	noticeFilter := &NoticeFilter{Types: []NoticeType{WarningNotice}}
 	allWarningNotices := s.doNotices(noticeFilter)
 
