@@ -781,6 +781,8 @@ func checkKernelHasUpdateAssetsTask(t *state.Task) error {
 	return ErrKernelGadgetUpdateTaskMissing
 }
 
+var integrityLookupDataAndCrossCheck = integrity.LookupDataAndCrossCheck
+
 func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*integrity.IntegrityDataParams, error) {
 	// TODO: when policy for choosing the preferred integrity method is
 	//       implemented, not having integrity data should return an error
@@ -790,12 +792,19 @@ func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*
 		return nil, nil
 	}
 	idp, err := ValidatedIntegrityData(st, snapsup.SideInfo.SnapID, snapsup.SideInfo.Revision)
-	if err == nil {
-		return idp, nil
-	} else if errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+	if errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if _, err := integrityLookupDataAndCrossCheck(snapsup.SnapPath, idp); err != nil {
+		// ignore integrity data if no matching file is found
+		logger.Noticef("cannot validate integrity data for snap %q: %v", snapsup.InstanceName(), err)
 		return nil, nil
 	}
-	return nil, err
+
+	return idp, err
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {

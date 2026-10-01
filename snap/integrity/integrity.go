@@ -171,9 +171,9 @@ var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
 // the parameters passed to LookupDmVerityDataAndCrossCheck.
 var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
 
-// LookupDmVerityDataAndCrossCheck looks up dm-verity data for a snap based on its file name and validates
-// that the superblock properties of the discovered dm-verity data match the passed parameters.
-func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
+// LookupDataAndCrossCheck looks up integrity data for a snap based on its file name and validates
+// that the superblock properties of the discovered integrity data match the passed parameters.
+func LookupDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
 	if params == nil {
 		return "", ErrIntegrityDataParamsNotFound
 	}

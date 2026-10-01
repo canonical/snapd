@@ -653,3 +653,7 @@ func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
 	return testutil.Mock(&ValidatedIntegrityData, f)
 }
+
+func MockIntegrityLookupDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
+	return testutil.Mock(&integrityLookupDataAndCrossCheck, f)
+}

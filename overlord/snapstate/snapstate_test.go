@@ -10814,7 +10814,7 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, mountContent)
 }
 
-func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withIntegrityData bool) {
+func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withIntegrityData, integrityFileExists bool) {
 	idp := &integrity.IntegrityDataParams{
 		Type:   "dm-verity",
 		Digest: "deadbeef",
@@ -10829,6 +10829,17 @@ func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withInt
 		}
 		c.Check(rev, Equals, testSnapSideInfo.Revision)
 		return idp, nil
+	})
+	defer restore()
+
+	lookupCalls := 0
+	restore = snapstate.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		lookupCalls++
+		c.Check(params, DeepEquals, idp)
+		if !integrityFileExists {
+			return "", fmt.Errorf("integrity file does not exist")
+		}
+		return params.IntegrityFile(snapPath)
 	})
 	defer restore()
 
@@ -10867,8 +10878,14 @@ apps:
 
 	c.Assert(s.restarts[unitName], Equals, 1)
 
-	options := "nodev,ro,x-gdu.hide,x-gvfs-hide"
 	if withIntegrityData {
+		c.Check(lookupCalls, Equals, 1)
+	} else {
+		c.Check(lookupCalls, Equals, 0)
+	}
+
+	options := "nodev,ro,x-gdu.hide,x-gvfs-hide"
+	if withIntegrityData && integrityFileExists {
 		integrityMountOpts, err := idp.MountOptions(info.MountFile())
 		c.Assert(err, IsNil)
 		options = options + "," + strings.Join(integrityMountOpts, ",")
@@ -10897,12 +10914,20 @@ WantedBy=multi-user.target
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
 	const withIntegrityData = false
-	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData)
+	const integrityFileExists = false
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityData(c *C) {
 	const withIntegrityData = true
-	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData)
+	const integrityFileExists = true
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataNotExist(c *C) {
+	const withIntegrityData = true
+	const integrityFileExists = false
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {

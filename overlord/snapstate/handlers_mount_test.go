@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -173,7 +174,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 
 }
 
-func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
+func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, integrityFileExists bool) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
@@ -184,8 +185,17 @@ func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
 		st.Unlock()
 		st.Lock()
 		return &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
 			Digest: "some-digest",
 		}, nil
+	})
+	defer restore()
+
+	restore = snapstate.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		if integrityFileExists {
+			return params.IntegrityFile(snapPath)
+		}
+		return "", fmt.Errorf("integrity file does not exist")
 	})
 	defer restore()
 
@@ -215,21 +225,37 @@ func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
 	s.state.Lock()
 
 	c.Assert(osutil.FileExists(testSnap), Equals, true)
+
+	var expectedIdp integrity.IntegrityDataParams
+	if integrityFileExists {
+		expectedIdp = integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "some-digest",
+		}
+	}
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
 			old: "<no-current>",
 		},
 		{
-			op:    "setup-snap",
-			name:  "foo",
-			path:  testSnap,
-			revno: snap.R(33),
-			integrityDataParams: integrity.IntegrityDataParams{
-				Digest: "some-digest",
-			},
+			op:                  "setup-snap",
+			name:                "foo",
+			path:                testSnap,
+			revno:               snap.R(33),
+			integrityDataParams: expectedIdp,
 		},
 	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
+	const integrityFileExists = true
+	s.testDoMountSnapWithIntegrityData(c, integrityFileExists)
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataNotExist(c *C) {
+	const integrityFileExists = false
+	s.testDoMountSnapWithIntegrityData(c, integrityFileExists)
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
