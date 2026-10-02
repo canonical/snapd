@@ -612,8 +612,8 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 		d.requestedRestart = t
 		d.restartSocket = true
 	case restart.StopDaemon:
-		// Preseed ends this one-shot process. It is not the system's snapd
-		// staying down, so no security event is emitted.
+		// Preseed runs on the build host, not the device in the field, so no
+		// security event is emitted.
 		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
