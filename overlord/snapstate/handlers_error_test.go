@@ -73,6 +73,7 @@ func (s *taskErrorSuite) SetUpTest(c *C) {
 	s.snapmgr, err = snapstate.Manager(s.state, s.runner)
 	c.Assert(err, IsNil)
 	snapstate.SetStoreCacheCleanNext(s.snapmgr, time.Now().Add(time.Hour))
+	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 
 	s.se = overlord.NewStateEngine(s.state)
 	s.se.AddManager(s.snapmgr)

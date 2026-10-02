@@ -1,0 +1,19 @@
+summary: Check that an explicitly installed snap remains marked as explicitly installed after refresh
+
+details: |
+  Snaps which are explicitly installed by the user should never have the
+  implicitly-installed flag set to true on them. This test shows that snaps
+  which are refreshed do not have this flag added.
+
+prepare: |
+  snap install --devmode jq
+  tests.cleanup defer snap remove jq
+
+execute: |
+  snap install --revision=2790 core18
+  tests.cleanup defer snap remove core18
+
+  jq -r '.data.snaps.core18["implicitly-installed"]' /var/lib/snapd/state.json | MATCH false
+
+  snap refresh core18
+  jq -r '.data.snaps.core18["implicitly-installed"]' /var/lib/snapd/state.json | MATCH false

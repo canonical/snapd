@@ -1,0 +1,22 @@
+summary: Check that the implicitly-installed flag is properly set
+
+details: |
+  Prerequisite snaps in the form of a base or a default-provider for a content
+  plug will be automatically installed by snapd. This test demonstrates that
+  those implicitly installed dependencies have a flag set to true on them,
+  enabling their automatic removal if they are no longer required (e.g., the
+  snap which triggered their installation is no longer present).
+
+prepare: |
+  snap install --devmode jq
+  snap pack "$TESTSLIB/snaps/basic18"
+  snap install --dangerous basic18_1.0_all.snap
+
+restore: |
+  snap remove --purge jq
+  snap remove --purge basic18
+  snap remove --purge core18
+
+execute: |
+  jq -r '.data.snaps.core18["implicitly-installed"]'  /var/lib/snapd/state.json | MATCH true
+  jq -r '.data.snaps.basic18["implicitly-installed"]' /var/lib/snapd/state.json | MATCH false

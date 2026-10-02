@@ -118,6 +118,10 @@ type Flags struct {
 	// setup, making them be applied immediately when the security backend(s)
 	// are being set up.
 	NoDelayedSideEffects bool `json:"no-delayed-effects,omitempty"`
+
+	// ImplicitlyInstalled indicates whether a snap is being
+	// implicitly installed, or being installed by the user.
+	ImplicitlyInstalled bool `json:"implicitly-installed,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
