@@ -383,7 +383,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 		if snapsup.InstanceName() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
-			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName().String())
 		}
 	}
 
@@ -1743,7 +1743,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		return nil, nil
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName().String(), nil, opts.ConflictOptions); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName(), nil, opts.ConflictOptions); err != nil {
 		return nil, err
 	}
 
@@ -1861,7 +1861,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
 	for instanceName, aliases := range delta {
-		if err := checkChangeConflictIgnoringOneChange(st, instanceName, nil, copts); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, naming.InstanceName(instanceName), nil, copts); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
@@ -2098,7 +2098,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
 		return nil, err
 	}
 
@@ -2388,7 +2388,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			continue
 		}
 
-		if err := checkChangeConflictIgnoringOneChange(st, name.String(), &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", name, err)
 		} else {
 			updates = append(updates, name.String())
@@ -2715,7 +2715,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string, device
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, name, nil, ConflictOptions{FromChange: fromChange}); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, naming.InstanceName(name), nil, ConflictOptions{FromChange: fromChange}); err != nil {
 		return nil, err
 	}
 
@@ -2813,7 +2813,7 @@ func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.Ta
 
 	// Switching to a new model base may require regenerating the managed
 	// certificate database.
-	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName().String(), info.Type(), deviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName(), info.Type(), deviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		add(updateCertDB)
 	}
@@ -2900,7 +2900,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, name, nil, ConflictOptions{FromChange: fromChange}); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, naming.InstanceName(name), nil, ConflictOptions{FromChange: fromChange}); err != nil {
 		return nil, err
 	}
 
@@ -2992,7 +2992,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
 		return nil, err
 	}
 
@@ -3055,7 +3055,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
 		return nil, err
 	}
 
@@ -3119,7 +3119,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName().String()}
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
 		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
@@ -3212,7 +3212,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	instanceName := snapst.InstanceName()
-	if err := CheckChangeConflict(st, instanceName.String(), nil); err != nil {
+	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 		return nil, 0, err
 	}
 

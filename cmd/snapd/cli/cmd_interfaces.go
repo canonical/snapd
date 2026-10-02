@@ -84,7 +84,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 
 	opts := client.ConnectionOptions{
 		All:  true,
-		Snap: x.Positionals.Query.Snap,
+		Snap: x.Positionals.Query.Snap.String(),
 	}
 	ifaces, err := x.client.Connections(&opts)
 	if err != nil {
@@ -104,7 +104,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	for _, slot := range ifaces.Slots {
 		if wantedSnap != "" {
 			var ok bool
-			if wantedSnap == slot.Snap {
+			if wantedSnap.String() == slot.Snap {
 				ok = true
 			}
 			// Normally snap nicknames are handled internally in the snapd
@@ -121,7 +121,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			}
 
 			for i := 0; i < len(slot.Connections) && !ok; i++ {
-				if wantedSnap == slot.Connections[i].Snap {
+				if wantedSnap.String() == slot.Connections[i].Snap {
 					ok = true
 				}
 			}
@@ -163,7 +163,7 @@ func (x *cmdInterfaces) Execute(args []string) error {
 	// plug, the loop below focuses on printing just the disconnected plugs.
 	for _, plug := range ifaces.Plugs {
 		if wantedSnap != "" {
-			if wantedSnap != plug.Snap {
+			if wantedSnap.String() != plug.Snap {
 				continue
 			}
 		}

@@ -291,8 +291,8 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		if err != nil {
 			return Forbidden("internal error: %s", err)
 		}
-		matchOnSlot := req.Slot && connRef.SlotRef.Snap == instanceName
-		matchOnPlug := req.Plug && connRef.PlugRef.Snap == instanceName
+		matchOnSlot := req.Slot && connRef.SlotRef.Snap.String() == instanceName
+		matchOnPlug := req.Plug && connRef.PlugRef.Snap.String() == instanceName
 		if matchOnPlug || matchOnSlot {
 			*r = *r.WithContext(ucrednetAttachInterface(r.Context(), connState.Interface))
 			// Do not return here, but keep processing connections for the side

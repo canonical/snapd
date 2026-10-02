@@ -63,11 +63,12 @@ dbus (send,receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "login-session-control",
-		summary:               loginSessionControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  loginSessionControlBaseDeclarationSlots,
-		connectedPlugAppArmor: loginSessionControlConnectedPlugAppArmor,
+		name:                     "login-session-control",
+		summary:                  loginSessionControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     loginSessionControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    loginSessionControlConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

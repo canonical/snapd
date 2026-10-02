@@ -35,11 +35,12 @@ owner /var/lib/snapd/hostfs/tmp/krb5cc* rkw,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "kerberos-tickets",
-		summary:               krbSummary,
-		implicitOnClassic:     true,
-		implicitOnCore:        true,
-		baseDeclarationSlots:  krbBaseDeclarationSlots,
-		connectedPlugAppArmor: krbConnectedPlugAppArmor,
+		name:                     "kerberos-tickets",
+		summary:                  krbSummary,
+		implicitOnClassic:        true,
+		implicitOnCore:           true,
+		baseDeclarationSlots:     krbBaseDeclarationSlots,
+		connectedPlugAppArmor:    krbConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -2860,7 +2860,7 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 	dctx := &snapstatetest.TrivialDeviceContext{DeviceModel: s.model}
 	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
 		{
-			InstanceName: s.model.Kernel(),
+			InstanceName: naming.InstanceName(s.model.Kernel()),
 		},
 	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)

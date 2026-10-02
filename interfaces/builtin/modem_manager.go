@@ -1395,6 +1395,12 @@ func (iface *modemManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) 
 	return true
 }
 
+func (iface *modemManagerInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// ModemManager owns the well-known bus name org.freedesktop.ModemManager1
+	// on the system bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&modemManagerInterface{})
 }

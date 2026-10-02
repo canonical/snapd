@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
@@ -181,7 +182,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	// Get the files that this snap should have
 	content := b.deriveContent(spec.(*Specification), appSet)
 
-	globs := profileGlobs(instanceName.String())
+	globs := profileGlobs(instanceName)
 
 	dir := dirs.SnapDBusSystemPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -195,9 +196,9 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	return nil
 }
 
-func profileGlobs(snapName string) []string {
+func profileGlobs(instanceName naming.InstanceName) []string {
 	var globs []string
-	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+	for _, g := range interfaces.SecurityTagGlobs(instanceName) {
 		globs = append(globs, fmt.Sprintf("%s.conf", g))
 	}
 	return globs
@@ -206,11 +207,11 @@ func profileGlobs(snapName string) []string {
 // Remove removes dbus configuration files of a given snap.
 //
 // This method should be called after removing a snap.
-func (b *Backend) Remove(snapName string) error {
-	globs := profileGlobs(snapName)
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
+	globs := profileGlobs(instanceName)
 	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSystemPolicyDir, globs, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize DBus configuration files for snap %q: %s", instanceName, err)
 	}
 	return nil
 }

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var _ = check.Suite(&interfacesSuite{})
@@ -68,8 +69,8 @@ func (m *inverseCaseMapper) RemapSnapToResponse(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
-func (m *inverseCaseMapper) SystemSnapName() string {
-	return "core"
+func (m *inverseCaseMapper) SystemSnapName() naming.InstanceName {
+	return naming.Core
 }
 
 // Tests for POST /v2/interfaces
