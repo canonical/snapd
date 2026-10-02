@@ -1550,6 +1550,7 @@ suites:
 
 
             # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
             prepare_reexec_override
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             tests.info is-reexec-in-use
@@ -1635,6 +1636,7 @@ suites:
             fi
 
             # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
             prepare_reexec_override
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             tests.info is-reexec-in-use
@@ -1717,6 +1719,7 @@ suites:
             fi
 
             # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
             prepare_reexec_override
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             tests.info is-reexec-in-use
@@ -1806,6 +1809,7 @@ suites:
             fi
 
             # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
             prepare_reexec_override
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             tests.info is-reexec-in-use
