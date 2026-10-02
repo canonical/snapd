@@ -77,12 +77,13 @@ func (s *RISCVISASuite) SetUpSuite(c *C) {
 			Value: arch.RISCV_HWPROBE_BASE_BEHAVIOR_IMA,
 		},
 		{Key: arch.RISCV_HWPROBE_KEY_IMA_EXT_0},
+		{Key: arch.RISCV_HWPROBE_KEY_IMA_EXT_1},
 	}
 
 	// OR all the required extensions' keys
 	for _, ext := range arch.RiscVExtensions {
 		if ext.Required {
-			minimumRVA23Extensions[1].Value |= ext.Key
+			minimumRVA23Extensions[ext.ProbeItem].Value |= ext.Key
 		}
 	}
 
@@ -194,6 +195,59 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 				expectedRISCVHWNumCalls: 1,
 				kernelVersion:           "6.14.0-24-generic",
 				expectedError:           "missing required RVA23 extension: Supm",
+			}, {
+				// Missing optional Zicfilp extension, introduced in 7.0 kernel,
+				// does not generate errors
+				isa:  "rva23",
+				arch: "riscv64",
+				supportedExtensions: []arch.RISCVHWProbePairs{
+					minimumRVA23Extensions[0],
+					{
+						Key:   arch.RISCV_HWPROBE_KEY_IMA_EXT_0,
+						Value: minimumRVA23Extensions[1].Value & ^arch.RISCV_HWPROBE_EXT_ZICFILP,
+					},
+					minimumRVA23Extensions[2],
+				},
+				expectedRISCVHWNumCalls: 1,
+				kernelVersion:           "7.3.0-generic",
+			}, {
+				// Missing required Zicclsm extension, retrieved via IMA_EXT_1,
+				// introduced in 7.3 kernel, generates an error when running on 7.3
+				isa:  "rva23",
+				arch: "riscv64",
+				supportedExtensions: []arch.RISCVHWProbePairs{
+					minimumRVA23Extensions[0],
+					minimumRVA23Extensions[1],
+					{
+						Key:   arch.RISCV_HWPROBE_KEY_IMA_EXT_1,
+						Value: minimumRVA23Extensions[2].Value & ^arch.RISCV_HWPROBE_EXT_ZICCLSM,
+					},
+				},
+				expectedRISCVHWNumCalls: 1,
+				kernelVersion:           "7.3.0-generic",
+				expectedError:           "missing required RVA23 extension: Zicclsm",
+			}, {
+				// Missing required Zicclsm extension does not generate an error when
+				// running on a kernel older than 7.0, as RISCV_HWPROBE_KEY_IMA_EXT_1
+				// is not probed for
+				isa:  "rva23",
+				arch: "riscv64",
+				supportedExtensions: []arch.RISCVHWProbePairs{
+					minimumRVA23Extensions[0],
+					minimumRVA23Extensions[1],
+				},
+				expectedRISCVHWNumCalls: 1,
+				kernelVersion:           "6.19.0-generic",
+			}, {
+				// An invalid kernel version (matching the Debian "epoch"
+				// pattern: digits immediately followed by ":") makes the
+				// initial VersionCompare call against "7.0" fail, before
+				// the hwprobe syscall is even attempted.
+				isa:                     "rva23",
+				arch:                    "riscv64",
+				expectedRISCVHWNumCalls: 0,
+				kernelVersion:           "1:7.0",
+				expectedError:           `error comparing kernel versions: invalid version "1:7\.0"`,
 			},
 		}
 
@@ -213,6 +267,9 @@ func (s *RISCVISASuite) TestValidateAssumesISARISCV(c *C) {
 					// Otherwise, write the requested value
 					pairs[0] = test.supportedExtensions[0]
 					pairs[1] = test.supportedExtensions[1]
+					if len(pairs) > 2 && len(test.supportedExtensions) > 2 {
+						pairs[2] = test.supportedExtensions[2]
+					}
 				}
 
 				return nil

@@ -18,6 +18,7 @@ var RISCVHWProbe = func(pairs []RISCVHWProbePairs, set *CPUSet, flags uint) (err
 const (
 	RISCV_HWPROBE_KEY_BASE_BEHAVIOR int64  = 0x3
 	RISCV_HWPROBE_KEY_IMA_EXT_0     int64  = 0x4
+	RISCV_HWPROBE_KEY_IMA_EXT_1     int64  = 0x10
 	RISCV_HWPROBE_BASE_BEHAVIOR_IMA uint64 = 0x1
 )
 
