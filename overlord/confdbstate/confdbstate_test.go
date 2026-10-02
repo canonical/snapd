@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -923,7 +924,7 @@ slots:
 	err = repo.AddAppSet(coreSet)
 	c.Assert(err, IsNil)
 
-	mockSnap := func(snapName string, isCustodian bool, hooks []string) {
+	mockSnap := func(instanceName naming.InstanceName, isCustodian bool, hooks []string) {
 		var custodianSnippet string
 		if isCustodian {
 			custodianSnippet = `    role: custodian`
@@ -944,7 +945,7 @@ plugs:
     account: %[2]s
     view: other/other
 %[3]s
-`, snapName, s.devAccID, custodianSnippet)
+`, instanceName, s.devAccID, custodianSnippet)
 
 		info := mockInstalledSnap(c, s.state, snapYaml, hooks)
 		for _, hook := range hooks {
@@ -960,11 +961,11 @@ plugs:
 		c.Assert(err, IsNil)
 
 		setupRef := &interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "setup"},
+			PlugRef: interfaces.PlugRef{Snap: instanceName, Name: "setup"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 		}
 		otherRef := &interfaces.ConnRef{
-			PlugRef: interfaces.PlugRef{Snap: snapName, Name: "other"},
+			PlugRef: interfaces.PlugRef{Snap: instanceName, Name: "other"},
 			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
 		}
 
@@ -977,14 +978,14 @@ plugs:
 	// mock custodians
 	for snap, hooks := range custodians {
 		const isCustodian = true
-		mockSnap(snap, isCustodian, hooks.toString())
+		mockSnap(naming.InstanceName(snap), isCustodian, hooks.toString())
 	}
 
 	// mock non-custodians
 	hooks := []string{"observe-view-setup", "install"}
 	for _, snap := range nonCustodians {
 		const isCustodian = false
-		mockSnap(snap, isCustodian, hooks)
+		mockSnap(naming.InstanceName(snap), isCustodian, hooks)
 	}
 }
 

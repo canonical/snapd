@@ -104,11 +104,11 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 
 		added := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {
-			if !triggered[candidate.InstanceName] {
+			if !triggered[candidate.InstanceName.String()] {
 				continue
 			}
 
-			added[candidate.InstanceName] = true
+			added[candidate.InstanceName.String()] = true
 		}
 		if len(added) == 0 {
 			return nil, nil, nil
@@ -150,7 +150,7 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTasks, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (added bool, err error) {
 		observed.prerequisites = append(observed.prerequisites, candidate)
 
-		if !triggered[candidate.InstanceName] {
+		if !triggered[candidate.InstanceName.String()] {
 			return false, nil
 		}
 
@@ -13028,7 +13028,7 @@ func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {
 
 	for _, tc := range tests {
 		c.Check(snapstate.ShouldScheduleUpdateCertDBForRefresh(
-			tc.instanceName.String(), tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
+			tc.instanceName, tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
 	}
 }
 

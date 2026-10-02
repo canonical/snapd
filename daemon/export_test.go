@@ -370,7 +370,7 @@ func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, c
 	}
 }
 
-func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
+func MockConfigstateConfigureInstalled(f func(st *state.State, name naming.InstanceName, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
 	old := configstateConfigureInstalled
 	configstateConfigureInstalled = f
 	return func() {

@@ -524,11 +524,11 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	c.Assert(task.Get("by-gadget", &flag), testutil.ErrorIs, state.ErrNoState)
 	var plug interfaces.PlugRef
 	c.Assert(task.Get("plug", &plug), IsNil)
-	c.Assert(plug.Snap, Equals, "consumer")
+	c.Assert(plug.Snap.String(), Equals, "consumer")
 	c.Assert(plug.Name, Equals, "plug")
 	var slot interfaces.SlotRef
 	c.Assert(task.Get("slot", &slot), IsNil)
-	c.Assert(slot.Snap, Equals, "producer")
+	c.Assert(slot.Snap.String(), Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
 
 	// "connect" task edge is not present
@@ -949,12 +949,12 @@ func (s *interfaceManagerSuite) TestParallelInstallConnectTask(c *C) {
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
 	c.Assert(err, IsNil)
-	c.Assert(plug.Snap, Equals, "consumer_foo")
+	c.Assert(plug.Snap.String(), Equals, "consumer_foo")
 	c.Assert(plug.Name, Equals, "plug")
 	var slot interfaces.SlotRef
 	err = task.Get("slot", &slot)
 	c.Assert(err, IsNil)
-	c.Assert(slot.Snap, Equals, "producer")
+	c.Assert(slot.Snap.String(), Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
 
 	var autoconnect bool
@@ -1752,12 +1752,12 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
 	c.Assert(err, IsNil)
-	c.Assert(plug.Snap, Equals, "consumer")
+	c.Assert(plug.Snap.String(), Equals, "consumer")
 	c.Assert(plug.Name, Equals, "plug")
 	var slot interfaces.SlotRef
 	err = task.Get("slot", &slot)
 	c.Assert(err, IsNil)
-	c.Assert(slot.Snap, Equals, "producer")
+	c.Assert(slot.Snap.String(), Equals, "producer")
 	c.Assert(slot.Name, Equals, "slot")
 
 	// verify connection attributes are present in the disconnect task
@@ -1779,7 +1779,7 @@ func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
 }
 
-func (s *interfaceManagerSuite) getConnection(c *C, plugSnap, plugName, slotSnap, slotName string) *interfaces.Connection {
+func (s *interfaceManagerSuite) getConnection(c *C, plugSnap naming.InstanceName, plugName string, slotSnap naming.InstanceName, slotName string) *interfaces.Connection {
 	conn, err := s.manager(c).Repository().Connection(&interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plugName},
 		SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slotName},
@@ -1789,7 +1789,7 @@ func (s *interfaceManagerSuite) getConnection(c *C, plugSnap, plugName, slotSnap
 	return conn
 }
 
-func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSnap, slotName string) {
+func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap naming.InstanceName, plugName string, slotSnap naming.InstanceName, slotName string) {
 	// Put two snaps in place They consumer has an plug that can be connected
 	// to slot on the producer.
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
@@ -1859,11 +1859,11 @@ func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSna
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 
 	consumerAppSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(consumerAppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(consumerAppSet.InstanceName().String(), Equals, "consumer")
 	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 
 	producerAppSet := s.secBackend.SetupCalls[1].AppSet
-	c.Check(producerAppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(producerAppSet.InstanceName().String(), Equals, "producer")
 	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 
 }
@@ -1961,7 +1961,7 @@ components:
 	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
 
 	producerAppSet := s.secBackend.SetupCalls[2].AppSet
-	c.Check(producerAppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(producerAppSet.InstanceName().String(), Equals, "producer")
 	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "producer+comp.hook.install",
@@ -1970,7 +1970,7 @@ components:
 	})
 
 	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
-	c.Check(consumerAppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(consumerAppSet.InstanceName().String(), Equals, "consumer")
 	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, []snap.Runnable{
 		{
 			CommandName: "consumer+comp.hook.install",
@@ -2222,7 +2222,7 @@ func (s *interfaceManagerSuite) TestStaleConnectionsNotRemovedIfRemainingProduce
 	s.testStaleConnectionsNotRemovedIfRemainingSnapBroken(c, "producer")
 }
 
-func (s *interfaceManagerSuite) testForget(c *C, plugSnap, plugName, slotSnap, slotName string) {
+func (s *interfaceManagerSuite) testForget(c *C, plugSnap naming.InstanceName, plugName string, slotSnap naming.InstanceName, slotName string) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	s.MockSnapDecl(c, "consumer", "same-publisher", nil)
 	s.mockSnap(c, consumerYaml)
@@ -3740,8 +3740,8 @@ slots:
 
 	// regenerateAllSecurityProfiles calls the first one
 	c.Assert(secBackend.SetupManyCalls[0].AppSets, HasLen, 2)
-	c.Check(secBackend.SetupManyCalls[0].AppSets[0].InstanceName(), Equals, naming.InstanceName("consumer"))
-	c.Check(secBackend.SetupManyCalls[0].AppSets[1].InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(secBackend.SetupManyCalls[0].AppSets[0].InstanceName().String(), Equals, "consumer")
+	c.Check(secBackend.SetupManyCalls[0].AppSets[1].InstanceName().String(), Equals, "producer")
 
 	// The prepare phase now sets up the individual snaps that declare
 	// prepare-{plug,slot}- hooks before those hooks can run.
@@ -3756,8 +3756,8 @@ slots:
 	// doSetupProfiles for the producer, and here the important thing is that
 	// setup-profiles marks both producer and consumer for setting up
 	c.Assert(secBackend.SetupManyCalls[4].AppSets, HasLen, 2)
-	c.Check(secBackend.SetupManyCalls[4].AppSets[0].InstanceName(), Equals, naming.InstanceName("consumer"))
-	c.Check(secBackend.SetupManyCalls[4].AppSets[1].InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(secBackend.SetupManyCalls[4].AppSets[0].InstanceName().String(), Equals, "consumer")
+	c.Check(secBackend.SetupManyCalls[4].AppSets[1].InstanceName().String(), Equals, "producer")
 }
 
 // The auto-connect task will check snap declarations providing the
@@ -4689,7 +4689,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 
 	// Ensure that we have slots on the OS snap.
 	repo := mgr.Repository()
-	slots := repo.Slots(snapInfo.InstanceName().String())
+	slots := repo.Slots(snapInfo.InstanceName())
 	// NOTE: This is not an exact test as it duplicates functionality elsewhere
 	// and is was a pain to update each time. This is correctly handled by the
 	// implicit slot tests in snap/implicit_test.go
@@ -4708,9 +4708,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 	// consumer is set up twice (prepare and main phase), producer once
 	c.Assert(s.secBackend.SetupCalls, HasLen, 3)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
-	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName().String(), Equals, "producer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
@@ -4729,9 +4729,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityReloadsConnectionsWhenInv
 	// producer is set up twice (prepare and main phase), consumer once
 	c.Assert(s.secBackend.SetupCalls, HasLen, 3)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName().String(), Equals, "consumer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
@@ -4816,7 +4816,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// The snap was setup with DevModeConfinement
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("snap"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "snap")
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{DevMode: true, KernelSnap: "krnl"})
 }
 
@@ -4913,10 +4913,10 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	// The sample snap was setup, with the correct new revision.
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName(newSnapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, newSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, newSnapInfo.Revision)
 	// The OS snap was setup (because it was affected).
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName(coreSnapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, coreSnapInfo.Revision)
 }
 
@@ -4952,7 +4952,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOnInstall(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName(installSnapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, installSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, installSnapInfo.Revision)
 }
 
@@ -4994,7 +4994,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallSnapAndComponents(c *C) 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 
 	appSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(appSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// the snap defines another component, comp3. note that it is not listed
@@ -5054,7 +5054,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallSnapAndComponentsPreexis
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 
 	appSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(appSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// comp3 is preexisting component, so it should be listed here, even though
@@ -5113,7 +5113,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallComponent(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 
 	appSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(appSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// the snap defines another component, comp2. note that it is not listed
@@ -5190,7 +5190,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesInstallComponentSnapHasPreexist
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 
 	appSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(appSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// the snap defines another component, comp2. note that it is not listed
@@ -5248,7 +5248,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUpdateSnapWithComponents(c *C) 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 
 	appSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(appSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(appSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(appSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// the snap defines another component, comp2. note that it is not listed
@@ -5345,11 +5345,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 
 	firstAppSet := s.secBackend.SetupCalls[0].AppSet
-	c.Check(firstAppSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(firstAppSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(firstAppSet.Info().Revision, Equals, snapInfo.Revision)
 
 	secondAppSet := s.secBackend.SetupCalls[1].AppSet
-	c.Check(secondAppSet.InstanceName(), Equals, naming.InstanceName(coreSnapInfo.InstanceName()))
+	c.Check(secondAppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
 	c.Check(secondAppSet.Info().Revision, Equals, coreSnapInfo.Revision)
 
 	// the snap defines another component, comp2. note that it is not listed
@@ -5520,11 +5520,11 @@ func (s *interfaceManagerSuite) TestAutoConnectSetupSecurityForConnectedSlots(c 
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 
 	// The sample snap was setup, with the correct new revision:
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snapInfo.Revision)
 
 	// The OS snap was setup (because its connected to sample snap).
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName(coreSnapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, coreSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, coreSnapInfo.Revision)
 }
 
@@ -5741,7 +5741,7 @@ slots:
 
 	// Security of the related snap was configured
 	c.Check(s.secBackend.SetupCalls, HasLen, 1)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "producer")
 
 	// Connection state was left intact
 	var conns map[string]any
@@ -5833,8 +5833,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "consumer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
@@ -5882,8 +5882,8 @@ func (s *interfaceManagerSuite) TestConnectWithComponentsSetsUpSecurity(c *C) {
 	producerAppSet := s.secBackend.SetupCalls[0].AppSet
 	consumerAppSet := s.secBackend.SetupCalls[1].AppSet
 
-	c.Check(producerAppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-	c.Check(consumerAppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(producerAppSet.InstanceName().String(), Equals, "producer")
+	c.Check(consumerAppSet.InstanceName().String(), Equals, "consumer")
 
 	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
@@ -5972,8 +5972,8 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "producer")
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
@@ -6419,8 +6419,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(err, IsNil)
 
 	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: siC.InstanceName().String(), Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: siP.InstanceName().String(), Name: "slot"},
+		PlugRef: interfaces.PlugRef{Snap: siC.InstanceName(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: siP.InstanceName(), Name: "slot"},
 	}
 	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
@@ -6911,7 +6911,7 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	// setup the security of the snap we had in the state.
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName(snapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, snapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 
@@ -6972,7 +6972,7 @@ hooks:
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 	c.Assert(change.Err(), IsNil)
 	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName(producerInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, producerInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, updatedInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[0].SetupContext, DeepEquals, interfaces.SetupContext{
@@ -7017,8 +7017,8 @@ plugs:
 	mgr := s.manager(c)
 	repo := mgr.Repository()
 	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: oldConsumerInfo.InstanceName().String(), Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: producerInfo.InstanceName().String(), Name: "slot"},
+		PlugRef: interfaces.PlugRef{Snap: oldConsumerInfo.InstanceName(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: producerInfo.InstanceName(), Name: "slot"},
 	}
 	_, err := repo.Connection(connRef)
 	c.Assert(err, IsNil)
@@ -7098,8 +7098,8 @@ plugs:
 	mgr := s.manager(c)
 	repo := mgr.Repository()
 	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: oldConsumerInfo.InstanceName().String(), Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: producerInfo.InstanceName().String(), Name: "slot"},
+		PlugRef: interfaces.PlugRef{Snap: oldConsumerInfo.InstanceName(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: producerInfo.InstanceName(), Name: "slot"},
 	}
 	conn, err := repo.Connection(connRef)
 	c.Assert(err, IsNil)
@@ -7210,11 +7210,11 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefreshClassicToStrictUse
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
 
 	// Explicitly assert Classic is false for the new revision.
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName(oldSnapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, snap.R(newRev))
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName(oldSnapInfo.InstanceName()))
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, oldSnapInfo.InstanceName())
 	c.Check(s.secBackend.SetupCalls[1].AppSet.Info().Revision, Equals, oldSnapInfo.Revision)
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{Classic: true, KernelSnap: "krnl"})
 }
@@ -7485,7 +7485,7 @@ type: snapd
 	})
 }
 
-func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot string, delayedSetupProfiles bool) *state.Change {
+func makeAutoConnectChange(st *state.State, plugSnap naming.InstanceName, plug string, slotSnap naming.InstanceName, slot string, delayedSetupProfiles bool) *state.Change {
 	chg := st.NewChange("connect...", "...")
 
 	t := st.NewTask("connect", "other connect task")
@@ -7499,14 +7499,14 @@ func makeAutoConnectChange(st *state.State, plugSnap, plug, slotSnap, slot strin
 
 	// two fake tasks for connect-plug-/slot- hooks
 	hs1 := hookstate.HookSetup{
-		Snap:     slotSnap,
+		Snap:     slotSnap.String(),
 		Optional: true,
 		Hook:     "connect-slot-" + slot,
 	}
 	ht1 := hookstate.HookTask(st, "connect-slot hook", &hs1, nil)
 	ht1.WaitFor(t)
 	hs2 := hookstate.HookSetup{
-		Snap:     plugSnap,
+		Snap:     plugSnap.String(),
 		Optional: true,
 		Hook:     "connect-plug-" + plug,
 	}
@@ -7597,16 +7597,16 @@ func (s *interfaceManagerSuite) TestUndoConnect(c *C) {
 	c.Check(notConnected, NotNil)
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
-	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[0].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 	c.Check(s.secBackend.SetupCalls[1].AppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 
 	// by undo
-	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName(), Equals, naming.InstanceName("producer"))
-	c.Check(s.secBackend.SetupCalls[3].AppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(s.secBackend.SetupCalls[2].AppSet.InstanceName().String(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[3].AppSet.InstanceName().String(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[2].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[3].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[2].AppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
@@ -7659,11 +7659,11 @@ func (s *interfaceManagerSuite) TestUndoConnectUndesired(c *C) {
 	c.Assert(s.secBackend.SetupCalls, HasLen, 4)
 
 	producerAppSet := s.secBackend.SetupCalls[2].AppSet
-	c.Check(producerAppSet.InstanceName(), Equals, naming.InstanceName("producer"))
+	c.Check(producerAppSet.InstanceName().String(), Equals, "producer")
 	c.Check(producerAppSet.Runnables(), testutil.DeepUnsortedMatches, producerRunnablesFullSet)
 
 	consumerAppSet := s.secBackend.SetupCalls[3].AppSet
-	c.Check(consumerAppSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+	c.Check(consumerAppSet.InstanceName().String(), Equals, "consumer")
 	c.Check(consumerAppSet.Runnables(), testutil.DeepUnsortedMatches, consumerRunnablesFullSet)
 }
 
@@ -8587,7 +8587,7 @@ func (s *interfaceManagerSuite) TestSnapsWithSecurityProfilesMiddleOfFirstBoot(c
 	// snap1 link-snap waiting on snap0 setup-profiles didn't confuse
 	// snapsWithSecurityProfiles
 	c.Check(infos, HasLen, 1)
-	c.Check(infos[0].InstanceName(), Equals, naming.InstanceName("snap0"))
+	c.Check(infos[0].InstanceName().String(), Equals, "snap0")
 }
 
 func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
@@ -8804,12 +8804,12 @@ func checkAutoConnectGadgetTasks(c *C, tasks []*state.Task) {
 			var plug interfaces.PlugRef
 			err = t.Get("plug", &plug)
 			c.Assert(err, IsNil)
-			c.Assert(plug.Snap, Equals, "consumer")
+			c.Assert(plug.Snap.String(), Equals, "consumer")
 			c.Assert(plug.Name, Equals, "plug")
 			var slot interfaces.SlotRef
 			err = t.Get("slot", &slot)
 			c.Assert(err, IsNil)
-			c.Assert(slot.Snap, Equals, "producer")
+			c.Assert(slot.Snap.String(), Equals, "producer")
 			c.Assert(slot.Name, Equals, "slot")
 		}
 	}
@@ -11296,8 +11296,11 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixNoSnaps(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "interface"})
 	mgr := s.manager(c)
 	scenarios := []struct {
-		plugSnapName, plugName, slotSnapName, slotName string
-		errMsg                                         string
+		plugSnapName naming.InstanceName
+		plugName     string
+		slotSnapName naming.InstanceName
+		slotName     string
+		errMsg       string
 	}{
 		// Case 0 (INVALID)
 		// Nothing is provided
@@ -11377,8 +11380,11 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustSnapdSnap(c *C) {
 	c.Assert(snaptest.RenameSlot(s.snapdSnap.Info(), "slot", "unused"), IsNil)
 	c.Assert(repo.AddAppSet(s.snapdSnap), IsNil)
 	scenarios := []struct {
-		plugSnapName, plugName, slotSnapName, slotName string
-		errMsg                                         string
+		plugSnapName naming.InstanceName
+		plugName     string
+		slotSnapName naming.InstanceName
+		slotName     string
+		errMsg       string
 	}{
 		// Case 0 (INVALID)
 		// Nothing is provided
@@ -11457,8 +11463,11 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixJustCoreSnap(c *C) {
 	c.Assert(snaptest.RenameSlot(s.coreSnap.Info(), "slot", "unused"), IsNil)
 	c.Assert(repo.AddAppSet(s.coreSnap), IsNil)
 	scenarios := []struct {
-		plugSnapName, plugName, slotSnapName, slotName string
-		errMsg                                         string
+		plugSnapName naming.InstanceName
+		plugName     string
+		slotSnapName naming.InstanceName
+		slotName     string
+		errMsg       string
 	}{
 		// Case 0 (INVALID)
 		// Nothing is provided
@@ -11540,8 +11549,11 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixDisconnectedSnaps(c *
 	c.Assert(repo.AddAppSet(s.consumer), IsNil)
 	c.Assert(repo.AddAppSet(s.producer), IsNil)
 	scenarios := []struct {
-		plugSnapName, plugName, slotSnapName, slotName string
-		errMsg                                         string
+		plugSnapName naming.InstanceName
+		plugName     string
+		slotSnapName naming.InstanceName
+		slotName     string
+		errMsg       string
 	}{
 		// Case 0 (INVALID)
 		// Nothing is provided
@@ -11633,8 +11645,11 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixTypical(c *C) {
 	c.Assert(err, IsNil)
 
 	scenarios := []struct {
-		plugSnapName, plugName, slotSnapName, slotName string
-		errMsg                                         string
+		plugSnapName naming.InstanceName
+		plugName     string
+		slotSnapName naming.InstanceName
+		slotName     string
+		errMsg       string
 	}{
 		// Case 0 (INVALID)
 		// Nothing is provided
@@ -11925,19 +11940,19 @@ version: 1.0
 	c.Assert(calls, HasLen, 4)
 
 	// we run setup-profiles for the slot first
-	c.Assert(calls[0].AppSet.InstanceName(), Equals, naming.InstanceName("producer2"))
+	c.Assert(calls[0].AppSet.InstanceName().String(), Equals, "producer2")
 	c.Assert(calls[0].AppSet.Info().Revision, Equals, snap.R(2))
 
 	// the connected plug is regenerated (but revision as we haven't setup its new profile yet)
-	c.Assert(calls[1].AppSet.InstanceName(), Equals, naming.InstanceName("consumer2"))
+	c.Assert(calls[1].AppSet.InstanceName().String(), Equals, "consumer2")
 	c.Assert(calls[1].AppSet.Info().Revision, Equals, snap.R(1))
 
 	// then we run setup-profiles for the plug
-	c.Assert(calls[2].AppSet.InstanceName(), Equals, naming.InstanceName("consumer2"))
+	c.Assert(calls[2].AppSet.InstanceName().String(), Equals, "consumer2")
 	c.Assert(calls[2].AppSet.Info().Revision, Equals, snap.R(2))
 
 	// the connected slot is also setup but we use the new revision
-	c.Assert(calls[3].AppSet.InstanceName(), Equals, naming.InstanceName("producer2"))
+	c.Assert(calls[3].AppSet.InstanceName().String(), Equals, "producer2")
 	c.Assert(calls[3].AppSet.Info().Revision, Equals, snap.R(2))
 	c.Assert(calls[3].AppSet.Components(), HasLen, 1)
 	c.Assert(calls[3].AppSet.Components()[0].Revision, Equals, snap.R(2))
@@ -13204,7 +13219,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsApplyOnly(c *C) {
 			},
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
-			c.Check(appSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+			c.Check(appSet.InstanceName().String(), Equals, "consumer")
 			c.Check(effs, DeepEquals, []interfaces.DelayedSideEffect{
 				{
 					ID:          interfaces.DelayedEffect("effect"),
@@ -13398,7 +13413,7 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
 			if opts.DelayEffects {
-				c.Check(appSet.InstanceName(), Equals, naming.InstanceName("consumer"))
+				c.Check(appSet.InstanceName().String(), Equals, "consumer")
 				c.Check(effs, DeepEquals, []interfaces.DelayedSideEffect{
 					{
 						ID:          interfaces.DelayedEffect("effect"),

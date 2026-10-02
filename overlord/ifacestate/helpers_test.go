@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -108,7 +109,7 @@ func (s *helpersSuite) TestIdentityMapper(c *C) {
 	c.Assert(m.RemapSnapToState("example"), Equals, "example")
 	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
 
-	c.Assert(m.SystemSnapName(), Equals, "unknown")
+	c.Assert(m.SystemSnapName().String(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
@@ -127,7 +128,7 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
 
-	c.Assert(m.SystemSnapName(), Equals, "core")
+	c.Assert(m.SystemSnapName(), Equals, naming.Core)
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -151,7 +152,7 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
 
-	c.Assert(m.SystemSnapName(), Equals, "snapd")
+	c.Assert(m.SystemSnapName(), Equals, naming.Snapd)
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
@@ -169,8 +170,8 @@ func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
-func (m *caseMapper) SystemSnapName() string {
-	return "unknown"
+func (m *caseMapper) SystemSnapName() naming.InstanceName {
+	return naming.NewInstanceName("unknown", "")
 }
 
 func (s *helpersSuite) TestMappingFunctions(c *C) {
@@ -180,7 +181,7 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
 	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
 	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
-	c.Assert(ifacestate.SystemSnapName(), Equals, "unknown")
+	c.Assert(ifacestate.SystemSnapName().String(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {

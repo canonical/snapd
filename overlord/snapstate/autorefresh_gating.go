@@ -678,14 +678,14 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		// by snap updates.
 		if up.SnapType != snap.TypeSnapd && up.SnapName() != "core" {
 			for _, slotInfo := range up.Slots {
-				conns, err := repo.Connected(up.InstanceName().String(), slotInfo.Name)
+				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
 				if err != nil {
 					return nil, err
 				}
 				for _, cref := range conns {
 					// affected only if it wasn't optimized out above
-					if snapsWithHook[cref.PlugRef.Snap] != nil {
-						addAffected(cref.PlugRef.Snap, up.InstanceName().String(), true, false)
+					if snapsWithHook[cref.PlugRef.Snap.String()] != nil {
+						addAffected(cref.PlugRef.Snap.String(), up.InstanceName().String(), true, false)
 					}
 				}
 			}
@@ -704,13 +704,13 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 				if !si.AffectsPlugOnRefresh {
 					continue
 				}
-				conns, err := repo.Connected(up.InstanceName().String(), slotInfo.Name)
+				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
 				if err != nil {
 					return nil, err
 				}
 				for _, cref := range conns {
-					if snapsWithHook[cref.PlugRef.Snap] != nil {
-						addAffected(cref.PlugRef.Snap, up.InstanceName().String(), true, false)
+					if snapsWithHook[cref.PlugRef.Snap.String()] != nil {
+						addAffected(cref.PlugRef.Snap.String(), up.InstanceName().String(), true, false)
 					}
 				}
 			}

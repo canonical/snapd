@@ -126,7 +126,7 @@ func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string
 		if err != nil {
 			return false, err
 		}
-		if connRef.PlugRef.Snap == snapName {
+		if connRef.PlugRef.Snap.String() == snapName {
 			return true, nil
 		}
 	}

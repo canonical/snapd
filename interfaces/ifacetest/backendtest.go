@@ -287,7 +287,7 @@ func (s *BackendSuite) UpdateSnapWithComponents(c *C, oldSnapInfo *snap.Info, op
 	appSet, err := interfaces.NewSnapAppSet(snapInfo, componentInfos)
 	c.Assert(err, IsNil)
 
-	s.Repo.RemoveSnap(oldSnapInfo.InstanceName().String())
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
 
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
@@ -317,7 +317,7 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 	c.Assert(err, IsNil)
 
 	c.Assert(newSnapInfo.InstanceName(), Equals, oldSnapInfo.InstanceName())
-	s.Repo.RemoveSnap(oldSnapInfo.InstanceName().String())
+	s.Repo.RemoveSnap(oldSnapInfo.InstanceName())
 
 	err = s.Repo.AddAppSet(appSet)
 	c.Assert(err, IsNil)
@@ -331,5 +331,5 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
 	err := s.Backend.Remove(snapInfo.InstanceName().String())
 	c.Assert(err, IsNil)
-	s.Repo.RemoveSnap(snapInfo.InstanceName().String())
+	s.Repo.RemoveSnap(snapInfo.InstanceName())
 }

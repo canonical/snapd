@@ -26,13 +26,14 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type SortingSuite struct{}
 
 var _ = Suite(&SortingSuite{})
 
-func newConnRef(plugSnap, plug, slotSnap, slot string) *interfaces.ConnRef {
+func newConnRef(plugSnap naming.InstanceName, plug string, slotSnap naming.InstanceName, slot string) *interfaces.ConnRef {
 	return &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: plugSnap, Name: plug}, SlotRef: interfaces.SlotRef{Snap: slotSnap, Name: slot}}
 }
 
@@ -71,7 +72,7 @@ func (s *SortingSuite) TestByConnRef(c *C) {
 	})
 }
 
-func newSlotRef(snap, name string) *interfaces.SlotRef {
+func newSlotRef(snap naming.InstanceName, name string) *interfaces.SlotRef {
 	return &interfaces.SlotRef{Snap: snap, Name: name}
 }
 
@@ -110,7 +111,7 @@ func (b byPlugRef) Less(i, j int) bool {
 	return b[i].SortsBefore(*b[j])
 }
 
-func newPlugRef(snap, name string) *interfaces.PlugRef {
+func newPlugRef(snap naming.InstanceName, name string) *interfaces.PlugRef {
 	return &interfaces.PlugRef{Snap: snap, Name: name}
 }
 
