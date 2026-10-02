@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
 )
 
 // SnapOp describes an expected snap operation and its resulting state.
@@ -76,9 +77,14 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 		}
 		mountSnap = tasks.Select(sn.WithKind("mount-snap"))
 	case "refresh":
-		downloadSnap = tasks.Select(sn.WithKind("download-snap").Optional())
-		prepareSnap = tasks.Select(sn.WithKind("prepare-snap").Optional())
-		validateSnap = tasks.Select(sn.WithKind("validate-snap").Optional())
+		switch op.Source {
+		case "store":
+			downloadSnap = tasks.Select(sn.WithKind("download-snap").Optional())
+			prepareSnap = tasks.Select(sn.WithKind("prepare-snap").Optional())
+			validateSnap = tasks.Select(sn.WithKind("validate-snap").Optional())
+		case "path":
+			prepareSnap = tasks.Select(sn.WithKind("prepare-snap"))
+		}
 		mountSnap = tasks.Select(sn.WithKind("mount-snap").Optional())
 	}
 
@@ -239,7 +245,7 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 
 	for _, component := range components {
 		cq := sn.WithComponent(component.SideInfo.Component.ComponentName)
-		if err := assertComponentTaskOrder(tasks, cq); err != nil {
+		if err := assertComponentTaskOrder(tasks, op, cq, component.SideInfo); err != nil {
 			return err
 		}
 	}
@@ -287,16 +293,50 @@ func assertRevisionCleanupTaskOrder(tasks Selection, sn SnapQuery, before, after
 	return nil
 }
 
-func assertComponentTaskOrder(tasks Selection, component SnapQuery) error {
-	downloadComponent := tasks.Select(component.WithKind("download-component").Optional())
-	prepareComponent := tasks.Select(component.WithKind("prepare-component").Optional())
-	validateComponent := tasks.Select(component.WithKind("validate-component").Optional())
-	mountComponent := tasks.Select(component.WithKind("mount-component").Optional())
-	preRefreshComponentHook := tasks.Select(component.WithComponentHook("pre-refresh").Optional())
-	unlinkCurrentComponent := tasks.Select(component.WithKind("unlink-current-component").Optional())
-	linkComponent := tasks.Select(component.WithKind("link-component").Optional())
-	installComponentHook := tasks.Select(component.WithComponentHook("install").Optional())
-	postRefreshComponentHook := tasks.Select(component.WithComponentHook("post-refresh").Optional())
+// assertComponentTaskOrder checks the task order for one component. Tasks that
+// depend on the state before the operation are optional.
+func assertComponentTaskOrder(tasks Selection, op SnapOp, component SnapQuery, csi *snap.ComponentSideInfo) error {
+	validateComponent := Missing()
+	if csi.Revision.Store() {
+		validateComponent = tasks.Select(component.WithKind("validate-component"))
+	}
+
+	downloadComponent := Missing()
+	prepareComponent := Missing()
+	mountComponent := Missing()
+	preRefreshComponentHook := Missing()
+	unlinkCurrentComponent := Missing()
+	linkComponent := Missing()
+	installComponentHook := Missing()
+	postRefreshComponentHook := Missing()
+	switch op.Kind {
+	case "install":
+		switch op.Source {
+		case "store":
+			downloadComponent = tasks.Select(component.WithKind("download-component"))
+		case "path":
+			prepareComponent = tasks.Select(component.WithKind("prepare-component"))
+		}
+		mountComponent = tasks.Select(component.WithKind("mount-component"))
+		linkComponent = tasks.Select(component.WithKind("link-component"))
+		installComponentHook = tasks.Select(component.WithComponentHook("install"))
+	case "refresh":
+		switch op.Source {
+		case "store":
+			// a store refresh can reuse a component revision that is already
+			// present
+			downloadComponent = tasks.Select(component.WithKind("download-component").Optional())
+			prepareComponent = tasks.Select(component.WithKind("prepare-component").Optional())
+		case "path":
+			prepareComponent = tasks.Select(component.WithKind("prepare-component"))
+		}
+		mountComponent = tasks.Select(component.WithKind("mount-component").Optional())
+		preRefreshComponentHook = tasks.Select(component.WithComponentHook("pre-refresh").Optional())
+		unlinkCurrentComponent = tasks.Select(component.WithKind("unlink-current-component").Optional())
+		linkComponent = tasks.Select(component.WithKind("link-component").Optional())
+		installComponentHook = tasks.Select(component.WithComponentHook("install").Optional())
+		postRefreshComponentHook = tasks.Select(component.WithComponentHook("post-refresh").Optional())
+	}
 
 	return AssertOrdered(
 		Union(downloadComponent, prepareComponent),
