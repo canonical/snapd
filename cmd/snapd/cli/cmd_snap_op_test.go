@@ -693,6 +693,20 @@ func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallIgnoreInstanceErrors(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo_instance")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+			"action":                 "install",
+			"ignore-instance-errors": true,
+			"transaction":            string(client.TransactionPerSnap),
+		})
+	}
+	s.RedirectClientToTestServer(s.srv.handle)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-instance-errors", "foo_instance"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
 	// PATH restored by test tear down
 	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
@@ -1693,6 +1707,12 @@ func (s *SnapOpSuite) TestInstallPathManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--beta", "one.snap", "two.snap"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify channel flags`)
+}
+
+func (s *SnapOpSuite) TestInstallManyIgnoreInstanceErrors(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-instance-errors", "one_foo", "two_bar"})
+	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring parallel instance errors`)
 }
 
 func (s *SnapOpSuite) TestInstallPathManyPrefer(c *check.C) {

@@ -1234,6 +1234,27 @@ func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
+func (s *sideloadSuite) TestInstallPathIgnoreInstanceErrors(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"ignore-instance-errors\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	flags := snapstate.Flags{IgnoreInstanceErrors: true, RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap}
+	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+}
+
 func (s *sideloadSuite) TestInstallPathSystemRestartImmediate(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +

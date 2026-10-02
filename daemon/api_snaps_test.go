@@ -478,13 +478,14 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
 		for weird, v := range map[string]string{
-			"channel":      `"beta"`,
-			"revision":     `"1"`,
-			"devmode":      "true",
-			"jailmode":     "true",
-			"cohort-key":   `"what"`,
-			"leave-cohort": "true",
-			"prefer":       "true",
+			"channel":                `"beta"`,
+			"revision":               `"1"`,
+			"devmode":                "true",
+			"jailmode":               "true",
+			"cohort-key":             `"what"`,
+			"leave-cohort":           "true",
+			"prefer":                 "true",
+			"ignore-instance-errors": "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -2515,6 +2516,25 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(res.Summary, check.Equals, `Install "some-snap" snap`)
+}
+
+func (s *snapsSuite) TestInstallIgnoreInstanceErrors(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		c.Check(opts.Flags.IgnoreInstanceErrors, check.Equals, true)
+		task := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(st *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"some-snap"}, IgnoreInstanceErrors: true}
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
