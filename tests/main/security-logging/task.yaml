@@ -132,12 +132,10 @@ execute: |
     journal_match "security logger disabled" -u snapd.service
     journal_match "security logger enabled" -u snapd.service
 
-    echo "Checking that restart produces disable/enable audit events"
+    echo "Checking that restart produces disable, enable, and startup audit events"
+    boot_id=$(cat /proc/sys/kernel/random/boot_id)
     security_event_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
     security_event_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
-
-    echo "Checking that snapd startup produces a sys_startup_snapd audit event"
-    boot_id=$(cat /proc/sys/kernel/random/boot_id)
     security_event_match '"level":"INFO","description":"Snapd startup","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_startup_snapd","snapd_version":"[^"]+","boot_id":"'"$boot_id"'"'
 
     echo "Checking that installing a new snapd snap revision produces a sys_restart_snapd audit event"
