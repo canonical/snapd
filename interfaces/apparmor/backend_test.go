@@ -731,8 +731,8 @@ func (s *backendSuite) TestSetupManyProfilesAreAlwaysLoaded(c *C) {
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName naming.InstanceName) interfaces.ConfinementOptions { return opts },
-			func(snapName naming.InstanceName) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -771,8 +771,8 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName naming.InstanceName) interfaces.ConfinementOptions { return opts },
-			func(snapName naming.InstanceName) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -824,8 +824,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 		// mock apparmor_parser again with a failing one (and restore immediately for the next iteration of the test)
 		s.loadProfilesReturn = errors.New("apparmor_parser crash")
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName naming.InstanceName) interfaces.ConfinementOptions { return opts },
-			func(snapName naming.InstanceName) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -875,8 +875,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 			return nil
 		})
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName naming.InstanceName) interfaces.ConfinementOptions { return opts },
-			func(snapName naming.InstanceName) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -929,8 +929,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 			return nil
 		})
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName naming.InstanceName) interfaces.ConfinementOptions { return opts },
-			func(snapName naming.InstanceName) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -3322,8 +3322,8 @@ func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName naming.InstanceName) interfaces.ConfinementOptions { return opts },
-			func(snapName naming.InstanceName) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
