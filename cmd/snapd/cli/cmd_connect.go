@@ -73,11 +73,11 @@ func (x *cmdConnect) Execute(args []string) error {
 	// snap connect <plug> <snap>[:<slot>]
 	if x.Positionals.PlugSpec.Snap != "" && x.Positionals.PlugSpec.Name == "" {
 		// Move the value of .Snap to .Name and keep .Snap empty
-		x.Positionals.PlugSpec.Name = x.Positionals.PlugSpec.Snap
+		x.Positionals.PlugSpec.Name = x.Positionals.PlugSpec.Snap.String()
 		x.Positionals.PlugSpec.Snap = ""
 	}
 
-	id, err := x.client.Connect(x.Positionals.PlugSpec.Snap, x.Positionals.PlugSpec.Name, x.Positionals.SlotSpec.Snap, x.Positionals.SlotSpec.Name)
+	id, err := x.client.Connect(x.Positionals.PlugSpec.Snap.String(), x.Positionals.PlugSpec.Name, x.Positionals.SlotSpec.Snap.String(), x.Positionals.SlotSpec.Name)
 	if err != nil {
 		return err
 	}

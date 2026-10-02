@@ -439,6 +439,22 @@ func (s *deviceMgmtMgrSuite) TestEnsureOK(c *C) {
 	c.Check(dispatch.WaitTasks(), DeepEquals, []*state.Task{exchange})
 }
 
+func (s *deviceMgmtMgrSuite) TestEnsureDoesNotScheduleExchangeBeforeSeeding(c *C) {
+	for _, seeded := range []any{nil, false} {
+		s.st.Lock()
+		s.st.Set("seeded", seeded)
+		s.st.Unlock()
+
+		err := s.mgr.Ensure()
+		c.Assert(err, IsNil)
+
+		s.st.Lock()
+		changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+		s.st.Unlock()
+		c.Check(changes, HasLen, 0)
+	}
+}
+
 func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

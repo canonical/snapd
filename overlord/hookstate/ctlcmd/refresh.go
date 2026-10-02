@@ -397,7 +397,7 @@ func hasSnapRefreshControlInterface(st *state.State, snapName string) (bool, err
 		if err != nil {
 			return false, fmt.Errorf("internal error: %s", err)
 		}
-		if connRef.PlugRef.Snap == snapName {
+		if connRef.PlugRef.Snap.String() == snapName {
 			return true, nil
 		}
 	}
