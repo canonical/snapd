@@ -64,7 +64,7 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, instanceName na
 	notified := false
 	notInhibited := func(ctx context.Context) (err error) {
 		// Get updated "current" snap info.
-		info, app, err = getInfoAndApp(snapName, appName, snap.R(0))
+		info, app, err = getInfoAndApp(instanceName, appName, snap.R(0))
 		// We might have started without a hint lock file and we have an
 		// ongoing refresh which removed current symlink.
 		if errors.As(err, &snap.NotFoundError{}) {
@@ -82,8 +82,8 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, instanceName na
 			return false, errInhibitedForDisable
 		}
 		if !notified {
-			flow = newInhibitionFlow(cli, snapName)
-			info, app, err = getInfoAndApp(snapName, appName, inhibitInfo.Previous)
+			flow = newInhibitionFlow(cli, instanceName)
+			info, app, err = getInfoAndApp(instanceName, appName, inhibitInfo.Previous)
 			if err != nil {
 				return false, err
 			}
@@ -107,7 +107,7 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, instanceName na
 
 	// If the snap is inhibited from being used then postpone running it until
 	// that condition passes.
-	hintFlock, err = runinhibitWaitWhileInhibited(ctx, snapName, notInhibited, inhibited, 500*time.Millisecond)
+	hintFlock, err = runinhibitWaitWhileInhibited(ctx, instanceName, notInhibited, inhibited, 500*time.Millisecond)
 	if err != nil {
 		// It is fine to return an error here without finishing the notification
 		// flow because we either failed because of it or before it, so it
@@ -133,12 +133,12 @@ func getInfoAndApp(instanceName naming.InstanceName, appName string, rev snap.Re
 	info, err := getSnapInfo(instanceName, rev)
 	// Differentiate between snap not existing and missing current symlink.
 	if errors.As(err, &snap.NotFoundError{}) {
-		exists, isDir, dirErr := osutil.DirExists(filepath.Join(dirs.SnapMountDir, snapName))
+		exists, isDir, dirErr := osutil.DirExists(filepath.Join(dirs.SnapMountDir, instanceName.String()))
 		if dirErr != nil {
 			return nil, nil, dirErr
 		}
 		if !exists || !isDir {
-			return nil, nil, fmt.Errorf(i18n.G("snap %q is not installed"), snapName)
+			return nil, nil, fmt.Errorf(i18n.G("snap %q is not installed"), instanceName)
 		}
 	}
 	if err != nil {
@@ -147,7 +147,7 @@ func getInfoAndApp(instanceName naming.InstanceName, appName string, rev snap.Re
 
 	app, exists := info.Apps[appName]
 	if !exists {
-		return nil, nil, fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
+		return nil, nil, fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, instanceName)
 	}
 
 	return info, app, nil
@@ -163,7 +163,7 @@ var newInhibitionFlow = func(cli *client.Client, instanceName naming.InstanceNam
 }
 
 type noticesFlow struct {
-	instanceName string
+	instanceName naming.InstanceName
 
 	cli *client.Client
 }
@@ -171,7 +171,7 @@ type noticesFlow struct {
 func (gf *noticesFlow) StartInhibitionNotification(ctx context.Context) error {
 	opts := client.NotifyOptions{
 		Type: client.SnapRunInhibitNotice,
-		Key:  gf.instanceName,
+		Key:  gf.instanceName.String(),
 	}
 	_, err := gf.cli.Notify(&opts)
 	if err != nil {

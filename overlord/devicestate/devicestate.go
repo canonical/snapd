@@ -792,7 +792,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 
 	return snapstatePathUpdateGoal(snapstate.PathSnap{
 		InstanceName: sn.name,
-		Path:         snap.MountFile(sn.name, constraints.Revision),
+		Path:         snap.MountFile(naming.InstanceName(sn.name), constraints.Revision),
 		SideInfo:     &sideInfo,
 		Components:   comps,
 		RevOpts: snapstate.RevisionOptions{

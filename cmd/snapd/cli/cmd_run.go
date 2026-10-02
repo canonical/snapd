@@ -591,7 +591,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// Remove hint check takes precedence because we want to exit early
 	instanceName := app.Snap.InstanceName()
-	hint, _, err := runinhibit.IsLocked(instanceName.String(), nil)
+	hint, _, err := runinhibit.IsLocked(instanceName, nil)
 	if err != nil {
 		return err
 	}
@@ -625,7 +625,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		os.Setenv("SNAPD_DEBUG", "1")
 		logger.Debugf("enabled debug logging of early snap startup")
 	}
-	snapName, appName := snap.SplitSnapApp(snapApp)
+	instanceName, appName := snap.SplitSnapApp(snapApp)
 
 	var retryCnt int
 	for {
@@ -635,7 +635,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return fmt.Errorf("race condition detected, snap-run can only retry once")
 		}
 
-		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
+		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, naming.InstanceName(instanceName), appName)
 		if errors.Is(err, errInhibitedForRemove) {
 			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapApp)
 		}

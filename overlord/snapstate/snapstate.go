@@ -3531,7 +3531,7 @@ func basesInUseForSequence(st *state.State, snapst *SnapState) ([]string, error)
 	bases := make([]string, 0, len(sis))
 	instanceName := snapst.InstanceName()
 	for _, si := range sis {
-		snapInfo, err := snap.ReadInfo(instanceName.String(), si)
+		snapInfo, err := snap.ReadInfo(instanceName, si)
 		if err == nil {
 			if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
 				continue
@@ -3919,7 +3919,7 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 	sis := snapst.Sequence.SideInfos()
 	for i := len(sis) - 1; i >= 0; i-- {
 		if si := sis[i]; si.Revision == revision {
-			return readInfo(name, si, 0)
+			return readInfo(naming.InstanceName(name), si, 0)
 		}
 	}
 
@@ -4308,7 +4308,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 	// keep revisions in snap's sequence
 	for instanceName, snapst := range snapStates {
 		for _, rss := range snapst.Sequence.Revisions {
-			keepBlob(snap.MountFile(instanceName, rss.Snap.Revision))
+			keepBlob(snap.MountFile(naming.InstanceName(instanceName), rss.Snap.Revision))
 			for _, comp := range rss.Components {
 				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
 					comp.SideInfo.Revision, naming.InstanceName(instanceName))
@@ -4319,7 +4319,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 
 	// keep revisions in refresh hints
 	for snapName, hint := range refreshHints {
-		keepBlob(snap.MountFile(snapName, hint.Revision()))
+		keepBlob(snap.MountFile(naming.InstanceName(snapName), hint.Revision()))
 	}
 
 	// keep revisions pointed to by a download task in an ongoing change
@@ -4512,7 +4512,7 @@ func unmountSnap(snapst *SnapState) error {
 			}
 		}
 
-		mountDir := snap.MountDir(snapst.InstanceName().String(), rev.Snap.Revision)
+		mountDir := snap.MountDir(snapst.InstanceName(), rev.Snap.Revision)
 		logger.Debugf("unmounting snap %s at %s", snapst.InstanceName(), mountDir)
 		if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
 			return err

@@ -181,7 +181,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 			}
 		}
 
-		cpi := snap.MinimalSnapContainerPlaceInfo(kSnapInfo.Name, kSnapInfo.Revision)
+		cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(kSnapInfo.Name), kSnapInfo.Revision)
 		// Create mount unit to make the kernel snap content available from
 		// the drivers tree.
 		if err := writeContainerMountUnit(destRoot, cpi); err != nil {

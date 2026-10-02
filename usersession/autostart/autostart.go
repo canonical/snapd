@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -44,7 +45,7 @@ var (
 func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	desktopFile := filepath.Base(desktopFilePath)
 
-	info, err := snap.ReadCurrentInfo(snapName)
+	info, err := snap.ReadCurrentInfo(naming.InstanceName(snapName))
 	if err != nil {
 		return nil, err
 	}

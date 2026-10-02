@@ -210,16 +210,16 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
-	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // MountDir returns the path to the directory where this snap would be mounted.
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // BlobPath returns the path to the snap/squashfs file that backs the snap that
@@ -230,7 +230,7 @@ func (snapsup *SnapSetup) BlobPath() string {
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
 	}
-	return snap.MountFileInDir(blobDir, snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
 }
 
 // ComponentSetup holds the necessary component details to perform
@@ -635,11 +635,10 @@ func readInfo(name naming.InstanceName, si *snap.SideInfo, flags int) (*snap.Inf
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
-		_, instanceKey := snap.SplitInstanceName(name)
 		info = &snap.Info{
-			SuggestedName: name,
+			SuggestedName: name.String(),
 			Broken:        bse.Broken(),
-			InstanceKey:   instanceKey,
+			InstanceKey:   name.InstanceKey(),
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -673,7 +672,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 		return nil, ErrNoCurrent
 	}
 
-	name := snap.InstanceName(cur.RealName, snapst.InstanceKey).String()
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
@@ -711,7 +710,7 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 
 	revState := snapst.Sequence.Revisions[index]
 
-	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey).String()
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
 	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
 	if err != nil {
 		return nil, err

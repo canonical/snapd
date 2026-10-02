@@ -681,12 +681,12 @@ func (s *Info) Type() Type {
 
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
-	return MountDir(s.InstanceName().String(), s.Revision)
+	return MountDir(s.InstanceName(), s.Revision)
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return MountFile(s.InstanceName().String(), s.Revision)
+	return MountFile(s.InstanceName(), s.Revision)
 }
 
 // MountDescription returns the mount unit Description field.
@@ -696,7 +696,7 @@ func (s *Info) MountDescription() string {
 
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
-	return HooksDir(s.InstanceName().String(), s.Revision)
+	return HooksDir(s.InstanceName(), s.Revision)
 }
 
 // DataDir returns the data directory of the snap.
@@ -1729,8 +1729,7 @@ func ReadInfoFromMountPoint(name naming.InstanceName, mountPoint, mountFile stri
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	_, instanceKey := SplitInstanceName(name)
-	info.InstanceKey = instanceKey
+	info.InstanceKey = name.InstanceKey()
 
 	hooksDir := filepath.Join(mountPoint, "meta", "hooks")
 	err = addImplicitHooks(info, hooksDir)
@@ -1767,7 +1766,7 @@ func ReadCurrentInfo(instanceName naming.InstanceName) (*Info, error) {
 	curFn := filepath.Join(dirs.SnapMountDir, instanceName.String(), "current")
 	realFn, err := os.Readlink(curFn)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", NotFoundError{Snap: instanceName.String(), Revision: R(0)}, err)
+		return nil, fmt.Errorf("%w: %s", NotFoundError{Snap: instanceName, Revision: R(0)}, err)
 	}
 	rev := filepath.Base(realFn)
 	revision, err := ParseRevision(rev)
@@ -1775,7 +1774,7 @@ func ReadCurrentInfo(instanceName naming.InstanceName) (*Info, error) {
 		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
 	}
 
-	return ReadInfo(instanceName.String(), &SideInfo{Revision: revision})
+	return ReadInfo(instanceName, &SideInfo{Revision: revision})
 }
 
 // NewContainerFromDir creates a new Container from the given directory.

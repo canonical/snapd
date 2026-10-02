@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
@@ -528,7 +529,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 
 	var icon string
 	name, instanceKey := snap.SplitInstanceName(finishRefresh.InstanceName)
-	if si, err := snap.ReadCurrentInfo(finishRefresh.InstanceName); err == nil {
+	if si, err := snap.ReadCurrentInfo(naming.InstanceName(finishRefresh.InstanceName)); err == nil {
 		icon, name = guessAppData(si, name, instanceKey)
 	} else {
 		logger.Noticef("cannot load snap-info for %s: %v", combineNameAndKey(name, instanceKey), err)
