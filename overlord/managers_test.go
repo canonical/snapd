@@ -8705,21 +8705,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
 	expectedLabel := now.Format("20060102")
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"pc": {
-					0: {
-						RootMountPoint: "/foo-seed",
-					},
-					1: {
-						RootMountPoint: "/foo-boot",
-					},
-					2: {
-						RootMountPoint: "/foo-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {RootMountPoint: "/foo-seed"}, 1: {RootMountPoint: "/foo-boot"}, 2: {RootMountPoint: "/foo-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 
@@ -8898,21 +8886,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	expectedLabel := now.Format("20060102")
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"pc": {
-					0: {
-						RootMountPoint: "/foo-seed",
-					},
-					1: {
-						RootMountPoint: "/foo-boot",
-					},
-					2: {
-						RootMountPoint: "/foo-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {RootMountPoint: "/foo-seed"}, 1: {RootMountPoint: "/foo-boot"}, 2: {RootMountPoint: "/foo-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 
@@ -9390,21 +9366,9 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(err, IsNil)
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"pc": {
-					0: {
-						RootMountPoint: "/foo-seed",
-					},
-					1: {
-						RootMountPoint: "/foo-boot",
-					},
-					2: {
-						RootMountPoint: "/foo-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {RootMountPoint: "/foo-seed"}, 1: {RootMountPoint: "/foo-boot"}, 2: {RootMountPoint: "/foo-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 
@@ -9856,21 +9820,9 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	c.Assert(err, IsNil)
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"pc": {
-					0: {
-						RootMountPoint: "/foo-seed",
-					},
-					1: {
-						RootMountPoint: "/foo-boot",
-					},
-					2: {
-						RootMountPoint: "/foo-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {RootMountPoint: "/foo-seed"}, 1: {RootMountPoint: "/foo-boot"}, 2: {RootMountPoint: "/foo-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 
@@ -10187,21 +10139,9 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	c.Assert(err, IsNil)
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"pc": {
-					0: {
-						RootMountPoint: "/foo-seed",
-					},
-					1: {
-						RootMountPoint: "/foo-boot",
-					},
-					2: {
-						RootMountPoint: "/foo-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {RootMountPoint: "/foo-seed"}, 1: {RootMountPoint: "/foo-boot"}, 2: {RootMountPoint: "/foo-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 
@@ -12139,21 +12079,9 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootWithGadgetSetup(
 	s.serveSnap(p, "2")
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"pc": {
-					0: {
-						RootMountPoint: "/run/mnt/ubuntu-seed",
-					},
-					1: {
-						RootMountPoint: "/run/mnt/ubuntu-boot",
-					},
-					2: {
-						RootMountPoint: "/run/mnt/ubuntu-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"pc": {0: {RootMountPoint: "/run/mnt/ubuntu-seed"}, 1: {RootMountPoint: "/run/mnt/ubuntu-boot"}, 2: {RootMountPoint: "/run/mnt/ubuntu-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()
 	s.makeMockedDisk(c, []string{"ubuntu-seed", "ubuntu-boot", "ubuntu-data"})
@@ -13746,18 +13674,9 @@ func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c
 	structureMountDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName)
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
-		return map[string]map[int]gadget.StructureLocation{
-				"volume-id": {
-					0: {
-						RootMountPoint: structureMountDir,
-					},
-					1: {
-						RootMountPoint: "/foo-data",
-					},
-				},
-			}, map[string]map[int]*gadget.OnDiskStructure{
-				"volume-id": gadget.OnDiskStructsFromGadget(oldVolumes["volume-id"]),
-			}, nil
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
+		return map[string]map[int]gadget.StructureLocation{"volume-id": {0: {RootMountPoint: structureMountDir}, 1: {RootMountPoint: "/foo-data"}}}, map[string]map[int]*gadget.OnDiskStructure{"volume-id": gadget.OnDiskStructsFromGadget(oldVolumes["volume-id"])}, nil
 	})
 	defer r()
 
