@@ -329,7 +329,7 @@ func (s *BackendSuite) UpdateSnapMaybeErr(c *C, oldSnapInfo *snap.Info, opts int
 
 // RemoveSnap "removes" an "installed" snap.
 func (s *BackendSuite) RemoveSnap(c *C, snapInfo *snap.Info) {
-	err := s.Backend.Remove(snapInfo.InstanceName().String())
+	err := s.Backend.Remove(snapInfo.InstanceName())
 	c.Assert(err, IsNil)
 	s.Repo.RemoveSnap(snapInfo.InstanceName())
 }

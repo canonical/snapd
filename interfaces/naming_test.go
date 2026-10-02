@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type NamingSuite struct{}
@@ -30,7 +31,7 @@ type NamingSuite struct{}
 var _ = Suite(&NamingSuite{})
 
 func (s *NamingSuite) TestSecurityTagGlob(c *C) {
-	c.Check(SecurityTagGlobs("http"), DeepEquals, []string{
+	c.Check(SecurityTagGlobs(naming.NewInstanceName("http", "")), DeepEquals, []string{
 		"snap.http.*",
 		"snap.http+*.hook.*",
 	})

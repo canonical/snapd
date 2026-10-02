@@ -22,14 +22,15 @@ package interfaces
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
 // SetupMany generates profiles of snaps using either SetupMany() method of the security backend (if implemented), or Setup(). All errors are logged.
 // The return value indicates if all profiles were successfully generated.
 func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
-	confinementOpts func(snapName string) ConfinementOptions,
-	setupCtx func(snapName string) SetupContext,
+	confinementOpts func(instanceName naming.InstanceName) ConfinementOptions,
+	setupCtx func(instanceName naming.InstanceName) SetupContext,
 	tm timings.Measurer,
 ) []error {
 	var errors []error
@@ -44,8 +45,8 @@ func SetupMany(repo *Repository, backend SecurityBackend, appSets []*SnapAppSet,
 			snapInfo := set.Info()
 			instanceName := snapInfo.InstanceName()
 			// Compute confinement options
-			opts := confinementOpts(instanceName.String())
-			sctx := setupCtx(instanceName.String())
+			opts := confinementOpts(instanceName)
+			sctx := setupCtx(instanceName)
 
 			// Refresh security of this snap and backend
 			timings.Run(tm, "setup-security-backend", fmt.Sprintf("setup security backend %q for snap %q", backend.Name(), snapInfo.InstanceName()), func(nesttm timings.Measurer) {

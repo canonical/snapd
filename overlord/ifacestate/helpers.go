@@ -229,9 +229,9 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 
 	precompOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
 
-	computeConfinementOpts := func(instanceName string) (interfaces.ConfinementOptions, error) {
+	computeConfinementOpts := func(instanceName naming.InstanceName) (interfaces.ConfinementOptions, error) {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(m.state, instanceName, &snapst); err != nil {
+		if err := snapstate.Get(m.state, instanceName.String(), &snapst); err != nil {
 			return interfaces.ConfinementOptions{}, err
 		}
 		snapInfo, err := snapst.CurrentInfo()
@@ -251,7 +251,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 		}
 
 		instanceName := set.InstanceName()
-		optsForAppSet, err := computeConfinementOpts(instanceName.String())
+		optsForAppSet, err := computeConfinementOpts(instanceName)
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %v", instanceName, err)
 			continue
@@ -270,9 +270,9 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 	shouldWriteSystemKey := true
 	os.Remove(dirs.SnapSystemKeyFile)
 
-	precomputedConfinementOpts := func(instanceName string) interfaces.ConfinementOptions {
+	precomputedConfinementOpts := func(instanceName naming.InstanceName) interfaces.ConfinementOptions {
 		// options or default zero value
-		return precompOpts[instanceName]
+		return precompOpts[instanceName.String()]
 	}
 
 	func() {
@@ -287,7 +287,7 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 				continue // Test backends have no name, skip them to simplify testing.
 			}
 			// Default setup context for regeneration
-			defaultSetupCtx := func(snapName string) interfaces.SetupContext {
+			defaultSetupCtx := func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{
 					Reason: interfaces.SnapSetupReasonOther,
 					// not running in task context, nothing can be deferred
@@ -717,10 +717,10 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	// Setup all affected snaps, start with the most important security
 	// backend and run it for all snaps. See LP: 1802581
 	for _, backend := range m.repo.Backends() {
-		errs := interfaces.SetupMany(m.repo, backend, appSets, func(snapName string) interfaces.ConfinementOptions {
-			return confOpts[snapName]
-		}, func(snapName string) interfaces.SetupContext {
-			if ctx, ok := sctxs[snapName]; ok {
+		errs := interfaces.SetupMany(m.repo, backend, appSets, func(instanceName naming.InstanceName) interfaces.ConfinementOptions {
+			return confOpts[instanceName.String()]
+		}, func(instanceName naming.InstanceName) interfaces.SetupContext {
+			if ctx, ok := sctxs[instanceName.String()]; ok {
 				return ctx
 			}
 			return interfaces.SetupContext{}
@@ -750,7 +750,7 @@ func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName nam
 	st := task.State()
 	for _, backend := range m.repo.Backends() {
 		st.Unlock()
-		err := backend.Remove(instanceName.String())
+		err := backend.Remove(instanceName)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), instanceName, err)
@@ -1692,13 +1692,13 @@ func findConnsForHotplugKey(conns map[string]*schema.ConnState, ifaceName string
 	return connsForDevice
 }
 
-func (m *InterfaceManager) discardSecurityProfilesLate(name string, rev snap.Revision, typ snap.Type) error {
+func (m *InterfaceManager) discardSecurityProfilesLate(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 	for _, backend := range m.repo.Backends() {
 		lateDiscardBackend, ok := backend.(interfaces.SecurityBackendDiscardingLate)
 		if !ok {
 			continue
 		}
-		if err := lateDiscardBackend.RemoveLate(name, rev, typ); err != nil {
+		if err := lateDiscardBackend.RemoveLate(instanceName, rev, typ); err != nil {
 			return err
 		}
 	}
