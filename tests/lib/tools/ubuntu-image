@@ -5,7 +5,7 @@ set -eu
 show_help() {
     cat <<'EOF'
 usage:
-    ubuntu-image [ensure|install|get|build|help]
+    ubuntu-image [ensure|build|help]
 
 Ensure the ubuntu-image binary is available in the test environment and print the
 path to the binary. This mirrors the legacy helper logic previously provided by
@@ -13,8 +13,6 @@ tests/lib/image.sh, but is exposed as a standalone tool for use from spread.yaml
 
 Commands:
     ensure      make sure ubuntu-image is available and print its path
-    install    same as ensure
-    get        same as ensure
     build      build ubuntu-image from source
     help       show this help
 EOF
@@ -34,7 +32,7 @@ ensure_ubuntu_image() {
     if os.query is-arm; then
         wget -q -c -O ubuntu-image-withtestkeys.tar.gz \
             https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-arm64.tar.gz
-        tar xvzf ubuntu-image-withtestkeys.tar.gz
+        tar xvzf ubuntu-image-withtestkeys.tar.gz >&2
         rm -f ubuntu-image-withtestkeys.tar.gz
 
         test -x ubuntu-image
@@ -44,7 +42,7 @@ ensure_ubuntu_image() {
     fi
 
     wget -q -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys.tar.gz
-    tar xvzf ubuntu-image-withtestkeys.tar.gz
+    tar xvzf ubuntu-image-withtestkeys.tar.gz >&2
     rm -f ubuntu-image-withtestkeys.tar.gz
 
     test -x ubuntu-image

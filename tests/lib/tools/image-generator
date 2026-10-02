@@ -115,19 +115,6 @@ validate_args() {
     fi
 }
 
-get_ubuntu_image_command() {
-    if os.query is-arm; then
-        if [ ! -x /snap/bin/ubuntu-image ]; then
-            snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic >&2
-        fi
-        echo /snap/bin/ubuntu-image
-        return
-    fi
-
-    "$TESTSTOOLS"/ubuntu-image ensure >&2
-    echo "$GOHOME/bin/ubuntu-image"
-}
-
 build_command() {
     local ubuntu_image
 
@@ -135,7 +122,7 @@ build_command() {
     if [ -n "$LOG_FILE" ]; then
         mkdir -p "$(dirname "$LOG_FILE")"
     fi
-    ubuntu_image="$(get_ubuntu_image_command)"
+    ubuntu_image="$("$TESTSTOOLS"/ubuntu-image ensure)"
 
     COMMAND=(
         "$ubuntu_image" snap
