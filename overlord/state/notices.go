@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -262,6 +263,9 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	n.noticeType = NoticeType(jn.Type)
 	n.key = jn.Key
 	n.firstOccurred = jn.FirstOccurred
+	if n.firstOccurred.IsZero() {
+		return fmt.Errorf("invalid first-occurred time: %v", n.firstOccurred)
+	}
 	n.lastOccurred = jn.LastOccurred
 	n.lastRepeated = jn.LastRepeated
 	n.occurrences = jn.Occurrences
@@ -278,7 +282,12 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("invalid expire-after duration: %w", err)
 		}
 	}
-	return nil
+
+	return ValidateNotice(n.noticeType, n.key, &AddNoticeOptions{
+		Data:        n.lastData,
+		RepeatAfter: n.repeatAfter,
+		ExpireAfter: n.expireAfter,
+	})
 }
 
 type NoticeType string
@@ -372,6 +381,10 @@ type AddNoticeOptions struct {
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
 
+	// ExpireAfter defines how long after this notice was last occurred before
+	// it expires. If zero, a default expiration will be used.
+	ExpireAfter time.Duration
+
 	// Time, if set, overrides time.Now() as the notice occurrence time.
 	Time time.Time
 }
@@ -382,14 +395,35 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
-	err := ValidateNotice(noticeType, key, options)
-	if err != nil {
-		return "", fmt.Errorf("internal error: %w", err)
-	}
 
 	s.writing()
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
+
+	notice, err := s.doAddNotice(userID, noticeType, key, options)
+	if err != nil {
+		return "", err
+	}
+	return notice.id, nil
+}
+
+// doAddNotice records an occurrence of a notice with the specified type and
+// key and options. Returns a pointer to the notice.
+//
+// The caller is responsible for holding the notices mutex for writing.
+func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
+	if options.ExpireAfter == 0 {
+		switch noticeType {
+		case WarningNotice:
+			options.ExpireAfter = defaultWarningExpireAfter
+		default:
+			options.ExpireAfter = defaultNoticeExpireAfter
+		}
+	}
+
+	if err := ValidateNotice(noticeType, key, options); err != nil {
+		return nil, fmt.Errorf("internal error: %w", err)
+	}
 
 	now := options.Time
 	if now.IsZero() {
@@ -400,10 +434,14 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
+	// XXX: do we want this to be:
+	//     if !ok || notice.Expired(now) {
+	// If so, then we won't reuse an expired notice which happens to have not
+	// yet been pruned.
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, options.ExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
@@ -415,7 +453,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.noticeCond.Broadcast()
 	}
 
-	return notice.id, nil
+	return notice, nil
 }
 
 // ValidateNotice validates notice type and key before adding.
@@ -423,14 +461,36 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	if !noticeType.Valid() {
 		return fmt.Errorf("cannot add notice with invalid type %q", noticeType)
 	}
-	if key == "" {
+	if key == "" || strings.TrimSpace(key) != key {
 		return fmt.Errorf("cannot add %s notice with invalid key %q", noticeType, key)
 	}
-	if len(key) > maxNoticeKeyLength {
+	if noticeType != WarningNotice && len(key) > maxNoticeKeyLength {
 		return fmt.Errorf("cannot add %s notice with invalid key: key must be %d bytes or less", noticeType, maxNoticeKeyLength)
 	}
 	if noticeType == RefreshInhibitNotice && key != "-" {
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
+	}
+
+	// ValidateNotice is called with nil options from the daemon and NoticeBackend.
+	// In daemon/api_notices.go, any notice type can be validated but only
+	// SnapRunInhibitNotice types can be created with the api.
+	//
+	// Warning notices are not created by a backend but through
+	// Warnf->AddWarning which specifies options.
+	if noticeType == WarningNotice && options != nil {
+		if showAfter, ok := options.Data["show-after"]; ok {
+			if _, err := time.ParseDuration(showAfter); err != nil {
+				return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
+			}
+		}
+		if lastShown, ok := options.Data["last-shown"]; ok {
+			if _, err := time.Parse(time.RFC3339Nano, lastShown); err != nil {
+				return fmt.Errorf("cannot add %s notice with invalid last-shown time: %w", noticeType, err)
+			}
+		}
+		if options.ExpireAfter == 0 {
+			return fmt.Errorf("cannot add %s notice with no expire-after duration", noticeType)
+		}
 	}
 	return nil
 }
@@ -530,7 +590,7 @@ func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := time.Now()
+	now := timeNow()
 	var toRemove []noticeKey
 	var notices []*Notice
 	for k, n := range s.notices {
@@ -602,7 +662,7 @@ func (s *State) flattenNotices() []*Notice {
 // filterNotices returns the list of notices that match the filter (if any),
 // without sorting them. The caller must hold the noticesMu for reading.
 func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
-	now := time.Now()
+	now := timeNow()
 	var notices []*Notice
 	for _, n := range s.notices {
 		if n.Expired(now) || !filter.matches(n) {
@@ -620,7 +680,7 @@ func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 func (s *State) unflattenNotices(flat []*Notice) {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
-	now := time.Now()
+	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
 		if n.Expired(now) {
@@ -691,7 +751,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// not yet been added to the notices map. Therefore, if the current
 		// time is after the BeforeOrAt filter, we know there can be no new
 		// notices which match the filter.
-		now := time.Now()
+		now := timeNow()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
 		}

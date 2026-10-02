@@ -21,12 +21,15 @@ package state_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -203,6 +206,103 @@ func (ss *stateSuite) TestGetUnmarshalProblem(c *C) {
 	var mSt1B mgrState1
 	err := st.Get("mgr9", &mSt1B)
 	c.Check(err, ErrorMatches, `internal error: could not unmarshal state entry "mgr9": json: cannot unmarshal .*`)
+}
+
+func (stateSuite) TestMigrateWarnings(c *check.C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	firstAdded := now.Add(-5 * time.Minute)
+	lastAdded := now.Add(-3 * time.Minute)
+	lastShown := now.Add(-1 * time.Minute)
+
+	oldWarning := json.RawMessage(
+		fmt.Sprintf(`
+			[
+				{"message": "first test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "second test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s"},
+				{"message": "other test warning", "first-added": "%s", "last-added": "%s","repeat-after": "%s", "last-shown": "%s"},
+				{"message": "warn", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "danger", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": " ", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "another test warning", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "some warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s"}
+			]`,
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// case without repeat-after and last-shown fields, repeat after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(1*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter,
+			// no expire-after field falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(2*time.Second).Format(time.RFC3339), state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339),
+
+			// the following cases should not result in notices being created
+			// invalid expire-after
+			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), "2006", state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// invalid show-after
+			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter, "2006", lastShown.Format(time.RFC3339Nano),
+			// whitespace message
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// empty message
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// first-added is 0
+			lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339),
+			// expired warning
+			firstAdded.Format(time.RFC3339), now.Add(-2*time.Hour).Format(time.RFC3339), time.Hour.String(), state.DefaultWarningShowAfter,
+		),
+	)
+
+	stateJSON := json.RawMessage(
+		fmt.Sprintf(
+			`{
+				"warnings": %s,
+				"data": {},
+				"changes": {},
+				"tasks": {},
+				"notices":[],
+				"last-change-id": 0,
+			 	"last-task-id": 0,
+				"last-lane-id": 0,
+				"last-notice-id": 0
+			}`,
+			oldWarning,
+		),
+	)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal(stateJSON, st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+
+	c.Assert(st.NumNotices(), check.Equals, 3)
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, check.HasLen, 3)
+
+	c.Check(st.GetLastNoticeId(), check.Equals, 3)
+
+	for idx, notice := range notices {
+		increment := time.Duration(idx)
+		expectedLastAdded := lastAdded.Add(increment * time.Second).UTC().Format(time.RFC3339)
+		switch idx {
+		case 0:
+			c.Check(notice.Key(), check.Equals, "first test warning")
+			c.Check(notice.LastData()["show-after"], check.Equals, state.DefaultWarningShowAfter.String())
+			c.Check(notice.LastData()["last-shown"], check.Equals, lastShown.Format(time.RFC3339Nano))
+		case 1:
+			c.Check(notice.Key(), check.Equals, "second test warning")
+		case 2:
+			c.Check(notice.Key(), check.Equals, "other test warning")
+		default:
+			c.Error("unexpected warning notice")
+		}
+		c.Check(notice.GetNoticeLastOccurred().Format(time.RFC3339), check.Equals, expectedLastAdded)
+		c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, expectedLastAdded)
+		c.Check(notice.ID(), check.Equals, strconv.Itoa(idx+1))
+		c.Check(notice.Type(), check.Equals, state.WarningNotice)
+		c.Check(notice.GetNoticeFirstOccurred().Format(time.RFC3339), check.Equals, firstAdded.Format(time.RFC3339))
+		c.Check(notice.GetExpireAfter(), check.Equals, state.DefaultWarningExpireAfter)
+	}
 }
 
 func (ss *stateSuite) TestCache(c *C) {
@@ -591,7 +691,6 @@ func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
 		"data",
 		"changes",
 		"tasks",
-		"warnings",
 		"notices",
 		"cache",
 		"pendingChangeByAttr",
@@ -775,7 +874,7 @@ func (ss *stateSuite) TestMethodEntrance(c *C) {
 		func() { st.Warnf("hello") },
 		func() { st.OkayWarnings(time.Time{}) },
 		func() { st.UnshowAllWarnings() },
-		func() { st.AddNotice(nil, state.WarningNotice, "foo", nil) },
+		func() { st.Warnf("foo") },
 		func() { st.DrainNotices(nil) },
 	}
 
@@ -849,8 +948,8 @@ func (ss *stateSuite) TestPrune(c *C) {
 
 	// two warnings, one expired
 	st.AddWarning("hello", &state.AddWarningOptions{
-		Time:        now.Add(-state.DefaultWarningExpireAfter),
-		RepeatAfter: state.DefaultWarningRepeatAfter,
+		Time:      now.Add(-state.DefaultWarningExpireAfter),
+		ShowAfter: state.DefaultWarningShowAfter,
 	})
 	st.Warnf("hello again")
 
