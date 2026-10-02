@@ -4042,6 +4042,25 @@ func (s *deviceMgrSuite) TestEnsureEarlyBootXKBConfigUpdatedOnHybrid(c *C) {
 	c.Assert(called, Equals, 1)
 }
 
+func (s *deviceMgrSuite) TestEnsureDoesNotApplyExtraSnapdKernelCommandLineFragmentsBeforeSeeding(c *C) {
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	s.state.Set("kcmdline-pending-extra-snapd-fragments", true)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	checkPendingExtraSnapdFragments(c, s.state, true)
+	c.Check(s.state.Changes(), HasLen, 0)
+}
+
 func (s *deviceMgrSuite) TestEnsureExtraSnapdKernelCommandLineFragmentsApplied(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4416,6 +4435,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
+	cachedSeed := devicestate.EarlyDeviceSeed(s.mgr)
 	s.seeding()
 	s.state.Unlock()
 
@@ -4423,6 +4443,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 	err := s.mgr.Ensure()
 	c.Check(err, IsNil)
+	c.Check(devicestate.EarlyDeviceSeed(s.mgr), Equals, cachedSeed)
 
 	// check state is set as done
 	s.state.Lock()
@@ -4431,6 +4452,169 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, IsNil)
 	c.Assert(autoImported, Equals, true)
+}
+
+func (s *deviceMgrSuite) TestEnsureAutoImportsCachedSeedBeforeRetiringIt(c *C) {
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	cachedSeed := devicestate.EarlyDeviceSeed(s.mgr)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{Brand: "my-brand", Model: "my-model"})
+	s.seeding()
+	s.state.Unlock()
+
+	restore := devicestate.MockProcessAutoImportAssertion(func(_ *state.State, deviceSeed seed.Seed, _ asserts.RODatabase, _ func(batch *asserts.Batch) error) error {
+		c.Check(deviceSeed, Equals, cachedSeed)
+		c.Check(devicestate.EarlyDeviceSeed(s.mgr), Equals, cachedSeed)
+		return nil
+	})
+	defer restore()
+
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(devicestate.EarlyDeviceSeed(s.mgr), IsNil)
+}
+
+func (s *deviceMgrSuite) TestEnsureKeepsCachedSeedOnDeviceContextError(c *C) {
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	cachedSeed := devicestate.EarlyDeviceSeed(s.mgr)
+	s.seeding()
+	s.state.Set("auth", "invalid")
+	s.state.Unlock()
+
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+	err := s.mgr.Ensure()
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `(?s).*could not unmarshal state entry "auth".*`)
+	c.Check(devicestate.EarlyDeviceSeed(s.mgr), Equals, cachedSeed)
+}
+
+func (s *deviceMgrSuite) TestEnsureReturnsSeedingErrorAfterRetiringCachedSeed(c *C) {
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{Brand: "my-brand", Model: "my-model"})
+	s.state.Unlock()
+
+	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
+		return nil, errors.New("seed error")
+	})
+	defer restore()
+
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+	err := s.mgr.Ensure()
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `(?s).*cannot seed: seed error.*`)
+	c.Check(devicestate.EarlyDeviceSeed(s.mgr), IsNil)
+}
+
+func (s *deviceMgrSuite) TestEnsureDoesNotRetireCachedSeedWhilePreseeding(c *C) {
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Unlock()
+
+	restorePreseeding := snapdenv.MockPreseeding(true)
+	defer restorePreseeding()
+	restoreSystem := devicestate.MockSystemForPreseeding(func() (string, error) {
+		return "20220401", nil
+	})
+	defer restoreSystem()
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	_, cachedSeed, loadErr := devicestate.ReloadEarlyDeviceSeed(mgr, nil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{Brand: "my-brand", Model: "my-model"})
+	s.seeding()
+	s.state.Unlock()
+	c.Assert(loadErr, IsNil)
+
+	err = mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(devicestate.EarlyDeviceSeed(mgr), Equals, cachedSeed)
+}
+
+func (s *deviceMgrSuite) TestEarlyDeviceContextReusesCachedSeedAndModel(c *C) {
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	cachedSeed := devicestate.EarlyDeviceSeed(s.mgr)
+	s.state.Unlock()
+
+	restore := devicestate.MockLoadDeviceSeed(func(*state.State, string) (seed.Seed, error) {
+		panic("unexpected device seed reload")
+	})
+	defer restore()
+
+	s.state.Lock()
+	deviceCtx1, deviceSeed1, err := devicestate.ReloadEarlyDeviceSeed(s.mgr, nil)
+	deviceCtx2, deviceSeed2, err2 := devicestate.ReloadEarlyDeviceSeed(s.mgr, nil)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(err2, IsNil)
+
+	c.Check(deviceSeed1, Equals, cachedSeed)
+	c.Check(deviceSeed2, Equals, cachedSeed)
+	c.Check(deviceCtx1.Model(), Equals, cachedSeed.Model())
+	c.Check(deviceCtx2.Model(), Equals, cachedSeed.Model())
+}
+
+func (s *deviceMgrSuite) TestStartupAndEnsureSeededShareCachedSeedTiming(c *C) {
+	s.state.Lock()
+	oldDurationThreshold := timings.DurationThreshold
+	timings.DurationThreshold = 0
+	s.cacheDeviceCore20Seed(c)
+	s.state.Unlock()
+	defer func() {
+		s.state.Lock()
+		timings.DurationThreshold = oldDurationThreshold
+		s.state.Unlock()
+	}()
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	restore := devicestate.MockLoadDeviceSeed(func(*state.State, string) (seed.Seed, error) {
+		panic("unexpected device seed reload")
+	})
+	defer restore()
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	restore = devicestate.MockPopulateStateFromSeed(mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
+		task := s.state.NewTask("test-task", "a random task")
+		return []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})
+	defer restore()
+
+	err = devicestate.EnsureSeeded(mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	timingInfos, err := timings.Get(s.state, -1, func(tags map[string]string) bool {
+		return tags["ensure"] == "seed"
+	})
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(timingInfos, HasLen, 1)
+	labels := make([]string, len(timingInfos[0].NestedTimings))
+	for i, timing := range timingInfos[0].NestedTimings {
+		labels[i] = timing.Label
+	}
+	c.Check(labels, DeepEquals, []string{"import-assertions[early]", "state-from-seed"})
 }
 
 func (s *deviceMgrSuite) TestDefaultRecoverySystem(c *C) {
