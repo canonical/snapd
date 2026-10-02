@@ -69,6 +69,9 @@ func Main() {
 	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
 	systemdInitSdNotifySocket()
 
+	// Exits after one Argon2 request when invoked as the out-of-process helper.
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
+
 	// Set up security logging via the audit subsystem.
 	teardownSecurityLogging := setupSecurityLogging()
 
@@ -79,8 +82,6 @@ func Main() {
 		bootID = ""
 	}
 	seclog.LogSystemStartupSnapd(snapdtool.FullVersion(), bootID)
-
-	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
 
 	snapdtool.MaybeCompleteFIPSSetup()
 	// TODO look into signal.NotifyContext
