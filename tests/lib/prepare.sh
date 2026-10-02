@@ -424,6 +424,7 @@ EOF
     systemctl restart snapd
 }
 
+# Configure SNAP_REEXEC for snapd.service on the current test host.
 prepare_reexec_override() {
     local reexec_file=/etc/systemd/system/snapd.service.d/reexec.conf
  

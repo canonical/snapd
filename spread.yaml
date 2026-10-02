@@ -1516,8 +1516,8 @@ suites:
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Define which tests to run in the nested vm in run-spread test
             NESTED_SPREAD_TESTS: '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            SNAP_REEXEC: "1"
+            REUSE_SNAPD: "1"
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1549,8 +1549,12 @@ suites:
             fi
 
 
-            # Install the snapd built
-            dpkg -i "$GOHOME"/snapd_*.deb
+            # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
+            prepare_reexec_override
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            tests.info is-reexec-in-use
+            pmap -p "$(pidof snapd)" | MATCH "$SNAP_MOUNT_DIR/snapd/.*/usr/lib/snapd/snapd"
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
@@ -1599,8 +1603,8 @@ suites:
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            SNAP_REEXEC: "1"
+            REUSE_SNAPD: "1"
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1631,8 +1635,12 @@ suites:
                 get_ubuntu_image
             fi
 
-            # Install the snapd built
-            dpkg -i "$GOHOME"/snapd_*.deb
+            # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
+            prepare_reexec_override
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            tests.info is-reexec-in-use
+            pmap -p "$(pidof snapd)" | MATCH "$SNAP_MOUNT_DIR/snapd/.*/usr/lib/snapd/snapd"
 
             # Configure the ssh connection to the test vm
             # Configure the ssh connection to the test vm
@@ -1678,8 +1686,8 @@ suites:
             NESTED_EXTRA_CMDLINE: '$(HOST: echo "${NESTED_EXTRA_CMDLINE:-}")'
             # Configuration file used for remote tools
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            SNAP_REEXEC: "1"
+            REUSE_SNAPD: "1"
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1710,8 +1718,12 @@ suites:
                 get_ubuntu_image
             fi
 
-            # Install the snapd built
-            dpkg -i "$GOHOME"/snapd_*.deb
+            # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
+            prepare_reexec_override
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            tests.info is-reexec-in-use
+            pmap -p "$(pidof snapd)" | MATCH "$SNAP_MOUNT_DIR/snapd/.*/usr/lib/snapd/snapd"
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
@@ -1766,8 +1778,8 @@ suites:
             # Indicates the amount of memory in MB to use in the nested vm
             NESTED_MEM: '$(HOST: echo "${NESTED_MEM:-4096}")'
             SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
-            # Indicates that by default snapd pkg is built from current
-            SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            SNAP_REEXEC: "1"
+            REUSE_SNAPD: "1"
             # Use the specified username or certificate for ssh connections to the nested vm
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
@@ -1796,8 +1808,12 @@ suites:
                 get_ubuntu_image
             fi
 
-            # Install the snapd built
-            dpkg -i "$GOHOME"/snapd_*.deb
+            # Configure and verify reexec on the host before creating nested VMs.
+            tests.env start initial
+            prepare_reexec_override
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            tests.info is-reexec-in-use
+            pmap -p "$(pidof snapd)" | MATCH "$SNAP_MOUNT_DIR/snapd/.*/usr/lib/snapd/snapd"
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then

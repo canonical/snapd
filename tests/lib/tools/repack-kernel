@@ -255,7 +255,7 @@ uc_write_bootstrap_wrapper_local() {
     local skeleton_path="$1"
     local inject_kernel_panic="${2:-}"
 
-    cp -a /usr/lib/snapd/snap-bootstrap "$skeleton_path"/usr/lib/snapd/snap-bootstrap.real
+    cp -a /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap "$skeleton_path"/usr/lib/snapd/snap-bootstrap.real
     cat <<'EOF' >"$skeleton_path"/usr/lib/snapd/snap-bootstrap
 #!/bin/sh
 set -eux
@@ -303,6 +303,12 @@ uc20_build_initramfs_kernel_snap_local() {
         systemctl unmask lvm2-lvmpolld.socket
     fi
     retry -n 10 quiet apt install ubuntu-core-initramfs linux-firmware -y
+
+    mkdir -p /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd
+    (
+        cd "$PROJECT_PATH"
+        CGO_ENABLED=1 go build -tags 'nomanagers withtestkeys faultinject' -o /usr/lib/ubuntu-core-initramfs/main/usr/lib/snapd/snap-bootstrap ./cmd/snap-bootstrap
+    )
 
     local orig_snap="$1"
     local target="$2"
