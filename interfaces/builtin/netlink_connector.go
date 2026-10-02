@@ -50,12 +50,13 @@ capability net_admin,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "netlink-connector",
-		summary:               netlinkConnectorSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  netlinkConnectorBaseDeclarationSlots,
-		connectedPlugSecComp:  netlinkConnectorConnectedPlugSecComp,
-		connectedPlugAppArmor: netlinkConnectorConnectedPlugAppArmor,
+		name:                     "netlink-connector",
+		summary:                  netlinkConnectorSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     netlinkConnectorBaseDeclarationSlots,
+		connectedPlugSecComp:     netlinkConnectorConnectedPlugSecComp,
+		connectedPlugAppArmor:    netlinkConnectorConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

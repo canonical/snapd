@@ -84,12 +84,13 @@ func (iface *netlinkAuditInterface) BeforeConnectPlug(plug *interfaces.Connected
 
 func init() {
 	registerIface(&netlinkAuditInterface{commonInterface{
-		name:                  "netlink-audit",
-		summary:               netlinkAuditSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  netlinkAuditBaseDeclarationSlots,
-		connectedPlugSecComp:  netlinkAuditConnectedPlugSecComp,
-		connectedPlugAppArmor: netlinkAuditConnectedPlugAppArmor,
+		name:                     "netlink-audit",
+		summary:                  netlinkAuditSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     netlinkAuditBaseDeclarationSlots,
+		connectedPlugSecComp:     netlinkAuditConnectedPlugSecComp,
+		connectedPlugAppArmor:    netlinkAuditConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
