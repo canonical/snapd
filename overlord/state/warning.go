@@ -223,7 +223,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	// Get the existing notice data, if present, to persist the "last-shown" value
-	if existing := s.getWarningBackingNotice(message); existing != nil {
+	if existing := s.noticeBackingWarning(message); existing != nil {
 		if lastShown, ok := existing.lastData["last-shown"]; ok {
 			addNoticeOptions.Data["last-shown"] = lastShown
 		}
@@ -234,7 +234,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	if _, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions); err != nil {
-		// programming error!
+		// warning notice failed validation.
 		logger.Panicf("%v", err)
 		return
 	}
@@ -252,7 +252,7 @@ func (s *State) RemoveWarning(message string) error {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	notice := s.getWarningBackingNotice(message)
+	notice := s.noticeBackingWarning(message)
 	if notice == nil {
 		return ErrNoState
 	}
@@ -267,7 +267,7 @@ func warningNoticeKey(key string) noticeKey {
 	return noticeKey{hasUserID, uid, WarningNotice, key}
 }
 
-func (s *State) getWarningBackingNotice(key string) *Notice {
+func (s *State) noticeBackingWarning(key string) *Notice {
 	uniqueKey := warningNoticeKey(key)
 	notice, ok := s.notices[uniqueKey]
 	if !ok {
