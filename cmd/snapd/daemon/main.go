@@ -76,7 +76,7 @@ func Main() {
 	teardownSecurityLogging := setupSecurityLogging()
 
 	// Log startup before Start, including attempts that then fail.
-	// A missing boot id is recorded as <unknown> and must not fail the attempt.
+	// If the boot id cannot be read, record <unknown> and continue.
 	bootID, bootErr := osutil.BootID()
 	if bootErr != nil {
 		bootID = ""
