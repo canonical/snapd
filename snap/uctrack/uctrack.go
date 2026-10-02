@@ -124,8 +124,6 @@ func Resolve(model *asserts.Model, trackingChannel, requestedChannel string, tra
 		if err != nil {
 			return "", err
 		}
-		// Same store channel as tracking, including shorter spellings such as
-		// "stable" for "latest/stable". Not a switch.
 		if normTrackingChannel.Clean().String() != normRequestedChannel.Clean().String() {
 			if resolvedTrack != normRequestedChannel.Track {
 				return "", fmt.Errorf("%w %q: resolved track is %q",

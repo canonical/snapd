@@ -33,21 +33,33 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-// snapdTrackChannelLatestStable is the agreed source of truth for
+// ubuntuCoreTracksChannel is the agreed source of truth for
 // [snap.Info.UbuntuCoreTracks]. Master publishes latest/stable, so that
 // snap.yaml is the most up-to-date map. A fips track or a pinned revision
 // is not consulted.
-const snapdTrackChannelLatestStable = "latest/stable"
+const ubuntuCoreTracksChannel = "latest/stable"
 
-// resolveSnapdUCTrackChannel maps channel using the latest/stable
+// installedSnapdTrackingChannel is the channel the installed snapd snap is
+// tracking. It is empty when snapd is not installed.
+func installedSnapdTrackingChannel(allSnaps map[string]*SnapState) string {
+	snapst := allSnaps["snapd"]
+	if snapst == nil || !snapst.IsInstalled() {
+		return ""
+	}
+	return snapst.TrackingChannel
+}
+
+// resolveSnapdUCTrackChannel maps requestedChannel using the latest/stable
 // ubuntu-core-tracks from [latestStableSnapdTracks] and [uctrack.Resolve].
-// The channel and model are already resolved. An empty input stays empty.
+// trackingChannel is [installedSnapdTrackingChannel]. requestedChannel is the
+// channel for this operation. The model is already resolved. An empty
+// requested channel stays empty: a revision refresh does not gain a channel.
 // The state lock must be held; it is released for the store round-trip.
-// "" with a nil error means the input was empty. "" with an error is unused
-// and the caller keeps its channel: [uctrack.ErrNotApplicable], or a store or
-// parse failure.
-func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, channel string, model *asserts.Model, sto StoreService, userID int) (snapdUCTrackChannel string, err error) {
-	if channel == "" {
+// "" with a nil error means the requested channel was empty. "" with an error
+// is unused and the caller keeps its channel: [uctrack.ErrNotApplicable], or a
+// store or parse failure.
+func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, trackingChannel, requestedChannel string, model *asserts.Model, sto StoreService, userID int) (snapdUCTrackChannel string, err error) {
+	if requestedChannel == "" {
 		return "", nil
 	}
 
@@ -58,18 +70,23 @@ func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, channel st
 		return "", err
 	}
 
+	// An install has nothing tracked, so there is no track to resolve.
+	if trackingChannel == "" {
+		return "", fmt.Errorf("%w: empty tracking channel", uctrack.ErrNotApplicable)
+	}
+
 	tracks, err := latestStableSnapdTracks(ctx, st, sto, userID)
 	if err != nil {
 		return "", err
 	}
 
-	snapdUCTrackChannel, err = uctrack.Resolve(model, "", channel, tracks)
+	snapdUCTrackChannel, err = uctrack.Resolve(model, trackingChannel, requestedChannel, tracks)
 	if err != nil {
 		return "", err
 	}
 
-	if !storeChannelsEqual(channel, snapdUCTrackChannel) {
-		logger.Noticef("resolved snapd channel from %q to %q to follow Ubuntu Core tracks", channel, snapdUCTrackChannel)
+	if !storeChannelsEqual(requestedChannel, snapdUCTrackChannel) {
+		logger.Noticef("resolved snapd channel from %q to %q to follow Ubuntu Core tracks", requestedChannel, snapdUCTrackChannel)
 	}
 	return snapdUCTrackChannel, nil
 }
@@ -83,7 +100,7 @@ func latestStableSnapdTracks(ctx context.Context, st *state.State, sto StoreServ
 	action := &store.SnapAction{
 		Action:       "install",
 		InstanceName: "snapd",
-		Channel:      snapdTrackChannelLatestStable,
+		Channel:      ubuntuCoreTracksChannel,
 	}
 
 	user, err := userFromUserID(st, userID)

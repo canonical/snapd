@@ -424,7 +424,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 			return nil, errors.New("internal error: device context is expected")
 		}
 		revOpts := &s.snaps[i].RevOpts
-		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, revOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
+		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, installedSnapdTrackingChannel(allSnaps), revOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
 		if errors.Is(err, uctrack.ErrNotApplicable) {
 			err = nil
 		}

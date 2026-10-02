@@ -529,7 +529,7 @@ func storeUpdatePlanCore(
 		if opts.DeviceCtx == nil {
 			return updatePlan{}, errors.New("internal error: device context is expected")
 		}
-		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, snapdUpdate.RevOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
+		snapdUCTrackChannel, err := resolveSnapdUCTrackChannel(ctx, st, installedSnapdTrackingChannel(allSnaps), snapdUpdate.RevOpts.Channel, opts.DeviceCtx.Model(), Store(st, opts.DeviceCtx), opts.UserID)
 		if errors.Is(err, uctrack.ErrNotApplicable) {
 			err = nil
 		}
