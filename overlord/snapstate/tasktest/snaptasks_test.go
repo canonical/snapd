@@ -87,6 +87,36 @@ func (s *snapQuerySuite) TestSnapInstanceName(c *C) {
 	c.Check(selection.Select(tasktest.Snap("some-snap")).Tasks(), DeepEquals, []*state.Task{other})
 }
 
+func (s *snapQuerySuite) TestSnapQueryOptional(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	mount := st.NewTask("mount-snap", "...")
+	mount.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "some-snap"},
+	})
+	selection := tasktest.NewSelection([]*state.Task{mount})
+
+	query := tasktest.Snap("some-snap")
+	c.Check(selection.Select(query.WithKind("mount-snap").Optional()).Tasks(), DeepEquals, []*state.Task{mount})
+
+	selected, err := selection.SelectErr(query.WithKind("link-snap").Optional())
+	c.Assert(err, IsNil)
+	c.Check(selected.Tasks(), HasLen, 0)
+
+	_, err = selection.SelectErr(query.WithKind("link-snap"))
+	c.Check(err, Equals, tasktest.ErrNoMatches)
+
+	// selections from Missing have no cache, but can still be queried
+	_, err = tasktest.Missing().SelectErr(query)
+	c.Check(err, Equals, tasktest.ErrNoMatches)
+
+	selected, err = tasktest.Missing().SelectErr(query.Optional())
+	c.Assert(err, IsNil)
+	c.Check(selected.Tasks(), HasLen, 0)
+}
+
 func (s *snapQuerySuite) TestSnapQueryAfterFiltering(c *C) {
 	st := state.New(nil)
 	st.Lock()

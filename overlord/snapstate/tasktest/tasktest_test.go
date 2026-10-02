@@ -157,6 +157,71 @@ func (s *selectionSuite) TestSelectionSuccessors(c *C) {
 	c.Check(limited.Successors(source).Tasks(), DeepEquals, []*state.Task{fourth})
 }
 
+func (s *selectionSuite) TestMissing(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	missing := tasktest.Missing()
+	c.Check(missing.Tasks(), HasLen, 0)
+
+	_, err := missing.SelectErr(tasktest.Kind("task"))
+	c.Check(err, Equals, tasktest.ErrNoMatches)
+
+	selected, err := missing.SelectErr(tasktest.Kind("task").Optional())
+	c.Assert(err, IsNil)
+	c.Check(selected.Tasks(), HasLen, 0)
+
+	// missing selections are skipped by assertions
+	first := st.NewTask("first", "...")
+	second := st.NewTask("second", "...")
+	second.WaitFor(first)
+	selection := tasktest.NewSelection([]*state.Task{first, second})
+	c.Check(tasktest.AssertOrdered(
+		selection.Select(tasktest.Kind("first")),
+		missing,
+		selection.Select(tasktest.Kind("second")),
+	), IsNil)
+}
+
+func (s *selectionSuite) TestUnion(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	first := st.NewTask("first", "...")
+	second := st.NewTask("second", "...")
+	third := st.NewTask("third", "...")
+	third.WaitFor(first)
+	third.WaitFor(second)
+	selection := tasktest.NewSelection([]*state.Task{first, second, third})
+
+	firstSel := selection.Select(tasktest.Kind("first"))
+	secondSel := selection.Select(tasktest.Kind("second"))
+	thirdSel := selection.Select(tasktest.Kind("third"))
+
+	// duplicates are included once, in first-seen order
+	union := tasktest.Union(secondSel, firstSel, secondSel)
+	c.Check(union.Tasks(), DeepEquals, []*state.Task{second, first})
+	c.Check(tasktest.AssertOrdered(union, thirdSel), IsNil)
+
+	// the universe is taken from a selection that is not missing
+	union = tasktest.Union(tasktest.Missing(), firstSel, tasktest.Missing())
+	c.Check(union.Tasks(), DeepEquals, []*state.Task{first})
+	c.Check(tasktest.AssertOrdered(union, thirdSel), IsNil)
+	c.Check(union.Select(tasktest.Kind("first")).Tasks(), DeepEquals, []*state.Task{first})
+
+	// the union is missing only if all inputs are missing
+	union = tasktest.Union(tasktest.Missing(), tasktest.Missing())
+	c.Check(union.Tasks(), HasLen, 0)
+	c.Check(tasktest.AssertOrdered(firstSel, union, thirdSel), IsNil)
+
+	union = tasktest.Union(tasktest.Missing(), tasktest.NewSelection(nil))
+	c.Check(tasktest.AssertOrdered(firstSel, union, thirdSel), ErrorMatches, "selection 2 is empty")
+
+	c.Check(tasktest.AssertOrdered(firstSel, tasktest.Union(), thirdSel), ErrorMatches, "selection 2 is empty")
+}
+
 type taskQuerySuite struct{}
 
 var _ = Suite(&taskQuerySuite{})
@@ -313,6 +378,74 @@ func (s *taskQuerySuite) TestNoMatches(c *C) {
 		_, err := selection.SelectErr(query)
 		c.Check(err, Equals, tasktest.ErrNoMatches)
 	}
+}
+
+func (s *taskQuerySuite) TestOptional(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	first := st.NewTask("match", "...")
+	second := st.NewTask("match", "...")
+	third := st.NewTask("single", "...")
+	third.WaitFor(first)
+	third.WaitFor(second)
+	selection := tasktest.NewSelection([]*state.Task{first, second, third})
+
+	// no matches result in a missing selection
+	missing, err := selection.SelectErr(tasktest.Kind("absent").Optional())
+	c.Assert(err, IsNil)
+	c.Check(missing.Tasks(), HasLen, 0)
+	c.Check(tasktest.AssertOrdered(missing, selection.Select(tasktest.Kind("single"))), IsNil)
+
+	// a single match is selected as usual
+	selected := selection.Select(tasktest.Kind("single").Optional())
+	c.Check(selected.Tasks(), DeepEquals, []*state.Task{third})
+
+	// a selection with tasks is not missing, so the order is checked
+	c.Check(tasktest.AssertOrdered(selected, selection.Select(tasktest.Kind("match").All())),
+		ErrorMatches, `task 3 \(single\) is not sequenced before task 1 \(match\)`)
+
+	// the default cardinality is still checked
+	_, err = selection.SelectErr(tasktest.Kind("match").Optional())
+	c.Check(err, ErrorMatches, "task query matched 2 tasks, expected 1")
+}
+
+func (s *taskQuerySuite) TestOptionalAll(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	first := st.NewTask("match", "...")
+	second := st.NewTask("match", "...")
+	selection := tasktest.NewSelection([]*state.Task{first, second})
+
+	selected, err := selection.SelectErr(tasktest.Kind("absent").All().Optional())
+	c.Assert(err, IsNil)
+	c.Check(selected.Tasks(), HasLen, 0)
+
+	selected = selection.Select(tasktest.Kind("match").All().Optional())
+	c.Check(selected.Tasks(), DeepEquals, []*state.Task{first, second})
+}
+
+func (s *taskQuerySuite) TestOptionalTaskCount(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	first := st.NewTask("match", "...")
+	second := st.NewTask("match", "...")
+	selection := tasktest.NewSelection([]*state.Task{first, second})
+
+	selected, err := selection.SelectErr(tasktest.Kind("absent").TaskCount(2).Optional())
+	c.Assert(err, IsNil)
+	c.Check(selected.Tasks(), HasLen, 0)
+
+	selected = selection.Select(tasktest.Kind("match").TaskCount(2).Optional())
+	c.Check(selected.Tasks(), DeepEquals, []*state.Task{first, second})
+
+	_, err = selection.SelectErr(tasktest.Kind("match").TaskCount(3).Optional())
+	c.Check(err, ErrorMatches, "task query matched 2 tasks, expected 3")
 }
 
 func (s *taskQuerySuite) TestTaskCountInvalid(c *C) {

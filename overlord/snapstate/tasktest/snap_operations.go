@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2026 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package tasktest
 
 import (
@@ -17,6 +36,12 @@ type SnapOp struct {
 // Callers must separately check the presence of optional tasks for their cases.
 func AssertSnapOperations(tasks Selection, ops []SnapOp, opts snapstate.Options) error {
 	for _, op := range ops {
+		switch op.Source {
+		case "store", "path":
+		default:
+			return fmt.Errorf("snap operation source %q is not implemented", op.Source)
+		}
+
 		switch op.Kind {
 		case "install", "refresh":
 			if err := assertSnapOperation(tasks, op, opts); err != nil {
@@ -36,10 +61,10 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 
 	prerequisites := tasks.Select(sn.WithKind("prerequisites").WithField("prerequisites-sync", nil))
 
-	downloadSnap := Empty()
-	prepareSnap := Empty()
-	validateSnap := Empty()
-	mountSnap := Empty()
+	downloadSnap := Missing()
+	prepareSnap := Missing()
+	validateSnap := Missing()
+	mountSnap := Missing()
 	switch op.Kind {
 	case "install":
 		switch op.Source {
@@ -51,10 +76,10 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 		}
 		mountSnap = tasks.Select(sn.WithKind("mount-snap"))
 	case "refresh":
-		downloadSnap = tasks.SelectOptional(sn.WithKind("download-snap"))
-		prepareSnap = tasks.SelectOptional(sn.WithKind("prepare-snap"))
-		validateSnap = tasks.SelectOptional(sn.WithKind("validate-snap"))
-		mountSnap = tasks.SelectOptional(sn.WithKind("mount-snap"))
+		downloadSnap = tasks.Select(sn.WithKind("download-snap").Optional())
+		prepareSnap = tasks.Select(sn.WithKind("prepare-snap").Optional())
+		validateSnap = tasks.Select(sn.WithKind("validate-snap").Optional())
+		mountSnap = tasks.Select(sn.WithKind("mount-snap").Optional())
 	}
 
 	syncPrerequisites := tasks.Select(sn.WithKind("prerequisites").WithField("prerequisites-sync", true))
@@ -65,24 +90,24 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 	setAutoAliases := tasks.Select(sn.WithKind("set-auto-aliases"))
 	setupAliases := tasks.Select(sn.WithKind("setup-aliases"))
 
-	preferAliases := Empty()
+	preferAliases := Missing()
 	if opts.Flags.Prefer {
 		preferAliases = tasks.Select(sn.WithKind("prefer-aliases"))
 	}
 
-	quotaAddSnap := Empty()
+	quotaAddSnap := Missing()
 	if opts.Flags.QuotaGroupName != "" {
 		quotaAddSnap = tasks.Select(sn.WithKind("quota-add-snap"))
 	}
 
-	installHook := Empty()
-	defaultConfigureHook := Empty()
-	preRefreshHook := Empty()
-	postRefreshHook := Empty()
-	stopSnapServices := Empty()
-	removeAliases := Empty()
-	unlinkCurrentSnap := Empty()
-	cleanup := Empty()
+	installHook := Missing()
+	defaultConfigureHook := Missing()
+	preRefreshHook := Missing()
+	postRefreshHook := Missing()
+	stopSnapServices := Missing()
+	removeAliases := Missing()
+	unlinkCurrentSnap := Missing()
+	cleanup := Missing()
 
 	configureAllowed := snapst.SnapType != "base" && snapst.SnapType != "snapd"
 	switch op.Kind {
@@ -92,8 +117,8 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 			defaultConfigureHook = tasks.Select(sn.WithSnapHook("default-configure"))
 		}
 	case "refresh":
-		preRefreshHook = tasks.SelectOptional(sn.WithSnapHook("pre-refresh"))
-		postRefreshHook = tasks.SelectOptional(sn.WithSnapHook("post-refresh"))
+		preRefreshHook = tasks.Select(sn.WithSnapHook("pre-refresh").Optional())
+		postRefreshHook = tasks.Select(sn.WithSnapHook("post-refresh").Optional())
 		stopSnapServices = tasks.Select(sn.WithKind("stop-snap-services"))
 		removeAliases = tasks.Select(sn.WithKind("remove-aliases"))
 		unlinkCurrentSnap = tasks.Select(sn.WithKind("unlink-current-snap"))
@@ -102,25 +127,25 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 
 	startSnapServices := tasks.Select(sn.WithKind("start-snap-services"))
 
-	configureHook := Empty()
+	configureHook := Missing()
 	if configureAllowed && !opts.Flags.SkipConfigure {
 		configureHook = tasks.Select(sn.WithSnapHook("configure"))
 	}
 
-	checkHealthHook := Empty()
+	checkHealthHook := Missing()
 	if !opts.Flags.SkipConfigure {
 		checkHealthHook = tasks.Select(sn.WithSnapHook("check-health"))
 	}
 
-	downloadComponents := Empty()
-	prepareComponents := Empty()
-	validateComponents := Empty()
-	mountComponents := Empty()
-	linkComponents := Empty()
-	unlinkCurrentComponents := Empty()
-	preRefreshComponentHooks := Empty()
-	installComponentHooks := Empty()
-	postRefreshComponentHooks := Empty()
+	downloadComponents := Missing()
+	prepareComponents := Missing()
+	validateComponents := Missing()
+	mountComponents := Missing()
+	linkComponents := Missing()
+	unlinkCurrentComponents := Missing()
+	preRefreshComponentHooks := Missing()
+	installComponentHooks := Missing()
+	postRefreshComponentHooks := Missing()
 
 	components := snapst.Sequence.ComponentsForRevision(snapst.Current)
 	compCount := len(components)
@@ -135,8 +160,8 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 			case "install":
 				downloadComponents = tasks.Select(comps.WithKind("download-component").TaskCount(compCount))
 			case "refresh":
-				downloadComponents = tasks.SelectOptional(comps.WithKind("download-component").All())
-				prepareComponents = tasks.SelectOptional(comps.WithKind("prepare-component").All())
+				downloadComponents = tasks.Select(comps.WithKind("download-component").All().Optional())
+				prepareComponents = tasks.Select(comps.WithKind("prepare-component").All().Optional())
 			}
 		}
 
@@ -157,24 +182,24 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 			linkComponents = tasks.Select(comps.WithKind("link-component").TaskCount(compCount))
 			installComponentHooks = tasks.Select(sn.WithComponentHook("install").TaskCount(compCount))
 		case "refresh":
-			mountComponents = tasks.SelectOptional(comps.WithKind("mount-component").All())
-			linkComponents = tasks.SelectOptional(comps.WithKind("link-component").All())
-			unlinkCurrentComponents = tasks.SelectOptional(comps.WithKind("unlink-current-component").All())
-			preRefreshComponentHooks = tasks.SelectOptional(sn.WithComponentHook("pre-refresh").All())
-			installComponentHooks = tasks.SelectOptional(sn.WithComponentHook("install").All())
-			postRefreshComponentHooks = tasks.SelectOptional(sn.WithComponentHook("post-refresh").All())
+			mountComponents = tasks.Select(comps.WithKind("mount-component").All().Optional())
+			linkComponents = tasks.Select(comps.WithKind("link-component").All().Optional())
+			unlinkCurrentComponents = tasks.Select(comps.WithKind("unlink-current-component").All().Optional())
+			preRefreshComponentHooks = tasks.Select(sn.WithComponentHook("pre-refresh").All().Optional())
+			installComponentHooks = tasks.Select(sn.WithComponentHook("install").All().Optional())
+			postRefreshComponentHooks = tasks.Select(sn.WithComponentHook("post-refresh").All().Optional())
 		}
 	}
 
 	// these belong to the target revision, rather than revision cleanup.
-	unlinkExtraComponents := Empty()
-	discardComponents := Empty()
+	unlinkExtraComponents := Missing()
+	discardComponents := Missing()
 	for _, preparation := range Union(downloadSnap, prepareSnap).Tasks() {
 		target := sn.Components().WithField("snap-setup-task", preparation.ID())
 		unlinkExtraComponents = Union(unlinkExtraComponents,
-			tasks.SelectOptional(target.WithKind("unlink-component").All()))
+			tasks.Select(target.WithKind("unlink-component").All().Optional()))
 		discardComponents = Union(discardComponents,
-			tasks.SelectOptional(target.WithKind("discard-component").All()))
+			tasks.Select(target.WithKind("discard-component").All().Optional()))
 	}
 
 	if err := AssertOrdered(
@@ -229,13 +254,13 @@ func assertSnapOperation(tasks Selection, op SnapOp, opts snapstate.Options) err
 // every task in after must follow it.
 func assertRevisionCleanupTaskOrder(tasks Selection, sn SnapQuery, before, after Selection) error {
 	// group removal tasks by their clear-snap task
-	clearSnaps := tasks.SelectOptional(sn.WithKind("clear-snap").All())
+	clearSnaps := tasks.Select(sn.WithKind("clear-snap").All().Optional())
 	for _, clearTask := range clearSnaps.Tasks() {
 		clearSnap := clearSnaps.Select(ID(clearTask.ID()))
 
 		removal := sn.WithField("snap-setup-task", clearTask.ID())
-		unlinkComponents := tasks.SelectOptional(removal.WithKind("unlink-component").All())
-		discardRemovedComponents := tasks.SelectOptional(removal.WithKind("discard-component").All())
+		unlinkComponents := tasks.Select(removal.WithKind("unlink-component").All().Optional())
+		discardRemovedComponents := tasks.Select(removal.WithKind("discard-component").All().Optional())
 		discardSnap := tasks.Select(removal.WithKind("discard-snap"))
 
 		if err := AssertOrdered(
@@ -263,15 +288,15 @@ func assertRevisionCleanupTaskOrder(tasks Selection, sn SnapQuery, before, after
 }
 
 func assertComponentTaskOrder(tasks Selection, component SnapQuery) error {
-	downloadComponent := tasks.SelectOptional(component.WithKind("download-component"))
-	prepareComponent := tasks.SelectOptional(component.WithKind("prepare-component"))
-	validateComponent := tasks.SelectOptional(component.WithKind("validate-component"))
-	mountComponent := tasks.SelectOptional(component.WithKind("mount-component"))
-	preRefreshComponentHook := tasks.SelectOptional(component.WithComponentHook("pre-refresh"))
-	unlinkCurrentComponent := tasks.SelectOptional(component.WithKind("unlink-current-component"))
-	linkComponent := tasks.SelectOptional(component.WithKind("link-component"))
-	installComponentHook := tasks.SelectOptional(component.WithComponentHook("install"))
-	postRefreshComponentHook := tasks.SelectOptional(component.WithComponentHook("post-refresh"))
+	downloadComponent := tasks.Select(component.WithKind("download-component").Optional())
+	prepareComponent := tasks.Select(component.WithKind("prepare-component").Optional())
+	validateComponent := tasks.Select(component.WithKind("validate-component").Optional())
+	mountComponent := tasks.Select(component.WithKind("mount-component").Optional())
+	preRefreshComponentHook := tasks.Select(component.WithComponentHook("pre-refresh").Optional())
+	unlinkCurrentComponent := tasks.Select(component.WithKind("unlink-current-component").Optional())
+	linkComponent := tasks.Select(component.WithKind("link-component").Optional())
+	installComponentHook := tasks.Select(component.WithComponentHook("install").Optional())
+	postRefreshComponentHook := tasks.Select(component.WithComponentHook("post-refresh").Optional())
 
 	return AssertOrdered(
 		Union(downloadComponent, prepareComponent),

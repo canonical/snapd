@@ -37,8 +37,8 @@ var ErrNoMatches = errors.New("task query matched no tasks")
 type Selection struct {
 	// selected is the set of tasks currently represented by this Selection.
 	selected []*state.Task
-	// empty marks an intentionally empty selection.
-	empty bool
+	// missing marks a selection whose tasks are expected to be absent.
+	missing bool
 
 	// universe is the full set of tasks from which the root Selection was
 	// created.
@@ -62,17 +62,17 @@ func NewSelection(tasks []*state.Task) Selection {
 	}
 }
 
-// Empty returns an intentionally empty selection. Intentially empty selections
-// can be used in assertions without impacting the result of the assertion.
-func Empty() Selection {
-	return Selection{empty: true}
+// Missing returns a selection for tasks that are expected to be absent.
+// Assertions skip missing selections, so they do not change the result of an
+// assertion.
+func Missing() Selection {
+	return Selection{missing: true}
 }
 
 // Union combines selections without imposing any order between their tasks.
 // Duplicate tasks are included once, in first-seen order.
 //
-// The result is marked intentionally empty only if all inputs are marked as
-// intentionally empty.
+// The result is marked as missing only if all inputs are marked as missing.
 func Union(selections ...Selection) Selection {
 	if len(selections) == 0 {
 		return Selection{}
@@ -86,7 +86,7 @@ func Union(selections ...Selection) Selection {
 			union.cache = selection.cache
 			union.reachability = selection.reachability
 		}
-		union.empty = union.empty && selection.empty
+		union.missing = union.missing && selection.missing
 		for _, task := range selection.selected {
 			if !seen[task] {
 				union.selected = append(union.selected, task)
@@ -140,7 +140,7 @@ func (s Selection) Filter(predicate func(*state.Task) (bool, error)) (Selection,
 
 	return Selection{
 		selected:     selected,
-		empty:        s.empty,
+		missing:      s.missing,
 		universe:     s.universe,
 		cache:        s.cache,
 		reachability: s.reachability,
@@ -164,19 +164,6 @@ type Querier interface {
 // Select wraps Selection.SelectErr and panics if an error is returned.
 func (s Selection) Select(query Querier) Selection {
 	selection, err := s.SelectErr(query)
-	if err != nil {
-		panic(err)
-	}
-	return selection
-}
-
-// SelectOptional applies a query and permits no matches.
-// Other query errors cause a panic, as with Select.
-func (s Selection) SelectOptional(query Querier) Selection {
-	selection, err := s.SelectErr(query)
-	if errors.Is(err, ErrNoMatches) {
-		return Empty()
-	}
 	if err != nil {
 		panic(err)
 	}
@@ -269,7 +256,11 @@ type TaskQuery struct {
 	// Cardinality defines how many tasks this query should match. A cardinality
 	// of zero indicates that exactly one task should be matched. A cardinality
 	// of -1 indicates that any non-zero number of tasks should be matched.
+	// When AllowMissing is true, zero matches are also accepted.
 	Cardinality int
+	// AllowMissing permits the query to match no tasks. In that case, the
+	// query returns a missing Selection instead of ErrNoMatches.
+	AllowMissing bool
 }
 
 // ID creates a TaskQuery that matches the task with the given ID.
@@ -307,10 +298,19 @@ func (q TaskQuery) All() TaskQuery {
 	return q
 }
 
+// Optional returns a query that also accepts zero matching tasks. If no tasks
+// match, the resulting Selection is marked as missing. Otherwise, the expected
+// number of tasks is checked as usual.
+func (q TaskQuery) Optional() TaskQuery {
+	q.AllowMissing = true
+	return q
+}
+
 // Query returns a subset of the tasks in the given Selection that match this
 // TaskQuery.
 //
-// Returns ErrNoMatches if the query does not match any tasks in the Selection.
+// Returns ErrNoMatches if the query does not match any tasks in the Selection,
+// unless the query is optional.
 func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	if q.Cardinality < -1 {
 		return Selection{}, fmt.Errorf("invalid task query cardinality %d", q.Cardinality)
@@ -361,8 +361,15 @@ func (q TaskQuery) Query(selection Selection) (Selection, error) {
 	}
 
 	if len(matches.selected) == 0 {
+		if q.AllowMissing {
+			matches.missing = true
+			return matches, nil
+		}
 		return Selection{}, ErrNoMatches
 	}
+	// a selection with tasks is never missing, even if it was filtered from a
+	// missing selection
+	matches.missing = false
 
 	// by default, we treat an unset cardinality as expecting exactly one task.
 	cardinality := q.Cardinality

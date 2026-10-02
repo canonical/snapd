@@ -125,6 +125,13 @@ func (q SnapQuery) All() SnapQuery {
 	return q
 }
 
+// Optional enforces that this query also accepts zero tasks. In that case, the
+// resulting Selection is marked as missing.
+func (q SnapQuery) Optional() SnapQuery {
+	q.TaskQuery = q.TaskQuery.Optional()
+	return q
+}
+
 // Query returns a subset of the given Selection that match against the fields
 // set in this SnapQuery.
 func (q SnapQuery) Query(selection Selection) (Selection, error) {
@@ -161,6 +168,11 @@ func (q SnapQuery) Query(selection Selection) (Selection, error) {
 type snapQueryCacheKey struct{}
 
 func loadSnapQueryCache(selection Selection) (map[string]SnapTaskAttributes, error) {
+	// selections from Missing have no universe and no cache
+	if selection.cache == nil {
+		return nil, nil
+	}
+
 	if value, ok := selection.cache[snapQueryCacheKey{}]; ok {
 		return value.(map[string]SnapTaskAttributes), nil
 	}
