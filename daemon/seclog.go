@@ -75,13 +75,12 @@ func newAuthzRecorder(user seclog.SnapdUser, peer seclog.Peer, endpoint seclog.E
 
 // recordGranted records access granted. reason is one of [seclog.GrantUserAuth],
 // [seclog.GrantRootAuth], or [seclog.GrantPolkitAuth]. When a snap interface
-// connection also contributed, pass iface and set onPlugSide for the plug
-// side or leave it false for the slot side. The stored reason is
-// reason.WithInterface(iface, onPlugSide). A later record replaces any
-// earlier outcome.
-func (rec *authzRecorder) recordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
+// connection also contributed, pass iface and the side the calling snap is
+// on. The stored reason is reason.WithInterface(iface, side). A later record
+// replaces any earlier outcome.
+func (rec *authzRecorder) recordGranted(reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
 	rec.reasonDenied = ""
-	rec.reasonGranted = reason.WithInterface(iface, onPlugSide)
+	rec.reasonGranted = reason.WithInterface(iface, side)
 }
 
 // recordDenied records access denied. reason is one of the [seclog.DenialReason]

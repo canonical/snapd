@@ -17,6 +17,9 @@ details: |
     snapd snap revision produces a "sys_restart_snapd" event with reason
     "snapd-update" and a snapd_version field. On classic, reseeding with
     no snaps produces a "sys_standby_snapd" event with reason "snapd-idle".
+    A root GET /v2/users produces an "authz_admin" event with reason
+    "root-auth", and the same request from an unprivileged user produces
+    an "authz_fail" event with reason "root-auth-denied".
 
 environment:
     # uploading the snapd snap can trigger OOM
@@ -133,6 +136,16 @@ execute: |
     echo "Checking that restart produces disable/enable audit events"
     security_event_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
     security_event_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
+
+    echo "Checking that a root GET /v2/users produces an authz_admin audit event"
+    pin_logs
+    snap debug api /v2/users > /dev/null
+    security_event_match '"level":"INFO","description":"User <unknown>:<unknown>:<unknown> from /run/snapd\.socket:0:[0-9]+ granted access to GET:/v2/users:<none> \(root-auth\)","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_admin".*"endpoint":\{"method":"GET","path":"/v2/users","action":"<none>"\}.*"reason_granted":"root-auth"'
+
+    echo "Checking that an unprivileged GET /v2/users produces an authz_fail audit event"
+    pin_logs
+    runuser -u test -- curl -sS --unix-socket /run/snapd.socket http://localhost/v2/users > /dev/null || true
+    security_event_match '"level":"CRITICAL","description":"User <unknown>:<unknown>:<unknown> from /run/snapd\.socket:[1-9][0-9]*:[0-9]+ denied access to GET:/v2/users:<none> \(root-auth-denied\)","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_fail".*"endpoint":\{"method":"GET","path":"/v2/users","action":"<none>"\}.*"reason_denied":"root-auth-denied"'
 
     echo "Checking that installing a new snapd snap revision produces a sys_restart_snapd audit event"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
