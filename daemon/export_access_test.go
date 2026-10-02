@@ -43,7 +43,7 @@ type (
 
 	InterfaceAccessReqs = interfaceAccessReqs
 
-	InterfaceAccessOutcome = interfaceAccessOutcome
+	InterfaceAccessMatch = interfaceAccessMatch
 
 	AccessLevel = accessLevel
 )
@@ -76,7 +76,7 @@ func MockPolkitCheckAuthorization(new func(pid int32, uid uint32, actionId strin
 	}
 }
 
-func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs, rec *authzRecorder, level AccessLevel) (InterfaceAccessOutcome, *apiError)) (restore func()) {
+func MockRequireInterfaceApiAccess(new func(d *Daemon, r *http.Request, ucred *ucrednet, reqs InterfaceAccessReqs, rec *authzRecorder, level AccessLevel) (InterfaceAccessMatch, *apiError)) (restore func()) {
 	old := requireInterfaceApiAccess
 	requireInterfaceApiAccess = new
 	return func() {

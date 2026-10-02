@@ -341,14 +341,14 @@ func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
 	ucred := daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapSocket)
 	restore := daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
 			Interfaces: []string{"snap-themes-control", "snap-interfaces-requests-control"},
 			Plug:       true,
 		})
-		return daemon.InterfaceAccessOutcome{}, nil
+		return daemon.InterfaceAccessMatch{}, nil
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, nil, ucred, nil, newAuthzRecorder()), IsNil)
@@ -356,8 +356,8 @@ func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
 	// Access is forbidden if requireInterfaceApiAccess() fails
 	restore = daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
-		return daemon.InterfaceAccessOutcome{}, errForbidden
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		return daemon.InterfaceAccessMatch{}, errForbidden
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, nil, ucred, nil, newAuthzRecorder()), DeepEquals, errForbidden)
@@ -381,13 +381,13 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
 	restore = daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
 			Plug: true,
 		})
-		return daemon.InterfaceAccessOutcome{}, errForbidden
+		return daemon.InterfaceAccessMatch{}, errForbidden
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil, newAuthzRecorder()), DeepEquals, errForbidden)
@@ -396,8 +396,8 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	// If requireInterfaceApiAccess succeeds, root is granted access
 	restore = daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
-		return daemon.InterfaceAccessOutcome{}, nil
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		return daemon.InterfaceAccessMatch{}, nil
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil, newAuthzRecorder()), IsNil)
@@ -420,13 +420,13 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 	s.daemon(c)
 	restore := daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
 			Plug: true,
 		})
-		return daemon.InterfaceAccessOutcome{}, nil
+		return daemon.InterfaceAccessMatch{}, nil
 	})
 	defer restore()
 
@@ -474,7 +474,7 @@ func (s *accessSuite) TestInterfaceProviderRootAccessCallsWithCorrectArgs(c *C) 
 	called := 0
 	restore = daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
@@ -482,7 +482,7 @@ func (s *accessSuite) TestInterfaceProviderRootAccessCallsWithCorrectArgs(c *C) 
 			Slot:       true,
 		})
 		called++
-		return daemon.InterfaceAccessOutcome{}, errForbidden
+		return daemon.InterfaceAccessMatch{}, errForbidden
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil, newAuthzRecorder()), DeepEquals, errForbidden)
@@ -603,7 +603,7 @@ func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {
 	called := 0
 	restore = daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
@@ -611,7 +611,7 @@ func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {
 			Plug:       true,
 		})
 		called++
-		return daemon.InterfaceAccessOutcome{}, errForbidden
+		return daemon.InterfaceAccessMatch{}, errForbidden
 	})
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, req, ucred, nil, newAuthzRecorder()), DeepEquals, errForbidden)
@@ -771,32 +771,32 @@ func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
 	rec := newAuthzRecorder()
 
 	// no side of the connection is specified
-	outcome, err := daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{}, rec, daemon.AccessLevelOpen)
-	c.Check(outcome, DeepEquals, daemon.InterfaceAccessOutcome{})
+	match, err := daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{}, rec, daemon.AccessLevelOpen)
+	c.Check(match, DeepEquals, daemon.InterfaceAccessMatch{})
 	c.Check(err, DeepEquals, daemon.InternalError("required connection side is unspecified"))
 
 	// check on both sides
-	outcome, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+	match, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
 		Plug:       true,
 		Slot:       true,
 		Interfaces: []string{"foo"},
 	}, rec, daemon.AccessLevelOpen)
-	c.Check(outcome, DeepEquals, daemon.InterfaceAccessOutcome{})
+	c.Check(match, DeepEquals, daemon.InterfaceAccessMatch{})
 	c.Check(err, DeepEquals, daemon.InternalError("snap cannot be specified on both sides of the connection"))
 
 	// no interfaces
-	outcome, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+	match, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
 		Plug: true,
 	}, rec, daemon.AccessLevelOpen)
-	c.Check(outcome, DeepEquals, daemon.InterfaceAccessOutcome{})
+	c.Check(match, DeepEquals, daemon.InterfaceAccessMatch{})
 	c.Check(err, DeepEquals, daemon.InternalError("interfaces access check, but interfaces list is empty"))
 
 	// this one actually reaches the credentials check
-	outcome, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+	match, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
 		Plug:       true,
 		Interfaces: []string{"foo"},
 	}, rec, daemon.AccessLevelAuthenticated)
-	c.Check(outcome, DeepEquals, daemon.InterfaceAccessOutcome{})
+	c.Check(match, DeepEquals, daemon.InterfaceAccessMatch{})
 	c.Check(err, DeepEquals, errForbidden)
 }
 
@@ -940,7 +940,7 @@ func (s *accessSuite) TestCheckAccessAuthzRecording(c *C) {
 	ac = daemon.InterfaceRootAccess{Interfaces: []string{"desktop-launch", "home"}}
 	ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
 	c.Check(ac.CheckAccess(d, req, ucred, nil, rec), IsNil)
-	c.Check(daemon.AuthzGrantedReason(rec), Equals, seclog.GrantRootAuth.WithInterface("desktop-launch", true))
+	c.Check(daemon.AuthzGrantedReason(rec), Equals, seclog.GrantRootAuth.WithInterface("desktop-launch", seclog.InterfaceSidePlug))
 
 	rec = newAuthzRecorder()
 	ac = daemon.InterfaceAuthenticatedAccess{}
@@ -954,13 +954,13 @@ func (s *accessSuite) TestCheckAccessAuthzRecording(c *C) {
 	ac = daemon.InterfaceRootAccess{Interfaces: []string{"desktop-launch"}}
 	restore = daemon.MockRequireInterfaceApiAccess(func(
 		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
-	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
-		return daemon.InterfaceAccessOutcome{MatchedIface: "desktop-launch", Plug: true}, nil
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		return daemon.InterfaceAccessMatch{MatchedIface: "desktop-launch", Side: seclog.InterfaceSidePlug}, nil
 	})
 	defer restore()
 	ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
 	c.Check(ac.CheckAccess(nil, req, ucred, nil, rec), IsNil)
-	c.Check(daemon.AuthzGrantedReason(rec), Equals, seclog.GrantRootAuth.WithInterface("desktop-launch", true))
+	c.Check(daemon.AuthzGrantedReason(rec), Equals, seclog.GrantRootAuth.WithInterface("desktop-launch", seclog.InterfaceSidePlug))
 }
 
 func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {

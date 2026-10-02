@@ -285,7 +285,7 @@ func (s *SlogSuite) TestGrantReasonLogValue(c *C) {
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"test",
-		seclog.Attr{Key: "reason_granted", Value: seclog.GrantRootAuth.WithInterface("desktop-launch", true)},
+		seclog.Attr{Key: "reason_granted", Value: seclog.GrantRootAuth.WithInterface("desktop-launch", seclog.InterfaceSidePlug)},
 	)
 
 	var obtained record

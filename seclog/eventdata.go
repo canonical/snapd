@@ -212,26 +212,32 @@ const (
 	GrantPolkitAuth GrantReason = "polkit-auth"
 )
 
+// InterfaceSide is which end of a connection the calling snap is on.
+type InterfaceSide string
+
+const (
+	InterfaceSidePlug InterfaceSide = "plug"
+	InterfaceSideSlot InterfaceSide = "slot"
+)
+
 // WithInterface returns a [GrantReason] that includes a snap interface
 // connection as part of why access was granted.
 //
 // The result has the form "<reason> <interface> <plug|slot>", for
 // example "root-auth desktop-launch plug".
 //
-// If iface is empty, WithInterface returns g unchanged so it can be
-// called unconditionally.
-//
-// onPlugSide is true when the requesting snap was on the plug side of
-// the connection, false for the slot side.
-func (g GrantReason) WithInterface(iface string, onPlugSide bool) GrantReason {
+// If iface is empty, WithInterface returns g unchanged so it can be called
+// unconditionally. A side that is not plug or slot is recorded as [unknown].
+func (g GrantReason) WithInterface(iface string, side InterfaceSide) GrantReason {
 	if iface == "" {
 		return g
 	}
-	side := "slot"
-	if onPlugSide {
-		side = "plug"
+	switch side {
+	case InterfaceSidePlug, InterfaceSideSlot:
+	default:
+		side = unknown
 	}
-	return GrantReason(string(g) + " " + iface + " " + side)
+	return GrantReason(string(g) + " " + iface + " " + string(side))
 }
 
 // DenialReason identifies why access was denied for authz_fail events.

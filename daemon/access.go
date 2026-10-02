@@ -84,19 +84,20 @@ func recordDeniedIfAudited(rec *authzRecorder, level accessLevel, reason seclog.
 	}
 }
 
-func recordGrantedIfAudited(rec *authzRecorder, level accessLevel, reason seclog.GrantReason, iface string, plug bool) {
+func recordGrantedIfAudited(rec *authzRecorder, level accessLevel, reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
 	if isAuditedAccessLevel(level) {
-		rec.recordGranted(reason, iface, plug)
+		rec.recordGranted(reason, iface, side)
 	}
 }
 
-func recordDeniedMissingInterfaceIfAudited(rec *authzRecorder, level accessLevel, plug bool) {
+func recordDeniedMissingInterfaceIfAudited(rec *authzRecorder, level accessLevel, side seclog.InterfaceSide) {
 	if !isAuditedAccessLevel(level) {
 		return
 	}
-	if plug {
+	switch side {
+	case seclog.InterfaceSidePlug:
 		rec.recordDenied(seclog.DenialMissingInterfacePlug)
-	} else {
+	case seclog.InterfaceSideSlot:
 		rec.recordDenied(seclog.DenialMissingInterfaceSlot)
 	}
 }
@@ -161,12 +162,12 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 		return rspe
 	}
 
-	var ifaceOutcome interfaceAccessOutcome
+	var ifaceMatch interfaceAccessMatch
 	if opts.InterfaceAccess != nil {
 		// No interface checks are made if request is coming from snapd.socket
 		// to account for the snapd-control interface.
 		var rspe *apiError
-		ifaceOutcome, rspe = requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess, rec, opts.AccessLevel)
+		ifaceMatch, rspe = requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess, rec, opts.AccessLevel)
 		if rspe != nil {
 			return rspe
 		}
@@ -176,17 +177,17 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 		return nil
 	}
 
-	iface := ifaceOutcome.MatchedIface
-	plug := ifaceOutcome.Plug
+	iface := ifaceMatch.MatchedIface
+	side := ifaceMatch.Side
 
 	if opts.AccessLevel == accessLevelAuthenticated && user != nil {
 		// user != nil means we have an authenticated user
-		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantUserAuth, iface, plug)
+		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantUserAuth, iface, side)
 		return nil
 	}
 
 	if ucred.Uid == 0 {
-		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantRootAuth, iface, plug)
+		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantRootAuth, iface, side)
 		return nil
 	}
 
@@ -196,7 +197,7 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 	if opts.PolkitAction != "" {
 		rspe := checkPolkitAction(r, ucred, opts.PolkitAction)
 		if rspe == nil {
-			recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantPolkitAuth, iface, plug)
+			recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantPolkitAuth, iface, side)
 		} else if rspe.Kind == client.ErrorKindAuthCancelled {
 			recordDeniedIfAudited(rec, opts.AccessLevel, seclog.DenialPolkitCancelled)
 		} else {
@@ -291,41 +292,47 @@ type interfaceAccessReqs struct {
 	Plug bool
 }
 
-// interfaceAccessOutcome carries a matched interface connection for the grant reason.
-type interfaceAccessOutcome struct {
+// interfaceAccessMatch carries a matched interface connection for the grant reason.
+// The access decision itself is the *apiError returned alongside it.
+type interfaceAccessMatch struct {
 	MatchedIface string
-	Plug         bool
+	Side         seclog.InterfaceSide
 }
 
 func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	ucred *ucrednet, req interfaceAccessReqs, rec *authzRecorder, level accessLevel,
-) (interfaceAccessOutcome, *apiError) {
-	if !req.Slot && !req.Plug {
-		return interfaceAccessOutcome{}, InternalError("required connection side is unspecified")
-	}
-	if req.Slot && req.Plug {
-		return interfaceAccessOutcome{}, InternalError("snap cannot be specified on both sides of the connection")
+) (interfaceAccessMatch, *apiError) {
+	var side seclog.InterfaceSide
+	switch {
+	case req.Plug && req.Slot:
+		return interfaceAccessMatch{}, InternalError("snap cannot be specified on both sides of the connection")
+	case req.Plug:
+		side = seclog.InterfaceSidePlug
+	case req.Slot:
+		side = seclog.InterfaceSideSlot
+	default:
+		return interfaceAccessMatch{}, InternalError("required connection side is unspecified")
 	}
 
 	if len(req.Interfaces) == 0 {
-		return interfaceAccessOutcome{}, InternalError("interfaces access check, but interfaces list is empty")
+		return interfaceAccessMatch{}, InternalError("interfaces access check, but interfaces list is empty")
 	}
 
 	if ucred == nil {
 		recordDeniedIfAudited(rec, level, seclog.DenialNoPeerCredentials)
-		return interfaceAccessOutcome{}, Forbidden("access denied")
+		return interfaceAccessMatch{}, Forbidden("access denied")
 	}
 
 	switch ucred.Socket {
 	case dirs.SnapdSocket:
 		// Allow access on main snapd.socket
-		return interfaceAccessOutcome{}, nil
+		return interfaceAccessMatch{}, nil
 
 	case dirs.SnapSocket:
 		// Handled below
 	default:
 		recordDeniedIfAudited(rec, level, seclog.DenialSocketNotPermitted)
-		return interfaceAccessOutcome{}, Forbidden("access denied")
+		return interfaceAccessMatch{}, Forbidden("access denied")
 	}
 
 	// access on snapd-snap.socket requires a known snap and a connected interface.
@@ -334,7 +341,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		// The plug or slot check cannot run without a snap name, so this is
 		// not an interface denial and nothing is recorded.
 		logger.Noticef("cannot determine snap name: %v", err)
-		return interfaceAccessOutcome{}, Forbidden("cannot determine snap name")
+		return interfaceAccessMatch{}, Forbidden("cannot determine snap name")
 	}
 
 	st := d.state
@@ -342,9 +349,9 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	defer st.Unlock()
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
-		return interfaceAccessOutcome{}, Forbidden("internal error: cannot get connections: %s", err)
+		return interfaceAccessMatch{}, Forbidden("internal error: cannot get connections: %s", err)
 	}
-	var outcome interfaceAccessOutcome
+	var match interfaceAccessMatch
 	matched := map[string]bool{}
 	for refStr, connState := range conns {
 		if !connState.Active() || !strutil.ListContains(req.Interfaces, connState.Interface) {
@@ -352,7 +359,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
 		if err != nil {
-			return interfaceAccessOutcome{}, Forbidden("internal error: %s", err)
+			return interfaceAccessMatch{}, Forbidden("internal error: %s", err)
 		}
 		matchOnSlot := req.Slot && connRef.SlotRef.Snap == instanceName
 		matchOnPlug := req.Plug && connRef.PlugRef.Snap == instanceName
@@ -365,19 +372,19 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		}
 	}
 	if len(matched) == 0 {
-		recordDeniedMissingInterfaceIfAudited(rec, level, req.Plug)
-		return interfaceAccessOutcome{}, Forbidden("access denied")
+		recordDeniedMissingInterfaceIfAudited(rec, level, side)
+		return interfaceAccessMatch{}, Forbidden("access denied")
 	}
 	// Cite the earliest allow-list entry that matched. Connection-map
 	// iteration order must not decide the interface named in the grant.
 	for _, iface := range req.Interfaces {
 		if matched[iface] {
-			outcome.MatchedIface = iface
-			outcome.Plug = req.Plug
+			match.MatchedIface = iface
+			match.Side = side
 			break
 		}
 	}
-	return outcome, nil
+	return match, nil
 }
 
 // interfaceOpenAccess behaves like openAccess, but allows requests from
