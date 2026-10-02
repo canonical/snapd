@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	sysd "github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -125,7 +126,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 }
 
 // Remove disables, stops and removes systemd services of a given snap.
-func (b *Backend) Remove(snapName string) error {
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	var systemd sysd.Systemd
 	if b.preseed {
 		// removing while preseeding is not a viable scenario, but implemented

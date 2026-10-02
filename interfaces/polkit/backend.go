@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -109,7 +110,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // Remove removes polkit policy and rule files of a given snap.
 //
 // This method should be called after removing a snap.
-func (b *Backend) Remove(snapName string) error {
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	// Removal must be best-effort to avoid leaving dangling files on early errors.
 	glob := polkitPolicyName(snapName, "*")
 	_, _, policyErr := osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil)

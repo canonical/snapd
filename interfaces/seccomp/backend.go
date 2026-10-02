@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/seccomp"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -251,8 +252,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 }
 
 // Remove removes seccomp profiles of a given snap.
-func (b *Backend) Remove(snapName string) error {
-	globs := interfaces.SecurityTagGlobs(snapName)
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
+	globs := interfaces.SecurityTagGlobs(instanceName)
 	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapSeccompDir, globs, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)

@@ -55,6 +55,7 @@ import (
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
@@ -89,7 +90,7 @@ var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
 	panic("internal error: snapstate.EnsureSnapAbsentFromQuotaGroup is unset")
 }
 
-var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
+var SecurityProfilesRemoveLate = func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
 

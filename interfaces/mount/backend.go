@@ -161,8 +161,8 @@ func (b *Backend) updateOrDiscard(instanceName naming.InstanceName, snapInfo *sn
 // Remove removes mount configuration files of a given snap.
 //
 // This method should be called after removing a snap.
-func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
+	glob := fmt.Sprintf("snap.%s.*fstab", instanceName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)

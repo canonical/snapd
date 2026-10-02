@@ -274,8 +274,8 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	return dirs.SnapAppArmorDir, patchedProfileGlob, content, nil
 }
 
-func snapConfineProfileName(snapName string, rev snap.Revision) string {
-	return fmt.Sprintf("snap-confine.%s.%s", snapName, rev)
+func snapConfineProfileName(instanceName naming.InstanceName, rev snap.Revision) string {
+	return fmt.Sprintf("snap-confine.%s.%s", instanceName, rev)
 }
 
 // setupSnapConfineReexec will setup apparmor profiles inside the host's
@@ -345,8 +345,8 @@ func nsProfile(snapName string) string {
 // Currently the list is just a pair. The first glob describes profiles for all
 // apps and hooks while the second profile describes the snap-update-ns profile
 // for the whole snap.
-func profileGlobs(snapName string) []string {
-	return append(interfaces.SecurityTagGlobs(snapName), nsProfile(snapName))
+func profileGlobs(instanceName naming.InstanceName) []string {
+	return append(interfaces.SecurityTagGlobs(instanceName), nsProfile(instanceName.String()))
 }
 
 // Determine if a profile filename is removable during core refresh/rollback.
@@ -543,7 +543,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // collects and returns them all.
 //
 // This method is useful mainly for regenerating profiles.
-func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, sctx func(snapName string) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
+func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions, sctx func(instanceName naming.InstanceName) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
@@ -629,7 +629,7 @@ func RemoveAllSnapAppArmorProfiles() error {
 }
 
 // Remove removes the apparmor profiles of a given snap from disk and the cache.
-func (b *Backend) Remove(snapName string) error {
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	dir := dirs.SnapAppArmorDir
 	globs := profileGlobs(snapName)
 	cache := apparmor_sandbox.CacheDir
@@ -642,8 +642,8 @@ func (b *Backend) Remove(snapName string) error {
 	return errRemoveCached
 }
 
-func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
-	logger.Debugf("remove late for snap %v (%s) type %v", snapName, rev, typ)
+func (b *Backend) RemoveLate(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
+	logger.Debugf("remove late for snap %v (%s) type %v", instanceName, rev, typ)
 	if typ != snap.TypeSnapd {
 		// late remove is relevant only for snap confine profiles
 		return nil
