@@ -739,6 +739,8 @@ volumes:
 	})
 
 	r := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
 		return map[string]map[int]gadget.StructureLocation{"pc": {0: {Device: "/dev/foo", Offset: quantity.OffsetMiB}}}, map[string]map[int]*gadget.OnDiskStructure{"pc": gadget.OnDiskStructsFromGadget(oldVolumes["pc"])}, nil
 	})
 	defer r()

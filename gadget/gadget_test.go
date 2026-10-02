@@ -5851,6 +5851,8 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyHappy(c *C) {
 	defer restore()
 
 	restore = gadget.MockVolumeStructureToLocationMap(func(gm gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		// Go <=1.26 and >=1.27 disagree about how multiline returns should be formatted
+		// TODO:GOVERSION:1.27: expand this again once all static checks are on 1.27
 		return map[string]map[int]gadget.StructureLocation{"lun-0": {0: {Device: oldVolumes["lun-0"].AssignedDevice, Offset: quantity.OffsetMiB, RootMountPoint: "/run/mnt/ubuntu-boot"}}, "lun-1": {0: {Device: oldVolumes["lun-1"].AssignedDevice, Offset: quantity.OffsetMiB, RootMountPoint: "/run/mnt/ubuntu-test"}}}, map[string]map[int]*gadget.OnDiskStructure{"lun-0": gadget.OnDiskStructsFromGadget(oldVolumes["lun-0"]), "lun-1": gadget.OnDiskStructsFromGadget(oldVolumes["lun-1"])}, nil
 	})
 	defer restore()
