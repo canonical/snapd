@@ -20,8 +20,7 @@ properties:
     minimum: 0
     description:
       The minimum required entropy for the corresponding authentication
-      mode (passphrase or PIN) in bits. By default, the minimum entropy
-      requirements are 42 bits for a passphrase and 13 bits for a PIN.
+      mode (passphrase or PIN) in bits.
   optimal-entropy-bits:
     type: integer
     minimum: 0

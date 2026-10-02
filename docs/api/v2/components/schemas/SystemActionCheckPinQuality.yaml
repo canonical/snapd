@@ -21,4 +21,5 @@ properties:
     type: string
     format: password
     pattern: '^[0-9]+$'
+    maxLength: 255
     description: The PIN to validate.
