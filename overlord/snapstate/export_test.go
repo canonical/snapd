@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -431,7 +432,7 @@ func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
 	return m.ensureRefreshHoldAtLeast(d)
 }
 
-func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision, typ snap.Type) error) (restore func()) {
+func MockSecurityProfilesDiscardLate(fn func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error) (restore func()) {
 	old := SecurityProfilesRemoveLate
 	SecurityProfilesRemoveLate = fn
 	return func() {

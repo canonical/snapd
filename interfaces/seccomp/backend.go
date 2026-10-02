@@ -224,7 +224,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 
 	var globs []string
-	for _, g := range interfaces.SecurityTagGlobs(instanceName.String()) {
+	for _, g := range interfaces.SecurityTagGlobs(instanceName) {
 		globs = append(globs, fmt.Sprintf("%s.src", g))
 	}
 
@@ -256,7 +256,7 @@ func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	globs := interfaces.SecurityTagGlobs(instanceName)
 	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapSeccompDir, globs, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", instanceName, err)
 	}
 	return nil
 }

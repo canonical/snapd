@@ -67,7 +67,7 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 	}
 
 	// update instance key to what was requested
-	_, s.InstanceKey = snap.SplitInstanceName(instanceName)
+	s.InstanceKey = instanceName.InstanceKey()
 
 	instdir := s.MountDir()
 

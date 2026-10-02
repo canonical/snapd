@@ -112,12 +112,12 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // This method should be called after removing a snap.
 func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	// Removal must be best-effort to avoid leaving dangling files on early errors.
-	glob := polkitPolicyName(snapName, "*")
+	glob := polkitPolicyName(instanceName.String(), "*")
 	_, _, policyErr := osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil)
-	glob = polkitRuleName(snapName, "*")
+	glob = polkitRuleName(instanceName.String(), "*")
 	_, _, ruleErr := osutil.EnsureDirState(dirs.SnapPolkitRuleDir, glob, nil)
 	if policyErr != nil || ruleErr != nil {
-		return fmt.Errorf("cannot synchronize polkit files for snap %q: %s", snapName, strutil.JoinErrors(policyErr, ruleErr))
+		return fmt.Errorf("cannot synchronize polkit files for snap %q: %s", instanceName, strutil.JoinErrors(policyErr, ruleErr))
 	}
 	return nil
 }

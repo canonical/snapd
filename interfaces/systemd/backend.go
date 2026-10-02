@@ -136,7 +136,7 @@ func (b *Backend) Remove(instanceName naming.InstanceName) error {
 		systemd = sysd.New(sysd.SystemMode, &noopReporter{})
 	}
 	// Remove all the files matching snap glob
-	glob := serviceName(snapName, "*")
+	glob := serviceName(instanceName.String(), "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 
 	if len(removed) > 0 {

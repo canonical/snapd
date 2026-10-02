@@ -80,7 +80,7 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 func (b *Backend) setupModules(appSet *interfaces.SnapAppSet, spec *Specification) error {
 	content, modules := deriveContent(spec, appSet)
 	// synchronize the content with the filesystem
-	globs := interfaces.SecurityTagGlobs(appSet.InstanceName().String())
+	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dir := dirs.SnapKModModulesDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
@@ -109,7 +109,7 @@ func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specificati
 		return fmt.Errorf("cannot create directory for kmod files %q: %s", dir, err)
 	}
 
-	globs := interfaces.SecurityTagGlobs(appSet.InstanceName().String())
+	globs := interfaces.SecurityTagGlobs(appSet.InstanceName())
 	dirContents := prepareModprobeDirContents(spec, appSet)
 	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModprobeDir, globs, dirContents)
 	if err != nil {
@@ -152,8 +152,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // This method should be called after removing a snap.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Remove(snapName string) error {
-	globs := interfaces.SecurityTagGlobs(snapName)
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
+	globs := interfaces.SecurityTagGlobs(instanceName)
 	var errors []error
 	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, nil); err != nil {
 		errors = append(errors, err)

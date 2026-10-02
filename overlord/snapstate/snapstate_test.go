@@ -478,7 +478,7 @@ SNAPD_APPARMOR_REEXEC=1
 		return nil, nil
 	}
 
-	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 		return nil
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))

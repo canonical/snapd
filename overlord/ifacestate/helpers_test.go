@@ -491,8 +491,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Check(appSets, HasLen, 2)
@@ -585,8 +585,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Check(appSets, HasLen, 2)
@@ -827,8 +827,8 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 	defer restore()
 
 	backend := &ifacetest.TestSecurityBackendDiscardingLate{
-		RemoveLateCallback: func(snapName string, rev snap.Revision, typ snap.Type) error {
-			if snapName == "this-fails" {
+		RemoveLateCallback: func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
+			if instanceName == "this-fails" {
 				return fmt.Errorf("remove late fails")
 			}
 			return nil

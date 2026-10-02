@@ -28,7 +28,7 @@ import (
 // the same snap as the given app.
 func SecurityTagGlobs(instanceName naming.InstanceName) []string {
 	return []string{
-		snap.AppSecurityTag(snapName, "*"),
-		snap.ComponentHookSecurityTag(snapName, "*", "*"),
+		snap.AppSecurityTag(instanceName.String(), "*"),
+		snap.ComponentHookSecurityTag(instanceName.String(), "*", "*"),
 	}
 }

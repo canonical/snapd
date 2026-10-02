@@ -165,9 +165,9 @@ func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	glob := fmt.Sprintf("snap.%s.*fstab", instanceName)
 	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", instanceName, err)
 	}
-	return DiscardSnapNamespace(snapName)
+	return DiscardSnapNamespace(instanceName.String())
 }
 
 // addMountProfile adds a mount profile with the given name, based on the given entries.

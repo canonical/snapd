@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -80,11 +81,11 @@ func (s *HelpersSuite) TearDownTest(c *C) {
 }
 
 func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
-	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
+	confinementOpts := func(snapName naming.InstanceName) interfaces.ConfinementOptions {
 		return interfaces.ConfinementOptions{}
 	}
 
-	setupContext := func(snapName string) interfaces.SetupContext {
+	setupContext := func(snapName naming.InstanceName) interfaces.SetupContext {
 		if snapName == "some-snap" {
 			return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate}
 		}
@@ -102,17 +103,17 @@ func (s *HelpersSuite) TestSetupManyRunsSetupManyIfImplemented(c *C) {
 			},
 		},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(snapName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(snapName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Assert(appSets, HasLen, 2)
 			c.Check(appSets[0].Info().SnapName().String(), Equals, "some-snap")
 			c.Check(appSets[1].Info().SnapName().String(), Equals, "other-snap")
 			c.Assert(sctx, NotNil)
-			c.Check(sctx(appSets[0].Info().SnapName().String()),
+			c.Check(sctx(appSets[0].InstanceName()),
 				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
-			c.Check(sctx(appSets[1].Info().SnapName().String()),
+			c.Check(sctx(appSets[1].InstanceName()),
 				DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 			setupManyCalls++
 			return nil
@@ -138,13 +139,13 @@ func (s *HelpersSuite) TestSetupManyRunsSetupIfSetupManyNotImplemented(c *C) {
 		},
 	}
 
-	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
-		confinementOptsCalls = append(confinementOptsCalls, snapName)
+	confinementOpts := func(snapName naming.InstanceName) interfaces.ConfinementOptions {
+		confinementOptsCalls = append(confinementOptsCalls, snapName.String())
 		return interfaces.ConfinementOptions{}
 	}
 
-	setupContext := func(snapName string) interfaces.SetupContext {
-		setupContextCalls = append(setupContextCalls, snapName)
+	setupContext := func(snapName naming.InstanceName) interfaces.SetupContext {
+		setupContextCalls = append(setupContextCalls, snapName.String())
 		return interfaces.SetupContext{
 			Reason: interfaces.SnapSetupReasonOther,
 		}
@@ -159,7 +160,7 @@ func (s *HelpersSuite) TestSetupManyRunsSetupIfSetupManyNotImplemented(c *C) {
 }
 
 func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
-	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
+	confinementOpts := func(snapName naming.InstanceName) interfaces.ConfinementOptions {
 		return interfaces.ConfinementOptions{}
 	}
 
@@ -175,8 +176,8 @@ func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
 			},
 		},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(snapName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(snapName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Check(appSets, HasLen, 2)
@@ -185,7 +186,7 @@ func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
 		},
 	}
 
-	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, func(snapName string) interfaces.SetupContext {
+	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, func(snapName naming.InstanceName) interfaces.SetupContext {
 		return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 	}, s.tm)
 	c.Check(errs, HasLen, 2)
@@ -194,7 +195,7 @@ func (s *HelpersSuite) TestSetupManySetupManyNotOK(c *C) {
 }
 
 func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
-	confinementOpts := func(snapName string) interfaces.ConfinementOptions {
+	confinementOpts := func(snapName naming.InstanceName) interfaces.ConfinementOptions {
 		return interfaces.ConfinementOptions{}
 	}
 
@@ -207,7 +208,7 @@ func (s *HelpersSuite) TestSetupManySetupNotOK(c *C) {
 		},
 	}
 
-	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, func(snapName string) interfaces.SetupContext {
+	errs := interfaces.SetupMany(s.repo, backend, []*interfaces.SnapAppSet{s.snap1, s.snap2}, confinementOpts, func(snapName naming.InstanceName) interfaces.SetupContext {
 		return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 	}, s.tm)
 	c.Check(errs, HasLen, 2)

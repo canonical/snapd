@@ -852,7 +852,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName().String(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -3629,7 +3629,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName().String(), snapsup.Revision()); err != nil {
 		return err
 	}
-	if err = SecurityProfilesRemoveLate(snapsup.InstanceName().String(), snapsup.Revision(), snapsup.Type); err != nil {
+	if err = SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName().String(), snapst)

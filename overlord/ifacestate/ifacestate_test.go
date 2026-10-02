@@ -5737,7 +5737,7 @@ slots:
 	c.Check(repo.Plug("consumer", "slot"), IsNil)
 
 	// Security of the snap was removed
-	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{"consumer"})
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []naming.InstanceName{"consumer"})
 
 	// Security of the related snap was configured
 	c.Check(s.secBackend.SetupCalls, HasLen, 1)
@@ -6801,7 +6801,7 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnInstall(c *C) {
 	// undo task removed the security profile from the system.
 	c.Assert(s.secBackend.SetupCalls, HasLen, 0)
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 1)
-	c.Check(s.secBackend.RemoveCalls, DeepEquals, []string{snapInfo.InstanceName().String()})
+	c.Check(s.secBackend.RemoveCalls, DeepEquals, []naming.InstanceName{snapInfo.InstanceName()})
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "snap", &snapst)
@@ -12486,8 +12486,8 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			BackendName: "test",
 		},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			setupCalls++
@@ -12495,9 +12495,9 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			// expecting 2 calls, first from manager startup, 2nd from handler
 			c.Check(appSets, HasLen, 2)
 			for _, appSet := range appSets {
-				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName().String()))
+				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName()))
 				c.Assert(err, IsNil)
-				c.Check(sctx(appSet.InstanceName().String()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx(appSet.InstanceName()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			}
 
 			if setupCalls == 2 {
@@ -12613,8 +12613,8 @@ func (s *interfaceManagerSuite) testDoRegenerateSecurityProfilesError(c *C, tc r
 			BackendName: "test",
 		},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			setupCalls++
