@@ -49,20 +49,15 @@ func installedSnapdTrackingChannel(allSnaps map[string]*SnapState) string {
 	return snapst.TrackingChannel
 }
 
-// resolveSnapdUCTrackChannel maps requestedChannel using the latest/stable
-// ubuntu-core-tracks from [latestStableSnapdTracks] and [uctrack.Resolve].
-// trackingChannel is [installedSnapdTrackingChannel]. requestedChannel is the
-// channel for this operation. The model is already resolved. An empty
-// requested channel stays empty: a revision refresh does not gain a channel.
-// The state lock must be held; it is released for the store round-trip.
-// "" with a nil error means the requested channel was empty. "" with an error
-// is unused and the caller keeps its channel: [uctrack.ErrNotApplicable], or a
-// store or parse failure.
+// resolveSnapdUCTrackChannel resolves the snapd channel for model using the
+// latest/stable ubuntu-core-tracks from [latestStableSnapdTracks] and
+// [uctrack.Resolve]. trackingChannel is [installedSnapdTrackingChannel] and is
+// required: an install has none, so it is not resolved. requestedChannel is
+// the channel for this operation. It may be empty, which resolves the tracking
+// channel, including a revision refresh. The state lock must be held; it is
+// released for the store round-trip. Callers keep their channel on
+// [uctrack.ErrNotApplicable]. Any other error fails the operation.
 func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, trackingChannel, requestedChannel string, model *asserts.Model, sto StoreService, userID int) (snapdUCTrackChannel string, err error) {
-	if requestedChannel == "" {
-		return "", nil
-	}
-
 	// [uctrack.SystemBootBaseApplicable] rejects classic, hybrid, a non-core
 	// base, and Ubuntu Core 16 from the model alone. The track map cannot
 	// change that.
@@ -85,8 +80,14 @@ func resolveSnapdUCTrackChannel(ctx context.Context, st *state.State, trackingCh
 		return "", err
 	}
 
-	if !storeChannelsEqual(requestedChannel, snapdUCTrackChannel) {
-		logger.Noticef("resolved snapd channel from %q to %q to follow Ubuntu Core tracks", requestedChannel, snapdUCTrackChannel)
+	// Name the channel that was resolved. A revision refresh has no requested
+	// channel, so the notice would otherwise say it resolved from "".
+	fromChannel := requestedChannel
+	if fromChannel == "" {
+		fromChannel = trackingChannel
+	}
+	if !storeChannelsEqual(fromChannel, snapdUCTrackChannel) {
+		logger.Noticef("resolved snapd channel from %q to %q to follow Ubuntu Core tracks", fromChannel, snapdUCTrackChannel)
 	}
 	return snapdUCTrackChannel, nil
 }

@@ -396,7 +396,7 @@ func (s *snapmgrTestSuite) TestUpdateSnapdRemapsTrackingChannel(c *C) {
 	c.Check(snapSetupFromTasks(c, ts).Channel, Equals, "18/stable")
 }
 
-func (s *snapmgrTestSuite) TestUpdateSnapdByRevisionLeavesChannelEmpty(c *C) {
+func (s *snapmgrTestSuite) TestUpdateSnapdByRevisionQueriesMappedTrack(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -411,12 +411,15 @@ func (s *snapmgrTestSuite) TestUpdateSnapdByRevisionLeavesChannelEmpty(c *C) {
 	c.Assert(err, IsNil)
 
 	actions := s.snapActions("snapd")
-	c.Assert(actions, HasLen, 1)
-	c.Check(actions[0].Action, Equals, "refresh")
-	c.Check(actions[0].Channel, Equals, "")
-	c.Check(actions[0].Revision, Equals, snap.R(42))
+	c.Assert(actions, HasLen, 2)
+	assertLatestStablePrecursor(c, actions[0], "revision refresh")
+	c.Check(actions[1].Action, Equals, "refresh")
+	// No channel was requested, so the tracking channel is resolved and the
+	// revision is requested on that track.
+	c.Check(actions[1].Channel, Equals, "18/stable")
+	c.Check(actions[1].Revision, Equals, snap.R(42))
 	sup := snapSetupFromTasks(c, ts)
-	c.Check(sup.Channel, Equals, "latest/stable")
+	c.Check(sup.Channel, Equals, "18/stable")
 	c.Check(sup.Revision(), Equals, snap.R(42))
 }
 
