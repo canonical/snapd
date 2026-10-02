@@ -164,6 +164,9 @@ backends:
             NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
             NTP_SERVER: 'ntp.ps7.internal'
         systems: &openstack-systems
+            - ubuntu-14.04-64:
+                image: snapd-spread/ubuntu-14.04-64
+                workers: 1
             - ubuntu-16.04-64:
                 image: snapd-spread/ubuntu-16.04-64
                 workers: 8
