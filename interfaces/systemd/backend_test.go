@@ -223,3 +223,89 @@ func (s *backendSuite) TestRemovingSnapWhenPreseeding(c *C) {
 		})
 	}
 }
+
+func (s *backendSuite) TestInstallDropIn(c *C) {
+	const snapYaml = `
+name: samba
+version: 1
+apps:
+    smbd:
+        daemon: simple
+slots:
+    slot1:
+        interface: iface
+    slot2:
+        interface: iface
+`
+	const (
+		dropInFooContent   = "[Unit]\nConflicts=foo.service"
+		dropInBarContent   = "[Unit]\nAfter=bar.service"
+		dropInSlot2Content = "[Unit]\nAfter=slot2.service"
+	)
+
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
+		if slot.Name == "slot1" {
+			err := spec.AddDropIn("foo", dropInFooContent)
+			if err != nil {
+				return err
+			}
+			return spec.AddDropIn("bar", dropInBarContent)
+		} else {
+			return spec.AddDropIn("s2", dropInSlot2Content)
+		}
+	}
+	dropInDir := filepath.Join(dirs.SnapServicesDir, "snap.samba.smbd.service.d")
+	dropInFoo := filepath.Join(dropInDir, "snap.foo.conf")
+	dropInBar := filepath.Join(dropInDir, "snap.bar.conf")
+	dropInSlot2 := filepath.Join(dropInDir, "snap.s2.conf")
+	// verify known test state
+	c.Check(dropInFoo, testutil.FileAbsent)
+	c.Check(dropInBar, testutil.FileAbsent)
+	c.Check(dropInSlot2, testutil.FileAbsent)
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 1)
+	// the services were created
+	c.Check(dropInFoo, testutil.FileEquals, dropInFooContent)
+	c.Check(dropInBar, testutil.FileEquals, dropInBarContent)
+	c.Check(dropInSlot2, testutil.FileEquals, dropInSlot2Content)
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"systemctl", "daemon-reload"},
+	})
+	s.systemctlArgs = nil
+
+	// Change what the interface returns to simulate some useful change
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
+		if slot.Name == "slot1" {
+			return spec.AddDropIn("foo", dropInFooContent)
+		}
+		return nil
+	}
+	// Update over to the same snap to regenerate security
+	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, snapYaml, 0)
+	// The bar service should have been stopped, foo service is unchanged
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"systemctl", "daemon-reload"},
+	})
+	c.Check(dropInFoo, testutil.FileEquals, dropInFooContent)
+	c.Check(dropInBar, testutil.FileAbsent)
+	c.Check(dropInSlot2, testutil.FileAbsent)
+
+	// Create some additional drop-in files for an unknown snap service.
+	otherDropInDir := filepath.Join(dirs.SnapServicesDir, "snap.samba.other.service.d")
+	c.Assert(os.MkdirAll(otherDropInDir, 0755), IsNil)
+	otherSnapDropIn := filepath.Join(otherDropInDir, "snap.xyz.conf")
+	otherNonSnapDropIn := filepath.Join(otherDropInDir, "user.conf")
+	c.Assert(os.WriteFile(otherSnapDropIn, []byte("# snap.xyz.conf"), 0o644), IsNil)
+	c.Assert(os.WriteFile(otherNonSnapDropIn, []byte("# user.conf"), 0o644), IsNil)
+
+	// Remove the snap
+	s.RemoveSnap(c, snapInfo)
+	// Drop-ins files and directories have been removed
+	c.Check(dropInFoo, testutil.FileAbsent)
+	c.Check(dropInBar, testutil.FileAbsent)
+	c.Check(dropInDir, testutil.FileAbsent)
+
+	// The snap.*.conf drop-in for the second service has also
+	// been removed. The non-matching one has been retained.
+	c.Check(otherSnapDropIn, testutil.FileAbsent)
+	c.Check(otherNonSnapDropIn, testutil.FilePresent)
+}
