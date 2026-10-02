@@ -417,7 +417,6 @@ jobs:
 
     - name: Download selected pre-built packages
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
-      continue-on-error: true
       uses: actions/download-artifact@v8
       with:
         pattern: '${{ steps.package-pattern.outputs.pattern }}'
