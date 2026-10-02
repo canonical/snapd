@@ -175,7 +175,6 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	s.infoE = s.mkInstalledInState(c, s.d, "snap-e", "dev", "v1", snap.R(1), true, "apps: {svc4: {daemon: simple, daemon-scope: user}}")
 
 	d.Overlord().Loop()
-	s.AddCleanup(func() { d.Overlord().Stop() })
 	s.AddCleanup(systemd.MockSystemdVersion(237, nil))
 	s.expectAppsAccess()
 }

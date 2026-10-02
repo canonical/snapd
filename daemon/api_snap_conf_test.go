@@ -210,7 +210,6 @@ func (s *snapConfSuite) TestSetConf(c *check.C) {
 	defer hookRunner.Restore()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	text, err := json.Marshal(map[string]any{"key": "value"})
 	c.Assert(err, check.IsNil)
@@ -260,7 +259,6 @@ version: 1
 	c.Assert(err, check.IsNil)
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	text, err := json.Marshal(map[string]any{"proxy.ftp": "value"})
 	c.Assert(err, check.IsNil)
@@ -306,7 +304,6 @@ func (s *snapConfSuite) TestSetConfNumber(c *check.C) {
 	defer hookRunner.Restore()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	text, err := json.Marshal(map[string]any{"key": 1234567890})
 	c.Assert(err, check.IsNil)

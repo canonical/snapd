@@ -93,7 +93,6 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	c.Assert(s.storeSigning.Add(s.acct1Key), check.IsNil)
 
 	d.Overlord().Loop()
-	s.AddCleanup(func() { d.Overlord().Stop() })
 }
 
 func (s *apiValidationSetsSuite) mockValidationSetsTracking(st *state.State) {

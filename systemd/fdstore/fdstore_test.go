@@ -147,6 +147,7 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	}))
 	s.AddCleanup(systemd.MockSystemdVersion(236, nil))
 	s.AddCleanup(fdstore.Clear)
+	s.AddCleanup(fdstore.MockSdNotifySocket(func() (string, error) { return "/run/systemd/notify", nil }))
 }
 
 func (s *fdstoreTestSuite) TestGet(c *C) {
@@ -200,8 +201,8 @@ func (s *fdstoreTestSuite) TestGetLowSystemdVersionError(c *C) {
 
 	store := fdstore.New()
 	_, err := store.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
-	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: fdstore is not supported: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
 }
 
 func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
@@ -324,8 +325,31 @@ func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
 
 	store := fdstore.New()
 	err := store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
-	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
-	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: fdstore is not supported: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
+
+	c.Check(s.sdNotifyCalls, HasLen, 0)
+}
+
+func (s *fdstoreTestSuite) TestNoNotifySocketUnsupported(c *C) {
+	restore := fdstore.MockSdNotifySocket(func() (string, error) {
+		return "", errors.New("boom")
+	})
+	defer restore()
+
+	store := fdstore.New()
+
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: fdstore is not supported: boom: snapd is not running as a systemd service`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
+
+	err = store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
+	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: fdstore is not supported: boom: snapd is not running as a systemd service`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
+
+	err = store.Remove(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: fdstore is not supported: boom: snapd is not running as a systemd service`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 }
@@ -402,8 +426,8 @@ func (s *fdstoreTestSuite) TestRemoveLowSystemdVersionError(c *C) {
 
 	store := fdstore.New()
 	err := store.Remove(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
-	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: fdstore is not supported: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupported)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 	c.Check(s.closeOnExecFds, DeepEquals, []int{3, 4})
