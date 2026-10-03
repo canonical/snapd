@@ -28,15 +28,18 @@ import (
 // AssertOrdered checks that the given Selections are ordered in the task
 // graph as specified by their argument order. Every task in each Selection
 // must transitively precede every task in the next Selection. Task ordering
-// within a Selection is not considered.
+// within a Selection is not considered. Intentionally empty selections are
+// skipped, so their nonempty neighbors are compared.
 func AssertOrdered(selections ...Selection) error {
 	if err := validateNonEmpty(selections...); err != nil {
 		return err
 	}
 
-	for i := 0; i+1 < len(selections); i++ {
-		before := selections[i]
-		after := selections[i+1]
+	var before Selection
+	for _, after := range selections {
+		if after.empty {
+			continue
+		}
 		for _, beforeTask := range before.selected {
 			for _, afterTask := range after.selected {
 				if !before.reachability[beforeTask][afterTask] {
@@ -44,6 +47,7 @@ func AssertOrdered(selections ...Selection) error {
 				}
 			}
 		}
+		before = after
 	}
 	return nil
 }
@@ -163,7 +167,7 @@ func laneSet(task *state.Task) map[int]bool {
 
 func validateNonEmpty(selections ...Selection) error {
 	for i, selection := range selections {
-		if len(selection.selected) == 0 {
+		if len(selection.selected) == 0 && !selection.empty {
 			return fmt.Errorf("selection %d is empty", i+1)
 		}
 	}
