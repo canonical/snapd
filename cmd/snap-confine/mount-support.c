@@ -54,7 +54,93 @@
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
 #define NUM_ELEM(x) (sizeof(x) / sizeof((x)[0]))
 
+/**
+ * Effective value of SC_MANAGED_CA_CERTS_DIR.
+ *
+ * We use 'const char *' so we can update sc_managed_ca_certs_dir in the testsuite
+ **/
+static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
+static const char *sc_managed_ca_generation_dir = SC_MANAGED_CA_GENERATION_DIR;
+
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
+
+char *sc_resolve_managed_ca_certs_dir(const char *managed_ca_certs_dir, const char *managed_ca_generation_dir) {
+    char resolved[PATH_MAX] = {0};
+    if (realpath(managed_ca_certs_dir, resolved) == NULL) {
+        if (errno == ENOENT || errno == ENOTDIR) {
+            debug("entry %s does not resolve to a managed CA generation, skipping mount", managed_ca_certs_dir);
+            return NULL;
+        }
+        die("cannot resolve %s", managed_ca_certs_dir);
+    }
+
+    struct stat resolved_stat;
+    if (stat(resolved, &resolved_stat) != 0) {
+        die("cannot stat %s", resolved);
+    }
+    if (!S_ISDIR(resolved_stat.st_mode)) {
+        debug("entry %s does not resolve to a directory, skipping mount", managed_ca_certs_dir);
+        return NULL;
+    }
+
+    if (!sc_startswith(resolved, managed_ca_generation_dir)) {
+        debug("entry %s points outside the published generations directory, skipping mount", managed_ca_certs_dir);
+        return NULL;
+    }
+
+    const char *generation = resolved + strlen(managed_ca_generation_dir);
+    // managed_ca_generation_dir does not end with a trailing slash,
+    // so let's account for that if needed.
+    if (generation[0] != '/') {
+        debug("entry %s points outside the published generations directory, skipping mount", managed_ca_certs_dir);
+        return NULL;
+    }
+    generation++;
+
+    if (generation[0] == '\0' || strchr(generation, '/') != NULL) {
+        debug("entry %s does not point to a published generation directory, skipping mount", managed_ca_certs_dir);
+        return NULL;
+    }
+    return sc_strdup(resolved);
+}
+
+// Mount the whole managed cert generation so confined processes see the same
+// certs regardless of whether their TLS stack reads the bundle file or
+// resolves certificates through the directory layout under /etc/ssl/certs.
+// Returns the mounted generation ID, or NULL if no mount was performed.
+static char *sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
+    // If the managed certs dir did not resolve cleanly, we assume that the host
+    // snapd is not exposing one.
+    char *managed SC_CLEANUP(sc_cleanup_string) =
+        sc_resolve_managed_ca_certs_dir(sc_managed_ca_certs_dir, sc_managed_ca_generation_dir);
+    if (managed == NULL) {
+        return NULL;
+    }
+
+    // Reject a symlink target before pivot_root so the bind mount cannot be
+    // redirected somewhere else in the host namespace.
+    struct stat target_lstat;
+    char target_certs_dir[PATH_MAX] = {0};
+    sc_must_snprintf(target_certs_dir, sizeof target_certs_dir, "%s%s", scratch_dir, SC_SYSTEM_CA_CERTS_DIR);
+    if (lstat(target_certs_dir, &target_lstat) == 0) {
+        if (S_ISLNK(target_lstat.st_mode)) {
+            die("cannot bind mount managed CA certificates over a symlink: %s", target_certs_dir);
+        }
+    } else {
+        if (errno == ENOENT) {
+            debug("target %s is absent, skipping managed CA mount", target_certs_dir);
+            return NULL;
+        }
+        die("cannot stat %s", target_certs_dir);
+    }
+
+    // make sure we remount r/o
+    sc_do_mount(managed, target_certs_dir, NULL, MS_BIND, NULL);
+    sc_do_mount(NULL, target_certs_dir, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
+
+    const char *generation = strrchr(managed, '/');
+    return sc_strdup(generation + 1);
+}
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
@@ -473,7 +559,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
  * the system (both the main mount namespace and namespaces of individual
  * snaps) or remove them, through the unmount system call.
  **/
-static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
+static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config, char **managed_ca_generation_id) {
     char scratch_dir[] = "/tmp/snap-private-tmp/snap.rootfs_XXXXXX";
     char src[PATH_MAX] = {0};
     char dst[PATH_MAX] = {0};
@@ -620,6 +706,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
             sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
         }
     }
+
     // The "core" base snap is special as it contains snapd and friends.
     // Other base snaps do not, so whenever a base snap other than core is
     // in use we need extra provisions for setting up internal tooling to
@@ -666,6 +753,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
 
         sc_do_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL);
         sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
+
+        // Only Ubuntu Core systems currently expect the managed certificate
+        // database to be mounted into confined snaps.
+        if (config->distro == SC_DISTRO_CORE_OTHER) {
+            *managed_ca_generation_id = sc_maybe_bind_mount_managed_ca_certs_dir(scratch_dir);
+        }
     }
     // Bind mount the directory where all snaps are mounted. The location of
     // the this directory on the host filesystem may not match the location in
@@ -892,13 +985,11 @@ static void sc_free_dynamic_mounts(struct sc_mount *mounts) {
     free(mounts);
 }
 
-void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, const sc_invocation *inv,
-                          const gid_t real_gid, const gid_t saved_gid) {
-    // Classify the current distribution, as claimed by /etc/os-release.
-    sc_distro distro = sc_classify_distro();
+void sc_populate_mount_ns(struct sc_populate_mount_ns_options *options, char **managed_ca_generation_id) {
+    *managed_ca_generation_id = NULL;
 
     // Check which mode we should run in, normal or legacy.
-    if (inv->is_normal_mode) {
+    if (options->inv->is_normal_mode) {
         // In normal mode we use the base snap as / and set up several bind mounts.
         static const struct sc_mount mounts[] = {
             {.path = "/dev"},            // because it contains devices on host OS
@@ -932,18 +1023,18 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
             {},
         };
         struct sc_mount_config normal_config = {
-            .rootfs_dir = inv->rootfs_dir,
+            .rootfs_dir = options->inv->rootfs_dir,
             .mounts = mounts,
             // Homedir mounts are user-specified paths that snaps are allowed
             // to access, which don't reside in the regular home path. They can change
             // between runs, so we must dynamically handle them.
-            .dynamic_mounts = sc_homedir_mounts(inv),
-            .distro = distro,
+            .dynamic_mounts = sc_homedir_mounts(options->inv),
+            .distro = options->distro,
             .normal_mode = true,
-            .base_snap_name = inv->base_snap_name,
-            .snap_instance = inv->snap_instance,
+            .base_snap_name = options->inv->base_snap_name,
+            .snap_instance = options->inv->snap_instance,
         };
-        sc_bootstrap_mount_namespace(&normal_config);
+        sc_bootstrap_mount_namespace(&normal_config, managed_ca_generation_id);
         sc_free_dynamic_mounts(normal_config.dynamic_mounts);
         normal_config.dynamic_mounts = NULL;
     } else {
@@ -958,21 +1049,21 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
             .rootfs_dir = "/",
             .mounts = mounts,
             // XXX: should we support Homedir mount in legacy mode?
-            .distro = distro,
+            .distro = options->distro,
             .normal_mode = false,
-            .base_snap_name = inv->base_snap_name,
+            .base_snap_name = options->inv->base_snap_name,
         };
-        sc_bootstrap_mount_namespace(&legacy_config);
+        sc_bootstrap_mount_namespace(&legacy_config, managed_ca_generation_id);
     }
 
     // TODO: rename this and fold it into bootstrap
-    setup_private_tmp(inv->snap_instance);
+    setup_private_tmp(options->inv->snap_instance);
     // set up private /dev/pts
     // TODO: fold this into bootstrap
     setup_private_pts();
 
     // setup the security backend bind mounts
-    sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
+    sc_call_snap_update_ns(options->snap_update_ns_fd, options->inv->snap_instance, options->apparmor);
 }
 
 static bool is_mounted_with_shared_option(const char *dir) __attribute__((nonnull(1)));

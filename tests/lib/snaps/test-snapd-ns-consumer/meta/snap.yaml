@@ -1,6 +1,8 @@
-name: testsnap
+name: test-snapd-ns-consumer
+summary: Helper snap for mount namespace tests
 version: 1.0
 base: core20
+
 apps:
   cmd:
     command: bin/cmd
