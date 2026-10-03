@@ -20,6 +20,7 @@
 package install_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -37,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/mkfs"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
@@ -623,12 +625,13 @@ func (s *contentTestSuite) TestMakeFilesystem(c *C) {
 	mockUdevadm := testutil.MockCommand(c, "udevadm", "")
 	defer mockUdevadm.Restore()
 
-	restore := install.MockMkfsMake(func(typ, img, label string, devSize, sectorSize quantity.Size) error {
+	restore := install.MockMkfsMake(func(ctx context.Context, typ, img string, opts *mkfs.MakeOptions) error {
+		c.Assert(ctx, NotNil)
 		c.Assert(typ, Equals, "ext4")
 		c.Assert(img, Equals, "/dev/node3")
-		c.Assert(label, Equals, "ubuntu-data")
-		c.Assert(devSize, Equals, mockOnDiskStructureWritable.Size)
-		c.Assert(sectorSize, Equals, quantity.Size(512))
+		c.Assert(opts.Label, Equals, "ubuntu-data")
+		c.Assert(opts.DeviceSize, Equals, mockOnDiskStructureWritable.Size)
+		c.Assert(opts.SectorSize, Equals, quantity.Size(512))
 		return nil
 	})
 	defer restore()
