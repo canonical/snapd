@@ -1,14 +1,5 @@
 #!/bin/bash
 
-            https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-amd64.tar.gz
-}
-
-prepare_ubuntu_image() {
-    if [ "${UBUNTU_IMAGE_USE_LOCAL_SNAPD:-false}" = "true" ]; then
-        build_ubuntu_image
-    else
-        get_ubuntu_image
-    fi
 # shellcheck disable=SC2120
 get_ubuntu_image_url_for_vm() {
     case "${1:-$SPREAD_SYSTEM}" in
