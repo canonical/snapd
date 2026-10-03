@@ -3050,7 +3050,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		rmSvcs = make(map[string]*snap.AppInfo)
 		for _, svc := range svcs {
 			app, ok := newInfo.Apps[svc.Name]
-			if !ok || !app.IsService() {
+			if !ok || !app.IsService() || app.DaemonScope != svc.DaemonScope {
 				rmSvcs[svc.Name] = svc
 			}
 		}

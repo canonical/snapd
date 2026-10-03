@@ -19915,6 +19915,20 @@ apps:
  baz-svc:
   command: bin/user-service
   daemon: simple
+ scope-system-to-user:
+  command: bin/service
+  daemon: simple
+  refresh-mode: endure
+ scope-user-to-system:
+  command: bin/service
+  daemon: simple
+  daemon-scope: user
+  refresh-mode: endure
+ unchanged-user-svc:
+  command: bin/service
+  daemon: simple
+  daemon-scope: user
+  refresh-mode: endure
 `
 
 	v2SnapYaml = `name: test-snap
@@ -19927,10 +19941,24 @@ apps:
   daemon: simple
  bar-svc:
   command: bin/service
+ scope-system-to-user:
+  command: bin/service
+  daemon: simple
+  daemon-scope: user
+  refresh-mode: endure
+ scope-user-to-system:
+  command: bin/service
+  daemon: simple
+  refresh-mode: endure
+ unchanged-user-svc:
+  command: bin/service
+  daemon: simple
+  daemon-scope: user
+  refresh-mode: endure
 `
 )
 
-func (s *snapmgrTestSuite) TestStopSnapServicesComputesRemovedServices(c *C) {
+func (s *snapmgrTestSuite) TestStopSnapServicesComputesRemovedOrReplacedServices(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -19979,9 +20007,10 @@ func (s *snapmgrTestSuite) TestStopSnapServicesComputesRemovedServices(c *C) {
 		{
 			op:       "stop-snap-services:refresh",
 			path:     oldInfo.MountDir(),
-			services: []string{"bar-svc", "baz-svc", "foo-svc"},
-			// baz-svc is removed and bar-svc is turned into a "normal" app
-			removedServices: []string{"bar-svc", "baz-svc"},
+			services: []string{"bar-svc", "baz-svc", "foo-svc", "scope-system-to-user", "scope-user-to-system", "unchanged-user-svc"},
+			// baz-svc is removed, bar-svc is turned into a normal app, and the
+			// scope services switch between system and user daemon scopes.
+			removedServices: []string{"bar-svc", "baz-svc", "scope-system-to-user", "scope-user-to-system"},
 		},
 	})
 }
