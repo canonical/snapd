@@ -41,7 +41,8 @@ get_ubuntu_image() {
         return
     fi
 
-    wget -q -c https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-amd64.tar.gz
+    wget -q -c -O ubuntu-image-withtestkeys.tar.gz \
+        https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-amd64.tar.gz
     tar xvzf ubuntu-image-withtestkeys.tar.gz >&2
     rm -f ubuntu-image-withtestkeys.tar.gz
 
