@@ -124,6 +124,9 @@ func init() {
 	// system.motd
 	addFSOnlyHandler(validateMotdConfiguration, handleMotdConfiguration, coreOnly)
 
+	// system.ntp.*
+	addFSOnlyHandler(validateNTPSettings, handleNTPConfiguration, coreOnly)
+
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
