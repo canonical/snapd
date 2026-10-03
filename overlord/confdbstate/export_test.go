@@ -34,6 +34,7 @@ var (
 	GetPlugsAffectedByPaths = getPlugsAffectedByPaths
 	CreateChangeConfdbTasks = createChangeConfdbTasks
 	CreateLoadConfdbTasks   = createLoadConfdbTasks
+	SetViaView              = setViaView
 	SetWriteTransaction     = setWriteTransaction
 	AddReadTransaction      = addReadTransaction
 	UnsetOngoingTransaction = unsetOngoingTransaction
@@ -107,7 +108,7 @@ func MockConfdbstateReadConfdb(f func(context.Context, *state.State, *confdb.Vie
 	return testutil.Mock(&confdbstateReadConfdb, f)
 }
 
-func MockConfdbstateWriteConfdb(f func(context.Context, *state.State, *confdb.View, map[string]any) (string, error)) func() {
+func MockConfdbstateWriteConfdb(f func(context.Context, *state.State, *confdb.View, map[string]any, ...map[string]any) (string, error)) func() {
 	return testutil.Mock(&confdbstateWriteConfdb, f)
 }
 

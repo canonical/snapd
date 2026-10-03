@@ -81,6 +81,39 @@ func (s *transactionTestSuite) TestSet(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
+func (s *transactionTestSuite) TestViewUnsetMapWithConstraints(c *C) {
+	schema, err := confdb.NewSchema("my-account", "my-confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "items.{item}",
+					"storage": "items.{item}[.kind={kind}]",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "items"), map[string]any{
+		"first":  map[string]any{"kind": "remove", "value": "one"},
+		"second": map[string]any{"kind": "keep", "value": "two"},
+	})
+	c.Assert(err, IsNil)
+
+	err = schema.View("foo").Unset(tx, "items", map[string]any{
+		"kind": "remove",
+	})
+	c.Assert(err, IsNil)
+	value, err := tx.Get(parsePath(c, "items"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"second": map[string]any{"kind": "keep", "value": "two"},
+	})
+}
+
 func (s *transactionTestSuite) TestCommit(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
@@ -456,6 +489,49 @@ func (s *transactionTestSuite) TestSerializableUnsetDifferentPaths(c *C) {
 		_, err = bag.Get(parsePath(c, tc.path), nil)
 		c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{}, cmt)
 	}
+}
+
+func (s *transactionTestSuite) TestSerializableConstrainedViewUnset(c *C) {
+	schema, err := confdb.NewSchema("my-account", "my-confdb", map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "items.{item}",
+					"storage": "items.{item}[.kind={kind}]",
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "items"), map[string]any{
+		"first":  map[string]any{"kind": "remove"},
+		"second": map[string]any{"kind": "keep"},
+	})
+	c.Assert(err, IsNil)
+	err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+	err = schema.View("foo").Unset(tx, "items", map[string]any{
+		"kind": "remove",
+	})
+	c.Assert(err, IsNil)
+
+	jsonData, err := json.Marshal(tx)
+	c.Assert(err, IsNil)
+	tx = nil
+	err = json.Unmarshal(jsonData, &tx)
+	c.Assert(err, IsNil)
+
+	value, err := tx.Get(parsePath(c, "items"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"second": map[string]any{"kind": "keep"},
+	})
 }
 
 func txData(c *C, tx *confdbstate.Transaction) string {

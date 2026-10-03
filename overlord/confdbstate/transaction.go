@@ -51,8 +51,9 @@ type Transaction struct {
 }
 
 type pathValuePair struct {
-	path  []confdb.Accessor
-	value any
+	path        []confdb.Accessor
+	value       any
+	constraints map[string]any
 }
 
 // NewTransaction takes a getter and setter to read and write the databag.
@@ -80,19 +81,31 @@ type marshalledTransaction struct {
 	ConfdbName    string `json:"confdb-name,omitempty"`
 
 	Modified      confdb.JSONDatabag `json:"modified,omitempty"`
-	Deltas        []map[string]any   `json:"deltas,omitempty"`
+	Deltas        []json.RawMessage  `json:"deltas,omitempty"`
 	AppliedDeltas int                `json:"applied-deltas,omitempty"`
 
 	AbortingSnap string `json:"aborting-snap,omitempty"`
 	AbortReason  string `json:"abort-reason,omitempty"`
 }
 
+type marshalledDelta struct {
+	Path        string         `json:"path"`
+	Value       any            `json:"value,omitempty"`
+	Constraints map[string]any `json:"constraints,omitempty"`
+}
+
 func (t *Transaction) MarshalJSON() ([]byte, error) {
-	deltas := make([]map[string]any, 0, len(t.deltas))
+	deltas := make([]json.RawMessage, 0, len(t.deltas))
 	for _, delta := range t.deltas {
-		deltas = append(deltas, map[string]any{
-			confdb.JoinAccessors(delta.path): delta.value,
+		marshalled, err := json.Marshal(marshalledDelta{
+			Path:        confdb.JoinAccessors(delta.path),
+			Value:       delta.value,
+			Constraints: delta.constraints,
 		})
+		if err != nil {
+			return nil, err
+		}
+		deltas = append(deltas, marshalled)
 	}
 
 	return json.Marshal(marshalledTransaction{
@@ -116,15 +129,11 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 
 	var deltas []pathValuePair
 	for _, delta := range mt.Deltas {
-		for path, value := range delta {
-			opts := confdb.ParseOptions{AllowPlaceholders: true}
-			accs, err := confdb.ParsePathIntoAccessors(path, opts)
-			if err != nil {
-				return fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
-			}
-
-			deltas = append(deltas, pathValuePair{path: accs, value: value})
+		parsed, err := unmarshalDelta(delta)
+		if err != nil {
+			return err
 		}
+		deltas = append(deltas, parsed)
 	}
 
 	t.pristine = mt.Pristine
@@ -138,6 +147,33 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	t.abortReason = mt.AbortReason
 
 	return nil
+}
+
+func unmarshalDelta(data json.RawMessage) (pathValuePair, error) {
+	var delta struct {
+		Path        string          `json:"path"`
+		Value       json.RawMessage `json:"value"`
+		Constraints map[string]any  `json:"constraints"`
+	}
+	if err := json.Unmarshal(data, &delta); err != nil {
+		return pathValuePair{}, err
+	}
+
+	opts := confdb.ParseOptions{AllowPlaceholders: true}
+	accs, err := confdb.ParsePathIntoAccessors(delta.Path, opts)
+	if err != nil {
+		return pathValuePair{}, fmt.Errorf("internal error: cannot parse path %q: %v", delta.Path, err)
+	}
+
+	if len(delta.Value) == 0 || string(delta.Value) == "null" {
+		return pathValuePair{path: accs, constraints: delta.Constraints}, nil
+	}
+
+	var value any
+	if err := json.Unmarshal(delta.Value, &value); err != nil {
+		return pathValuePair{}, err
+	}
+	return pathValuePair{path: accs, value: value}, nil
 }
 
 // Set sets a value in the transaction's databag. The change isn't persisted
@@ -156,7 +192,7 @@ func (t *Transaction) Set(path []confdb.Accessor, value any) error {
 
 // Unset unsets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
-func (t *Transaction) Unset(path []confdb.Accessor) error {
+func (t *Transaction) Unset(path []confdb.Accessor, constraints ...map[string]any) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -164,12 +200,16 @@ func (t *Transaction) Unset(path []confdb.Accessor) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, pathValuePair{path: path})
+	var cstrs map[string]any
+	if len(constraints) > 0 {
+		cstrs = constraints[0]
+	}
+	t.deltas = append(t.deltas, pathValuePair{path: path, constraints: cstrs})
 	return nil
 }
 
 // Get reads a value from the transaction's databag including uncommitted changes.
-func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, error) {
+func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any, options ...confdb.GetOptions) (any, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -179,14 +219,14 @@ func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, er
 
 	// if there aren't any changes, just use the pristine bag
 	if len(t.deltas) == 0 {
-		return t.pristine.Get(path, cstrs)
+		return t.pristine.Get(path, cstrs, options...)
 	}
 
 	if err := t.applyChanges(); err != nil {
 		return nil, err
 	}
 
-	return t.modified.Get(path, cstrs)
+	return t.modified.Get(path, cstrs, options...)
 }
 
 // Commit applies the previous writes and validates the final databag. If any
@@ -283,7 +323,7 @@ func applyDeltas(bag confdb.JSONDatabag, deltas []pathValuePair) error {
 	for _, delta := range deltas {
 		var err error
 		if delta.value == nil {
-			err = bag.Unset(delta.path)
+			err = bag.Unset(delta.path, delta.constraints)
 		} else {
 			err = bag.Set(delta.path, delta.value)
 		}

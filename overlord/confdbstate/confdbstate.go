@@ -64,13 +64,17 @@ var (
 )
 
 // setViaView uses the view to set the requests in the transaction's databag.
-func setViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) error {
+func setViaView(bag confdb.Databag, view *confdb.View, requests map[string]any, constraints map[string]any) error {
+	if err := view.CheckAllConstraintsAreUsed("set", keys(requests), constraints); err != nil {
+		return err
+	}
+
 	for request, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(bag, request)
+			err = view.Unset(bag, request, constraints)
 		} else {
-			err = view.Set(bag, request, value)
+			err = view.Set(bag, request, value, constraints)
 		}
 
 		if err != nil {
@@ -140,7 +144,7 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
 func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]any, userAccess confdb.Access) (any, error) {
-	if err := view.CheckAllConstraintsAreUsed(requests, constraints); err != nil {
+	if err := view.CheckAllConstraintsAreUsed("get", requests, constraints); err != nil {
 		return nil, err
 	}
 
@@ -310,7 +314,11 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, accK
 // WriteConfdb takes a map of request paths to values, schedules a change to
 // set the values in specified confdb view and run the appropriate hooks.
 // Returns a change ID.
-func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values map[string]any) (changeID string, err error) {
+func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values map[string]any, constraintOptions ...map[string]any) (changeID string, err error) {
+	var constraints map[string]any
+	if len(constraintOptions) != 0 {
+		constraints = constraintOptions[0]
+	}
 	accessID, err := waitForAccess(ctx, st, view, writeAccess)
 	if err != nil {
 		return "", err
@@ -330,7 +338,7 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 		return "", fmt.Errorf("cannot write confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
-	err = setViaView(tx, view, values)
+	err = setViaView(tx, view, values, constraints)
 	if err != nil {
 		return "", err
 	}
@@ -383,7 +391,7 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 			return nil
 		})
 
-		return setViaView(tx, view, values)
+		return setViaView(tx, view, values, nil)
 	}
 
 	var timeout *time.Duration
@@ -421,7 +429,7 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 		return fmt.Errorf("cannot write confdb view %s: cannot create transaction: %v", view.ID(), err)
 	}
 
-	err = setViaView(tx, view, values)
+	err = setViaView(tx, view, values, nil)
 	if err != nil {
 		return err
 	}
@@ -1039,4 +1047,13 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 	linkTask(clearTxTask)
 
 	return ts, clearTxTask, nil
+}
+
+// TODO:GOVERSION: use maps.Keys once on go 1.23
+func keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
