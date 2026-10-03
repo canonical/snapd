@@ -35,30 +35,32 @@ oneOf:
         additionalProperties:
           $ref: 'GadgetVolume.yaml'
       volumes-auth:
-        type: object
-        additionalProperties:
-          type: string
-        description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
+        $ref: './VolumesAuth.yaml'
       keyboard-config:
         type: object
         description:
           Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g.
-          plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
+          plymouth passphrase/PIN prompt). This field is required when 'volumes-auth' is set. Values must
+          form a valid XKB configuration.
         properties:
           layout:
             type: string
-            description: The keyboard layout to use (e.g. 'us', 'uk', 'eg').
+            description: The keyboard layout to use (for example, 'us', 'uk', or 'eg').
+            example: 'us'
           model:
             type: string
-            description: The keyboard model to use (e.g. 'pc105').
+            description: The keyboard model to use.
+            example: 'pc105'
           variant:
             type: string
-            description: The keyboard variant to use (e.g. 'dvorak').
+            description: The keyboard variant to use.
+            example: 'dvorak'
           options:
             type: array
             items:
               type: string
-            description: A list of additional keyboard options to use (e.g. 'ctrl:nocaps').
+            description: A list of additional keyboard options to use.
+            example: ['ctrl:nocaps']
   - type: object
     required:
       - step
