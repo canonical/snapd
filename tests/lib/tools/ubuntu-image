@@ -18,7 +18,7 @@ Commands:
 EOF
 }
 
-ensure_ubuntu_image() {
+get_ubuntu_image() {
     if command -v ubuntu-image >/dev/null 2>&1; then
         command -v ubuntu-image
         return
@@ -51,28 +51,28 @@ ensure_ubuntu_image() {
 }
 
 build_ubuntu_image() {
-    if command -v ubuntu-image >/dev/null 2>&1; then
-        command -v ubuntu-image
-        return
-    fi
+    local ubuntu_image_dir
+    ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
 
-    if [ "${UBUNTU_IMAGE_ALLOW_API_BREAK-true}" = "true" ]; then
-        (
-            GO111MODULE=off go get github.com/canonical/ubuntu-image/cmd/ubuntu-image
-            GO111MODULE=off go install -tags 'withtestkeys' github.com/canonical/ubuntu-image/cmd/ubuntu-image
-        )
-    else
-        (
-            unset GOPATH
-            cd /tmp || exit 1
-            git clone https://github.com/canonical/ubuntu-image
-            cd ubuntu-image || exit 1
-            GO111MODULE=on go build -tags 'withtestkeys' ./cmd/ubuntu-image
-        )
-        mv /tmp/ubuntu-image/ubuntu-image "$GOHOME/bin"
-    fi
+    git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
+    (
+        # go 1.22 needs an exact toolchain name for automatic toolchain selection
+        export GOTOOLCHAIN=go1.25.0
+        cd "$ubuntu_image_dir" || exit 1
+        go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
+        go build -mod=mod -tags withtestkeys -o "$GOHOME/bin/ubuntu-image" ./cmd/ubuntu-image
+    )
+    rm -rf "$ubuntu_image_dir"
 
     echo "$GOHOME/bin/ubuntu-image"
+}
+
+ensure_ubuntu_image() {
+    if [ "${UBUNTU_IMAGE_USE_LOCAL_SNAPD:-false}" = "true" ]; then
+        build_ubuntu_image
+    else
+        get_ubuntu_image
+    fi
 }
 
 main() {
