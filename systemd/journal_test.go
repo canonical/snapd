@@ -24,14 +24,15 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	. "github.com/snapcore/snapd/systemd"
 )
 
 type journalTestSuite struct {
+	runDir              string
 	journalDir          string
 	journalNamespaceDir string
 }
@@ -39,12 +40,12 @@ type journalTestSuite struct {
 var _ = Suite(&journalTestSuite{})
 
 func (j *journalTestSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
+	j.runDir = filepath.Join(c.MkDir(), "/run/systemd")
 
-	j.journalDir = path.Join(dirs.SnapSystemdRunDir, "journal")
+	j.journalDir = path.Join(j.runDir, "journal")
 	c.Assert(os.MkdirAll(j.journalDir, 0755), IsNil)
 
-	j.journalNamespaceDir = path.Join(dirs.SnapSystemdRunDir, "journal.test")
+	j.journalNamespaceDir = path.Join(j.runDir, "journal.test")
 	c.Assert(os.MkdirAll(j.journalNamespaceDir, 0755), IsNil)
 }
 
@@ -98,6 +99,7 @@ func (j *journalTestSuite) testStreamFileHeader(c *C, journalDir, namespace stri
 	}()
 
 	jout, err := NewJournalStreamFile(JournalStreamFileParams{
+		RunDir:     j.runDir,
 		Namespace:  namespace,
 		Identifier: "foobar",
 		UnitName:   "foobar.service",

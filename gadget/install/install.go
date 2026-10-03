@@ -243,7 +243,7 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 	// force the assignment there, as current constraints dictate the boot
 	// device must be on the same disk as ubuntu-seed. Therefore we should
 	// just ensure that the two disk paths don't differ if assigned
-	foundDisk, err := disks.DiskFromMountPoint("/run/mnt/ubuntu-seed", nil)
+	foundDisk, err := disks.DiskFromMountPointUnderRoot(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed", nil)
 	if err != nil {
 		logger.Noticef("Warning: cannot find disk from mounted seed: %s", err)
 	} else {
@@ -256,7 +256,7 @@ func resolveBootDevice(bootDevice string, bootVol *gadget.Volume) (string, error
 	if bootVol.AssignedDevice != "" {
 		// disk is assigned for this volume, then it must match the one
 		// that is assigned to system-seed
-		bootDisk, err := disks.DiskFromDeviceName(bootVol.AssignedDevice)
+		bootDisk, err := disks.DiskFromDeviceNameUnderRoot(dirs.GlobalRootDir, bootVol.AssignedDevice)
 		if err != nil {
 			return "", err
 		}

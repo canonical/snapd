@@ -36,7 +36,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -478,7 +477,9 @@ type Systemd interface {
 	// EnsureMountUnitFile adds/enables/starts a mount unit with options.
 	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
-	RemoveMountUnitFile(baseDir string) error
+	// rootDir must be a non-empty absolute path to the root of the
+	// filesystem the mount unit resides on.
+	RemoveMountUnitFile(rootDir, baseDir string) error
 	// ListMountUnits gets the list of mount points of the mount units created
 	// by the `origin` module for the given snap. filter controls whether only
 	// units currently loaded in systemd's memory are returned (LoadedMountUnits)
@@ -587,10 +588,11 @@ func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
 // systemd is not really called, but instead its functions are emulated
-// by other means.
+// by other means. rootDir must be a non-empty absolute path to the root
+// of the filesystem to operate on.
 func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
-		rootDir = dirs.GlobalRootDir
+		panic("internal error: NewEmulationMode() requires a non-empty root directory")
 	}
 	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
@@ -1438,42 +1440,59 @@ const (
 	Transient
 )
 
-// MountUnitPath returns the path of a {,auto}mount unit
-func MountUnitPath(baseDir string) string {
+// MountUnitPath returns the path of a {,auto}mount unit.
+func MountUnitPath(rootDir, baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
-	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
+	return filepath.Join(rootDir, "/etc/systemd/system", escapedPath+".mount")
 }
 
 // mountUnitPathWithLifetime returns the path of a {,auto}mount unit created in
 // the systemd directory suitable for the given unit lifetime. rootDir is the
 // directory for the root filesystem.
 func mountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir, rootDir string) string {
-	if rootDir == "" {
-		rootDir = dirs.GlobalRootDir
-	}
 	escapedPath := EscapeUnitNamePath(mountPointDir)
 	var servicesPath string
 	switch lifetime {
 	case Persistent:
-		servicesPath = dirs.SnapServicesDirUnder(rootDir)
+		servicesPath = filepath.Join(rootDir, "/etc/systemd/system")
 	case Transient:
-		servicesPath = dirs.SnapRuntimeServicesDirUnder(rootDir)
+		servicesPath = filepath.Join(rootDir, "/run/systemd/system")
 	default:
 		panic(fmt.Sprintf("unknown systemd unit lifetime %q", lifetime))
 	}
 	return filepath.Join(servicesPath, escapedPath+".mount")
 }
 
-// ExistingMountUnitPath finds the location of an existing mount unit
-func ExistingMountUnitPath(mountPointDir string) string {
+// ExistingMountUnitPath finds the location of an existing mount unit.
+func ExistingMountUnitPath(rootDir, mountPointDir string) string {
 	lifetimes := []UnitLifetime{Persistent, Transient}
 	for _, lifetime := range lifetimes {
-		unit := mountUnitPathWithLifetime(lifetime, mountPointDir, "")
+		unit := mountUnitPathWithLifetime(lifetime, mountPointDir, rootDir)
 		if osutil.FileExists(unit) {
 			return unit
 		}
 	}
 	return ""
+}
+
+// stripRootDir strips the given root directory prefix from the specified
+// absolute path, returning a path absolute to the root filesystem. An error
+// is returned if dir is not an absolute path or is not under rootDir.
+func stripRootDir(rootDir, dir string) (string, error) {
+	if !filepath.IsAbs(dir) {
+		return "", fmt.Errorf("supplied path is not absolute %q", dir)
+	}
+	if rootDir == "" {
+		rootDir = "/"
+	}
+	result, err := filepath.Rel(rootDir, dir)
+	if err != nil {
+		return "", err
+	}
+	if result == ".." || strings.HasPrefix(result, "../") {
+		return "", fmt.Errorf("supplied path %q is not under root directory %q", dir, rootDir)
+	}
+	return "/" + result, nil
 }
 
 var squashfsFsType = squashfs.FsType
@@ -1606,7 +1625,11 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, modified, err := EnsureMountUnitFileContent(unitOptions)
+	opts := *unitOptions
+	if opts.RootDir == "" {
+		opts.RootDir = s.rootDir
+	}
+	mountUnitName, modified, err := EnsureMountUnitFileContent(&opts)
 	if err != nil {
 		return "", err
 	}
@@ -1643,7 +1666,11 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 	return mountUnitName, nil
 }
 
-func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
+func (s *systemd) RemoveMountUnitFile(rootDir, mountedDir string) error {
+	if rootDir == "" {
+		panic("internal error: RemoveMountUnitFile() requires a non-empty root directory")
+	}
+
 	// unmount regardless of whether the unit file exists as
 	// the unit file may have been deleted while the mount is
 	// still active
@@ -1664,7 +1691,11 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	mountPointDir, err := stripRootDir(rootDir, mountedDir)
+	if err != nil {
+		return err
+	}
+	unit := ExistingMountUnitPath(rootDir, mountPointDir)
 	if unit == "" {
 		return nil
 	}

@@ -446,7 +446,7 @@ func waitForCandidateByLabelPath(label string) (string, error) {
 		// label exists but the link has not been created yet): this is
 		// not a fully solvable problem although waiting by udev will
 		// help if the disk is present on boot.
-		if candidate, err = disks.CandidateByLabelPath(label); err == nil {
+		if candidate, err = disks.CandidateByLabelPath(dirs.GlobalRootDir, label); err == nil {
 			logger.Noticef("label %q found", candidate)
 			return candidate, nil
 		}

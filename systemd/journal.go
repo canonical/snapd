@@ -25,7 +25,6 @@ import (
 	"net"
 	"os"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 )
 
@@ -34,6 +33,9 @@ import (
 // be opened. If a namespace is provided, then the stream will connect to that specific
 // journal namespace instead.
 type JournalStreamFileParams struct {
+	// RunDir is the systemd run directory (e.g. /run/systemd) under
+	// which the journal sockets are located.
+	RunDir      string
 	Namespace   string
 	Identifier  string
 	UnitName    string
@@ -51,9 +53,9 @@ func NewJournalStreamFile(params JournalStreamFileParams) (*os.File, error) {
 
 	var journalPath string
 	if params.Namespace != "" {
-		journalPath = fmt.Sprintf("%s/journal.%s/stdout", dirs.SnapSystemdRunDir, params.Namespace)
+		journalPath = fmt.Sprintf("%s/journal.%s/stdout", params.RunDir, params.Namespace)
 	} else {
-		journalPath = fmt.Sprintf("%s/journal/stdout", dirs.SnapSystemdRunDir)
+		journalPath = fmt.Sprintf("%s/journal/stdout", params.RunDir)
 	}
 
 	conn, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: journalPath})

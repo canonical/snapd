@@ -50,7 +50,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -72,8 +71,8 @@ func getExcludedSyscalls() string {
 // testsuites
 var ExcludedSyscalls = getExcludedSyscalls()
 
-func findStrace() (stracePath string, err error) {
-	if path := filepath.Join(dirs.SnapMountDir, "strace-static", "current", "bin", "strace"); osutil.FileExists(path) {
+func findStrace(snapMountDir string) (stracePath string, err error) {
+	if path := filepath.Join(snapMountDir, "strace-static", "current", "bin", "strace"); osutil.FileExists(path) {
 		return path, nil
 	}
 
@@ -88,7 +87,7 @@ func findStrace() (stracePath string, err error) {
 // Command returns how to run strace in the users context with the right set of
 // excluded system calls. The returned invocation of strace is wrapped with
 // sudo.
-func Command(extraStraceOpts []string) (*exec.Cmd, error) {
+func Command(snapMountDir string, extraStraceOpts []string) (*exec.Cmd, error) {
 	sudoPath, err := exec.LookPath("sudo")
 	if err != nil {
 		return nil, fmt.Errorf("cannot use strace without sudo: %s", err)
@@ -101,7 +100,7 @@ func Command(extraStraceOpts []string) (*exec.Cmd, error) {
 	// have _newselect). In https://github.com/strace/strace/issues/57 options
 	// are discussed. We could use "-e trace=?syscall" but that is only
 	// available since strace 4.17 which is not even in Ubuntu 17.10.
-	stracePath, err := findStrace()
+	stracePath, err := findStrace(snapMountDir)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find an installed strace, please try 'snap install strace-static'")
 	}
@@ -123,21 +122,21 @@ func Command(extraStraceOpts []string) (*exec.Cmd, error) {
 
 // CommandWithTraceePid returns strace invocation command with parameters for
 // attaching to a specific process ID.
-func CommandWithTraceePid(pid int, extraStraceOpts []string) (*exec.Cmd, error) {
-	return Command(append(extraStraceOpts, "-p", strconv.Itoa(pid)))
+func CommandWithTraceePid(pid int, snapMountDir string, extraStraceOpts []string) (*exec.Cmd, error) {
+	return Command(snapMountDir, append(extraStraceOpts, "-p", strconv.Itoa(pid)))
 }
 
 // TraceExecCommandForPid returns an exec.Cmd suitable for attaching to a given
 // process ID and tracking timings of execve{,at}() calls. Internally invokes
 // strace wrapped with sudo.
-func TraceExecCommandForPid(pid int, straceLogPath string) (*exec.Cmd, error) {
+func TraceExecCommandForPid(pid int, snapMountDir, straceLogPath string) (*exec.Cmd, error) {
 	extraStraceOpts := []string{
 		"-ttt",                        // timestamps
 		"-e", "trace=execve,execveat", // pick exec*() syscalls
 		"-o", fmt.Sprintf("%s", straceLogPath), // output to FIFO
 	}
 
-	return CommandWithTraceePid(pid, extraStraceOpts)
+	return CommandWithTraceePid(pid, snapMountDir, extraStraceOpts)
 }
 
 func StraceAttachedStart(s string) bool {

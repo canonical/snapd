@@ -182,7 +182,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 
 	// next try the kernel device node name
 	if traits.OriginalKernelPath != "" {
-		disk, err := disks.DiskFromDeviceName(traits.OriginalKernelPath)
+		disk, err := disks.DiskFromDeviceNameUnderRoot(dirs.GlobalRootDir, traits.OriginalKernelPath)
 		gadgetStructToDiskStruct := compatibleCandidate(disk, "device name", err)
 		if gadgetStructToDiskStruct != nil {
 			return disk, gadgetStructToDiskStruct, nil
@@ -194,7 +194,7 @@ func searchVolumeWithTraitsAndMatchParts(vol *Volume, traits DiskVolumeDeviceTra
 		// there isn't a way to find a disk using the disk ID directly, so we
 		// instead have to get all the disks and then check them all to see if
 		// the disk ID's match
-		blockdevDisks, err := disks.AllPhysicalDisks()
+		blockdevDisks, err := disks.AllPhysicalDisksUnderRoot(dirs.GlobalRootDir)
 		if err == nil {
 			for _, blockDevDisk := range blockdevDisks {
 				if blockDevDisk.DiskID() == traits.DiskID {
@@ -746,7 +746,7 @@ func DiskTraitsFromDeviceAndValidate(vol *Volume, dev string, opts *DiskVolumeVa
 	}
 
 	// also get a Disk{} interface for this device
-	disk, err := disks.DiskFromDeviceName(dev)
+	disk, err := disks.DiskFromDeviceNameUnderRoot(dirs.GlobalRootDir, dev)
 	if err != nil {
 		return res, fmt.Errorf("cannot get disk for device %s: %v", dev, err)
 	}

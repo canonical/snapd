@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -34,8 +33,8 @@ import (
 // ignoring capitalization, but in that case it will return a match
 // only if the filesystem is vfat. If found, it returns the path of
 // the symlink in the by-label folder.
-func CandidateByLabelPath(label string) (string, error) {
-	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
+func CandidateByLabelPath(rootDir, label string) (string, error) {
+	byLabelDir := filepath.Join(rootDir, "/dev/disk/by-label/")
 	byLabelFs, err := os.ReadDir(byLabelDir)
 	if err != nil {
 		return "", err
@@ -79,5 +78,5 @@ func CandidateByLabelPath(label string) (string, error) {
 			candidate, label)
 	}
 
-	return filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/", candidate), nil
+	return filepath.Join(rootDir, "/dev/disk/by-label/", candidate), nil
 }

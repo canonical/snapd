@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
@@ -141,10 +140,15 @@ func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, 
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
 
+	opts := *unitOptions
+	if opts.RootDir == "" {
+		opts.RootDir = s.rootDir
+	}
+
 	// Pass directly options, note that passed options need to be correct
 	// for the final target that will use the preseeding tarball. See also
 	// comment in EnsureMountUnitFile.
-	mountUnitName, modified, err := EnsureMountUnitFileContent(unitOptions)
+	mountUnitName, modified, err := EnsureMountUnitFileContent(&opts)
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +158,7 @@ func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, 
 	}
 
 	// Create directory as systemd would do when starting the unit
-	if err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, unitOptions.Where), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(opts.RootDir, unitOptions.Where), 0755); err != nil {
 		return "", err
 	}
 
@@ -184,7 +188,11 @@ func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, 
 	return mountUnitName, nil
 }
 
-func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
+func (s *emulation) RemoveMountUnitFile(rootDir, mountedDir string) error {
+	if rootDir == "" {
+		panic("internal error: RemoveMountUnitFile() requires a non-empty root directory")
+	}
+
 	// unmount regardless of whether the unit file exists as
 	// the unit file may have been deleted while the mount is
 	// still active
@@ -199,7 +207,11 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		}
 	}
 
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
+	mountPointDir, err := stripRootDir(rootDir, mountedDir)
+	if err != nil {
+		return err
+	}
+	unit := MountUnitPath(rootDir, mountPointDir)
 	if !osutil.FileExists(unit) {
 		return nil
 	}

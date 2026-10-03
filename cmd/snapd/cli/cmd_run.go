@@ -1158,7 +1158,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		close(doneCh)
 	}()
 
-	straceCmd, err := strace.TraceExecCommandForPid(appCmd.Process.Pid, straceLog)
+	straceCmd, err := strace.TraceExecCommandForPid(appCmd.Process.Pid, dirs.SnapMountDir, straceLog)
 	if err != nil {
 		return err
 	}
@@ -1286,7 +1286,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 
 	logger.Debugf("child stopped, ready to be traced")
 
-	straceCmd, err := strace.CommandWithTraceePid(appCmd.Process.Pid, extraStraceOpts)
+	straceCmd, err := strace.CommandWithTraceePid(appCmd.Process.Pid, dirs.SnapMountDir, extraStraceOpts)
 	if err != nil {
 		return err
 	}
