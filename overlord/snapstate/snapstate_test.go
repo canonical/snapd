@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/gadget"
@@ -12803,6 +12804,58 @@ func (s *snapmgrTestSuite) TestCheckExpectedRestartFromStartUpRequestsStop(c *C)
 	// startup asserts the runtime failure state
 	err = s.snapmgr.StartUp()
 	c.Check(err, Equals, snapstate.ErrUnexpectedRuntimeRestart)
+}
+
+func (s *snapmgrTestSuite) TestStartUpCleansUpGateAutoRefreshLeftovers(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	st := s.state
+	st.Lock()
+
+	holdUntil := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	hold := &snapstate.HoldState{
+		Level:     snapstate.HoldAutoRefresh,
+		FirstHeld: holdUntil.Add(-time.Hour),
+		HoldUntil: holdUntil,
+	}
+	st.Set("snaps-hold", map[string]map[string]*snapstate.HoldState{
+		// only held by a snap, removed completely
+		"snap-a": {"snap-c": hold},
+		// held by a snap and by the system, the system hold is kept
+		"snap-b": {"snap-c": hold, "system": hold},
+		// only held by the system, kept
+		"snap-d": {"system": hold},
+		// no holds, removed
+		"snap-e": {},
+	})
+
+	// stale gate-refresh lock is released, other locks are kept
+	info := runinhibit.InhibitInfo{Previous: snap.R(1)}
+	c.Assert(runinhibit.LockWithHint("snap-a", runinhibit.HintInhibitedGateRefresh, info, nil), IsNil)
+	c.Assert(runinhibit.LockWithHint("snap-b", runinhibit.HintInhibitedForRefresh, info, nil), IsNil)
+	st.Unlock()
+
+	c.Assert(s.snapmgr.StartUp(), IsNil)
+
+	hint, _, err := runinhibit.IsLocked("snap-a", nil)
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	hint, current, err := runinhibit.IsLocked("snap-b", nil)
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
+	c.Check(current, Equals, info)
+	c.Check(logbuf.String(), testutil.Contains, "released stale gate-refresh run inhibition locks of snaps: snap-a")
+
+	st.Lock()
+	defer st.Unlock()
+
+	var gating map[string]map[string]*snapstate.HoldState
+	c.Assert(st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
+		"snap-b": {"system": hold},
+		"snap-d": {"system": hold},
+	})
 }
 
 func (s *snapmgrTestSuite) TestResealingTasksAreRegistered(c *C) {

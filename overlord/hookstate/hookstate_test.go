@@ -938,6 +938,29 @@ func (s *hookManagerSuite) TestOptionalHookWithMissingHandler(c *C) {
 	c.Logf("Task log:\n%s\n", s.task.Log())
 }
 
+func (s *hookManagerSuite) TestOptionalHookWithoutHandler(c *C) {
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Hook:     "do-something",
+		Optional: true,
+	}
+	s.state.Lock()
+	s.task.Set("hook-setup", hooksup)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	// the hook exists, but without a handler it does not run
+	c.Check(s.command.Calls(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+}
+
 func checkTaskLogContains(c *C, task *state.Task, pattern string) {
 	exp := regexp.MustCompile(pattern)
 	found := false
