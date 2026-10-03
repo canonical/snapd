@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -42,31 +41,6 @@ func usersToUids(usernames []string) ([]int, error) {
 		keys = append(keys, uid)
 	}
 	return keys, nil
-}
-
-// affectedUids is used to determine the currently active user-sessions.
-// This is primarily used to determine which users are going to be affected
-// by user service changes. This is inherently racy, i. e this can easily become
-// out of sync by the time we actually invoke the user-session agents, where
-// a user may have logged out, or one logged in (i. e worst case we may miss
-// a user, if someone logged out the user is ignored).
-func affectedUids(users []string) (map[int]bool, error) {
-	var uids []int
-	var err error
-	if len(users) == 0 {
-		uids, err = clientutil.AvailableUserSessions()
-	} else {
-		uids, err = usersToUids(users)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	uidsAffected := make(map[int]bool, len(users))
-	for _, uid := range uids {
-		uidsAffected[uid] = true
-	}
-	return uidsAffected, nil
 }
 
 func splitServicesIntoSystemAndUser(apps []*snap.AppInfo) (sys, usr []*snap.AppInfo) {
@@ -145,12 +119,10 @@ func updateSnapstateSystemServices(snapst *snapstate.SnapState, apps []*snap.App
 	return true
 }
 
-// updateSnapstateUserServices performs a best-effort to keep track of service changes
-// during hooks for user services. The weakness in this approach is that we can only keep
-// track of users that are currently logged in. Due to the inherent need of communicating with
-// the per-user service agent, we cannot deal with users that are not currently logged in.
-// In practice, this may pose limited challenges, and most likely it will result in a service
-// not being started/stopped for that user correctly, which can be corrected by the user.
+// updateSnapstateUserServices records service preferences for the UIDs returned
+// by the completed operation. This includes lingering managers. The caller
+// supplies the operation's results rather than discovering a different set of
+// users while holding the state lock.
 func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppInfo, enable bool, uids map[int]bool) (changed bool) {
 	// populate helper lookups of already enabled/disabled services from
 	// snapst.
@@ -243,7 +215,7 @@ func updateSnapstateUserServices(snapst *snapstate.SnapState, apps []*snap.AppIn
 // updateSnapstateServices uses {User,}ServicesEnabledByHooks and {User,}ServicesDisabledByHooks in
 // snapstate and the provided enabled or disabled list to update the state of services in snapstate.
 // It is meant for doServiceControl to help track enabling and disabling of services.
-func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*snap.AppInfo, scopeOpts wrappers.ScopeOptions) (bool, error) {
+func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*snap.AppInfo, scopeOpts wrappers.ScopeOptions, uids map[int]bool) (bool, error) {
 	if len(enable) > 0 && len(disable) > 0 {
 		// We do one op at a time for given service-control task; we could in
 		// theory support both at the same time here, but service-control
@@ -269,10 +241,6 @@ func updateSnapstateServices(snapst *snapstate.SnapState, enable, disable []*sna
 		sysChanged = updateSnapstateSystemServices(snapst, sys, isEnable)
 	}
 	if scopeOpts.Scope == wrappers.ServiceScopeUser || scopeOpts.Scope == wrappers.ServiceScopeAll {
-		uids, err := affectedUids(scopeOpts.Users)
-		if err != nil {
-			return false, err
-		}
 		usrChanged = updateSnapstateUserServices(snapst, usr, isEnable, uids)
 	}
 	return sysChanged || usrChanged, nil

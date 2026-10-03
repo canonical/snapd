@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -2780,18 +2779,10 @@ func installModeDisabledSystemServices(snapst *SnapState, currentInfo *snap.Info
 	return svcsToDisable
 }
 
-// installModeDisabledUserServices returns a map of currently active users
-// with user services that have been marked for 'install-mode: disable', which
-// were not already disabled for each of the active users.
-// The reason we are doing this only for users currently logged in, is because we
-// do a best-effort handling of user services - we can only query the user service
-// agent for users that have it running.
-func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, prevCurrentSvcs map[string]bool) (map[int][]string, error) {
-	availableUids, err := clientutil.AvailableUserSessions()
-	if err != nil {
-		return nil, err
-	}
-
+// installModeDisabledUserServices returns the new install-mode-disabled services
+// for the selected user managers, except services enabled by a hook. Discovery
+// happens outside the state lock; the same UID snapshot is used when starting.
+func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, prevCurrentSvcs map[string]bool, availableUids []int) (map[int][]string, error) {
 	enabledByHookSvcs := make(map[int]map[string]bool)
 	for uid, svcs := range snapst.UserServicesEnabledByHooks {
 		enabledByHookSvcs[uid] = make(map[string]bool)
@@ -2821,7 +2812,7 @@ func installModeDisabledUserServices(snapst *SnapState, currentInfo *snap.Info, 
 // installModeDisabledServices returns what services with
 // "install-mode: disabled" should be disabled. Only services
 // seen for the first time are considered.
-func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info) (sysSvcsToDisable []string, usrSvcsToDisable map[int][]string, err error) {
+func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo *snap.Info, userUIDs []int) (sysSvcsToDisable []string, usrSvcsToDisable map[int][]string, err error) {
 	// find what services the previous snap had
 	prevCurrentSvcs := map[string]bool{}
 	if psi := snapst.previousSideInfo(); psi != nil {
@@ -2842,7 +2833,7 @@ func installModeDisabledServices(st *state.State, snapst *SnapState, currentInfo
 	// do not need special handling. They are either still disabled
 	// or something has enabled them and then they should stay enabled.
 	sysSvcsToDisable = installModeDisabledSystemServices(snapst, currentInfo, prevCurrentSvcs)
-	usrSvcsToDisable, err = installModeDisabledUserServices(snapst, currentInfo, prevCurrentSvcs)
+	usrSvcsToDisable, err = installModeDisabledUserServices(snapst, currentInfo, prevCurrentSvcs, userUIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2889,8 +2880,35 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// Capture targets outside the state lock, before deriving per-user settings.
+	// Re-read state after discovery, and pass the same UIDs to the backend start.
+	userUIDs := []int{}
+	for _, app := range currentInfo.Services() {
+		if app.DaemonScope != snap.UserDaemon {
+			continue
+		}
+		st.Unlock()
+		userUIDs, err = wrappers.RunningUserServiceUIDs()
+		st.Lock()
+		if err != nil {
+			return err
+		}
+		snapsup, snapst, err = snapSetupAndState(t)
+		if err != nil {
+			return err
+		}
+		currentInfo, err = snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		missingSvcsOverview, err = missingDisabledServices(snapst.LastActiveDisabledServices, snapst.LastActiveDisabledUserServices, currentInfo)
+		if err != nil {
+			return err
+		}
+		break
+	}
 	// check what services with "InstallMode: disable" need to be disabled
-	sysSvcsToDisableFromInstallMode, usrSvcsToDisableFromInstallMode, err := installModeDisabledServices(st, snapst, currentInfo)
+	sysSvcsToDisableFromInstallMode, usrSvcsToDisableFromInstallMode, err := installModeDisabledServices(st, snapst, currentInfo, userUIDs)
 	if err != nil {
 		return err
 	}
@@ -2934,8 +2952,9 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Unlock()
 	err = m.backend.StartServices(svcs, &wrappers.DisabledServices{
-		SystemServices: missingSvcsOverview.FoundSystemServices,
-		UserServices:   missingSvcsOverview.FoundUserServices,
+		SystemServices:  missingSvcsOverview.FoundSystemServices,
+		UserServices:    missingSvcsOverview.FoundUserServices,
+		UserServiceUIDs: userUIDs,
 	}, pb, perfTimings)
 	st.Lock()
 
@@ -3067,7 +3086,13 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	// query before the stop is sufficient for both uses.
 	disabledServices, err := m.queryDisabledServices(currentInfo, pb)
 	if err != nil {
-		return err
+		if stopReason != snap.StopReasonRemove {
+			return err
+		}
+		// Removal has no service restart undo. An unavailable user's status
+		// must not prevent the best-effort stops below (including system units).
+		logger.Noticef("cannot query disabled services during removal: %v", err)
+		disabledServices = &wrappers.DisabledServices{}
 	}
 
 	// stop the services
@@ -3078,6 +3103,12 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 
 	st.Lock()
 	defer st.Unlock()
+
+	// Other state may have changed during the external status and stop calls.
+	snapsup, snapst, err = snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
 
 	// for undo
 	t.Set("old-last-active-disabled-services", snapst.LastActiveDisabledServices)

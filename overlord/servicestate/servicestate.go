@@ -43,7 +43,8 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
-	usc "github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/timeout"
+	"github.com/snapcore/snapd/usersession/service"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -356,6 +357,7 @@ type StatusDecorator struct {
 	globalUserSysd systemd.Systemd
 	context        context.Context
 	uid            string
+	userStatuses   map[string]*systemd.UnitStatus
 }
 
 // NewStatusDecorator returns a new StatusDecorator.
@@ -410,24 +412,56 @@ func (sd *StatusDecorator) queryUserServiceStatus(units []string) ([]*systemd.Un
 		return nil, err
 	}
 
-	cli := usc.NewForUids(uid)
-	sts, failures, err := cli.ServiceStatus(sd.context, units)
+	if sd.userStatuses != nil {
+		var statuses []*systemd.UnitStatus
+		for _, unit := range units {
+			st := sd.userStatuses[unit]
+			if st == nil {
+				return nil, fmt.Errorf("internal error: no prepared status for %q", unit)
+			}
+			statuses = append(statuses, st)
+		}
+		return statuses, nil
+	}
+	ctx, cancel := context.WithTimeout(sd.context, time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+	targets, err := service.Select(ctx, []int{uid})
 	if err != nil {
 		return nil, err
 	}
+	statuses, result := targets.Status(ctx, units)
+	return statuses[uid], result.Err()
+}
 
-	// Return the first service failure, if any failures were reported
-	if len(failures[uid]) > 0 {
-		return nil, fmt.Errorf("cannot retrieve service %q status: %v",
-			failures[uid][0].Service, failures[uid][0].Error)
+// PrepareStatus reads the request's user units through one owned connection.
+// The decorator subsequently uses the snapshot without retaining a bridge.
+func (sd *StatusDecorator) PrepareStatus(apps []*snap.AppInfo) error {
+	if sd.uid == "" {
+		return nil
 	}
-
-	// Convert the received unit statuses to systemd-unit statuses
-	var sysdStatuses []*systemd.UnitStatus
-	for _, sts := range sts[uid] {
-		sysdStatuses = append(sysdStatuses, sts.SystemdUnitStatus())
+	var units []string
+	for _, app := range apps {
+		if !app.IsService() || !app.Snap.IsActive() || app.DaemonScope != snap.UserDaemon {
+			continue
+		}
+		units = append(units, app.ServiceName())
+		for _, socket := range app.Sockets {
+			units = append(units, filepath.Base(socket.File()))
+		}
+		if app.Timer != nil {
+			units = append(units, filepath.Base(app.Timer.File()))
+		}
 	}
-	return sysdStatuses, nil
+	sd.userStatuses = nil
+	statuses, err := sd.queryUserServiceStatus(units)
+	if err != nil {
+		return err
+	}
+	sd.userStatuses = make(map[string]*systemd.UnitStatus, len(statuses))
+	for _, st := range statuses {
+		sd.userStatuses[st.Name] = st
+	}
+	return nil
 }
 
 func (sd *StatusDecorator) queryServiceStatus(scope snap.DaemonScope, units []string) ([]*systemd.UnitStatus, error) {

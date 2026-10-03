@@ -20,8 +20,8 @@
 package internal
 
 import (
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/usersession/client"
 )
 
 var (
@@ -33,7 +33,7 @@ const (
 	MaxLenUnixPathSocketAddress     = maxLenUnixPathSocketAddress
 )
 
-func MockUserSessionQueryServiceStatusMany(f func(units []string) (map[int][]client.ServiceUnitStatus, map[int][]client.ServiceFailure, error)) (restore func()) {
+func MockUserSessionQueryServiceStatusMany(f func(units []string) (map[int][]*systemd.UnitStatus, error)) (restore func()) {
 	restore = testutil.Backup(&userSessionQueryServiceStatusMany)
 	userSessionQueryServiceStatusMany = f
 	return restore

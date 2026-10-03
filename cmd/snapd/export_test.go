@@ -26,6 +26,8 @@ import "github.com/snapcore/snapd/testutil"
 // Main exposes the unexported main() for testing.
 var Main = main
 
+var ToolMains = toolMains
+
 // MockToolMains replaces the toolMains dispatch map for the duration of a test.
 func MockToolMains(m map[string]func()) (restore func()) {
 	return testutil.Mock(&toolMains, m)

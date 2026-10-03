@@ -22,7 +22,6 @@ package servicestate_test
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -45,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -81,6 +81,7 @@ apps:
 
 func (s *serviceControlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(servicetest.MockSystemd())
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
@@ -1374,11 +1375,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServicesIgnoresNonServices(c *C
 }
 
 func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
-	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
-	c.Assert(err, IsNil)
+	s.AddCleanup(servicetest.MockSystemd(0, 1000))
 
 	osutil.MockUserLookup(func(s string) (*user.User, error) {
 		switch s {
@@ -1532,11 +1529,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServices(c *C) {
 }
 
 func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c *C) {
-	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
-	c.Assert(err, IsNil)
+	s.AddCleanup(servicetest.MockSystemd(0, 1000))
 
 	osutil.MockUserLookup(func(s string) (*user.User, error) {
 		return nil, fmt.Errorf("unknown user %s", s)
@@ -1562,11 +1555,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnUserError(c 
 }
 
 func (s *serviceControlSuite) TestUpdateSnapstateUserServicesFailsOnInvalidUID(c *C) {
-	// fake two sockets, one for 0 and one for 1000
-	err := os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "0", "snapd-session-agent.socket"), 0700)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(path.Join(dirs.XdgRuntimeDirBase, "1000", "snapd-session-agent.socket"), 0700)
-	c.Assert(err, IsNil)
+	s.AddCleanup(servicetest.MockSystemd(0, 1000))
 
 	osutil.MockUserLookup(func(s string) (*user.User, error) {
 		return &user.User{

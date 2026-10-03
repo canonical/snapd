@@ -1,0 +1,82 @@
+summary: Check direct user timer management for a lingering user without a session agent
+
+details: |
+    A running lingering manager with no login session is a service target even
+    when both session-agent units are masked. Installation, status, disabling,
+    timer activation, restart and removal must operate through the regular bus.
+
+systems: [ubuntu-24.04-64, ubuntu-26.04-64, fedora-44-64]
+
+kill-timeout: 10m
+
+prepare: |
+    useradd -m snap-timer-test
+    touch timer-user-created
+    snap set system experimental.user-daemons=true
+    tests.session -u snap-timer-test prepare
+    tests.session -u snap-timer-test exec systemctl --user --runtime mask --now \
+        snapd.session-agent.service snapd.session-agent.socket
+    cp -a "$TESTSLIB/snaps/test-snapd-user-timer-service" timer-snap
+    # Make the snap run timer filter permit execution in every minute.
+    sed -i 's@0:00-24:00/96@0:00-24:00/1440@' timer-snap/meta/snap.yaml
+    # Keep the activated service alive through the status and restart checks.
+    sed -i 's/seq 10/seq 600/' timer-snap/bin/loop
+
+restore: |
+    snap remove --purge test-snapd-user-timer-service || true
+    if [ -f timer-user-created ]; then
+        tests.session -u snap-timer-test restore
+        userdel -r snap-timer-test
+        rm timer-user-created
+    fi
+    snap unset system experimental.user-daemons
+    rm -rf timer-snap
+
+debug: |
+    tests.session dump
+    tests.session -u snap-timer-test exec systemctl --user list-timers --all || true
+    tests.session -u snap-timer-test exec journalctl --user || true
+    snap changes
+
+execute: |
+    user_uid="$(id -u snap-timer-test)"
+    unit=snap.test-snapd-user-timer-service.regular-timer
+    app=test-snapd-user-timer-service.regular-timer
+    systemctl is-active "user@$user_uid.service"
+    test -S "/run/user/$user_uid/bus"
+    loginctl show-user snap-timer-test -p Linger | MATCH '^Linger=yes$'
+    # Newer systemd versions register the user manager itself as a session.
+    # There must still be no login session for this newly created user.
+    for session in $(loginctl show-user snap-timer-test -p Sessions --value); do
+        loginctl show-session "$session" -p Class | MATCH '^Class=manager$'
+    done
+
+    "$TESTSTOOLS/snaps-state" install-local timer-snap
+    tests.session -u snap-timer-test exec systemctl --user is-active "$unit.timer"
+    tests.session -u snap-timer-test exec snap services "$app" | MATCH 'enabled.*user,timer-activated'
+
+    snap stop --disable --users=all "$app"
+    not tests.session -u snap-timer-test exec systemctl --user is-active "$unit.timer"
+
+    # Trigger the actual timer promptly instead of waiting for the wall clock.
+    dropin="/run/user/$user_uid/systemd/user/$unit.timer.d"
+    mkdir -p "$dropin"
+    cat > "$dropin/test.conf" <<'EOF'
+    [Timer]
+    OnCalendar=
+    OnActiveSec=1s
+    AccuracySec=1us
+    EOF
+    tests.session -u snap-timer-test exec systemctl --user daemon-reload
+    snap start --enable --users=all "$app"
+    retry -n 30 --wait 1 tests.session -u snap-timer-test exec systemctl --user is-active "$unit.service"
+    tests.session -u snap-timer-test exec snap services "$app" | MATCH 'enabled.*active.*user,timer-activated'
+
+    snap restart --users=all "$app"
+    tests.session -u snap-timer-test exec systemctl --user is-active "$unit.timer"
+    tests.session -u snap-timer-test exec systemctl --user is-active "$unit.service"
+    snap remove --purge test-snapd-user-timer-service
+    not tests.session -u snap-timer-test exec systemctl --user is-active "$unit.timer"
+    not tests.session -u snap-timer-test exec systemctl --user is-active "$unit.service"
+    not tests.session -u snap-timer-test exec systemctl --user is-active snapd.session-agent.service
+    not tests.session -u snap-timer-test exec systemctl --user is-active snapd.session-agent.socket

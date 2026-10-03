@@ -27,8 +27,6 @@ import (
 
 var (
 	SessionInfoCmd                     = sessionInfoCmd
-	ServiceControlCmd                  = serviceControlCmd
-	ServiceStatusCmd                   = serviceStatusCmd
 	PendingRefreshNotificationCmd      = pendingRefreshNotificationCmd
 	FinishRefreshNotificationCmd       = finishRefreshNotificationCmd
 	GuessAppData                       = guessAppData

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/usersession/service"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -145,7 +146,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
 				return err
 			}
-			changed, err := updateSnapstateServices(&snapst, nil, services, sc.ScopeOptions)
+			changed, err := updateSnapstateServices(&snapst, nil, services, sc.ScopeOptions, successfulUserServices(opts.UserServiceResult))
 			if err != nil {
 				return err
 			}
@@ -170,7 +171,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
 				return err
 			}
-			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil, sc.ScopeOptions)
+			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil, sc.ScopeOptions, successfulUserServices(opts.UserServiceResult))
 			if err != nil {
 				return err
 			}
@@ -199,4 +200,14 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("unhandled service action: %q", sc.Action)
 	}
 	return nil
+}
+
+func successfulUserServices(result *service.Result) map[int]bool {
+	uids := make(map[int]bool)
+	if result != nil {
+		for _, uid := range result.Succeeded {
+			uids[uid] = true
+		}
+	}
+	return uids
 }

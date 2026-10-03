@@ -6,7 +6,7 @@ Build-Depends: debhelper-compat (= 13), dh-python,
                fakeroot,
                fonts-ubuntu,
                libblkid-dev,
-               golang-go (>=2:1.18~) [!powerpc] | golang-1.18 [!powerpc] | golang-1.21,
+               golang-go (>=2:1.20~) [!powerpc] | golang-1.20 [!powerpc] | golang-1.21,
                pkgconf,
                optee-client-dev [arm64 armhf]
 Standards-Version: 4.4.1

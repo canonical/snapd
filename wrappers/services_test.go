@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -49,13 +50,12 @@ import (
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
-	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/service"
+	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 type servicesTestSuite struct {
-	testutil.DBusTest
-
 	tempdir string
 
 	sysdLog [][]string
@@ -64,13 +64,50 @@ type servicesTestSuite struct {
 
 	perfTimings timings.Measurer
 
-	agent *agent.SessionAgent
+	managersRestorer func()
 }
 
 var _ = Suite(&servicesTestSuite{})
 
+type restartUserManager struct {
+	service.Manager
+	ready   chan<- struct{}
+	release <-chan struct{}
+}
+
+func (m *restartUserManager) Status(_ context.Context, units []string) ([]*systemd.UnitStatus, error) {
+	m.ready <- struct{}{}
+	<-m.release
+	var statuses []*systemd.UnitStatus
+	for _, unit := range units {
+		statuses = append(statuses, &systemd.UnitStatus{Name: unit, Id: unit, Active: true, Enabled: true})
+	}
+	return statuses, nil
+}
+
+func (m *restartUserManager) Start(context.Context, string) error { return nil }
+func (m *restartUserManager) Stop(context.Context, string) error  { return nil }
+
+func (s *servicesTestSuite) TestConcurrentUserRestartsOwnTheirTimings(c *C) {
+	ready := make(chan struct{}, 2)
+	release := make(chan struct{})
+	restore := service.MockManagers(func(context.Context) ([]int, error) { return []int{1000, 1001}, nil }, func(context.Context, int) (service.Manager, func(), error) {
+		return &restartUserManager{ready: ready, release: release}, func() {}, nil
+	})
+	defer restore()
+	go func() { <-ready; <-ready; close(release) }()
+	info := snaptest.MockSnap(c, `name: test-snap
+version: 1.0
+apps:
+  svc:
+    daemon: simple
+    daemon-scope: user
+`, &snap.SideInfo{Revision: snap.R(1)})
+	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
+}
+
 func (s *servicesTestSuite) SetUpTest(c *C) {
-	s.DBusTest.SetUpTest(c)
+	s.managersRestorer = servicetest.MockSystemd(os.Getuid())
 	s.tempdir = c.MkDir()
 	s.sysdLog = nil
 	dirstest.MustMockCanonicalSnapMountDir(s.tempdir)
@@ -83,23 +120,13 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
 	s.perfTimings = timings.New(nil)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
-	s.agent.Start()
 }
 
 func (s *servicesTestSuite) TearDownTest(c *C) {
-	if s.agent != nil {
-		err := s.agent.Stop()
-		c.Check(err, IsNil)
-	}
+	defer s.managersRestorer()
 	s.systemctlRestorer()
 	s.delaysRestorer()
 	dirs.SetRootDir("")
-	s.DBusTest.TearDownTest(c)
 }
 
 // addSnapServices adds service units for the applications from the snap which
@@ -2897,7 +2924,7 @@ apps:
 	opts := &wrappers.StopServicesOptions{}
 	err = wrappers.StopServices(info.Services(), nil, opts, reason, progress.Null, s.perfTimings)
 	if reason != snap.StopReasonRemove {
-		c.Check(err, ErrorMatches, "some user services failed to stop")
+		c.Check(err, ErrorMatches, "uid [0-9]+: user unit stop failed")
 	} else {
 		c.Check(err, IsNil)
 	}
@@ -2946,7 +2973,8 @@ func (s *servicesTestSuite) TestQueryDisabledServices(c *C) {
 
 	// ensure svc1 was reported as disabled
 	c.Assert(disabledSvcs, DeepEquals, &wrappers.DisabledServices{
-		SystemServices: []string{"svc1"},
+		SystemServices:  []string{"svc1"},
+		UserServiceUIDs: []int{},
 	})
 
 	// the calls could be out of order in the list, since iterating over a map
@@ -3010,7 +3038,8 @@ func (s *servicesTestSuite) TestQueryDisabledServicesActivatedServices(c *C) {
 
 	// ensure svc1 were reported as disabled
 	c.Assert(disabledSvcs, DeepEquals, &wrappers.DisabledServices{
-		SystemServices: []string{"svc1"},
+		SystemServices:  []string{"svc1"},
+		UserServiceUIDs: []int{},
 	})
 
 	// the calls could be out of order in the list, since iterating over a map
@@ -3084,7 +3113,8 @@ func (s *servicesTestSuite) TestQueryDisabledServicesMixedServices(c *C) {
 	// ensure svc1+svc4 was reported as disabled
 	uid := os.Getuid()
 	c.Assert(disabledSvcs, DeepEquals, &wrappers.DisabledServices{
-		SystemServices: []string{"svc1"},
+		SystemServices:  []string{"svc1"},
+		UserServiceUIDs: []int{uid},
 		UserServices: map[int][]string{
 			uid: {"svc4"},
 		},
@@ -3158,6 +3188,7 @@ func (s *servicesTestSuite) TestQueryDisabledServicesUserServices(c *C) {
 	// ensure svc1 was reported as disabled
 	uid := os.Getuid()
 	c.Assert(disabledSvcs, DeepEquals, &wrappers.DisabledServices{
+		UserServiceUIDs: []int{uid},
 		UserServices: map[int][]string{
 			uid: {"svc1"},
 		},
@@ -3860,7 +3891,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := s.addSnapServices(info, false)
-	c.Assert(err, ErrorMatches, "cannot reload daemon: failed")
+	c.Assert(err, ErrorMatches, "uid [0-9]+: failed")
 
 	// the services are cleaned up
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
@@ -3911,7 +3942,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 `, &snap.SideInfo{Revision: snap.R(12)})
 
 	err := s.addSnapServices(info, false)
-	c.Assert(err, ErrorMatches, "cannot reload daemon: failed")
+	c.Assert(err, ErrorMatches, "uid [0-9]+: failed")
 
 	// the services are cleaned up
 	svcFiles, _ = filepath.Glob(filepath.Join(dirs.SnapUserServicesDir, "snap.hello-snap.*.service"))
@@ -4229,7 +4260,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	}
 	opts := &wrappers.StartServicesOptions{Enable: true}
 	err := wrappers.StartServices(svcs, nil, opts, &progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, "some user services failed to start")
+	c.Assert(err, ErrorMatches, "uid [0-9]+: failed")
 	c.Assert(sysdLog, HasLen, 10, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--user", "--global", "--no-reload", "enable", svc1Name, svc2Name},
@@ -5099,7 +5130,6 @@ apps:
     daemon: simple
 `
 	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	srvFile := "snap.test-snap.foo.service"
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
@@ -5117,9 +5147,8 @@ apps:
 	c.Assert(wrappers.RestartServices(info.Services(), nil, &opts, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		// Only invocations from querying status
+		// No status query outside the selected scope.
 		{"daemon-reload"},
-		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 	})
 }
 
@@ -5219,7 +5248,7 @@ NeedDaemonReload=no
 
 	opts := wrappers.RestartServicesOptions{Reload: true, AlsoEnabledNonActive: true}
 	err = wrappers.RestartServices(info.Services(), nil, &opts, progress.Null, s.perfTimings)
-	c.Assert(err, ErrorMatches, `some user services failed to restart`)
+	c.Assert(err, ErrorMatches, `uid [0-9]+: oh noes`)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"--user", "daemon-reload"},
 		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
@@ -5260,9 +5289,8 @@ NeedDaemonReload=no
 	opts := wrappers.RestartServicesOptions{ScopeOptions: wrappers.ScopeOptions{Scope: wrappers.ServiceScopeSystem}}
 	c.Assert(wrappers.RestartServices(info.Services(), []string{srvFile}, &opts, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
-		// Those comes from querying status of services
+		// No user manager is queried for a system-only restart.
 		{"--user", "daemon-reload"},
-		{"--user", "show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile},
 	})
 }
 
