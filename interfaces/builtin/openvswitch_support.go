@@ -29,6 +29,17 @@ const openvswitchSupportBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+const openvswitchSupportConnectedPlugAppArmor = `
+# Description: Allow Open vSwitch to manage DPDK and DOCA netdev hardware acceleration.
+
+# DPDK / DOCA MLX5 hardware steering runtime buffers
+/var/tmp/doca_mlx5_hws* rw,
+/var/tmp/dpdk_net_mlx5_* rw,
+
+# Sysfs IOMMU topology for physical interface binding
+/sys/kernel/iommu_groups/{,**} r,
+`
+
 var openvswitchSupportConnectedPlugKmod = []string{`openvswitch`}
 
 func init() {
@@ -38,6 +49,7 @@ func init() {
 		implicitOnCore:           true,
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:    openvswitchSupportConnectedPlugAppArmor,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
 	})
 }
