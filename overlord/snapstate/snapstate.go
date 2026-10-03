@@ -2156,6 +2156,10 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// snapdUCTrackChannel, when set, is the Ubuntu Core track channel that
+	// must be sent even if a validation-set pin clears Channel.
+	snapdUCTrackChannel string
 }
 
 func firstNonEmpty(strs ...string) string {
