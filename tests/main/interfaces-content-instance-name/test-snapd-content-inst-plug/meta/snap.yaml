@@ -1,0 +1,10 @@
+name: test-snapd-content-inst-plug
+summary: Content consumer of a per-instance directory
+version: 1.0
+apps:
+    sh:
+        command: bin/sh
+plugs:
+    assets:
+        interface: content
+        target: $SNAP_DATA/assets/$SNAP_INSTANCE_NAME

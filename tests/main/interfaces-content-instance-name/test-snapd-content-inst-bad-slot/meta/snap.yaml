@@ -1,0 +1,11 @@
+name: test-snapd-content-inst-bad-slot
+summary: Content provider with $SNAP_INSTANCE_NAME rooting the source path
+version: 1.0
+apps:
+    sh:
+        command: bin/sh
+slots:
+    assets:
+        interface: content
+        source:
+            read: [$SNAP_INSTANCE_NAME/assets]

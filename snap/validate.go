@@ -1054,13 +1054,31 @@ func ValidateApp(app *AppInfo) error {
 	return validateAppTimer(app)
 }
 
+// PathVariablesOptions controls validation and expansion of snap path
+// variables.
+type PathVariablesOptions struct {
+	// AllowSnapInstanceName permits validation and expansion of
+	// $SNAP_INSTANCE_NAME.
+	AllowSnapInstanceName bool
+}
+
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
 func ValidatePathVariables(path string) error {
+	return ValidatePathVariablesWithOptions(path, nil)
+}
+
+// ValidatePathVariablesWithOptions ensures that the given path contains only
+// $SNAP, $SNAP_DATA or $SNAP_COMMON. When enabled by opts, $SNAP_INSTANCE_NAME
+// is also allowed and may appear anywhere except at the beginning of the path.
+func ValidatePathVariablesWithOptions(path string, opts *PathVariablesOptions) error {
+	firstVariable := true
 	for path != "" {
 		start := strings.IndexRune(path, '$')
 		if start < 0 {
 			break
 		}
+		atStart := firstVariable && start == 0
+		firstVariable = false
 		path = path[start+1:]
 		end := strings.IndexFunc(path, func(c rune) bool {
 			return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '_'
@@ -1069,7 +1087,11 @@ func ValidatePathVariables(path string) error {
 			end = len(path)
 		}
 		v := path[:end]
-		if v != "SNAP" && v != "SNAP_DATA" && v != "SNAP_COMMON" {
+		if opts != nil && opts.AllowSnapInstanceName && v == "SNAP_INSTANCE_NAME" {
+			if atStart {
+				return fmt.Errorf("path cannot start with variable %q", "$"+v)
+			}
+		} else if v != "SNAP" && v != "SNAP_DATA" && v != "SNAP_COMMON" {
 			return fmt.Errorf("reference to unknown variable %q", "$"+v)
 		}
 		path = path[end:]

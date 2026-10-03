@@ -767,11 +767,18 @@ func (s *Info) Services() []*AppInfo {
 
 // ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON in path for this snap.
 func (s *Info) ExpandSnapVariables(path string) string {
+	return s.ExpandSnapVariablesWithOptions(path, nil)
+}
+
+// ExpandSnapVariablesWithOptions resolves $SNAP, $SNAP_DATA and $SNAP_COMMON
+// for this snap. It also resolves $SNAP_INSTANCE_NAME to the instance name,
+// irrespective of perspective, when enabled by opts.
+func (s *Info) ExpandSnapVariablesWithOptions(path string, opts *PathVariablesOptions) string {
 	// NOTE: We use dirs.CoreSnapMountDir here as the path used will be
 	// always inside the mount namespace snap-confine creates and there
 	// we will always have a /snap directory available regardless if the
 	// system we're running on supports this or not.
-	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, PerspectiveSelf)
+	return s.ExpandSnapVariablesSetSnapMountDirWithOptions(path, dirs.CoreSnapMountDir, PerspectiveSelf, opts)
 }
 
 type ExpandSnapPerspective int
@@ -791,6 +798,14 @@ const (
 // while being expanded for use in the context of the plug, special variables
 // may mean instance-specific value.
 func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, expandFor ExpandSnapPerspective) string {
+	return s.ExpandSnapVariablesSetSnapMountDirWithOptions(path, snapMountDir, expandFor, nil)
+}
+
+// ExpandSnapVariablesSetSnapMountDirWithOptions resolves $SNAP, $SNAP_DATA and
+// $SNAP_COMMON using snapMountDir as root directory. It also resolves
+// $SNAP_INSTANCE_NAME to the instance name, irrespective of perspective, when
+// enabled by opts.
+func (s *Info) ExpandSnapVariablesSetSnapMountDirWithOptions(path, snapMountDir string, expandFor ExpandSnapPerspective, opts *PathVariablesOptions) string {
 	name := s.SnapName().String()
 
 	if expandFor == PerspectiveOther {
@@ -805,6 +820,10 @@ func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, exp
 			return DataDir(name, s.Revision)
 		case "SNAP_COMMON":
 			return CommonDataDir(name)
+		case "SNAP_INSTANCE_NAME":
+			if opts != nil && opts.AllowSnapInstanceName {
+				return s.InstanceName().String()
+			}
 		}
 		return ""
 	})
