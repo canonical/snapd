@@ -139,7 +139,7 @@ build_command() {
         COMMAND+=(--snap "core${CORE_VERSION}=$BASE_CHANNEL")
     fi
     if [ -n "$PRESEED_SIGN_KEY" ]; then
-        COMMAND+=(--preseed --preseed-sign-key="$PRESEED_SIGN_KEY")
+        COMMAND+=(--preseed "--preseed-sign-key=$PRESEED_SIGN_KEY")
     fi
     COMMAND+=(
         --output-dir "$OUTPUT_DIR"
@@ -153,7 +153,7 @@ build_command() {
         "UBUNTU_IMAGE_SNAP_CMD=$SNAP_COMMAND"
     )
     if [ "$DEBUG" = true ]; then
-        ENVIRONMENT+=(SNAPD_DEBUG=1)
+        ENVIRONMENT+=("SNAPD_DEBUG=1")
     fi
 }
 
