@@ -530,6 +530,8 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 	if err := d.overlord.StartUp(); err != nil {
 		if errors.Is(err, snapstate.ErrUnexpectedRuntimeRestart) {
 			logger.Noticef("detected failure recovery context, but no recovery needed")
+			// snap-failure restarts snapd.service after this return.
+			seclog.LogSystemRestartSnapd(d.Version, restart.RestartSnapdFailureRecovered)
 			return ErrNoFailureRecoveryNeeded
 		}
 		return err
@@ -672,6 +674,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return d.doReboot(sigCh, restart.RestartSystem, nil, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
+		seclog.LogSystemRestartSnapd(d.Version, restart.RestartSnapdStopFailed)
 		return fmt.Errorf("internal error: no Overlord")
 	}
 
@@ -786,8 +789,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
 				// Wait failed: this is an aborted shutdown, not a
-				// completed controlled restart or standby, so do
-				// not emit sys_restart_snapd or sys_standby_snapd.
+				// completed controlled restart or standby. systemd
+				// starts snapd again.
+				seclog.LogSystemRestartSnapd(d.Version, restart.RestartSnapdStopFailed)
 				return err
 			}
 		}
@@ -825,6 +829,12 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		return ErrRestartSocket
 	}
 
+	// Standby was requested but pending work cancelled it. systemd
+	// starts snapd again to process those changes.
+	if restartType == restart.RestartSocket {
+		seclog.LogSystemRestartSnapd(d.Version, restart.RestartSnapdStandbyAborted)
+		logger.Noticef("restarting daemon (%s)", restart.RestartSnapdStandbyAborted)
+	}
 	return nil
 }
 

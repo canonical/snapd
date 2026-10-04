@@ -17,8 +17,11 @@ details: |
     produces a "sys_startup_snapd" event with snapd_version and boot_id
     fields. Sideloading a new snapd snap revision produces a
     "sys_restart_snapd" event with reason "snapd-update" and a
-    snapd_version field. On classic, reseeding with no snaps produces a
-    "sys_standby_snapd" event with reason "snapd-idle". A root GET
+    snapd_version field. Starting snapd with SNAPD_REVERT_TO_REV set and
+    no snapd refresh to recover produces a "sys_restart_snapd" event
+    with reason "snapd-restart-failure-recovered". On classic, reseeding
+    with no snaps produces a "sys_standby_snapd" event with reason
+    "snapd-idle". A root GET
     /v2/users produces an "authz_admin" event with reason "root-auth",
     and the same request from an unprivileged user produces an
     "authz_fail" event with reason "root-auth-denied".
@@ -44,6 +47,8 @@ prepare: |
     systemctl restart snapd.service
 
 restore: |
+    systemctl start snapd.socket snapd.service || true
+
     if [ -f "$OVERRIDES_FILE.bak" ]; then
         mv "$OVERRIDES_FILE.bak" "$OVERRIDES_FILE"
         systemctl daemon-reload
@@ -227,6 +232,20 @@ execute: |
         journal_match '"description":"Removed system user '"$system_username"' \(api-remove-user\)".*"category":"USER","event":"user_removed_system"'
         journal_match '"category":"USER","event":"user_removed_system".*"system_user":"'"$system_username"'".*"force":false.*"remove_reason":"api-remove-user"'
     fi
+
+    echo "Checking that a failure-recovery start with nothing to recover produces a sys_restart_snapd audit event"
+    snapd_pid=$(systemctl show -p MainPID snapd.service | cut -d= -f2)
+    test "$snapd_pid" -gt 0
+    snapd_bin=$(readlink -f "/proc/${snapd_pid}/exe")
+    tests.systemd stop-unit snapd.service snapd.socket
+    pin_logs
+    # snap-failure sets SNAPD_REVERT_TO_REV before it runs snapd. With no
+    # snapd refresh in progress, snapd records the restart and exits 0.
+    SNAPD_REVERT_TO_REV=999 timeout 120 "$snapd_bin"
+    security_event_match '"level":"INFO","description":"Snapd restart with reason snapd-restart-failure-recovered","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_restart_snapd","snapd_version":"[^"]+","reason":"snapd-restart-failure-recovered"'
+    systemctl reset-failed snapd.service snapd.socket || true
+    systemctl start snapd.socket snapd.service
+    snap wait system seed.loaded
 
     echo "Checking that snapd-idle socket-activation standby produces a sys_standby_snapd audit event"
     if ! os.query is-classic; then

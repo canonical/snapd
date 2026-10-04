@@ -852,6 +852,7 @@ func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
 	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
 	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "snapd-standby-aborted")
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -1521,6 +1522,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	defer restore()
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1556,7 +1558,25 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	// when the daemon got a pending change it just restarts
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
-	c.Check(seclogBuf.String(), check.Equals, "")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-standby-aborted")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-standby-aborted"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+}
+
+func (s *daemonSuite) TestStopNoOverlordLogsRestart(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := &Daemon{Version: "2.78"}
+	err := d.Stop(nil)
+	c.Check(err, check.ErrorMatches, "internal error: no Overlord")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-stop-failed")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-stop-failed"]`)
 }
 
 func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
@@ -1611,16 +1631,25 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	c.Check(rec.Code, check.Equals, 200)
 }
 
-func (s *daemonSuite) TestHandleUnexpectedRestart(c *check.C) {
+func (s *daemonSuite) TestStartFailureRecoveryLogsRestart(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	os.Setenv("SNAPD_REVERT_TO_REV", "999")
 	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 
 	// mark as already seeded
 	s.markSeeded(d)
 
 	c.Assert(d.Start(context.Background()), check.Equals, ErrNoFailureRecoveryNeeded)
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-restart-failure-recovered")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="snapd-restart-failure-recovered"]`)
 }
 
 func clientForSnapdSocket() *http.Client {
