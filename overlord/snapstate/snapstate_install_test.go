@@ -7078,8 +7078,10 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 	}
 
 	var ops fakeOps
-	if forRefresh && snapType == snap.TypeKernel {
-		// undo for "remove-kernel-snap-setup"
+	if forRefresh && snapType == snap.TypeKernel && newSequence.Snap.Revision != prevSequence.Snap.Revision {
+		// undo for "remove-kernel-snap-setup"; not emitted (and thus not
+		// undone) when the revision didn't change, since discard/undo of
+		// the same-revision kernel drivers tree is a no-op by design
 		ops = append(ops, fakeOp{
 			op: "prepare-kernel-snap",
 		})
@@ -7160,7 +7162,9 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 			})
 		}
 	} else {
-		if snapType == snap.TypeKernel {
+		if snapType == snap.TypeKernel && newSequence.Snap.Revision != prevSequence.Snap.Revision {
+			// undo of prepare-kernel-snap; not emitted when the revision
+			// didn't change (nothing was created for the live tree to undo)
 			ops = append(ops, fakeOp{
 				op: "remove-kernel-snap-setup",
 			})
