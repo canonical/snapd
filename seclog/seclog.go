@@ -21,7 +21,9 @@ package seclog
 
 import (
 	"fmt"
+	"os"
 	"sync"
+	"syscall"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -172,6 +174,33 @@ func LogSystemStandbySnapd(snapdVersion string, reason restart.RestartReason) {
 		fmt.Sprintf("Snapd standby with reason %s", reasonStr),
 		Attr{Key: "snapd_version", Value: snapdVersion},
 		Attr{Key: "reason", Value: reasonStr},
+	)
+}
+
+// LogSystemExitSignalSnapd logs the SIGINT or SIGTERM that initiated the snapd
+// exit. Logging this event does not exclude a snapd restart, standby, or a
+// system reboot, halt, or poweroff.
+func LogSystemExitSignalSnapd(snapdVersion string, sig os.Signal) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	// Only SIGINT and SIGTERM are exit_signal values we emit.
+	exitSignal := unknown
+	switch sig {
+	case syscall.SIGTERM:
+		exitSignal = "sigterm"
+	case syscall.SIGINT:
+		exitSignal = "sigint"
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_exit_signal_snapd", Level: LevelInfo},
+		fmt.Sprintf("Snapd received exit signal %s", exitSignal),
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "exit_signal", Value: exitSignal},
 	)
 }
 

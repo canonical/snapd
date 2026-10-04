@@ -677,11 +677,15 @@ version: 1`, si)
 	<-snapdDone
 	<-snapDone
 
+	d.SetExitSignal(syscall.SIGTERM)
 	err = d.Stop(nil)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
-	c.Check(seclogBuf.String(), check.Equals, "")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_exit_signal_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd received exit signal sigterm")
+	c.Check(seclogBuf.String(), testutil.Contains, `[exit_signal="sigterm"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {
@@ -1254,6 +1258,10 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
@@ -1267,12 +1275,16 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 
 	ch := make(chan os.Signal, 2)
 	ch <- syscall.SIGTERM
-	// stop will check if we got a sigterm in between (which we did)
+	// stop will check if we got a sigterm in between (which we did).
+	// The remembered SIGTERM is the signal the run loop exited on.
+	d.SetExitSignal(syscall.SIGTERM)
 	err := d.Stop(ch)
 	c.Assert(err, check.IsNil)
 
 	// we must have called reboot twice
 	c.Check(nRebootCall, check.Equals, 2)
+	c.Check(strings.Count(seclogBuf.String(), "sys_exit_signal_snapd"), check.Equals, 1)
+	c.Check(seclogBuf.String(), testutil.Contains, `[exit_signal="sigterm"]`)
 }
 
 // This test tests that when there is a shutdown we close the sigterm
@@ -1359,6 +1371,10 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	d := s.newTestDaemon(c)
 	c.Check(d.overlord, check.IsNil)
 	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
@@ -1382,10 +1398,13 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 	sigCh := make(chan os.Signal, 2)
 	// stop (this will timeout but thats not relevant for this test)
+	d.SetExitSignal(syscall.SIGTERM)
 	d.Stop(sigCh)
 
 	// we must have called reboot once
 	c.Check(nRebootCall, check.Equals, 1)
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_exit_signal_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, `[exit_signal="sigterm"]`)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
