@@ -128,20 +128,38 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 	return t, installRecord, nil
 }
 
-// SetupKernelSnapOptions carries extra options for SetupKernelSnap.
-type SetupKernelSnapOptions struct {
-	// Regenerate requests the given kernel setup time artifacts to be
-	// regenerated if needed. This can be set for a currently active kernel.
-	Regenerate bool
-}
+// SetupKernelReason describes why SetupKernelSnap is being called, and
+// therefore which kernel drivers tree update to perform. The zero value is
+// reserved and intentionally invalid: every caller must pick a reason
+// explicitly.
+type SetupKernelReason int
+
+const (
+	_ SetupKernelReason = iota
+
+	// SetupKernelForInstall builds the tree for a kernel snap being
+	// installed right now.
+	SetupKernelForInstall
+	// SetupKernelRegenerate rebuilds the kernel setup time artifacts for an
+	// already-installed kernel.
+	SetupKernelRegenerate
+)
 
 // SetupKernelSnap does extra configuration for kernel snaps. currentComps
-// should be the currently active kernel-modules components for
-// instanceName/rev (used by the Regenerate mode; pass nil for a fresh
-// install, see the TODO below).
-func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, opts *SetupKernelSnapOptions, meter progress.Meter) error {
-	if opts == nil {
-		opts = &SetupKernelSnapOptions{}
+// should be the currently active kernel-modules components for instanceName/rev
+// and is only meaningful when using SetupKernelRegenerate.
+func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, reason SetupKernelReason, meter progress.Meter) error {
+	var mode kernel.KernelDriversTreeMode
+	switch reason {
+	case SetupKernelForInstall:
+		mode = kernel.KernelInstallMode
+	case SetupKernelRegenerate:
+		mode = kernel.RegenerateMode
+	default:
+		return fmt.Errorf("internal error: unsupported kernel snap setup reason %v", reason)
+	}
+	if mode == kernel.KernelInstallMode && currentComps != nil {
+		return fmt.Errorf("internal error: currentComps must be nil unless regenerating the kernel drivers tree")
 	}
 
 	// Build kernel tree that will be mounted from initramfs
@@ -161,10 +179,6 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, current
 
 	// TODO:COMPS: consider components when installed jointly (currentComps
 	// is always nil for a fresh install today, see doPrepareKernelSnap)
-	mode := kernel.KernelInstallMode
-	if opts.Regenerate {
-		mode = kernel.RegenerateMode
-	}
 	return kernelEnsureKernelDriversTree(kMntPts, compsMntPts, destDir, mode)
 }
 

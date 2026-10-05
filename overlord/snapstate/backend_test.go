@@ -1189,7 +1189,7 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, instanceName naming.I
 	return snapType, &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, opts *backend.SetupKernelSnapOptions, meter progress.Meter) error {
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, reason backend.SetupKernelReason, meter progress.Meter) error {
 	meter.Notify("prepare-kernel-snap")
 	op := &fakeOp{
 		op: "prepare-kernel-snap",
