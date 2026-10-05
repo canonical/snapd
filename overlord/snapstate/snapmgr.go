@@ -636,7 +636,7 @@ func readInfo(name naming.InstanceName, si *snap.SideInfo, flags int) (*snap.Inf
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
 		info = &snap.Info{
-			SuggestedName: name.String(),
+			SuggestedName: name.SnapName().String(),
 			Broken:        bse.Broken(),
 			InstanceKey:   name.InstanceKey(),
 		}
