@@ -60,7 +60,7 @@ func (w *Warning) firstAdded() time.Time {
 func (w *Warning) lastAdded() time.Time {
 	// Since repeatAfter is always 0 for warnings, the value for
 	// lastOccurred and lastRepeated are equal. It is less confusing
-	// to set lastAdded to lastOccurred since firstAdded is firstOccured.
+	// to set lastAdded to lastOccurred since firstAdded is firstOccurred.
 	return w.notice.lastOccurred
 }
 
