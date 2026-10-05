@@ -1264,7 +1264,9 @@ func (v *View) Set(databag Databag, request string, value any, constraints map[s
 	}
 
 	if constraints != nil {
-		value, err = v.prepareConstrainedSet(databag, request, value, matches, constraints)
+		// this value merge the new data with the old data that doesn't match the
+		// constraints. Set uses this to replace the old data that matches the constraints
+		value, err = v.getReplacementData(databag, request, value, matches, constraints)
 		if err != nil {
 			return err
 		}
@@ -1357,16 +1359,21 @@ func (v *View) Set(databag Databag, request string, value any, constraints map[s
 	return nil
 }
 
-// prepareConstrainerSet injects
-func (v *View) prepareConstrainedSet(databag Databag, request string, value any, matches []requestMatch, constraints map[string]any) (any, error) {
+// getReplacementData prepares a constrained write by merging the new value
+// supplied with the old data that doesn't match the provided constraints. The
+// result is a value that only replaces the constrained data with the new value.
+func (v *View) getReplacementData(databag Databag, request string, value any, matches []requestMatch, constraints map[string]any) (any, error) {
 	if err := v.checkUnconstrainedParams("set", matches, constraints); err != nil {
 		return nil, err
 	}
 
+	// fill in values from the constraints into the new data as appropriate
 	if err := injectSetConstraints(value, matches, constraints); err != nil {
 		return nil, badRequestErrorFrom(v, "set", request, err.Error())
 	}
 
+	// get the stored data that doesn't match the constraints for every matched
+	// path and accumulate it into this complement
 	var complement any
 	for _, match := range matches {
 		existing, err := databag.Get(match.storagePath, constraints, GetOptions{InvertMatch: true})
@@ -1387,8 +1394,10 @@ func (v *View) prepareConstrainedSet(databag Databag, request string, value any,
 		}
 	}
 
-	// Replacing a constrained subset retains the complement and appends the new
-	// list entries after it.
+	// merge the complement (data that doesn't match the constraints) and merge it
+	// with the new value we're setting, effectively replacing only the old data
+	// that matched the constraints. List entries are appended instead of the
+	// usual replace since we want store both
 	value, err := mergeNamespaces(complement, value, mergeOptions{AppendLists: true})
 	if err != nil {
 		return nil, err
@@ -1417,6 +1426,10 @@ func (v *View) prepareConstrainedSet(databag Databag, request string, value any,
 	return value, nil
 }
 
+// injectSetConstraints iterates through the stored data along the paths that
+// the request matched and sets the constraint values in objects in which
+// those constraints are applicable. This is required because we allow the set
+// value not to repeat the values specified in the constraints.
 func injectSetConstraints(value any, matches []requestMatch, constraints map[string]any) error {
 	for _, match := range matches {
 		for _, storageAcc := range match.storagePath {
@@ -1443,6 +1456,9 @@ func injectSetConstraints(value any, matches []requestMatch, constraints map[str
 	return nil
 }
 
+// injectConstraints iterates through the data along the path and sets the
+// values passed in '--with <var>=<value>' constraints in the objects that the
+// filters apply to.
 func injectConstraints(value any, path []Accessor, filters map[string]string, constraints map[string]any) error {
 	if len(path) == 0 {
 		obj, ok := value.(map[string]any)
