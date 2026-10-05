@@ -710,7 +710,7 @@ func (x *cmdRun) snapRunHook(snapTarget string) error {
 		return err
 	}
 
-	info, err := getSnapInfo(naming.InstanceName(snapInstance), revision)
+	info, err := getSnapInfo(snapInstance, revision)
 	if err != nil {
 		return err
 	}

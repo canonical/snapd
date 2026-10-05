@@ -705,7 +705,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 		if name != "some-snap" {
 			return s.fakeBackend.ReadInfo(name, si)
 		}
-		info := &snap.Info{SuggestedName: name.String(), SideInfo: *si, SnapType: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -756,7 +756,7 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 		if name != "pkg" {
 			return s.fakeBackend.ReadInfo(name, si)
 		}
-		info := &snap.Info{SuggestedName: name.String(), SideInfo: *si, SnapType: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -823,7 +823,7 @@ func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 		if name != "some-snap" {
 			return s.fakeBackend.ReadInfo(name, si)
 		}
-		info := &snap.Info{SuggestedName: name.String(), SideInfo: *si, SnapType: snap.TypeApp}
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -1017,7 +1017,7 @@ func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
 	defer s.state.Unlock()
 
 	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
-		return &snap.Info{SuggestedName: name.String(), SideInfo: *si, SnapType: snap.TypeApp}, nil
+		return &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}, nil
 	})
 	defer restore()
 
@@ -6333,7 +6333,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
 	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	restore = snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
-		return &snap.Info{SuggestedName: name.String(), Confinement: "classic"}, nil
+		return &snap.Info{SuggestedName: name.SnapName().String(), Confinement: "classic"}, nil
 	})
 	defer restore()
 

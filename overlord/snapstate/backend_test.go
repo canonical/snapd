@@ -1260,7 +1260,7 @@ func (f *fakeSnappyBackend) ReadInfo(name naming.InstanceName, si *snap.SideInfo
 		return nil, errors.New(`cannot read info for "borken-undo-setup" snap`)
 	}
 	if name == "not-there" && si.Revision == snap.R(2) {
-		return nil, &snap.NotFoundError{Snap: naming.InstanceName(name), Revision: si.Revision}
+		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
 	snapName := name.SnapName().String()
 	instanceKey := name.InstanceKey()

@@ -13761,7 +13761,7 @@ func (s *snapmgrTestSuite) testUpdateDowngradeBlockedByOtherChanges(old, new str
 			version = "1.0"
 		}
 		return &snap.Info{
-			SuggestedName: name.String(),
+			SuggestedName: name.SnapName().String(),
 			Version:       version,
 			Architectures: []string{"all"},
 			SideInfo:      *si,
@@ -13861,7 +13861,7 @@ func (s *snapmgrTestSuite) testUpdateNotAllowedWhileDowngrading(c *C, old, new s
 			version = "1.0"
 		}
 		return &snap.Info{
-			SuggestedName: name.String(),
+			SuggestedName: name.SnapName().String(),
 			Version:       version,
 			Architectures: []string{"all"},
 			SideInfo:      *si,
@@ -14135,7 +14135,7 @@ func (s *snapmgrTestSuite) TestSnapdRefreshForRemodel(c *C) {
 			version = "1.0"
 		}
 		return &snap.Info{
-			SuggestedName: name.String(),
+			SuggestedName: name.SnapName().String(),
 			Version:       version,
 			Architectures: []string{"all"},
 			SideInfo:      *si,

@@ -265,14 +265,13 @@ func SequenceFile(name string) string {
 }
 
 // HooksDir returns the directory containing the snap's hooks for given snap
-// name. The name can be either a snap name or snap instance name.
+// instance name.
 func HooksDir(name naming.InstanceName, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
 }
 
 // ComponentHooksDir returns the directory containing the component's hooks for
-// the given component hook name. The provided snap name can be either a snap
-// name or snap instance name.
+// the given component hook name.
 func ComponentHooksDir(componentName string, compRevision Revision, snapInstance naming.InstanceName) string {
 	return filepath.Join(ComponentMountDir(componentName, compRevision, snapInstance), "meta", "hooks")
 }
