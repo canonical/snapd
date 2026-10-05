@@ -1534,6 +1534,7 @@ func (r *runnable) Validate() error {
 
 func makeStdStreamsForJournal(app *snap.AppInfo, namespace string) (stdout, stderr *os.File) {
 	stdout, err := systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		RunDir:      dirs.SnapSystemdRunDir,
 		Namespace:   namespace,
 		Identifier:  app.Name,
 		UnitName:    app.ServiceName(),
@@ -1544,6 +1545,7 @@ func makeStdStreamsForJournal(app *snap.AppInfo, namespace string) (stdout, stde
 		logger.Noticef("cannot connect to journal for stdout: %s", err)
 	}
 	stderr, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		RunDir:      dirs.SnapSystemdRunDir,
 		Namespace:   namespace,
 		Identifier:  app.Name,
 		UnitName:    app.ServiceName(),

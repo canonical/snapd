@@ -57,12 +57,12 @@ func (j *journalTestSuite) TestStreamFileErrorNoIdentifier(c *C) {
 	c.Assert(jout, IsNil)
 }
 
-func (j *journalTestSuite) TestStreamFileErrorNoPath(c *C) {
+func (j *journalTestSuite) TestStreamFileErrorNoRunDir(c *C) {
 	jout, err := NewJournalStreamFile(JournalStreamFileParams{
 		Identifier: "foobar",
 		Priority:   syslog.LOG_INFO,
 	})
-	c.Assert(err, ErrorMatches, ".*no such file or directory")
+	c.Assert(err, ErrorMatches, "internal error: cannot setup a journal stream without a run directory")
 	c.Assert(jout, IsNil)
 }
 

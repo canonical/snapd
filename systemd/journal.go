@@ -50,6 +50,9 @@ func NewJournalStreamFile(params JournalStreamFileParams) (*os.File, error) {
 	if params.Identifier == "" {
 		return nil, fmt.Errorf("internal error: cannot setup a journal stream without an identifier")
 	}
+	if params.RunDir == "" {
+		return nil, fmt.Errorf("internal error: cannot setup a journal stream without a run directory")
+	}
 
 	var journalPath string
 	if params.Namespace != "" {
