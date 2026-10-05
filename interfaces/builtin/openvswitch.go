@@ -43,10 +43,11 @@ const openvswitchConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "openvswitch",
-		summary:               openvswitchSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  openvswitchBaseDeclarationSlots,
-		connectedPlugAppArmor: openvswitchConnectedPlugAppArmor,
+		name:                     "openvswitch",
+		summary:                  openvswitchSummary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     openvswitchBaseDeclarationSlots,
+		connectedPlugAppArmor:    openvswitchConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

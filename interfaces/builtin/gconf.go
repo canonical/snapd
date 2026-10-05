@@ -65,10 +65,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gconf",
-		summary:               gconfSummary,
-		implicitOnClassic:     true,
-		connectedPlugAppArmor: gconfConnectedPlugAppArmor,
-		baseDeclarationSlots:  gconfBaseDeclarationSlots,
+		name:                     "gconf",
+		summary:                  gconfSummary,
+		implicitOnClassic:        true,
+		connectedPlugAppArmor:    gconfConnectedPlugAppArmor,
+		baseDeclarationSlots:     gconfBaseDeclarationSlots,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

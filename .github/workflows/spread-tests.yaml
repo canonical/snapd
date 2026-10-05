@@ -143,6 +143,9 @@ jobs:
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
           fi
+          if grep -q '^ubuntu-image update required$' <<<$labels; then
+            echo "SPREAD_UBUNTU_IMAGE_USE_LOCAL_SNAPD=true" >> $GITHUB_ENV
+          fi
 
     - name: Get previous attempt
       id: get-previous-attempt
@@ -659,7 +662,8 @@ jobs:
           "$GITHUB_RUN_ID" \
           "$GITHUB_RUN_ATTEMPT" \
           "${{ inputs.group }}" \
-          "$SCENARIO"
+          "$SCENARIO" \
+          "${{ github.event.pull_request.number }}"
 
   sync-test-results:
     name: Sync test results
@@ -680,6 +684,7 @@ jobs:
       - name: Download filtered log for Grafana
         if: ${{ inputs.log-to-grafana }}
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
@@ -690,6 +695,7 @@ jobs:
           name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
       - name: Send results to test-predictor
+        if: ${{ hashFiles('results.json') != '' }}
         run: |
           source .github/scripts/common.sh
           send_results_to_test_predictor \
@@ -698,4 +704,5 @@ jobs:
           "$GITHUB_RUN_ID" \
           "$GITHUB_RUN_ATTEMPT" \
           "${{ inputs.group }}" \
-          "$SCENARIO"
+          "$SCENARIO" \
+          "${{ github.event.pull_request.number }}"

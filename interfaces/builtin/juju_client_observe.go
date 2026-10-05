@@ -36,10 +36,11 @@ owner @{HOME}/.local/share/juju/{,**} r,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "juju-client-observe",
-		summary:               jujuClientObserveSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  jujuClientObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: jujuClientObserveConnectedPlugAppArmor,
+		name:                     "juju-client-observe",
+		summary:                  jujuClientObserveSummary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     jujuClientObserveBaseDeclarationSlots,
+		connectedPlugAppArmor:    jujuClientObserveConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

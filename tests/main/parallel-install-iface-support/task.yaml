@@ -148,8 +148,6 @@ execute: |
 
     check_parallel_install_plug_and_slot_rejected dm-crypt
 
-    check_parallel_install_plug_and_slot_rejected dm-multipath
-
     check_parallel_install_plug_and_slot_rejected docker-support
 
     check_parallel_install_plug_rejected egl-driver-libs
@@ -170,8 +168,6 @@ execute: |
         "library-source: [\$SNAP/lib]"
 
     check_parallel_install_plug_and_slot_rejected greengrass-support
-
-    check_parallel_install_plug_and_slot_rejected iscsi-initiator
 
     check_parallel_install_plug_and_slot_rejected kubernetes-support
 

@@ -429,7 +429,7 @@ func newComponentInstallChoreographer(
 	}
 
 	// we consider the same conflicts as if the component was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName().String(), snapst, copts); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, copts); err != nil {
 		return nil, err
 	}
 
@@ -800,7 +800,7 @@ func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *
 	instName := info.InstanceName()
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, instName.String(), nil, copts); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, copts); err != nil {
 		return err
 	}
 
@@ -833,7 +833,7 @@ func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *
 		// if a component triggers a seed, so it is fine to leave
 		// the value in the ComponentSetupTaskIDs field empty.
 		candidate := SeedRefreshCandidate{
-			InstanceName:          info.InstanceName().String(),
+			InstanceName:          info.InstanceName(),
 			ComponentSetupTaskIDs: map[string]string{compst.SideInfo.Component.ComponentName: ""},
 		}
 		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {

@@ -105,11 +105,11 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 
 		added := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {
-			if !triggered[candidate.InstanceName] {
+			if !triggered[candidate.InstanceName.String()] {
 				continue
 			}
 
-			added[candidate.InstanceName] = true
+			added[candidate.InstanceName.String()] = true
 		}
 		if len(added) == 0 {
 			return nil, nil, nil
@@ -151,7 +151,7 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTasks, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (added bool, err error) {
 		observed.prerequisites = append(observed.prerequisites, candidate)
 
-		if !triggered[candidate.InstanceName] {
+		if !triggered[candidate.InstanceName.String()] {
 			return false, nil
 		}
 
@@ -479,7 +479,7 @@ SNAPD_APPARMOR_REEXEC=1
 		return nil, nil
 	}
 
-	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 		return nil
 	}))
 	s.AddCleanup(osutil.MockMountInfo(""))
@@ -4141,6 +4141,21 @@ func (f *cleaningFakeStore) CleanDownloadsCache() error {
 	return f.cleanDownloadsCacheErr
 }
 
+func (s *snapmgrTestSuite) TestEnsureContinuesIndependentSeededWorkWithoutDeviceContext(c *C) {
+	cf := cleaningFakeStore{}
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &cf)
+	s.state.Unlock()
+
+	restore := snapstatetest.MockDeviceContext(nil)
+	defer restore()
+	snapstate.SetStoreCacheCleanNext(s.snapmgr, time.Time{})
+
+	err := s.snapmgr.Ensure()
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	c.Check(cf.cleanDownloadsCacheCalls, Equals, 1)
+}
+
 func (s *snapmgrTestSuite) TestEnsureSnapStoreCacheCleanHappy(c *C) {
 	cf := cleaningFakeStore{}
 	s.state.Lock()
@@ -6328,6 +6343,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	s.state.Set("seeded", false)
 	r := snapstatetest.MockDeviceModel(nil)
 	defer r()
 
@@ -13091,7 +13107,7 @@ func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {
 
 	for _, tc := range tests {
 		c.Check(snapstate.ShouldScheduleUpdateCertDBForRefresh(
-			tc.instanceName.String(), tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
+			tc.instanceName, tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
 	}
 }
 

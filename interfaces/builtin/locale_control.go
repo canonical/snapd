@@ -69,11 +69,12 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "locale-control",
-		summary:               localeControlSummary,
-		implicitOnClassic:     true,
-		implicitOnCore:        release.OnCoreDesktop,
-		baseDeclarationSlots:  localeControlBaseDeclarationSlots,
-		connectedPlugAppArmor: localeControlConnectedPlugAppArmor,
+		name:                     "locale-control",
+		summary:                  localeControlSummary,
+		implicitOnClassic:        true,
+		implicitOnCore:           release.OnCoreDesktop,
+		baseDeclarationSlots:     localeControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    localeControlConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -69,12 +69,13 @@ sched_setscheduler
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "process-control",
-		summary:               processControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  processControlBaseDeclarationSlots,
-		connectedPlugAppArmor: processControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  processControlConnectedPlugSecComp,
+		name:                     "process-control",
+		summary:                  processControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     processControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    processControlConnectedPlugAppArmor,
+		connectedPlugSecComp:     processControlConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
