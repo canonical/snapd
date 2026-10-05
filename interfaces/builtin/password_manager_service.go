@@ -83,10 +83,11 @@ dbus (receive, send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "password-manager-service",
-		summary:               passwordManagerServiceSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  passwordManagerBaseDeclarationSlots,
-		connectedPlugAppArmor: passwordManagerServiceConnectedPlugAppArmor,
+		name:                     "password-manager-service",
+		summary:                  passwordManagerServiceSummary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     passwordManagerBaseDeclarationSlots,
+		connectedPlugAppArmor:    passwordManagerServiceConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

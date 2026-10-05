@@ -48,10 +48,11 @@ dbus (receive, send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gsettings",
-		summary:               gsettingsSummary,
-		implicitOnClassic:     true,
-		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
-		baseDeclarationSlots:  gsettingsBaseDeclarationSlots,
+		name:                     "gsettings",
+		summary:                  gsettingsSummary,
+		implicitOnClassic:        true,
+		connectedPlugAppArmor:    gsettingsConnectedPlugAppArmor,
+		baseDeclarationSlots:     gsettingsBaseDeclarationSlots,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

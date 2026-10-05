@@ -3420,7 +3420,7 @@ apps:
 
 	ts, snapName, err := snapstate.RemoveManualAlias(st, "foo_")
 	c.Assert(err, IsNil)
-	c.Check(snapName, Equals, "foo")
+	c.Check(snapName.String(), Equals, "foo")
 	chg = st.NewChange("unalias", "...")
 	chg.AddAll(ts)
 
@@ -4443,9 +4443,9 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	var slotRef interfaces.SlotRef
 	c.Assert(connectTask.Get("plug", &plugRef), IsNil)
 	c.Assert(connectTask.Get("slot", &slotRef), IsNil)
-	c.Assert(plugRef.Snap, Equals, "snap1")
+	c.Assert(plugRef.Snap.String(), Equals, "snap1")
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
-	c.Assert(slotRef.Snap, Equals, "snap2")
+	c.Assert(slotRef.Snap.String(), Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
 	// setup-profiles is expected to run after connect tasks
 	waits := setupProfilesTask.WaitTasks()
@@ -14760,11 +14760,11 @@ func makeMockRepoWithConnectedSnaps(c *C, repo *interfaces.Repository, info11, c
 	c.Assert(err, IsNil)
 
 	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName().String(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName().String(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	conns, err := repo.Connected(info11.RealName, ifname)
+	conns, err := repo.Connected(naming.InstanceName(info11.RealName), ifname)
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 }
