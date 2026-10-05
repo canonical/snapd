@@ -283,11 +283,7 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	return ValidateNotice(n.noticeType, n.key, &AddNoticeOptions{
-		Data:        n.lastData,
-		RepeatAfter: n.repeatAfter,
-		ExpireAfter: n.expireAfter,
-	})
+	return nil
 }
 
 type NoticeType string

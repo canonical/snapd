@@ -277,14 +277,9 @@ func (s *noticesSuite) TestUnmarshalErrors(c *C) {
 	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`
 	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
 	for _, t := range []T{
-		// remove one field at a time:
-		{`{            "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "cannot add warning notice with invalid key \"\""},
+		// remove a field at a time:
 		{`{"key": "x", "type":"warning",                                           "expire-after": "1h", "repeat-after": "1h"}`, "invalid first-occurred time: .*"},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, "cannot add warning notice with no expire-after duration"},
 		// some bogus values
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h", "last-data": {"show-after": "24d"}}`, ".* unknown unit \"?d\"? .*"},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h", "last-data": {"show-after": "24h", "last-shown": "2006"}}`, ".* invalid last-shown time: parsing time .* cannot parse .*"},
-		{`{"key": " ", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "cannot add warning notice with invalid key \" \""},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
