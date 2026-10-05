@@ -235,12 +235,12 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 			firstAdded.Format(time.RFC3339), lastAdded.Add(1*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter,
 			// no expire-after field falls back to default
 			firstAdded.Format(time.RFC3339), lastAdded.Add(2*time.Second).Format(time.RFC3339), state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339),
+			// invalid expire-after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), "24d", state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
+			// invalid show-after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(4*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter, "24d", lastShown.Format(time.RFC3339Nano),
 
 			// the following cases should not result in notices being created
-			// invalid expire-after
-			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), "2006", state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
-			// invalid show-after
-			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), state.DefaultWarningExpireAfter, "2006", lastShown.Format(time.RFC3339Nano),
 			// whitespace message
 			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, state.DefaultWarningShowAfter, lastShown.Format(time.RFC3339Nano),
 			// empty message
@@ -275,11 +275,11 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 	c.Assert(err, check.IsNil)
 	st.Unlock()
 
-	c.Assert(st.NumNotices(), check.Equals, 3)
+	c.Assert(st.NumNotices(), check.Equals, 5)
 	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
-	c.Assert(notices, check.HasLen, 3)
+	c.Assert(notices, check.HasLen, 5)
 
-	c.Check(st.GetLastNoticeId(), check.Equals, 3)
+	c.Check(st.GetLastNoticeId(), check.Equals, 5)
 
 	for idx, notice := range notices {
 		increment := time.Duration(idx)
@@ -293,6 +293,10 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 			c.Check(notice.Key(), check.Equals, "second test warning")
 		case 2:
 			c.Check(notice.Key(), check.Equals, "other test warning")
+		case 3:
+			c.Check(notice.Key(), check.Equals, "warn")
+		case 4:
+			c.Check(notice.Key(), check.Equals, "danger")
 		default:
 			c.Error("unexpected warning notice")
 		}

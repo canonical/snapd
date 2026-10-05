@@ -274,14 +274,9 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 		if w.FirstAdded.IsZero() {
 			continue
 		}
-
-		if w.ExpireAfter == "" {
-			w.ExpireAfter = defaultWarningExpireAfter.String()
-		}
-
 		expireAfter, err := time.ParseDuration(w.ExpireAfter)
 		if err != nil {
-			continue
+			expireAfter = defaultWarningExpireAfter
 		}
 
 		if w.LastAdded.Add(expireAfter).Before(now) {
@@ -295,12 +290,8 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 			Time:        w.LastAdded,
 		}
 
-		if w.RepeatAfter == "" {
-			w.RepeatAfter = defaultWarningShowAfter.String()
-		}
-
 		if _, err = time.ParseDuration(w.RepeatAfter); err != nil {
-			continue
+			w.RepeatAfter = defaultWarningShowAfter.String()
 		}
 		addNoticeOptions.Data["show-after"] = w.RepeatAfter
 
