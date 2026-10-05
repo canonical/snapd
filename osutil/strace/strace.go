@@ -122,21 +122,21 @@ func Command(snapMountDir string, extraStraceOpts []string) (*exec.Cmd, error) {
 
 // CommandWithTraceePid returns strace invocation command with parameters for
 // attaching to a specific process ID.
-func CommandWithTraceePid(pid int, snapMountDir string, extraStraceOpts []string) (*exec.Cmd, error) {
+func CommandWithTraceePid(snapMountDir string, pid int, extraStraceOpts []string) (*exec.Cmd, error) {
 	return Command(snapMountDir, append(extraStraceOpts, "-p", strconv.Itoa(pid)))
 }
 
 // TraceExecCommandForPid returns an exec.Cmd suitable for attaching to a given
 // process ID and tracking timings of execve{,at}() calls. Internally invokes
 // strace wrapped with sudo.
-func TraceExecCommandForPid(pid int, snapMountDir, straceLogPath string) (*exec.Cmd, error) {
+func TraceExecCommandForPid(snapMountDir string, pid int, straceLogPath string) (*exec.Cmd, error) {
 	extraStraceOpts := []string{
 		"-ttt",                        // timestamps
 		"-e", "trace=execve,execveat", // pick exec*() syscalls
 		"-o", fmt.Sprintf("%s", straceLogPath), // output to FIFO
 	}
 
-	return CommandWithTraceePid(pid, snapMountDir, extraStraceOpts)
+	return CommandWithTraceePid(snapMountDir, pid, extraStraceOpts)
 }
 
 func StraceAttachedStart(s string) bool {

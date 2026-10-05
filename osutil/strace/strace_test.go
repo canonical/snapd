@@ -66,7 +66,7 @@ func (s *straceSuite) TestStraceCommandHappy(c *C) {
 		"-e", strace.ExcludedSyscalls,
 	})
 
-	cmd, err = strace.CommandWithTraceePid(123, s.mountDir, nil)
+	cmd, err = strace.CommandWithTraceePid(s.mountDir, 123, nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
@@ -136,7 +136,7 @@ func (s *straceSuite) TestStraceCommandNoStrace(c *C) {
 }
 
 func (s *straceSuite) TestTraceExecCommand(c *C) {
-	cmd, err := strace.TraceExecCommandForPid(123, s.mountDir, "/run/snapd/strace.log")
+	cmd, err := strace.TraceExecCommandForPid(s.mountDir, 123, "/run/snapd/strace.log")
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Path, Equals, s.mockSudo.Exe())
 	c.Assert(cmd.Args, DeepEquals, []string{
