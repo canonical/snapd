@@ -118,5 +118,9 @@ func init() {
 		implicitOnClassic:    true,
 		baseDeclarationSlots: pipewireBaseDeclarationSlots,
 		connectedPlugSecComp: pipewireConnectedPlugSecComp,
+		// the permanent slot AppArmor rules grant every slot provider (system
+		// or app) access to the same non-namespaced /run/user/*/pipewire-*
+		// socket, so parallel instances can collide regardless of slot type.
+		parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 	}})
 }

@@ -194,6 +194,12 @@ func (iface *pulseAudioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bo
 	return true
 }
 
+func (iface *pulseAudioInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// PulseAudio owns the well-known /run/pulse/native (or per-user
+	// /run/user/*/pulse/native) socket; only one snap instance can hold it.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&pulseAudioInterface{})
 }
