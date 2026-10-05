@@ -300,6 +300,28 @@ func maybeCloudName(st *state.State) (name string, err error) {
 	return cloudInfo.Name, nil
 }
 
+// integrityDataToDownload returns the integrity data to download for the snap,
+// if any, and the path to download it to.
+func integrityDataToDownload(snapsup *SnapSetup) (*snap.IntegrityDownloadInfo, string, error) {
+	// TODO: restrict downloading integrity data to base snaps or and allowlist
+	if len(snapsup.IntegrityDownloadInfos) > 1 {
+		// TODO: in the future a policy can select which integrity data to download
+		return nil, "", fmt.Errorf("cannot download integrity data for snap %q: expected at most one entry, got %d", snapsup.InstanceName(), len(snapsup.IntegrityDownloadInfos))
+	}
+	if len(snapsup.IntegrityDownloadInfos) == 0 {
+		// TODO: in the future a policy can decide if missing integrity info
+		// is considered an error
+		return nil, "", nil
+	}
+
+	info := &snapsup.IntegrityDownloadInfos[0]
+	targetFn, err := info.IntegrityDataParams.IntegrityFile(snapsup.BlobPath())
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot download integrity data for snap %q: %v", snapsup.InstanceName(), err)
+	}
+	return info, targetFn, nil
+}
+
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	var rate int64
@@ -323,6 +345,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	if err := waitForPreDownload(t, snapsup); err != nil {
+		return err
+	}
+
+	integrityInfo, integrityTargetFn, err := integrityDataToDownload(snapsup)
+	if err != nil {
 		return err
 	}
 
@@ -391,6 +418,15 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		}
 	}
 
+	if integrityInfo != nil {
+		timings.Run(perfTimings, "download-integrity-data", fmt.Sprintf("download integrity data for snap %q", snapsup.SnapName()), func(timings.Measurer) {
+			err = theStore.Download(tomb.Context(nil), snapsup.SnapName().String(), integrityTargetFn, &integrityInfo.DownloadInfo, meter, user, dlOpts)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
 	snapsup.SnapPath = targetFn
 
 	// update the snap setup for the follow up tasks
@@ -414,6 +450,8 @@ func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	fname := snapsup.BlobPath()
+	// on error nothing was downloaded, so there is nothing to clean up
+	integrityInfo, integrityFn, _ := integrityDataToDownload(snapsup)
 
 	err = func() error {
 		st.Unlock()
@@ -421,7 +459,13 @@ func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// Remove the snap blob from downloads directory but keep the cache
 		// entry for reuse if the download is triggered again in another change
 		// pertaining to the same snap revision.
-		return theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
+		err := theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
+		if integrityInfo != nil {
+			if ierr := theStore.CleanupDownloadArtifacts(integrityFn, &integrityInfo.DownloadInfo); ierr != nil {
+				err = strutil.JoinErrors(err, ierr)
+			}
+		}
+		return err
 	}()
 	if err != nil {
 		t.Logf("cannot clean up downloaded snap artifacts: %v", err)
@@ -475,6 +519,11 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	integrityInfo, integrityTargetFn, err := integrityDataToDownload(snapsup)
+	if err != nil {
+		return err
+	}
+
 	targetFn := snapsup.BlobPath()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
@@ -487,6 +536,9 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Unlock()
 	timings.Run(perfTimings, "pre-download", fmt.Sprintf("pre-download snap %q", snapsup.SnapName()), func(timings.Measurer) {
 		err = theStore.Download(tomb.Context(nil), snapsup.SnapName().String(), targetFn, snapsup.DownloadInfo, nil, user, dlOpts)
+		if err == nil && integrityInfo != nil {
+			err = theStore.Download(tomb.Context(nil), snapsup.SnapName().String(), integrityTargetFn, &integrityInfo.DownloadInfo, nil, user, dlOpts)
+		}
 	})
 	st.Lock()
 	if err != nil {

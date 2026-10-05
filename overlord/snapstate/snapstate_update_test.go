@@ -12799,6 +12799,93 @@ func findChange(st *state.State, kind string) *state.Change {
 	return nil
 }
 
+func (s *snapmgrTestSuite) TestPreDownloadTaskWithIntegrityDataContinuesAutoRefresh(c *C) {
+	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error { return nil })
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "foo",
+		SnapID:   "foo-id",
+		Revision: snap.R(1),
+	}
+	snaptest.MockSnap(c, `name: foo`, si)
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+	})
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags:        snapstate.Flags{IsAutoRefresh: true},
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
+		IntegrityDownloadInfos: []snap.IntegrityDownloadInfo{
+			mockIntegrityDownloadInfo("dm-verity", "digest"),
+		},
+	}
+	s.state.Set("refresh-candidates", map[string]*snapstate.RefreshCandidate{
+		"foo": {SnapSetup: *snapsup},
+	})
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+	preDlTask.Set("snap-setup", snapsup)
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Assert(preDlTask.Status(), Equals, state.DoneStatus)
+	autoRefreshChg := findChange(s.state, "auto-refresh")
+	c.Assert(autoRefreshChg, NotNil)
+	c.Assert(autoRefreshChg.Status(), Equals, state.DoneStatus)
+
+	// both the pre-download and the auto-refresh download the integrity data
+	dlOpts := &store.DownloadOptions{Scheduled: true, LeavePartialOnError: true}
+	snapFn := filepath.Join(dirs.SnapBlobDir, "foo_2.snap")
+	integrityFn := filepath.Join(dirs.SnapBlobDir, "foo_2_digest.dmverity")
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{name: "foo", target: snapFn, opts: dlOpts},
+		{name: "foo", target: integrityFn, opts: dlOpts},
+		{name: "foo", target: snapFn, opts: dlOpts},
+		{name: "foo", target: integrityFn, opts: dlOpts},
+	})
+}
+
+func (s *snapmgrTestSuite) TestPreDownloadTaskTooManyIntegrityDataEntries(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(2),
+		},
+		Flags:        snapstate.Flags{IsAutoRefresh: true},
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "my-url"},
+		IntegrityDownloadInfos: []snap.IntegrityDownloadInfo{
+			mockIntegrityDownloadInfo("dm-verity", "digest1"),
+			mockIntegrityDownloadInfo("dm-verity", "digest2"),
+		},
+	}
+
+	preDlChg := s.state.NewChange("pre-download", "pre-download change")
+	preDlTask := s.state.NewTask("pre-download-snap", "pre-download task")
+	preDlTask.Set("snap-setup", snapsup)
+	preDlChg.AddTask(preDlTask)
+
+	s.settle(c)
+
+	c.Check(preDlChg.Err(), ErrorMatches, `(?s).*cannot download integrity data for snap "foo": expected at most one entry, got 2.*`)
+	c.Check(preDlTask.Status(), Equals, state.ErrorStatus)
+	c.Check(s.fakeStore.downloads, HasLen, 0)
+}
+
 func (s *snapmgrTestSuite) TestDownloadTaskMonitorsSnapStoppedOnSoftCheckFail(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{

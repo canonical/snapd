@@ -217,7 +217,7 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 func removeIntegrityFilesForSnap(s snap.PlaceInfo) error {
 	// in practice only one file should exist, but we do not know the exact
 	// digest, so remove all integrity files found for the snap
-	integrityFiles, err := integrity.FindIntegrityFilesForSnap(s.MountFile())
+	integrityFiles, err := integrity.FindIntegrityFilesForSnap(s.MountFile(), nil)
 	if err != nil {
 		return err
 	}
