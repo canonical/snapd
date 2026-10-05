@@ -56,8 +56,12 @@ prepare: |
 
     tests.nested prepare-essential-snaps
 
-    export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
-    ubuntu-image snap --image-size 10G ./initial-model.assert
+    "${TESTSTOOLS}/image-generator" \
+      --core-version "${VERSION}" \
+      --model ./initial-model.assert \
+      --output-dir . \
+      --image-size 10G \
+      --store-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
 
     image_dir=$(tests.nested get images-path)
     image_name=$(tests.nested get image-name core)

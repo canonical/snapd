@@ -85,8 +85,12 @@ prepare: |
 
   snapd_snap="$(echo "${extra_snaps}"/snapd_*.snap)"
 
-  export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
-  ubuntu-image snap --image-size 10G "$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.model" \
+  "${TESTSTOOLS}/image-generator" \
+    --core-version "${version}" \
+    --model "$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.model" \
+    --output-dir . \
+    --image-size 10G \
+    --store-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}" \
     --snap "${extra_snaps}/pc.snap" \
     --snap "${extra_snaps}/pc-kernel.snap" \
     --snap "${snapd_snap}" \
