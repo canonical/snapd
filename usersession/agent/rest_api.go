@@ -528,14 +528,16 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	}
 
 	var icon string
-	name, instanceKey := snap.SplitInstanceName(finishRefresh.InstanceName)
-	if si, err := snap.ReadCurrentInfo(naming.InstanceName(finishRefresh.InstanceName)); err == nil {
-		icon, name = guessAppData(si, name, instanceKey)
+	instanceName := naming.InstanceName(finishRefresh.InstanceName)
+	snapName := instanceName.SnapName().String()
+	instanceKey := instanceName.InstanceKey()
+	if si, err := snap.ReadCurrentInfo(instanceName); err == nil {
+		icon, snapName = guessAppData(si, snapName, instanceKey)
 	} else {
-		logger.Noticef("cannot load snap-info for %s: %v", combineNameAndKey(name, instanceKey), err)
+		logger.Noticef("cannot load snap-info for %s: %v", combineNameAndKey(snapName, instanceKey), err)
 	}
-	if name == "" {
-		name = combineNameAndKey(name, instanceKey)
+	if snapName == "" {
+		snapName = combineNameAndKey(snapName, instanceKey)
 	}
 
 	// Note that since the connection is shared, we are not closing it.
@@ -549,7 +551,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	summary := fmt.Sprintf(i18n.G("%s was updated."), name)
+	summary := fmt.Sprintf(i18n.G("%s was updated."), snapName)
 	body := i18n.G("Ready to launch.")
 	hints := []notification.Hint{
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
@@ -562,7 +564,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		Hints: hints,
 		Icon:  icon,
 	}
-	if err := c.s.notificationMgr.SendNotification(notification.ID(name), msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(snapName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
