@@ -378,6 +378,9 @@ const (
 	// RestartSnapdFeatureChange is a restart after a snapd feature
 	// change.
 	RestartSnapdFeatureChange RestartReason = "snapd-feature-change"
+	// RestartSnapdShutdownFailureRecovery is a shutdown after the
+	// snap-failure process exits with an error. snapd stays stopped.
+	RestartSnapdShutdownFailureRecovery RestartReason = "snapd-shutdown-failure-recovery"
 )
 
 // Reasons for type RestartSocket.

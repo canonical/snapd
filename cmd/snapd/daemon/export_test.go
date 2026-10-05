@@ -28,8 +28,9 @@ import (
 )
 
 var (
-	Run                  = run
-	SetupSecurityLogging = setupSecurityLogging
+	Run                        = run
+	SetupSecurityLogging       = setupSecurityLogging
+	LogFailureRecoveryShutdown = logFailureRecoveryShutdown
 )
 
 func MockSyscheckCheckSystem(f func() error) (restore func()) {

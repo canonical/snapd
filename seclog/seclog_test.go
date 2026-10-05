@@ -21,6 +21,7 @@ package seclog_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -231,6 +232,23 @@ func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason <unknown>")
 	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemShutdownSnapdFailureRecovery(c *C) {
+	seclog.LogSystemShutdownSnapd("2.78", restart.RestartSnapdShutdownFailureRecovery, fmt.Errorf("cannot run daemon"))
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_shutdown_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd shutdown with reason snapd-shutdown-failure-recovery due to error: cannot run daemon")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-shutdown-failure-recovery"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemShutdownSnapdNilError(c *C) {
+	seclog.LogSystemShutdownSnapd("2.78", restart.RestartSnapdShutdownFailureRecovery, nil)
+
+	c.Check(s.buf.String(), testutil.Contains, "Snapd shutdown with reason snapd-shutdown-failure-recovery")
+	c.Check(s.buf.String(), Not(testutil.Contains), "due to error")
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-shutdown-failure-recovery"]`)
 }
 
 func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {

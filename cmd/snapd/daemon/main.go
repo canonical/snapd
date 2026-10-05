@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seclog"
@@ -80,6 +81,10 @@ func Main() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	err := run(ch)
 
+	// Record a failed snap-failure invocation before the logger is
+	// torn down. That exit leaves snapd stopped.
+	logFailureRecoveryShutdown(err)
+
 	// Tear down security logging explicitly so that the "disabled" log
 	// entry is written before any os.Exit call
 	teardownSecurityLogging()
@@ -103,6 +108,20 @@ func Main() {
 		fmt.Fprintf(os.Stderr, "cannot run daemon: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// logFailureRecoveryShutdown records that the snap-failure process
+// exited with an error. SNAPD_REVERT_TO_REV marks that transient unit.
+// snap-failure then returns before systemctl restart, so snapd stays
+// stopped. A nil error, standby, and a no-recovery exit are not this.
+func logFailureRecoveryShutdown(err error) {
+	if err == nil ||
+		errors.Is(err, daemon.ErrRestartSocket) ||
+		errors.Is(err, daemon.ErrNoFailureRecoveryNeeded) ||
+		os.Getenv("SNAPD_REVERT_TO_REV") == "" {
+		return
+	}
+	seclog.LogSystemShutdownSnapd(snapdtool.FullVersion(), restart.RestartSnapdShutdownFailureRecovery, err)
 }
 
 func setupSecurityLogging() (teardown func()) {

@@ -152,6 +152,35 @@ func LogSystemRestartSnapd(snapdVersion string, reason restart.RestartReason) {
 	)
 }
 
+// LogSystemShutdownSnapd logs a snapd shutdown using the global security
+// logger. snapdVersion is the version of the exiting snapd process. reason
+// is a [restart.RestartReason]. err is included in the description only
+// when it is non-nil and reason is [restart.RestartSnapdShutdownFailureRecovery].
+func LogSystemShutdownSnapd(snapdVersion string, reason restart.RestartReason, err error) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	reasonStr := string(reason)
+	if reasonStr == "" {
+		reasonStr = unknown
+	}
+
+	description := fmt.Sprintf("Snapd shutdown with reason %s", reasonStr)
+	if reason == restart.RestartSnapdShutdownFailureRecovery && err != nil {
+		description = fmt.Sprintf("%s due to error: %s", description, err.Error())
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_shutdown_snapd", Level: LevelInfo},
+		description,
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "reason", Value: reasonStr},
+	)
+}
+
 // LogSystemStandbySnapd logs a completed socket-activation standby using
 // the global security logger. snapdVersion is the version of the exiting
 // snapd process. reason is a [restart.RestartReason].

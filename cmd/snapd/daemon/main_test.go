@@ -20,9 +20,11 @@
 package daemon_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -31,12 +33,16 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snapd "github.com/snapcore/snapd/cmd/snapd/daemon"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/standby"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -147,4 +153,32 @@ func (s *snapdSuite) TestMainInitializesSdNotifySocket(c *C) {
 	defer restore()
 
 	c.Assert(snapd.Main, PanicMatches, "systemd-init-sd-notify-socket-called")
+}
+
+func (s *snapdSuite) TestLogFailureRecoveryShutdown(c *C) {
+	var buf bytes.Buffer
+	seclog.Setup(seclogtest.MockSecurityLogger(&buf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	restore := snapdtool.MockVersion("2.78", "")
+	defer restore()
+
+	os.Setenv("SNAPD_REVERT_TO_REV", "999")
+	defer os.Unsetenv("SNAPD_REVERT_TO_REV")
+
+	snapd.LogFailureRecoveryShutdown(fmt.Errorf("cannot run daemon"))
+	c.Check(strings.Count(buf.String(), "sys_shutdown_snapd"), Equals, 1)
+	c.Check(buf.String(), testutil.Contains, "Snapd shutdown with reason snapd-shutdown-failure-recovery due to error: cannot run daemon")
+	c.Check(buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(buf.String(), testutil.Contains, `[reason="snapd-shutdown-failure-recovery"]`)
+
+	buf.Reset()
+	snapd.LogFailureRecoveryShutdown(nil)
+	snapd.LogFailureRecoveryShutdown(daemon.ErrRestartSocket)
+	snapd.LogFailureRecoveryShutdown(daemon.ErrNoFailureRecoveryNeeded)
+	c.Check(buf.String(), Equals, "")
+
+	os.Unsetenv("SNAPD_REVERT_TO_REV")
+	snapd.LogFailureRecoveryShutdown(fmt.Errorf("cannot run daemon"))
+	c.Check(buf.String(), Equals, "")
 }
