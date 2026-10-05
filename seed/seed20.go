@@ -1101,7 +1101,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 			seedComps = append(seedComps, comp)
 		}
 
-		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName().String(), snap.R(-1))
+		pinfo := snap.MinimalSnapContainerPlaceInfo(info.InstanceName(), snap.R(-1))
 		newPath, err := handler.HandleUnassertedContainer(pinfo, path, tm)
 		if err != nil {
 			return nil, err
