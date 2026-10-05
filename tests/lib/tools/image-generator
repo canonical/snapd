@@ -20,6 +20,7 @@ Options:
     --component <path>
     --gadget-yaml <path>
     --store-url <url>
+    --api-url <url>
     --snap-command <path> (default: /usr/bin/snap)
     --debug
 EOF
@@ -53,6 +54,7 @@ parse_optional_arg() {
         --component) EXTRA_ARGS+=(--comp "$2") ;;
         --gadget-yaml) GADGET_YAML="$2" ;;
         --store-url) STORE_URL="$2" ;;
+        --api-url) API_URL="$2" ;;
         --snap-command) SNAP_COMMAND="$2" ;;
     esac
 }
@@ -77,7 +79,7 @@ parse_args() {
                 parse_image_arg "$1" "$2"
                 shift 2
                 ;;
-            --channel|--base-channel|--preseed-sign-key|--snap|--component|--gadget-yaml|--store-url|--snap-command)
+            --channel|--base-channel|--preseed-sign-key|--snap|--component|--gadget-yaml|--store-url|--api-url|--snap-command)
                 require_value "$@"
                 parse_optional_arg "$1" "$2"
                 shift 2
@@ -152,6 +154,9 @@ build_command() {
         "SNAPPY_FORCE_SAS_URL=$STORE_URL"
         "UBUNTU_IMAGE_SNAP_CMD=$SNAP_COMMAND"
     )
+    if [ -n "$API_URL" ]; then
+        ENVIRONMENT+=("SNAPPY_FORCE_API_URL=$API_URL")
+    fi
     if [ "$DEBUG" = true ]; then
         ENVIRONMENT+=("SNAPD_DEBUG=1")
     fi
@@ -223,6 +228,7 @@ main() {
     PRESEED_SIGN_KEY=
     GADGET_YAML=
     STORE_URL="${SNAPPY_FORCE_SAS_URL-}"
+    API_URL=
     SNAP_COMMAND="${UBUNTU_IMAGE_SNAP_CMD-/usr/bin/snap}"
     DEBUG=false
     EXTRA_ARGS=()

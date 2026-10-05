@@ -61,7 +61,8 @@ prepare: |
       --model ./initial-model.assert \
       --output-dir . \
       --image-size 10G \
-      --store-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+      --store-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}" \
+      --api-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
 
     image_dir=$(tests.nested get images-path)
     image_name=$(tests.nested get image-name core)
