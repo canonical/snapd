@@ -195,7 +195,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 			},
 			compsMntPts,
 			destDir,
-			&kernel.KernelDriversTreeOptions{KernelInstall: true}); err != nil {
+			kernel.KernelInstallMode); err != nil {
 			return err
 		}
 	}

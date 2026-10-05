@@ -130,9 +130,8 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 
 // SetupKernelSnapOptions carries extra options for SetupKernelSnap.
 type SetupKernelSnapOptions struct {
-	// Regenerate requests regenerating the artifacts created when setting up a
-	// given kernel. This may include rebuilding the kernel modules and firmware
-	// trees. Regenerate may be requeted for a live kernel.
+	// Regenerate requests the given kernel setup time artifacts to be
+	// regenerated if needed. This can be set for a currently active kernel.
 	Regenerate bool
 }
 
@@ -162,13 +161,11 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, current
 
 	// TODO:COMPS: consider components when installed jointly (currentComps
 	// is always nil for a fresh install today, see doPrepareKernelSnap)
-	return kernelEnsureKernelDriversTree(
-		kMntPts,
-		compsMntPts, destDir,
-		&kernel.KernelDriversTreeOptions{
-			KernelInstall: !opts.Regenerate,
-			Regenerate:    opts.Regenerate,
-		})
+	mode := kernel.KernelInstallMode
+	if opts.Regenerate {
+		mode = kernel.RegenerateMode
+	}
+	return kernelEnsureKernelDriversTree(kMntPts, compsMntPts, destDir, mode)
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
@@ -408,12 +405,12 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	finalCompsMntPts := compsMountPoints(finalComps, ksnapName, ksnapRev, kinfo)
 
 	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
-		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
+		kernel.ComponentChangeMode); err != nil {
 
 		// Revert change on error
 		currentCompsMntPts := compsMountPoints(currentComps, ksnapName, ksnapRev, kinfo)
 		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
-			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
+			kernel.ComponentChangeMode); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
 		}
 

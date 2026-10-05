@@ -726,10 +726,10 @@ func (s *setupSuite) TestSetupKernelSnapPlumbsComponentsAndRegenerate(c *C) {
 	kernRev := snap.R(33)
 	currentComps := createKModsComps(c, 1, 2, ksnap, kernRev)
 
-	var gotOpts *kernel.KernelDriversTreeOptions
+	var gotMode kernel.KernelDriversTreeMode
 	var gotCompsMntPts []kernel.ModulesCompMountPoints
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
-		gotOpts = opts
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) error {
+		gotMode = mode
 		gotCompsMntPts = compsMntPts
 		return nil
 	})
@@ -739,7 +739,7 @@ func (s *setupSuite) TestSetupKernelSnapPlumbsComponentsAndRegenerate(c *C) {
 		&backend.SetupKernelSnapOptions{Regenerate: true}, progress.Null)
 	c.Assert(err, IsNil)
 
-	c.Assert(gotOpts, DeepEquals, &kernel.KernelDriversTreeOptions{KernelInstall: false, Regenerate: true})
+	c.Assert(gotMode, Equals, kernel.RegenerateMode)
 	c.Assert(gotCompsMntPts, HasLen, len(currentComps))
 	gotNames := make([]string, len(gotCompsMntPts))
 	for i, cmp := range gotCompsMntPts {
@@ -768,7 +768,7 @@ func (s *setupSuite) TestSetupKernelSnapPlumbsDynamicModulesWithNoComponents(c *
 	c.Assert(os.WriteFile(filepath.Join(modsDir, "dynamic.ko"), []byte{}, 0644), IsNil)
 
 	var gotCompsMntPts []kernel.ModulesCompMountPoints
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) error {
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) error {
 		gotCompsMntPts = compsMntPts
 		return nil
 	})
@@ -1044,7 +1044,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 
 	// First call to EnsureKernelDriversTree will fail
 	n := 0
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) (err error) {
 		n++
 		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String())
@@ -1054,7 +1054,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 			Current: kernSnapDir,
 			Target:  kernSnapDir,
 		})
-		c.Check(opts, DeepEquals, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+		c.Check(mode, Equals, kernel.ComponentChangeMode)
 		compsMnt := filepath.Join(dirs.SnapMountDir, ksnap, "components/mnt")
 		switch n {
 		case 1, 3:
