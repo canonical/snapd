@@ -311,7 +311,7 @@ def discover_external_urls(store_dir):
     return external_urls
 
 
-def render(groups, usage, owners, external_urls):
+def render(groups, usage, owners, external_urls, include_used_by=True):
     """Render classified snaps, usage references, and applicable owners as Markdown."""
     lines = [
         "# Test snaps",
@@ -326,11 +326,19 @@ def render(groups, usage, owners, external_urls):
         "A snap with definitions in more than one location is classified by this "
         "precedence: test directory, `tests/lib/snaps`, then `tests/lib/snaps/store`.",
         "",
-        "`Used by` lists test directories containing a static reference to the snap "
-        "name. This is source-based inventory rather than runtime tracing, so "
-        "dynamically constructed names may be absent and generic names such as "
-        "`core` or `snapd` may have many references.",
-        "",
+    ]
+    if include_used_by:
+        lines.extend(
+            (
+                "`Used by` lists test directories containing a static reference to the snap "
+                "name. This is source-based inventory rather than runtime tracing, so "
+                "dynamically constructed names may be absent and generic names such as "
+                "`core` or `snapd` may have many references.",
+                "",
+            )
+        )
+    lines.extend(
+        (
         "`Owner` is the Snap Store publisher returned by the store API. It is listed "
         "only for store fixtures and external snaps; locally packed snaps do not "
         "need an owner. Results are cached in `tests/utils/test-snap-owners.json`.",
@@ -342,7 +350,8 @@ def render(groups, usage, owners, external_urls):
         "",
         "| Classification | Count |",
         "|---|---:|",
-    ]
+        )
+    )
     for classification in CLASSIFICATIONS:
         lines.append(f"| {classification} | {len(groups[classification])} |")
     lines.append(f"| **Total** | **{sum(len(group) for group in groups.values())}** |")
@@ -350,13 +359,15 @@ def render(groups, usage, owners, external_urls):
     for classification in CLASSIFICATIONS:
         lines.extend(("", f"## {classification}", ""))
         for name in groups[classification]:
-            references = sorted(usage[name])
-            used_by = (
-                ", ".join(f"`{reference}`" for reference in references)
-                if references
-                else "no static test reference found"
-            )
-            lines.extend((f"- `{name}`", f"  - Used by: {used_by}"))
+            lines.append(f"- `{name}`")
+            if include_used_by:
+                references = sorted(usage[name])
+                used_by = (
+                    ", ".join(f"`{reference}`" for reference in references)
+                    if references
+                    else "no static test reference found"
+                )
+                lines.append(f"  - Used by: {used_by}")
             if classification in OWNER_CLASSIFICATIONS:
                 lines.append(f"  - Owner: {format_owner(owners[name])}")
             if name in external_urls:
@@ -366,7 +377,60 @@ def render(groups, usage, owners, external_urls):
     return "\n".join(lines).rstrip() + "\n"
 
 
-def discover_inventory(repo_root):
+def yaml_scalar(value):
+    """Render a string as a YAML-compatible quoted scalar."""
+    return json.dumps(value, ensure_ascii=True)
+
+
+def render_yaml(groups, usage, owners, external_urls, include_used_by=True):
+    """Render classified snaps, usage references, owners, and URLs as YAML."""
+    lines = ["summary:"]
+    for classification in CLASSIFICATIONS:
+        lines.append(
+            f"  {yaml_scalar(classification)}: {len(groups[classification])}"
+        )
+    lines.append(f"  total: {sum(len(group) for group in groups.values())}")
+    lines.append("snaps:")
+
+    for classification in CLASSIFICATIONS:
+        for name in groups[classification]:
+            lines.extend(
+                (
+                    f"  - name: {yaml_scalar(name)}",
+                    f"    classification: {yaml_scalar(classification)}",
+                )
+            )
+            if include_used_by:
+                references = sorted(usage[name])
+                if references:
+                    lines.append("    used-by:")
+                    lines.extend(
+                        f"      - {yaml_scalar(reference)}" for reference in references
+                    )
+                else:
+                    lines.append("    used-by: []")
+            if classification in OWNER_CLASSIFICATIONS:
+                owner = owners[name]
+                lines.extend(
+                    (
+                        "    owner:",
+                        f"      status: {yaml_scalar(owner['status'])}",
+                    )
+                )
+                if owner["status"] == "found":
+                    lines.extend(
+                        (
+                            f"      username: {yaml_scalar(owner['username'])}",
+                            f"      display-name: {yaml_scalar(owner['display-name'])}",
+                        )
+                    )
+            if name in external_urls:
+                lines.append(f"    external-url: {yaml_scalar(external_urls[name])}")
+
+    return "\n".join(lines) + "\n"
+
+
+def discover_inventory(repo_root, include_used_by=True):
     """Discover and classify snap names and their spread test usage."""
     tests_dir = repo_root / "tests"
     definitions = discover_definitions(tests_dir)
@@ -378,13 +442,19 @@ def discover_inventory(repo_root):
     for name in sorted(names):
         groups[classify(name, definitions, repo_root)].append(name)
 
-    usage = discover_usage(tests_dir, repo_root, names)
+    usage = discover_usage(tests_dir, repo_root, names) if include_used_by else {}
     return groups, usage
 
 
-def generate(repo_root, owner_cache, refresh_owners=False):
-    """Generate the complete Markdown inventory, resolving required owners."""
-    groups, usage = discover_inventory(repo_root)
+def generate(
+    repo_root,
+    owner_cache,
+    refresh_owners=False,
+    yaml_output=False,
+    include_used_by=True,
+):
+    """Generate the complete inventory, resolving required owners."""
+    groups, usage = discover_inventory(repo_root, include_used_by=include_used_by)
     external_urls = discover_external_urls(repo_root / "tests/lib/snaps/store")
     owner_names = {
         name
@@ -392,7 +462,14 @@ def generate(repo_root, owner_cache, refresh_owners=False):
         for name in groups[classification]
     }
     owners = discover_owners(owner_names, owner_cache, refresh=refresh_owners)
-    return render(groups, usage, owners, external_urls)
+    renderer = render_yaml if yaml_output else render
+    return renderer(
+        groups,
+        usage,
+        owners,
+        external_urls,
+        include_used_by=include_used_by,
+    )
 
 
 def main():
@@ -402,8 +479,17 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=repo_root / "test-snaps.md",
-        help="output Markdown file (default: test-snaps.md in the repository root)",
+        help="output file (default: test-snaps.md or test-snaps.yaml in the repository root)",
+    )
+    parser.add_argument(
+        "--yaml",
+        action="store_true",
+        help="generate YAML instead of Markdown",
+    )
+    parser.add_argument(
+        "--exclude-used-by",
+        action="store_true",
+        help="omit test usage references from the output",
     )
     parser.add_argument(
         "--external-only",
@@ -423,14 +509,21 @@ def main():
     )
     args = parser.parse_args()
     if args.external_only:
-        groups, _ = discover_inventory(repo_root)
+        groups, _ = discover_inventory(repo_root, include_used_by=False)
         names = set(groups[CLASSIFICATIONS[3]])
         owners = discover_owners(names, args.owner_cache, refresh=args.refresh_owners)
         for name in sorted(names):
             print(f"{name}\t{format_owner(owners[name])}")
         return
-    args.output.write_text(
-        generate(repo_root, args.owner_cache, refresh_owners=args.refresh_owners)
+    output = args.output or repo_root / ("test-snaps.yaml" if args.yaml else "test-snaps.md")
+    output.write_text(
+        generate(
+            repo_root,
+            args.owner_cache,
+            refresh_owners=args.refresh_owners,
+            yaml_output=args.yaml,
+            include_used_by=not args.exclude_used_by,
+        )
     )
 
 
