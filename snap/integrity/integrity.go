@@ -124,18 +124,40 @@ func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, erro
 	}
 }
 
+// FindIntegrityFilesOptions controls which integrity files are returned by
+// FindIntegrityFilesForSnap.
+type FindIntegrityFilesOptions struct {
+	// IncludePartial includes partially downloaded integrity files ending
+	// with ".partial".
+	IncludePartial bool
+}
+
 // FindIntegrityFilesForSnap returns the paths of all integrity files found
 // next to the given snap path.
-func FindIntegrityFilesForSnap(snapPath string) ([]string, error) {
+func FindIntegrityFilesForSnap(snapPath string, opts *FindIntegrityFilesOptions) ([]string, error) {
+	if opts == nil {
+		opts = &FindIntegrityFilesOptions{}
+	}
+
+	prefix := integrityFilePathPrefix(snapPath)
+	var files []string
 	// glob matches path/to/snap/<instance_name>_<revision>_*.dmverity
 	matches, err := filepath.Glob(integrityFilePath(snapPath, "*"))
 	if err != nil {
 		return nil, err
 	}
-	prefix := integrityFilePathPrefix(snapPath)
-	var files []string
+	if opts.IncludePartial {
+		// glob matches path/to/snap/<instance_name>_<revision>_*.dmverity.partial
+		partialMatches, err := filepath.Glob(integrityFilePath(snapPath, "*") + ".partial")
+		if err != nil {
+			return nil, err
+		}
+		matches = append(matches, partialMatches...)
+	}
 	for _, match := range matches {
-		digest := strings.TrimSuffix(strings.TrimPrefix(match, prefix), dmVerityFileSuffix)
+		digest := strings.TrimPrefix(match, prefix)
+		digest = strings.TrimSuffix(digest, ".partial")
+		digest = strings.TrimSuffix(digest, dmVerityFileSuffix)
 		// digests never contain "_", if a match does then it belongs to another
 		// snap instance e.g. foo_1_2_<digest>.dmverity for snap foo_1
 		if strings.Contains(digest, "_") {
