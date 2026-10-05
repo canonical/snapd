@@ -5058,6 +5058,34 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoParallelInstall(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoBrokenParallelInstall(c *C) {
+	si := &snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snapst := &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:     si.Revision,
+		InstanceKey: "bar",
+	}
+	binDir := dirs.SnapBinariesDir
+	c.Assert(os.MkdirAll(binDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(binDir, "foo_bar"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(binDir, "foo_bar.app"), nil, 0644), IsNil)
+
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name.String(), Equals, "foo_bar")
+		return nil, snap.NotFoundError{Snap: name, Revision: si.Revision}
+	})
+	defer restore()
+
+	info, err := snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Check(info.SuggestedName, Equals, "foo")
+	c.Check(info.InstanceKey, Equals, "bar")
+	c.Check(info.InstanceName().String(), Equals, "foo_bar")
+	c.Check(info.Apps, HasLen, 2)
+	c.Check(info.Apps["foo"], Not(IsNil))
+	c.Check(info.Apps["app"], Not(IsNil))
+}
+
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoErrNoCurrent(c *C) {
 	snapst := new(snapstate.SnapState)
 	_, err := snapst.CurrentInfo()
