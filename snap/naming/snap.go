@@ -34,6 +34,7 @@ func (n SnapName) String() string {
 	return string(n)
 }
 
+// AsInstanceName returns a SnapName as an InstanceName type.
 func (n SnapName) AsInstanceName() InstanceName {
 	return InstanceName(n)
 }
