@@ -91,10 +91,17 @@ func validatePath(path string) error {
 	return nil
 }
 
-// validatePathWithSnapVariables validates a path that is subject to $SNAP*
-// variable expansion. It is not used for component subpaths, which are used
-// verbatim.
-func validatePathWithSnapVariables(path string) error {
+func validateCompSubPath(path string) error {
+	if err := validatePath(path); err != nil {
+		return err
+	}
+	if strings.ContainsRune(path, '$') {
+		return fmt.Errorf("component subpath cannot contain variable references: %q", path)
+	}
+	return nil
+}
+
+func validateNonCompPath(path string) error {
 	if err := validatePath(path); err != nil {
 		return err
 	}
@@ -119,9 +126,8 @@ const componentPrefix = "$SNAP_COMPONENT("
 //
 // If it is a component path, compName holds the component name and subPath
 // holds the remainder (possibly empty, meaning the whole component is shared).
-// The subpath is used verbatim, no variable expansion takes place in it.
 // err is set when the path is malformed, or when the subpath (when present) is
-// not a clean relative path. Whole-component sharing is allowed: both
+// not clean or contains variable references. Whole-component sharing is allowed: both
 // $SNAP_COMPONENT(foo) and $SNAP_COMPONENT(foo)/ resolve with subPath == "".
 func parseComponentPath(path string) (compName, subPath string, isComponent bool, err error) {
 	if !strings.HasPrefix(path, componentPrefix) {
@@ -139,7 +145,7 @@ func parseComponentPath(path string) (compName, subPath string, isComponent bool
 
 	// $SNAP_COMPONENT(foo)/bar -> bar
 	subPath = tail[1:]
-	if err := validatePath(subPath); err != nil {
+	if err := validateCompSubPath(subPath); err != nil {
 		return "", "", true, err
 	}
 
@@ -208,7 +214,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			return fmt.Errorf("component paths can only be used with read, not write: %q", p)
 		}
 
-		if err := validatePathWithSnapVariables(p); err != nil {
+		if err := validateNonCompPath(p); err != nil {
 			return err
 		}
 	}
@@ -225,7 +231,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			continue
 		}
 
-		if err := validatePathWithSnapVariables(p); err != nil {
+		if err := validateNonCompPath(p); err != nil {
 			return err
 		}
 	}
@@ -244,7 +250,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if err := validatePathWithSnapVariables(target); err != nil {
+	if err := validateNonCompPath(target); err != nil {
 		return err
 	}
 

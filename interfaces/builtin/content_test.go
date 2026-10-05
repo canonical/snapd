@@ -22,6 +22,7 @@ package builtin_test
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -1719,41 +1720,32 @@ func (s *ContentSuite) TestConnectedPlugComponentRead(c *C) {
 		`  remount options=(bind, ro) "/snap/consumer/7/import{,-[0-9]*}/",`)
 }
 
-// Component subpaths are used verbatim: $SNAP_INSTANCE_NAME is not expanded
-// in them, unlike regular content paths.
-func (s *ContentSuite) TestConnectedPlugComponentSubpathNoInstanceNameExpansion(c *C) {
-	const yaml = `name: producer
+func (s *ContentSuite) TestSanitizeSlotComponentSubpathVariables(c *C) {
+	const tmpl = `name: producer
 version: 0
 slots:
   content:
     interface: content
-    read:
-      - $SNAP_COMPONENT(comp1)/$SNAP_INSTANCE_NAME/share
+    %s
 components:
   comp1:
     type: standard
 `
-	// Sanitization succeeds: validatePath (not validatePathWithSnapVariables)
-	// is used for component subpaths, so $SNAP_INSTANCE_NAME is not rejected.
-	slotInfo := MockSlot(c, yaml, nil, "content")
-	c.Assert(interfaces.BeforePrepareSlot(s.iface, slotInfo), IsNil)
-
-	plug, _ := MockConnectedPlug(c, contentComponentPlugYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
-	comps := []compRawInfo{
-		{"component: producer+comp1\ntype: standard", snap.R(11)},
+	for _, variable := range []string{"$SNAP", "$SNAP_DATA", "$SNAP_COMMON", "$SNAP_INSTANCE_NAME", "$UNKNOWN"} {
+		for _, subPath := range []string{variable + "/share", "share/" + variable} {
+			path := "$SNAP_COMPONENT(comp1)/" + subPath
+			for _, attr := range []string{
+				fmt.Sprintf("read: [%q]", path),
+				fmt.Sprintf("source: {read: [%q]}", path),
+			} {
+				slot := MockSlot(c, fmt.Sprintf(tmpl, attr), nil, "content")
+				err := interfaces.BeforePrepareSlot(s.iface, slot)
+				comment := Commentf("attribute: %s", attr)
+				subPathPattern := strings.Replace(subPath, variable, regexp.QuoteMeta(variable), 1)
+				c.Check(err, ErrorMatches, `component subpath cannot contain variable references: "`+subPathPattern+`"`, comment)
+			}
+		}
 	}
-	slot, _ := mockConnectedSlotWithComps(c, yaml, &snap.SideInfo{Revision: snap.R(5)}, comps, "content")
-
-	// The mount source contains the literal $SNAP_INSTANCE_NAME string — it
-	// is not expanded because component subpaths are used verbatim.
-	mountSpec := &mount.Specification{}
-	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	compShare := filepath.Join(dirs.CoreSnapMountDir, "producer/components/mnt/comp1/11/$SNAP_INSTANCE_NAME/share")
-	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
-		Name:    compShare,
-		Dir:     filepath.Join(dirs.CoreSnapMountDir, "consumer/7/import"),
-		Options: []string{"bind", "ro"},
-	}})
 }
 
 // Check that whole-component sharing resolves to the component mount dir.

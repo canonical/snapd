@@ -1,5 +1,5 @@
 name: test-snapd-content-inst-bad-slot
-summary: Content provider with $SNAP_INSTANCE_NAME rooting the source path
+summary: Content provider with invalid source paths
 version: 1.0
 apps:
     sh:
@@ -9,3 +9,11 @@ slots:
         interface: content
         source:
             read: [$SNAP_INSTANCE_NAME/assets]
+    component-assets:
+        interface: content
+        content: assets
+        source:
+            read: [$SNAP_COMPONENT(comp1)/$SNAP_INSTANCE_NAME/share]
+components:
+    comp1:
+        type: standard
