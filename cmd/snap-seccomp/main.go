@@ -616,12 +616,18 @@ var (
 	errnoOnImplicitDenial int16 = C.EPERM
 )
 
+// explicitDenialErrnos lists errno names accepted in ~ERRNO:syscall lines.
+var explicitDenialErrnos = map[string]int16{
+	"ENOSYS": C.ENOSYS,
+	"EACCES": C.EACCES,
+	"EPERM":  C.EPERM,
+}
+
 func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) error {
 	// ignore comments and empty lines
 	if strings.HasPrefix(line, "#") || line == "" {
 		return nil
 	}
-	secFilter := secFilterAllow
 
 	// regular line
 	tokens := strings.Fields(line)
@@ -630,15 +636,44 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 	}
 
 	// allow the listed syscall but also support explicit denials as well by
-	// prefixing the line with a ~
+	// prefixing the line with a ~. The denial returns EACCES by default, a
+	// different errno can be selected with ~ERRNO:syscall, e.g. ~ENOSYS:openat2
 	action := seccomp.ActAllow
+	filters := []*seccomp.ScmpFilter{secFilterAllow}
 
 	// fish out syscall
 	syscallName := tokens[0]
 	if strings.HasPrefix(syscallName, "~") {
-		action = seccomp.ActErrno.SetReturnCode(errnoOnExplicitDenial)
 		syscallName = syscallName[1:]
-		secFilter = secFilterDeny
+		errnoCode := errnoOnExplicitDenial
+		customErrno := false
+		if errnoName, name, ok := strings.Cut(syscallName, ":"); ok {
+			code, ok := explicitDenialErrnos[errnoName]
+			if !ok {
+				return fmt.Errorf("cannot parse errno %q in line %q", errnoName, line)
+			}
+			errnoCode = code
+			customErrno = true
+			syscallName = name
+		}
+		action = seccomp.ActErrno.SetReturnCode(errnoCode)
+		filters = []*seccomp.ScmpFilter{secFilterDeny}
+		// The allow filter already returns errnoOnImplicitDenial for
+		// everything that is not allowed and libseccomp refuses rules whose
+		// action matches the default action of the filter, so there is
+		// nothing to add in that case.
+		if customErrno && errnoCode != errnoOnImplicitDenial {
+			// The kernel evaluates the filter installed last first, and
+			// among equal ERRNO actions the first evaluated one wins.
+			// snap-confine installs the allow filter last, so its default
+			// ERRNO(EPERM) would mask the errno from the deny filter
+			// whenever the syscall is not explicitly allowed. Add the same
+			// rule to the allow filter so that the requested errno is
+			// returned regardless of what the allow set contains.
+			filters = append(filters, secFilterAllow)
+		}
+	} else if strings.Contains(syscallName, ":") {
+		return fmt.Errorf("cannot specify errno without explicit denial in line %q", line)
 	}
 
 	secSyscall, err := seccomp.GetSyscallFromName(syscallName)
@@ -727,11 +762,13 @@ func parseLine(line string, secFilterAllow, secFilterDeny *seccomp.ScmpFilter) e
 
 	// Default to adding a precise match if possible. Otherwise
 	// let seccomp figure out the architecture specifics.
-	if err = secFilter.AddRuleConditionalExact(secSyscall, action, conds); err != nil {
-		err = secFilter.AddRuleConditional(secSyscall, action, conds)
-	}
-	if err != nil {
-		return fmt.Errorf("cannot add rule for line %q: %v", line, err)
+	for _, secFilter := range filters {
+		if err = secFilter.AddRuleConditionalExact(secSyscall, action, conds); err != nil {
+			err = secFilter.AddRuleConditional(secSyscall, action, conds)
+		}
+		if err != nil {
+			return fmt.Errorf("cannot add rule for line %q: %v", line, err)
+		}
 	}
 
 	return nil
