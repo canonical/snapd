@@ -110,8 +110,8 @@ func (csi *ComponentSideInfo) Equal(other *ComponentSideInfo) bool {
 
 // ComponentBaseDir returns where components are to be found for the
 // snap with name instanceName.
-func ComponentsBaseDir(instanceName string) string {
-	return filepath.Join(BaseDir(instanceName), "components")
+func ComponentsBaseDir(instanceName naming.InstanceName) string {
+	return filepath.Join(BaseDir(instanceName.String()), "components")
 }
 
 // componentPlaceInfo holds information about where to put a component in the

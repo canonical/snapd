@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var runinhibitWaitWhileInhibited = runinhibit.WaitWhileInhibited
@@ -58,7 +59,7 @@ var errInhibitedForDisable = fmt.Errorf("snap is disabled")
 // NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
 //
 // NOTE: It is the caller's responsibility to release the returned file lock.
-func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
+func waitWhileInhibited(ctx context.Context, cli *client.Client, instanceName naming.InstanceName, appName string) (info *snap.Info, app *snap.AppInfo, hintFlock *osutil.FileLock, err error) {
 	var flow inhibitionFlow
 	notified := false
 	notInhibited := func(ctx context.Context) (err error) {
@@ -128,8 +129,8 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 	return info, app, hintFlock, nil
 }
 
-func getInfoAndApp(snapName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
-	info, err := getSnapInfo(snapName, rev)
+func getInfoAndApp(instanceName naming.InstanceName, appName string, rev snap.Revision) (*snap.Info, *snap.AppInfo, error) {
+	info, err := getSnapInfo(instanceName, rev)
 	// Differentiate between snap not existing and missing current symlink.
 	if errors.As(err, &snap.NotFoundError{}) {
 		exists, isDir, dirErr := osutil.DirExists(filepath.Join(dirs.SnapMountDir, snapName))
@@ -157,7 +158,7 @@ type inhibitionFlow interface {
 	FinishInhibitionNotification(ctx context.Context) error
 }
 
-var newInhibitionFlow = func(cli *client.Client, instanceName string) inhibitionFlow {
+var newInhibitionFlow = func(cli *client.Client, instanceName naming.InstanceName) inhibitionFlow {
 	return &noticesFlow{instanceName: instanceName, cli: cli}
 }
 

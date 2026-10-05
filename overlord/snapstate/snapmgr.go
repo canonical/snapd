@@ -626,7 +626,7 @@ var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.Task
 var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
 var EstimateSnapshotSize func(st *state.State, instanceName string, users []string) (uint64, error)
 
-func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
+func readInfo(name naming.InstanceName, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)
 	if err != nil && flags&errorOnBroken != 0 {
 		return nil, err
