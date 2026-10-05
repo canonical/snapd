@@ -301,7 +301,17 @@ def discover_usage(tests_dir, repo_root, names):
     return usage
 
 
-def render(groups, usage, owners):
+def discover_external_urls(store_dir):
+    """Map snap directory names to URLs declared in their url files."""
+    external_urls = {}
+    for path in store_dir.glob("*/url"):
+        url = path.read_text().strip()
+        if url:
+            external_urls[path.parent.name] = url
+    return external_urls
+
+
+def render(groups, usage, owners, external_urls):
     """Render classified snaps, usage references, and applicable owners as Markdown."""
     lines = [
         "# Test snaps",
@@ -325,6 +335,9 @@ def render(groups, usage, owners):
         "only for store fixtures and external snaps; locally packed snaps do not "
         "need an owner. Results are cached in `tests/utils/test-snap-owners.json`.",
         "",
+        "`External url` is read from a snap directory's `url` file under "
+        "`tests/lib/snaps/store`.",
+        "",
         "## Summary",
         "",
         "| Classification | Count |",
@@ -346,6 +359,8 @@ def render(groups, usage, owners):
             lines.extend((f"- `{name}`", f"  - Used by: {used_by}"))
             if classification in OWNER_CLASSIFICATIONS:
                 lines.append(f"  - Owner: {format_owner(owners[name])}")
+            if name in external_urls:
+                lines.append(f"  - External url: {external_urls[name]}")
             lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -370,13 +385,14 @@ def discover_inventory(repo_root):
 def generate(repo_root, owner_cache, refresh_owners=False):
     """Generate the complete Markdown inventory, resolving required owners."""
     groups, usage = discover_inventory(repo_root)
+    external_urls = discover_external_urls(repo_root / "tests/lib/snaps/store")
     owner_names = {
         name
         for classification in OWNER_CLASSIFICATIONS
         for name in groups[classification]
     }
     owners = discover_owners(owner_names, owner_cache, refresh=refresh_owners)
-    return render(groups, usage, owners)
+    return render(groups, usage, owners, external_urls)
 
 
 def main():
