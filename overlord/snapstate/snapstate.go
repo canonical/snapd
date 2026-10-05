@@ -298,7 +298,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return fmt.Errorf("there was a snapd rollback across the restart")
 		}
 
-		snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName().String())
+		snapdInfo, err := snap.ReadCurrentInfo(snapsup.InstanceName())
 		if err != nil {
 			return fmt.Errorf("cannot get current snapd snap info: %v", err)
 		}
