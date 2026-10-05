@@ -347,17 +347,20 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		"foo_1.snap",
 		"foo_1_aaa.dmverity",
 		"foo_1_bbb.dmverity",
+		"foo_1_ccc.dmverity.partial",
 		"foo_10_ccc.dmverity",
 		"bar_1_aaa.dmverity",
 		// instance foo_1 revision 2 must not match snap foo revision 1
 		"foo_1_2.snap",
 		"foo_1_2_ddd.dmverity",
+		"foo_1_2_eee.dmverity.partial",
 	} {
 		c.Assert(os.WriteFile(filepath.Join(dir, name), nil, 0644), IsNil)
 	}
 
 	tests := []struct {
 		snapPath      string
+		opts          *integrity.FindIntegrityFilesOptions
 		expectedFiles []string
 	}{
 		{
@@ -365,6 +368,23 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 			expectedFiles: []string{
 				filepath.Join(dir, "foo_1_aaa.dmverity"),
 				filepath.Join(dir, "foo_1_bbb.dmverity"),
+			},
+		},
+		{
+			snapPath: filepath.Join(dir, "foo_1.snap"),
+			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: false},
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_aaa.dmverity"),
+				filepath.Join(dir, "foo_1_bbb.dmverity"),
+			},
+		},
+		{
+			snapPath: filepath.Join(dir, "foo_1.snap"),
+			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: true},
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_aaa.dmverity"),
+				filepath.Join(dir, "foo_1_bbb.dmverity"),
+				filepath.Join(dir, "foo_1_ccc.dmverity.partial"),
 			},
 		},
 		{
@@ -381,13 +401,22 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 			},
 		},
 		{
+			snapPath: filepath.Join(dir, "foo_1_2.snap"),
+			opts:     &integrity.FindIntegrityFilesOptions{IncludePartial: true},
+			expectedFiles: []string{
+				filepath.Join(dir, "foo_1_2_ddd.dmverity"),
+				filepath.Join(dir, "foo_1_2_eee.dmverity.partial"),
+			},
+		},
+		{
 			snapPath:      filepath.Join(dir, "baz_1.snap"),
+			opts:          &integrity.FindIntegrityFilesOptions{IncludePartial: true},
 			expectedFiles: nil,
 		},
 	}
 
 	for _, tc := range tests {
-		files, err := integrity.FindIntegrityFilesForSnap(tc.snapPath)
+		files, err := integrity.FindIntegrityFilesForSnap(tc.snapPath, tc.opts)
 		c.Assert(err, IsNil)
 		c.Check(files, DeepEquals, tc.expectedFiles)
 	}
