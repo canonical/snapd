@@ -560,7 +560,7 @@ func (s *snapmgrTestSuite) TestCheckForAvailableSpace(c *C) {
 			c.Check(size, Equals, tc.expected, Commentf(tc.description))
 			return nil
 		})
-		err := snapstate.CheckForAvailableSpace(tc.totalSize, tc.reservation, []string{"some-snap"}, "install", rootDir, "")
+		err := snapstate.CheckForAvailableSpace(tc.totalSize, tc.reservation, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), "")}, "install", rootDir, "")
 		restore()
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
@@ -576,6 +576,7 @@ func (s *snapmgrTestSuite) TestCheckForAvailableSpace(c *C) {
 func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
 	rootDir := c.MkDir()
 	snaps := []string{"some-snap", "other-snap"}
+	instanceSnaps := []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), ""), naming.NewInstanceName(naming.SnapName("other-snap"), "")}
 	noSpaceErr := &osutil.NotEnoughDiskSpaceError{}
 	checkErr := errors.New("cannot check free space")
 	for _, tc := range []struct {
@@ -610,7 +611,7 @@ func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
 		restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
 			return tc.checkError
 		})
-		err := snapstate.CheckForAvailableSpace(1024, 2048, snaps, "remove", rootDir, tc.messagePrefix)
+		err := snapstate.CheckForAvailableSpace(1024, 2048, instanceSnaps, "remove", rootDir, tc.messagePrefix)
 		restore()
 		c.Check(err, DeepEquals, tc.expected, Commentf(tc.description))
 		if tc.checkError == checkErr {

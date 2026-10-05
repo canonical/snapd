@@ -157,14 +157,7 @@ func (e *InsufficientSpaceError) Error() string {
 	return fmt.Sprintf("insufficient space in %q", e.Path)
 }
 
-func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
-	addReservation := func(reservation uint64) (uint64, error) {
-		if size > math.MaxUint64-reservation {
-			return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
-		}
-		return size + reservation, nil
-	}
-
+func diskSpaceReservation(tr *config.Transaction) (uint64, error) {
 	// the value may be a string (e.g. "5M") or a plain number of bytes
 	// (e.g. 0), as snap set stores valid JSON values in their parsed form
 	var reservation any
@@ -2588,20 +2581,25 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 	return checkForAvailableSpace(totalSize, reservation, diskSpaceCheckNames(infos), changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir), "")
 }
 
-func diskSpaceCheckNames(infos []minimalInstallInfo) []string {
-	names := make([]string, len(infos))
+func diskSpaceCheckNames(infos []minimalInstallInfo) []naming.InstanceName {
+	names := make([]naming.InstanceName, len(infos))
 	for i, info := range infos {
 		names[i] = info.InstanceName()
 	}
 	return names
 }
 
-func checkForAvailableSpace(totalSize, reservation uint64, snaps []string, changeKind, rootDir, messagePrefix string) error {
+func checkForAvailableSpace(totalSize, reservation uint64, snaps []naming.InstanceName, changeKind, rootDir, messagePrefix string) error {
 	if totalSize > math.MaxUint64-reservation {
 		return fmt.Errorf("cannot calculate required disk space: size overflow")
 	}
 
 	requiredSpace := totalSize + reservation
+
+	var snapsStr = []string{}
+	for _, snap := range snaps {
+		snapsStr = append(snapsStr, string(snap))
+	}
 
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -2611,7 +2609,7 @@ func checkForAvailableSpace(totalSize, reservation uint64, snaps []string, chang
 			}
 			return &InsufficientSpaceError{
 				Path:       rootDir,
-				Snaps:      snaps,
+				Snaps:      snapsStr,
 				ChangeKind: changeKind,
 				Message:    message,
 			}
@@ -3212,9 +3210,15 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 			return nil, err
 		}
 
+		var instanceName naming.InstanceName
+		if err = naming.ValidateInstance(name); err != nil {
+			return nil, err
+		}
+		instanceName = naming.NewInstanceName(naming.SnapName(name), "")
+
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 		messagePrefix := "cannot create automatic snapshot when removing last revision of the snap"
-		if err := checkForAvailableSpace(snapshotSize, reservation, []string{name}, "remove", path, messagePrefix); err != nil {
+		if err := checkForAvailableSpace(snapshotSize, reservation, []naming.InstanceName{instanceName}, "remove", path, messagePrefix); err != nil {
 			return nil, err
 		}
 	}
@@ -3653,7 +3657,15 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 			return nil, nil, err
 		}
 
-		if err := checkForAvailableSpace(totalSnapshotsSize, reservation, names, "remove", path, ""); err != nil {
+		instanceNames := make([]naming.InstanceName, len(names))
+		for i, name := range names {
+			if err = naming.ValidateInstance(name); err != nil {
+				return nil, nil, err
+			}
+			instanceNames[i] = naming.NewInstanceName(naming.SnapName(name), "")
+		}
+
+		if err := checkForAvailableSpace(totalSnapshotsSize, reservation, instanceNames, "remove", path, ""); err != nil {
 			return nil, nil, err
 		}
 	}
