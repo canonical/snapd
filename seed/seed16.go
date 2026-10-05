@@ -154,7 +154,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, handler Contai
 		var newPath string
 		if sn.Unasserted {
 			var err error
-			pinfo := snap.MinimalSnapContainerPlaceInfo(naming.NewInstanceName(sn.Name, ""), snap.Revision{N: -1})
+			pinfo := snap.MinimalSnapContainerPlaceInfo(sn.Name.AsInstanceName(), snap.Revision{N: -1})
 			newPath, err = handler.HandleUnassertedContainer(pinfo, path, tm)
 			if err != nil {
 				return nil, err
@@ -178,7 +178,7 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, handler Contai
 				var snapSHA3_384 string
 				var snapSize uint64
 				// NOTE: this revision is not really correct
-				cpi := snap.MinimalSnapContainerPlaceInfo(naming.NewInstanceName(sn.Name, ""), snap.R(0))
+				cpi := snap.MinimalSnapContainerPlaceInfo(sn.Name.AsInstanceName(), snap.R(0))
 				newPath, snapSHA3_384, snapSize, err = handler.HandleAndDigestAssertedContainer(cpi, path, tm)
 				if err != nil {
 					return

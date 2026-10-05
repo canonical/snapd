@@ -277,7 +277,7 @@ func canInstallAndRunAtOnce(mst *initramfsMountsState, model *asserts.Model) (bo
 func readSnapInfo(sysSnaps map[snap.Type]*seed.Snap, snapType snap.Type) (*snap.Info, error) {
 	seedSnap := sysSnaps[snapType]
 	mountPoint := filepath.Join(boot.InitramfsRunMntDir, snapTypeToMountDir[snapType])
-	info, err := snap.ReadInfoFromMountPoint(naming.NewInstanceName(seedSnap.SnapName(), ""), mountPoint, seedSnap.Path, seedSnap.SideInfo)
+	info, err := snap.ReadInfoFromMountPoint(seedSnap.SnapName().AsInstanceName(), mountPoint, seedSnap.Path, seedSnap.SideInfo)
 	if err != nil {
 		return nil, err
 	}

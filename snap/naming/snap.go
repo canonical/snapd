@@ -34,6 +34,10 @@ func (n SnapName) String() string {
 	return string(n)
 }
 
+func (n SnapName) AsInstanceName() InstanceName {
+	return InstanceName(n)
+}
+
 // InstanceName is the name of a snap decorated with an optional instance key.
 type InstanceName string
 
