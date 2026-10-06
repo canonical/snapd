@@ -8,7 +8,7 @@ required:
 description: >-
   Options for the volumes authentication mechanism (passphrase or PIN).
   If omitted, no authentication mechanism is used.
-  If `storage-encryption.requirements` in SystemDetails conta'volumes-auth',
+  If `storage-encryption.requirements` in SystemDetails contains 'volumes-auth',
   this field is required.
 properties:
   mode:
@@ -34,6 +34,7 @@ oneOf:
       passphrase:
         type: string
         format: password
+        minLength: 1
       kdf-type:
         type: string
         enum:
@@ -56,5 +57,5 @@ oneOf:
       pin:
         type: string
         format: password
-        pattern: '^[0-9]+$'
+        minLength: 1
         maxLength: 255

@@ -267,6 +267,8 @@ components:
       $ref: './v2/components/schemas/Task.yaml'
     TimerString:
       $ref: './v2/components/schemas/TimerString.yaml'
+    VolumesAuth:
+      $ref: './v2/components/schemas/VolumesAuth.yaml'
     User:
       $ref: './v2/components/schemas/User.yaml'
     ValidationSet:
