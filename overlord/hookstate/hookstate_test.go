@@ -1135,6 +1135,98 @@ func (s *hookManagerSuite) testConfdbHookTasksWaitUntilActive(c *C, conflictSnap
 	c.Assert(confdbHook.Status(), Equals, state.DoneStatus)
 }
 
+func (s *hookManagerSuite) TestUndoHookTasksBlockedWhileInactive(c *C) {
+	for _, hook := range []string{"do-something", "undo-something"} {
+		s.manager.Register(regexp.MustCompile("^"+hook+"$"), func(context *hookstate.Context) hookstate.Handler {
+			return hooktest.NewMockHandler()
+		})
+	}
+
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+
+		// keep the suite's hook task from blocking ours via snapIsRunningHook
+		s.task.SetStatus(state.DoneStatus)
+
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "test-snap", &snapst), IsNil)
+		snapst.Base = "test-base"
+		snapstate.Set(s.state, "test-snap", &snapst)
+
+		seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "test-base",
+			Revision: snap.R(123),
+		}})
+		snapstate.Set(s.state, "test-base", &snapstate.SnapState{
+			Active:   true,
+			Sequence: seq,
+		})
+	}()
+
+	const confdbHook = "change-view-setup-wifi"
+	for _, tc := range []struct {
+		inactiveSnap string
+		status       state.Status
+		hook         string
+		undoHook     string
+		blocked      bool
+	}{
+		// without an undo hook, undo is a no-op and is never blocked
+		{"test-snap", state.UndoStatus, confdbHook, "", false},
+		{"test-base", state.UndoStatus, "configure", "", false},
+		{"test-base", state.UndoingStatus, "configure", "", false},
+		// with an undo hook, the undo hook decides
+		{"test-snap", state.UndoStatus, confdbHook, "undo-something", false},
+		{"test-snap", state.UndoStatus, "do-something", confdbHook, true},
+		{"test-base", state.UndoStatus, "do-something", "undo-something", true},
+		{"test-base", state.UndoingStatus, "do-something", "undo-something", true},
+	} {
+		comment := Commentf("%+v", tc)
+
+		s.state.Lock()
+		hooksup := &hookstate.HookSetup{Snap: "test-snap", Hook: tc.hook, Revision: snap.R(1)}
+		var task *state.Task
+		if tc.undoHook == "" {
+			task = hookstate.HookTask(s.state, "hook", hooksup, nil)
+		} else {
+			undosup := &hookstate.HookSetup{Snap: "test-snap", Hook: tc.undoHook, Revision: snap.R(1)}
+			task = hookstate.HookTaskWithUndo(s.state, "hook", hooksup, undosup, nil)
+		}
+		chg := s.state.NewChange("undo", "...")
+		chg.AddTask(task)
+		task.SetStatus(tc.status)
+		s.setActive(c, tc.inactiveSnap, false)
+		s.state.Unlock()
+
+		c.Assert(s.o.TaskRunner().Ensure(), IsNil)
+		s.se.Wait()
+
+		s.state.Lock()
+		if tc.blocked {
+			c.Check(task.Status(), Equals, tc.status, comment)
+		} else {
+			c.Check(task.Status(), Equals, state.UndoneStatus, comment)
+		}
+		// let the blocked task finish so it doesn't affect other cases
+		s.setActive(c, tc.inactiveSnap, true)
+		s.state.Unlock()
+
+		s.settle(c)
+
+		s.state.Lock()
+		c.Check(task.Status(), Equals, state.UndoneStatus, comment)
+		s.state.Unlock()
+	}
+}
+
+func (s *hookManagerSuite) setActive(c *C, snapName string, active bool) {
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	snapst.Active = active
+	snapstate.Set(s.state, snapName, &snapst)
+}
+
 type MockConcurrentHandler struct {
 	onDone func()
 }
