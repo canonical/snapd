@@ -1444,7 +1444,7 @@ func MountUnitPath(rootDir, baseDir string) string {
 // mountUnitPathWithLifetime returns the path of a {,auto}mount unit created in
 // the systemd directory suitable for the given unit lifetime. rootDir is the
 // directory for the root filesystem.
-func mountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir, rootDir string) string {
+func mountUnitPathWithLifetime(rootDir, mountPointDir string, lifetime UnitLifetime) string {
 	escapedPath := EscapeUnitNamePath(mountPointDir)
 	var servicesPath string
 	switch lifetime {
@@ -1462,7 +1462,7 @@ func mountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir, rootDir str
 func ExistingMountUnitPath(rootDir, mountPointDir string) string {
 	lifetimes := []UnitLifetime{Persistent, Transient}
 	for _, lifetime := range lifetimes {
-		unit := mountUnitPathWithLifetime(lifetime, mountPointDir, rootDir)
+		unit := mountUnitPathWithLifetime(rootDir, mountPointDir, lifetime)
 		if osutil.FileExists(unit) {
 			return unit
 		}
@@ -1537,7 +1537,7 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 		return "", MountUnchanged, errors.New("ensureMountUnitFile() expects a non-empty root directory")
 	}
 
-	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
+	mu := mountUnitPathWithLifetime(u.RootDir, u.Where, u.Lifetime)
 
 	if osutil.FileExists(mu) {
 		modified = MountUpdated
