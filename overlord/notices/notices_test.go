@@ -176,7 +176,8 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 
 	noticeID := "foo-123"
 	noticeKey := "456"
-	validateErr := validateNotice1(noticeID, typ1, noticeKey, nil)
+	opts := &state.AddNoticeOptions{ExpireAfter: time.Hour * 24}
+	validateErr := validateNotice1(noticeID, typ1, noticeKey, opts)
 	c.Assert(validateErr, IsNil)
 
 	typ2 := state.ChangeUpdateNotice
@@ -504,33 +505,34 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	validID2 := "bar-abc"
 	validKey := "xyz"
 
-	err = validateNotice1(validID1, typ1, validKey, nil)
+	opts := &state.AddNoticeOptions{ExpireAfter: time.Hour * 24}
+	err = validateNotice1(validID1, typ1, validKey, opts)
 	c.Check(err, IsNil)
 
 	err = validateNotice2(validID2, typ2, validKey, nil)
 	c.Check(err, IsNil)
 
 	invalidTyp := state.NoticeType("invalid")
-	err = validateNotice1(validID1, invalidTyp, validKey, nil)
+	err = validateNotice1(validID1, invalidTyp, validKey, opts)
 	c.Check(err, ErrorMatches, "cannot add notice with invalid type.*")
 
 	// Even if backend registered for another type, the closure will return an
 	// error for any type other than the one with which it was specifically
 	// registered.
-	err = validateNotice1(validID1, typ2, validKey, nil)
+	err = validateNotice1(validID1, typ2, validKey, opts)
 	c.Check(err, ErrorMatches, `cannot add change-update notice to notice backend registered to provide warning notices`)
 
 	noPrefixID := "something"
 	onlyPrefixID := "foo" // still treated as no prefix
 	for _, id := range []string{noPrefixID, onlyPrefixID} {
-		err = validateNotice1(id, typ1, validKey, nil)
+		err = validateNotice1(id, typ1, validKey, opts)
 		c.Check(err, ErrorMatches, `cannot add notice without ID prefix to notice backend registered with namespace: "foo"`)
 	}
 
 	otherPrefixID := "bar-123"
 	unrelatedPrefixID := "baz-123"
 	for _, id := range []string{otherPrefixID, unrelatedPrefixID} {
-		err = validateNotice1(id, typ1, validKey, nil)
+		err = validateNotice1(id, typ1, validKey, opts)
 		c.Check(err, ErrorMatches, `cannot add notice with ID prefix not matching the namespace registered to the notice backend: "ba." != "foo"`)
 	}
 }
