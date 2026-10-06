@@ -90,7 +90,6 @@ prepare: |
     --model "$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.model" \
     --output-dir . \
     --image-size 10G \
-    --store-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}" \
     --api-url "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}" \
     --snap "${extra_snaps}/pc.snap" \
     --snap "${extra_snaps}/pc-kernel.snap" \
