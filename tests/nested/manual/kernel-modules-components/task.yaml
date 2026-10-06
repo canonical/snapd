@@ -8,6 +8,8 @@ systems:
   - -ubuntu-20*
   - -ubuntu-22*
 
+kill-timeout: 10m
+
 environment:
   # Test both encrypted and unencrypted cases
   NESTED_ENABLE_TPM/encrypted: true
