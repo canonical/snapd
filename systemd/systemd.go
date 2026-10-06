@@ -477,8 +477,6 @@ type Systemd interface {
 	// EnsureMountUnitFile adds/enables/starts a mount unit with options.
 	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
-	// rootDir must be a non-empty absolute path to the root of the
-	// filesystem the mount unit resides on.
 	RemoveMountUnitFile(rootDir, baseDir string) error
 	// ListMountUnits gets the list of mount points of the mount units created
 	// by the `origin` module for the given snap. filter controls whether only
@@ -588,12 +586,8 @@ func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
 // systemd is not really called, but instead its functions are emulated
-// by other means. rootDir must be a non-empty absolute path to the root
-// of the filesystem to operate on.
+// by other means.
 func NewEmulationMode(rootDir string) Systemd {
-	if rootDir == "" {
-		panic("internal error: NewEmulationMode() requires a non-empty root directory")
-	}
 	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
 
@@ -616,6 +610,7 @@ const (
 )
 
 type systemd struct {
+	// rootDir is passed to systemctl with --root when set.
 	rootDir  string
 	reporter Reporter
 	mode     InstanceMode
