@@ -43,11 +43,12 @@ owner @{HOME}/.ssh/*.pub r,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "ssh-public-keys",
-		summary:               sshPublicKeysSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  sshPublicKeysBaseDeclarationSlots,
-		connectedPlugAppArmor: sshPublicKeysConnectedPlugAppArmor,
+		name:                     "ssh-public-keys",
+		summary:                  sshPublicKeysSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     sshPublicKeysBaseDeclarationSlots,
+		connectedPlugAppArmor:    sshPublicKeysConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

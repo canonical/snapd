@@ -73,13 +73,14 @@ var rawusbConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "raw-usb",
-		summary:               rawusbSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  rawusbBaseDeclarationSlots,
-		connectedPlugAppArmor: rawusbConnectedPlugAppArmor,
-		connectedPlugSecComp:  rawusbConnectedPlugSecComp,
-		connectedPlugUDev:     rawusbConnectedPlugUDev,
+		name:                     "raw-usb",
+		summary:                  rawusbSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     rawusbBaseDeclarationSlots,
+		connectedPlugAppArmor:    rawusbConnectedPlugAppArmor,
+		connectedPlugSecComp:     rawusbConnectedPlugSecComp,
+		connectedPlugUDev:        rawusbConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
