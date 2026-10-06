@@ -19,7 +19,8 @@ environment:
     CONSUMER_INST: test-snapd-content-inst-plug_p1
 
 prepare: |
-    # Acknowledge any warnings unrelated to this test.
+    # Clear any pre-existing warnings.
+    snap warnings >/dev/null
     snap okay || true
     snap set system experimental.parallel-instances=true
     tests.cleanup defer snap unset system experimental.parallel-instances
@@ -58,28 +59,26 @@ execute: |
     done
 
     echo "Install the provider with invalid slot paths"
-    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_BAD" > install-output.txt 2>&1
-    tests.cleanup defer rm -f install-output.txt
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_BAD"
+    snap warnings | tr '\n' ' ' | tr -s ' ' > warnings-output.txt
+    tests.cleanup defer rm -f warnings-output.txt
 
     echo "A slot with a path rooted at the SNAP_INSTANCE_NAME variable is rejected"
     #shellcheck disable=SC2016
-    MATCH 'path cannot start with variable "\$SNAP_INSTANCE_NAME"' < install-output.txt
+    MATCH 'path cannot start with variable "\$SNAP_INSTANCE_NAME"' < warnings-output.txt
 
     echo "The slot is not present"
     snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:assets"
 
     echo "And connecting to it fails"
     snap connect "${CONSUMER_INST}:assets" "${PROVIDER_BAD}:assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no slot named "assets"'
-    #shellcheck disable=SC2016
-    snap warnings | tr '\n' ' ' | tr -s ' ' | MATCH 'path cannot start with variable "\$SNAP_INSTANCE_NAME"'
 
     echo "A slot with a variable in its component subpath is rejected"
-    MATCH 'component subpath cannot contain variable references' < install-output.txt
+    MATCH 'component subpath cannot contain variable references' < warnings-output.txt
 
     echo "The component slot is also absent"
     snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:component-assets"
 
     echo "Connecting to the rejected component slot fails"
     snap connect "${CONSUMER_INST}:assets" "${PROVIDER_BAD}:component-assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no slot named "component-assets"'
-    snap warnings | tr '\n' ' ' | tr -s ' ' | MATCH 'component subpath cannot contain variable references'
     snap okay
