@@ -103,12 +103,11 @@ func (ctxSuite) TestRunMany(c *check.C) {
 
 func (s ctxSuite) TestRunManyCmdError(c *check.C) {
 	var cmds []*exec.Cmd
-	tmpDir := c.MkDir()
 
 	buildExec := func(ctx context.Context) ([]*exec.Cmd, []func() error, error) {
 		// One command will fail. We use a file to ensure both
 		// processes have started before exiting any.
-		startedPath := filepath.Join(tmpDir, "started")
+		startedPath := filepath.Join(c.MkDir(), "started")
 		cmds = []*exec.Cmd{
 			// Returns exit status 1
 			exec.CommandContext(ctx, "sh", "-c",
