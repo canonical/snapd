@@ -250,6 +250,7 @@ kernel-cmdline:
 			c.Check(log[1], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+			c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartBootConfigUpdate})
 			c.Check(rt, Equals, restart.RestartSystemNow)
 		} else {
 			// update was not applied or failed

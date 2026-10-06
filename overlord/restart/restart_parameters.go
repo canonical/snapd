@@ -45,8 +45,8 @@ var restartTypeOrder = []RestartType{
 
 func (rt *RestartParameters) init(snapName string, restartType RestartType, rebootInfo *boot.RebootInfo, reason RestartReason) {
 	for _, r := range restartTypeOrder {
-		// Only set if the one stored isn't already same priority
-		// or higher.
+		// The stored type is this priority or higher. An equal or lower
+		// type does not replace the snap name, restart type, or reason.
 		if rt.RestartType == r {
 			break
 		}

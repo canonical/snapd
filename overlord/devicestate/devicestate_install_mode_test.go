@@ -770,6 +770,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(installRunCalled, Equals, 1)
 	c.Assert(bootMakeBootableCalled, Equals, 1)
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Assert(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemInstall})
 
 	return nil
 }
@@ -1433,6 +1434,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 
 	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemInstall})
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
@@ -1538,8 +1540,10 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), IsNil)
 
-	// we did end up requesting the right shutdown
+	// we did end up requesting the right shutdown, attributed to the
+	// install-device hook
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{rst})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartInstallDeviceHook})
 
 	// ensure systemctl daemon-reload gets called
 	c.Assert(s.SystemctlDaemonReloadCalls, Equals, 1)
@@ -3251,8 +3255,10 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	c.Assert(waitTasks, HasLen, 1)
 	c.Assert(waitTasks[0].ID(), Equals, factoryResetTask.ID())
 
-	// we did request a restart through restartSystemToRunModeTask
+	// we did request a restart through restartSystemToRunModeTask, with a
+	// factory-reset specific reason
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartFactoryReset})
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
@@ -3347,6 +3353,7 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 
 	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartFactoryReset})
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")

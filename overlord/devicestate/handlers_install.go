@@ -472,20 +472,26 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	}
 
 	// request by default a restart as the last action after a
-	// successful install or what install-device requested via
-	// snapctl reboot
+	// successful install or factory reset, or what install-device
+	// requested via snapctl reboot
 	rst := restart.RestartSystemNow
 	what := "restart"
+	reason := restart.RestartSystemInstall
+	if chg := t.Change(); chg != nil && chg.Kind() == factoryResetChangeKind {
+		reason = restart.RestartFactoryReset
+	}
 	switch rebootOpts.Op {
 	case RebootHaltOp:
 		what = "halt"
 		rst = restart.RestartSystemHaltNow
+		reason = restart.RestartInstallDeviceHook
 	case RebootPoweroffOp:
 		what = "poweroff"
 		rst = restart.RestartSystemPoweroffNow
+		reason = restart.RestartInstallDeviceHook
 	}
-	logger.Noticef("request immediate system %s", what)
-	restart.Request(st, rst, nil, "")
+	logger.Noticef("request immediate system %s (reason: %s)", what, reason)
+	restart.Request(st, rst, nil, reason)
 
 	return nil
 }

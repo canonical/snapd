@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
@@ -767,13 +768,40 @@ func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.To
 		}
 		if rebootInfo.RebootRequired {
 			return m.finishTaskWithMaybeRestart(t, state.DoneStatus,
-				restartPossibility{info: newInfo, RebootInfo: rebootInfo})
+				restartPossibility{
+					info:       newInfo,
+					RebootInfo: rebootInfo,
+					reason:     kernelModulesRestartReason(t, snapsup),
+				})
 		}
 	}
 
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 	return nil
+}
+
+// kernelModulesRestartReason returns the system restart reason for a reboot
+// requested from prepare-kernel-modules-components. When the kernel revision
+// is unchanged, only the kernel-modules components changed and the reason is
+// kernel-modules-update. Otherwise it returns an empty reason so that the
+// kernel snap reason (update, revert, or undo) applies. The state must be
+// locked.
+func kernelModulesRestartReason(t *state.Task, snapsup *SnapSetup) restart.RestartReason {
+	setupTask, err := snapSetupTask(t)
+	if err != nil {
+		return ""
+	}
+	// recorded unconditionally by prepare-kernel-snap, which always
+	// precedes this task when kernel-modules setup is required
+	var prevKernelRev snap.Revision
+	if err := setupTask.Get("previous-kernel-rev", &prevKernelRev); err != nil {
+		return ""
+	}
+	if prevKernelRev.Unset() || prevKernelRev != snapsup.Revision() {
+		return ""
+	}
+	return restart.RestartKernelModulesUpdate
 }
 
 func (m *SnapManager) undoPrepareKernelModulesComponents(t *state.Task, _ *tomb.Tomb) error {

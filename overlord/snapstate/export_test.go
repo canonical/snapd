@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -367,6 +368,10 @@ func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequest
 		return true, restartPoss.RebootRequired, nil
 	}
 	return false, false, err
+}
+
+func BootRestartReason(task *state.Task, status state.Status, typ snap.Type) restart.RestartReason {
+	return bootRestartReason(task, status, typ)
 }
 
 func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {

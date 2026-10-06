@@ -24,16 +24,21 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
 
 type setupKernelComponentsSuite struct {
 	baseHandlerSuite
+
+	restartRequested []restart.RestartType
+	restartReasons   []restart.RestartReason
 }
 
 var _ = Suite(&setupKernelComponentsSuite{})
@@ -41,6 +46,16 @@ var _ = Suite(&setupKernelComponentsSuite{})
 func (s *setupKernelComponentsSuite) SetUpTest(c *C) {
 	s.baseHandlerSuite.SetUpTest(c)
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+
+	s.restartRequested = nil
+	s.restartReasons = nil
+	s.state.Lock()
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(t restart.RestartType, reason restart.RestartReason) {
+		s.restartRequested = append(s.restartRequested, t)
+		s.restartReasons = append(s.restartReasons, reason)
+	}))
+	s.state.Unlock()
+	c.Assert(err, IsNil)
 }
 
 func (s *setupKernelComponentsSuite) TestSetupKernelModules(c *C) {
@@ -117,6 +132,72 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 			currentComps: []*snap.ComponentSideInfo{csi1, csi2},
 		},
 	})
+}
+
+func (s *setupKernelComponentsSuite) TestSetupKernelModulesRebootSameKernelRevision(c *C) {
+	// the kernel revision does not change, only the kernel-modules
+	// components do, so the reboot is attributed to them
+	s.testSetupKernelModulesReboot(c, snap.R(77), restart.RestartKernelModulesUpdate)
+}
+
+func (s *setupKernelComponentsSuite) TestSetupKernelModulesRebootNewKernelRevision(c *C) {
+	// the kernel revision changed, so this is a regular kernel update
+	s.testSetupKernelModulesReboot(c, snap.R(76), restart.RestartKernelUpdate)
+}
+
+func (s *setupKernelComponentsSuite) TestSetupKernelModulesRebootUnknownPreviousKernelRevision(c *C) {
+	// without a recorded previous revision we fall back to the kernel
+	// update reason
+	s.testSetupKernelModulesReboot(c, snap.R(0), restart.RestartKernelUpdate)
+}
+
+func (s *setupKernelComponentsSuite) testSetupKernelModulesReboot(c *C, prevKernelRev snap.Revision, expectedReason restart.RestartReason) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// the fake backend reads this snap as a kernel and requests a reboot
+	// from MaybeSetNextBoot for kernels
+	const snapName = "kernel-snap-with-components"
+	snapRev := snap.R(77)
+	s.fakeBackend.linkSnapMaybeReboot = true
+
+	s.state.Lock()
+
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, "kcomp"), snap.R(7))
+	cs := sequence.NewComponentState(csi, snap.KernelModulesComponent)
+
+	t := s.state.NewTask("prepare-kernel-modules-components", "test kernel modules")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+			Revision: snapRev,
+		},
+		Type: snap.TypeKernel,
+	})
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, ""))
+	t.Set("set-next-boot", true)
+	if !prevKernelRev.Unset() {
+		// as recorded by prepare-kernel-snap on the snap-setup task
+		t.Set("previous-kernel-rev", prevKernelRev)
+	}
+
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs})
+
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.WaitStatus)
+	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{expectedReason})
 }
 
 func (s *setupKernelComponentsSuite) TestRemoveKernelModulesSetup(c *C) {

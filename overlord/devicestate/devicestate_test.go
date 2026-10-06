@@ -113,6 +113,7 @@ type deviceMgrBaseSuite struct {
 	ancillary []asserts.Assertion
 
 	restartRequests []restart.RestartType
+	restartReasons  []restart.RestartReason
 	restartObserve  func()
 
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
@@ -206,6 +207,7 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.AddCleanup(osutil.MockMountInfo(``))
 
 	s.restartRequests = nil
+	s.restartReasons = nil
 
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -218,8 +220,9 @@ func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType, _ restart.RestartReason) {
+	_, err = restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType, reason restart.RestartReason) {
 		s.restartRequests = append(s.restartRequests, req)
+		s.restartReasons = append(s.restartReasons, reason)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}

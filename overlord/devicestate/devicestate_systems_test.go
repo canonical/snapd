@@ -536,7 +536,8 @@ func (s *deviceMgrSystemsSuite) TestRequestModeInstallHappyForAny(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-	c.Check(s.logbuf.String(), Matches, `.*: restarting into system "20191119" for action "Install"\n`)
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemActionAPI})
+	c.Check(s.logbuf.String(), Matches, `.*: restarting into system "20191119" for action "Install" \(reason: system-action-api\)\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRequestSameModeSameSystem(c *C) {
@@ -659,7 +660,7 @@ func (s *deviceMgrSystemsSuite) TestRequestSeedingDifferentNoConflict(c *C) {
 		"snapd_recovery_system": otherLabel,
 		"snapd_recovery_mode":   "install",
 	})
-	c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action "Install"\n`, otherLabel))
+	c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action "Install" \(reason: system-action-api\)\n`, otherLabel))
 }
 
 func (s *deviceMgrSystemsSuite) testRequestModeWithRestart(c *C, toModes []string, label string) {
@@ -678,7 +679,7 @@ func (s *deviceMgrSystemsSuite) testRequestModeWithRestart(c *C, toModes []strin
 		s.bootloader.BootVars = map[string]string{}
 
 		// TODO: also test correct action string logging
-		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action ".*"\n`, label))
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: restarting into system "%s" for action ".*" \(reason: system-action-api\)\n`, label))
 		s.logbuf.Reset()
 	}
 }
@@ -863,12 +864,13 @@ func (s *deviceMgrSystemsSuite) TestRebootNoLabelNoModeHappy(c *C) {
 	c.Assert(err, IsNil)
 	// requested restart
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemRebootAPI})
 	// but no bootloader changes
 	c.Check(m, DeepEquals, map[string]string{
 		"snapd_recovery_system": "",
 		"snapd_recovery_mode":   "",
 	})
-	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting system \(reason: system-reboot-api\)\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
@@ -892,7 +894,8 @@ func (s *deviceMgrSystemsSuite) TestRebootLabelAndModeHappy(c *C) {
 		"snapd_recovery_mode":   "install",
 	})
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-	c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in "install" mode\n`)
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemModeChangeAPI})
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting into system "20191119" in "install" mode \(reason: system-mode-change-api\)\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootFromRunOnlyHappy(c *C) {
@@ -930,8 +933,14 @@ func (s *deviceMgrSystemsSuite) testRebootFromRunOnly(c *C, setDefault bool) {
 
 	s.state.Unlock()
 
+	expectedReason := restart.RestartSystemModeChangeAPI
+	if setDefault {
+		expectedReason = restart.RestartSystemChangeAPI
+	}
+
 	for _, mode := range []string{"recover", "install", "factory-reset"} {
 		s.restartRequests = nil
+		s.restartReasons = nil
 		s.bootloader.BootVars = make(map[string]string)
 		s.logbuf.Reset()
 
@@ -945,7 +954,8 @@ func (s *deviceMgrSystemsSuite) testRebootFromRunOnly(c *C, setDefault bool) {
 			"snapd_recovery_mode":   mode,
 		})
 		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "%s" mode\n`, expectedLabel, mode))
+		c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{expectedReason})
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "%s" mode \(reason: %s\)\n`, expectedLabel, mode, expectedReason))
 	}
 }
 
@@ -976,6 +986,7 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToOther(c *C) {
 
 	for _, mode := range []string{"run", "factory-reset"} {
 		s.restartRequests = nil
+		s.restartReasons = nil
 		s.bootloader.BootVars = make(map[string]string)
 		s.logbuf.Reset()
 
@@ -989,7 +1000,8 @@ func (s *deviceMgrSystemsSuite) TestRebootFromRecoverToOther(c *C) {
 			"snapd_recovery_system": s.mockedSystemSeeds[0].label,
 		})
 		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "%s" mode\n`, s.mockedSystemSeeds[0].label, mode))
+		c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemModeChangeAPI})
+		c.Check(s.logbuf.String(), Matches, fmt.Sprintf(`.*: rebooting into system "%s" in "%s" mode \(reason: system-mode-change-api\)\n`, s.mockedSystemSeeds[0].label, mode))
 	}
 }
 
@@ -1017,7 +1029,8 @@ func (s *deviceMgrSystemsSuite) TestRebootAlreadyInRunMode(c *C) {
 		"snapd_recovery_system": "",
 	})
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
-	c.Check(s.logbuf.String(), Matches, `.*: rebooting system\n`)
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSystemRebootAPI})
+	c.Check(s.logbuf.String(), Matches, `.*: rebooting system \(reason: system-reboot-api\)\n`)
 }
 
 func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
@@ -3163,8 +3176,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	c.Assert(tskFinalize.Status(), Equals, state.DoStatus)
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartRecoverySystemTry})
+	c.Check(s.logbuf.String(), testutil.Contains, `restarting into candidate system "1234reboot" (reason: recovery-system-try)`)
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
 	s.restartRequests = nil
+	s.restartReasons = nil
 
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234reboot"), testutil.FilePresent)
 	// since we can't inject a panic into the task and recover from it in

@@ -3040,8 +3040,8 @@ var ErrUnsupportedAction = errors.New("unsupported action")
 // current system.
 func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	rebootCurrent := func() {
-		logger.Noticef("rebooting system")
-		restart.Request(m.state, restart.RestartSystemNow, nil, "")
+		logger.Noticef("rebooting system (reason: %s)", restart.RestartSystemRebootAPI)
+		restart.Request(m.state, restart.RestartSystemNow, nil, restart.RestartSystemRebootAPI)
 	}
 
 	// most simple case: just reboot
@@ -3065,8 +3065,17 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 	}
 
 	switched := func(systemLabel string, sysAction *SystemAction) {
-		logger.Noticef("rebooting into system %q in %q mode", systemLabel, sysAction.Mode)
-		restart.Request(m.state, restart.RestartSystemNow, nil, "")
+		// rebootCurrent handles the same system and mode. A different system is
+		// a system change even if the mode changes too. currentSystemForMode
+		// errors are ignored, so with no current system a mode change is also
+		// reported as a system change.
+		reason := restart.RestartSystemChangeAPI
+		currentSys, _ := currentSystemForMode(m.state, m.SystemMode(SysAny))
+		if currentSys != nil && systemLabel == currentSys.System {
+			reason = restart.RestartSystemModeChangeAPI
+		}
+		logger.Noticef("rebooting into system %q in %q mode (reason: %s)", systemLabel, sysAction.Mode, reason)
+		restart.Request(m.state, restart.RestartSystemNow, nil, reason)
 	}
 	// even if we are already in the right mode we restart here by
 	// passing rebootCurrent as this is what the user requested
@@ -3116,8 +3125,8 @@ func (m *DeviceManager) RequestSystemAction(systemLabel string, action SystemAct
 
 	nop := func() {}
 	switched := func(systemLabel string, sysAction *SystemAction) {
-		logger.Noticef("restarting into system %q for action %q", systemLabel, sysAction.Title)
-		restart.Request(m.state, restart.RestartSystemNow, nil, "")
+		logger.Noticef("restarting into system %q for action %q (reason: %s)", systemLabel, sysAction.Title, restart.RestartSystemActionAPI)
+		restart.Request(m.state, restart.RestartSystemNow, nil, restart.RestartSystemActionAPI)
 	}
 	// we do nothing (nop) if the mode and system are the same
 	return m.switchToSystemAndMode(systemLabel, action.Mode, nop, switched)

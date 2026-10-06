@@ -386,6 +386,82 @@ const (
 	RestartSnapdIdle RestartReason = "snapd-idle"
 )
 
+// Reasons for system restarts. update means an install or a refresh,
+// revert means an explicit snap revert, and undo means the change was undone.
+const (
+	// RestartKernelUpdate is a system restart after a kernel install or refresh.
+	RestartKernelUpdate RestartReason = "kernel-update"
+	// RestartKernelRevert is a system restart after an explicit kernel revert.
+	RestartKernelRevert RestartReason = "kernel-revert"
+	// RestartKernelUndo is a system restart after a kernel change is undone.
+	RestartKernelUndo RestartReason = "kernel-undo"
+
+	// RestartBaseUpdate is a system restart after a base install or refresh.
+	RestartBaseUpdate RestartReason = "base-update"
+	// RestartBaseRevert is a system restart after an explicit base revert.
+	RestartBaseRevert RestartReason = "base-revert"
+	// RestartBaseUndo is a system restart after a base change is undone.
+	RestartBaseUndo RestartReason = "base-undo"
+
+	// RestartGadgetUpdate is a system restart after a gadget snap install or refresh.
+	RestartGadgetUpdate RestartReason = "gadget-update"
+	// RestartGadgetRevert is a system restart after an explicit gadget snap revert.
+	RestartGadgetRevert RestartReason = "gadget-revert"
+	// RestartGadgetUndo is a system restart after a gadget snap change is undone.
+	RestartGadgetUndo RestartReason = "gadget-undo"
+
+	// RestartOSUpdate is a system restart after an os snap install or refresh.
+	RestartOSUpdate RestartReason = "os-update"
+	// RestartOSRevert is a system restart after an explicit os snap revert.
+	RestartOSRevert RestartReason = "os-revert"
+	// RestartOSUndo is a system restart after an os snap change is undone.
+	RestartOSUndo RestartReason = "os-undo"
+
+	// RestartGadgetAssetsUpdate is a system restart after gadget assets are updated.
+	RestartGadgetAssetsUpdate RestartReason = "gadget-assets-update"
+	// RestartGadgetCommandLineUpdate is a system restart after the gadget kernel command line is updated.
+	RestartGadgetCommandLineUpdate RestartReason = "gadget-cmdline-update"
+	// RestartGadgetCommandLineUndo is a system restart after a gadget kernel command line change is undone.
+	RestartGadgetCommandLineUndo RestartReason = "gadget-cmdline-undo"
+	// RestartBootConfigUpdate is a system restart after managed boot config assets are updated.
+	RestartBootConfigUpdate RestartReason = "boot-config-update"
+	// RestartKernelModulesUpdate is a system restart after kernel-modules
+	// components change while the kernel revision stays the same.
+	RestartKernelModulesUpdate RestartReason = "kernel-modules-update"
+	// RestartRecoverySystemTry is a system restart to try a candidate recovery system.
+	RestartRecoverySystemTry RestartReason = "recovery-system-try"
+	// RestartSystemInstall is the system restart into run mode after install.
+	RestartSystemInstall RestartReason = "system-install"
+	// RestartFactoryReset is the system restart into run mode after a
+	// factory reset.
+	RestartFactoryReset RestartReason = "factory-reset"
+	// RestartSnapServicesFailed is an immediate reboot after snap services
+	// killed by a snapd refresh could not be restarted.
+	RestartSnapServicesFailed RestartReason = "snap-services-failed"
+)
+
+// Reasons for system restarts requested through the systems API.
+const (
+	// RestartSystemRebootAPI is a reboot that stays on the current system and mode.
+	RestartSystemRebootAPI RestartReason = "system-reboot-api"
+	// RestartSystemChangeAPI is a reboot into a different system. A reboot
+	// that changes both the system and the mode uses this reason.
+	RestartSystemChangeAPI RestartReason = "system-change-api"
+	// RestartSystemModeChangeAPI is a reboot into a different mode of the
+	// current system.
+	RestartSystemModeChangeAPI RestartReason = "system-mode-change-api"
+	// RestartSystemActionAPI is the restart from RequestSystemAction, the
+	// POST /v2/systems action "do". snap reboot uses the other API reasons.
+	RestartSystemActionAPI RestartReason = "system-action-api"
+)
+
+// Reasons for system shutdowns (halt or poweroff).
+const (
+	// RestartInstallDeviceHook is a halt or poweroff requested by the gadget
+	// install-device hook via snapctl reboot during install or factory reset.
+	RestartInstallDeviceHook RestartReason = "install-device-hook"
+)
+
 // Request asks for a restart of the managing process.
 // The state needs to be locked to request a restart.
 // reason may be empty when the caller has no more specific context yet.

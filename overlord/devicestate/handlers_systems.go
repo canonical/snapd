@@ -408,8 +408,8 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	}
 
 	// this task is done, further processing happens in finalize
-	logger.Noticef("restarting into candidate system %q", label)
-	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, nil)
+	logger.Noticef("restarting into candidate system %q (reason: %s)", label, restart.RestartRecoverySystemTry)
+	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystemNow, nil, restart.RestartRecoverySystemTry)
 }
 
 func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {

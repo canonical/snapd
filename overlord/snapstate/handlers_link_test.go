@@ -3461,3 +3461,31 @@ func (s *linkSnapSuite) TestDoUndoKillSnapAppsWithServices(c *C) {
 	const svc = true
 	s.testDoUndoKillSnapApps(c, svc)
 }
+
+func (s *linkSnapSuite) TestBootRestartReason(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := func(revert bool) *state.Task {
+		t := s.state.NewTask("link-snap", "test")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{RealName: "kernel", Revision: snap.R(1)},
+			Flags:    snapstate.Flags{Revert: revert},
+		})
+		return t
+	}
+
+	c.Check(snapstate.BootRestartReason(task(false), state.DoneStatus, snap.TypeKernel), Equals, restart.RestartKernelUpdate)
+	c.Check(snapstate.BootRestartReason(task(true), state.DoneStatus, snap.TypeKernel), Equals, restart.RestartKernelRevert)
+	c.Check(snapstate.BootRestartReason(task(false), state.UndoneStatus, snap.TypeKernel), Equals, restart.RestartKernelUndo)
+	c.Check(snapstate.BootRestartReason(task(false), state.DoneStatus, snap.TypeBase), Equals, restart.RestartBaseUpdate)
+	c.Check(snapstate.BootRestartReason(task(true), state.DoneStatus, snap.TypeBase), Equals, restart.RestartBaseRevert)
+	c.Check(snapstate.BootRestartReason(task(false), state.UndoneStatus, snap.TypeBase), Equals, restart.RestartBaseUndo)
+	c.Check(snapstate.BootRestartReason(task(false), state.DoneStatus, snap.TypeGadget), Equals, restart.RestartGadgetUpdate)
+	c.Check(snapstate.BootRestartReason(task(true), state.DoneStatus, snap.TypeGadget), Equals, restart.RestartGadgetRevert)
+	c.Check(snapstate.BootRestartReason(task(false), state.UndoneStatus, snap.TypeGadget), Equals, restart.RestartGadgetUndo)
+	c.Check(snapstate.BootRestartReason(task(false), state.DoneStatus, snap.TypeOS), Equals, restart.RestartOSUpdate)
+	c.Check(snapstate.BootRestartReason(task(true), state.DoneStatus, snap.TypeOS), Equals, restart.RestartOSRevert)
+	c.Check(snapstate.BootRestartReason(task(false), state.UndoneStatus, snap.TypeOS), Equals, restart.RestartOSUndo)
+	c.Check(snapstate.BootRestartReason(task(false), state.DoneStatus, snap.TypeApp), Equals, restart.RestartReason(""))
+}

@@ -238,7 +238,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// TODO: consider having the option to do this early via recovery in
 	// core20, have fallback code as well there
 	setGadgetRestartRequired(t)
-	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
+	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil, restart.RestartGadgetAssetsUpdate)
 }
 
 // fromSystemOption tells us if t was created when setting a system
@@ -412,7 +412,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) (
 	}
 
 	// kernel command line was updated, request a reboot to make it effective
-	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
+	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil, restart.RestartGadgetCommandLineUpdate)
 }
 
 func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
@@ -450,5 +450,5 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	t.Logf("Reverted kernel command line change")
 
 	// kernel command line was updated, request a reboot to make it effective
-	return snapstate.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystem, nil)
+	return snapstate.FinishTaskWithRestart(t, state.UndoneStatus, restart.RestartSystem, nil, restart.RestartGadgetCommandLineUndo)
 }

@@ -413,6 +413,7 @@ func (s *deviceMgrGadgetSuite) testUpdateGadgetSimple(c *C, grade string, encryp
 		c.Check(s.restartRequests, HasLen, 0)
 	} else {
 		c.Check(s.restartRequests, DeepEquals, []restart.RestartType{expectedRst})
+		c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartGadgetAssetsUpdate})
 	}
 }
 
@@ -1376,6 +1377,7 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		} else if opts.updated {
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystem})
+			c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartGadgetCommandLineUpdate})
 		} else {
 			// update was not applied or failed
 			c.Check(s.restartRequests, HasLen, 0)
@@ -2030,6 +2032,7 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Check(log[3], Matches, ".* INFO Task set to wait until a system restart allows to continue")
 	// update was applied and then undone
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow, restart.RestartSystemNow})
+	c.Check(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartGadgetCommandLineUpdate, restart.RestartGadgetCommandLineUndo})
 	c.Check(restartCount, Equals, 2)
 	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)

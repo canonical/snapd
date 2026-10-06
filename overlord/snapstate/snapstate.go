@@ -396,9 +396,8 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 // from the caller.
 // It delegates the work to restart.FinishTaskWithRestart which decides
 // on how the restart will be scheduled.
-func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo) error {
-	var reason restart.RestartReason
-	if rt == restart.RestartDaemon {
+func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.RestartType, rebootInfo *boot.RebootInfo, reason restart.RestartReason) error {
+	if rt == restart.RestartDaemon && reason == "" {
 		reason = daemonRestartReasonForTask(task, status)
 	}
 
@@ -430,15 +429,63 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap.String(), rebootInfo, reason)
 }
 
-func daemonRestartReasonForTask(task *state.Task, status state.Status) restart.RestartReason {
+type taskRestartAction int
+
+const (
+	taskRestartUpdate taskRestartAction = iota
+	taskRestartRevert
+	taskRestartUndo
+)
+
+// taskRestartActionFor classifies a task the same way for daemon and system
+// restarts: an undone task is undo, an explicit snap revert is revert, and
+// anything else, including install and refresh, is update.
+func taskRestartActionFor(task *state.Task, status state.Status) taskRestartAction {
 	if status == state.UndoneStatus {
-		return restart.RestartSnapdUndo
+		return taskRestartUndo
 	}
 	snapsup, err := TaskSnapSetup(task)
 	if err == nil && snapsup.Flags.Revert {
-		return restart.RestartSnapdRevert
+		return taskRestartRevert
 	}
-	return restart.RestartSnapdUpdate
+	return taskRestartUpdate
+}
+
+func daemonRestartReasonForTask(task *state.Task, status state.Status) restart.RestartReason {
+	switch taskRestartActionFor(task, status) {
+	case taskRestartUndo:
+		return restart.RestartSnapdUndo
+	case taskRestartRevert:
+		return restart.RestartSnapdRevert
+	default:
+		return restart.RestartSnapdUpdate
+	}
+}
+
+// bootRestartReason is the system-restart reason for a SetNextBoot reboot of
+// a kernel, base, gadget, or os snap. Other snap types have no reason.
+func bootRestartReason(task *state.Task, status state.Status, typ snap.Type) restart.RestartReason {
+	var update, revert, undo restart.RestartReason
+	switch typ {
+	case snap.TypeKernel:
+		update, revert, undo = restart.RestartKernelUpdate, restart.RestartKernelRevert, restart.RestartKernelUndo
+	case snap.TypeBase:
+		update, revert, undo = restart.RestartBaseUpdate, restart.RestartBaseRevert, restart.RestartBaseUndo
+	case snap.TypeGadget:
+		update, revert, undo = restart.RestartGadgetUpdate, restart.RestartGadgetRevert, restart.RestartGadgetUndo
+	case snap.TypeOS:
+		update, revert, undo = restart.RestartOSUpdate, restart.RestartOSRevert, restart.RestartOSUndo
+	default:
+		return ""
+	}
+	switch taskRestartActionFor(task, status) {
+	case taskRestartUndo:
+		return undo
+	case taskRestartRevert:
+		return revert
+	default:
+		return update
+	}
 }
 
 func isChangeRequestingSnapdRestart(chg *state.Change) bool {

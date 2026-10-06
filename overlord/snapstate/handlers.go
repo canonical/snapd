@@ -2217,6 +2217,9 @@ func setMigrationFlagsInState(snapst *SnapState, snapsup *SnapSetup) {
 type restartPossibility struct {
 	info *snap.Info
 	boot.RebootInfo
+	// reason, when set, overrides the system restart reason derived from
+	// the snap type and task status.
+	reason restart.RestartReason
 }
 
 // finishTaskWithMaybeRestart will set the final status for the task
@@ -2233,7 +2236,11 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	st := t.State()
 
 	if restartPoss.RebootRequired {
-		return FinishTaskWithRestart(t, status, restart.RestartSystem, &restartPoss.RebootInfo)
+		reason := restartPoss.reason
+		if reason == "" && restartPoss.info != nil {
+			reason = bootRestartReason(t, status, restartPoss.info.Type())
+		}
+		return FinishTaskWithRestart(t, status, restart.RestartSystem, &restartPoss.RebootInfo, reason)
 	}
 
 	typ := restartPoss.info.Type()
@@ -2254,7 +2261,7 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	}
 
 	t.Logf(restartReason)
-	return FinishTaskWithRestart(t, status, restart.RestartDaemon, nil)
+	return FinishTaskWithRestart(t, status, restart.RestartDaemon, nil, "")
 }
 
 func daemonRestartReason(st *state.State, typ snap.Type) string {
@@ -2680,7 +2687,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// core snap -> next core snap
 	if release.OnClassic && newInfo.Type() == snap.TypeOS && oldCurrent.Unset() {
 		t.Logf("Requested daemon restart (undo classic initial core install)")
-		return FinishTaskWithRestart(t, finalStatus, restart.RestartDaemon, nil)
+		return FinishTaskWithRestart(t, finalStatus, restart.RestartDaemon, nil, "")
 	}
 
 	return nil

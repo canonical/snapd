@@ -57,6 +57,7 @@ type baseServiceMgrTestSuite struct {
 	state *state.State
 
 	restartRequests []restart.RestartType
+	restartReasons  []restart.RestartReason
 	restartObserve  func()
 
 	uc18Model *asserts.Model
@@ -75,13 +76,15 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.restartRequests = nil
+	s.restartReasons = nil
 
 	s.restartObserve = nil
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType, _ restart.RestartReason) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType, reason restart.RestartReason) {
 		s.restartRequests = append(s.restartRequests, req)
+		s.restartReasons = append(s.restartReasons, reason)
 		if s.restartObserve != nil {
 			s.restartObserve()
 		}
@@ -1355,6 +1358,7 @@ NeedDaemonReload=no
 
 	// we requested a restart
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Assert(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSnapServicesFailed})
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTriesRestartButFailsButThenFallsbackToReboot(c *C) {
@@ -1426,4 +1430,5 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 
 	// we requested a restart
 	c.Assert(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Assert(s.restartReasons, DeepEquals, []restart.RestartReason{restart.RestartSnapServicesFailed})
 }

@@ -99,7 +99,7 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		// boot assets were updated, request a restart now so that the
 		// situation does not end up more complicated if more updates of
 		// boot assets were to be applied
-		return snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil)
+		return snapstate.FinishTaskWithRestart(t, finalStatus, restart.RestartSystem, nil, restart.RestartBootConfigUpdate)
 	} else {
 		t.SetStatus(finalStatus)
 		return nil
