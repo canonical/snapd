@@ -565,7 +565,7 @@ type Reporter interface {
 func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd {
 	switch be {
 	case RunningSystemdBackend:
-		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+		return &systemd{chrootRootDir: rootDir, mode: mode, reporter: rep}
 	case EmulationModeBackend:
 		return &emulation{rootDir: rootDir}
 	default:
@@ -610,10 +610,10 @@ const (
 )
 
 type systemd struct {
-	// rootDir is passed to systemctl with --root when set.
-	rootDir  string
-	reporter Reporter
-	mode     InstanceMode
+	// chrootRootDir is passed to systemctl with --root when set.
+	chrootRootDir string
+	reporter      Reporter
+	mode          InstanceMode
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
@@ -682,9 +682,9 @@ func (s *systemd) EnableNoReload(serviceNames []string) error {
 		return nil
 	}
 	var args []string
-	if s.rootDir != "" {
+	if s.chrootRootDir != "" {
 		// passing root already implies no reload
-		args = append(args, "--root", s.rootDir)
+		args = append(args, "--root", s.chrootRootDir)
 	} else {
 		args = append(args, "--no-reload")
 	}
@@ -696,8 +696,8 @@ func (s *systemd) EnableNoReload(serviceNames []string) error {
 
 func (s *systemd) Unmask(serviceName string) error {
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "unmask", serviceName)
 	} else {
 		_, err = s.systemctl("unmask", serviceName)
 	}
@@ -709,9 +709,9 @@ func (s *systemd) DisableNoReload(serviceNames []string) error {
 		return nil
 	}
 	var args []string
-	if s.rootDir != "" {
+	if s.chrootRootDir != "" {
 		// passing root already implies no reload
-		args = append(args, "--root", s.rootDir)
+		args = append(args, "--root", s.chrootRootDir)
 	} else {
 		args = append(args, "--no-reload")
 	}
@@ -723,8 +723,8 @@ func (s *systemd) DisableNoReload(serviceNames []string) error {
 
 func (s *systemd) Mask(serviceName string) error {
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "mask", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "mask", serviceName)
 	} else {
 		_, err = s.systemctl("mask", serviceName)
 	}
@@ -904,8 +904,8 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	// not make sense.  We can determine the global "enabled"
 	// state of the services though.
 	cmd := append([]string{"is-enabled"}, unitNames...)
-	if s.rootDir != "" {
-		cmd = append([]string{"--root", s.rootDir}, cmd...)
+	if s.chrootRootDir != "" {
+		cmd = append([]string{"--root", s.chrootRootDir}, cmd...)
 	}
 	bs, err := s.systemctl(cmd...)
 	if err != nil {
@@ -1070,8 +1070,8 @@ func (s *systemd) Status(unitNames []string) ([]*UnitStatus, error) {
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "is-enabled", serviceName)
 	} else {
 		_, err = s.systemctl("is-enabled", serviceName)
 	}
@@ -1092,8 +1092,8 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 		panic("cannot call is-active with GlobalUserMode")
 	}
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "is-active", serviceName)
 	} else {
 		_, err = s.systemctl("is-active", serviceName)
 	}
@@ -1625,7 +1625,7 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 
 	opts := *unitOptions
 	if opts.RootDir == "" {
-		opts.RootDir = s.rootDir
+		opts.RootDir = s.chrootRootDir
 	}
 	mountUnitName, modified, err := EnsureMountUnitFileContent(&opts)
 	if err != nil {
