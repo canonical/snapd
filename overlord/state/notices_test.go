@@ -1012,6 +1012,10 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
 	c.Check(err, ErrorMatches, `internal error: cannot add refresh-inhibit notice with invalid key "123": only "-" key is supported`)
 	c.Check(id, Equals, "")
+
+	// Warning with no options
+	err = state.ValidateNotice(state.WarningNotice, "danger", nil)
+	c.Check(err, ErrorMatches, "cannot add warning notice without specifying options")
 }
 
 func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {

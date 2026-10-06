@@ -473,13 +473,10 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
 	}
 
-	// ValidateNotice is called with nil options from the daemon and NoticeBackend.
-	// In daemon/api_notices.go, any notice type can be validated but only
-	// SnapRunInhibitNotice types can be created with the api.
-	//
-	// Warning notices are not created by a backend but through
-	// Warnf->AddWarning which specifies options.
-	if noticeType == WarningNotice && options != nil {
+	if noticeType == WarningNotice {
+		if options == nil {
+			return fmt.Errorf("cannot add %s notice without specifying options", noticeType)
+		}
 		if showAfter, ok := options.Data["show-after"]; ok {
 			if _, err := time.ParseDuration(showAfter); err != nil {
 				return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
