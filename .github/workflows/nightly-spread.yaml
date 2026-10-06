@@ -3,7 +3,7 @@ name: Nightly spread executions
 run-name: >-
   Nightly spread executions:
   ${{
-    github.event_name == 'workflow_dispatch' && inputs.job ||
+    (github.event_name == 'workflow_dispatch' && inputs.job) ||
     (github.event.schedule == '0 2 * * *' && 'spread-nightly (openstack)') ||
     (github.event.schedule == '0 3 * * *' && 'spread-master (fundamental/non-fundamental/nested)') ||
     (github.event.schedule == '0 6 * * *' && 'build-from-current & with-kernels') ||
