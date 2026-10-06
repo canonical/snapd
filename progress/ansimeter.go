@@ -22,6 +22,7 @@ package progress
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"time"
 	"unicode"
@@ -141,11 +142,11 @@ func (p *ANSIMeter) SetTotal(total float64) {
 }
 
 func (p *ANSIMeter) percent() string {
-	if p.total == 0. {
+	if !(p.total > 0.) {
 		return "---%"
 	}
 	q := p.written * 100 / p.total
-	if q > 999.4 || q < 0. {
+	if math.IsNaN(q) || q > 999.4 || q < 0. {
 		return "???%"
 	}
 	return fmt.Sprintf("%3.0f%%", q)
@@ -154,11 +155,15 @@ func (p *ANSIMeter) percent() string {
 var formatDuration = quantity.FormatDuration
 
 func (p *ANSIMeter) Set(current float64) {
-	if current < 0 {
+	total := p.total
+	if total < 0 || math.IsNaN(total) {
+		total = 0
+	}
+	if math.IsNaN(current) || current < 0 {
 		current = 0
 	}
-	if current > p.total {
-		current = p.total
+	if current > total {
+		current = total
 	}
 
 	p.written = current
@@ -178,14 +183,16 @@ func (p *ANSIMeter) Set(current float64) {
 	//  * if 29 < width      , also show speed (speed+gutter = 9)
 	var percent, speed, timeleft string
 	if col > 15 {
-		since := time.Now().UTC().Sub(p.t0).Seconds()
-		per := since / p.written
-		left := (p.total - p.written) * per
-		// XXX: duration unit string is controlled by translations, and
-		// may carry a multibyte unit suffix
-		timeleft = " " + formatDuration(left)
 		if col > 20 {
 			percent = " " + p.percent()
+		}
+		if total > 0 {
+			since := time.Now().UTC().Sub(p.t0).Seconds()
+			per := since / p.written
+			left := (total - p.written) * per
+			// XXX: duration unit string is controlled by translations, and
+			// may carry a multibyte unit suffix
+			timeleft = " " + formatDuration(left)
 			if col > 29 {
 				speed = " " + quantity.FormatBPS(p.written, since, -1)
 			}
@@ -201,7 +208,16 @@ func (p *ANSIMeter) Set(current float64) {
 	msg = append(msg, rpercent...)
 	msg = append(msg, rspeed...)
 	msg = append(msg, rtimeleft...)
-	i := int(current * float64(len(msg)) / p.total)
+	i := 0
+	if total > 0 {
+		i = int(current * float64(len(msg)) / total)
+		if i < 0 {
+			i = 0
+		}
+		if i > len(msg) {
+			i = len(msg)
+		}
+	}
 	fmt.Fprint(stdout, "\r", enterReverseMode, string(msg[:i]), exitAttributeMode, string(msg[i:]))
 }
 
