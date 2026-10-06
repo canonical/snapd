@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -49,9 +50,11 @@ type catalogStore struct {
 	tooMany bool
 	// wrapCtxErr wraps ctx errors
 	wrapCtxErr bool
-	// sectionsStarted, if set, is closed when Sections is called, which
-	// then blocks until ctx is canceled
-	sectionsStarted chan struct{}
+	// sectionsStarted, if set, receives a signal when Sections is called.
+	// Sections then waits for cancellation and, if set, sectionsRelease.
+	sectionsStarted  chan struct{}
+	sectionsCanceled chan struct{}
+	sectionsRelease  chan struct{}
 }
 
 func (r *catalogStore) ctxErr(ctx context.Context) error {
@@ -87,8 +90,14 @@ func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]strin
 		panic("Ensure marked context required")
 	}
 	if r.sectionsStarted != nil {
-		close(r.sectionsStarted)
+		r.sectionsStarted <- struct{}{}
 		<-ctx.Done()
+		if r.sectionsCanceled != nil {
+			close(r.sectionsCanceled)
+		}
+		if r.sectionsRelease != nil {
+			<-r.sectionsRelease
+		}
 	}
 	if err := r.ctxErr(ctx); err != nil {
 		return nil, err
@@ -357,18 +366,96 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDownWrappedCancelError(c
 
 func (s *catalogRefreshTestSuite) TestCatalogRefreshEnsureDoesNotBlockAndStopWaits(c *C) {
 	s.store.sectionsStarted = make(chan struct{})
+	s.store.sectionsCanceled = make(chan struct{})
+	s.store.sectionsRelease = make(chan struct{})
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
-	err := cr7.Ensure()
-	c.Assert(err, IsNil)
+	var releaseOnce sync.Once
+	releaseSections := func() {
+		releaseOnce.Do(func() { close(s.store.sectionsRelease) })
+	}
+	defer func() {
+		releaseSections()
+		cr7.Stop()
+	}()
+
+	ensureDone := make(chan error, 1)
+	go func() {
+		ensureDone <- cr7.Ensure()
+	}()
 
 	// the refresh is in a background goroutine
-	<-s.store.sectionsStarted
+	select {
+	case <-s.store.sectionsStarted:
+	case <-time.After(time.Second):
+		c.Fatal("catalog refresh did not start")
+	}
+	select {
+	case err := <-ensureDone:
+		c.Assert(err, IsNil)
+	case <-time.After(time.Second):
+		c.Fatal("Ensure blocked on the catalog refresh")
+	}
 
-	cr7.Stop()
+	stopDone := make(chan struct{})
+	go func() {
+		cr7.Stop()
+		close(stopDone)
+	}()
+	select {
+	case <-s.store.sectionsCanceled:
+	case <-time.After(time.Second):
+		c.Fatal("Stop did not cancel the catalog request")
+	}
+	select {
+	case <-stopDone:
+		c.Fatal("Stop returned before the catalog refresh finished")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	releaseSections()
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		c.Fatal("Stop did not return after the catalog refresh finished")
+	}
 
 	c.Check(s.store.ops, HasLen, 0)
 	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshSecondEnsureDuringRefresh(c *C) {
+	s.store.sectionsStarted = make(chan struct{}, 2)
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	defer cr7.Stop()
+
+	err := cr7.Ensure()
+	c.Assert(err, IsNil)
+	select {
+	case <-s.store.sectionsStarted:
+	case <-time.After(time.Second):
+		c.Fatal("catalog refresh did not start")
+	}
+
+	// Make another refresh due while the first store request is still blocked.
+	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Time{})
+	ensureDone := make(chan error, 1)
+	go func() {
+		ensureDone <- cr7.Ensure()
+	}()
+	select {
+	case err := <-ensureDone:
+		c.Assert(err, IsNil)
+	case <-time.After(time.Second):
+		c.Fatal("Ensure blocked while another catalog refresh was running")
+	}
+
+	select {
+	case <-s.store.sectionsStarted:
+		c.Fatal("second catalog refresh started while the first was running")
+	case <-time.After(10 * time.Millisecond):
+	}
 }
 
 func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {

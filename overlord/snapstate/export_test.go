@@ -280,7 +280,9 @@ func NextCatalogRefresh(cr *catalogRefresh) time.Time {
 }
 
 func WaitCatalogRefresh(cr *catalogRefresh) {
-	cr.wg.Wait()
+	if cr.catalogC != nil {
+		<-cr.catalogC
+	}
 }
 
 func StopCatalogRefresh(m *SnapManager) {
