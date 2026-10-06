@@ -127,7 +127,7 @@ func (w *Warning) ExpiredBefore(now time.Time) bool {
 	return w.notice.Expired(now)
 }
 
-func (w *Warning) ShownAfter(t time.Time) bool {
+func (w *Warning) ShowAfter(t time.Time) bool {
 	lastShown, err := w.lastShown()
 	if err != nil || lastShown.IsZero() {
 		// warning was never shown before; was it added after the cutoff?
@@ -210,7 +210,6 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	if _, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions); err != nil {
 		// warning notice failed validation.
 		logger.Panicf("%v", err)
-		return
 	}
 }
 
@@ -236,14 +235,14 @@ func (s *State) RemoveWarning(message string) error {
 	return nil
 }
 
-func warningNoticeKey(key string) noticeKey {
+func warningNoticeKey(message string) noticeKey {
 	uid, hasUserID := flattenUserID(nil)
-	return noticeKey{hasUserID, uid, WarningNotice, key}
+	return noticeKey{hasUserID, uid, WarningNotice, message}
 }
 
-func (s *State) noticeBackingWarning(key string) *Notice {
-	uniqueKey := warningNoticeKey(key)
-	notice, ok := s.notices[uniqueKey]
+func (s *State) noticeBackingWarning(message string) *Notice {
+	key := warningNoticeKey(message)
+	notice, ok := s.notices[key]
 	if !ok {
 		return nil
 	}
@@ -266,7 +265,7 @@ func (s *State) AllWarnings() []*Warning {
 // current time, whether they're due to be shown or not, convert those notices
 // to warnings, and return them along with that time.
 //
-// The caller must ensure that the notices mutex is locked.
+// The caller must ensure that the notices mutex is locked for reading.
 func (s *State) allWarningsNow() ([]*Warning, time.Time) {
 	// Get the current time after acquiring noticesMu, so that we're certain to
 	// retrieve all notices with a lastRepeated timestamp before the timestamp
@@ -297,7 +296,7 @@ func (s *State) OkayWarnings(t time.Time) int {
 
 	n := 0
 	for _, w := range warnings {
-		if w.ShownAfter(t) {
+		if w.ShowAfter(t) {
 			if w.notice.lastData == nil {
 				w.notice.lastData = make(map[string]string)
 			}
@@ -325,7 +324,7 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 
 	var toShow []*Warning
 	for _, w := range all {
-		if !w.ShownAfter(now) {
+		if !w.ShowAfter(now) {
 			continue
 		}
 		toShow = append(toShow, w)

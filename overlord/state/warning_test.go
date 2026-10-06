@@ -127,9 +127,9 @@ func (stateSuite) TestDeleteExpired(c *check.C) {
 	c.Assert(allWs, check.HasLen, 2)
 	c.Check(fmt.Sprintf("%q", allWs), check.Equals, `["hello" "hello again"]`)
 	c.Check(allWs[0].ExpiredBefore(now), check.Equals, true)
-	c.Check(allWs[0].ShownAfter(now), check.Equals, true)
+	c.Check(allWs[0].ShowAfter(now), check.Equals, true)
 	c.Check(allWs[1].ExpiredBefore(now), check.Equals, false)
-	c.Check(allWs[1].ShownAfter(now), check.Equals, true)
+	c.Check(allWs[1].ShowAfter(now), check.Equals, true)
 
 	allWs = st.AllWarnings()
 	c.Check(allWs, check.HasLen, 1)
@@ -152,7 +152,7 @@ func (stateSuite) TestOldRepeatedWarning(c *check.C) {
 	c.Assert(allWs, check.HasLen, 1)
 	w := allWs[0]
 	c.Check(w.ExpiredBefore(now), check.Equals, false)
-	c.Check(w.ShownAfter(now), check.Equals, true)
+	c.Check(w.ShowAfter(now), check.Equals, true)
 }
 
 func (stateSuite) TestCheckpoint(c *check.C) {
