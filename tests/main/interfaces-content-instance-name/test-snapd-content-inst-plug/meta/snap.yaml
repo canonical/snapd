@@ -8,3 +8,6 @@ plugs:
     assets:
         interface: content
         target: $SNAP_DATA/assets/$SNAP_INSTANCE_NAME
+    assets-legacy:
+        interface: content
+        target: $SNAP_COMMON/legacy-assets

@@ -58,6 +58,16 @@ execute: |
         "${CONSUMER_INST}.sh" -c 'cat $SNAP_DATA/assets/$SNAP_INSTANCE_NAME/'"$name"'/canary' | MATCH "$name"
     done
 
+    echo "The legacy (non-source) read attribute also expands \$SNAP_INSTANCE_NAME"
+    snap connect "${CONSUMER_INST}:assets-legacy" "${PROVIDER_INST}:assets-legacy"
+    MATCH "/var/snap/$PROVIDER_INST/common/legacy/$PROVIDER_INST " < "$fstab"
+    #shellcheck disable=SC2016
+    "${PROVIDER_INST}.sh" -c 'mkdir -p "$SNAP_COMMON/legacy/$SNAP_INSTANCE_NAME"'
+    #shellcheck disable=SC2016
+    "${PROVIDER_INST}.sh" -c 'echo legacy > "$SNAP_COMMON/legacy/$SNAP_INSTANCE_NAME/canary"'
+    #shellcheck disable=SC2016
+    "${CONSUMER_INST}.sh" -c 'cat "$SNAP_COMMON/legacy-assets/canary"' | MATCH legacy
+
     echo "Install the provider with invalid slot paths"
     "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_BAD"
     snap warnings | tr '\n' ' ' | tr -s ' ' > warnings-output.txt

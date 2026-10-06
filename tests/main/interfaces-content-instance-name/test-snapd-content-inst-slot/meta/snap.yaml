@@ -9,3 +9,6 @@ slots:
         interface: content
         source:
             read: [$SNAP_DATA/assets/$SNAP_INSTANCE_NAME]
+    assets-legacy:
+        interface: content
+        read: [$SNAP_COMMON/legacy/$SNAP_INSTANCE_NAME]
