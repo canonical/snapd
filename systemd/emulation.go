@@ -190,7 +190,7 @@ func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, 
 
 func (s *emulation) RemoveMountUnitFile(rootDir, mountedDir string) error {
 	if rootDir == "" {
-		panic("internal error: RemoveMountUnitFile() requires a non-empty root directory")
+		return fmt.Errorf("internal error: RemoveMountUnitFile() requires a non-empty root directory")
 	}
 
 	// unmount regardless of whether the unit file exists as

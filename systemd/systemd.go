@@ -1538,6 +1538,9 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 	if u == nil {
 		return "", MountUnchanged, errors.New("ensureMountUnitFile() expects valid mount options")
 	}
+	if u.RootDir == "" {
+		return "", MountUnchanged, errors.New("ensureMountUnitFile() expects a non-empty root directory")
+	}
 
 	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
 
@@ -1668,7 +1671,7 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 
 func (s *systemd) RemoveMountUnitFile(rootDir, mountedDir string) error {
 	if rootDir == "" {
-		panic("internal error: RemoveMountUnitFile() requires a non-empty root directory")
+		return fmt.Errorf("internal error: RemoveMountUnitFile() requires a non-empty root directory")
 	}
 
 	// unmount regardless of whether the unit file exists as
