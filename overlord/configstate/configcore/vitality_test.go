@@ -128,6 +128,55 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC18(c *C) {
 	s.testConfigureVitalityWithValidSnap(c, true)
 }
 
+func (s *vitalitySuite) TestConfigureVitalityDuplicateUsesFirstRank(c *C) {
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, mockSnapWithService, si)
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		changes: map[string]any{
+			"resilience.vitality-hint": "unrelated,test-snap,another,test-snap",
+		},
+	})
+	c.Assert(err, IsNil)
+	svcPath := filepath.Join(dirs.SnapServicesDir, "snap.test-snap.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+}
+
+func (s *vitalitySuite) TestConfigureVitalityExistingDuplicateConvergesToFirstRank(c *C) {
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, mockSnapWithService, si)
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	err := configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		conf: map[string]any{
+			"resilience.vitality-hint": "unrelated,test-snap,old,test-snap",
+		},
+		changes: map[string]any{
+			"resilience.vitality-hint": "unrelated,test-snap,new,test-snap",
+		},
+	})
+	c.Assert(err, IsNil)
+	svcPath := filepath.Join(dirs.SnapServicesDir, "snap.test-snap.foo.service")
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+}
+
 func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
 	snaptest.MockSnap(c, mockSnapWithService, si)

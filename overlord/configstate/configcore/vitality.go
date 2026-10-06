@@ -71,7 +71,9 @@ func handleVitalityConfiguration(tr RunTransaction, opts *fsOnlyContext) error {
 	}
 	// build rank of the new entries
 	for i, instanceName := range strings.Split(newVitalityStr, ",") {
-		newVitalityMap[instanceName] = i + 1
+		if val, ok := newVitalityMap[instanceName]; !ok || val == 0 {
+			newVitalityMap[instanceName] = i + 1
+		}
 	}
 
 	// use a single cache of the quota groups for calculating the quota groups
