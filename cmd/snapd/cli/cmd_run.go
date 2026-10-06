@@ -793,13 +793,15 @@ func exposeKerberosTickets(info *snap.Info) (string, error) {
 	if len(krb5EnvVar) == 0 {
 		return "", nil
 	}
-	if strings.HasPrefix(krb5EnvVar, "FILE:") {
-		path := strings.TrimPrefix(krb5EnvVar, "FILE:")
+	for _, cacheType := range []string{"FILE:", "DIR:"} {
+		if !strings.HasPrefix(krb5EnvVar, cacheType) {
+			continue
+		}
+		path := strings.TrimPrefix(krb5EnvVar, cacheType)
 		path = filepath.Clean(path)
 		if filepath.Dir(path) == "/tmp" && strings.HasPrefix(path, "/tmp/krb5cc") {
-			// with vanilla config this ends up returning:
-			// FILE:/var/lib/snapd/hostfs/tmp/krb5cc_test
-			return "FILE:" + filepath.Join("/var/lib/snapd/hostfs/", path), nil
+			// Preserve the cache type while exposing the host's private /tmp.
+			return cacheType + filepath.Join("/var/lib/snapd/hostfs/", path), nil
 		}
 	}
 	return "", fmt.Errorf("Unsupported KRB5CCNAME: %s", krb5EnvVar)
