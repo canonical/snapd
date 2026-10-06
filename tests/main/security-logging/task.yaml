@@ -13,13 +13,15 @@ details: |
     created on first login and removed on logout. System account events
     (user_created_system, user_removed_system) are recorded when a local
     system user is created via create-user and removed via remove-user,
-    including add_reason and remove_reason fields. Sideloading a new
-    snapd snap revision produces a "sys_restart_snapd" event with reason
-    "snapd-update" and a snapd_version field. On classic, reseeding with
-    no snaps produces a "sys_standby_snapd" event with reason "snapd-idle".
-    A root GET /v2/users produces an "authz_admin" event with reason
-    "root-auth", and the same request from an unprivileged user produces
-    an "authz_fail" event with reason "root-auth-denied".
+    including add_reason and remove_reason fields. Starting snapd
+    produces a "sys_startup_snapd" event with snapd_version and boot_id
+    fields. Sideloading a new snapd snap revision produces a
+    "sys_restart_snapd" event with reason "snapd-update" and a
+    snapd_version field. On classic, reseeding with no snaps produces a
+    "sys_standby_snapd" event with reason "snapd-idle". A root GET
+    /v2/users produces an "authz_admin" event with reason "root-auth",
+    and the same request from an unprivileged user produces an
+    "authz_fail" event with reason "root-auth-denied".
 
 environment:
     # uploading the snapd snap can trigger OOM
@@ -133,9 +135,11 @@ execute: |
     journal_match "security logger disabled" -u snapd.service
     journal_match "security logger enabled" -u snapd.service
 
-    echo "Checking that restart produces disable/enable audit events"
+    echo "Checking that restart produces disable, enable, and startup audit events"
+    boot_id=$(cat /proc/sys/kernel/random/boot_id)
     security_event_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
     security_event_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
+    security_event_match '"level":"INFO","description":"Snapd startup","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_startup_snapd","snapd_version":"[^"]+","boot_id":"'"$boot_id"'"'
 
     echo "Checking that a root GET /v2/users produces an authz_admin audit event"
     pin_logs

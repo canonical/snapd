@@ -140,6 +140,10 @@ func (iface *netlinkDriverInterface) AutoConnect(plug *snap.PlugInfo, slot *snap
 	return slotFamily == plugFamily
 }
 
+func (iface *netlinkDriverInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return parallelInstancesSystemOrGadgetSlotErr(slot)
+}
+
 func init() {
 	registerIface(&netlinkDriverInterface{
 		commonInterface: commonInterface{

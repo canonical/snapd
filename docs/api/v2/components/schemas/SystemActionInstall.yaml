@@ -19,8 +19,10 @@ properties:
       - setup-storage-encryption
       - generate-recovery-key
       - finish
+      - preseed
 oneOf:
   - type: object
+    description: Sets up the system's storage encryption.
     required:
       - step
     properties:
@@ -60,6 +62,8 @@ oneOf:
               type: string
             description: A list of additional keyboard options to use (e.g. 'ctrl:nocaps').
   - type: object
+    description: >-
+      Generates a recovery key for the system. Complete the `setup-storage-encryption` step before this step.
     required:
       - step
     properties:
@@ -68,6 +72,9 @@ oneOf:
         enum:
           - generate-recovery-key
   - type: object
+    description: >-
+      Finishes the installation by writing missing volume content, setting up the bootloader, and
+      installing the kernel. When complete, the installed system is ready to reboot.
     required:
       - step
     properties:
@@ -99,3 +106,17 @@ oneOf:
             items:
               type: string
             description: A list of specific optional components to install.
+  - type: object
+    description: >-
+      Preseeds the installed system. Call this step after the `finish` step completes and before rebooting.
+    required:
+      - step
+      - target-root
+    properties:
+      step:
+        type: string
+        enum:
+          - preseed
+      target-root:
+        type: string
+        description: The path to the rootfs of the mounted target system for the `preseed` step.

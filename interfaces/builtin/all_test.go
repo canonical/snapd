@@ -495,11 +495,11 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 	c.Assert(found, DeepEquals, found)
 }
 
-// TestParallelInstancesUnsupportedPlugAndSlotInterfaces checks interfaces that
+// TestParallelInstancesUnsupportedOnPlugAndSlotSides checks interfaces that
 // unconditionally block parallel instances for plugs and slots. Interfaces
 // where the decision depends on plug/slot attributes must be tested in their
 // own test file (e.g., see shared-memory).
-func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
+func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 	unsupportedInterfaces := []string{
 		"acrn-support",
 		"adb-support",
@@ -542,12 +542,12 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 	}
 }
 
-// TestParallelInstancesUnsupportedSlotOnlyInterfaces checks interfaces that
+// TestParallelInstancesUnsupportedOnOnlySlotSide checks interfaces that
 // unconditionally block parallel instances for slots only, while still
 // supporting parallel instances on the plug side. Interfaces where the
 // decision depends on plug/slot attributes must be tested in their own test
 // file (e.g., see shared-memory).
-func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
+func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 	unsupportedInterfaces := []string{
 		"accel",
 		"account-control",
@@ -587,7 +587,106 @@ func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
 		"framebuffer",
 		"fuse-support",
 		"fwupd",
+		"gconf",
+		"gpg-keys",
+		"gpg-public-keys",
+		"gpio-chardev",
+		"gpio-control",
+		"gpio-memory-control",
+		"gsettings",
+		"hardware-observe",
+		"hardware-random-control",
+		"hardware-random-observe",
+		"home",
+		"hostname-control",
+		"hugepages-control",
+		"intel-mei",
+		"intel-qat",
+		"io-ports-control",
+		"ion-memory-control",
 		"iscsi-initiator",
+		"jack1",
+		"joystick",
+		"juju-client-observe",
+		"kerberos-tickets",
+		"kernel-crypto-api",
+		"kernel-firmware-control",
+		"kernel-module-control",
+		"kernel-module-load",
+		"kernel-module-observe",
+		"kvm",
+		"libvirt",
+		"locale-control",
+		"location-control",
+		"location-observe",
+		"log-observe",
+		"login-session-control",
+		"login-session-observe",
+		"maliit",
+		"media-control",
+		"media-hub",
+		"mediatek-accel",
+		"mir",
+		"modem-manager",
+		"mount-control",
+		"mount-observe",
+		"netlink-audit",
+		"netlink-connector",
+		"network",
+		"network-bind",
+		"network-control",
+		"network-manager",
+		"network-observe",
+		"network-setup-control",
+		"network-setup-observe",
+		"network-status",
+		"nfs-mount",
+		"nvme-control",
+		"ofono",
+		"online-accounts-service",
+		"opengl",
+		"openvswitch",
+		"optical-drive",
+		"packagekit-control",
+		"password-manager-service",
+		"pcscd",
+		"personal-files",
+		"physical-memory-control",
+		"physical-memory-observe",
+		"pipewire",
+		"pkcs11",
+		"podman",
+		"polkit",
+		"polkit-agent",
+		"power-control",
+		"ppp",
+		"process-control",
+		"ptp",
+		"pulseaudio",
+		"raw-input",
+		"raw-usb",
+		"remoteproc",
+		"removable-media",
+		"ros-opt-data",
+		"screencast-legacy",
+		"scsi-generic",
+		"sd-control",
+		"shutdown",
+		"snap-fde-control",
+		"snap-interfaces-requests-control",
+		"snap-refresh-control",
+		"snap-refresh-observe",
+		"snap-themes-control",
+		"snapd-control",
+		"ssh-keys",
+		"ssh-public-keys",
+		"storage-framework-service",
+		"system-backup",
+		"system-files",
+		"system-observe",
+		"system-packages-doc",
+		"system-source-code",
+		"system-trace",
 	}
 	for _, name := range unsupportedInterfaces {
 		iface := builtin.Interface(name)

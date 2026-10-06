@@ -74,7 +74,7 @@ func (iface *spiInterface) path(slotRef *interfaces.SlotRef, attrs interfaces.At
 }
 
 func (iface *spiInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
-	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName().String(), Name: slot.Name}, slot)
+	_, err := iface.path(&interfaces.SlotRef{Snap: slot.Snap.InstanceName(), Name: slot.Name}, slot)
 	return err
 }
 
@@ -104,6 +104,10 @@ func (iface *spiInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 func (iface *spiInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// Allow what is allowed in the declarations
 	return true
+}
+
+func (iface *spiInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return parallelInstancesSystemOrGadgetSlotErr(slot)
 }
 
 func init() {

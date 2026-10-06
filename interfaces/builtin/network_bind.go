@@ -97,12 +97,13 @@ socket AF_NETLINK - NETLINK_ROUTE
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "network-bind",
-		summary:               networkBindSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  networkBindBaseDeclarationSlots,
-		connectedPlugAppArmor: networkBindConnectedPlugAppArmor,
-		connectedPlugSecComp:  networkBindConnectedPlugSecComp,
+		name:                     "network-bind",
+		summary:                  networkBindSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     networkBindBaseDeclarationSlots,
+		connectedPlugAppArmor:    networkBindConnectedPlugAppArmor,
+		connectedPlugSecComp:     networkBindConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

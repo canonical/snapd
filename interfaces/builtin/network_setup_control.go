@@ -89,11 +89,12 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "network-setup-control",
-		summary:               networkSetupControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  networkSetupControlBaseDeclarationSlots,
-		connectedPlugAppArmor: networkSetupControlConnectedPlugAppArmor,
+		name:                     "network-setup-control",
+		summary:                  networkSetupControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     networkSetupControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    networkSetupControlConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

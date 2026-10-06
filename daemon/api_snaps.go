@@ -1357,7 +1357,7 @@ func snapHoldMany(_ context.Context, inst *snapInstruction, st *state.State) (re
 			return nil, errors.New("holding general refreshes for all snaps is not supported")
 		}
 		patchValues := map[string]any{"refresh.hold": inst.Time}
-		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
+		ts, err := configstateConfigureInstalled(st, naming.Core, patchValues, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1389,7 +1389,7 @@ func snapUnholdMany(_ context.Context, inst *snapInstruction, st *state.State) (
 
 	if len(inst.Snaps) == 0 {
 		patchValues := map[string]any{"refresh.hold": nil}
-		ts, err := configstateConfigureInstalled(st, "core", patchValues, 0)
+		ts, err := configstateConfigureInstalled(st, naming.Core, patchValues, 0)
 		if err != nil {
 			return nil, err
 		}

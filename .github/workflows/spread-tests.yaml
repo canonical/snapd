@@ -143,6 +143,9 @@ jobs:
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
           fi
+          if grep -q '^ubuntu-image update required$' <<<$labels; then
+            echo "SPREAD_UBUNTU_IMAGE_USE_LOCAL_SNAPD=true" >> $GITHUB_ENV
+          fi
 
     - name: Get previous attempt
       id: get-previous-attempt
@@ -385,66 +388,85 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
-    - name: Download and extract pre-built packages if they exist
+    - name: Build package artifact pattern
+      id: package-pattern
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
       env:
         SYSTEMS: ${{ inputs.systems }}
-      uses: actions/github-script@v9
+      run: |
+        declare -A unique_artifacts
+
+        for system in $SYSTEMS; do
+          artifact_name="package-$system"
+
+          if [[ "$system" =~ ^ubuntu-core-([0-9]+)(-arm)?-64$ ]]; then
+            version="${BASH_REMATCH[1]}"
+            arch="${BASH_REMATCH[2]}"
+            artifact_name="package-ubuntu-${version}.04${arch}-64"
+          fi
+
+          unique_artifacts["$artifact_name"]=1
+        done
+
+        artifact_names=( "${!unique_artifacts[@]}" )
+        if (( ${#artifact_names[@]} == 1 )); then
+          pattern="${artifact_names[0]}"
+        else
+          pattern="{$(IFS=,; echo "${artifact_names[*]}")}"
+        fi
+
+        echo "Downloading artifacts matching: $pattern"
+        echo "pattern=$pattern" >> "$GITHUB_OUTPUT"
+
+    - name: Download selected pre-built packages
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
+      uses: actions/download-artifact@v8
       with:
-        script: |
-          let fs = require('fs');
-          let path = require('path');
-          let os = require('os');
-          let child_process = require('child_process');
-          let systems = process.env.SYSTEMS.split(' ');
+        pattern: '${{ steps.package-pattern.outputs.pattern }}'
+        path: built-pkgs/downloaded
+        merge-multiple: false
 
-          let page = 1;
-          let per_page = 100;
-          let allArtifacts = [];
-          let response;
-          do {
-            response = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-              per_page: per_page,
-              page: page
-            });
-            allArtifacts = allArtifacts.concat(response.data.artifacts);
-            page++;
-          } while (allArtifacts.length < response.data.total_count);
-          
-          for (let system of systems) {
-            let artifactName = `package-${system}`;
-            const match = system.match(/^ubuntu-core-(\d+)(-arm)?-64$/);
-            if (match) {
-              const version = match[1];
-              const arch = match[2] || '';
-              artifactName = `package-ubuntu-${version}.04${arch}-64`;
-            }
-            let artifact = allArtifacts.find(a => a.name === artifactName);
-            if (!artifact) {
-              console.log(`Artifact not found for system: ${system}`);
-              continue;
-            }
-            console.log(`Found artifact "${artifactName}" with id ${artifact.id}, downloading...`);
+    - name: Rename packages to spread system directories
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
+      env:
+        SYSTEMS: ${{ inputs.systems }}
+      run: |
+        shopt -s dotglob nullglob
+        download_dir="built-pkgs/downloaded"
 
-            const download = await github.rest.actions.downloadArtifact({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              artifact_id: artifact.id,
-              archive_format: 'zip',
-            });
+        artifact_for_system() {
+          local system=$1
+          if [[ "$system" =~ ^ubuntu-core-([0-9]+)(-arm)?-64$ ]]; then
+            echo "package-ubuntu-${BASH_REMATCH[1]}.04${BASH_REMATCH[2]}-64"
+          else
+            echo "package-$system"
+          fi
+        }
 
-            const artifactZipPath = path.join(process.env.GITHUB_WORKSPACE, `${artifactName}.zip`);
-            fs.writeFileSync(artifactZipPath, Buffer.from(download.data));
+        declare -A unique_artifacts
+        for system in $SYSTEMS; do
+          unique_artifacts["$(artifact_for_system "$system")"]=1
+        done
 
-            const extractDir = path.join(process.env.GITHUB_WORKSPACE, 'built-pkgs', system);
-            fs.mkdirSync(extractDir, { recursive: true });
-            child_process.execSync(`unzip -q -o ${artifactZipPath} -d ${extractDir}`);
+        for system in $SYSTEMS; do
+          if (( ${#unique_artifacts[@]} == 1 )); then
+            # download-artifact extracts a lone artifact without a per-artifact subdirectory
+            source_dir="$download_dir"
+          else
+            source_dir="$download_dir/$(artifact_for_system "$system")"
+          fi
 
-            fs.unlinkSync(artifactZipPath);
-          }
+          files=( "$source_dir"/* )
+          if (( ${#files[@]} == 0 )); then
+            echo "Artifact not found for system: $system"
+            continue
+          fi
+
+          mkdir -p "built-pkgs/$system"
+          cp -a "${files[@]}" "built-pkgs/$system"/
+        done
+
+        rm -rf "$download_dir"
 
     - name: Set whether to use pre-built packages in spread
       run: |

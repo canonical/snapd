@@ -305,6 +305,12 @@ func (iface *locationObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInf
 	return true
 }
 
+func (iface *locationObserveInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the location service owns the well-known bus name com.ubuntu.location.Service
+	// on the system bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&locationObserveInterface{})
 }
