@@ -48,6 +48,8 @@ environment:
   BACK_TO_REVISION_METHOD/install_path_removed_app: install-path-removed
   SNAP_UNDER_TEST/install_path_removed_app: app
 
+  NESTED_SNAPD_DEBUG_TO_SERIAL: true
+
 skip:
   - reason: This test needs test keys to be trusted
     if: |
