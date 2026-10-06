@@ -1665,10 +1665,6 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 }
 
 func (s *systemd) RemoveMountUnitFile(rootDir, mountedDir string) error {
-	if rootDir == "" {
-		return fmt.Errorf("internal error: RemoveMountUnitFile() requires a non-empty root directory")
-	}
-
 	// unmount regardless of whether the unit file exists as
 	// the unit file may have been deleted while the mount is
 	// still active

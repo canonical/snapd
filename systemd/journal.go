@@ -33,8 +33,6 @@ import (
 // be opened. If a namespace is provided, then the stream will connect to that specific
 // journal namespace instead.
 type JournalStreamFileParams struct {
-	// RunDir is the systemd run directory (e.g. /run/systemd) under
-	// which the journal sockets are located.
 	RunDir      string
 	Namespace   string
 	Identifier  string
