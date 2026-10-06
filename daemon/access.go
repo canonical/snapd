@@ -74,24 +74,30 @@ type accessChecker interface {
 	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec *authzRecorder) *apiError
 }
 
-func isAuditedAccessLevel(level accessLevel) bool {
-	return level == accessLevelAuthenticated || level == accessLevelRoot
+// setAccessLevel stores the access level for this check. The record*IfAudited
+// methods audit only authenticated and root checks.
+func (rec *authzRecorder) setAccessLevel(level accessLevel) {
+	rec.level = level
 }
 
-func recordDeniedIfAudited(rec *authzRecorder, level accessLevel, reason seclog.DenialReason) {
-	if isAuditedAccessLevel(level) {
+func (rec *authzRecorder) audited() bool {
+	return rec.level == accessLevelAuthenticated || rec.level == accessLevelRoot
+}
+
+func (rec *authzRecorder) recordDeniedIfAudited(reason seclog.DenialReason) {
+	if rec.audited() {
 		rec.recordDenied(reason)
 	}
 }
 
-func recordGrantedIfAudited(rec *authzRecorder, level accessLevel, reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
-	if isAuditedAccessLevel(level) {
+func (rec *authzRecorder) recordGrantedIfAudited(reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
+	if rec.audited() {
 		rec.recordGranted(reason, iface, side)
 	}
 }
 
-func recordDeniedMissingInterfaceIfAudited(rec *authzRecorder, level accessLevel, side seclog.InterfaceSide) {
-	if !isAuditedAccessLevel(level) {
+func (rec *authzRecorder) recordDeniedMissingInterfaceIfAudited(side seclog.InterfaceSide) {
+	if !rec.audited() {
 		return
 	}
 	switch side {
@@ -103,14 +109,14 @@ func recordDeniedMissingInterfaceIfAudited(rec *authzRecorder, level accessLevel
 }
 
 // requireSockets ensures the request was received via one of the specified sockets.
-func requireSockets(ucred *ucrednet, sockets []string, rec *authzRecorder, level accessLevel) *apiError {
+func requireSockets(ucred *ucrednet, sockets []string, rec *authzRecorder) *apiError {
 	if ucred == nil {
-		recordDeniedIfAudited(rec, level, seclog.DenialNoPeerCredentials)
+		rec.recordDeniedIfAudited(seclog.DenialNoPeerCredentials)
 		return Forbidden("access denied")
 	}
 
 	if !strutil.ListContains(sockets, ucred.Socket) {
-		recordDeniedIfAudited(rec, level, seclog.DenialSocketNotPermitted)
+		rec.recordDeniedIfAudited(seclog.DenialSocketNotPermitted)
 		return Forbidden("access denied")
 	}
 
@@ -158,7 +164,8 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 		return InternalError(err.Error())
 	}
 
-	if rspe := requireSockets(ucred, opts.Sockets, rec, opts.AccessLevel); rspe != nil {
+	rec.setAccessLevel(opts.AccessLevel)
+	if rspe := requireSockets(ucred, opts.Sockets, rec); rspe != nil {
 		return rspe
 	}
 
@@ -182,12 +189,12 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 
 	if opts.AccessLevel == accessLevelAuthenticated && user != nil {
 		// user != nil means we have an authenticated user
-		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantUserAuth, iface, side)
+		rec.recordGrantedIfAudited(seclog.GrantUserAuth, iface, side)
 		return nil
 	}
 
 	if ucred.Uid == 0 {
-		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantRootAuth, iface, side)
+		rec.recordGrantedIfAudited(seclog.GrantRootAuth, iface, side)
 		return nil
 	}
 
@@ -197,11 +204,11 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 	if opts.PolkitAction != "" {
 		rspe := checkPolkitAction(r, ucred, opts.PolkitAction)
 		if rspe == nil {
-			recordGrantedIfAudited(rec, opts.AccessLevel, seclog.GrantPolkitAuth, iface, side)
+			rec.recordGrantedIfAudited(seclog.GrantPolkitAuth, iface, side)
 		} else if rspe.Kind == client.ErrorKindAuthCancelled {
-			recordDeniedIfAudited(rec, opts.AccessLevel, seclog.DenialPolkitCancelled)
+			rec.recordDeniedIfAudited(seclog.DenialPolkitCancelled)
 		} else {
-			recordDeniedIfAudited(rec, opts.AccessLevel, seclog.DenialPolkitAuth)
+			rec.recordDeniedIfAudited(seclog.DenialPolkitAuth)
 		}
 		return rspe
 	}
@@ -213,7 +220,7 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 	if opts.AccessLevel == accessLevelAuthenticated {
 		reason = seclog.DenialUserAuth
 	}
-	recordDeniedIfAudited(rec, opts.AccessLevel, reason)
+	rec.recordDeniedIfAudited(reason)
 	if opts.AccessLevel == accessLevelAuthenticated || opts.InterfaceAccess != nil {
 		return Unauthorized("access denied")
 	}
@@ -302,6 +309,8 @@ type interfaceAccessMatch struct {
 func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	ucred *ucrednet, req interfaceAccessReqs, rec *authzRecorder, level accessLevel,
 ) (interfaceAccessMatch, *apiError) {
+	rec.setAccessLevel(level)
+
 	var side seclog.InterfaceSide
 	switch {
 	case req.Plug && req.Slot:
@@ -319,7 +328,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	}
 
 	if ucred == nil {
-		recordDeniedIfAudited(rec, level, seclog.DenialNoPeerCredentials)
+		rec.recordDeniedIfAudited(seclog.DenialNoPeerCredentials)
 		return interfaceAccessMatch{}, Forbidden("access denied")
 	}
 
@@ -331,7 +340,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	case dirs.SnapSocket:
 		// Handled below
 	default:
-		recordDeniedIfAudited(rec, level, seclog.DenialSocketNotPermitted)
+		rec.recordDeniedIfAudited(seclog.DenialSocketNotPermitted)
 		return interfaceAccessMatch{}, Forbidden("access denied")
 	}
 
@@ -372,7 +381,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		}
 	}
 	if len(matched) == 0 {
-		recordDeniedMissingInterfaceIfAudited(rec, level, side)
+		rec.recordDeniedMissingInterfaceIfAudited(side)
 		return interfaceAccessMatch{}, Forbidden("access denied")
 	}
 	// Cite the earliest allow-list entry that matched. Connection-map

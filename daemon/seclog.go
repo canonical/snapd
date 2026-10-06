@@ -54,12 +54,14 @@ func (un *ucrednet) seclogPeer() seclog.Peer {
 }
 
 // authzRecorder accumulates one AUTHZ audit event during an access check.
-// User, peer, and endpoint are set at construction. Record the outcome via
-// recordGranted or recordDenied, then call log.
+// User, peer, and endpoint are set at construction. The access level is set
+// at the start of the check and decides whether an outcome is audited.
+// Record the outcome via recordGranted or recordDenied, then call log.
 type authzRecorder struct {
 	user          seclog.SnapdUser
 	peer          seclog.Peer
 	endpoint      seclog.Endpoint
+	level         accessLevel
 	reasonGranted seclog.GrantReason
 	reasonDenied  seclog.DenialReason
 }
