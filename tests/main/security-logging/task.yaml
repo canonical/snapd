@@ -29,7 +29,7 @@ environment:
     OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
-    python3 "$PWD/enable-audit.py"
+    python3 "$TESTSLIB/enable-audit.py"
 
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
