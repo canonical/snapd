@@ -272,17 +272,20 @@ func (s *noticesSuite) TestUnmarshalErrors(c *C) {
 	c.Check(json.Unmarshal([]byte(`42`), &n), check.ErrorMatches, ".* cannot unmarshal .*")
 
 	type T struct{ b, e string }
-
 	// validity check
-	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`
+	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`
 	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
 	for _, t := range []T{
 		// remove a field at a time:
-		{`{"key": "x", "type":"warning",                                           "expire-after": "1h", "repeat-after": "1h"}`, "invalid first-occurred time: .*"},
+		{`{"key": "x", "type":"warning",                                           "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "invalid first-occurred time: .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                                          "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "invalid last-occurred time: .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z",                                          "expire-after": "1h", "repeat-after": "1h"}`, "invalid last-repeated time: .*"},
 		// some bogus values
-		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006"                , "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006"                , "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
 	} {
 		var n *state.Notice
 		c.Check(json.Unmarshal([]byte(t.b), &n), check.ErrorMatches, t.e)

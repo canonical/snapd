@@ -262,11 +262,17 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	n.userID = jn.UserID
 	n.noticeType = NoticeType(jn.Type)
 	n.key = jn.Key
+	if jn.FirstOccurred.IsZero() {
+		return fmt.Errorf("invalid first-occurred time: %v", jn.FirstOccurred)
+	}
 	n.firstOccurred = jn.FirstOccurred
-	if n.firstOccurred.IsZero() {
-		return fmt.Errorf("invalid first-occurred time: %v", n.firstOccurred)
+	if jn.LastOccurred.IsZero() {
+		return fmt.Errorf("invalid last-occurred time: %v", jn.LastOccurred)
 	}
 	n.lastOccurred = jn.LastOccurred
+	if jn.LastRepeated.IsZero() {
+		return fmt.Errorf("invalid last-repeated time: %v", jn.LastRepeated)
+	}
 	n.lastRepeated = jn.LastRepeated
 	n.occurrences = jn.Occurrences
 	n.lastData = jn.LastData
