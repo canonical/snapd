@@ -732,6 +732,10 @@ func (iface *unity7Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
+func (iface *unity7Interface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errParallelInstancesSystemSlot
+}
+
 func init() {
 	registerIface(&unity7Interface{})
 }
