@@ -35,6 +35,8 @@ func (n SnapName) String() string {
 }
 
 // AsInstanceName returns a SnapName as an InstanceName type.
+// This method should only be used if absolutely necessary.
+// In almost all cases, directly use the instance name instead.
 func (n SnapName) AsInstanceName() InstanceName {
 	return InstanceName(n)
 }
