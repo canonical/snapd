@@ -3,7 +3,10 @@
 # from desktop part
 
 # Create $XDG_RUNTIME_DIR if not exists (to be removed when LP: #1656340 is fixed)
-[ -n "$XDG_RUNTIME_DIR" ] && mkdir -p $XDG_RUNTIME_DIR -m 700
+if [ -n "$XDG_RUNTIME_DIR" ]; then
+    mkdir -p "$XDG_RUNTIME_DIR"
+    chmod 700 "$XDG_RUNTIME_DIR"
+fi
 
 # If detect wayland server socket, then set environment so applications prefer
 # wayland, and setup compat symlink (until we use user mounts. Remember,
@@ -30,9 +33,4 @@ if [ -n "$XDG_RUNTIME_DIR" ]; then
     fi
 fi
 
-args="--norc"
-if [ -n "$1" ]; then
-    args="$args -i"
-fi
-
-$SNAP/usr/bin/weston-info
+"$SNAP/usr/bin/weston-info"
