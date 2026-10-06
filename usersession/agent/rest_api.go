@@ -408,7 +408,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	var urgencyLevel notification.Urgency
-	var body, icon, name string
+	var body, icon, combinedNameAndKey string
 	var hints []notification.Hint
 
 	snapname, instanceKey := snap.SplitInstanceName(refreshInfo.InstanceName)
@@ -418,14 +418,14 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		desktopFilePath := filepath.Join(dirs.SnapDesktopFilesDir, refreshInfo.BusyAppDesktopEntry+".desktop")
 		if err := parser.ReadFile(desktopFilePath); err == nil {
 			icon, _ = parser.Get("Desktop Entry", "Icon")
-			name = combineNameAndKey(getLocalizedAppNameFromDesktopFile(parser, snapname), instanceKey)
+			combinedNameAndKey = combineNameAndKey(getLocalizedAppNameFromDesktopFile(parser, snapname), instanceKey)
 		}
 	}
-	if name == "" {
-		name = combineNameAndKey(snapname, instanceKey)
+	if combinedNameAndKey == "" {
+		combinedNameAndKey = combineNameAndKey(snapname, instanceKey)
 	}
 
-	summary := fmt.Sprintf(i18n.G("Update available for %s."), name)
+	summary := fmt.Sprintf(i18n.G("Update available for %s."), combinedNameAndKey)
 
 	if daysLeft := int(refreshInfo.TimeRemaining.Truncate(time.Hour).Hours() / 24); daysLeft > 0 {
 		urgencyLevel = notification.LowUrgency
@@ -443,7 +443,7 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 			i18n.NG("Close the application to update now. It will update automatically in %d minute.",
 				"Close the application to update now. It will update automatically in %d minutes.", minutesLeft), minutesLeft)
 	} else {
-		summary = fmt.Sprintf(i18n.G("%s is updating now!"), name)
+		summary = fmt.Sprintf(i18n.G("%s is updating now!"), combinedNameAndKey)
 		urgencyLevel = notification.CriticalUrgency
 	}
 	hints = append(hints, notification.WithUrgency(urgencyLevel))
@@ -531,13 +531,14 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 	instanceName := naming.InstanceName(finishRefresh.InstanceName)
 	snapName := instanceName.SnapName().String()
 	instanceKey := instanceName.InstanceKey()
+	combinedNameAndKey := ""
 	if si, err := snap.ReadCurrentInfo(instanceName); err == nil {
-		icon, snapName = guessAppData(si, snapName, instanceKey)
+		icon, combinedNameAndKey = guessAppData(si, snapName, instanceKey)
 	} else {
 		logger.Noticef("cannot load snap-info for %s: %v", combineNameAndKey(snapName, instanceKey), err)
 	}
-	if snapName == "" {
-		snapName = combineNameAndKey(snapName, instanceKey)
+	if combinedNameAndKey == "" {
+		combinedNameAndKey = combineNameAndKey(snapName, instanceKey)
 	}
 
 	// Note that since the connection is shared, we are not closing it.
@@ -551,7 +552,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		})
 	}
 
-	summary := fmt.Sprintf(i18n.G("%s was updated."), snapName)
+	summary := fmt.Sprintf(i18n.G("%s was updated."), combinedNameAndKey)
 	body := i18n.G("Ready to launch.")
 	hints := []notification.Hint{
 		notification.WithDesktopEntry("io.snapcraft.SessionAgent"),
@@ -564,7 +565,7 @@ func postRefreshFinishedNotification(c *Command, r *http.Request) Response {
 		Hints: hints,
 		Icon:  icon,
 	}
-	if err := c.s.notificationMgr.SendNotification(notification.ID(snapName), msg); err != nil {
+	if err := c.s.notificationMgr.SendNotification(notification.ID(instanceName), msg); err != nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
