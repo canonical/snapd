@@ -1,8 +1,0 @@
-name: test-snapd-sh
-summary: A no-strings-attached, no-fuss shell for writing tests
-version: 1.0
-
-apps:
-    with-hostname-control-plug:
-        command: bin/sh
-        plugs: [hostname-control]

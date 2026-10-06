@@ -1,8 +1,0 @@
-name: test-snapd-sh-other18
-version: 1.0
-architectures: ["all"]
-base: test-snapd-core18
-
-apps:
-    sh:
-        command: bin/sh

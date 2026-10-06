@@ -1,3 +1,0 @@
-#!/bin/sh
-
-snapctl get :consumer0 some-attribute > "$SNAP_COMMON/connect-plug-consumer0-done" 2>&1

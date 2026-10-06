@@ -1,8 +1,0 @@
-name: test-snapd-sh-core24
-version: 1.0
-architectures: ["all"]
-base: core24
-
-apps:
-    sh:
-        command: bin/sh

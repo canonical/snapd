@@ -1,7 +1,0 @@
-name: test-snapd-classic-launcher
-version: 1.0
-confinement: classic
-
-apps:
-    test-snapd-classic-launcher:
-        command: bin/run

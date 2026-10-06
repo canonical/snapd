@@ -1,8 +1,0 @@
-account-id: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f
-name: testenforce2
-sequence: 1
-snaps:
-   - name: test-snapd-validation-set-enforcing
-     id: Tl0BlRrTksgJBZT3a9ffCDzut2KjZTer
-     presence: required
-     revision: 2

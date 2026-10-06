@@ -1,3 +1,0 @@
-name: test-snapd-sleep-install
-summary: A snap which takes 15 seconds to be installed
-version: 1.0

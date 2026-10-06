@@ -1,8 +1,0 @@
-#!/bin/bash
-# Source spread-funcs.sh which, at runtime, contains the real definition of
-# NOMATCH and execute it.
-
-# shellcheck source=tests/lib/spread-funcs.sh 
-. "$TESTSLIB/spread-funcs.sh"
-
-NOMATCH "$@"

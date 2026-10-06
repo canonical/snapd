@@ -1,9 +1,0 @@
-name: test-snap
-version: 1
-summary: Test snap with some bad interfaces
-
-plugs:
-  home:
-  badinterface1:
-  badinterface2:
-    interface: foo

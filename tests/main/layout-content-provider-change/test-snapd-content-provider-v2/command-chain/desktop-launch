@@ -1,5 +1,0 @@
-#!/bin/bash
-
-echo "hello from content provider V2"
-
-exec "$@"

@@ -296,18 +296,24 @@ func (ansiSuite) TestWrite(c *check.C) {
 }
 
 func (ansiSuite) TestSetZeroTotal(c *check.C) {
-	testSetNonPositiveTotal(c, 0)
+	testSetInvalidTotal(c, 0)
 }
 
 func (ansiSuite) TestSetNegativeTotal(c *check.C) {
-	testSetNonPositiveTotal(c, -5)
+	testSetInvalidTotal(c, -5)
 }
 
 func (ansiSuite) TestSetNaNTotal(c *check.C) {
-	testSetNonPositiveTotal(c, math.NaN())
+	testSetInvalidTotal(c, math.NaN())
 }
 
-func testSetNonPositiveTotal(c *check.C, total float64) {
+func (ansiSuite) TestSetInfiniteTotal(c *check.C) {
+	for _, total := range []float64{math.Inf(1), math.Inf(-1)} {
+		testSetInvalidTotal(c, total)
+	}
+}
+
+func testSetInvalidTotal(c *check.C, total float64) {
 	var buf bytes.Buffer
 	defer progress.MockStdout(&buf)()
 	defer progress.MockSimpleEscapes()()
@@ -347,14 +353,14 @@ func (ansiSuite) TestSetNonPositiveTotalLayout(c *check.C) {
 	}
 }
 
-func (ansiSuite) TestSetTotalNonPositive(c *check.C) {
+func (ansiSuite) TestSetTotalInvalid(c *check.C) {
 	var buf bytes.Buffer
 	defer progress.MockStdout(&buf)()
 	defer progress.MockTermWidth(func() int { return 40 })()
 
 	p := &progress.ANSIMeter{}
 	p.Start("work", 10)
-	for _, total := range []float64{0, -5, math.NaN()} {
+	for _, total := range []float64{0, -5, math.NaN(), math.Inf(1), math.Inf(-1)} {
 		p.SetTotal(total)
 		p.Set(3)
 		desc := check.Commentf("total %g", total)

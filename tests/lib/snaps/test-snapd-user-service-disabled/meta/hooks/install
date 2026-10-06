@@ -1,9 +1,0 @@
-#!/bin/sh
-
-echo "enable user-service-two for all users"
-snapctl start --enable --users=all test-snapd-user-service-disabled.user-service-two
-
-# hooks run in root user context so we cannot enable
-# anything for just the current user ('--user') as that
-# would not affect the user actually installing the snap.
-#

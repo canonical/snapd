@@ -1,6 +1,0 @@
-name: test-snap
-version: '1.0'
-base: core24
-apps:
-  test-app:
-    command: bin/sh

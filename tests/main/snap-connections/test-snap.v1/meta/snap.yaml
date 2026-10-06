@@ -1,7 +1,0 @@
-name: test-snap
-version: 1
-summary: Basic test snap
-
-plugs:
-  log-observe:
-

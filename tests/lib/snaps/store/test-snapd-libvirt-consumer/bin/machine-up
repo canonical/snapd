@@ -1,3 +1,0 @@
-#!/bin/sh
-
-"$SNAP"/usr/bin/virsh create "$SNAP"/vm/ping-unikernel.xml

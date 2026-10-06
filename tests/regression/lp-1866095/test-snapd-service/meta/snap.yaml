@@ -1,7 +1,0 @@
-name: test-snapd-service
-version: 1
-architectures: [all]
-apps:
-    test-snapd-service:
-        daemon: oneshot
-        command: bin/test-snapd-service

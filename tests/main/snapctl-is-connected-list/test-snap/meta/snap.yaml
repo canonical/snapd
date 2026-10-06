@@ -1,8 +1,0 @@
-name: test-snap
-version: 1
-summary: Basic test snap
-
-apps:
-  listconn:
-    command: bin/listconn
-    plugs: [camera, network]

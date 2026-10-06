@@ -1,9 +1,0 @@
-name: test-snapd-network-status-client
-version: 1.0
-summary: Basic network-status interface plug test snap
-description: A based snap to access the network-status interface
-
-apps:
-    connectivity:
-        command: bin/get-connectivity.sh
-        plugs: [network, network-status]

@@ -1,9 +1,0 @@
-name: process-control-consumer
-version: 1.0
-summary: Basic process-control consumer snap
-description: A basic snap declaring a plug on process-control
-
-apps:
-    signal:
-        command: bin/signal
-        plugs: [process-control]

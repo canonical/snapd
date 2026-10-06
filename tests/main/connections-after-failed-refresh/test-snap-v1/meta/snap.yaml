@@ -1,8 +1,0 @@
-name: test-snap
-version: 1.0
-
-plugs:
-  home:
-  network-bind:
-  hardware-observe:
-  system-observe:

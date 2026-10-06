@@ -1,6 +1,0 @@
-[Unit]
-Description=Mounting snaps
-RefuseManualStart=yes
-After=zfs-mount.service
-# Started from snapd.mounts.target
-# X-Snapd-Snap: do-not-start

@@ -1,5 +1,0 @@
-name: test-snap
-version: 1.0
-hooks:
-  post-refresh:
-    plugs: [upower-observe]

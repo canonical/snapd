@@ -1,1 +1,0 @@
-setregid.c

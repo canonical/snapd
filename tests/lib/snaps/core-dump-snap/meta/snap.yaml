@@ -1,8 +1,0 @@
-name: core-dump-snap
-base: ##BASE##
-type: app
-version: 1.0
-apps:
-  crash-svc:
-    command: bin/crash.sh
-    daemon: simple

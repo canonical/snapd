@@ -1,3 +1,0 @@
-#!/bin/sh
-
-snapctl set postrefreshed="post-refresh at revision $SNAP_REVISION"

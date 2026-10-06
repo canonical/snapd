@@ -1,9 +1,0 @@
-name: test-snapd-classic-service-hooks
-version: 1.0
-
-confinement: classic
-
-apps:
-    service:
-        command: bin/service
-        daemon: simple

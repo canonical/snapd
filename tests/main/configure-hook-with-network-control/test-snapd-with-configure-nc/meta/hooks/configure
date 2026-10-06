@@ -1,6 +1,0 @@
-#!/bin/sh -e
-
-echo "The hook can write to /dev/null" > /dev/null
-
-touch "$SNAP_COMMON"/configure-ran
-

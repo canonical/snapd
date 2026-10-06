@@ -1,9 +1,0 @@
-summary: Check that installing a snap from a closed channel DTRT
-
-details: |
-    When a snap is installed from a closed channel, we're supposed to
-    "forward" to the next available risk level.
-
-execute: |
-    snap install --beta test-snapd-tools | MATCH '^Channel latest/beta for test-snapd-tools is closed; temporarily forwarding to stable\.$'
-    snap info test-snapd-tools | MATCH 'tracking:.*beta'

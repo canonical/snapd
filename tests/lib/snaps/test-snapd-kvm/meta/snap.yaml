@@ -1,8 +1,0 @@
-name: test-snapd-kvm
-summary: A no-strings-attached, no-fuss shell for writing tests
-version: 1.0
-
-apps:
-    with-kvm-plug:
-        command: bin/sh
-        plugs: [kvm]

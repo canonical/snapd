@@ -1,7 +1,0 @@
-# Mountinfo files are useful for debugging but not reproducible
-# and not useful for being stored in history.
-*.mountinfo
-# Snap files are built from local files.
-*.snap
-# Find files are logs from running find in the mount namespace of the snap.
-*.find

@@ -1,8 +1,0 @@
-name: test-snapd-sh-core22
-version: 1.0
-architectures: ["all"]
-base: core22
-
-apps:
-    sh:
-        command: bin/sh

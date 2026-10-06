@@ -1,9 +1,0 @@
-name: test-snapd-install-hook-runs-svc
-version: 1.0
-summary: A snap that momentarily starts a svc during the install hook
-description: A snap that momentarily starts a svc during the install hook
-
-apps:
-  svc:
-    command: bin/svc.sh
-    daemon: simple

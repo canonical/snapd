@@ -1,7 +1,0 @@
-source lib.exp0
-
-# list completes locally installed snaps
-chat "snap list \t\t" "core*test-snapd-tools"
-
-cancel
-brexit

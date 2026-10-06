@@ -1,6 +1,0 @@
-#!/bin/sh
-if [ "${1:-}" = is-system-running ]; then
-	echo "stopping"
-	exit 1
-fi
-exec /bin/systemctl "$@"

@@ -1,7 +1,0 @@
-name: test-snapd-statx
-version: 1.0
-summary: Support snap for determining the status of the statx system call
-
-apps:
-  test-snapd-statx:
-    command: bin/statx.py
