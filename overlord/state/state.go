@@ -189,11 +189,13 @@ type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
 	Tasks   map[string]*Task            `json:"tasks"`
+
 	// Included to migrate warnings to notices. This will only ever be
 	// unmarshalled from disk, never populated into state itself or when
 	// marshalling to disk.
 	Warnings []*jsonWarning `json:"warnings,omitempty"`
-	Notices  []*Notice      `json:"notices,omitempty"`
+
+	Notices []*Notice `json:"notices,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
