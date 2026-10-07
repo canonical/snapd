@@ -983,7 +983,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 			var compsToInstall []string
 			var alreadyInstalled []string
 			for _, comp := range comps {
-				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(name, comp)) == nil {
+				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(naming.InstanceName(name).SnapName(), comp)) == nil {
 					compsToInstall = append(compsToInstall, comp)
 				} else {
 					alreadyInstalled = append(alreadyInstalled, comp)

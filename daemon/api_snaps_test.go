@@ -4446,6 +4446,61 @@ func (s *snapsSuite) TestInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 	c.Check(chg.Summary(), check.Equals, `Install "some-snap" snap with components "comp1", "comp2"`)
 }
 
+func (s *snapsSuite) TestInstallWithComponentsParallelSnapAlreadyInstalled(c *check.C) {
+	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
+		c.Check(names, check.DeepEquals, []string{"comp2"})
+		c.Check(info.InstanceName().String(), check.Equals, "some-snap_parallel")
+		t := st.NewTask("fake-install-component", "Doing a fake components install")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		c.Fatal("unexpected call to snapstateInstallWithGoal")
+		return nil, nil, nil
+	})()
+
+	d := s.daemonWithFakeSnapManager(c)
+	r := strings.NewReader(`{"action": "install", "components": ["comp1", "comp2"]}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap_parallel", r)
+	c.Assert(err, check.IsNil)
+
+	st := d.Overlord().State()
+	st.Lock()
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+		sequence.NewRevisionSideState(si, []*sequence.ComponentState{
+			sequence.NewComponentState(&snap.ComponentSideInfo{
+				Component: naming.NewComponentRef("some-snap", "comp1"),
+				Revision:  snap.R(1),
+			}, snap.StandardComponent),
+		}),
+	})
+	snapstate.Set(st, "some-snap_parallel", &snapstate.SnapState{
+		Active:      true,
+		InstanceKey: "parallel",
+		Sequence:    seq,
+		Current:     snap.R(1),
+	})
+	st.Unlock()
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	var apiData map[string]any
+	c.Assert(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["components"], check.DeepEquals, map[string]any{
+		"some-snap_parallel": []any{"comp2"},
+	})
+}
+
 func (s *snapsSuite) TestManyInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
 		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
