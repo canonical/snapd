@@ -315,6 +315,107 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreInstanceErrors(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+		Flags:       snapstate.Flags{IgnoreInstanceErrors: true},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.IgnoreInstanceErrors, Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreInstanceErrorsOnRefresh(c *C) {
+	s.state.Lock()
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		InstanceKey: "bar",
+		Flags:       snapstate.Flags{IgnoreInstanceErrors: true},
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(snapst.IgnoreInstanceErrors, Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreInstanceErrors(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		Active:      true,
+		InstanceKey: "bar",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+		Flags:       snapstate.Flags{IgnoreInstanceErrors: true},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.IgnoreInstanceErrors, Equals, false)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	s.state.Lock()
 	// pretend we have an installed snap

@@ -609,6 +609,7 @@ func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*s
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
 	}
+	flags.IgnoreInstanceErrors = inst.IgnoreInstanceErrors
 	if inst.Amend {
 		flags.Amend = true
 	}
@@ -1078,8 +1079,9 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 	}
 
 	flags := snapstate.Flags{
-		IgnoreRunning: inst.IgnoreRunning,
-		Transaction:   inst.Transaction,
+		IgnoreRunning:        inst.IgnoreRunning,
+		IgnoreInstanceErrors: inst.IgnoreInstanceErrors,
+		Transaction:          inst.Transaction,
 	}
 
 	// TODO: once we completely move away from the old snapstate API, this

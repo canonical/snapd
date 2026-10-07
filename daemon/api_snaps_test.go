@@ -3007,6 +3007,35 @@ func (s *snapsSuite) TestRefreshIgnoreRunning(c *check.C) {
 	c.Check(res.Summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *snapsSuite) TestRefreshIgnoreInstanceErrors(c *check.C) {
+	var calledFlags snapstate.Flags
+	defer daemon.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		calledFlags = opts.Flags
+		t := st.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:               "refresh",
+		IgnoreInstanceErrors: true,
+		Snaps:                []string{"some-snap_foo"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{
+		IgnoreInstanceErrors: true,
+		Transaction:          client.TransactionPerSnap,
+	})
+}
+
 func (s *snapsSuite) TestRefreshCohort(c *check.C) {
 	cohort := ""
 
