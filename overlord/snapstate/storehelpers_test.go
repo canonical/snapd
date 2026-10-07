@@ -566,6 +566,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSnapsOnly(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	mockInstalledSnap(c, st, snapAyaml, false)
 	mockInstalledSnap(c, st, snapByaml, false)

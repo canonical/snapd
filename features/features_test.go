@@ -52,7 +52,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.CheckDiskSpaceInstall, "check-disk-space-install")
 	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
 	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
-	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
 	check(features.Confdb, "confdb")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 	check(features.ContentCompatLabel, "content-compatibility-label")
@@ -89,7 +88,6 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
-	check(features.GateAutoRefreshHook, false)
 	check(features.Confdb, true)
 	check(features.AppArmorPrompting, true)
 	check(features.ContentCompatLabel, false)
@@ -206,7 +204,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
-	check(features.GateAutoRefreshHook, false)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
 	check(features.ContentCompatLabel, false)
@@ -263,7 +260,22 @@ func (s *featureSuite) TestFlag(c *C) {
 	c.Assert(err, ErrorMatches, `hotplug can only be set to 'true' or 'false', got "banana"`)
 }
 
+func (*featureSuite) TestPermanentlyDisabledFeatures(c *C) {
+	f := features.GateAutoRefreshHook
+	c.Check(f.IsPermanentlyDisabled(), Equals, true)
+	for _, known := range features.KnownFeatures() {
+		c.Check(known, Not(Equals), f)
+	}
+
+	// disabled flags should not consult configuration
+	flag, err := features.Flag(nil, f)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, false)
+}
+
 func (s *featureSuite) TestAll(c *C) {
+	// the synthetic feature ids below may overlap permanently disabled ids
+	defer features.MockFeaturesPermanentlyDisabled(nil)()
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()

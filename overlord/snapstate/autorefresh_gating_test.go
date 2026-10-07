@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
@@ -80,6 +81,7 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, s.state))
 	ifacerepo.Replace(s.state, s.repo)
 
 	s.store = &autoRefreshGatingStore{fakeStore: &fakeStore{}}
@@ -113,6 +115,18 @@ func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []
 	}
 
 	return res, nil, nil
+}
+
+// mockGateAutoRefreshFeature enables the retained gating implementation for tests.
+// The caller must hold the state lock.
+//
+// TODO:GATEREFRESH: this feature is permanently disabled. Remove this helper
+// and its callers with the gating implementation.
+func mockGateAutoRefreshFeature(c *C, st *state.State) (restore func()) {
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "experimental.gate-auto-refresh-hook", true), IsNil)
+	tr.Commit()
+	return features.MockFeaturesPermanentlyDisabled(nil)
 }
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *snap.Info {
@@ -1470,6 +1484,9 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	mockInstalledSnap(c, s.state, snapAyaml, useHook)
 
 	// gate-auto-refresh-hook feature not enabled, expect old-style refresh.
+	disabled := config.NewTransaction(st)
+	c.Assert(disabled.Set("core", "experimental.gate-auto-refresh-hook", false), IsNil)
+	disabled.Commit()
 	_, updateTss, err := snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
 	tss := updateTss.Refresh
@@ -1971,10 +1988,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	st.Lock()
 	defer st.Unlock()
 
-	// enable gate-auto-refresh-hook feature
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
-	tr.Commit()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	s.o.TaskRunner().AddHandler("run-hook", func(t *state.Task, tomb *tomb.Tomb) error {
 		var hsup hookstate.HookSetup
@@ -2272,6 +2286,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
 		c.Check(sz, Equals, uint64(123)+snapstate.DefaultDiskSpaceReservation)
@@ -2516,10 +2531,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// enable gate-auto-refresh-hook feature
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
-	tr.Commit()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	restore := snapstate.MockSnapsToRefresh(func(gatingTask *state.Task) ([]*snapstate.RefreshCandidate, error) {
 		c.Assert(gatingTask.Kind(), Equals, "conditional-auto-refresh")
@@ -2629,6 +2641,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshForGatingSnapErrorAutoRefreshInProgres
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	chg := st.NewChange("auto-refresh", "...")
 	task := st.NewTask("foo", "...")
@@ -2641,6 +2654,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshForGatingSnapErrorNothingHeld(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-a"), ErrorMatches, `no snaps are held by snap "snap-a"`)
 }

@@ -28,11 +28,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // defaultInhibitDir is the directory where inhibition files are stored.
@@ -236,6 +239,96 @@ func Unlock(snapName string, unlocker Unlocker) error {
 	}
 
 	return nil
+}
+
+// UnlockStaleGateRefreshLocks releases all run inhibition locks that have the
+// HintInhibitedGateRefresh hint. It returns the names of the snaps whose locks
+// it released.
+//
+// The gate-auto-refresh hook is no longer supported, and nothing sets this hint
+// anymore. An older snapd can have set the hint before the hook was
+// interrupted. Use this function only to release such locks.
+//
+// The function finds the candidate snaps from their HintInhibitedGateRefresh
+// inhibit info files. LockWithHint writes the info file before the hint, and
+// Unlock removes the info files after it clears the hint. Thus each snap that
+// has the hint also has the info file. A snap can have the info file and a
+// different hint. The lock of such a snap is not changed. The function takes
+// the snap lock of each candidate snap before it examines the run inhibition
+// lock. If the function cannot release the lock of a snap, it continues with
+// the subsequent snaps and returns all errors.
+//
+// If unlocker is passed it indicates that the global state needs to be unlocked
+// while the locks are released. It is the responsibility of the caller to make
+// sure state is locked if a non-nil unlocker is passed.
+func UnlockStaleGateRefreshLocks(unlocker Unlocker) (unlocked []string, err error) {
+	if unlocker != nil {
+		// unlock/relock global state
+		relock := unlocker()
+		defer relock()
+	}
+
+	suffix := "." + string(HintInhibitedGateRefresh)
+	matches, err := filepath.Glob(filepath.Join(InhibitDir, "*"+suffix))
+	if err != nil {
+		return nil, err
+	}
+
+	var errs []error
+	for _, m := range matches {
+		instanceName := strings.TrimSuffix(filepath.Base(m), suffix)
+		err := snaplock.WithLock(instanceName, func() error {
+			ok, err := unlockStaleGateRefresh(instanceName)
+			if ok {
+				unlocked = append(unlocked, instanceName)
+			}
+			return err
+		})
+		if err != nil {
+			errs = append(errs, fmt.Errorf("cannot release gate-refresh inhibition lock of snap %q: %v", instanceName, err))
+		}
+	}
+
+	return unlocked, strutil.JoinErrors(errs...)
+}
+
+// unlockStaleGateRefresh releases the run inhibition lock of the given snap
+// only if the lock has the HintInhibitedGateRefresh hint. The function does not
+// create the lock file if it does not exist.
+func unlockStaleGateRefresh(instanceName string) (unlocked bool, err error) {
+	f, err := os.OpenFile(HintFile(instanceName), os.O_RDWR, 0)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	flock := osutil.NewFileLockWithFile(f)
+	defer flock.Close()
+
+	// the hint is read and released while the same lock is held, so that the
+	// hint cannot change between the two operations.
+	if err := flock.Lock(); err != nil {
+		return false, err
+	}
+	hint, err := hintFromFile(f)
+	if err != nil {
+		return false, err
+	}
+	if hint != HintInhibitedGateRefresh {
+		return false, nil
+	}
+	if err := f.Truncate(0); err != nil {
+		return false, err
+	}
+	if err := f.Sync(); err != nil {
+		return false, err
+	}
+	if err := removeInhibitInfoFiles(instanceName); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // IsLocked returns the state of the run inhibition lock for the given snap.
