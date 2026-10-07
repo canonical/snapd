@@ -43,7 +43,7 @@ func SplitFullComponentName(fullComp string) (SnapName, string, error) {
 		return "", "", fmt.Errorf("incorrect component name %q", fullComp)
 	}
 
-	return names[0], names[1], nil
+	return SnapName(names[0]), names[1], nil
 }
 
 func (cr ComponentRef) String() string {
@@ -52,7 +52,7 @@ func (cr ComponentRef) String() string {
 
 // Validate validates the component.
 func (cr ComponentRef) Validate() error {
-	for _, name := range []string{cr.SnapName, cr.ComponentName} {
+	for _, name := range []string{cr.SnapName.String(), cr.ComponentName} {
 		// Same restrictions as snap names
 		if err := ValidateSnap(name); err != nil {
 			return err
@@ -91,5 +91,5 @@ func ComponentRefFromSnapPackFilename(filename string) (ComponentRef, error) {
 	if len(matches) != 3 {
 		return ComponentRef{}, fmt.Errorf("cannot parse snap pack component filename: %q", filename)
 	}
-	return NewComponentRef(matches[1], matches[2]), nil
+	return NewComponentRef(SnapName(matches[1]), matches[2]), nil
 }

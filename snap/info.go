@@ -1807,7 +1807,7 @@ func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, err
 
 	return ReadComponentInfoFromContainer(container, info, &ComponentSideInfo{
 		Revision:  revision,
-		Component: naming.NewComponentRef(info.SnapName().String(), component),
+		Component: naming.NewComponentRef(info.SnapName(), component),
 	})
 }
 

@@ -679,7 +679,7 @@ func removeSnapComponents(inst *snapInstruction, st *state.State) (msg string, a
 	for snap, comps := range inst.CompsForSnaps {
 		// We call from here only when we remove components, not the
 		// full snap, so we need to refresh the security profiles.
-		tss, err := snapstateRemoveComponents(st, snap, comps,
+		tss, err := snapstateRemoveComponents(st, naming.InstanceName(snap), comps,
 			snapstate.RemoveComponentsOpts{RefreshProfile: true})
 		if err != nil {
 			return "", nil, err

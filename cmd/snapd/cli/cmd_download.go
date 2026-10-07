@@ -131,14 +131,14 @@ func downloadDirect(snapName naming.SnapName, components []string, opts tooling.
 	}
 	tsto.Stdout = Stdout
 
-	dl, err := downloadContainers(snapName, components, tsto, opts)
+	dl, err := downloadContainers(snapName.String(), components, tsto, opts)
 	if err != nil {
 		return err
 	}
 
 	downloaded := make([]string, 0, len(compRefs)+1)
 	if !opts.OnlyComponents {
-		downloaded = append(downloaded, snapName)
+		downloaded = append(downloaded, snapName.String())
 	}
 	downloaded = append(downloaded, compRefs...)
 
@@ -298,5 +298,5 @@ func (x *cmdDownload) Execute(args []string) error {
 		return errors.New(i18n.G("cannot specify --only-components without providing any components;"))
 	}
 
-	return x.downloadFromStore(snap, comps, revision)
+	return x.downloadFromStore(naming.SnapName(snap), comps, revision)
 }

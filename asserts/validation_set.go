@@ -130,7 +130,7 @@ func checkValidationSetSnap(snap map[string]any) (*ValidationSetSnap, error) {
 		return nil, fmt.Errorf(`cannot specify revision %s at the same time as stating its presence is invalid`, what)
 	}
 
-	components, err := checkValidationSetComponents(snapName, snap, snapRevision)
+	components, err := checkValidationSetComponents(naming.SnapName(snapName), snap, snapRevision)
 	if err != nil {
 		return nil, err
 	}

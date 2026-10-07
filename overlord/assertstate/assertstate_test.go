@@ -1087,11 +1087,11 @@ func (s *assertMgrSuite) snapDecl(c *C, name string, extraHeaders map[string]any
 func (s *assertMgrSuite) stateFromDecl(c *C, decl *asserts.SnapDeclaration, instanceName string, revno snap.Revision) {
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
 	if snapName == "" {
-		snapName = decl.SnapName()
+		snapName = decl.SnapName().String()
 		instanceName = snapName
 	}
 
-	c.Assert(snapName, Equals, decl.SnapName())
+	c.Assert(snapName, Equals, decl.SnapName().String())
 
 	snapID := decl.SnapID()
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
@@ -1164,7 +1164,7 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 		"snap-id": "foo-id",
 	})
 	c.Assert(err, IsNil)
-	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+	c.Check(a.(*asserts.SnapDeclaration).SnapName().String(), Equals, "fo-o")
 
 	a, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -1291,7 +1291,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 		"snap-id": "foo-id",
 	})
 	c.Assert(err, IsNil)
-	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+	c.Check(a.(*asserts.SnapDeclaration).SnapName().String(), Equals, "fo-o")
 
 	// another one
 	// one changed assertion
@@ -1343,7 +1343,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 		"snap-id": "foo-id",
 	})
 	c.Assert(err, IsNil)
-	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+	c.Check(a.(*asserts.SnapDeclaration).SnapName().String(), Equals, "fo-o")
 	c.Check(a.(*asserts.SnapDeclaration).Revision(), Equals, 1)
 }
 
@@ -1450,7 +1450,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 		"snap-id": "foo-id",
 	})
 	c.Assert(err, IsNil)
-	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+	c.Check(a.(*asserts.SnapDeclaration).SnapName().String(), Equals, "fo-o")
 
 	// changed again
 	headers = map[string]any{
@@ -1478,7 +1478,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 		"snap-id": "foo-id",
 	})
 	c.Assert(err, IsNil)
-	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "f-oo")
+	c.Check(a.(*asserts.SnapDeclaration).SnapName().String(), Equals, "f-oo")
 
 	_, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
@@ -1682,7 +1682,7 @@ func (s *assertMgrSuite) testRefreshSnapDeclarationsMany(c *C, n int) error {
 			"snap-id": name + "-id",
 		})
 		c.Assert(err, IsNil)
-		c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, fmt.Sprintf("fo-o-%d", i))
+		c.Check(a.(*asserts.SnapDeclaration).SnapName().String(), Equals, fmt.Sprintf("fo-o-%d", i))
 	}
 
 	return nil
@@ -2247,7 +2247,7 @@ func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
 
 	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
 	c.Assert(err, IsNil)
-	c.Check(snapDecl.SnapName(), Equals, "foo")
+	c.Check(snapDecl.SnapName().String(), Equals, "foo")
 }
 
 func (s *assertMgrSuite) TestAutoAliasesTemporaryFallback(c *C) {

@@ -11967,7 +11967,7 @@ func verifySnapAndComponentSetupsForDownload(c *C, begin *state.Task, ts *state.
 			c.Assert(err, IsNil)
 			c.Check(compsup.DownloadBlobDir, Equals, downloadDir)
 
-			c.Check(compsup.BlobPath(compsup.CompSideInfo.Component.SnapName), Equals, filepath.Join(
+			c.Check(compsup.BlobPath(compsup.CompSideInfo.Component.SnapName.String()), Equals, filepath.Join(
 				expectedDownloadDir,
 				fmt.Sprintf("%s+%s_%s.comp", snapsup.InstanceName(), compsup.ComponentName(), compsup.Revision()),
 			))

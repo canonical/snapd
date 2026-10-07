@@ -469,7 +469,7 @@ func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	return checkComponentsAgainstConstraints(info.SnapName().String(), comps, constraints, action)
+	return checkComponentsAgainstConstraints(info.SnapName(), comps, constraints, action)
 }
 
 func checkSnapAgainstConstraints(
@@ -514,7 +514,7 @@ func checkComponentsPresenceAndRevision(snapName naming.SnapName, comps map[stri
 			return fmt.Errorf(
 				"cannot %s component %q due to enforcing rules of validation set %s",
 				verb,
-				naming.NewComponentRef(snapName, compName),
+				naming.NewComponentRef(naming.SnapName(snapName), compName),
 				cp.Sets.CommaSeparated(),
 			)
 		}
@@ -616,7 +616,7 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, typ)
 	}
 
-	cref := naming.NewComponentRef(info.SnapName().String(), name)
+	cref := naming.NewComponentRef(info.SnapName(), name)
 
 	csi := snap.ComponentSideInfo{
 		Component: cref,
@@ -1510,7 +1510,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 		// filter out additional components that are already installed
 		snapName, _ := snap.SplitInstanceName(sn.InstanceName)
 		for _, add := range sn.AdditionalComponents {
-			if snapst.CurrentComponentState(naming.NewComponentRef(snapName, add)) == nil {
+			if snapst.CurrentComponentState(naming.NewComponentRef(naming.SnapName(snapName), add)) == nil {
 				additional = append(additional, add)
 			}
 		}

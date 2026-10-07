@@ -1589,7 +1589,7 @@ func (s *baseHookManagerSuite) setUpComponent(c *C, instanceName string, compone
 
 	componentSideInfo := &snap.ComponentSideInfo{
 		Component: naming.ComponentRef{
-			SnapName:      snapName,
+			SnapName:      naming.SnapName(snapName),
 			ComponentName: componentName,
 		},
 		Revision: snap.R(1),

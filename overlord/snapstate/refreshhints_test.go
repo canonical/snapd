@@ -318,7 +318,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 
 	restore := snapstate.MockReadComponentInfo(func(compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 		c.Check(csi.Component.ComponentName, Equals, "comp1")
-		c.Check(csi.Component.SnapName, Equals, "other-snap")
+		c.Check(csi.Component.SnapName.String(), Equals, "other-snap")
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              snap.StandardComponent,

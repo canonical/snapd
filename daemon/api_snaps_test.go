@@ -3996,8 +3996,8 @@ func (s *snapsSuite) TestPostRemoveComponents(c *check.C) {
 	d := s.daemonWithOverlordMockAndStore()
 
 	var t *state.Task
-	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, snapName string, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
-		c.Check(snapName, check.Equals, "foo")
+	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, instanceName naming.InstanceName, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+		c.Check(instanceName.String(), check.Equals, "foo")
 		c.Check(compNames, check.DeepEquals, []string{"comp1", "comp2"})
 		t = st.NewTask("fake-remove-comps-2", "Remove two")
 		return []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -4050,12 +4050,12 @@ func (s *snapsSuite) TestPostComponentsRemoveMany(c *check.C) {
 	var compTsk *state.Task
 	numCalls := 0
 	expectedMsg := "Remove component(s)"
-	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, snapName string, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, instanceName naming.InstanceName, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
 		numCalls++
 		if numCalls == 2 {
 			expectedMsg += ","
 		}
-		switch snapName {
+		switch instanceName {
 		case "snap1":
 			c.Check(compNames, check.DeepEquals, []string{"comp1", "comp2"})
 			expectedMsg += ` [comp1 comp2] for "snap1" snap`
@@ -4063,7 +4063,7 @@ func (s *snapsSuite) TestPostComponentsRemoveMany(c *check.C) {
 			c.Check(compNames, check.DeepEquals, []string{"comp3", "comp4"})
 			expectedMsg += ` [comp3 comp4] for "snap2" snap`
 		default:
-			c.Error("unexpected snap:", snapName)
+			c.Error("unexpected snap:", instanceName)
 		}
 		compTsk = st.NewTask("fake-remove-comps-2", "Remove two")
 		return []*state.TaskSet{state.NewTaskSet(compTsk)}, nil
@@ -4108,12 +4108,12 @@ func (s *snapsSuite) TestPostComponentsRemoveManyWithSnaps(c *check.C) {
 	var compTsk *state.Task
 	expectedMsg := `Remove snaps "foo", "bar" - Remove component(s)`
 	numCalls := 0
-	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, snapName string, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+	defer daemon.MockSnapstateRemoveComponents(func(st *state.State, instanceName naming.InstanceName, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
 		numCalls++
 		if numCalls == 2 {
 			expectedMsg += ","
 		}
-		switch snapName {
+		switch instanceName {
 		case "snap1":
 			c.Check(compNames, check.DeepEquals, []string{"comp1", "comp2"})
 			expectedMsg += ` [comp1 comp2] for "snap1" snap`
@@ -4121,7 +4121,7 @@ func (s *snapsSuite) TestPostComponentsRemoveManyWithSnaps(c *check.C) {
 			c.Check(compNames, check.DeepEquals, []string{"comp3", "comp4"})
 			expectedMsg += ` [comp3 comp4] for "snap2" snap`
 		default:
-			c.Error("unexpected snap:", snapName)
+			c.Error("unexpected snap:", instanceName)
 		}
 		compTsk = st.NewTask("fake-remove-comps-2", "Remove two")
 		return []*state.TaskSet{state.NewTaskSet(compTsk)}, nil
