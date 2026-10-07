@@ -54,6 +54,10 @@ func MockOsFileClose(f func(*os.File) error) (restore func()) {
 	return testutil.Mock(&osFileClose, f)
 }
 
+func MockSelinuxIsEnabled(f func() (bool, error)) (restore func()) {
+	return testutil.Mock(&selinuxIsEnabled, f)
+}
+
 func KnownFdNames() map[FdName]bool {
 	return knownFdNames
 }

@@ -254,11 +254,9 @@ files_tmp_filetrans(snappy_t, snappy_tmp_t, { file dir })
 
 # Allow snapd to use memfd_create() files, including when received back
 # from the systemd fdstore
-gen_require(`
-	type tmpfs_t;
-')
-type_transition snappy_t tmpfs_t:file snappy_tmpfs_t;
-allow snappy_t snappy_tmpfs_t:file { manage_file_perms map };
+fs_tmpfs_filetrans(snappy_t, snappy_tmpfs_t, file)
+manage_files_pattern(snappy_t, snappy_tmpfs_t, snappy_tmpfs_t)
+mmap_rw_files_pattern(snappy_t, snappy_tmpfs_t, snappy_tmpfs_t)
 
 # Allow snapd to use memfd_secret() files, including when received back
 # from the systemd fdstore; secretmem_t is only defined by newer policies
@@ -983,15 +981,19 @@ allow init_t snappy_cli_t:unix_stream_socket create_stream_socket_perms;
 # declare fs_type(snappy_snap_t) outside of core policy, add explicit permission
 # instead
 allow init_t snappy_snap_t:filesystem remount;
+
 # systemd holds snapd's memfd secret state in the fdstore across restarts
-allow init_t snappy_tmpfs_t:file { read write };
-optional_policy(`
-	gen_require(`
-		type secretmem_t;
-		class anon_inode { getattr read write };
-	')
-	allow init_t secretmem_t:anon_inode { getattr read write };
-')
+# XXX only needed when FDE related memfd_{create,secret} fds are handed to systemd
+# for safekeeping, while in practice none of the systems where the policy is in use 
+# use snapd managed FDE
+# allow init_t snappy_tmpfs_t:file { read write };
+# optional_policy(`
+#	gen_require(`
+#		type secretmem_t;
+#			class anon_inode { getattr read write };
+#		')
+#		allow init_t secretmem_t:anon_inode { getattr read write };
+#	')
 
 
 ########################################

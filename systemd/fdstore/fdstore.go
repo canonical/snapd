@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/systemd"
 	"golang.org/x/sys/unix"
 )
@@ -102,6 +103,8 @@ var (
 	sdNotifyWithFds = systemd.SdNotifyWithFds
 	sdNotifySocket  = systemd.NotifySocket
 	netFileListener = net.FileListener
+
+	selinuxIsEnabled = selinux.IsEnabled
 )
 
 // Note: os.File is used to wrap raw fds so that the
@@ -228,6 +231,17 @@ func checkUnsupported() error {
 	// fdstore cannot be used.
 	if _, err := sdNotifySocket(); err != nil {
 		return fmt.Errorf("%w: %v: snapd is not running as a systemd service", ErrUnsupported, err)
+	}
+
+	selinuxEnabled, err := selinuxIsEnabled()
+	if err != nil {
+		return fmt.Errorf("%w: cannot check SELinux status: %v", ErrUnsupported, err)
+	}
+	if selinuxEnabled {
+		// fdstore is not supported on SELinux-enabled systems because
+		// SELinux may interfere with the passing of file descriptors
+		// to systemd, which fdstore relies on.
+		return fmt.Errorf("%w: SELinux is enabled", ErrUnsupported)
 	}
 
 	// FDNAME=... was added in systemd v233, but for the sake
