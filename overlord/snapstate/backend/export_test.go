@@ -78,6 +78,10 @@ func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsM
 	return testutil.Mock(&kernelEnsureKernelDriversTree, f)
 }
 
+func MockOsRemoveAll(f func(path string) error) func() {
+	return testutil.Mock(&osRemoveAll, f)
+}
+
 func MockCgroupKillSnapProcesses(f func(ctx context.Context, snapName string) error) func() {
 	return testutil.Mock(&cgroupKillSnapProcesses, f)
 }

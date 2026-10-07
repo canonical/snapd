@@ -800,12 +800,14 @@ func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*
 	}
 
 	if _, err := integrityLookupDataAndCrossCheck(snapsup.SnapPath, idp); err != nil {
-		// ignore integrity data if no matching file is found
-		logger.Noticef("cannot validate integrity data for snap %q: %v", snapsup.InstanceName(), err)
-		return nil, nil
+		if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
+			logger.Noticef("cannot find integrity data for snap %q: %v", snapsup.InstanceName(), err)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot validate integrity data for snap %q: %w", snapsup.InstanceName(), err)
 	}
 
-	return idp, err
+	return idp, nil
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {

@@ -41,7 +41,10 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-var kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
+var (
+	kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
+	osRemoveAll                   = os.RemoveAll
+)
 
 // InstallRecord keeps a record of what installation effectively did as hints
 // about what needs to be undone in case of failure.
@@ -223,7 +226,7 @@ func removeIntegrityFilesForSnap(s snap.PlaceInfo) error {
 	}
 	var errs []error
 	for _, integrityFile := range integrityFiles {
-		if err := os.RemoveAll(integrityFile); err != nil {
+		if err := osRemoveAll(integrityFile); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -255,13 +258,13 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
 		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
-			// remove the snap
-			if err := os.RemoveAll(snapPath); err != nil {
+			// remove the snap's integrity files (if any)
+			if err := removeIntegrityFilesForSnap(s); err != nil {
 				return err
 			}
 
-			// remove the snap's integrity files
-			if err := removeIntegrityFilesForSnap(s); err != nil {
+			// remove the snap
+			if err := osRemoveAll(snapPath); err != nil {
 				return err
 			}
 		}

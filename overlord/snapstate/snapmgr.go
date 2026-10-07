@@ -1493,9 +1493,11 @@ func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.Mou
 	}
 	if idp != nil {
 		if _, err := integrityLookupDataAndCrossCheck(info.MountFile(), idp); err != nil {
-			// ignore integrity data if no matching file is found
-			logger.Noticef("cannot validate integrity data for snap %q: %v", info.InstanceName(), err)
-			return nil
+			if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
+				logger.Noticef("cannot find integrity data for snap %q: %v", info.InstanceName(), err)
+				return nil
+			}
+			return fmt.Errorf("cannot validate integrity data for snap %q: %w", info.InstanceName(), err)
 		}
 		integrityMountOpts, err := idp.MountOptions(info.MountFile())
 		if err != nil {

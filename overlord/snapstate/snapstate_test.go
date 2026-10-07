@@ -10830,14 +10830,20 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, mountContent)
 }
 
-func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withIntegrityData, integrityFileExists bool) {
+type ensureSnapStateRewriteMountsCreatedOpts struct {
+	withIntegrityData  bool
+	integrityLookupErr error
+	expectedErr        string
+}
+
+func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, opts ensureSnapStateRewriteMountsCreatedOpts) {
 	idp := &integrity.IntegrityDataParams{
 		Type:   "dm-verity",
 		Digest: "deadbeef",
 	}
 	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "test-snap-id", Revision: snap.R(42)}
 	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
-		if !withIntegrityData {
+		if !opts.withIntegrityData {
 			return nil, integrity.ErrNoIntegrityDataFoundInRevision
 		}
 		if snapID != testSnapSideInfo.SnapID {
@@ -10852,8 +10858,8 @@ func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withInt
 	restore = snapstate.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
 		lookupCalls++
 		c.Check(params, DeepEquals, idp)
-		if !integrityFileExists {
-			return "", fmt.Errorf("integrity file does not exist")
+		if opts.integrityLookupErr != nil {
+			return "", opts.integrityLookupErr
 		}
 		return params.IntegrityFile(snapPath)
 	})
@@ -10890,18 +10896,26 @@ apps:
 	s.restarts[unitName] = 0
 
 	err := s.snapmgr.Ensure()
-	c.Assert(err, IsNil)
 
-	c.Assert(s.restarts[unitName], Equals, 1)
-
-	if withIntegrityData {
+	if opts.withIntegrityData {
 		c.Check(lookupCalls, Equals, 1)
 	} else {
 		c.Check(lookupCalls, Equals, 0)
 	}
 
+	if opts.expectedErr != "" {
+		c.Assert(err, ErrorMatches, opts.expectedErr)
+		c.Check(err, testutil.ErrorIs, opts.integrityLookupErr)
+		c.Check(s.restarts[unitName], Equals, 0)
+		c.Check(mountFile, testutil.FileAbsent)
+		return
+	}
+	c.Assert(err, IsNil)
+
+	c.Assert(s.restarts[unitName], Equals, 1)
+
 	options := "nodev,ro,x-gdu.hide,x-gvfs-hide"
-	if withIntegrityData && integrityFileExists {
+	if opts.withIntegrityData && opts.integrityLookupErr == nil {
 		integrityMountOpts, err := idp.MountOptions(info.MountFile())
 		c.Assert(err, IsNil)
 		options = options + "," + strings.Join(integrityMountOpts, ",")
@@ -10929,21 +10943,28 @@ WantedBy=multi-user.target
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
-	const withIntegrityData = false
-	const integrityFileExists = false
-	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
+	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{})
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityData(c *C) {
-	const withIntegrityData = true
-	const integrityFileExists = true
-	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
+	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{
+		withIntegrityData: true,
+	})
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataNotExist(c *C) {
-	const withIntegrityData = true
-	const integrityFileExists = false
-	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
+	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{
+		withIntegrityData:  true,
+		integrityLookupErr: fmt.Errorf("%w: missing", integrity.ErrDmVerityDataNotFound),
+	})
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataInvalid(c *C) {
+	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{
+		withIntegrityData:  true,
+		integrityLookupErr: fmt.Errorf(`%w: expected "dm-verity" but found "foo"`, integrity.ErrUnexpectedIntegrityDataType),
+		expectedErr:        `cannot validate integrity data for snap "test-snap": unexpected integrity data type: expected "dm-verity" but found "foo"`,
+	})
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {

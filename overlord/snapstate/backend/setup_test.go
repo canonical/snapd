@@ -239,6 +239,88 @@ func (s *setupSuite) TestRemoveSnapFilesWithIntegrityData(c *C) {
 	s.testSetupWithIntegrityData(c, variant)
 }
 
+func (s *setupSuite) TestRemoveSnapFilesRemovesIntegrityDataBeforeSnap(c *C) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+	_, _, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+
+	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+
+	// the presence of the snap file is what triggers integrity data cleanup,
+	// so it must outlive the integrity files to be robust against restarts
+	var removed []string
+	restore := backend.MockOsRemoveAll(func(path string) error {
+		if path == integrityFilePath {
+			c.Check(snapFilePath, testutil.FilePresent)
+		}
+		removed = append(removed, path)
+		return os.RemoveAll(path)
+	})
+	defer restore()
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Check(removed, DeepEquals, []string{integrityFilePath, snapFilePath})
+	c.Check(snapFilePath, testutil.FileAbsent)
+	c.Check(integrityFilePath, testutil.FileAbsent)
+}
+
+func (s *setupSuite) TestRemoveSnapFilesKeepsSnapOnIntegrityDataRemovalError(c *C) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+	_, _, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+
+	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+
+	restore := backend.MockOsRemoveAll(func(path string) error {
+		if path == integrityFilePath {
+			return errors.New("boom")
+		}
+		return os.RemoveAll(path)
+	})
+	defer restore()
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, ErrorMatches, "boom")
+
+	// the snap is kept so that a retry will find and clean up the integrity data
+	c.Check(snapFilePath, testutil.FilePresent)
+	c.Check(integrityFilePath, testutil.FilePresent)
+
+	restore()
+	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(snapFilePath, testutil.FileAbsent)
+	c.Check(integrityFilePath, testutil.FileAbsent)
+}
+
 func (s *setupSuite) TestSetupSnapWithIntegrityDataFileMissing(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
 
