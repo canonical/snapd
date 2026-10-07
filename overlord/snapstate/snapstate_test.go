@@ -7933,7 +7933,7 @@ func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
 		IsAutoRefresh:        true,
 		NoReRefresh:          false,
 		RequireTypeBase:      false,
-		IgnoreInstanceErrors: false,
+		IgnoreInstanceErrors: true,
 	})
 }
 

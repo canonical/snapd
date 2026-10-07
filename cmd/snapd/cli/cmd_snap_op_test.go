@@ -2840,6 +2840,26 @@ func (s *SnapOpSuite) TestRefreshManyIgnoreRunning(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *SnapOpSuite) TestRefreshOneIgnoreInstanceErrors(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one_foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+			"action":                 "refresh",
+			"ignore-instance-errors": true,
+			"transaction":            "per-snap",
+		})
+	}
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-instance-errors", "one_foo"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshAllIgnoreInstanceErrors(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-instance-errors"})
+	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring parallel instance errors`)
+}
+
 func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--beta", "one", "two"})
