@@ -16,11 +16,9 @@ export DH_GOPKG := github.com/snapcore/snapd
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_BUILDPKG = $(strip $(addprefix $(DH_GOPKG)/, \
     cmd/snapd \
-    cmd/snap-exec \
     cmd/snap-seccomp \
     cmd/snap-update-ns \
     cmd/snapctl \
-    cmd/snapd-apparmor \
     ))
 # skip Go generate, all source code should have been committed
 export DH_GOLANG_GO_GENERATE=0
@@ -65,6 +63,16 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
 endif
 
+# Export build tags via GOFLAGS so that dh_golang's "go list" call picks them
+# up. Without this, dh_golang fails because it calls "go list" without build
+# tags and hits packages that are excluded by nosecboot (e.g. secboot/keymgr,
+# which prepare-debian-build-tree used to strip). GOFLAGS applies to every go
+# command invocation, including the one inside dh_golang.
+comma := ,
+empty :=
+space := $(empty) $(empty)
+export GOFLAGS = -tags=$(subst $(space),$(comma),$(strip $(TAGS)))
+
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 # /usr/lib/snapd/snap-{update-ns,gdbserver-shim} are always linked
@@ -108,23 +116,22 @@ override_dh_clean:
 version_from_changelog := $(shell dpkg-parsechangelog --show-field Version)
 $(info version_from_changelog is $(version_from_changelog))
 
-# Generate version files
-define snapdtool__version_generated.go
-package snapdtool
-func init() {
-	Version = "$(version_from_changelog)"
-}
-endef
+# The upstream source tarball already carries the version files
+# (snapdtool/version_generated.go, cmd/VERSION and data/info) with
+# UpstreamVersion set, so there is no need to generate them here; packaging is
+# expected to build from a pack-source tarball. The upstream version is read
+# from cmd/VERSION, and the downstream version suffix (the Debian revision,
+# e.g. "-1" for 2.77.1-1) is whatever the changelog version adds on top of it.
+#
+# cmd/VERSION and data/info are stamped with the full package version by
+# packaging/mod-version.sh below, except that SNAPD_APPARMOR_REEXEC is forced
+# to 0 on Debian; the assertion formats are reused from the tree, so they
+# never drift from the source.
 
-define cmd__VERSION
-$(version_from_changelog)
-endef
-
-define data__info
-VERSION=$(version_from_changelog)
-SNAPD_APPARMOR_REEXEC=0
-SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
-endef
+upstream_version := $(shell cat cmd/VERSION 2>/dev/null)
+# The downstream suffix is the changelog version with the upstream version
+# prefix stripped (empty when they are equal).
+downstream_version_suffix := $(if $(filter $(upstream_version)%,$(version_from_changelog)),$(patsubst $(upstream_version)%,%,$(version_from_changelog)),)
 
 # Generate snapd.defines.mk for use by snapd.mk makefile targets.
 # This file contains variable definitions that match Debian's FHS conventions.
@@ -148,22 +155,33 @@ with_apparmor = 1
 with_testkeys = $(if $(findstring testkeys,$(DEB_BUILD_OPTIONS)),1,0)
 with_static_pie = 0
 with_vendor = 0
+# The Debian revision (e.g. "-1") baked into the binaries via a linker flag.
+downstream_version_suffix = $(downstream_version_suffix)
 endef
 
 snapd.defines.mk:
 	$(file >$@,$(snapd_defines_mk_content))
 
 override_dh_auto_build: snapd.defines.mk
-	# We used to call mkversion.sh, but since it builds and executes go code
-	# from this package it is significantly easier to do by hand.
-	$(file >_build/src/$(DH_GOPKG)/snapdtool/version_generated.go,$(snapdtool__version_generated.go))
-	$(file >cmd/VERSION,$(cmd__VERSION))
-	$(file >data/info,$(data__info))
+	# The version files come from the source tarball (packaging is expected to
+	# build from a pack-source tarball). Copy version_generated.go into the
+	# dh-golang build tree, stamp cmd/VERSION and data/info with the full
+	# package version, and adjust data/info for Debian
+	# (SNAPD_APPARMOR_REEXEC=0), reusing the assertion formats from the tree.
+	install -m 0644 snapdtool/version_generated.go _build/src/$(DH_GOPKG)/snapdtool/version_generated.go
+ifneq ($(strip $(downstream_version_suffix)),)
+	# Set cmd/VERSION and data/info VERSION to the full package version
+	# (upstream + Debian revision), so snap-confine and the installed info
+	# file match the binaries' FullVersion(). Skipped when there is no
+	# downstream suffix: the upstream version from the source tarball is
+	# already correct.
+	packaging/mod-version.sh $(version_from_changelog)
+endif
+	# Debian does not support re-exec into the snap, force it off in the
+	# installed info file.
+	sed -i 's/^SNAPD_APPARMOR_REEXEC=.*/SNAPD_APPARMOR_REEXEC=0/' data/info
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
-
-	# Prepare the build tree by removing code not used for Debian builds
-	$(MAKE) -f packaging/snapd.mk prepare-debian-build-tree sourcedir=_build/src/$(DH_GOPKG) SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# and build, we cannot use modules as packaging on Debian requires us to use
 	# dependencies from the distro, and this would require further updates to the
@@ -176,10 +194,9 @@ override_dh_auto_build: snapd.defines.mk
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
-	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
-	# we must force a static build here. We need a static snap-{exec,update-ns}
+	# Generate static snapctl and snap-update-ns - it somehow includes CGO so
+	# we must force a static build here. We need a static snap-update-ns and snapctl
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 

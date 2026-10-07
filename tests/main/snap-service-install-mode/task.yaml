@@ -30,7 +30,7 @@ execute: |
     snap services | MATCH 'svc.svc-enabled-by-timer\s+disabled\s+inactive'
 
     # ensure that the timer service unit is also disabled by poking systemd
-    systemctl show --property=UnitFileState snap.svc.svc-enabled-by-timer.timer | grep "disabled"
+    systemctl show --property=UnitFileState snap.svc.svc-enabled-by-timer.timer | MATCH '^UnitFileState=disabled$'
 
     echo "And after a refresh nothing changes"
     "$TESTSTOOLS"/snaps-state install-local ./svc.v1
@@ -39,7 +39,7 @@ execute: |
     snap services | MATCH 'svc.svc-enabled-by-hook\s+enabled\s+active'
 
     # ensure again that the timer service unit is still disabled by poking systemd
-    systemctl show --property=UnitFileState snap.svc.svc-enabled-by-timer.timer | grep "disabled"
+    systemctl show --property=UnitFileState snap.svc.svc-enabled-by-timer.timer | MATCH '^UnitFileState=disabled$'
 
     echo "But install-mode: disable services can be enabled"
     snap start --enable svc.svc2

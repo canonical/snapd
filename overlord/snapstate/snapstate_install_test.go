@@ -302,7 +302,7 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	task0 := ts.Tasks()[0]
 	snapsup, err := snapstate.TaskSnapSetup(task0)
 	c.Assert(err, IsNil, Commentf("%#v", task0))
-	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsup.InstanceName().String(), Equals, "some-snap")
 	c.Assert(snapsup.DevMode, Equals, true)
 	c.Assert(snapsup.ApplySnapDevMode, Equals, false)
 
@@ -560,7 +560,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 
 	c.Assert(prqt.infos, HasLen, 1)
-	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
+	c.Check(prqt.infos[0].SnapName().String(), Equals, "some-snap")
 	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
@@ -909,6 +909,53 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `snap "some-snap" has "install" change in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapUsingBasePreventsBaseRemoval(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	installChg := s.state.NewChange("install-snap", "...")
+	installChg.AddAll(ts)
+
+	_, err = snapstate.Remove(s.state, "some-base", snap.R(0), nil)
+	c.Assert(err, ErrorMatches, `snap "some-base" is not removable: snap is being used by snap some-snap\.`)
+}
+
+func (s *snapmgrTestSuite) TestPreDownloadSnapUsingBaseDoesNotPreventBaseRemoval(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	task := s.state.NewTask("download-snap", "...")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		Base:     "some-base",
+		SideInfo: &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)},
+	})
+	preDlChg := s.state.NewChange("pre-download", "...")
+	preDlChg.AddTask(task)
+
+	_, err := snapstate.Remove(s.state, "some-base", snap.R(0), nil)
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestGadgetInstallConflictExclusiveKind(c *C) {
@@ -1343,6 +1390,227 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snapd_foo", nil, 0, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	// register a test interface that rejects parallel instances on the plug side
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesPlugRejectingInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	// install a snap that plugs the rejecting interface
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-nok-plug": {
+					Snap:      info,
+					Name:      "pi-nok-plug",
+					Interface: "pi-nok-plug-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected`)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	// register a test interface that rejects parallel instances on the slot side
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesSlotRejectingInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	// install a snap that slots the rejecting interface
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Slots = map[string]*snap.SlotInfo{
+				"pi-nok-slot": {
+					Snap:      info,
+					Name:      "pi-nok-slot",
+					Interface: "pi-nok-slot-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances: slot rejected`)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySupportedInterface(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	// register an interface that implicitly supports parallel instances (default for TestInterface)
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "pi-ok-default-iface",
+	})
+	c.Assert(err, IsNil)
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-ok-plug": {
+					Snap:      info,
+					Name:      "pi-ok-plug",
+					Interface: "pi-ok-default-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithExplicitlySupportedInterface(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesSupportedInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-ok-plug": {
+					Snap:      info,
+					Name:      "pi-ok-plug",
+					Interface: "pi-ok-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestNonParallelInstanceInstallUnaffectedByUnsupportedInterface(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesPlugRejectingInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-nok-plug": {
+					Snap:      info,
+					Name:      "pi-nok-plug",
+					Interface: "pi-nok-plug-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	// non-parallel install (no instance key) should succeed
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+// testParallelInstancesPlugRejectingInterface is a test interface that
+// rejects parallel instances on the plug side.
+type testParallelInstancesPlugRejectingInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *testParallelInstancesPlugRejectingInterface) Name() string {
+	return "pi-nok-plug-iface"
+}
+
+func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errors.New("plug rejected")
+}
+
+// testParallelInstancesSlotRejectingInterface is a test interface that
+// rejects parallel instances on the slot side.
+type testParallelInstancesSlotRejectingInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *testParallelInstancesSlotRejectingInterface) Name() string {
+	return "pi-nok-slot-iface"
+}
+
+func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return errors.New("slot rejected")
+}
+
+// testParallelInstancesSupportedInterface is a test interface that
+// explicitly supports parallel instances on both plug and slot sides.
+type testParallelInstancesSupportedInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *testParallelInstancesSupportedInterface) Name() string {
+	return "pi-ok-iface"
+}
+
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return nil
+}
+
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return nil
 }
 
 func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
@@ -2673,7 +2941,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -2712,13 +2980,6 @@ epoch: 1*
 			revno: snap.R("x3"),
 		},
 	}
-	// aliases removal is skipped when refresh-app-awareness-ux is enabled
-	if !refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
-			op:   "remove-snap-aliases",
-			name: "mock",
-		})
-	}
 	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
@@ -2732,7 +2993,7 @@ epoch: 1*
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -2815,12 +3076,11 @@ epoch: 1*
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
-	s.testInstallSubsequentLocalRunThrough(c, false)
+	s.testInstallSubsequentLocalRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThroughSkipBinaries(c *C) {
-	s.enableRefreshAppAwarenessUX()
-	s.testInstallSubsequentLocalRunThrough(c, true)
+	s.testInstallSubsequentLocalRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
@@ -2864,10 +3124,6 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 		{
-			op:   "remove-snap-aliases",
-			name: "mock",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "mock",
 			inhibitHint: "refresh",
@@ -2877,9 +3133,10 @@ epoch: 1*
 			name: "mock",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "mock/100001"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "mock/100001"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:   "copy-data",
@@ -3751,6 +4008,45 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
 }
 
+func (s *snapmgrTestSuite) TestInstallConfigureDiskSpaceReservation(c *C) {
+	const freeDiskSpace = uint64(1500)
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
+		if sz > freeDiskSpace {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
+		return 123, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "disk-reservation.size", "2000")
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(requiredSizes, DeepEquals, []uint64{2123, 1123})
+}
+
 func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
 	restore := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		return 0, fmt.Errorf("boom")
@@ -3986,44 +4282,6 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsPromptingClient(c *C) {
 	c.Check(err, ErrorMatches, `feature flag validation failed for snap "prompting-client": user session daemons are not supported on this release`)
 }
 
-func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// D-Bus activation is disabled by default.
-	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
-	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// D-Bus activation can be explicitly enabled.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", true)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// D-Bus activation can be explicitly disabled.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", false)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.dbus-activation' to true`)
-
-	// The default empty value means "enabled"
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", "")
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// D-Bus activation is enabled when the controlling flag is reset to nil.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", nil)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4161,7 +4419,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				c.Check(sup.Version, Equals, sup.SnapName().String()+"Ver")
 			}
 		}
 	}
@@ -4191,7 +4449,7 @@ func (s *snapmgrTestSuite) TestInstallManyNoDelayed(c *C) {
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				c.Check(sup.Version, Equals, sup.SnapName().String()+"Ver")
 			}
 		}
 	}
@@ -5683,7 +5941,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}
@@ -6287,7 +6545,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}
@@ -6368,7 +6626,7 @@ func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFil
 		// seq file exists but is zeroed out
 		assertMigrationInSeqFile(c, snapName, nil)
 	} else {
-		exists, _, err := osutil.RegularFileExists(filepath.Join(dirs.SnapSeqDir, snapName+".json"))
+		exists, _, err := osutil.RegularFileExists(snap.SequenceFile(snapName))
 		c.Assert(exists, Equals, false)
 		c.Assert(err, ErrorMatches, ".*no such file or directory")
 	}
@@ -6820,8 +7078,10 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 	}
 
 	var ops fakeOps
-	if forRefresh && snapType == snap.TypeKernel {
-		// undo for "remove-kernel-snap-setup"
+	if forRefresh && snapType == snap.TypeKernel && newSequence.Snap.Revision != prevSequence.Snap.Revision {
+		// undo for "remove-kernel-snap-setup"; not emitted (and thus not
+		// undone) when the revision didn't change, since discard/undo of
+		// the same-revision kernel drivers tree is a no-op by design
 		ops = append(ops, fakeOp{
 			op: "prepare-kernel-snap",
 		})
@@ -6902,7 +7162,9 @@ func undoOps(instanceName string, snapType snap.Type, newSequence, prevSequence 
 			})
 		}
 	} else {
-		if snapType == snap.TypeKernel {
+		if snapType == snap.TypeKernel && newSequence.Snap.Revision != prevSequence.Snap.Revision {
+			// undo of prepare-kernel-snap; not emitted when the revision
+			// didn't change (nothing was created for the live tree to undo)
 			ops = append(ops, fakeOp{
 				op: "remove-kernel-snap-setup",
 			})
@@ -7007,7 +7269,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	snapRevision := snap.R(11)
 	const channel = "channel-for-components"
 
-	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
+	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey).String()
 
 	// we start without the auxiliary store info
 	c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
@@ -7021,7 +7283,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	}
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		c.Assert(info.InstanceName().String(), DeepEquals, instanceName)
 		var results []store.SnapResourceResult
 		for _, cs := range componentStates {
 			results = append(results, store.SnapResourceResult{
@@ -7049,7 +7311,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(info.InstanceName(), Equals, instanceName)
+	c.Check(info.InstanceName().String(), Equals, instanceName)
 	c.Check(info.Channel, Equals, channel)
 	c.Check(info.Revision, Equals, snapRevision)
 
@@ -7452,7 +7714,7 @@ func (s *snapmgrTestSuite) testSeedingGoalWithComponentsRunThrough(c *C, opts te
 		snapRevision = snap.R(-1)
 	}
 
-	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey)
+	instanceName := snap.InstanceName(opts.snapName, opts.instanceKey).String()
 
 	components := make([]snapstate.PathComponent, 0, len(opts.components))
 	compPaths := make(map[string]string, len(opts.components))
@@ -7554,7 +7816,7 @@ components:
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, instanceName)
+	c.Check(info.InstanceName().String(), Equals, instanceName)
 	c.Check(info.Revision, Equals, si.Revision)
 
 	chg.AddAll(ts)
@@ -8001,7 +8263,7 @@ func (s *validationSetsSuite) testInstallComponentsValidationSets(c *C, opts tes
 	defer restore()
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		c.Assert(info.InstanceName().String(), DeepEquals, snapName)
 		return []store.SnapResourceResult{
 			{
 				DownloadInfo: snap.DownloadInfo{
@@ -8120,7 +8382,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 		instanceKey = "key"
 		channel     = "channel-for-components"
 	)
-	instanceName := snap.InstanceName(snapName, instanceKey)
+	instanceName := snap.InstanceName(snapName, instanceKey).String()
 
 	snapID := snaptest.AssertedSnapID(snapName)
 
@@ -8186,7 +8448,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 	defer restore()
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName(), DeepEquals, instanceName)
+		c.Assert(info.InstanceName().String(), DeepEquals, instanceName)
 		results := make([]store.SnapResourceResult, 0, len(opts.comps))
 		for _, c := range opts.comps {
 			results = append(results, store.SnapResourceResult{

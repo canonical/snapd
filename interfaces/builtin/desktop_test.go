@@ -143,6 +143,8 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/etc/gtk-3.0/settings.ini r,")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner @{HOME}/.config/gtk-3.0/{*.css,**/*.css} r,")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner @{HOME}/.config/gtk-4.0/{*.css,**/*.css} r,")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
 
 	// check desktop interface uses correct label for Mutter when provided
@@ -163,6 +165,50 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.AddConnectedSlot(s.iface, s.plug, s.coreSlot), IsNil)
 	c.Assert(spec.SecurityTags(), HasLen, 0)
+}
+
+func (s *DesktopInterfaceSuite) TestChromiumStatusNotifierAppArmor(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	plugSpec := apparmor.NewSpecification(appSet)
+	c.Assert(plugSpec.AddConnectedPlug(s.iface, s.plug, s.appSlot), IsNil)
+	plugSnippet := plugSpec.SnippetForTag("snap.consumer.app")
+
+	c.Check(plugSnippet, testutil.Contains, `member="{Request,Release}Name"`)
+	c.Check(plugSnippet, testutil.Contains, `name=org.freedesktop.StatusNotifierItem-[0-9]*-[0-9]*,`)
+	c.Check(plugSnippet, testutil.Contains, `interface=org.freedesktop.StatusNotifierItem
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}`)
+	c.Check(plugSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}`)
+	c.Check(plugSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="Get{,All}"`)
+	c.Check(plugSnippet, testutil.Contains, `interface={org.kde.StatusNotifierItem,org.freedesktop.StatusNotifierItem}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="New{Icon,IconThemePath,ToolTip}"`)
+	c.Check(plugSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member=PropertiesChanged`)
+
+	appSet, err = interfaces.NewSnapAppSet(s.appSlot.Snap(), nil)
+	c.Assert(err, IsNil)
+	slotSpec := apparmor.NewSpecification(appSet)
+	c.Assert(slotSpec.AddConnectedSlot(s.iface, s.plug, s.appSlot), IsNil)
+	slotSnippet := slotSpec.SnippetForTag("snap.provider.app")
+
+	c.Check(slotSnippet, testutil.Contains, `interface=org.freedesktop.StatusNotifierItem
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}`)
+	c.Check(slotSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}`)
+	c.Check(slotSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="Get{,All}"`)
+	c.Check(slotSnippet, testutil.Contains, `interface={org.kde.StatusNotifierItem,org.freedesktop.StatusNotifierItem}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="New{Icon,IconThemePath,ToolTip}"`)
+	c.Check(slotSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member=PropertiesChanged`)
 }
 
 func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {

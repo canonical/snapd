@@ -383,14 +383,14 @@ func (spec *Specification) AddOvername(info *snap.Info) {
 
 	// /snap/foo_bar -> /snap/foo
 	spec.AddOvernameMountEntry(osutil.MountEntry{
-		Name:    path.Join(dirs.CoreSnapMountDir, info.InstanceName()),
-		Dir:     path.Join(dirs.CoreSnapMountDir, info.SnapName()),
+		Name:    path.Join(dirs.CoreSnapMountDir, info.InstanceName().String()),
+		Dir:     path.Join(dirs.CoreSnapMountDir, info.SnapName().String()),
 		Options: []string{"rbind", osutil.XSnapdOriginOvername()},
 	})
 	// /var/snap/foo_bar -> /var/snap/foo
 	spec.AddOvernameMountEntry(osutil.MountEntry{
-		Name:    path.Join(dirs.SnapDataDir, info.InstanceName()),
-		Dir:     path.Join(dirs.SnapDataDir, info.SnapName()),
+		Name:    path.Join(dirs.SnapDataDir, info.InstanceName().String()),
+		Dir:     path.Join(dirs.SnapDataDir, info.SnapName().String()),
 		Options: []string{"rbind", osutil.XSnapdOriginOvername()},
 	})
 }

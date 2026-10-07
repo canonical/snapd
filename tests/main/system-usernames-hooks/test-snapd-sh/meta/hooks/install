@@ -1,0 +1,11 @@
+#!/bin/sh
+
+exec 2>&1
+
+echo "running install hook" >> "$SNAP_COMMON"/hook.log
+
+mkdir "$SNAP_COMMON"/data
+touch "$SNAP_COMMON"/data/foo
+
+chown -R snap_daemon "$SNAP_COMMON"/data
+chgrp -R root "$SNAP_COMMON"/data

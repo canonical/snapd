@@ -247,7 +247,8 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Role: bootloader.RoleRecovery,
+		Role:         bootloader.RoleRecovery,
+		HybridSystem: model.HybridClassic(),
 	}
 	if err := configureBootloader(rootdir, opts, bootWith, ModeInstall, bootFlags); err != nil {
 		return fmt.Errorf("cannot install bootloader: %v", err)
@@ -474,7 +475,7 @@ func isSealModeenvLocked() bool {
 	return atomic.LoadInt32(&sealModeenvLocked) == 1
 }
 
-func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, makeOpts makeRunnableOptions) error {
+func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, makeOpts makeRunnableOptions, sealState InitialSealState) error {
 	tokens := UseTokens(model)
 	if tokens {
 		logger.Debugf("key data will be stored in tokens")
@@ -507,6 +508,7 @@ func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector se
 		model,
 		modeenv,
 		flags,
+		sealState,
 	); err != nil {
 		return err
 	}
@@ -708,7 +710,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 			return fmt.Errorf("cannot check for fde-setup hook key protector: %v", err)
 		}
 
-		if err := makeRunnableSystemSeal(modeenv, model, protector, encryption, makeOpts); err != nil {
+		if err := makeRunnableSystemSeal(modeenv, model, protector, encryption, makeOpts, nil); err != nil {
 			return err
 		}
 	}
@@ -823,7 +825,7 @@ func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSe
 // MakeRunnableSystemReprovision make the systems currently running bootable again.
 // This is intended to repair the boot of a system that was booted for example
 // with a recovery key.
-func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup) error {
+func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, sealState InitialSealState) error {
 	sealModeenvLock()
 	defer sealModeenvUnlock()
 
@@ -835,5 +837,5 @@ func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyPr
 	return makeRunnableSystemSeal(modeenv, model, protector, encryption, makeRunnableOptions{
 		Reprovision: true,
 		SeedDir:     dirs.SnapSeedDir,
-	})
+	}, sealState)
 }

@@ -112,6 +112,16 @@ type apiBaseSuite struct {
 	missingChangeRegistrations sync.Map
 }
 
+func addUcrednet(r *http.Request, securityTag string, uid uint32, socket string, ifaces ...string) {
+	daemon.AddUcrednetToRequest(r, daemon.NewUcrednet(securityTag, "", uid, socket), ifaces...)
+}
+
+func requestWithUcrednet(ucred *daemon.Ucrednet, ifaces ...string) *http.Request {
+	r := &http.Request{}
+	daemon.AddUcrednetToRequest(r, ucred, ifaces...)
+	return r
+}
+
 var (
 	actionsMap   *concurrentActionsMap
 	callCount    int64
@@ -538,7 +548,7 @@ func (s *apiBaseSuite) daemonWithOverlordMockAndStore() *daemon.Daemon {
 
 // asUserAuth fakes authorization into the request as for root
 func (s *apiBaseSuite) asRootAuth(req *http.Request) {
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket))
 }
 
 // asUserAuth adds authorization to the request as for a logged in user
@@ -560,7 +570,7 @@ func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
 		s.authUser = u
 	}
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
+	daemon.AddUcrednetToRequest(req, daemon.NewUcrednet("snap.some-snap.app", "", 1000, dirs.SnapdSocket))
 }
 
 type fakeSnapManager struct{}
@@ -628,11 +638,11 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	defer st.Unlock()
 
 	// Put a side info into the state
-	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(st, snapInfo.InstanceName().String(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
-				RealName: snapInfo.SnapName(),
+				RealName: snapInfo.SnapName().String(),
 				Revision: snapInfo.Revision,
 				SnapID:   "ididid",
 			},
@@ -679,7 +689,7 @@ version: %s
 		dir, rev := filepath.Split(snapInfo.MountDir())
 		c.Assert(os.Symlink(rev, dir+"current"), check.IsNil)
 	}
-	c.Assert(snapInfo.InstanceName(), check.Equals, instanceName)
+	c.Assert(snapInfo.InstanceName().String(), check.Equals, instanceName)
 
 	c.Assert(os.MkdirAll(snapInfo.DataDir(), 0755), check.IsNil)
 	metadir := filepath.Join(snapInfo.MountDir(), "meta")
@@ -800,6 +810,33 @@ const (
 	actionIsExpected   actionExpectedBool = true
 )
 
+// recordAction records req's action for TestMain coverage, using the same
+// selection and decoding as Command.ServeHTTP. The body is restored so the
+// request can still be served. Trailing data still yields an action and is
+// recorded; the Actions-list check applies only to a clean decode.
+func recordAction(c *check.C, cmd *daemon.Command, req *http.Request) {
+	if req.Body == nil || !daemon.RequestDecodesAction(req) {
+		return
+	}
+
+	body, err := io.ReadAll(req.Body)
+	c.Assert(err, check.IsNil)
+	req.Body = io.NopCloser(bytes.NewReader(body))
+
+	action, err := daemon.DecodeAction(body)
+	if action == "" {
+		return
+	}
+
+	actionsMap.AddAction(cmd, action)
+	if err != nil {
+		return
+	}
+	if !strutil.ListContains(cmd.Actions, action) {
+		c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", action, cmd.Path)
+	}
+}
+
 func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) daemon.Response {
 	if s.d == nil {
 		panic("call s.daemon(c) etc in your test first")
@@ -821,21 +858,8 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, act
 		acc = cmd.WriteAccess
 		expAcc = s.expectedWriteAccess
 		whichAcc = "WriteAccess"
-		if actionExpected && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
-			bodyBytes, err := io.ReadAll(req.Body)
-			c.Assert(err, check.IsNil)
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					actionsMap.AddAction(cmd, data.Action)
-					if !strutil.ListContains(cmd.Actions, data.Action) {
-						c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
-					}
-				}
-			}
-			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		if actionExpected {
+			recordAction(c, cmd, req)
 		}
 	case "PUT":
 		f = cmd.PUT
@@ -884,22 +908,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
-	if req.Method == "POST" && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
-		bodyBytes, err := io.ReadAll(req.Body)
-		c.Assert(err, check.IsNil)
-		var data struct {
-			Action string `json:"action"`
-		}
-		if err := json.Unmarshal(bodyBytes, &data); err == nil {
-			if data.Action != "" {
-				actionsMap.AddAction(cmd, data.Action)
-				if !strutil.ListContains(cmd.Actions, data.Action) {
-					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
-				}
-			}
-		}
-		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	}
+	recordAction(c, cmd, req)
 
 	cmd.ServeHTTP(w, req)
 }

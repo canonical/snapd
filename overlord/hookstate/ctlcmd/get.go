@@ -265,7 +265,7 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 
 	return c.printValues(func(key string) (any, bool, error) {
 		var value any
-		err := transaction.Get(c.context().InstanceName(), key, &value)
+		err := transaction.Get(c.context().InstanceName().String(), key, &value)
 		if err == nil {
 			return value, true, nil
 		}
@@ -409,12 +409,12 @@ func (c *getCommand) getInterfaceSetting(context *hookstate.Context, plugOrSlot 
 		}
 
 		var value any
-		err = getAttribute(context.InstanceName(), subkeys, 0, staticAttrs, &value)
+		err = getAttribute(context.InstanceName().String(), subkeys, 0, staticAttrs, &value)
 		if err == nil {
 			return value, true, nil
 		}
 		if isNoAttribute(err) {
-			err = getAttribute(context.InstanceName(), subkeys, 0, dynamicAttrs, &value)
+			err = getAttribute(context.InstanceName().String(), subkeys, 0, dynamicAttrs, &value)
 			if err == nil {
 				return value, true, nil
 			}

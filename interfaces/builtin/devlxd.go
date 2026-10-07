@@ -39,7 +39,11 @@ const devlxdConnectedPlugAppArmor = `
 # Description: This gives access to the devlxd API for use by snaps running
 # inside LXD instances (VMs and containers).
 
+# Socket path used inside VM instances
 /dev/lxd/sock rw,
+# Socket path used inside container instances (bind-mounted to /dev/lxd/sock);
+# AppArmor resolves through the bind mount so both paths are required.
+/var/snap/lxd/common/lxd/devlxd/sock rw,
 `
 
 const devlxdConnectedPlugSecComp = `
@@ -51,13 +55,14 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "devlxd",
-		summary:               devlxdSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  devlxdBaseDeclarationPlugs,
-		baseDeclarationSlots:  devlxdBaseDeclarationSlots,
-		connectedPlugAppArmor: devlxdConnectedPlugAppArmor,
-		connectedPlugSecComp:  devlxdConnectedPlugSecComp,
+		name:                     "devlxd",
+		summary:                  devlxdSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     devlxdBaseDeclarationPlugs,
+		baseDeclarationSlots:     devlxdBaseDeclarationSlots,
+		connectedPlugAppArmor:    devlxdConnectedPlugAppArmor,
+		connectedPlugSecComp:     devlxdConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

@@ -123,7 +123,9 @@ func (s *sequenceTestSuite) TestAddComponentForRevision(c *C) {
 	c.Assert(seq.AddComponentForRevision(snapRev, cs3), IsNil)
 	c.Assert(seq.Revisions[0].Components, DeepEquals, []*sequence.ComponentState{cs2, cs3})
 
-	c.Assert(seq.AddComponentForRevision(snap.R(2), cs3), Equals, sequence.ErrSnapRevNotInSequence)
+	err := seq.AddComponentForRevision(snap.R(2), cs3)
+	c.Assert(err, testutil.ErrorIs, sequence.ErrSnapRevNotInSequence)
+	c.Assert(err, ErrorMatches, "snap revision is not in the sequence: 2")
 }
 
 func (s *sequenceTestSuite) TestRemoveComponentForRevision(c *C) {

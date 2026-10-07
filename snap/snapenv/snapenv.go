@@ -88,7 +88,7 @@ func componentEnv(info *snap.Info, component *snap.ComponentInfo) osutil.Environ
 		// to set SNAP in basicEnv, see comment there for more details
 		"SNAP_COMPONENT": filepath.Join(
 			dirs.CoreSnapMountDir,
-			info.SnapName(),
+			info.SnapName().String(),
 			"components",
 			"mnt",
 			component.Component.ComponentName,
@@ -118,11 +118,11 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		// environment of each snap instance appear as if it's the only
 		// snap, i.e. SNAP paths point to the same locations within the
 		// mount namespace
-		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName(), info.Revision.String()),
-		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName()),
-		"SNAP_DATA":          snap.DataDir(info.SnapName(), info.Revision),
-		"SNAP_NAME":          info.SnapName(),
-		"SNAP_INSTANCE_NAME": info.InstanceName(),
+		"SNAP":               filepath.Join(dirs.CoreSnapMountDir, info.SnapName().String(), info.Revision.String()),
+		"SNAP_COMMON":        snap.CommonDataDir(info.SnapName().String()),
+		"SNAP_DATA":          snap.DataDir(info.SnapName().String(), info.Revision),
+		"SNAP_NAME":          info.SnapName().String(),
+		"SNAP_INSTANCE_NAME": info.InstanceName().String(),
 		"SNAP_INSTANCE_KEY":  info.InstanceKey,
 		"SNAP_VERSION":       info.Version,
 		"SNAP_REVISION":      info.Revision.String(),
@@ -134,10 +134,15 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		"SNAP_EUID": fmt.Sprint(sys.Geteuid()),
 	}
 
+	if len(info.Components) > 0 {
+		env["SNAP_COMPONENTS"] = filepath.Join(dirs.CoreSnapMountDir, info.SnapName().String(),
+			"components", info.Revision.String())
+	}
+
 	// Add the ubuntu-save specific environment variable if
 	// the snap folder exists in the save directory.
-	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName())); err == nil && exists && isDir {
-		env["SNAP_SAVE_DATA"] = snap.CommonDataSaveDir(info.InstanceName())
+	if exists, isDir, err := osutil.DirExists(snap.CommonDataSaveDir(info.InstanceName().String())); err == nil && exists && isDir {
+		env["SNAP_SAVE_DATA"] = snap.CommonDataSaveDir(info.InstanceName().String())
 	} else if err != nil {
 		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
 			info.InstanceName(), err)

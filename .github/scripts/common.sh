@@ -44,6 +44,65 @@ gh_retry() {
     done
 }
 
+send_results_to_test_predictor() {
+    local results_file="$1"
+    local repo="$2"
+    local run_id="$3"
+    local run_attempt="$4"
+    local group="$5"
+    local scenario="$6"
+    local pr="${7:-}"
+    local GH_API_RETRIES=5
+    local job_ids
+    local job_id
+    local http_code
+    local -a pr_form=()
+
+    if [[ -n "$pr" ]]; then
+        pr_form=(--form "pr=$pr")
+    fi
+
+    if [ ! -f "$results_file" ]; then
+        echo "No spread results found, skipping sending results to Test-Predictor"
+        return 0
+    fi
+
+    GH_RETRY_CONTEXT="spread job lookup for run_id=$run_id group=$group"
+    if ! job_ids=$(gh_retry api --paginate \
+        "repos/$repo/actions/runs/$run_id/jobs" \
+        --jq ".jobs[] | select(.name | contains(\"$group\") and contains(\"run-spread\")) | .id"); then
+        GH_RETRY_CONTEXT=""
+        return 1
+    fi
+    GH_RETRY_CONTEXT=""
+
+    job_id=$(head -n 1 <<< "$job_ids")
+    if [[ ! "$job_id" =~ ^[0-9]+$ ]]; then
+        echo "Could not find a valid spread job ID for group $group" >&2
+        return 1
+    fi
+
+    echo "Sending $results_file with run_id: $run_id, job_id: $job_id and attempt: $run_attempt"
+    if ! http_code=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+        --request POST "${TEST_PREDICTOR_URL:-http://test-predictor.snapd.canonical.com:5000}/ingest" \
+        --form "file=@$results_file" \
+        --form "attempt=$run_attempt" \
+        --form "job_id=$job_id" \
+        --form "run_id=$run_id" \
+        --form "scenario=$scenario" \
+        "${pr_form[@]}"); then
+        echo "Failed to send results to Test-Predictor" >&2
+        return 1
+    fi
+
+    if [[ ! "$http_code" =~ ^2[0-9]{2}$ ]]; then
+        echo "Request failed with status $http_code" >&2
+        return 1
+    fi
+
+    echo "Results sent successfully"
+}
+
 pr_has_label() {
     local pr_json="$1"
     local label="$2"
@@ -238,4 +297,51 @@ required_spread_failure_threshold_allows_rerun() {
     done
 
     return 0
+}
+
+predictor_report_allows_rerun() {
+    local pr_number="$1"
+    local workflow_run_id="$2"
+    local workflow_run_attempt="$3"
+    local execution_id="$4"
+    # HTML comments <!-- --> are added so tags are not visible in the PR comment
+    local marker_prefix="<!-- test-predictor-rerun: run-id=$workflow_run_id run-attempt=$workflow_run_attempt"
+    local allowed_marker="$marker_prefix allowed=true -->"
+    local denied_marker="$marker_prefix allowed=false -->"
+    local comments_json decision
+
+    GH_RETRY_CONTEXT="PR #$pr_number predictor report lookup"
+    if ! comments_json=$(gh_retry api --paginate --slurp \
+        "repos/$GH_REPO/issues/$pr_number/comments?per_page=100"); then
+        GH_RETRY_CONTEXT=""
+        NOT_RERUN_REASON="could not fetch predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt execution_id=$execution_id"
+        return 3
+    fi
+    GH_RETRY_CONTEXT=""
+
+    if ! decision=$(jq -r \
+        --arg allowed_marker "$allowed_marker" \
+        --arg denied_marker "$denied_marker" \
+        '[.[][]? | select(.user.login == "github-actions[bot]") | (.body // "")] as $bodies
+        | if any($bodies[]; contains($allowed_marker)) then "allow"
+          elif any($bodies[]; contains($denied_marker)) then "deny"
+          else "pending"
+          end' <<<"$comments_json"); then
+        NOT_RERUN_REASON="could not parse predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt execution_id=$execution_id"
+        return 3
+    fi
+
+    case "$decision" in
+        allow)
+            return 0
+            ;;
+        deny)
+            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt does not allow a rerun for execution_id=$execution_id"
+            return 1
+            ;;
+        *)
+            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt is not available yet for execution_id=$execution_id"
+            return 2
+            ;;
+    esac
 }

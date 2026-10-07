@@ -28,7 +28,7 @@ prepare: |
     if [ "$SNAP_REEXEC" = "1" ] && [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
         # reexec expects to find the snapd snap under /snap, enable it to do so
         # on distros using /var/lib/snapd/snap
-        ln -sf "$SNAP_MOUNT_DIR" /snap
+        ln -sfn "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -f /snap
     fi
 

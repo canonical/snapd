@@ -163,9 +163,9 @@ func getNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 
 // Get the UID of the request. If the UID is not known, return an error.
 func uidFromRequest(r *http.Request) (uint32, error) {
-	cred, err := ucrednetGet(r.RemoteAddr)
+	cred, err := ucrednetGet(r.Context())
 	if err != nil {
-		return 0, fmt.Errorf("could not parse request UID")
+		return 0, fmt.Errorf("could not determine request UID")
 	}
 	return cred.Uid, nil
 }
@@ -212,7 +212,7 @@ func sanitizeNoticeTypesFilter(queryTypes []string, r *http.Request) ([]state.No
 		}
 		// No types were specified, populate with notice types snap can view
 		// with its connected interface.
-		ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
+		ucred, ifaces, err := ucrednetGetWithInterfaces(r.Context())
 		if err != nil {
 			return nil, err
 		}
@@ -304,37 +304,39 @@ func (inst *noticeInstruction) validate(r *http.Request) error {
 
 // isRequestFromSnapCmd checks that the request is coming from snap command.
 //
-// It checks that the request process "/proc/PID/exe" points to one of the
-// known locations of the snap command. This not a security-oriented check.
+// It checks that the executable path captured when accepting the connection
+// is one of the known locations of the snap command. This is not a
+// security-oriented check.
 func isRequestFromSnapCmd(r *http.Request) (bool, error) {
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return false, err
 	}
-	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
+
+	processExeName, err := ucred.UntrustedProcessExeName()
 	if err != nil {
-		return false, err
+		return false, errors.New("cannot determine executable of calling process")
 	}
 
 	// There aren't too many options, but overall possibilities are:
 	// - we are re-executed and the client isn't
 	// - the client re-executed but we did not
 
-	switch filepath.Base(exe) {
+	switch filepath.Base(processExeName) {
 	case "snap", "snap-fips": // the standalone snap binary, or its FIPS build variant
 	case "snapd", "snapd-fips": // the merged snap binary
 	default:
 		return false, nil
 	}
 
-	if strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
-		strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
+	if strings.HasPrefix(processExeName, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
+		strings.HasPrefix(processExeName, filepath.Join(dirs.SnapMountDir, "core")+"/") {
 		// client with expected name from snap or core snap
 		return true, nil
 	}
 
-	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
-		strings.HasPrefix(exe, dirs.DistroLibExecDir+"/") {
+	if strings.HasPrefix(processExeName, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
+		strings.HasPrefix(processExeName, dirs.DistroLibExecDir+"/") {
 		// client with expected name from one of the system locations
 		return true, nil
 	}
@@ -399,7 +401,7 @@ func noticeViewableByUser(notice *state.Notice, requestUID uint32) bool {
 // noticeTypesViewableBySnap checks if passed interface allows the snap
 // to have read-access for the passed notice types.
 func noticeTypesViewableBySnap(types []state.NoticeType, r *http.Request) bool {
-	ucred, ifaces, err := ucrednetGetWithInterfaces(r.RemoteAddr)
+	ucred, ifaces, err := ucrednetGetWithInterfaces(r.Context())
 	if err != nil {
 		return false
 	}

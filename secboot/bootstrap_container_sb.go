@@ -36,6 +36,8 @@ type bootstrappedContainer struct {
 	tempContainerKeySlot string
 	devicePath           string
 	key                  DiskUnlockKey
+	usedPrimaryKey       []byte
+	usedUnlockKey        []byte
 	finished             bool
 }
 
@@ -100,6 +102,15 @@ func (bc *bootstrappedContainer) RemoveBootstrapKey() error {
 }
 
 func (bc *bootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
+	bc.usedPrimaryKey = primaryKey
+	bc.usedUnlockKey = unlockKey
+}
+
+func (bc *bootstrappedContainer) CommitUsedKey() {
+	if bc.usedUnlockKey == nil {
+		return
+	}
+
 	// secboot unlocking does not fail when it cannot save keys to the kerying. So
 	// we also want to have a similar behavior and just print warnings in this function.
 	devlinks, err := disksDevlinks(bc.devicePath)
@@ -126,10 +137,10 @@ func (bc *bootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey 
 	// See internal/keyring/keyring.go in secboot.
 	// "purpose" is either "aux" or "unlock".
 	// See crypt.go in secboot.
-	if _, err := unixAddKey("user", fmt.Sprintf("%s:%s:unlock", defaultKeyringPrefix, uuidDevlink), unlockKey, unix.KEY_SPEC_USER_KEYRING); err != nil {
+	if _, err := unixAddKey("user", fmt.Sprintf("%s:%s:unlock", defaultKeyringPrefix, uuidDevlink), bc.usedUnlockKey, unix.KEY_SPEC_USER_KEYRING); err != nil {
 		logger.Noticef("warning: cannot register unlock key for %s: %v", uuidDevlink, err)
 	}
-	if _, err := unixAddKey("user", fmt.Sprintf("%s:%s:aux", defaultKeyringPrefix, uuidDevlink), primaryKey, unix.KEY_SPEC_USER_KEYRING); err != nil {
+	if _, err := unixAddKey("user", fmt.Sprintf("%s:%s:aux", defaultKeyringPrefix, uuidDevlink), bc.usedPrimaryKey, unix.KEY_SPEC_USER_KEYRING); err != nil {
 		logger.Noticef("warning: cannot register primary key for %s: %v", uuidDevlink, err)
 	}
 }

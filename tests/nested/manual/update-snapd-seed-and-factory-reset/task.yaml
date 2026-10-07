@@ -152,7 +152,10 @@ prepare: |
     ./get-deps.sh --skip-unused-check
     ./mkversion.sh "2.67.1"
     CGO_ENABLED=1 go build -mod=vendor -tags withtestkeys -o ../snapd_old/usr/lib/snapd/snapd github.com/snapcore/snapd/cmd/snapd
-    CGO_ENABLED=1 go build -mod=vendor -tags withtestkeys,nomanagers -o ../snap-bootstrap ./cmd/snap-bootstrap
+    # Use the pure-Go net/user resolvers (netgo,osusergo) so the binary does
+    # not link libresolv.so.2, which on 20.04 (glibc 2.31) is a separate
+    # library not present in the initramfs we inject snap-bootstrap into.
+    CGO_ENABLED=1 go build -mod=vendor -tags withtestkeys,nomanagers,netgo -o ../snap-bootstrap ./cmd/snap-bootstrap
     popd
     rm -rf snapd_old_source
     snap pack snapd_old --filename="${extra}/snapd_old.snap"

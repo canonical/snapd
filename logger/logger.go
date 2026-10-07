@@ -223,6 +223,7 @@ func newLog(w io.Writer, flag int, opts *LoggerOptions) Logger {
 		log:   log.New(w, "", flag),
 		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags: flag,
+		quiet: opts.Quiet,
 	}
 	return logger
 }
@@ -231,6 +232,8 @@ type LoggerOptions struct {
 	// ForceDebug can be set if we want debug traces even if not directly
 	// enabled by environment or kernel command line.
 	ForceDebug bool
+	// Quiet suppresses notice-level logs unless debugging is enabled.
+	Quiet bool
 }
 
 func buildFlags() int {
@@ -255,14 +258,11 @@ func BootSetup() error {
 	flags := buildFlags()
 	m, _ := kcmdline.KeyValues("quiet")
 	_, quiet := m["quiet"]
-	logger := &Log{
-		log:   log.New(os.Stderr, "", flags),
-		debug: debugEnabledOnKernelCmdline(),
-		quiet: quiet,
-		flags: flags,
+	opts := &LoggerOptions{
+		Quiet: quiet,
 	}
+	logger := New(os.Stderr, flags, opts)
 	SetLogger(logger)
-
 	return nil
 }
 

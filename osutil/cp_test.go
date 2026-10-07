@@ -343,6 +343,9 @@ func (s *cpSuite) TestAtomicWriteFileCopySymlinks(c *C) {
 }
 
 func (s *cpSuite) TestAtomicWriteFileCopyErrReal(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	err := osutil.AtomicWriteFileCopy(s.f2, filepath.Join(s.dir, "random-file"), 0)
 	c.Assert(err, ErrorMatches, "unable to open source file .*/random-file: open .* no such file or directory")
 

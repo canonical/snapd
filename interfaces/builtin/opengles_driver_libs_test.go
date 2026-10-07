@@ -166,7 +166,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "opengles-provider", SlotName: "opengles-slot"}: {
+		{InstanceName: "opengles-provider", SlotName: "opengles-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2")}})
 }

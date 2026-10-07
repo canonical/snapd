@@ -46,6 +46,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -311,7 +313,7 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 		}
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
-		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName()) {
+		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName().String()) {
 			c.Assert(snapsup.DevMode, Equals, true)
 			matched++
 		} else {
@@ -325,7 +327,7 @@ func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFl
 func checkSeedSnapLanes(c *C, model *asserts.Model, tss []*state.TaskSet) {
 	isEssential := func(name string) bool {
 		for _, sn := range model.EssentialSnaps() {
-			if sn.SnapName() == name {
+			if sn.SnapName().String() == name {
 				return true
 			}
 		}
@@ -722,7 +724,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverModeWithComps(c *C) 
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
-	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		err := errors.New("unexpected call to CreateAllSystemUsers")
 		c.Error(err)
 		return nil, err
@@ -799,7 +801,7 @@ func (s *firstBoot20Suite) testProcessAutoImportAssertions(c *C, withAutoImportA
 }
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
-	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		err := errors.New("unexpected call to CreateAllSystemUsers")
 		c.Error(err)
 		return nil, err
@@ -813,7 +815,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousNoAutoImport(c *C) {
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreateFail(c *C) {
 	var calledcreateAllUsers = false
-	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
 		return nil, errors.New("User already exists")
 	})
@@ -827,8 +829,9 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImportUserCreate
 
 func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
 	var calledcreateAllUsers = false
-	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*devicestate.CreatedUser, error) {
+	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
+		c.Check(addReason, Equals, seclog.AddReasonFirstbootSeedAutoImport)
 		var createdUsers []*devicestate.CreatedUser
 		return createdUsers, nil
 	})
@@ -1533,6 +1536,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAdd
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+
 	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",

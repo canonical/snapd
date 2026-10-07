@@ -40,7 +40,7 @@ func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, r
 		return errEphemeralSnapsNotRemovable
 	}
 
-	if p.modelGadget != name {
+	if p.modelGadget != name.String() {
 		return nil
 	}
 

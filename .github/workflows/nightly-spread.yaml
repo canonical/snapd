@@ -1,9 +1,19 @@
 name: Nightly spread executions
 
+run-name: >-
+  Nightly spread executions:
+  ${{
+    (github.event_name == 'workflow_dispatch' && inputs.job) ||
+    (github.event.schedule == '0 2 * * *' && 'spread-nightly (openstack)') ||
+    (github.event.schedule == '0 3 * * *' && 'spread-master (fundamental/non-fundamental/nested)') ||
+    (github.event.schedule == '0 6 * * *' && 'build-from-current & with-kernels') ||
+    github.event.schedule
+  }}
+
 # See https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onschedule
 on:
   schedule:
-    # usual nightly run, google tests, and experimental features
+    # usual nightly run and experimental features
     - cron: '0 2 * * *'
     # spread run from json fundamental, non-fundamental, and nested
     - cron: '0 3 * * *'
@@ -16,9 +26,7 @@ on:
         description: Job to run
         options:
           - spread-nightly
-          - spread-nightly-google
           - spread-test-build-from-current
-          - spread-test-experimental
           - spread-test-openstack
           - spread-test-with-kernels
           - spread-master-fundamental
@@ -51,44 +59,7 @@ jobs:
       tasks: 'tests/nightly/...'
       rules: ''
       use-snapd-snap-from-master: true
-
-  spread-nightly-google:
-    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-google') }}
-    uses: ./.github/workflows/spread-tests.yaml
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      rules: ''
-      use-snapd-snap-from-master: true
-      skip-tests: 'ubuntu-14.04-64 ubuntu-core-16-64'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - group: jammy
-            backend: google
-            systems: 'ubuntu-22.04-64'
-            tasks: 'tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers'
-          - group: google
-            backend: google
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-core
-            backend: google-core
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-distro
-            backend: google-distro
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-arm
-            backend: google-distro
-            systems: 'ubuntu-22.04-arm-64 ubuntu-core-24-arm-64'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
+      scenario: master
 
   spread-test-build-from-current:
     if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-build-from-current') }}
@@ -102,6 +73,7 @@ jobs:
       tasks: 'tests/...'
       rules: ''
       use-snapd-snap-from-master: true
+      scenario: deb
       spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC=0 SPREAD_SNAP_REEXEC=0"
     strategy:
       fail-fast: false
@@ -110,20 +82,6 @@ jobs:
           - group: openstack
             backend: openstack
             systems: 'ubuntu-18.04-64 ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 debian-12-64 debian-sid-64'
-
-  spread-test-experimental:
-    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-experimental') }}
-    uses: ./.github/workflows/spread-tests.yaml
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: openstack
-      backend: openstack
-      systems: 'ubuntu-20.04-64 ubuntu-22.04-64 ubuntu-24.04-64 ubuntu-core-24-64'
-      tasks: 'tests/...'
-      rules: ''
-      use-snapd-snap-from-master: true
-      spread-experimental-features: gate-auto-refresh-hook
 
   read-systems:
     runs-on: ubuntu-latest
@@ -162,6 +120,7 @@ jobs:
       rules: ${{ matrix.rules }}
       is-fundamental: true
       use-snapd-snap-from-master: true
+      scenario: master
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -184,6 +143,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
+      scenario: master
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -206,6 +166,7 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       use-snapd-snap-from-master: true
+      scenario: master
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
@@ -253,6 +214,7 @@ jobs:
       rules: ''
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_UPDATE_UBUNTU_KERNEL_PATTERN=${{ matrix.kernel }}"
+      scenario: kernels
     strategy:
       fail-fast: false
       matrix:

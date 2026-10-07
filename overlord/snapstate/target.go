@@ -132,7 +132,7 @@ func targetFromLocalSnapWithStoreComponents(
 		si = snapst.CurrentSideInfo()
 	}
 
-	info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
+	info, err := readInfo(snapst.InstanceName().String(), si, errorOnBroken)
 	if err != nil {
 		return target{}, err
 	}
@@ -423,12 +423,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName())
+		sn, ok := s.snap(r.InstanceName().String())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
 
-		snapst, ok := allSnaps[r.InstanceName()]
+		snapst, ok := allSnaps[r.InstanceName().String()]
 		if !ok {
 			snapst = &SnapState{}
 		}
@@ -442,7 +442,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	for _, t := range installs {
-		sn, ok := s.snap(t.info.InstanceName())
+		sn, ok := s.snap(t.info.InstanceName().String())
 		if !ok {
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
@@ -461,7 +461,7 @@ func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup
 		return err
 	}
 
-	if err := checkSnapAgainstConstraints(info.InstanceName(), info.Revision, constraints, action); err != nil {
+	if err := checkSnapAgainstConstraints(info.InstanceName().String(), info.Revision, constraints, action); err != nil {
 		return err
 	}
 
@@ -470,7 +470,7 @@ func checkSnapAgainstValidationSets(info *snap.Info, components []ComponentSetup
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	return checkComponentsAgainstConstraints(info.SnapName(), comps, constraints, action)
+	return checkComponentsAgainstConstraints(info.SnapName().String(), comps, constraints, action)
 }
 
 func checkSnapAgainstConstraints(
@@ -617,7 +617,7 @@ func componentSetupFromResource(name string, sar store.SnapResourceResult, info 
 		return ComponentSetup{}, fmt.Errorf("inconsistent component type (%q in snap, %q in component)", comp.Type, typ)
 	}
 
-	cref := naming.NewComponentRef(info.SnapName(), name)
+	cref := naming.NewComponentRef(info.SnapName().String(), name)
 
 	csi := snap.ComponentSideInfo{
 		Component: cref,
@@ -1109,7 +1109,7 @@ func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Inf
 
 	targetByName := make(map[string]target, len(p.targets))
 	for _, t := range p.targets {
-		targetByName[t.info.InstanceName()] = t
+		targetByName[t.info.InstanceName().String()] = t
 	}
 
 	changes := make([]*snap.Info, 0, len(updates))
@@ -1122,7 +1122,7 @@ func (p *updatePlan) revisionChanges(st *state.State, opts Options) ([]*snap.Inf
 			continue
 		}
 
-		t, ok := targetByName[up.SnapState.InstanceName()]
+		t, ok := targetByName[up.SnapState.InstanceName().String()]
 		// this should never happen
 		if !ok {
 			return nil, fmt.Errorf("internal error: update %q not found in targets", up.SnapState.InstanceName())
@@ -1151,6 +1151,22 @@ func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 	return nil
 }
 
+func checkUpdatePlanDiskSpace(st *state.State, plan updatePlan, opts Options) error {
+	changeKind := "refresh"
+	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
+	for _, t := range plan.targets {
+		installInfos = append(installInfos, installSnapInfo{t.info})
+
+		// if any of the snaps are not installed, then we should use the
+		// "install" change as the kind
+		if !t.snapst.IsInstalled() {
+			changeKind = "install"
+		}
+	}
+
+	return checkDiskSpace(st, changeKind, installInfos, opts.UserID, opts.PrereqTracker)
+}
+
 // filterHeldSnaps removes any targets from the update plan that are held.
 // If the update plan is not refreshing all snaps, then this function does
 // nothing.
@@ -1172,7 +1188,7 @@ func (p *updatePlan) filterHeldSnaps(st *state.State, opts Options) error {
 	}
 
 	p.filter(func(t target) (bool, error) {
-		_, ok := heldSnaps[t.info.InstanceName()]
+		_, ok := heldSnaps[t.info.InstanceName().String()]
 		return !ok, nil
 	})
 
@@ -1192,7 +1208,7 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 		// validation done by ValidateRefreshes applies refresh-control gating,
 		// which doesn't make sense to apply to new installations
 		if t.snapst.IgnoreValidation || !t.snapst.IsInstalled() {
-			ignoreValidation[t.info.InstanceName()] = true
+			ignoreValidation[t.info.InstanceName().String()] = true
 		}
 	}
 
@@ -1208,11 +1224,11 @@ func (p *updatePlan) validateAndFilterTargets(st *state.State, opts Options) err
 
 	validatedMap := make(map[string]bool, len(validated))
 	for _, sn := range validated {
-		validatedMap[sn.InstanceName()] = true
+		validatedMap[sn.InstanceName().String()] = true
 	}
 
 	p.filter(func(t target) (bool, error) {
-		_, ok := validatedMap[t.info.InstanceName()]
+		_, ok := validatedMap[t.info.InstanceName().String()]
 		return ok, nil
 	})
 
@@ -1307,20 +1323,46 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, err
 	}
 
-	changeKind := "refresh"
-	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
-	for _, t := range plan.targets {
-		installInfos = append(installInfos, installSnapInfo{t.info})
-
-		// if any of the snaps are not installed, then we should use the
-		// "install" change as the kind
-		if !t.snapst.IsInstalled() {
-			changeKind = "install"
+	if err := checkUpdatePlanDiskSpace(st, plan, opts); err != nil {
+		var noSpaceErr *InsufficientSpaceError
+		if !errors.As(err, &noSpaceErr) || !plan.refreshAll() || opts.Flags.Transaction != client.TransactionPerSnap {
+			return nil, nil, err
 		}
-	}
 
-	if err := checkDiskSpace(st, changeKind, installInfos, opts.UserID, opts.PrereqTracker); err != nil {
-		return nil, nil, err
+		// since this was a all-snap refresh using TransactionAllSnaps, we
+		// should retry the disk space checks with just the essential snaps. if
+		// that passes, we'll run the refresh for just that subset of snaps.
+
+		originalCount := len(plan.targets)
+		bootBase, err := deviceModelBootBase(st, opts.DeviceCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := plan.filter(func(t target) (bool, error) {
+			return isEssentialSnap(t.info.InstanceName().String(), t.info.Type(), bootBase), nil
+		}); err != nil {
+			return nil, nil, err
+		}
+
+		// if the plan was fully filtered (no essential snaps in the original
+		// plan), or the plan didn't change at all, just return the original
+		// error.
+		if len(plan.targets) == 0 || len(plan.targets) == originalCount {
+			return nil, nil, noSpaceErr
+		}
+
+		// check if we can fit at least the essential snaps
+		if err := checkUpdatePlanDiskSpace(st, plan, opts); err != nil {
+			// if the check failed again with another InsufficientSpaceError, we
+			// return the original error so that it contains the names of all
+			// the snaps from the original check
+			var retryNoSpaceErr *InsufficientSpaceError
+			if errors.As(err, &retryNoSpaceErr) {
+				return nil, nil, noSpaceErr
+			}
+			return nil, nil, err
+		}
 	}
 
 	updated, uts, err := updateFromPlan(st, plan, opts)
@@ -1508,8 +1550,8 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 
 	updates := make(map[string]StoreUpdate, len(allSnaps))
 	for _, snapst := range allSnaps {
-		updates[snapst.InstanceName()] = StoreUpdate{
-			InstanceName: snapst.InstanceName(),
+		updates[snapst.InstanceName().String()] = StoreUpdate{
+			InstanceName: snapst.InstanceName().String(),
 
 			// default the channel and cohort key to the existing values,
 			RevOpts: RevisionOptions{

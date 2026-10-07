@@ -25,7 +25,6 @@
       "description": "Backend configurations for test execution",
       "additionalProperties": {
         "oneOf": [
-          { "$ref": "#/definitions/googleBackend" },
           { "$ref": "#/definitions/openstackBackend" },
           { "$ref": "#/definitions/qemuBackend" },
           { "$ref": "#/definitions/adhocBackend" },
@@ -123,27 +122,6 @@
         ]
       }
     },
-    "backendSystemsGoogle": {
-      "oneOf": [
-        {
-          "type": "array",
-          "description": "List of systems (simple strings or objects)",
-          "items": {
-            "oneOf": [
-              { "type": "string" },
-              { "$ref": "#/definitions/systemConfigGoogle" }
-            ]
-          }
-        },
-        {
-          "type": "object",
-          "description": "Systems defined as object with system name as key",
-          "additionalProperties": {
-            "$ref": "#/definitions/systemPropertiesGoogle"
-          }
-        }
-      ]
-    },
     "backendSystemsOpenstack": {
       "oneOf": [
         {
@@ -227,50 +205,6 @@
           }
         }
       ]
-    },
-    "googleBackend": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "const": "google",
-          "description": "Google backend type"
-        },
-        "key": {
-          "type": "string",
-          "description": "Authentication key for the backend"
-        },
-        "location": {
-          "type": "string",
-          "description": "Backend location/region"
-        },
-        "plan": {
-          "type": "string",
-          "description": "Machine plan/type"
-        },
-        "storage": {
-          "type": "string",
-          "description": "Storage allocation"
-        },
-        "halt-timeout": {
-          "type": "string",
-          "description": "Time to wait before halting a machine",
-          "pattern": "^[0-9]+(s|m|h)$"
-        },
-        "kill-timeout": {
-          "type": "string",
-          "description": "Time to wait before killing a task",
-          "pattern": "^[0-9]+(s|m|h)$"
-        },
-        "environment": {
-          "$ref": "#/definitions/backendEnvironment"
-        },
-        "systems": {
-          "$ref": "#/definitions/backendSystemsGoogle"
-        }
-      },
-      "required": ["location"],
-      "additionalProperties": false
     },
     "openstackBackend": {
       "type": "object",
@@ -393,15 +327,6 @@
       },
       "additionalProperties": false
     },
-    "systemConfigGoogle": {
-      "type": "object",
-      "patternProperties": {
-        "^[a-zA-Z0-9_.-]+$": {
-          "$ref": "#/definitions/systemPropertiesGoogle"
-        }
-      },
-      "additionalProperties": false
-    },
     "systemConfigOpenstack": {
       "type": "object",
       "patternProperties": {
@@ -434,45 +359,6 @@
       "patternProperties": {
         "^[a-zA-Z0-9_.-]+$": {
           "$ref": "#/definitions/systemPropertiesTestflinger"
-        }
-      },
-      "additionalProperties": false
-    },
-    "systemPropertiesGoogle": {
-      "type": "object",
-      "properties": {
-        "image": {
-          "type": "string",
-          "description": "Base image name"
-        },
-        "username": {
-          "type": "string",
-          "description": "SSH username"
-        },
-        "password": {
-          "type": "string",
-          "description": "SSH password"
-        },
-        "workers": {
-          "type": "integer",
-          "description": "Number of parallel workers",
-          "minimum": 1
-        },
-        "storage": {
-          "type": "string",
-          "description": "Storage allocation"
-        },
-        "manual": {
-          "type": "boolean",
-          "description": "Manually triggered system"
-        },
-        "secure-boot": {
-          "type": "boolean",
-          "description": "Enable secure boot"
-        },
-        "attach-service-account": {
-          "type": "boolean",
-          "description": "Attach service account"
         }
       },
       "additionalProperties": false

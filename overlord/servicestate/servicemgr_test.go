@@ -80,7 +80,7 @@ func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	s.state.Lock()
-	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType) {
+	_, err := restart.Manager(s.state, "boot-id-0", snapstatetest.MockRestartHandler(func(req restart.RestartType, _ restart.RestartReason) {
 		s.restartRequests = append(s.restartRequests, req)
 		if s.restartObserve != nil {
 			s.restartObserve()
@@ -286,6 +286,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNotSeeded(c *C) {
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
+}
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesMissingContextAfterSeed(c *C) {
+	restore := snapstatetest.MockDeviceContext(nil)
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleWritesServicesFilesUC16(c *C) {

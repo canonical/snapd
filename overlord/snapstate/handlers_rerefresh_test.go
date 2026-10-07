@@ -225,7 +225,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshWaitOnPendingRestart(c *C) {
 		st := task.State()
 		st.Lock()
 		defer st.Unlock()
-		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, "foo", nil)
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, "foo", nil, "")
 	}, nil)
 
 	// setup the change for check-rerefresh, then we manually request for
@@ -647,7 +647,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	snapsup, err := snapstate.TaskSnapSetup(revertTasks[0])
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Flags, Equals, snapstate.Flags{Revert: true, RevertStatus: snapstate.NotBlocked})
-	c.Check(snapsup.InstanceName(), Equals, "some-snap1")
+	c.Check(snapsup.InstanceName().String(), Equals, "some-snap1")
 	c.Check(snapsup.Revision(), Equals, snap.R(1))
 
 	c.Check(restoreValidationSetsTrackingCalled, Equals, 1)

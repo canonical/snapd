@@ -20,8 +20,11 @@
 package snapstate_test
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -29,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -238,9 +242,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 
 func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 	var removeLateCalledFor [][]string
-	restore := snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+	restore := snapstate.MockSecurityProfilesDiscardLate(func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 		removeLateCalledFor = append(removeLateCalledFor, []string{
-			snapName, rev.String(), string(typ),
+			instanceName.String(), rev.String(), string(typ),
 		})
 		return nil
 	})
@@ -283,4 +287,141 @@ func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 	c.Check(removeLateCalledFor, DeepEquals, [][]string{
 		{"snapd", "33", "snapd"},
 	})
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapRemovesSeqFileOnLastRevision(c *C) {
+	s.state.Lock()
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+		}),
+		Current:  snap.R(3),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "foo", snapst)
+	c.Assert(snapstate.WriteSeqFile("foo", snapst), IsNil)
+
+	seqFilePath := snap.SequenceFile("foo")
+	c.Assert(seqFilePath, testutil.FilePresent)
+
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(seqFilePath, testutil.FileAbsent)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapKeepsSeqFileForNonLastRevision(c *C) {
+	s.state.Lock()
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(33)},
+		}),
+		Current:  snap.R(33),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "foo", snapst)
+	c.Assert(snapstate.WriteSeqFile("foo", snapst), IsNil)
+
+	seqFilePath := snap.SequenceFile("foo")
+	c.Assert(seqFilePath, testutil.FilePresent)
+
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(seqFilePath, testutil.FilePresent)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapNoErrorIfSeqFileMissing(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+		}),
+		Current:  snap.R(3),
+		SnapType: "app",
+	})
+	// no seq file is created deliberately
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapErrorOnSeqFileRemovalFailure(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
+
+	s.state.Lock()
+	snapst := &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+		}),
+		Current:  snap.R(3),
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "foo", snapst)
+	c.Assert(snapstate.WriteSeqFile("foo", snapst), IsNil)
+
+	// make the sequence dir unwritable so removal fails
+	c.Assert(os.Chmod(dirs.SnapSeqDir, 0555), IsNil)
+	defer os.Chmod(dirs.SnapSeqDir, 0755)
+
+	chg := s.state.NewChange("sample", "...")
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
+	})
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*remove.*sequence/foo\.json.*permission denied.*`)
 }

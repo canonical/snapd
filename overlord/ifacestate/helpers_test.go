@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -108,7 +109,7 @@ func (s *helpersSuite) TestIdentityMapper(c *C) {
 	c.Assert(m.RemapSnapToState("example"), Equals, "example")
 	c.Assert(m.RemapSnapFromRequest("example"), Equals, "example")
 
-	c.Assert(m.SystemSnapName(), Equals, "unknown")
+	c.Assert(m.SystemSnapName().String(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
@@ -127,7 +128,7 @@ func (s *helpersSuite) TestCoreCoreSystemMapper(c *C) {
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
 
-	c.Assert(m.SystemSnapName(), Equals, "core")
+	c.Assert(m.SystemSnapName(), Equals, naming.Core)
 }
 
 func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
@@ -151,7 +152,7 @@ func (s *helpersSuite) TestCoreSnapdSystemMapper(c *C) {
 	c.Assert(m.RemapSnapToState("potato"), Equals, "potato")
 	c.Assert(m.RemapSnapFromRequest("potato"), Equals, "potato")
 
-	c.Assert(m.SystemSnapName(), Equals, "snapd")
+	c.Assert(m.SystemSnapName(), Equals, naming.Snapd)
 }
 
 // caseMapper implements SnapMapper to use upper case internally and lower case externally.
@@ -169,8 +170,8 @@ func (m *caseMapper) RemapSnapFromRequest(snapName string) string {
 	return strings.ToUpper(snapName)
 }
 
-func (m *caseMapper) SystemSnapName() string {
-	return "unknown"
+func (m *caseMapper) SystemSnapName() naming.InstanceName {
+	return naming.NewInstanceName("unknown", "")
 }
 
 func (s *helpersSuite) TestMappingFunctions(c *C) {
@@ -180,7 +181,7 @@ func (s *helpersSuite) TestMappingFunctions(c *C) {
 	c.Assert(ifacestate.RemapSnapFromState("example"), Equals, "EXAMPLE")
 	c.Assert(ifacestate.RemapSnapToState("EXAMPLE"), Equals, "example")
 	c.Assert(ifacestate.RemapSnapFromRequest("example"), Equals, "EXAMPLE")
-	c.Assert(ifacestate.SystemSnapName(), Equals, "unknown")
+	c.Assert(ifacestate.SystemSnapName().String(), Equals, "unknown")
 }
 
 func (s *helpersSuite) TestGetConns(c *C) {
@@ -340,9 +341,9 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithCore(c *C) {
 	// add "core" snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnapInstance(c, "", coreSnapYaml, sideInfo)
-	sideInfo.RealName = snapInfo.SnapName()
+	sideInfo.RealName = snapInfo.SnapName().String()
 
-	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, snapInfo.InstanceName().String(), &snapstate.SnapState{
 		Active:      true,
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
@@ -370,9 +371,9 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 	// "snapd" snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(1)}
 	snapInfo := snaptest.MockSnapInstance(c, "", snapdYaml, sideInfo)
-	sideInfo.RealName = snapInfo.SnapName()
+	sideInfo.RealName = snapInfo.SnapName().String()
 
-	snapstate.Set(s.st, snapInfo.InstanceName(), &snapstate.SnapState{
+	snapstate.Set(s.st, snapInfo.InstanceName().String(), &snapstate.SnapState{
 		Active:      true,
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
@@ -382,7 +383,7 @@ func (s *helpersSuite) TestCheckIsSystemSnapPresentWithSnapd(c *C) {
 
 	inf, err := ifacestate.SystemSnapInfo(s.st)
 	c.Assert(err, IsNil)
-	c.Assert(inf.InstanceName(), Equals, "snapd")
+	c.Assert(inf.InstanceName().String(), Equals, "snapd")
 
 	s.st.Unlock()
 
@@ -425,7 +426,7 @@ apps:
 		Active:   true,
 		Current:  snap.R(1),
 	}
-	snapstate.Set(s.st, snapInfo.InstanceName(), snapst)
+	snapstate.Set(s.st, snapInfo.InstanceName().String(), snapst)
 	s.st.Unlock()
 
 	// Pretend that security profiles are out of date and mock the
@@ -474,7 +475,7 @@ apps:
 			Active:   true,
 			Current:  snap.R(1),
 		}
-		snapstate.Set(st, snapInfo.InstanceName(), snapst)
+		snapstate.Set(st, snapInfo.InstanceName().String(), snapst)
 		st.Unlock()
 	}
 }
@@ -490,8 +491,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupMany(c *C) {
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Check(appSets, HasLen, 2)
@@ -537,7 +538,7 @@ func (s *helpersSuite) TestProfileRegenerationDoesNotDelay(c *C) {
 				appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
 				sctx interfaces.SetupContext, repo *interfaces.Repository,
 			) error {
-				setupCalls = append(setupCalls, appSet.InstanceName())
+				setupCalls = append(setupCalls, appSet.InstanceName().String())
 				c.Check(sctx.CanDelayEffects, Equals, false)
 				c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonOther)
 				return nil
@@ -584,8 +585,8 @@ func (s *helpersSuite) TestProfileRegenerationSetupManyFailsSystemKeyNotWritten(
 	backend := &ifacetest.TestSecurityBackendSetupMany{
 		TestSecurityBackend: ifacetest.TestSecurityBackend{BackendName: "fake"},
 		SetupManyCallback: func(appSets []*interfaces.SnapAppSet,
-			confinement func(snapName string) interfaces.ConfinementOptions,
-			sctx func(snapName string) interfaces.SetupContext,
+			confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+			sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 			repo *interfaces.Repository, tm timings.Measurer,
 		) []error {
 			c.Check(appSets, HasLen, 2)
@@ -826,8 +827,8 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 	defer restore()
 
 	backend := &ifacetest.TestSecurityBackendDiscardingLate{
-		RemoveLateCallback: func(snapName string, rev snap.Revision, typ snap.Type) error {
-			if snapName == "this-fails" {
+		RemoveLateCallback: func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
+			if instanceName == "this-fails" {
 				return fmt.Errorf("remove late fails")
 			}
 			return nil

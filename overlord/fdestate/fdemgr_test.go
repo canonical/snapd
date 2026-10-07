@@ -69,6 +69,7 @@ type fdeMgrSuite struct {
 	st      *state.State
 	runner  *state.TaskRunner
 	o       *overlord.Overlord
+	bootId  string
 }
 
 var _ = Suite(&fdeMgrSuite{})
@@ -136,6 +137,11 @@ func (s *fdeMgrSuite) SetUpTest(c *C) {
 
 	s.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "mock process backend effects"))
+	}))
+
+	s.bootId = "547730db-9e31-4c33-b418-1bce4e03f467"
+	s.AddCleanup(fdestate.MockOsutilBootID(func() (string, error) {
+		return s.bootId, nil
 	}))
 }
 
@@ -385,6 +391,8 @@ func (s *fdeMgrSuite) TestUpdate(c *C) {
 	c.Check(containerRole.Models[0].Model(), Equals, "mock-model")
 	c.Check(containerRole.BootModes, DeepEquals, []string{"run"})
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
+	// PCR handle is not changed
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(41))
 }
 
 func (s *fdeMgrSuite) TestUpdateReseal(c *C) {

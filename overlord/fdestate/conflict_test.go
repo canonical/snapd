@@ -42,6 +42,7 @@ func (s *fdeMgrSuite) TestCheckFDEChangeConflict(c *C) {
 		"fde-change-passphrase":        "changing passphrase in progress, no other FDE changes allowed until this is done",
 		"fde-change-pin":               "changing pin in progress, no other FDE changes allowed until this is done",
 		"some-fde-change":              "FDE change in progress, no other FDE changes allowed until this is done",
+		"fde-reprovision":              "reprovision is in progress, no other FDE changes allowed until this is done",
 
 		"some-change": "",
 	}

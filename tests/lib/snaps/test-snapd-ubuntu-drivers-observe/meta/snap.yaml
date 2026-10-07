@@ -1,0 +1,10 @@
+name: test-snapd-ubuntu-drivers-observe
+version: 1.0
+architectures: [all]
+base: core24
+confinement: strict
+
+apps:
+  drivers:
+    command: bin/drivers
+    plugs: [ubuntu-drivers-observe]

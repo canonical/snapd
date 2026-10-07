@@ -43,9 +43,10 @@ import (
 )
 
 var (
-	syscheckCheckSystem = syscheck.CheckSystem
-	openAuditWriter     = seclog.OpenAuditWriter
-	newSlogLogger       = seclog.NewSlogLogger
+	syscheckCheckSystem       = syscheck.CheckSystem
+	openAuditWriter           = seclog.OpenAuditWriter
+	newSlogLogger             = seclog.NewSlogLogger
+	systemdInitSdNotifySocket = systemd.InitSdNotifySocket
 )
 
 const (
@@ -65,10 +66,22 @@ func Main() {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
+	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
+	systemdInitSdNotifySocket()
+
+	// Exits after one Argon2 request when invoked as the out-of-process helper.
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
+
 	// Set up security logging via the audit subsystem.
 	teardownSecurityLogging := setupSecurityLogging()
 
-	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
+	// Log startup before Start, including attempts that then fail.
+	// If the boot id cannot be read, record <unknown> and continue.
+	bootID, bootErr := osutil.BootID()
+	if bootErr != nil {
+		bootID = ""
+	}
+	seclog.LogSystemStartupSnapd(snapdtool.FullVersion(), bootID)
 
 	snapdtool.MaybeCompleteFIPSSetup()
 	// TODO look into signal.NotifyContext
@@ -155,7 +168,7 @@ func run(ch chan os.Signal) error {
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	t0 := time.Now().Truncate(time.Millisecond)
-	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)
+	snapdenv.SetUserAgentFromVersion(snapdtool.FullVersion(), sandbox.ForceDevMode)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -178,7 +191,7 @@ func run(ch chan os.Signal) error {
 		checkTicker = tic.C
 	}
 
-	d.Version = snapdtool.Version
+	d.Version = snapdtool.FullVersion()
 
 	if err := d.Start(ctx); err != nil {
 		return err

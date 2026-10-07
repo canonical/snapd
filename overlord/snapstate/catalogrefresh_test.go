@@ -21,7 +21,7 @@ package snapstate_test
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -47,11 +47,27 @@ type catalogStore struct {
 
 	ops     []string
 	tooMany bool
+	// wrapCtxErr wraps ctx errors
+	wrapCtxErr bool
+}
+
+func (r *catalogStore) ctxErr(ctx context.Context) error {
+	err := ctx.Err()
+	if err == nil {
+		return nil
+	}
+	if r.wrapCtxErr {
+		return fmt.Errorf("cannot perform request: %w", err)
+	}
+	return err
 }
 
 func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.SnapAdder) error {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
+	}
+	if err := r.ctxErr(ctx); err != nil {
+		return err
 	}
 	r.ops = append(r.ops, "write-catalog")
 	if r.tooMany {
@@ -66,6 +82,9 @@ func (r *catalogStore) WriteCatalogs(ctx context.Context, w io.Writer, a store.S
 func (r *catalogStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, error) {
 	if ctx == nil || !auth.IsEnsureContext(ctx) {
 		panic("Ensure marked context required")
+	}
+	if err := r.ctxErr(ctx); err != nil {
+		return nil, err
 	}
 	r.ops = append(r.ops, "sections")
 	if r.tooMany {
@@ -130,9 +149,6 @@ func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
 
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, true)
 	dump, err := advisor.DumpCommands()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt is not supported")
-	}
 	c.Assert(err, IsNil)
 	c.Check(dump, DeepEquals, map[string]string{
 		"foo": `[{"snap":"foo","version":"1.0"}]`,
@@ -150,9 +166,6 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooMany(c *C) {
 	t0 := time.Now()
 
 	err := cr7.Ensure()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt is not supported")
-	}
 	c.Check(err, IsNil) // !!
 
 	// next now has a delta (next refresh is not before t0 + delta)
@@ -208,9 +221,6 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshTooNew(c *C) {
 
 	cr7 := snapstate.NewCatalogRefresh(s.state)
 	err := cr7.Ensure()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt is not supported")
-	}
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
 }
@@ -295,9 +305,6 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
 
 	err = cr7.Ensure()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt is not supported")
-	}
 	c.Check(err, IsNil)
 
 	// refresh happened
@@ -306,6 +313,29 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(dirs.SnapSectionsFile, testutil.FilePresent)
 	c.Check(dirs.SnapNamesFile, testutil.FilePresent)
 	c.Check(dirs.SnapCommandsDB, testutil.FilePresent)
+}
+
+func (s *catalogRefreshTestSuite) testCatalogRefreshShutDown(c *C, wrapCtxErr bool) {
+	s.store.wrapCtxErr = wrapCtxErr
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	cr7.ShutDown()
+
+	err := cr7.Ensure()
+	c.Check(err, IsNil)
+	// store was not contacted after shutdown
+	c.Check(s.store.ops, HasLen, 0)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDown(c *C) {
+	wrapCtxErr := false
+	s.testCatalogRefreshShutDown(c, wrapCtxErr)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshShutDownWrappedCancelError(c *C) {
+	// simulates an HTTP client wrapping context.Canceled (e.g. *url.Error).
+	wrapCtxErr := true
+	s.testCatalogRefreshShutDown(c, wrapCtxErr)
 }
 
 func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
@@ -320,10 +350,6 @@ func (s *catalogRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, nil)
 
 	err = af.Ensure()
-	if errors.Is(err, advisor.ErrNotSupported) {
-		c.Skip("bolt is not supported")
-	}
-
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})

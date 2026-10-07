@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -384,6 +385,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 	snapdBinDir := "/usr/bin/"
 	unsquashfsPath := filepath.Join(snapdBinDir, "unsquashfs")
 	xdelta3Path := filepath.Join(snapdBinDir, "xdelta3")
+	tmpDirPattern := regexp.QuoteMeta(filepath.Clean(os.TempDir()))
 	defer squashfs.MockCommandFromSystemSnapWithContext(
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
@@ -402,7 +404,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 			c.Check(len(unsquashfsArgs1), Equals, 9)
 			c.Check(unsquashfsArgs1[0:7], DeepEquals,
 				[]string{unsquashfsPath, "-da", "128", "-fr", "128", "-no-progress", "-pf"})
-			c.Check(unsquashfsArgs1[7], Matches, "/tmp/snap-delta-.*/src-pipe")
+			c.Check(unsquashfsArgs1[7], Matches, tmpDirPattern+`/snap-delta-.*/src-pipe`)
 			c.Check(unsquashfsArgs1[8], Matches, "*./source.snap")
 
 			// 2. Assert on Unsquashfs Target
@@ -410,15 +412,15 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 			c.Check(len(unsquashfsArgs2), Equals, 8)
 			c.Check(unsquashfsArgs2[0:6], DeepEquals,
 				[]string{unsquashfsPath, "-da", "128", "-fr", "128", "-pf"})
-			c.Check(unsquashfsArgs2[6], Matches, "/tmp/snap-delta-.*/trgt-pipe")
+			c.Check(unsquashfsArgs2[6], Matches, tmpDirPattern+`/snap-delta-.*/trgt-pipe`)
 			c.Check(unsquashfsArgs2[7], Matches, "*./target.snap")
 
 			// 3. Assert on Xdelta3
 			xdelta3Args := cmds[2].Args
 			c.Check(len(xdelta3Args), Equals, 8)
 			c.Check(xdelta3Args[0:6], DeepEquals, []string{xdelta3Path, "-7", "-e", "-f", "-A", "-s"})
-			c.Check(xdelta3Args[6], Matches, "/tmp/snap-delta-.*/src-pipe")
-			c.Check(xdelta3Args[7], Matches, "/tmp/snap-delta-.*/trgt-pipe")
+			c.Check(xdelta3Args[6], Matches, tmpDirPattern+`/snap-delta-.*/src-pipe`)
+			c.Check(xdelta3Args[7], Matches, tmpDirPattern+`/snap-delta-.*/trgt-pipe`)
 			return nil
 		})()
 
@@ -637,6 +639,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 	unsquashfsPath := filepath.Join(snapdBinDir, "unsquashfs")
 	xdelta3Path := filepath.Join(snapdBinDir, "xdelta3")
 	mksquashfsPath := filepath.Join(snapdBinDir, "mksquashfs")
+	tmpDirPattern := regexp.QuoteMeta(filepath.Clean(os.TempDir()))
 	defer squashfs.MockCommandFromSystemSnapWithContext(
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
@@ -669,8 +672,8 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 			c.Check(cmds[2].Path, Equals, xdelta3Path)
 			c.Check(len(cmds[2].Args), Equals, 6)
 			c.Check(cmds[2].Args[0:3], DeepEquals, []string{xdelta3Path, "-d", "-f"})
-			c.Check(cmds[2].Args[4], Matches, `/tmp/snap-delta-.*/src`)
-			c.Check(cmds[2].Args[5], Matches, `/tmp/snap-delta-.*/delta`)
+			c.Check(cmds[2].Args[4], Matches, tmpDirPattern+`/snap-delta-.*/src`)
+			c.Check(cmds[2].Args[5], Matches, tmpDirPattern+`/snap-delta-.*/delta`)
 
 			// Create the target file so that growSnapToMinSize can stat it.
 			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)

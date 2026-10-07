@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -152,7 +153,7 @@ NeedDaemonReload=no
 
 		// service only
 		app = &client.AppInfo{
-			Snap:   snp.InstanceName(),
+			Snap:   snp.InstanceName().String(),
 			Name:   "svc",
 			Daemon: "simple",
 		}
@@ -170,7 +171,7 @@ NeedDaemonReload=no
 
 		// service  + timer
 		app = &client.AppInfo{
-			Snap:   snp.InstanceName(),
+			Snap:   snp.InstanceName().String(),
 			Name:   "svc",
 			Daemon: "simple",
 		}
@@ -195,7 +196,7 @@ NeedDaemonReload=no
 
 		// service with socket
 		app = &client.AppInfo{
-			Snap:   snp.InstanceName(),
+			Snap:   snp.InstanceName().String(),
 			Name:   "svc",
 			Daemon: "simple",
 		}
@@ -224,7 +225,7 @@ NeedDaemonReload=no
 		// service with slot activation will always be enabled as we cannot
 		// disable/enable slot activation at the moment.
 		app = &client.AppInfo{
-			Snap:   snp.InstanceName(),
+			Snap:   snp.InstanceName().String(),
 			Name:   "svc",
 			Daemon: "simple",
 		}
@@ -257,7 +258,7 @@ NeedDaemonReload=no
 		// When using a decorator without any uid provided, the global status is
 		// fetched, which is only enablement
 		app = &client.AppInfo{
-			Snap:   snp.InstanceName(),
+			Snap:   snp.InstanceName().String(),
 			Name:   "svc",
 			Daemon: "simple",
 		}
@@ -365,7 +366,7 @@ NeedDaemonReload=no
 		disabled = !enabled
 
 		app = &client.AppInfo{
-			Snap:   snp.InstanceName(),
+			Snap:   snp.InstanceName().String(),
 			Name:   "svc",
 			Daemon: "simple",
 		}
@@ -1042,5 +1043,5 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 }
 
 func (s *snapServiceOptionsSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("servicemgr.go", c, true)
+	swfeatstest.CheckEnsureLoopLogging("servicemgr.go", c, true)
 }

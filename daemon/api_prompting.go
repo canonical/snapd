@@ -91,10 +91,6 @@ var (
 	}
 )
 
-var (
-	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
-)
-
 // getUserID returns the UID specified by the user-id parameter of the query,
 // otherwise the UID of the connection.
 //
@@ -103,7 +99,7 @@ var (
 // If an error occurs, returns an error response, otherwise returns the user ID
 // and a nil response.
 func getUserID(r *http.Request) (uint32, Response) {
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return 0, Forbidden("cannot get remote user: %v", err)
 	}
@@ -367,7 +363,7 @@ type postRuleRequestBody struct {
 }
 
 func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) Response {
-	ucred, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.Context())
 	if err != nil {
 		return Forbidden("cannot get remote user: %v", err)
 	}
@@ -429,7 +425,7 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 		return errorResp
 	}
 
-	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, postBody.Interface, snapName, postBody.PID, cgroupPath, c.d.tomb.Dying())
+	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, postBody.Interface, snapName, postBody.PID, cgroupPath)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -463,7 +459,7 @@ func validateSnapHasInterfaceConnection(d *Daemon, snapName, iface string) Respo
 			// here should be impossible
 			return InternalError("internal error: invalid connection state string %q in interface state: %v", refStr, err)
 		}
-		if connRef.PlugRef.Snap == snapName {
+		if connRef.PlugRef.Snap.String() == snapName {
 			return nil
 		}
 	}

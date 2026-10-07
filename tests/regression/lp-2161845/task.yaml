@@ -1,0 +1,73 @@
+summary: snapd must not loop regenerating security profiles on system-key reports
+
+details: |
+    LP: #2161845. While snapd regenerates security profiles it removes the
+    on-disk system-key and only rewrites it once the (slow) backend setup has
+    finished. "snap run" that starts in that window reads a missing key and
+    reports a mismatch to snapd. By the time the report reaches snapd the
+    regeneration has finished and the key is back on disk.
+
+    snapd used to compare the client-reported key (which never carries the
+    apparmor-parser-features field, because clients do not run apparmor_parser)
+    against its own on-disk key (which always does), so the keys never matches
+    and snapd advises regenerating profiles for every request. That regeneration
+    removed the key again, re-arming the window, and the system looped forever
+    burning CPU and rewriting state.json.
+
+    This test recreates the exact window deterministically: it removes the key
+    while snapd is stopped, starts "snap run" so it observes the missing key and
+    begins polling the API, then restores the byte-identical key and starts
+    snapd before the client reaches the API. A matching report must NOT create a
+    new regeneration.
+
+restore: |
+    systemctl reset-failed snapd.service snapd.socket || true
+    systemctl start snapd.service snapd.socket
+
+execute: |
+    snap install test-snapd-sh
+
+    echo "Ensure a valid system-key is on disk and take an exact backup"
+    MATCH '"build-id":"[0-9a-z]+"' < /var/lib/snapd/system-key
+    cp -a /var/lib/snapd/system-key system-key.save
+
+    echo "Open the window: stop snapd and remove the system-key"
+    systemctl stop snapd.service snapd.socket
+    rm -f /var/lib/snapd/system-key
+
+    echo "Start snap run while the key is missing (no re-exec, generous retry budget)"
+    # SNAPD_DEBUG=1 makes snap run log when it has observed the missing key and
+    # started polling the API, which is our synchronization point.
+    SNAPD_DEBUG=1 SNAPD_DEBUG_SYSTEM_KEY_RETRY=60 \
+        test-snapd-sh.sh -c 'echo RAN_OK' > run.log 2>&1 &
+    runpid=$!
+
+    echo "Wait until snap run has read the missing key and is polling snapd"
+    # This guarantees the local (client-side) read happened inside the window,
+    # so the subsequent report carries a client-style key. snapd is still down,
+    # so snap run is stuck retrying the API and cannot race ahead of us.
+    retry -n 30 --wait 1 sh -c 'MATCH "system key mismatch detected, waiting for snapd" < run.log'
+
+    echo "Close the window: restore the backed-up key and start snapd"
+    # A byte-identical key means snapd Startup will not itself regenerate, so
+    # the only possible regeneration is the buggy one triggered by the report.
+    cp -a system-key.save /var/lib/snapd/system-key
+    systemctl start snapd.service snapd.socket
+
+    echo "Wait for snap run to finish talking to snapd and run the app"
+    # success is asserted via the log below; guard wait so the diagnostic
+    # assertions always run even if snap run exits non-zero
+    wait "$runpid" || true
+    MATCH RAN_OK < run.log
+
+    # The client reported a mismatch (it saw the missing key); we assert on what
+    # snapd told THIS client, which is independent of any Startup regeneration.
+    # With the bug, snapd answers the matching report with a wait-for-change and
+    # snap run logs that it must wait for a regeneration; with the fix, snapd
+    # answers "proceed" and no regeneration is advised.
+    echo "Confirm the window was actually exercised"
+    MATCH "system key mismatch detected, waiting for snapd" < run.log
+
+    echo "snapd must NOT advise a regeneration for a matching report"
+    NOMATCH "snapd started a regenerate profiles change" < run.log
+    MATCH "continue execution" < run.log

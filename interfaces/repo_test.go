@@ -29,6 +29,7 @@ import (
 	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -957,7 +958,7 @@ func (s *RepositorySuite) TestResolveConnectImplicitSlotPrefersSnapdOverCore(c *
 	c.Assert(s.testRepo.AddAppSet(s.consumer), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
-	c.Check(conn.SlotRef.Snap, Equals, "snapd")
+	c.Check(conn.SlotRef.Snap, Equals, naming.Snapd)
 }
 
 // ResolveConnect prefers the "core" snap if "core" and "ubuntu-core" are available
@@ -967,7 +968,7 @@ func (s *RepositorySuite) TestResolveConnectImplicitSlotPrefersCoreOverUbuntuCor
 	c.Assert(s.testRepo.AddAppSet(s.consumer), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
-	c.Check(conn.SlotRef.Snap, Equals, "core")
+	c.Check(conn.SlotRef.Snap, Equals, naming.Core)
 }
 
 // ResolveConnect detects lack of candidates
@@ -1558,11 +1559,11 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 }
 
 type testSideArity struct {
-	sideSnapName string
+	sideSnapName naming.InstanceName
 }
 
 func (a *testSideArity) SlotsPerPlugAny() bool {
-	return strings.HasSuffix(a.sideSnapName, "2")
+	return strings.HasSuffix(a.sideSnapName.String(), "2")
 }
 
 func (s *RepositorySuite) TestAutoConnectCandidatePlugsAndSlots(c *C) {
@@ -1600,7 +1601,7 @@ slots:
 
 	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.InstanceName(), Equals, "producer")
+	c.Check(candidateSlots[0].Snap.InstanceName().String(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 	c.Assert(arities, HasLen, 1)
@@ -1608,7 +1609,7 @@ slots:
 
 	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
 	c.Assert(candidatePlugs, HasLen, 1)
-	c.Check(candidatePlugs[0].Snap.InstanceName(), Equals, "consumer")
+	c.Check(candidatePlugs[0].Snap.InstanceName().String(), Equals, "consumer")
 	c.Check(candidatePlugs[0].Interface, Equals, "auto")
 	c.Check(candidatePlugs[0].Name, Equals, "auto")
 }
@@ -1659,7 +1660,7 @@ plugs:
 	// Both can auto-connect
 	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer1", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.InstanceName(), Equals, "producer")
+	c.Check(candidateSlots[0].Snap.InstanceName().String(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 	c.Assert(arities, HasLen, 1)
@@ -1667,7 +1668,7 @@ plugs:
 
 	candidateSlots, arities = repo.AutoConnectCandidateSlots("consumer2", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.InstanceName(), Equals, "producer")
+	c.Check(candidateSlots[0].Snap.InstanceName().String(), Equals, "producer")
 	c.Check(candidateSlots[0].Interface, Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 	c.Assert(arities, HasLen, 1)
@@ -1726,7 +1727,7 @@ plugs:
 	for i, candSlot := range candidateSlots {
 		c.Check(candSlot.Interface, Equals, "auto")
 		c.Check(candSlot.Name, Equals, "auto")
-		producerName := candSlot.Snap.InstanceName()
+		producerName := candSlot.Snap.InstanceName().String()
 		// SideArities match
 		switch producerName {
 		case "producer1":
@@ -1946,8 +1947,8 @@ func (s *DisconnectSnapSuite) TestOutgoingConnection(c *C) {
 	// Disconnect s1 with which has an outgoing connection to s2
 	affected, err := s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
-	c.Check(affected, testutil.Contains, "s1")
-	c.Check(affected, testutil.Contains, "s2")
+	c.Check(affected, testutil.Contains, naming.InstanceName("s1"))
+	c.Check(affected, testutil.Contains, naming.InstanceName("s2"))
 }
 
 func (s *DisconnectSnapSuite) TestIncomingConnection(c *C) {
@@ -1957,13 +1958,13 @@ func (s *DisconnectSnapSuite) TestIncomingConnection(c *C) {
 	// Disconnect s1 with which has an incoming connection from s2
 	affected, err := s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
-	c.Check(affected, testutil.Contains, "s1")
-	c.Check(affected, testutil.Contains, "s2")
+	c.Check(affected, testutil.Contains, naming.InstanceName("s1"))
+	c.Check(affected, testutil.Contains, naming.InstanceName("s2"))
 }
 
 func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 	// This test is symmetric wrt s1 <-> s2 connections
-	for _, snapName := range []string{"s1", "s2"} {
+	for _, snapName := range []naming.InstanceName{"s1", "s2"} {
 		connRef1 := &ConnRef{PlugRef: PlugRef{Snap: "s1", Name: "iface-a"}, SlotRef: SlotRef{Snap: "s2", Name: "iface-a"}}
 		_, err := s.repo.Connect(connRef1, nil, nil, nil, nil, nil)
 		c.Assert(err, IsNil)
@@ -1972,8 +1973,8 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 		c.Assert(err, IsNil)
 		affected, err := s.repo.DisconnectSnap(snapName)
 		c.Assert(err, IsNil)
-		c.Check(affected, testutil.Contains, "s1")
-		c.Check(affected, testutil.Contains, "s2")
+		c.Check(affected, testutil.Contains, naming.InstanceName("s1"))
+		c.Check(affected, testutil.Contains, naming.InstanceName("s2"))
 	}
 }
 
@@ -1982,15 +1983,15 @@ func (s *DisconnectSnapSuite) TestParallelInstances(c *C) {
 	c.Assert(err, IsNil)
 	affected, err := s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
-	c.Check(affected, testutil.Contains, "s1")
-	c.Check(affected, testutil.Contains, "s2_instance")
+	c.Check(affected, testutil.Contains, naming.InstanceName("s1"))
+	c.Check(affected, testutil.Contains, naming.InstanceName("s2_instance"))
 
 	_, err = s.repo.Connect(&ConnRef{PlugRef: PlugRef{Snap: "s2_instance", Name: "iface-b"}, SlotRef: SlotRef{Snap: "s1", Name: "iface-b"}}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 	affected, err = s.repo.DisconnectSnap("s1")
 	c.Assert(err, IsNil)
-	c.Check(affected, testutil.Contains, "s1")
-	c.Check(affected, testutil.Contains, "s2_instance")
+	c.Check(affected, testutil.Contains, naming.InstanceName("s1"))
+	c.Check(affected, testutil.Contains, naming.InstanceName("s2_instance"))
 }
 
 func contentPolicyCheck(plug *ConnectedPlug, slot *ConnectedSlot) (bool, SideArity, error) {

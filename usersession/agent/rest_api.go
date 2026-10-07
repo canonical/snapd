@@ -477,7 +477,7 @@ func guessAppData(si *snap.Info, defaultName string, instanceKey string) (icon s
 	// trivial heuristic, if the app is named like a snap then
 	// it's considered to be the main user facing app and hopefully carries
 	// a nice icon
-	mainApp, ok := si.Apps[si.SnapName()]
+	mainApp, ok := si.Apps[si.SnapName().String()]
 	if ok && !mainApp.IsService() {
 		// got the main app, grab its desktop file
 		if err := parser.ReadFile(mainApp.DesktopFile()); err == nil {
@@ -492,7 +492,7 @@ func guessAppData(si *snap.Info, defaultName string, instanceKey string) (icon s
 
 	// If it doesn't exist, take the first app in the snap with a DesktopFile with icon
 	for _, app := range si.Apps {
-		if app.IsService() || app.Name == si.SnapName() {
+		if app.IsService() || app.Name == si.SnapName().String() {
 			continue
 		}
 		if err := parser.ReadFile(app.DesktopFile()); err == nil {

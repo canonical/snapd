@@ -98,7 +98,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
 	}
 
-	c.Check(info.InstanceName(), Equals, "newname")
+	c.Check(info.InstanceName().String(), Equals, "newname")
 	c.Check(info.Summary(), Equals, "fixed summary")
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
@@ -335,7 +335,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	snapInfo2, err := snap.ReadInfo("sample", si)
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo2.InstanceName(), Equals, "sample")
+	c.Check(snapInfo2.InstanceName().String(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
@@ -354,8 +354,8 @@ func (s *infoSuite) TestReadInfoWithInstance(c *C) {
 	snapInfo2, err := snap.ReadInfo("sample_instance", si)
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo2.SnapName(), Equals, "sample")
+	c.Check(snapInfo2.InstanceName().String(), Equals, "sample_instance")
+	c.Check(snapInfo2.SnapName().String(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "instance summary")
 
@@ -374,7 +374,7 @@ func (s *infoSuite) TestReadCurrentInfo(c *C) {
 	snapInfo2, err := snap.ReadCurrentInfo("sample")
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo2.InstanceName(), Equals, "sample")
+	c.Check(snapInfo2.InstanceName().String(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
@@ -421,8 +421,8 @@ func (s *infoSuite) TestReadCurrentInfoWithInstance(c *C) {
 	snapInfo2, err := snap.ReadCurrentInfo("sample_instance")
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo2.InstanceName(), Equals, "sample_instance")
-	c.Check(snapInfo2.SnapName(), Equals, "sample")
+	c.Check(snapInfo2.InstanceName().String(), Equals, "sample_instance")
+	c.Check(snapInfo2.SnapName().String(), Equals, "sample")
 	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 
@@ -437,7 +437,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	info := snaptest.MockSnap(c, sampleYaml, si)
 	// not current -> Zero
 	c.Check(info.InstallDate(), IsNil)
-	c.Check(snap.InstallDate(info.InstanceName()).IsZero(), Equals, true)
+	c.Check(snap.InstallDate(info.InstanceName().String()).IsZero(), Equals, true)
 
 	mountdir := info.MountDir()
 	dir, rev := filepath.Split(mountdir)
@@ -451,7 +451,7 @@ func (s *infoSuite) TestInstallDate(c *C) {
 	c.Check(instTime.IsZero(), Equals, false)
 
 	c.Check(info.InstallDate().Equal(instTime), Equals, true)
-	c.Check(snap.InstallDate(info.InstanceName()).Equal(instTime), Equals, true)
+	c.Check(snap.InstallDate(info.InstanceName().String()).Equal(instTime), Equals, true)
 }
 
 func (s *infoSuite) TestReadInfoNotFound(c *C) {
@@ -511,7 +511,7 @@ func (s *infoSuite) TestReadInfoDanglingSymlink(c *C) {
 
 	info, err := snap.ReadInfo("sample", si)
 	c.Check(err, IsNil)
-	c.Check(info.SnapName(), Equals, "test")
+	c.Check(info.SnapName().String(), Equals, "test")
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.Summary(), Equals, "esummary")
 	c.Check(info.Size, Equals, int64(0))
@@ -563,7 +563,7 @@ confinement: devmode`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "foo")
+	c.Check(info.InstanceName().String(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
@@ -585,7 +585,7 @@ confinement: classic`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "foo")
+	c.Check(info.InstanceName().String(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
@@ -605,7 +605,7 @@ type: app`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "foo")
+	c.Check(info.InstanceName().String(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(0))
@@ -628,7 +628,7 @@ type: app`
 		Revision: snap.R(42),
 	})
 	c.Assert(err, IsNil)
-	c.Check(info.InstanceName(), Equals, "baz")
+	c.Check(info.InstanceName().String(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type(), Equals, snap.TypeApp)
 	c.Check(info.Revision, Equals, snap.R(42))
@@ -875,7 +875,7 @@ func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, instanceName, yaml strin
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
 	info0 := snaptest.MockSnapInstance(c, instanceName, yaml, sideInfo)
 	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
-	info, err := snap.ReadInfo(info0.InstanceName(), sideInfo)
+	info, err := snap.ReadInfo(info0.InstanceName().String(), sideInfo)
 	c.Check(err, IsNil)
 	checker(c, info)
 
@@ -1201,8 +1201,6 @@ func (s *infoSuite) testDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name/common")
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name")
-	// XXX: Those are actually a globs, not directories
-	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name", "name.*"})
 }
 
@@ -1229,8 +1227,6 @@ func (s *infoSuite) testInstanceDirAndFileMethods(c *C, info snap.PlaceInfo) {
 	c.Check(info.CommonDataDir(), Equals, "/var/snap/name_instance/common")
 	c.Check(info.CommonDataSaveDir(), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(info.UserXdgRuntimeDir(12345), Equals, "/run/user/12345/snap.name_instance")
-	// XXX: Those are actually a globs, not directories
-	c.Check(info.XdgRuntimeDirs(), Equals, "/run/user/*/snap.name_instance")
 	c.Check(info.BinaryNameGlobs(), DeepEquals, []string{"name_instance", "name_instance.*"})
 }
 
@@ -1256,42 +1252,6 @@ func (s *infoSuite) TestComponentPlaceInfoMethodsParallelInstall(c *C) {
 	c.Check(cpi.MountDir(), Equals, fmt.Sprintf("%s/name_instance/1", dirs.SnapMountDir))
 	c.Check(cpi.MountFile(), Equals, "/var/lib/snapd/snaps/name_instance_1.snap")
 	c.Check(cpi.MountDescription(), Equals, "Mount unit for name_instance, revision 1")
-}
-
-func (s *infoSuite) TestDataHomeDirs(c *C) {
-	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
-	info := &snap.Info{SuggestedName: "name"}
-	info.SideInfo = snap.SideInfo{Revision: snap.R(1)}
-
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/1")}
-	commonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name/common"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name/common")}
-	c.Check(info.DataHomeDirs(nil), DeepEquals, homeDirs)
-	c.Check(info.CommonDataHomeDirs(nil), DeepEquals, commonHomeDirs)
-
-	// Same test but with a hidden snap directory
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/1"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/1"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/1")}
-	hiddenCommonHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name/common"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name/common"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name/common")}
-	c.Check(info.DataHomeDirs(opts), DeepEquals, hiddenHomeDirs)
-	c.Check(info.CommonDataHomeDirs(opts), DeepEquals, hiddenCommonHomeDirs)
-}
-
-func (s *infoSuite) TestBaseDataHomeDirs(c *C) {
-	dirs.SetSnapHomeDirs("/home,/home/group1,/home/group2,/home/group3")
-
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/snap/name"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/snap/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/snap/name")}
-	c.Check(snap.BaseDataHomeDirs("name", nil), DeepEquals, homeDirs)
-
-	// Same test but with a hidden snap directory
-	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
-	hiddenHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, "/home/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group1/*/.snap/data/name"),
-		filepath.Join(dirs.GlobalRootDir, "/home/group2/*/.snap/data/name"), filepath.Join(dirs.GlobalRootDir, "/home/group3/*/.snap/data/name")}
-	c.Check(snap.BaseDataHomeDirs("name", opts), DeepEquals, hiddenHomeDirs)
 }
 
 func BenchmarkTestParsePlaceInfoFromSnapFileName(b *testing.B) {
@@ -1329,7 +1289,7 @@ func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 		if t.expectErr != "" {
 			c.Check(err, ErrorMatches, t.expectErr)
 		} else {
-			c.Check(p.SnapName(), Equals, t.name)
+			c.Check(p.SnapName().String(), Equals, t.name)
 			c.Check(p.SnapRevision(), Equals, snap.R(t.rev))
 		}
 	}
@@ -1340,14 +1300,14 @@ func (s *infoSuite) TestAppDesktopFile(c *C) {
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
 	c.Assert(err, IsNil)
 
-	c.Check(snapInfo.InstanceName(), Equals, "sample")
+	c.Check(snapInfo.InstanceName().String(), Equals, "sample")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample_sample.desktop`)
 	c.Check(snapInfo.DesktopPrefix(), Equals, "sample")
 
 	// snap with instance key
 	snapInfo.InstanceKey = "instance"
-	c.Check(snapInfo.InstanceName(), Equals, "sample_instance")
+	c.Check(snapInfo.InstanceName().String(), Equals, "sample_instance")
 	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample\+instance_app.desktop`)
 	c.Check(snapInfo.Apps["sample"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/sample\+instance_sample.desktop`)
 	c.Check(snapInfo.DesktopPrefix(), Equals, "sample+instance")
@@ -1915,8 +1875,8 @@ func (s *infoSuite) TestInstanceSnapName(c *C) {
 	c.Check(snap.InstanceSnap("foo_bar"), Equals, "foo")
 	c.Check(snap.InstanceSnap("foo"), Equals, "foo")
 
-	c.Check(snap.InstanceName("foo", "bar"), Equals, "foo_bar")
-	c.Check(snap.InstanceName("foo", ""), Equals, "foo")
+	c.Check(snap.InstanceName("foo", "bar").String(), Equals, "foo_bar")
+	c.Check(snap.InstanceName("foo", "").String(), Equals, "foo")
 }
 
 func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
@@ -1925,12 +1885,12 @@ func (s *infoSuite) TestInstanceNameInSnapInfo(c *C) {
 		InstanceKey:   "foo",
 	}
 
-	c.Check(info.InstanceName(), Equals, "snap-name_foo")
-	c.Check(info.SnapName(), Equals, "snap-name")
+	c.Check(info.InstanceName().String(), Equals, "snap-name_foo")
+	c.Check(info.SnapName().String(), Equals, "snap-name")
 
 	info.InstanceKey = ""
-	c.Check(info.InstanceName(), Equals, "snap-name")
-	c.Check(info.SnapName(), Equals, "snap-name")
+	c.Check(info.InstanceName().String(), Equals, "snap-name")
+	c.Check(info.SnapName().String(), Equals, "snap-name")
 }
 
 func (s *infoSuite) TestComponentFromSnapComponentInstance(c *C) {
@@ -2000,6 +1960,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.ComponentHooksDir("comp", snap.R(1), "name"), Equals, fmt.Sprintf("%s/name/components/mnt/comp/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(snap.DataDir("name", snap.R(1)), Equals, "/var/snap/name/1")
 	c.Check(snap.CommonDataDir("name"), Equals, "/var/snap/name/common")
+	c.Check(snap.SequenceFile("name"), Equals, "/var/lib/snapd/sequence/name.json")
 	c.Check(snap.CommonDataSaveDir("name"), Equals, "/var/lib/snapd/save/snap/name")
 	c.Check(snap.UserDataDir("/home/bob", "name", snap.R(1), nil), Equals, "/home/bob/snap/name/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name", nil), Equals, "/home/bob/snap/name/common")
@@ -2012,6 +1973,7 @@ func (s *infoSuite) TestDirAndFileHelpers(c *C) {
 	c.Check(snap.BaseDataDir("name_instance"), Equals, "/var/snap/name_instance")
 	c.Check(snap.DataDir("name_instance", snap.R(1)), Equals, "/var/snap/name_instance/1")
 	c.Check(snap.CommonDataDir("name_instance"), Equals, "/var/snap/name_instance/common")
+	c.Check(snap.SequenceFile("name_instance"), Equals, "/var/lib/snapd/sequence/name_instance.json")
 	c.Check(snap.CommonDataSaveDir("name_instance"), Equals, "/var/lib/snapd/save/snap/name_instance")
 	c.Check(snap.UserDataDir("/home/bob", "name_instance", snap.R(1), nil), Equals, "/home/bob/snap/name_instance/1")
 	c.Check(snap.UserCommonDataDir("/home/bob", "name_instance", nil), Equals, "/home/bob/snap/name_instance/common")

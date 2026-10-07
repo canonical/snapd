@@ -10,6 +10,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SnapAppSet is a helper that provides information about executable elements of
@@ -19,10 +20,21 @@ type SnapAppSet struct {
 	components []*snap.ComponentInfo
 }
 
+// NoComponents is a typed nil slice of *snap.ComponentInfo, meant to be passed
+// explicitly to NewSnapAppSet at call sites that only need a SnapAppSet to
+// describe the snap's own apps/hooks and never call SnapAppSet.Runnables,
+// SnapAppSet.SecurityTagsForPlug/Slot, or ExpandSliceSnapVariables* on the
+// result.
+//
+// Using this named value instead of a bare "nil" documents that the omission
+// is deliberate, and makes it easy to find (and reconsider) every place that
+// currently does not thread through accurate component data.
+var NoComponents []*snap.ComponentInfo
+
 // NewSnapAppSet returns a new SnapAppSet for the given snap.Info.
 func NewSnapAppSet(info *snap.Info, components []*snap.ComponentInfo) (*SnapAppSet, error) {
 	for _, c := range components {
-		if c.Component.SnapName != info.SnapName() {
+		if c.Component.SnapName != info.SnapName().String() {
 			return nil, fmt.Errorf("internal error: snap %q does not own component %q", info.SnapName(), c.Component)
 		}
 	}
@@ -39,9 +51,20 @@ func (a *SnapAppSet) Components() []*snap.ComponentInfo {
 	return a.components
 }
 
+// Component looks up a component with a given name and returns its info, or nil
+// if the component was not set when creating the app set.
+func (a *SnapAppSet) Component(name string) *snap.ComponentInfo {
+	for _, comp := range a.Components() {
+		if comp.Component.ComponentName == name {
+			return comp
+		}
+	}
+	return nil
+}
+
 // InstanceName returns the instance name of the snap that this SnapAppSet is
 // based on.
-func (a *SnapAppSet) InstanceName() string {
+func (a *SnapAppSet) InstanceName() naming.InstanceName {
 	return a.info.InstanceName()
 }
 
@@ -96,7 +119,7 @@ func (a *SnapAppSet) ExpandSliceSnapVariablesWithOrder(paths []string) []Expande
 				continue
 			}
 			cpi := snap.MinimalComponentContainerPlaceInfo(
-				ci.Component.ComponentName, ci.Revision, a.info.SnapName())
+				ci.Component.ComponentName, ci.Revision, a.info.InstanceName())
 			expandedDirs = append(expandedDirs, ExpandedDirWithIdx{Path: filepath.Clean(
 				filepath.Join(cpi.MountDir(), compAndPath[1])),
 				Idx: idx,

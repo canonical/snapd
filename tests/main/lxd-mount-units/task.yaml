@@ -24,7 +24,7 @@ execute: |
 
     # Define the core snap for the current system
     core_snap=core20
-    if os.query is-ubuntu-gt 22.04; then
+    if os.query is-ubuntu-ge 22.04; then
         core_snap=core22
     fi
 
@@ -32,7 +32,7 @@ execute: |
 
     # wait for the container to be fully up
     # the retry is needed because of the error "Failed to connect to bus: No such file or directory"
-    retry --wait 1 -n 10 sh -c 'lxd.lxc exec ubuntu -- systemctl --wait is-system-running | grep -Eq "(running|degraded)"'
+    retry --wait 1 -n 10 sh -c "lxd.lxc exec ubuntu -- systemctl --wait is-system-running | grep -Eq '^(running|degraded)$'"
 
     lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "ubuntu/root/"
     DEB=$(basename "$GOHOME"/snapd_*.deb)

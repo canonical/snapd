@@ -38,6 +38,10 @@ environment:
     MOUNT_DEST/v6: $MOUNT_DEST_USER_DATA
     MOUNT_DEST/v7: $MOUNT_DEST_GLOBAL_COMMON
     MOUNT_DEST/v8: $MOUNT_DEST_GLOBAL_DATA
+    # controls if the mount unit should be stopped before removing the snap
+    # this ensures we remove the mount unit even if it was stopped
+    STOP_MOUNT/v3: true
+    STOP_MOUNT/v4: false
 
 execute: |
     setup_src_data() {
@@ -98,6 +102,14 @@ execute: |
         "${SNAP_NAME}".cmd grep "$mount_dest" /proc/self/mountinfo
         echo "Ensure that the mounted files are visible"
         test -e "$mount_dest/file1"
+        if [ "$STOP_MOUNT" = true ]; then
+            echo "Stop the unit and force systemd to unload it from memory"
+            UNIT_NAME="$(systemd-escape -p "$mount_dest").mount"
+            systemctl stop "$UNIT_NAME"
+            systemctl daemon-reload
+            echo "Verify the unit is no longer visible via 'systemctl show *.mount'"
+            NOMATCH "$UNIT_NAME" < <(systemctl show --property=FragmentPath "*.mount")
+        fi
     }
 
     then_remove_succeeds_mount_removed_src_data_intact() {

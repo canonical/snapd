@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -504,10 +505,10 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]any, e
 
 // deviceInfo captures information about the device.
 type deviceInfo struct {
-	Brand string `json:"brand"`
-	Model string `json:"model"`
-	Base  string `json:"base"`
-	Mode  string `json:"mode"`
+	Brand string          `json:"brand"`
+	Model string          `json:"model"`
+	Base  naming.SnapName `json:"base"`
+	Mode  string          `json:"mode"`
 }
 
 // RepairStatus represents the possible statuses of a repair.
@@ -811,7 +812,7 @@ func findDevInfo16() (*deviceInfo, error) {
 	return &deviceInfo{
 		Brand: modelAs.BrandID(),
 		Model: modelAs.Model(),
-		Base:  base,
+		Base:  naming.SnapName(base),
 		// Mode is unset on uc16/uc18
 	}, nil
 }
@@ -922,7 +923,7 @@ func (run *Runner) Applicable(headers map[string]any) bool {
 		return false
 	}
 
-	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base) {
+	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base.String()) {
 		return false
 	}
 

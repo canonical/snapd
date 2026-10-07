@@ -374,7 +374,7 @@ version: 1.0.2
 	const instanceKey = "key"
 	body := makeFormData(c, []string{compPath}, map[string]string{
 		"snap-path": compPath,
-		"name":      snap.InstanceName("local", instanceKey),
+		"name":      snap.InstanceName("local", instanceKey).String(),
 	})
 
 	s.testSideloadComponentAsserted(c, compPath, instanceKey, body)
@@ -394,7 +394,7 @@ version: 1.0.2
 	const instanceKey = "key"
 	body := makeFormData(c, []string{compPath}, map[string]string{
 		"snap-path":      compPath,
-		"name":           snap.InstanceName("local", instanceKey),
+		"name":           snap.InstanceName("local", instanceKey).String(),
 		"component-name": "comp",
 	})
 
@@ -422,7 +422,7 @@ func (s *sideloadSuite) testSideloadComponentAsserted(c *check.C, compPath, inst
 	c.Assert(err, check.IsNil)
 	defer compFile.Close()
 
-	instanceName := snap.InstanceName("local", instanceKey)
+	instanceName := snap.InstanceName("local", instanceKey).String()
 
 	chgSummary, systemRestartImmediate := s.sideloadComponentCheck(c, st, body, headers, instanceName, flags, csi, compFile)
 	c.Check(chgSummary, check.Equals, fmt.Sprintf(`Install "comp" component for %q snap from file %q`, instanceName, compPath))
@@ -1754,7 +1754,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 			info, err := snap.ReadInfoFromSnapFile(container, nil)
 			c.Assert(err, check.IsNil)
 
-			c.Check(info.SnapName(), check.Equals, sn.SideInfo.RealName)
+			c.Check(info.SnapName().String(), check.Equals, sn.SideInfo.RealName)
 
 			ts := state.NewTaskSet(st.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", sn.SideInfo.RealName)))
 			tss = append(tss, ts)

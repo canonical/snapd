@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
@@ -65,6 +66,10 @@ func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
 func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+	// Create the snap-private-tmp directory so that tests that don't
+	// explicitly need it to be missing get a clean system-key match
+	// without hitting the private-tmp missing check.
+	c.Assert(os.MkdirAll(dirs.SnapPrivateTmpDir, 0700), IsNil)
 
 	path := os.Getenv("PATH")
 	s.AddCleanup(func() {
@@ -214,6 +219,11 @@ func (s *SnapSuite) TestErrorResult(c *C) {
 }
 
 func (s *SnapSuite) TestAccessDeniedHint(c *C) {
+	r := snap.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{Username: "user"}, nil
+	})
+	defer r()
+
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "access denied", "kind": "login-required"}, "status-code": 401}`)
 	})
@@ -240,7 +250,7 @@ func (s *SnapSuite) TestVersionOnClassic(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
@@ -259,7 +269,7 @@ func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)

@@ -234,7 +234,7 @@ func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "vulkan-provider", SlotName: "vulkan-slot"}: {
+		{InstanceName: "vulkan-provider", SlotName: "vulkan-slot"}: {
 			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib1"),
 			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2"),
 			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1"),

@@ -126,7 +126,7 @@ func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string
 		if err != nil {
 			return false, err
 		}
-		if connRef.PlugRef.Snap == snapName {
+		if connRef.PlugRef.Snap.String() == snapName {
 			return true, nil
 		}
 	}
@@ -164,7 +164,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName()); err != nil {
+	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName().String()); err != nil {
 		return fmt.Errorf("cannot check for snapd-control interface: %v", err)
 	} else if conn {
 		return nil
@@ -226,7 +226,7 @@ func (c *modelCommand) Execute([]string) error {
 	// We only return an error in case we could not the get the snap.Info
 	// structure, and 'ignore' any error that caused us not to get the store
 	// account publisher
-	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName())
+	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName().String())
 	if snapInfo == nil {
 		return err
 	}

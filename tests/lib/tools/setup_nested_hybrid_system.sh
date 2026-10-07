@@ -391,7 +391,7 @@ main() {
         # work on and attach to the VM
         if [ -z "${disk}" ]; then
             disk="${PWD}/disk.img"
-            truncate --size=6G "${disk}"
+            truncate --size=8G "${disk}"
         fi
 
         # if a gadget wasn't provided, download one we know should work for hybrid
@@ -404,7 +404,7 @@ main() {
 
         # if a kernel wasn't provided, download one
         if [ -z "${kernel_snap}" ]; then
-            snap download --channel="23.10/stable" --basename=pc-kernel pc-kernel
+            "$TESTSTOOLS"/repack-kernel --mode download --kernel-branch 23.10 --kernel-channel stable --output-snap "${PWD}/pc-kernel.snap"
             kernel_snap="${PWD}/pc-kernel.snap"
             kernel_assertion="${PWD}/pc-kernel.assert"
         fi

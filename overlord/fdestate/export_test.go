@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -53,12 +54,40 @@ var (
 	SecurebootUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 	AddPlatformKeysAffectedSnaps  = addPlatformKeysAffectedSnaps
 
-	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
 
 	SetRepairAttemptResult = setRepairAttemptResult
 	GetRepairAttemptResult = getRepairAttemptResult
+
+	ConsumeDALockoutToken = consumeDALockoutToken
+	ReclaimDALockoutToken = reclaimDALockoutToken
 )
+
+const (
+	DALockoutMaxTokens      = daLockoutMaxTokens
+	DALockoutRefillInterval = daLockoutRefillInterval
+	DALockoutSyncInterval   = daLockoutSyncInterval
+)
+
+// GetDALockoutRateLimit returns the current DA lockout token bucket state.
+func GetDALockoutRateLimit(st *state.State) (tokens int, lastUpdate time.Time, err error) {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return 0, time.Time{}, err
+	}
+	return s.DALockoutRateLimit.Tokens, s.DALockoutRateLimit.LastUpdate, nil
+}
+
+// SetDALockoutRateLimit sets the DA lockout token bucket state.
+func SetDALockoutRateLimit(st *state.State, tokens int, lastUpdate time.Time, bootID string) error {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return err
+	}
+	s.DALockoutRateLimit = &daLockoutRateLimit{Tokens: tokens, LastUpdate: lastUpdate, BootID: bootID}
+	st.Set(fdeStateKey, &s)
+	return nil
+}
 
 type ExternalOperation = externalOperation
 
@@ -176,6 +205,10 @@ func MockBootLoadDiskUnlockState(f func(name string) (*boot.DiskUnlockState, err
 	return testutil.Mock(&bootLoadDiskUnlockState, f)
 }
 
+func MockInstallLoadPreinstallInfo(f func() (*install.PreinstallInfo, error)) (restore func()) {
+	return testutil.Mock(&installLoadPreinstallInfo, f)
+}
+
 type CachedActivateStateKey = cachedActivateStateKey
 
 func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error) (restore func()) {
@@ -186,7 +219,7 @@ func MockOsutilBootID(f func() (string, error)) (restore func()) {
 	return testutil.Mock(&osutilBootID, f)
 }
 
-func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState) bool) (restore func()) {
+func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions) (restore func()) {
 	return testutil.Mock(&secbootShouldAttemptRepair, f)
 }
 
@@ -198,10 +231,14 @@ func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootlo
 	return testutil.Mock(&bootloaderFind, f)
 }
 
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	return testutil.Mock(&secbootPostinstallCheck, f)
+}
+
 func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore func()) {
 	return testutil.Mock(&bootReadModeenv, f)
 }
 
-func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
-	return testutil.Mock(&secbootPostinstallCheck, f)
+func MockBootGetRunBootChain(f func(*boot.Modeenv) ([]bootloader.BootFile, error)) (restore func()) {
+	return testutil.Mock(&bootGetRunBootChain, f)
 }

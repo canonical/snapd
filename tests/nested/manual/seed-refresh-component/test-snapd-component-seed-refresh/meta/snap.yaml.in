@@ -1,0 +1,17 @@
+name: test-snapd-component-seed-refresh
+summary: A snap with components
+description: |
+  A snap with components used for testing snapd seed refreshes involving components.
+version: 1.0
+architectures: [all]
+base: @@BASE@@
+
+components:
+  comp-required:
+    type: test
+  comp-optional-in-seed:
+    type: test
+  comp-optional-not-in-seed:
+    type: test
+  comp-not-in-model:
+    type: test

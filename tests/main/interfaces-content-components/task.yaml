@@ -1,0 +1,144 @@
+summary: Test content interface sharing of component content via $SNAP_COMPONENT
+
+details: |
+  Verifies that the content interface can share read-only content from
+  components using the $SNAP_COMPONENT(<comp>)/<path> syntax in a slot's
+  read path, as well as sharing an entire component with
+  $SNAP_COMPONENT(<comp>).
+
+  A provider snap declares a content slot with four read paths: one
+  pointing at snap content ($SNAP/snap-content), two pointing at
+  component content ($SNAP_COMPONENT(comp1)/comp1-content and
+  $SNAP_COMPONENT(comp2)/comp2-content) and one sharing a whole component
+  ($SNAP_COMPONENT(comp3)). A consumer snap connects to the slot and
+  checks for the presence of each.
+
+  The test verifies that:
+  - With the provider installed but no components, snap content is visible
+    and component content is absent (silently skipped).
+  - After installing comp1, snap and comp1 content are visible, comp2 and
+    comp3 are absent.
+  - After installing comp2, snap, comp1 and comp2 content are visible, comp3
+    is absent.
+  - After installing comp3, all four are visible.
+  - After refreshing comp1 with new content, the new content is visible in
+    the consumer's mount namespace.
+  - After removing comp1, comp1 content is gone but snap, comp2 and comp3
+    content remain.
+  - After refreshing the provider snap and all components together (snap
+    content changed, comp1 reinstalled with new content, comp2 refreshed
+    with new content, comp3 refreshed with new content), all updated content
+    is visible.
+
+systems: [ubuntu-2*, ubuntu-core-*, fedora-*]
+
+prepare: |
+  echo "Build the components"
+  snap pack comp1
+  snap pack comp2
+  snap pack comp3
+
+execute: |
+  echo "Install the consumer and provider (without components)"
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-content-components-provider
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-content-components-consumer
+
+  echo "Connect the content interface"
+  snap connect test-snapd-content-components-consumer:content \
+    test-snapd-content-components-provider:content
+
+  echo "Then snap content is visible but component content is absent"
+  test-snapd-content-components-consumer.check | tee out-before
+  MATCH '^snap-content: snap content v1$' < out-before
+  MATCH '^comp1-content: <not found>$' < out-before
+  MATCH '^comp2-content: <not found>$' < out-before
+  MATCH '^comp3-content: <not found>$' < out-before
+
+  echo "When comp1 is installed"
+  snap install --dangerous test-snapd-content-components-provider+comp1_1.0.comp
+
+  echo "Then snap and comp1 content are visible, comp2 and comp3 are still absent"
+  test-snapd-content-components-consumer.check | tee out-after-comp1
+  MATCH '^snap-content: snap content v1$' < out-after-comp1
+  MATCH '^comp1-content: comp1 content v1$' < out-after-comp1
+  MATCH '^comp2-content: <not found>$' < out-after-comp1
+  MATCH '^comp3-content: <not found>$' < out-after-comp1
+
+  echo "When comp2 is installed"
+  snap install --dangerous test-snapd-content-components-provider+comp2_1.0.comp
+
+  echo "Then snap, comp1 and comp2 content are visible, comp3 is still absent"
+  test-snapd-content-components-consumer.check | tee out-after-comp2
+  MATCH '^snap-content: snap content v1$' < out-after-comp2
+  MATCH '^comp1-content: comp1 content v1$' < out-after-comp2
+  MATCH '^comp2-content: comp2 content v1$' < out-after-comp2
+  MATCH '^comp3-content: <not found>$' < out-after-comp2
+
+  echo "When comp3 is installed"
+  snap install --dangerous test-snapd-content-components-provider+comp3_1.0.comp
+
+  echo "Then snap, comp1, comp2 and comp3 content are all visible"
+  test-snapd-content-components-consumer.check | tee out-after-comp3
+  MATCH '^snap-content: snap content v1$' < out-after-comp3
+  MATCH '^comp1-content: comp1 content v1$' < out-after-comp3
+  MATCH '^comp2-content: comp2 content v1$' < out-after-comp3
+  MATCH '^comp3-content: comp3 content v1$' < out-after-comp3
+
+  echo "When comp1 is refreshed with new content"
+  echo "comp1 content v2" > comp1/comp1-content/comp-file
+  rm -f test-snapd-content-components-provider+comp1_1.0.comp
+  snap pack comp1
+  snap install --dangerous test-snapd-content-components-provider+comp1_1.0.comp
+
+  echo "Then the new comp1 content is visible in the mount namespace"
+  test-snapd-content-components-consumer.check | tee out-after-refresh
+  MATCH '^snap-content: snap content v1$' < out-after-refresh
+  MATCH '^comp1-content: comp1 content v2$' < out-after-refresh
+  MATCH '^comp2-content: comp2 content v1$' < out-after-refresh
+  MATCH '^comp3-content: comp3 content v1$' < out-after-refresh
+
+  echo "When comp1 is removed"
+  snap remove test-snapd-content-components-provider+comp1
+
+  echo "Then comp1 content is gone but snap, comp2 and comp3 content remain"
+  test-snapd-content-components-consumer.check | tee out-after-remove
+  MATCH '^snap-content: snap content v1$' < out-after-remove
+  MATCH '^comp1-content: <not found>$' < out-after-remove
+  MATCH '^comp2-content: comp2 content v1$' < out-after-remove
+  MATCH '^comp3-content: comp3 content v1$' < out-after-remove
+
+  echo "When the provider snap and all components are refreshed together"
+  echo "snap content v2" > test-snapd-content-components-provider/snap-content/snap-file
+  echo "comp1 content v3" > comp1/comp1-content/comp-file
+  echo "comp2 content v2" > comp2/comp2-content/comp-file
+  echo "comp3 content v2" > comp3/comp3-file
+  rm -f test-snapd-content-components-provider_1.0_*.snap
+  rm -f test-snapd-content-components-provider+comp1_1.0.comp
+  rm -f test-snapd-content-components-provider+comp2_1.0.comp
+  rm -f test-snapd-content-components-provider+comp3_1.0.comp
+  snap pack test-snapd-content-components-provider
+  snap pack comp1
+  snap pack comp2
+  snap pack comp3
+  snap install --dangerous \
+    test-snapd-content-components-provider_1.0_*.snap \
+    test-snapd-content-components-provider+comp1_1.0.comp \
+    test-snapd-content-components-provider+comp2_1.0.comp \
+    test-snapd-content-components-provider+comp3_1.0.comp
+
+  echo "Then all content is updated"
+  test-snapd-content-components-consumer.check | tee out-after-provider-refresh
+  MATCH '^snap-content: snap content v2$' < out-after-provider-refresh
+  MATCH '^comp1-content: comp1 content v3$' < out-after-provider-refresh
+  MATCH '^comp2-content: comp2 content v2$' < out-after-provider-refresh
+  MATCH '^comp3-content: comp3 content v2$' < out-after-provider-refresh
+
+  echo "Cleanup"
+  snap remove --purge test-snapd-content-components-provider
+  test-snapd-content-components-consumer.check | tee out-post-remove
+  MATCH '^snap-content: <not found>$' < out-post-remove
+  MATCH '^comp1-content: <not found>$' < out-post-remove
+  MATCH '^comp2-content: <not found>$' < out-post-remove
+  MATCH '^comp3-content: <not found>$' < out-post-remove
+
+  snap remove --purge test-snapd-content-components-consumer

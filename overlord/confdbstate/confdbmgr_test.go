@@ -351,7 +351,7 @@ func (s *confdbTestSuite) TestManagerOk(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, runner)
 	c.Assert(err, IsNil)
 
-	mgr := confdbstate.Manager(s.state, hookMgr, runner)
+	mgr := confdbstate.Manager(s.state, hookMgr, runner, nil)
 	s.o.AddManager(mgr)
 
 	err = s.o.Settle(5 * time.Second)
@@ -465,7 +465,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 
 	// clearing would remove non-committed changes, so if we read the set value
 	// it's because it has been successfully committed
-	err = tx.Clear(s.state)
+	err = tx.Reset(s.state)
 	c.Assert(err, IsNil)
 
 	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)

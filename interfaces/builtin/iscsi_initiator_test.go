@@ -20,13 +20,17 @@
 package builtin_test
 
 import (
+	"strings"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -94,8 +98,8 @@ func (s *iscsiInitiatorInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/static/** rw,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/isns/ rwk,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/isns/** rw,")
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/nodes/ rwk,")
-	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/etc/iscsi/nodes/** rw,")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/{etc,var/lib}/iscsi/nodes/ rwk,")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/{etc,var/lib}/iscsi/nodes/** rw,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/run/lock/iscsi/** rwlk,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/class/iscsi_session/** rw,")
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/class/iscsi_host/** r,")
@@ -132,4 +136,23 @@ func (s *iscsiInitiatorInterfaceSuite) TestUDevConnectedPlug(c *C) {
 
 func (s *iscsiInitiatorInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *iscsiInitiatorInterfaceSuite) TestMountEntryAndNsRule(c *C) {
+	const nsSnippet = "mount options=(bind, rw) /var/lib/snapd/hostfs/var/lib/iscsi/nodes/ -> /var/lib/iscsi/nodes/,"
+
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/lib/snapd/hostfs/var/lib/iscsi/nodes",
+		Dir:     "/var/lib/iscsi/nodes",
+		Options: []string{"bind", "rw"},
+	}})
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	aaSpec := apparmor.NewSpecification(appSet)
+	c.Assert(aaSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	c.Check(strings.Join(aaSpec.UpdateNS(), "\n"), testutil.Contains, nsSnippet)
 }

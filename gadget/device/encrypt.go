@@ -104,6 +104,10 @@ func TpmLockoutAuthUnder(saveDeviceFDEDir string) string {
 
 // PreinstallCheckResultUnder returns the path of the preinstall check result.
 func PreinstallCheckResultUnder(deviceFDEDir string) string {
+	// FIXME: this is a bit a bad choice of name since this could
+	// be from a post install check. This is more something like
+	// "run checks context". But we cannot easily rename without
+	// breaking backward compatibility.
 	return filepath.Join(deviceFDEDir, "preinstall")
 }
 

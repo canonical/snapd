@@ -42,7 +42,7 @@ func (s *SnapSuite) TestVersionCommandOnClassic(c *C) {
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
@@ -115,7 +115,7 @@ func (s *SnapSuite) TestVersionCommandOnAllSnap(c *C) {
 	})
 	restore := mockArgs("snap", "--version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
@@ -151,7 +151,7 @@ func (s *SnapSuite) TestVersionCommandOnClassicNoOsVersion(c *C) {
 	})
 	restore := mockArgs("snap", "version")
 	defer restore()
-	restore = snapdtool.MockVersion("4.56")
+	restore = snapdtool.MockVersion("4.56", "")
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
@@ -171,7 +171,7 @@ func (s *SnapSuite) TestVersionCommandOnWSL1(c *C) {
 		c.Error("This should not talk to snapd")
 	})
 	defer mockArgs("snap", "version")()
-	defer snapdtool.MockVersion("4.56")()
+	defer snapdtool.MockVersion("4.56", "")()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)
@@ -185,7 +185,7 @@ func (s *SnapSuite) TestVersionCommandOnWSL2(c *C) {
 		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89","architecture":"ia64"}}`)
 	})
 	defer mockArgs("snap", "version")()
-	defer snapdtool.MockVersion("4.56")()
+	defer snapdtool.MockVersion("4.56", "")()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"version"})
 	c.Assert(err, IsNil)

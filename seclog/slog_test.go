@@ -18,17 +18,6 @@
  *
  */
 
-// slog.go coverage (all tests in this file):
-//   NewSlogLogger, LogEvent envelope  → TestNewSlogLogger, TestLogEventEnvelope
-//   Key order                           → TestLogEventKeyOrder
-//   Level filtering                     → TestLevelFiltering
-//   Write failure handling              → TestWriteFailure*
-//   SnapdUser.LogValue                  → TestSnapdUserLogValue
-//   Reason.LogValue                     → TestReasonLogValue
-//   Peer.LogValue                       → TestPeerLogValue
-//   Endpoint.LogValue                   → TestEndpointLogValue
-//   AuthzChecks.LogValue                → TestAuthzChecksLogValue
-
 package seclog_test
 
 import (
@@ -173,11 +162,44 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "peer", Value: seclog.Peer{Socket: "/run/snapd.socket"}},
 				{Key: "endpoint", Value: seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}},
-				{Key: "authz_checks", Value: seclog.NewAuthzChecks()},
+				{Key: "reason_granted", Value: seclog.GrantRootAuth},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",
-				"app_id", "type", "category", "event", "peer", "endpoint", "authz_checks",
+				"app_id", "type", "category", "event", "peer", "endpoint", "reason_granted",
+			},
+		},
+		{
+			attrs: []seclog.Attr{
+				{Key: "peer", Value: seclog.Peer{Socket: "/run/snapd.socket"}},
+				{Key: "endpoint", Value: seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}},
+				{Key: "reason_denied", Value: seclog.DenialUserAuth},
+			},
+			wantKeys: []string{
+				"datetime", "level", "description",
+				"app_id", "type", "category", "event", "peer", "endpoint", "reason_denied",
+			},
+		},
+		{
+			attrs: []seclog.Attr{
+				{Key: "system_user", Value: "karl"},
+				{Key: "add_options", Value: seclog.SystemUserAddOptions{Known: false}},
+				{Key: "add_reason", Value: string(seclog.AddReasonAPIStoreEmail)},
+			},
+			wantKeys: []string{
+				"datetime", "level", "description",
+				"app_id", "type", "category", "event", "system_user", "add_options", "add_reason",
+			},
+		},
+		{
+			attrs: []seclog.Attr{
+				{Key: "system_user", Value: "karl"},
+				{Key: "remove_options", Value: seclog.SystemUserRemoveOptions{Force: true}},
+				{Key: "remove_reason", Value: string(seclog.RemoveReasonEnsureExpired)},
+			},
+			wantKeys: []string{
+				"datetime", "level", "description",
+				"app_id", "type", "category", "event", "system_user", "remove_options", "remove_reason",
 			},
 		},
 	}
@@ -254,6 +276,126 @@ func (s *SlogSuite) TestSnapdUserLogValue(c *C) {
 	}
 }
 
+func (s *SlogSuite) TestGrantReasonLogValue(c *C) {
+	type record struct {
+		ReasonGranted string `json:"reason_granted"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "reason_granted", Value: seclog.GrantRootAuth.WithInterface("desktop-launch", true)},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.ReasonGranted, Equals, "root-auth desktop-launch plug")
+}
+
+func (s *SlogSuite) TestLogSystemRestartSnapd(c *C) {
+	type record struct {
+		baseAttrs
+		Event        string `json:"event"`
+		SnapdVersion string `json:"snapd_version"`
+		Reason       string `json:"reason"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_restart_snapd", Level: seclog.LevelInfo},
+		"Snapd restart with reason snapd-update",
+		seclog.Attr{Key: "snapd_version", Value: "2.78"},
+		seclog.Attr{Key: "reason", Value: "snapd-update"},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd restart with reason snapd-update")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_restart_snapd")
+	c.Check(obtained.Reason, Equals, "snapd-update")
+	c.Check(obtained.SnapdVersion, Equals, "2.78")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_version", "reason",
+	})
+}
+
+func (s *SlogSuite) TestLogSystemStandbySnapd(c *C) {
+	type record struct {
+		baseAttrs
+		Event        string `json:"event"`
+		SnapdVersion string `json:"snapd_version"`
+		Reason       string `json:"reason"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_standby_snapd", Level: seclog.LevelInfo},
+		"Snapd standby with reason snapd-idle",
+		seclog.Attr{Key: "snapd_version", Value: "2.78"},
+		seclog.Attr{Key: "reason", Value: "snapd-idle"},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd standby with reason snapd-idle")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_standby_snapd")
+	c.Check(obtained.Reason, Equals, "snapd-idle")
+	c.Check(obtained.SnapdVersion, Equals, "2.78")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_version", "reason",
+	})
+}
+
+func (s *SlogSuite) TestLogSystemStartupSnapd(c *C) {
+	type record struct {
+		baseAttrs
+		Event        string `json:"event"`
+		SnapdVersion string `json:"snapd_version"`
+		BootID       string `json:"boot_id"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_startup_snapd", Level: seclog.LevelInfo},
+		"Snapd startup",
+		seclog.Attr{Key: "snapd_version", Value: "2.78"},
+		seclog.Attr{Key: "boot_id", Value: "11111111-2222-3333-4444-555555555555"},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd startup")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_startup_snapd")
+	c.Check(obtained.SnapdVersion, Equals, "2.78")
+	c.Check(obtained.BootID, Equals, "11111111-2222-3333-4444-555555555555")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_version", "boot_id",
+	})
+}
+
 func (s *SlogSuite) TestReasonLogValue(c *C) {
 	type errorRecord struct {
 		Error struct {
@@ -303,9 +445,12 @@ func (s *SlogSuite) TestReasonLogValue(c *C) {
 func (s *SlogSuite) TestPeerLogValue(c *C) {
 	type peerRecord struct {
 		Peer struct {
-			Socket string `json:"socket"`
-			UID    int64  `json:"uid"`
-			PID    int64  `json:"pid"`
+			Socket       string `json:"socket"`
+			UID          int64  `json:"uid"`
+			PID          int64  `json:"pid"`
+			Exe          string `json:"exe"`
+			InstanceName string `json:"instance_name"`
+			Runnable     string `json:"runnable"`
 		} `json:"peer"`
 	}
 
@@ -315,6 +460,7 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 		"test",
 		seclog.Attr{Key: "peer", Value: seclog.Peer{
 			Socket: "/run/snapd.socket", UID: 0, PID: 4242,
+			Exe: "/usr/bin/snap", InstanceName: "<unknown>", Runnable: "<unknown>",
 		}},
 	)
 
@@ -324,77 +470,225 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 	c.Check(obtained.Peer.Socket, Equals, "/run/snapd.socket")
 	c.Check(obtained.Peer.UID, Equals, int64(0))
 	c.Check(obtained.Peer.PID, Equals, int64(4242))
+	c.Check(obtained.Peer.Exe, Equals, "/usr/bin/snap")
+	c.Check(obtained.Peer.InstanceName, Equals, "<unknown>")
+	c.Check(obtained.Peer.Runnable, Equals, "<unknown>")
+}
+
+func (s *SlogSuite) TestPeerLogValueEmptyFields(c *C) {
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "peer", Value: seclog.Peer{
+			Socket: "/run/snapd.socket", UID: 1000, PID: 4242,
+		}},
+	)
+
+	c.Check(s.buf.String(), testutil.Contains, `"exe":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"instance_name":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"runnable":"<unknown>"`)
+}
+
+func (s *SlogSuite) TestSystemUserAddOptionsLogValue(c *C) {
+	type addOptionsRecord struct {
+		seclog.SystemUserAddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "add_options", Value: seclog.SystemUserAddOptions{
+			RealUserName:        "Karl Popper",
+			Sudoer:              true,
+			ExtraUsers:          true,
+			ForcePasswordChange: true,
+			Known:               false,
+		}},
+	)
+
+	var obtained addOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUserAddOptions.RealUserName, Equals, "Karl Popper")
+	c.Check(obtained.SystemUserAddOptions.Sudoer, Equals, true)
+	c.Check(obtained.SystemUserAddOptions.ExtraUsers, Equals, true)
+	c.Check(obtained.SystemUserAddOptions.ForcePasswordChange, Equals, true)
+	c.Check(obtained.SystemUserAddOptions.Known, Equals, false)
+}
+
+func (s *SlogSuite) TestAssertionRefLogValue(c *C) {
+	type refRecord struct {
+		Ref seclog.AssertionRef `json:"ref"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "ref", Value: seclog.AssertionRef{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   2,
+		}},
+	)
+
+	var obtained refRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Ref.Type, Equals, "system-user")
+	c.Check(obtained.Ref.PrimaryKey, DeepEquals, []string{"my-brand", "foo@bar.com"})
+	c.Check(obtained.Ref.Revision, Equals, 2)
+}
+
+func (s *SlogSuite) TestSystemUserAddOptionsWithAssertionLogValue(c *C) {
+	type addOptionsRecord struct {
+		seclog.SystemUserAddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "add_options", Value: seclog.SystemUserAddOptions{
+			Known: true,
+			Assertion: &seclog.AssertionRef{
+				Type:       "system-user",
+				PrimaryKey: []string{"my-brand", "foo@bar.com"},
+				Revision:   1,
+			},
+		}},
+	)
+
+	var obtained addOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUserAddOptions.Known, Equals, true)
+	c.Assert(obtained.SystemUserAddOptions.Assertion, NotNil)
+	c.Check(obtained.SystemUserAddOptions.Assertion.Type, Equals, "system-user")
+	c.Check(obtained.SystemUserAddOptions.Assertion.PrimaryKey, DeepEquals, []string{"my-brand", "foo@bar.com"})
+	c.Check(obtained.SystemUserAddOptions.Assertion.Revision, Equals, 1)
+}
+
+func (s *SlogSuite) TestSystemUserRemoveOptionsLogValue(c *C) {
+	type removeOptionsRecord struct {
+		seclog.SystemUserRemoveOptions `json:"remove_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "remove_options", Value: seclog.SystemUserRemoveOptions{Force: true}},
+	)
+
+	var obtained removeOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUserRemoveOptions.Force, Equals, true)
+}
+
+func (s *SlogSuite) TestSystemUserAddReasonLogValue(c *C) {
+	type record struct {
+		SystemUser string                      `json:"system_user"`
+		AddReason  string                      `json:"add_reason"`
+		AddOptions seclog.SystemUserAddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "USER", Name: "user_created_system", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "system_user", Value: "foo"},
+		seclog.Attr{Key: "add_options", Value: seclog.SystemUserAddOptions{Known: true}},
+		seclog.Attr{Key: "add_reason", Value: string(seclog.AddReasonAPIAssertion)},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUser, Equals, "foo")
+	c.Check(obtained.AddReason, Equals, "api-assertion")
+	c.Check(obtained.AddOptions.Known, Equals, true)
+}
+
+func (s *SlogSuite) TestSystemUserRemoveReasonLogValue(c *C) {
+	type record struct {
+		SystemUser    string                         `json:"system_user"`
+		RemoveReason  string                         `json:"remove_reason"`
+		RemoveOptions seclog.SystemUserRemoveOptions `json:"remove_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "USER", Name: "user_removed_system", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "system_user", Value: "foo"},
+		seclog.Attr{Key: "remove_options", Value: seclog.SystemUserRemoveOptions{Force: true}},
+		seclog.Attr{Key: "remove_reason", Value: string(seclog.RemoveReasonEnsureExpired)},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.SystemUser, Equals, "foo")
+	c.Check(obtained.RemoveReason, Equals, "ensure-remove-expired-user")
+	c.Check(obtained.RemoveOptions.Force, Equals, true)
 }
 
 func (s *SlogSuite) TestEndpointLogValue(c *C) {
 	type endpointRecord struct {
 		Endpoint struct {
-			Method        string `json:"method"`
-			Path          string `json:"path"`
-			Action        string `json:"action"`
-			AccessChecker string `json:"access_checker"`
-			AccessLevel   string `json:"access_level"`
+			Method string `json:"method"`
+			Path   string `json:"path"`
+			Action string `json:"action"`
 		} `json:"endpoint"`
 	}
 
-	logger := s.newLogger(c)
-	logger.LogEvent(
-		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
-		"test",
-		seclog.Attr{Key: "endpoint", Value: seclog.Endpoint{
-			Method:        "POST",
-			Path:          "/v2/snaps",
-			Action:        "install",
-			AccessChecker: "authenticated",
-			AccessLevel:   "authenticated",
-		}},
-	)
-
-	var obtained endpointRecord
-	err := json.Unmarshal(s.buf.Bytes(), &obtained)
-	c.Assert(err, IsNil)
-	c.Check(obtained.Endpoint.Method, Equals, "POST")
-	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps")
-	c.Check(obtained.Endpoint.Action, Equals, "install")
-	c.Check(obtained.Endpoint.AccessChecker, Equals, "authenticated")
-	c.Check(obtained.Endpoint.AccessLevel, Equals, "authenticated")
-}
-
-func (s *SlogSuite) TestAuthzChecksLogValue(c *C) {
-	type authzChecksRecord struct {
-		AuthzChecks struct {
-			AccessOptions string `json:"access_options"`
-			PeerCreds     string `json:"peer_credentials"`
-			Socket        string `json:"socket"`
-			Interface     string `json:"interface_requirements"`
-			OpenAccess    string `json:"open_access"`
-			UserAuth      string `json:"user_authentication"`
-			Root          string `json:"root"`
-			Polkit        string `json:"polkit"`
-		} `json:"authz_checks"`
+	cases := []struct {
+		endpoint   seclog.Endpoint
+		wantMethod string
+		wantPath   string
+		wantAction string
+	}{
+		{
+			endpoint: seclog.Endpoint{
+				Method: "POST",
+				Path:   "/v2/snaps",
+				Action: "install",
+			},
+			wantMethod: "POST",
+			wantPath:   "/v2/snaps",
+			wantAction: "install",
+		},
+		{
+			endpoint: seclog.Endpoint{
+				Method: "DELETE",
+				Path:   "/v2/snaps/core",
+			},
+			wantMethod: "DELETE",
+			wantPath:   "/v2/snaps/core",
+			wantAction: "<none>",
+		},
 	}
 
-	checks := seclog.NewAuthzChecks()
-	checks.PeerCreds = seclog.AuthzPass
+	for _, tc := range cases {
+		s.buf.Reset()
+		logger := s.newLogger(c)
+		logger.LogEvent(
+			seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+			"test",
+			seclog.Attr{Key: "endpoint", Value: tc.endpoint},
+		)
 
-	logger := s.newLogger(c)
-	logger.LogEvent(
-		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
-		"test",
-		seclog.Attr{Key: "authz_checks", Value: checks},
-	)
-
-	var obtained authzChecksRecord
-	err := json.Unmarshal(s.buf.Bytes(), &obtained)
-	c.Assert(err, IsNil)
-	c.Check(obtained.AuthzChecks.AccessOptions, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.PeerCreds, Equals, string(seclog.AuthzPass))
-	c.Check(obtained.AuthzChecks.Socket, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.Interface, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.OpenAccess, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.UserAuth, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.Root, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.Polkit, Equals, string(seclog.AuthzNotApplicable))
+		var obtained endpointRecord
+		err := json.Unmarshal(s.buf.Bytes(), &obtained)
+		c.Assert(err, IsNil)
+		c.Check(obtained.Endpoint.Method, Equals, tc.wantMethod)
+		c.Check(obtained.Endpoint.Path, Equals, tc.wantPath)
+		c.Check(obtained.Endpoint.Action, Equals, tc.wantAction)
+	}
 }
 
 func (s *SlogSuite) TestLevelFiltering(c *C) {

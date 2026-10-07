@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -58,6 +59,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -130,6 +133,10 @@ func (t *firstBootBaseTest) setupBaseTest(c *C, s *seedtest.SeedSnaps) {
 	t.AddCleanup(snapstatetest.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) *state.TaskSet {
 		// no reason for devicestate to set up tasks for delayed effects
 		panic("unexpected call")
+	}))
+
+	t.AddCleanup(fdestate.MockSecbootGetDALockoutInfo(func() (*secboot.DALockoutInfo, error) {
+		return &secboot.DALockoutInfo{LockoutCounter: 0}, nil
 	}))
 }
 
@@ -503,7 +510,7 @@ func checkOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 		}
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
-		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		c.Check(snapsup.InstanceName().String(), Equals, snaps[matched])
 		matched++
 	}
 	c.Check(matched, Equals, len(snaps))
@@ -934,7 +941,7 @@ snaps:
 		ok, err := snapstate.HasSnapOfType(st, snap.TypeGadget)
 		c.Check(err, IsNil)
 		c.Check(ok, Equals, true)
-		configured = append(configured, ctx.InstanceName())
+		configured = append(configured, ctx.InstanceName().String())
 		return nil, nil
 	}
 
@@ -2489,6 +2496,8 @@ func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingHappy(
 }
 
 func (s *firstBoot16Suite) TestPopulateFromSeedCore18ValidationSetTrackingUnmetCriteria(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+
 	a, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",

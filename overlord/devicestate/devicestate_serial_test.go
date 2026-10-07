@@ -362,8 +362,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicNoGadget(c 
 		Model: "classic-alt-store",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -424,6 +423,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicFallback(c 
 
 	becomeOperational := s.findBecomeOperationalChange()
 	c.Check(becomeOperational, IsNil)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 0)
 
 	// have a in-progress installation
 	inst := s.state.NewChange("install", "...")
@@ -437,6 +437,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyClassicFallback(c 
 
 	becomeOperational = s.findBecomeOperationalChange()
 	c.Assert(becomeOperational, NotNil)
+	c.Check(devicestate.EnsureOperationalAttempts(s.state), Equals, 1)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
@@ -504,8 +505,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandAcceptGenericHap
 		Model: "my-model-accept-generic",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -567,8 +567,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandMismatchedAuthor
 		Model: "my-model-accept-generic",
 	})
 
-	// avoid full seeding
-	s.seeding()
+	s.state.Set("seeded", true)
 
 	// runs the whole device registration process
 	s.state.Unlock()
@@ -1219,9 +1218,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	defer s.state.Unlock()
 
 	body := map[string]string{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	}
 
 	encodedBody, err := json.Marshal(body)
@@ -1293,9 +1291,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	c.Assert(err, IsNil)
 
 	c.Check(details, DeepEquals, map[string]any{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	})
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
@@ -1326,9 +1323,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationFailingPrepareSerialHoo
 	defer s.state.Unlock()
 
 	body := map[string]string{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	}
 
 	encodedBody, err := json.Marshal(body)
@@ -1425,9 +1421,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	}
 
 	body := map[string]string{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	}
 
 	encodedBody, err := json.Marshal(body)
@@ -1499,9 +1494,8 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareDevicePrepa
 	c.Assert(err, IsNil)
 
 	c.Check(details, DeepEquals, map[string]any{
-		"hardware-id-key":        "key",
-		"hardware-id-key-sha384": "hash",
-		"request-id-signature":   "signature",
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
 	})
 
 	privKey, err := devicestate.KeypairManager(s.mgr).Get(serial.DeviceKey().ID())
@@ -1517,13 +1511,13 @@ func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookNoOverwite(c *C) {
 }
 
 func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingHWKeyHash(c *C) {
-	body := `{"hardware-id-key":"a",  "request-id-signature":"c"}`
-	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key-sha384" in registration body`
+	body := `{"request-id-signature":"c"}`
+	expectedErr := `'prepare-serial-request' hook did not set mandatory field "hardware-id-key-sha3-384" in registration body`
 	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
 }
 
 func (s *deviceMgrSerialSuite) TestPrepareDeviceSerialHookMissingReqIDSignature(c *C) {
-	body := `{"hardware-id-key":"a", "hardware-id-key-sha384":"b"}`
+	body := `{"hardware-id-key-sha3-384":"b"}`
 	expectedErr := `'prepare-serial-request' hook did not set mandatory field "request-id-signature" in registration body`
 	s.testBadPrepareDeviceSerialHook(c, body, expectedErr)
 }

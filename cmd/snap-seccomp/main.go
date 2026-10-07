@@ -432,6 +432,10 @@ var seccompResolver = map[string]uint64{
 	"S_IFIFO":  syscall.S_IFIFO,
 	"S_IFSOCK": syscall.S_IFSOCK,
 
+	// man 7 inode - special permission bits
+	"S_ISUID": syscall.S_ISUID,
+	"S_ISGID": syscall.S_ISGID,
+
 	// man 7 netlink (uapi/linux/netlink.h)
 	"NETLINK_ROUTE":          syscall.NETLINK_ROUTE,
 	"NETLINK_USERSOCK":       syscall.NETLINK_USERSOCK,
@@ -484,6 +488,10 @@ var seccompResolver = map[string]uint64{
 	// The macro O_NOTIFICATION_PIPE is just O_EXCL and is fixed for ABI compatibility.
 	//  see: https://elixir.bootlin.com/linux/v6.5.13/source/include/uapi/linux/watch_queue.h#L9
 	"O_NOTIFICATION_PIPE": C.O_EXCL,
+
+	// man 2 open
+	"O_CREAT":   C.O_CREAT,
+	"O_TMPFILE": C.O_TMPFILE,
 }
 
 // DpkgArchToScmpArch takes a dpkg architecture and converts it to

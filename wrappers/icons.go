@@ -104,12 +104,12 @@ func EnsureSnapIcons(s *snap.Info) error {
 	}
 
 	rootDir := filepath.Join(s.MountDir(), "meta", "gui", "icons")
-	icons, err := findIconFiles(s.SnapName(), rootDir)
+	icons, err := findIconFiles(s.SnapName().String(), rootDir)
 	if err != nil {
 		return err
 	}
 
-	content, err := deriveIconContent(s.InstanceName(), rootDir, icons)
+	content, err := deriveIconContent(s.InstanceName().String(), rootDir, icons)
 	if err != nil {
 		return err
 	}

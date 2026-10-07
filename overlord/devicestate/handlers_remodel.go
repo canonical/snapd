@@ -231,7 +231,7 @@ func rollBackValidationSets(st *state.State, oldSets []*asserts.ValidationSet, n
 	// early in the change. this would allow us to undo the validation sets
 	// after the snap installations/refreshes have been undone.
 	for _, sn := range snaps {
-		ignore[sn.SnapName()] = true
+		ignore[sn.SnapName().String()] = true
 	}
 
 	if err := assertstate.ApplyLocalEnforcedValidationSets(st, vSetKeys, nil, snaps, ignore); err != nil {

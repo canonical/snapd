@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -140,6 +141,10 @@ func MockCreateInterfacesRequestsManager(new func(noticeMgr *notices.NoticeManag
 	return testutil.Mock(&createInterfacesRequestsManager, new)
 }
 
+func MockInterfacesRequestsManagerShutDown(new func(m *apparmorprompting.InterfacesRequestsManager)) (restore func()) {
+	return testutil.Mock(&interfacesRequestsManagerShutDown, new)
+}
+
 func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesRequestsManager) error) (restore func()) {
 	return testutil.Mock(&interfacesRequestsManagerStop, new)
 }
@@ -203,8 +208,8 @@ func GetConnStateAttrs(conns map[string]*schema.ConnState, connID string) (plugS
 }
 
 // SystemSnapName returns actual name of the system snap - reimplemented by concrete mapper.
-func (m *IdentityMapper) SystemSnapName() string {
-	return "unknown"
+func (m *IdentityMapper) SystemSnapName() naming.InstanceName {
+	return naming.NewInstanceName("unknown", "")
 }
 
 // MockProfilesNeedRegeneration mocks the function checking if profiles need regeneration.
@@ -221,7 +226,7 @@ func MockWriteSystemKey(fn func(extraData interfaces.SystemKeyExtraData) error) 
 	return func() { writeSystemKey = old }
 }
 
-func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName string) error {
+func (m *InterfaceManager) TransitionConnectionsCoreMigration(st *state.State, oldName, newName naming.InstanceName) error {
 	return m.transitionConnectionsCoreMigration(st, oldName, newName)
 }
 

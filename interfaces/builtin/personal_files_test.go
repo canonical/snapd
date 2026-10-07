@@ -93,11 +93,31 @@ owner "@{HOME}/.local/share/dir1/dir2/target{,/,/**}" rwkl,
 
 	c.Check("\n"+strings.Join(apparmorSpec.UpdateNS(), "\n"), Equals, `
   # Allow the personal-files interface to create potentially missing directories
-  owner @{HOME}/ rw,
-  owner @{HOME}/.local/ rw,
-  owner @{HOME}/.local/share/ rw,
-  owner @{HOME}/.local/share/dir1/ rw,
-  owner @{HOME}/.local/share/dir1/dir2/ rw,`)
+  owner "@{HOME}/" rw,
+  owner "@{HOME}/.local/" rw,
+  owner "@{HOME}/.local/share/" rw,
+  owner "@{HOME}/.local/share/dir1/" rw,
+  owner "@{HOME}/.local/share/dir1/dir2/" rw,`)
+}
+
+func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorPathWithSpaces(c *C) {
+	const mockPlugSnapInfo = `name: other
+version: 1.0
+plugs:
+ personal-files:
+  write: ["$HOME/dir with spaces/target"]
+apps:
+ app:
+  command: foo
+  plugs: [personal-files]
+`
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfo, nil, "personal-files")
+	apparmorSpec := apparmor.NewSpecification(plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, IsNil)
+
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `owner "@{HOME}/dir with spaces/target{,/,/**}" rwkl,`)
+	c.Check(strings.Join(apparmorSpec.UpdateNS(), "\n"), testutil.Contains, `owner "@{HOME}/dir with spaces/" rw,`)
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugApparmorErrorNotString(c *C) {

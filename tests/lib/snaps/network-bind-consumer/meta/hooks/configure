@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+if [ -n "$(snapctl get port)" ]; then
+    snapctl restart "$SNAP_INSTANCE_NAME"
+fi

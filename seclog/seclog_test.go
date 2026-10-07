@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/testutil"
@@ -205,6 +206,69 @@ func (s *SecLogSuite) TestLogLoggerDisabledNopSkipsNoticef(c *C) {
 	c.Check(logBuf.String(), Not(testutil.Contains), "security logger disabled")
 }
 
+func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUpdate)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-update"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdUndo(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUndo)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-undo")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-undo"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
+	seclog.LogSystemRestartSnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason <unknown>")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {
+	seclog.LogSystemStandbySnapd("2.78", restart.RestartSnapdIdle)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason snapd-idle")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-idle"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStandbySnapdUnknownReason(c *C) {
+	seclog.LogSystemStandbySnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason <unknown>")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStartupSnapd(c *C) {
+	seclog.LogSystemStartupSnapd("2.78", "11111111-2222-3333-4444-555555555555")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_startup_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd startup")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[boot_id="11111111-2222-3333-4444-555555555555"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStartupSnapdUnknownVersionAndBootID(c *C) {
+	seclog.LogSystemStartupSnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_startup_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd startup")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[boot_id="<unknown>"]`)
+}
+
 func (s *SecLogSuite) TestLogUserCreated(c *C) {
 	user := seclog.SnapdUser{
 		ID:             1,
@@ -245,50 +309,105 @@ func (s *SecLogSuite) TestLogUserRemoved(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
 }
 
+func (s *SecLogSuite) TestLogSystemUserCreated(c *C) {
+	opts := seclog.SystemUserAddOptions{
+		RealUserName:        "Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: false,
+		Known:               false,
+	}
+	seclog.LogSystemUserCreated("karl", opts, seclog.AddReasonAPIStoreEmail)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.buf.String(), testutil.Contains, "Created system user karl (api-store-email)")
+	c.Check(s.buf.String(), testutil.Contains, "karl")
+	c.Check(s.buf.String(), testutil.Contains, "Karl Popper")
+	c.Check(s.buf.String(), testutil.Contains, "Sudoer:true")
+	c.Check(s.buf.String(), testutil.Contains, "Known:false")
+	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-store-email"`)
+}
+
+func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
+	opts := seclog.SystemUserAddOptions{
+		Known: true,
+		Assertion: &seclog.AssertionRef{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   0,
+		},
+	}
+	seclog.LogSystemUserCreated("example-user", opts, seclog.AddReasonAPIAssertion)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.buf.String(), testutil.Contains, "type:system-user")
+	c.Check(s.buf.String(), testutil.Contains, "my-brand")
+	c.Check(s.buf.String(), testutil.Contains, "foo@bar.com")
+	c.Check(s.buf.String(), testutil.Contains, "Known:true")
+	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-assertion"`)
+}
+
+func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
+	opts := seclog.SystemUserRemoveOptions{Force: true}
+	seclog.LogSystemUserRemoved("some-user", opts, seclog.RemoveReasonEnsureExpired)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_removed_system")
+	c.Check(s.buf.String(), testutil.Contains, "Removed system user some-user (ensure-remove-expired-user)")
+	c.Check(s.buf.String(), testutil.Contains, "some-user")
+	c.Check(s.buf.String(), testutil.Contains, "Force:true")
+	c.Check(s.buf.String(), testutil.Contains, `remove_reason="ensure-remove-expired-user"`)
+}
+
 // TestLogAdminActivity verifies that LogAdminActivity emits the expected event and attributes.
 func (s *SecLogSuite) TestLogAdminActivity(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
 	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 0, PID: 4242}
 	endpoint := seclog.Endpoint{
-		Method:        "POST",
-		Path:          "/v2/snaps",
-		Action:        "install",
-		AccessChecker: "authenticated",
-		AccessLevel:   "authenticated",
+		Method: "POST",
+		Path:   "/v2/snaps",
+		Action: "install",
 	}
-	checks := seclog.NewAuthzChecks()
-
-	seclog.LogAdminActivity(user, peer, endpoint, checks)
+	seclog.LogAdminActivity(user, peer, endpoint, seclog.GrantRootAuth)
 
 	c.Check(s.buf.String(), testutil.Contains, "authz_admin")
 	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
-	c.Check(s.buf.String(), testutil.Contains, "accessed POST:/v2/snaps:install")
+	c.Check(s.buf.String(), testutil.Contains, "granted access to POST:/v2/snaps:install (root-auth)")
 	c.Check(s.buf.String(), testutil.Contains, "admin@example.com")
 	c.Check(s.buf.String(), testutil.Contains, "/run/snapd.socket")
 	c.Check(s.buf.String(), testutil.Contains, "4242")
 	c.Check(s.buf.String(), testutil.Contains, "[peer=")
 	c.Check(s.buf.String(), testutil.Contains, "[endpoint=")
-	c.Check(s.buf.String(), testutil.Contains, "[authz_checks=")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_granted=\"root-auth\"]")
 	c.Check(s.buf.String(), testutil.Contains, "[user=")
 }
 
-// TestLogUnauthorizedAccess verifies that LogUnauthorizedAccess emits the expected event, peer, and reason.
+func (s *SecLogSuite) TestLogAdminActivityWithInterface(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
+	peer := seclog.Peer{Socket: "/run/snapd-snap.socket", UID: 0, PID: 4242}
+	endpoint := seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}
+	reason := seclog.GrantRootAuth.WithInterface("desktop-launch", true)
+	seclog.LogAdminActivity(user, peer, endpoint, reason)
+
+	c.Check(s.buf.String(), testutil.Contains, "granted access to GET:/v2/snaps:<none> (root-auth desktop-launch plug)")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_granted=\"root-auth desktop-launch plug\"]")
+}
+
+// TestLogUnauthorizedAccess verifies that LogUnauthorizedAccess emits the expected event and attributes.
 func (s *SecLogSuite) TestLogUnauthorizedAccess(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "hacker@example.com", StoreUserName: "hacker"}
 	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 1000, PID: 12345}
 	endpoint := seclog.Endpoint{Method: "DELETE", Path: "/v2/snaps/core"}
-	checks := seclog.NewAuthzChecks()
-	reason := seclog.Reason{Code: 401, Kind: "invalid-credentials", Message: "no permission"}
 
-	seclog.LogUnauthorizedAccess(user, peer, endpoint, checks, reason)
+	seclog.LogUnauthorizedAccess(user, peer, endpoint, seclog.DenialUserAuth)
 
 	c.Check(s.buf.String(), testutil.Contains, "authz_fail")
 	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
-	c.Check(s.buf.String(), testutil.Contains, "without authorization:")
-	c.Check(s.buf.String(), testutil.Contains, "without authorization: 401:no permission")
+	c.Check(s.buf.String(), testutil.Contains, "denied access to DELETE:/v2/snaps/core:<none> (user-auth-denied)")
 	c.Check(s.buf.String(), testutil.Contains, "hacker@example.com")
-	c.Check(s.buf.String(), testutil.Contains, "DELETE:/v2/snaps/core:<none>")
+	c.Check(s.buf.String(), testutil.Contains, "/run/snapd.socket")
 	c.Check(s.buf.String(), testutil.Contains, "12345")
-	c.Check(s.buf.String(), testutil.Contains, "[error=")
+	c.Check(s.buf.String(), testutil.Contains, "[peer=")
+	c.Check(s.buf.String(), testutil.Contains, "[endpoint=")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_denied=\"user-auth-denied\"]")
 	c.Check(s.buf.String(), testutil.Contains, "[user=")
 }

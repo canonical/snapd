@@ -117,17 +117,6 @@ var templateCommon = `
   owner @{HOME}/.Private/ r,
   owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
 
-  # for python apps/services
-  #include <abstractions/python>
-  /etc/python3.[0-9]*/**                                r,
-
-  ###PYCACHEDENY###
-
-  # for perl apps/services
-  #include <abstractions/perl>
-  # Missing from perl abstraction
-  /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
-
   # Note: the following dangerous accesses should not be allowed in most
   # policy, but we cannot explicitly deny since other trusted interfaces might
   # add them.
@@ -164,25 +153,12 @@ var templateCommon = `
   /run/systemd/users/[0-9]* r,
   /etc/default/nss r,
 
-  # libnss-systemd (subset from nameservice abstraction)
-  #
-  #   https://systemd.io/USER_GROUP_API/
-  #   https://systemd.io/USER_RECORD/
-  #   https://www.freedesktop.org/software/systemd/man/nss-systemd.html
-  #
-  # Allow User/Group lookups via common VarLink socket APIs. Applications need
-  # to either consult all of them or the io.systemd.Multiplexer frontend.
-  /run/systemd/userdb/ r,
-  /run/systemd/userdb/io.systemd.Multiplexer rw,
-  /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
-  /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
-  /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
-  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
-
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
+  # Support for merged snapctl and snap-exec binaries
+  /usr/lib/snapd/snapctl m,
 
   # For gdb support
   /usr/lib/snapd/snap-gdbserver-shim ixr,
@@ -279,6 +255,7 @@ var templateCommon = `
   owner @{PROC}/@{pid}/loginuid r,
   owner @{PROC}/@{pid}/sessionid r,
   @{PROC}/@{pid}/smaps r,
+  @{PROC}/@{pid}/smaps_rollup r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
@@ -309,14 +286,22 @@ var templateCommon = `
   # unprivilged, dedicated user).
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
+
+  # cgroup v1
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
-  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.shares r,
+  # cgroup v2
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.high r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.max r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.weight r,
+
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
@@ -514,8 +499,28 @@ var templateCommon = `
 `
 
 var templateFooter = `
+###BASE_RUNTIME_EXTRA###
 ###SNIPPETS###
 }
+`
+
+// defaultPerlTemplateRules contains perl runtime-specific rules
+// common to core* and non-core bases.
+// Perl has been removed from core24 onwards.
+var defaultPerlTemplateRules = `
+  # for perl apps/services
+  #include <abstractions/perl>
+  # Missing from perl abstraction
+  /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
+`
+
+// defaultPythonTemplateRules contains python runtime-specific rules
+// common to core* and non-core bases.
+// Python has been removed from core26 onwards.
+var defaultPythonTemplateRules = `
+  # for python apps/services
+  #include <abstractions/python>
+  /etc/python3.[0-9]*/** r,
 `
 
 // defaultCoreRuntimeTemplateRules contains core* runtime-specific rules. In general,
@@ -528,21 +533,6 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
-
-  # for python apps/services
-  /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
-  # additional accesses needed for newer pythons in later bases
-  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
-  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
-  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
-  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
-  /usr/include/python3.[0-9]*/pyconfig.h               r,
-
-  # for perl apps/services
-  /usr/bin/perl{,5*} ixr,
-  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
-  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
-  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
@@ -696,6 +686,29 @@ var defaultCoreRuntimeTemplateRules = `
   # Allow pidof (and killall5, as pidof can be a symlink to killall5 in some distros)
   /{,usr/}bin/pidof ixr,
   /{,usr/}sbin/killall5 ixr,
+`
+
+// defaultCoreRuntimePerlTemplateRules contains perl runtime-specific rules
+// for core* bases. Perl has been removed from core24 onwards.
+var defaultCoreRuntimePerlTemplateRules = `
+  # for perl apps/services
+  /usr/bin/perl{,5*} ixr,
+  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
+  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
+  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
+`
+
+// defaultCoreRuntimePythonTemplateRules contains python runtime-specific rules
+// for core* bases. Python has been removed from core26 onwards.
+var defaultCoreRuntimePythonTemplateRules = `
+  # for python apps/services
+  /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
+  # additional accesses needed for newer pythons in later bases
+  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
+  /usr/include/python3.[0-9]*/pyconfig.h               r,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It
@@ -931,6 +944,8 @@ var classicJailmodeSnippet = `
   # Same as above but accounting for the case when the
   # snapd snap is installed and executes the snap application.
   @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec rm,
+  # Support for merged snapctl and snap-exec binaries
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snapctl rm,
 `
 
 var ptraceTraceDenySnippet = `

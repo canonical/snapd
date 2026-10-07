@@ -162,7 +162,7 @@ func (s *createSystemSuite) makeSnapWithComponents(
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			comp,
 			compRev,
-			name,
+			naming.InstanceName(name),
 		)
 		err := os.Rename(compPath, cpi.MountFile())
 		c.Assert(err, IsNil)
@@ -205,7 +205,7 @@ func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted
 	c.Assert(err, IsNil)
 	seenSnaps := []string{}
 	for _, sn := range snaps {
-		seenSnaps = append(seenSnaps, sn.SnapName())
+		seenSnaps = append(seenSnaps, sn.SnapName().String())
 	}
 	sort.Strings(seenSnaps)
 	sort.Strings(runModeSnapNames)
@@ -237,7 +237,7 @@ func infoGetterFromMaps(c *C, snaps map[string]*snap.Info, comps map[string]*sna
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			cref.ComponentName,
 			info.Revision,
-			snapInfo.SnapName(),
+			snapInfo.InstanceName(),
 		)
 
 		return info, cpi.MountFile(), true, nil
@@ -526,7 +526,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnapsComponents(c *C) {
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			compInfo.Component.ComponentName,
 			compInfo.Revision,
-			compInfo.Component.SnapName,
+			naming.InstanceName(compInfo.Component.SnapName),
 		)
 
 		c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(cpi.MountFile())),
@@ -725,7 +725,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnapsComponents(c *C) 
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			compInfo.Component.ComponentName,
 			compInfo.Revision,
-			compInfo.Component.SnapName,
+			naming.InstanceName(compInfo.Component.SnapName),
 		)
 
 		if compInfo.Revision.Store() {

@@ -193,7 +193,7 @@ func addRefreshProfileTasks(st *state.State, queueTask func(task *state.Task), s
 		setupProfilesTask := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Update snap %q (%s) security profiles"), info.SnapName(), info.Revision))
 		setupProfilesTask.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
-				RealName: info.SnapName(),
+				RealName: info.SnapName().String(),
 				Revision: info.Revision,
 			},
 		})
@@ -223,7 +223,7 @@ func addRestartServicesTasks(st *state.State, queueTask func(task *state.Task), 
 		restartTask := st.NewTask("service-control", fmt.Sprintf("Restarting services for snap %q", info.InstanceName()))
 		restartTask.Set("service-action", ServiceAction{
 			Action:                  "restart",
-			SnapName:                info.InstanceName(),
+			SnapName:                info.InstanceName().String(),
 			Services:                getServiceNames(servicesAffected[info]),
 			RestartEnabledNonActive: false,
 		})
@@ -257,7 +257,7 @@ func (m *ServiceManager) doQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 	qc := QuotaControlAction{
 		Action:    "update",
 		QuotaName: quotaName,
-		AddSnaps:  []string{snapsup.InstanceName()},
+		AddSnaps:  []string{snapsup.InstanceName().String()},
 	}
 	grp, allGrps, _, err := quotaUpdate(st, qc, allGrps)
 	if err != nil {
@@ -299,7 +299,7 @@ func (m *ServiceManager) undoQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := EnsureSnapAbsentFromQuota(st, snapsup.InstanceName()); err != nil {
+	if err := EnsureSnapAbsentFromQuota(st, snapsup.InstanceName().String()); err != nil {
 		return err
 	}
 	return nil

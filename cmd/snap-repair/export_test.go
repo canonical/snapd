@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -89,7 +90,7 @@ func (run *Runner) BrandModel() (brand, model string) {
 	return run.state.Device.Brand, run.state.Device.Model
 }
 
-func (run *Runner) BaseMode() (base, mode string) {
+func (run *Runner) BaseMode() (base naming.SnapName, mode string) {
 	return run.state.Device.Base, run.state.Device.Mode
 }
 

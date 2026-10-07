@@ -952,14 +952,13 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 		if _, err := os.Stat(path); err == nil {
 			logger.Debugf("checking distro apparmor_parser at %v", path)
 
-			// Detect but ignore apparmor 5.0 ABI support.
-			// There's no known, diagnosed issue with ABI 5 yet but given that
-			// we also ignore host ABI 4.0, it's sensible to ignore this one explicitly too.
+			// Detect apparmor 5.0 ABI support from the host distribution and use it if available.
 			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
-				logger.Debugf("apparmor 5.0 ABI detected but ignored")
+				logger.Debugf("apparmor 5.0 ABI detected")
+				return exec.Command(path, "--policy-features", hostAbi50File), false, nil
 			}
 
-			// Detect but ignore apparmor 4.0 ABI support.
+			// Detect but ignore apparmor 4.0 ABI support from the host distribution.
 			//
 			// At present this causes some bugs with mqueue mediation that can
 			// be avoided by pinning to 3.0 (which is also supported on

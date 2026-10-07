@@ -17,7 +17,7 @@ execute: |
 
     echo "We can see all services running"
     for service in before-middle middle after-middle; do
-        systemctl status snap.test-snapd-after-before-service.$service | MATCH "running"
+        systemctl status snap.test-snapd-after-before-service.$service | MATCH ' \(running\) '
     done
 
     echo "Service 'middle' is started after 'before-middle'"

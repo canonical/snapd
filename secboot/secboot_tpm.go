@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	efilib "github.com/canonical/go-efilib"
 	"github.com/canonical/go-tpm2"
@@ -75,12 +76,13 @@ var (
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
-	isTPMEnabled            = (*sb_tpm2.Connection).IsEnabled
-	lockoutAuthSet          = (*sb_tpm2.Connection).LockoutAuthSet
-	sbTPMEnsureProvisioned  = (*sb_tpm2.Connection).EnsureProvisioned
-	sbWithCustomSRKTemplate = sb_tpm2.WithCustomSRKTemplate
-	tpmReleaseResources     = tpmReleaseResourcesImpl
-	tpmGetCapabilityHandles = (*sb_tpm2.Connection).GetCapabilityHandles
+	isTPMEnabled                  = (*sb_tpm2.Connection).IsEnabled
+	lockoutAuthSet                = (*sb_tpm2.Connection).LockoutAuthSet
+	sbTPMEnsureProvisioned        = (*sb_tpm2.Connection).EnsureProvisioned
+	sbWithCustomSRKTemplate       = sb_tpm2.WithCustomSRKTemplate
+	tpmReleaseResources           = tpmReleaseResourcesImpl
+	tpmGetCapabilityHandles       = (*sb_tpm2.Connection).GetCapabilityHandles
+	tpmGetCapabilityTPMProperties = (*sb_tpm2.Connection).GetCapabilityTPMProperties
 
 	sbTPMResetDictionaryAttackLockWithAuthValue = (*sb_tpm2.Connection).ResetDictionaryAttackLockWithAuthValue
 	sbTPMResetDictionaryAttackLock              = (*sb_tpm2.Connection).ResetDictionaryAttackLock
@@ -531,24 +533,28 @@ func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.Protect
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the
 // PCR handle, SealKeys will fail and return an error.
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, SerializedPCRProfile, error) {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
-		return nil, fmt.Errorf("at least one set of model-specific parameters is required")
+		return nil, nil, fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
+		return nil, nil, fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
-		return nil, fmt.Errorf("TPM device is not enabled")
+		return nil, nil, fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, params.AllowInsufficientDmaProtection)
+	pcrProfileOpts := PCRProtectionProfileOptions{
+		AllowInsufficientDmaProtection: params.AllowInsufficientDmaProtection,
+		AllowThunderboltSecurityLevel0: params.AllowThunderboltSecurityLevel0,
+	}
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, pcrProfileOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pcrHandle := params.PCRPolicyCounterHandle
@@ -570,19 +576,19 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 			primaryKey = primaryKeyOut
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		keyWriter, err := key.getWriter()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if key.SlotName == "default" {
@@ -594,11 +600,15 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
-			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
+			return nil, nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
 
-	return primaryKey, nil
+	profileOut, err := mu.MarshalToBytes(pcrProfile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot marshal PCR profile: %w", err)
+	}
+	return primaryKey, profileOut, nil
 }
 
 // MaybeSealedKeyData interface wraps a sb_tpm2.SealedKeyData
@@ -797,16 +807,19 @@ var resealKeysWithTPM = resealKeysWithTPMImpl
 // encryption keys.
 //
 // If checkResult is non-nil, it provides the PCR configuration recommended by
-// the pre-install check. In this mode, allowInsufficientDmaProtection is ignored,
-// because all relevant information is carried by checkResult.
+// the pre-install check. In this mode, opts.AllowInsufficientDmaProtection
+// and opts.AllowThunderboltSecurityLevel0 are ignored, because all relevant
+// information is carried by checkResult.
 //
 // If checkResult is nil, the function falls back to the legacy profile-generation
 // path, which relies on static assumptions about the system’s boot configuration.
-// In this legacy mode, allowInsufficientDmaProtection determines whether systems
-// lacking sufficient DMA protection are still permitted.
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+// In this legacy mode, opts.AllowInsufficientDmaProtection determines whether
+// systems lacking sufficient DMA protection are still permitted, and
+// opts.AllowThunderboltSecurityLevel0 determines whether systems reporting a
+// downgraded Thunderbolt security level are still permitted.
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, opts PCRProtectionProfileOptions) (*sb_tpm2.PCRProtectionProfile, error) {
 	if checkResult == nil {
-		return buildPCRProtectionProfileLegacy(modelParams, allowInsufficientDmaProtection)
+		return buildPCRProtectionProfileLegacy(modelParams, opts)
 	}
 
 	// build EFI load image event trees
@@ -900,7 +913,7 @@ func (lc *LoadChain) loadEvent(params ...sb_efi.ImageLoadParams) (sb_efi.ImageLo
 
 // buildPCRProtectionProfileLegacy constructs a PCR protection profile used for
 // sealing encryption keys using an outdated secboot API.
-func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, opts PCRProtectionProfileOptions) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
@@ -939,8 +952,11 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 			sb_efi.WithBootManagerCodeProfile(),
 			sb_efi.WithSignatureDBUpdates(updateDB...),
 		)
-		if allowInsufficientDmaProtection {
+		if opts.AllowInsufficientDmaProtection {
 			options = append(options, sb_efi.WithAllowInsufficientDmaProtection())
+		}
+		if opts.AllowThunderboltSecurityLevel0 {
+			options = append(options, sb_efi.WithAllowThunderboltSecurityLevel0())
 		}
 		if err := sbefiAddPCRProfile(
 			tpm2.HashAlgorithmSHA256,
@@ -1013,15 +1029,18 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequence
 // a list of SealKeyModelParams.
 //
 // If checkResult is non-nil, it provides the PCR configuration recommended by
-// the pre-install check. In this mode, allowInsufficientDmaProtection is ignored,
-// because all relevant information is carried by checkResult.
+// the pre-install check. In this mode, opts.AllowInsufficientDmaProtection
+// and opts.AllowThunderboltSecurityLevel0 are ignored, because all relevant
+// information is carried by checkResult.
 //
 // If checkResult is nil, the function falls back to the legacy profile-generation
 // path, which relies on static assumptions about the system’s boot configuration.
-// In this legacy mode, allowInsufficientDmaProtection determines whether systems
-// lacking sufficient DMA protection are still permitted.
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
-	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult, allowInsufficientDmaProtection)
+// In this legacy mode, opts.AllowInsufficientDmaProtection determines whether
+// systems lacking sufficient DMA protection are still permitted, and
+// opts.AllowThunderboltSecurityLevel0 determines whether systems reporting a
+// downgraded Thunderbolt security level are still permitted.
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, opts PCRProtectionProfileOptions) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1150,6 +1169,12 @@ func releasePCRResourceHandles(handles ...uint32) error {
 	return nil
 }
 
+// ReleasePCRResourceHandle releases any TPM resources associated with a given
+// PCR handle.
+func ReleasePCRResourceHandle(handle uint32) error {
+	return releasePCRResourceHandles(handle)
+}
+
 func resetLockoutCounter(lockoutAuthFile string) error {
 	auth, isValue, err := readLockoutAuth(lockoutAuthFile)
 	if err != nil {
@@ -1241,6 +1266,27 @@ func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintE
 }
 
 var mockableReadKeyFile = mockableReadKeyFileImpl
+
+// GetPCRHandleFromToken finds the PCR handle used by a keyslot if
+// used. 0 means no handle is used.
+func GetPCRHandleFromToken(node, keySlot string) (uint32, error) {
+	reader, err := sbNewLUKS2KeyDataReader(node, keySlot)
+	if err != nil {
+		return 0, err
+	}
+	keyData, err := mockableReadKeyData(reader)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read key data for slot '%s': %w", keySlot, err)
+	}
+	if keyData.PlatformName() != platformTpm2 {
+		return 0, nil
+	}
+	sealedKeyData, err := keyData.GetTPMSealedKeyData()
+	if err != nil {
+		return 0, fmt.Errorf("cannot read sealed key data for slot '%s': %w", keySlot, err)
+	}
+	return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+}
 
 // GetPCRHandle returns the handle used by a key. The key will be
 // searched on the token of the keySlot from the node. If that keySlot
@@ -1488,4 +1534,42 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 
 	keyData := keyData{kd: protectedKey}
 	return keyData.WriteTokenAtomic(devicePath, slotName)
+}
+
+// GetDALockoutInfo returns the TPM dictionary-attack lockout status and
+// related lockout parameters.
+//
+// TODO: This should really be moved to secboot.
+func GetDALockoutInfo() (*DALockoutInfo, error) {
+	tpm, err := sbConnectToDefaultTPM()
+	if err != nil {
+		err = fmt.Errorf("cannot connect to TPM device: %v", err)
+		logger.Noticef("%v", err)
+		return nil, err
+	}
+	defer tpm.Close()
+
+	props, err := tpmGetCapabilityTPMProperties(tpm, tpm2.PropertyPermanent, tpm2.CapabilityMaxProperties)
+	if err != nil {
+		return nil, fmt.Errorf("cannot request properties from TPM: %w", err)
+	}
+
+	info := &DALockoutInfo{}
+
+	for _, prop := range props {
+		switch prop.Property {
+		case tpm2.PropertyPermanent:
+			info.InLockout = tpm2.PermanentAttributes(prop.Value)&tpm2.AttrInLockout != 0
+		case tpm2.PropertyLockoutCounter:
+			info.LockoutCounter = prop.Value
+		case tpm2.PropertyMaxAuthFail:
+			info.MaxTries = prop.Value
+		case tpm2.PropertyLockoutInterval:
+			info.RecoveryTime = time.Duration(prop.Value) * time.Second
+		case tpm2.PropertyLockoutRecovery:
+			info.LockoutRecovery = time.Duration(prop.Value) * time.Second
+		}
+	}
+
+	return info, nil
 }

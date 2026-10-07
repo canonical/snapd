@@ -808,6 +808,85 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 	}
 }
 
+// TestFindFreeKernelBootPartitionAlreadyAssignedNotFirstSlot checks that
+// looking for a free boot image partition for a kernel revision that is already
+// assigned returns the partition it is assigned to, even when that partition is
+// not the first one in the matrix and an earlier partition looks free.
+// Otherwise the caller assigns the kernel to the earlier partition too and the
+// same kernel ends up occupying both boot image partitions, after which no free
+// partition can ever be found again and kernel refreshes fail permanently.
+func (l *lkenvTestSuite) TestFindFreeKernelBootPartitionAlreadyAssignedNotFirstSlot(c *C) {
+	tt := []struct {
+		version lkenv.Version
+		comment string
+	}{
+		{lkenv.V1, "v1"},
+		{lkenv.V2Run, "v2 run"},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+
+		env := lkenv.NewEnv(l.envPath, "", t.version)
+		c.Assert(env, NotNil, comment)
+		err := env.InitializeBootPartitions("boot_a", "boot_b")
+		c.Assert(err, IsNil, comment)
+
+		// the state after a kernel refresh: the previous kernel is still
+		// tracked in the first partition and the current one is in the second
+		err = env.SetBootPartitionKernel("boot_a", "kernel-1")
+		c.Assert(err, IsNil, comment)
+		err = env.SetBootPartitionKernel("boot_b", "kernel-2")
+		c.Assert(err, IsNil, comment)
+		env.Set("snap_kernel", "kernel-2")
+
+		// re-extracting the assets of the currently installed kernel must
+		// reuse the partition it already lives in, not the seemingly free one
+		bootPart, err := env.FindFreeKernelBootPartition("kernel-2")
+		c.Assert(err, IsNil, comment)
+		c.Check(bootPart, Equals, "boot_b", comment)
+
+		// same when the older kernel has been garbage collected, leaving the
+		// first partition genuinely empty
+		err = env.RemoveKernelFromBootPartition("kernel-1")
+		c.Assert(err, IsNil, comment)
+		bootPart, err = env.FindFreeKernelBootPartition("kernel-2")
+		c.Assert(err, IsNil, comment)
+		c.Check(bootPart, Equals, "boot_b", comment)
+
+		// and the now empty partition is still available for a new kernel
+		bootPart, err = env.FindFreeKernelBootPartition("kernel-3")
+		c.Assert(err, IsNil, comment)
+		c.Check(bootPart, Equals, "boot_a", comment)
+	}
+}
+
+// TestFindFreeRecoverySystemBootPartitionAlreadyAssignedNotFirstSlot is the
+// recovery system counterpart of
+// TestFindFreeKernelBootPartitionAlreadyAssignedNotFirstSlot - without the fix
+// a recovery system already assigned to a later partition would be assigned to
+// an earlier free one as well, leaking a boot image partition.
+func (l *lkenvTestSuite) TestFindFreeRecoverySystemBootPartitionAlreadyAssignedNotFirstSlot(c *C) {
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Recovery)
+	c.Assert(env, NotNil)
+	err := env.InitializeBootPartitions("boot_recovery_1", "boot_recovery_2", "boot_recovery_3")
+	c.Assert(err, IsNil)
+
+	// assign a recovery system to the last partition, leaving the earlier ones
+	// free
+	err = env.SetBootPartitionRecoverySystem("boot_recovery_3", "20201123")
+	c.Assert(err, IsNil)
+
+	bootPart, err := env.FindFreeRecoverySystemBootPartition("20201123")
+	c.Assert(err, IsNil)
+	c.Check(bootPart, Equals, "boot_recovery_3")
+
+	// a different recovery system still gets the first free partition
+	bootPart, err = env.FindFreeRecoverySystemBootPartition("20201124")
+	c.Assert(err, IsNil)
+	c.Check(bootPart, Equals, "boot_recovery_1")
+}
+
 func (l *lkenvTestSuite) TestV1NoRecoverySystemSupport(c *C) {
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)
 	c.Assert(env, NotNil)

@@ -19,6 +19,18 @@ systems:
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-settings
 
+    cat <<'EOF' > /tmp/accept-dialog
+    #!/bin/sh
+    exit 0
+    EOF
+    chmod 755 /tmp/accept-dialog
+
+    cat <<'EOF' > /tmp/decline-dialog
+    #!/bin/sh
+    exit 1
+    EOF
+    chmod 755 /tmp/decline-dialog
+
     tests.session -u test prepare
 
     # wait for session to be ready
@@ -48,6 +60,7 @@ restore: |
     fi
     umount -f /usr/bin/zenity 2>/dev/null || true
     umount -f /usr/bin/kdialog 2>/dev/null || true
+    rm -f /tmp/accept-dialog /tmp/decline-dialog
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
@@ -55,7 +68,7 @@ execute: |
 
     # ensure zenity answers "yes" for the dialog prompt
     touch /usr/bin/zenity
-    mount --bind /bin/true /usr/bin/zenity
+    mount --bind /tmp/accept-dialog /usr/bin/zenity
 
     # Test: set default-web-browser succeeds when user accepts
     tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
@@ -79,9 +92,9 @@ execute: |
     test "$OUTPUT" = "yes"
 
     # Test: set skips dialog when value is already set (LP #1966067)
-    # Replace zenity with /bin/false — if set still succeeds, no dialog was shown
+    # Replace zenity with a failing stub. If set still succeeds, no dialog was shown
     umount /usr/bin/zenity
-    mount --bind /bin/false /usr/bin/zenity
+    mount --bind /tmp/decline-dialog /usr/bin/zenity
 
     tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
         set default-web-browser browser.desktop

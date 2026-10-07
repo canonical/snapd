@@ -1,0 +1,14 @@
+name: test-snapd-content-components-consumer
+version: 1.0
+base: core24
+
+apps:
+  check:
+    command: bin/check
+    plugs:
+      - content
+
+plugs:
+  content:
+    interface: content
+    target: $SNAP/shared

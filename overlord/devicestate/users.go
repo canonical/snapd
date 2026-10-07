@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -54,7 +55,8 @@ func (e *UserError) Error() string {
 }
 
 type RemoveUserOptions struct {
-	Force bool
+	Force        bool
+	RemoveReason seclog.SystemUserRemoveReason
 }
 
 // CreatedUser holds the results from a create user operation.
@@ -66,7 +68,7 @@ type CreatedUser struct {
 // CreateUser creates a Linux user based on the specified email.
 // The username and public ssh keys for the created account are
 // determined from Ubuntu store based on the email.
-func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time) (*CreatedUser, error) {
+func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time, addReason seclog.SystemUserAddReason) (*CreatedUser, error) {
 	if email == "" {
 		return nil, &UserError{Err: fmt.Errorf("cannot create user: 'email' field is empty")}
 	}
@@ -78,14 +80,15 @@ func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time
 	}
 
 	opts.Sudoer = sudoer
-	return addUser(st, username, email, expiration, opts)
+	// no assertion: the account details came from the store
+	return addUser(st, username, email, expiration, opts, nil, addReason)
 }
 
 // CreateKnownUsers creates known users. The user details are fetched
 // from existing system user assertions.
 // If no email is passed, all known users will be created based on valid system user assertions.
 // If an email is passed, only the corresponding system user assertion is used.
-func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUser, error) {
+func CreateKnownUsers(st *state.State, sudoer bool, email string, addReason seclog.SystemUserAddReason) ([]*CreatedUser, error) {
 	model, err := findModel(st)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create user: cannot get model assertion: %v", err)
@@ -98,16 +101,17 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 
 	db := assertstate.DB(st)
 	if email == "" {
-		return createAllKnownSystemUsers(st, db, model, serial, sudoer)
+		return createAllKnownSystemUsers(st, db, model, serial, sudoer, addReason)
 	}
 
-	username, expiration, opts, err := getUserDetailsFromAssertion(db, model, serial, email)
+	userAssertion, err := findVerifiedSystemUserAssertion(db, model, serial, email)
 	if err != nil {
 		return nil, &UserError{Err: fmt.Errorf("cannot create user %q: %v", email, err)}
 	}
 
+	opts := addUserOptionsFromAssertion(userAssertion)
 	opts.Sudoer = sudoer
-	createdUser, err := addUser(st, username, email, expiration, opts)
+	createdUser, err := addUser(st, userAssertion.Username(), email, userAssertion.UserExpiration(), opts, userAssertion, addReason)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +148,10 @@ func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*aut
 		return nil, err
 	}
 
+	seclog.LogSystemUserRemoved(username, seclog.SystemUserRemoveOptions{
+		Force: opts.Force,
+	}, opts.RemoveReason)
+
 	// then the UserState
 	u, err := auth.RemoveUserByUsername(st, username)
 	// ErrInvalidUser means "not found" in this case
@@ -179,11 +187,11 @@ func getUserDetailsFromStore(st *state.State, theStore snapstate.StoreService, e
 	return v.Username, opts, nil
 }
 
-func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) (*CreatedUser, error) {
+func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) (*CreatedUser, error) {
 	email := userAssertion.Email()
-	// we need to use getUserDetailsFromAssertion as this verifies
-	// the assertion against the current brand/model/time
-	username, expiration, addUserOpts, err := getUserDetailsFromAssertion(assertDb, model, serial, email)
+	// re-find the assertion, as this verifies it against the current
+	// brand/model/serial/time
+	verifiedAssertion, err := findVerifiedSystemUserAssertion(assertDb, model, serial, email)
 	if err != nil {
 		if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
 			// let callers decide how to proceed
@@ -193,16 +201,19 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 		return nil, nil
 	}
 
+	username := verifiedAssertion.Username()
+
 	// ignore already existing users
 	if _, err := userLookup(username); err == nil {
 		return nil, nil
 	}
 
+	addUserOpts := addUserOptionsFromAssertion(verifiedAssertion)
 	addUserOpts.Sudoer = sudoer
-	return addUser(state, username, email, expiration, addUserOpts)
+	return addUser(state, username, email, verifiedAssertion.UserExpiration(), addUserOpts, verifiedAssertion, addReason)
 }
 
-var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
+var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*CreatedUser, error) {
 	headers := map[string]string{
 		"brand-id": model.BrandID(),
 	}
@@ -215,7 +226,7 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 	var createdUsers []*CreatedUser
 	for _, as := range assertions {
 		userAs := as.(*asserts.SystemUser)
-		createdUser, err := createKnownSystemUser(state, userAs, assertDb, model, serial, sudoer)
+		createdUser, err := createKnownSystemUser(state, userAs, assertDb, model, serial, sudoer, addReason)
 		if err != nil {
 			if errors.Is(err, errSystemUserBoundToSerialButTooEarly) {
 				state.Set("system-user-waiting-on-serial", true)
@@ -235,7 +246,10 @@ var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.ROData
 
 var errSystemUserBoundToSerialButTooEarly = errors.New("bound to serial assertion but device not yet registered")
 
-func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, time.Time, *osutil.AddUserOptions, error) {
+// findVerifiedSystemUserAssertion returns the system-user assertion for email,
+// checked against the accepted system-user authorities and cross checked
+// against the current series, model, serial and time.
+func findVerifiedSystemUserAssertion(assertDb asserts.RODatabase, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (*asserts.SystemUser, error) {
 	brandID := modelAs.BrandID()
 	series := modelAs.Series()
 	model := modelAs.Model()
@@ -245,7 +259,7 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 		"email":    email,
 	})
 	if err != nil {
-		return "", time.Time{}, nil, err
+		return nil, err
 	}
 	// the asserts package guarantees that this cast will work
 	su := a.(*asserts.SystemUser)
@@ -253,37 +267,42 @@ func getUserDetailsFromAssertion(assertDb asserts.RODatabase, modelAs *asserts.M
 	// check that the signer of the assertion is one of the accepted ones
 	sysUserAuths := modelAs.SystemUserAuthority()
 	if len(sysUserAuths) > 0 && !strutil.ListContains(sysUserAuths, su.AuthorityID()) {
-		return "", time.Time{}, nil, fmt.Errorf("%q not in accepted authorities %q", su.AuthorityID(), sysUserAuths)
+		return nil, fmt.Errorf("%q not in accepted authorities %q", su.AuthorityID(), sysUserAuths)
 	}
 	// cross check that the assertion is valid for the given series/model
 	if len(su.Series()) > 0 && !strutil.ListContains(su.Series(), series) {
-		return "", time.Time{}, nil, fmt.Errorf("%q not in series %q", series, su.Series())
+		return nil, fmt.Errorf("%q not in series %q", series, su.Series())
 	}
 	if len(su.Models()) > 0 && !strutil.ListContains(su.Models(), model) {
-		return "", time.Time{}, nil, fmt.Errorf("%q not in models %q", model, su.Models())
+		return nil, fmt.Errorf("%q not in models %q", model, su.Models())
 	}
 	if len(su.Serials()) > 0 {
 		if serialAs == nil {
-			return "", time.Time{}, nil, errSystemUserBoundToSerialButTooEarly
+			return nil, errSystemUserBoundToSerialButTooEarly
 		}
 		serial := serialAs.Serial()
 		if !strutil.ListContains(su.Serials(), serial) {
-			return "", time.Time{}, nil, fmt.Errorf("%q not in serials %q", serial, su.Serials())
+			return nil, fmt.Errorf("%q not in serials %q", serial, su.Serials())
 		}
 	}
 
 	if !su.ValidAt(time.Now()) {
-		return "", time.Time{}, nil, fmt.Errorf("assertion not valid anymore")
+		return nil, fmt.Errorf("assertion not valid anymore")
 	}
 
-	gecos := fmt.Sprintf("%s,%s", email, su.Name())
-	opts := &osutil.AddUserOptions{
+	return su, nil
+}
+
+// addUserOptionsFromAssertion derives the options for creating the local
+// account described by su. It performs no lookup or verification, so callers
+// must pass an assertion obtained from findVerifiedSystemUserAssertion.
+func addUserOptionsFromAssertion(su *asserts.SystemUser) *osutil.AddUserOptions {
+	return &osutil.AddUserOptions{
 		SSHKeys:             su.SSHKeys(),
-		Gecos:               gecos,
+		Gecos:               fmt.Sprintf("%s,%s", su.Email(), su.Name()),
 		Password:            su.Password(),
 		ForcePasswordChange: su.ForcePasswordChange(),
 	}
-	return su.Username(), su.UserExpiration(), opts, nil
 }
 
 func setupLocalUser(state *state.State, username, email string, expiration time.Time) error {
@@ -334,11 +353,18 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 	return nil
 }
 
-func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions) (*CreatedUser, error) {
+// addUser creates the local account and records the audit event. A non-nil
+// userAssertion means the account is assertion-backed, logged as known.
+func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions, userAssertion *asserts.SystemUser, addReason seclog.SystemUserAddReason) (*CreatedUser, error) {
 	opts.ExtraUsers = !release.OnClassic
 	if err := osutilAddUser(username, opts); err != nil {
 		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
+
+	// user_created_system records the Linux account, which exists even if
+	// setupLocalUser fails below.
+	seclog.LogSystemUserCreated(username, seclog.SystemUserAddOptionsFrom(opts, userAssertion), addReason)
+
 	if err := setupLocalUser(state, username, email, expiration); err != nil {
 		return nil, err
 	}

@@ -21,10 +21,10 @@ package fdestate
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,13 +41,14 @@ import (
 var (
 	bootloaderFind = bootloader.Find
 
-	bootReadModeenv = boot.ReadModeenv
-
 	secbootProvisionTPM        = secboot.ProvisionTPM
 	secbootShouldAttemptRepair = secboot.ShouldAttemptRepair
 	secbootPostinstallCheck    = secboot.PostinstallCheck
 
 	osutilBootID = osutil.BootID
+
+	bootGetRunBootChain = boot.GetRunBootChain
+	bootReadModeenv     = boot.ReadModeenv
 )
 
 type AutoRepairResult string
@@ -61,12 +62,21 @@ const (
 	AutoRepairSuccess                 AutoRepairResult = "success"
 )
 
+type RecommendedRemedialAction string
+
+const (
+	RecommendedRemedialActionPermitManual         RecommendedRemedialAction = "permit-manual"
+	RecommendedRemedialActionRequireReprovision   RecommendedRemedialAction = "require-reprovision"
+	RecommendedRemedialActionRequirePlatformReset RecommendedRemedialAction = "require-platform-reset"
+)
+
 const (
 	postInstallCheckTimeout = 2 * time.Minute
 )
 
 type repairState struct {
-	Result AutoRepairResult `json:"result"`
+	Result          AutoRepairResult            `json:"result"`
+	Recommendations []RecommendedRemedialAction `json:"recommendations,omitempty"`
 }
 
 type repairStateForBoot struct {
@@ -111,115 +121,6 @@ func getRepairAttemptResult(st *state.State) (*repairState, error) {
 	return rs.State, nil
 }
 
-// GetRunBootChain returns the boot chain expected to be used
-// for a normal "run" mode boot.
-//
-// The image files in the bootchain will either point a file in a snap
-// or to a file in the trusted boot asset cache. They will not
-// point to the effective path where the read from, though they
-// are expected to be the same, unless boot partition were compromised.
-func GetRunBootChain() ([]bootloader.BootFile, error) {
-	modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read modeenv: %w", err)
-	}
-
-	rbl, err := bootloaderFind(boot.InitramfsUbuntuSeedDir, &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot find recovery bootloader: %w", err)
-	}
-
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, fmt.Errorf("internal error: recovery bootloader does not support trusted assets")
-	}
-
-	bl, err := bootloaderFind(boot.InitramfsUbuntuBootDir, &bootloader.Options{
-		Role:        bootloader.RoleRunMode,
-		NoSlashBoot: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot find run bootloader: %w", err)
-	}
-
-	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-	if !ok {
-		return nil, fmt.Errorf("internal error: run bootloader does not support kernel extraction")
-	}
-
-	info, err := ebl.TryKernel()
-	if err != nil {
-		if err == bootloader.ErrNoTryKernelRef {
-			info, err = ebl.Kernel()
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	trustedAssets, err := tbl.TrustedAssets()
-	if err != nil {
-		return nil, err
-	}
-
-	kernelPath := info.MountFile()
-
-	runModeBootChains, err := tbl.BootChains(bl, kernelPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// runModeBootChains is all possible run boot chains, but only one should exist (there
-	// are legacy boot chains before we registered UEFI boot entries).
-	// The "BootFile"s for the gadget part points to identifier names instead of real path, so we
-	// need to resolve those. To resolve those we need to cross check with the modeenv, and then
-	// find the file in the cache. The last one, is the kernel and should be pointing to the right place.
-	for _, runModeBootChain := range runModeBootChains {
-		var chain []bootloader.BootFile
-
-		if len(runModeBootChain) == 0 {
-			// That is not possible for a boot chain to be size 0, because that would mean there is no
-			// kernel. We should not ignore this, there are bigger problems.
-			return nil, fmt.Errorf("internal error: no file in boot chain")
-		}
-
-		ignoreChain := false
-		for _, bf := range runModeBootChain[:len(runModeBootChain)-1] {
-			path := bf.Path
-			name, ok := trustedAssets[path]
-			if !ok {
-				return nil, fmt.Errorf("internal error: unknown trusted asset %s from boot chain", path)
-			}
-			var hashes []string
-			if bf.Role == bootloader.RoleRecovery {
-				hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
-			} else {
-				hashes, ok = modeenv.CurrentTrustedBootAssets[name]
-			}
-			if !ok {
-				ignoreChain = true
-				break
-			}
-
-			// In theory we should only have one hash here. Multiple would be when we are trying
-			// a boot chain, and this should have been cleaned. It should be safe to take the last one (newest).
-			if len(hashes) > 1 {
-				logger.Noticef("WARNING: multiple hashes for a trusted boot file were found.")
-			}
-			hash := hashes[len(hashes)-1]
-			p := filepath.Join(dirs.SnapBootAssetsDir, bl.Name(), fmt.Sprintf("%s-%s", name, hash))
-			chain = append(chain, bootloader.NewBootFile("", p, bf.Role))
-		}
-		if !ignoreChain {
-			return append(chain, runModeBootChain[len(runModeBootChain)-1]), nil
-		}
-	}
-
-	return nil, fmt.Errorf("cannot find the active boot chain")
-}
-
 func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, error) {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
@@ -230,7 +131,12 @@ func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, e
 	case device.SealingMethodFDESetupHook:
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		if runPostInstallChecks {
-			images, err := GetRunBootChain()
+			modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
+			if err != nil {
+				return AutoRepairNotAttempted, err
+			}
+
+			images, err := bootGetRunBootChain(modeenv)
 			if err != nil {
 				return AutoRepairNotAttempted, err
 			}
@@ -248,11 +154,12 @@ func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, e
 					}
 					logger.Noticef("WARNING: could not auto repair keyslots due to failed platform initialization:\n%s", strings.Join(messages, "\n"))
 				}
-				return AutoRepairFailedPlatformInit, nil
+				return AutoRepairFailedEncryptionSupport, nil
 			}
 		}
 
 		lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
+		// TODO: possibly we do not need to rotate the authorization keys for a repair...
 		if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
 			logger.Noticef("WARNING: could not repair platform: %v", err)
 			return AutoRepairFailedPlatformInit, nil
@@ -287,12 +194,6 @@ func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, e
 // auto-repair attempted has already occurred during the current boot,
 // this will do nothing.
 func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
-	if lockoutResetErr != nil {
-		// FIXME: we need to either try repair in some cases and save the
-		// error for the status API
-		return lockoutResetErr
-	}
-
 	// let's get the result from previous attempt during the
 	// current boot
 	previousResult, err := getRepairAttemptResult(st)
@@ -314,19 +215,80 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostIn
 		}
 		if unlockedState.UbuntuData.UnlockKey != "recovery" && unlockedState.UbuntuSave.UnlockKey != "recovery" {
 			setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
-			return nil
+			return lockoutResetErr
 		}
 	} else if os.IsNotExist(err) {
 		logger.Noticef("WARNING: the system booted with an old initrd without unlocked status reporting")
 		setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
-		return nil
+		return lockoutResetErr
 	} else if err != nil {
 		logger.Noticef("WARNING: error while getting activation state: %v", err)
 		setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
-		return nil
+		return lockoutResetErr
 	} else {
-		if !secbootShouldAttemptRepair(s) {
-			setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
+		// First we check that unlocked primary keys are matching.
+		//  * secboot *does* unlock with unmatching primary key if the keyslot uses a protector key from the data disk.
+		//  * When primary keys do not match, we will always need reprovision.
+		//  * Unfortunately, the activation state alone cannot be used to decide whether this is a case of auto repair, or whether reprovision is required.
+		// The most likely scenario in which this can happen is a hard reset in the middle of reprovision. So we do need to restart the
+		// reprovision process.
+		disks, err := GetEncryptedContainers(st)
+		if err != nil {
+			return err
+		}
+		var salt []byte
+		var digest []byte
+		primaryKeysMatch := true
+		for i, disk := range disks {
+			if i == 0 {
+				var err error
+				salt, digest, err = secbootGetPrimaryKeyDigest(disk.DevPath(), crypto.Hash(defaultHashAlg))
+				if err != nil {
+					if errors.Is(err, secboot.ErrKernelKeyNotFound) {
+						break
+					}
+					return err
+				}
+			} else {
+				matches, err := secbootVerifyPrimaryKeyDigest(disk.DevPath(), crypto.Hash(defaultHashAlg), salt, digest)
+				if err != nil {
+					if errors.Is(err, secboot.ErrKernelKeyNotFound) {
+						break
+					}
+					return err
+				}
+				if !matches {
+					primaryKeysMatch = false
+				}
+			}
+		}
+		if !primaryKeysMatch {
+			logger.Noticef("WARNING: the primary keys of unlocked devices are not matching. Reprovision is required.")
+			setRepairAttemptResult(st, &repairState{
+				Result:          AutoRepairNotAttempted,
+				Recommendations: []RecommendedRemedialAction{RecommendedRemedialActionRequireReprovision},
+			})
+			return nil
+		}
+
+		remedialActions := secbootShouldAttemptRepair(s, lockoutResetErr)
+		if !remedialActions.AttemptRepair {
+			var recommendations []RecommendedRemedialAction
+
+			if remedialActions.RequireReprovision {
+				recommendations = append(recommendations, RecommendedRemedialActionRequireReprovision)
+			}
+			if remedialActions.PermitManual {
+				recommendations = append(recommendations, RecommendedRemedialActionPermitManual)
+			}
+			if remedialActions.RequirePlatformReset {
+				recommendations = append(recommendations, RecommendedRemedialActionRequirePlatformReset)
+			}
+
+			setRepairAttemptResult(st, &repairState{
+				Result:          AutoRepairNotAttempted,
+				Recommendations: recommendations,
+			})
 			return nil
 		}
 	}
@@ -335,7 +297,15 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostIn
 	if err != nil {
 		return err
 	}
-	setRepairAttemptResult(st, &repairState{Result: result})
+
+	var recommendations []RecommendedRemedialAction
+	if result != AutoRepairSuccess {
+		recommendations = append(recommendations, RecommendedRemedialActionRequireReprovision)
+	}
+	setRepairAttemptResult(st, &repairState{
+		Result:          result,
+		Recommendations: recommendations,
+	})
 
 	return nil
 }

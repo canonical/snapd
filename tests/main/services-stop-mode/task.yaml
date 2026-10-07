@@ -31,12 +31,12 @@ execute: |
     retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     echo "We can see it running"
-    systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
+    systemctl status snap.test-snapd-service.test-snapd-service|MATCH ' \(running\) '
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-service > old-main.pid
 
     stop_modes="sighup sighup-all sigusr1 sigusr1-all sigusr2 sigusr2-all sigint sigint-all"
     for s in $stop_modes; do
-        systemctl show -p ActiveState "snap.test-snapd-service.test-snapd-${s}-service" | MATCH "ActiveState=active"
+        systemctl show -p ActiveState "snap.test-snapd-service.test-snapd-${s}-service" | MATCH '^ActiveState=active$'
     done
 
     echo "When it is re-installed"
@@ -46,7 +46,7 @@ execute: |
     # note that sigterm{,-all} is tested separately
     for s in $stop_modes; do
         echo "We can see it is running"
-        systemctl show -p ActiveState "snap.test-snapd-service.test-snapd-${s}-service" | MATCH "ActiveState=active"
+        systemctl show -p ActiveState "snap.test-snapd-service.test-snapd-${s}-service" | MATCH '^ActiveState=active$'
 
         echo "and it got the right signal"
         echo "checking that the right signal was sent"

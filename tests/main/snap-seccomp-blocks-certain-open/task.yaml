@@ -1,0 +1,90 @@
+summary: Ensure that the snap-seccomp blocks open/openat with setuid/setgid mode
+
+details: |
+    Check that it is not allowed to open/create a file with the setuid or setgid
+    mode bit set using the open or openat system calls.
+
+    Both SYS_open and SYS_openat are exercised independently; SYS_open is skipped
+    gracefully on architectures where it is absent (e.g. arm64).
+    Check that creating a file with a normal mode is still allowed.
+    Check that the O_TMPFILE + linkat technique is also blocked by denying
+    open/openat with O_TMPFILE when setuid or setgid mode bits are requested.
+
+    Check that SYS_openat2 is entirely blocked: because the flags and mode are
+    carried inside a struct open_how pointer that seccomp cannot inspect, the
+    syscall must be denied for all requested modes, including normal (0644).
+    On kernels older than 5.6 where SYS_openat2 does not exist the test is
+    skipped gracefully.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test-open
+
+execute: |
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-open \$SNAP_COMMON" > output.txt
+    cat output.txt
+
+    # SYS_open with O_CREAT: setuid/setgid denied; skipped on arm64 (no SYS_open)
+    if grep -E -q 'open setuid: skipped' output.txt; then
+        echo "SYS_open is not available, all open with O_CREAT tests should be skipped"
+        MATCH 'open setuid: skipped' < output.txt
+        MATCH 'open setgid: skipped' < output.txt
+        MATCH 'open normal: skipped' < output.txt
+    else
+        MATCH 'open setuid: EACCES' < output.txt
+        MATCH 'open setgid: EACCES' < output.txt
+        MATCH 'open normal: succeeded' < output.txt
+    fi
+
+    # SYS_openat with O_CREAT: always exercised on all architectures
+    MATCH 'openat setuid: EACCES' < output.txt
+    MATCH 'openat setgid: EACCES' < output.txt
+    MATCH 'openat normal: succeeded' < output.txt
+
+    # SYS_open with O_TMPFILE + linkat: skipped on arm64 or unsupported filesystems
+    if grep -E -q 'open tmpfile setuid: skipped' output.txt; then
+        echo "SYS_open with O_TMPFILE is not available, all open with O_TMPFILE tests should be skipped"
+        MATCH 'open tmpfile setuid: skipped' < output.txt
+        MATCH 'open tmpfile setgid: skipped' < output.txt
+        MATCH 'open tmpfile normal: skipped' < output.txt
+    else
+        MATCH 'open tmpfile setuid: EACCES' < output.txt
+        MATCH 'open tmpfile setgid: EACCES' < output.txt
+        MATCH 'open tmpfile normal: succeeded' < output.txt
+    fi
+
+    # SYS_openat with O_TMPFILE + linkat: always exercised; O_TMPFILE support optional
+    if grep -E -q 'openat tmpfile setuid: skipped' output.txt; then
+        echo "SYS_openat with O_TMPFILE is not available, all openat with O_TMPFILE tests should be skipped"
+        MATCH 'openat tmpfile setuid: skipped' < output.txt
+        MATCH 'openat tmpfile setgid: skipped' < output.txt
+        MATCH 'openat tmpfile normal: skipped' < output.txt
+    else
+        MATCH 'openat tmpfile setuid: EACCES' < output.txt
+        MATCH 'openat tmpfile setgid: EACCES' < output.txt
+        MATCH 'openat tmpfile normal: succeeded' < output.txt
+    fi
+
+    # SYS_openat2: entirely blocked on all kernel versions that have the syscall;
+    # skipped on kernels < 5.6 where SYS_openat2 is absent.
+    # Crucially, even a normal-mode (0644) request is denied because seccomp
+    # cannot inspect the open_how struct to see the requested mode.
+
+    # NOTE: The observed errno depends on whether openat2 is denied implicitly
+    # by the allow-filter default (EPERM) or explicitly by a deny rule
+    # (EACCES), with seccomp action/errno precedence determining which result
+    # is returned. The security property under test is that openat2 is blocked.
+
+    MATCH 'openat2 setuid: (EPERM|EACCES|skipped)' < output.txt
+    MATCH 'openat2 setgid: (EPERM|EACCES|skipped)' < output.txt
+    MATCH 'openat2 normal: (EPERM|EACCES|skipped)' < output.txt

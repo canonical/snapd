@@ -19,7 +19,9 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
 
 // The nomad-support interface enables running Hashicorp Nomad within
 // a strictly confined snap
@@ -96,15 +98,17 @@ type nomadSupportInterface struct {
 
 func init() {
 	registerIface(&nomadSupportInterface{commonInterface{
-		name:                  "nomad-support",
-		summary:               nomadSupportSummary,
-		implicitOnClassic:     true,
-		implicitOnCore:        true,
-		controlsDeviceCgroup:  true,
-		baseDeclarationPlugs:  nomadSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  nomadSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: nomadSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  nomadSupportConnectedPlugSecComp,
-		serviceSnippets:       []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
+		name:                     "nomad-support",
+		summary:                  nomadSupportSummary,
+		implicitOnClassic:        true,
+		implicitOnCore:           true,
+		controlsDeviceCgroup:     true,
+		baseDeclarationPlugs:     nomadSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     nomadSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:    nomadSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     nomadSupportConnectedPlugSecComp,
+		serviceSnippets:          []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

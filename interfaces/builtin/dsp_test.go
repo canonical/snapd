@@ -135,3 +135,13 @@ func (s *dspSuite) TestApparmorConnectedPlugNoFlavor(c *C) {
 func (s *dspSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *dspSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}
+
+func (s *dspSuite) TestParallelInstancesSupportedForPlug(c *C) {
+	definer, ok := s.iface.(interfaces.ParallelInstancesPlugDefiner)
+	c.Assert(ok, Equals, true)
+	c.Check(definer.ParallelInstancesSupportedForPlug(nil), Equals, builtin.ErrParallelInstancesSharedResources)
+}

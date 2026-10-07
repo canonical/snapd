@@ -19,6 +19,13 @@
 
 package builtin
 
+import (
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+)
+
 const microcephSummary = `allows access to the MicroCeph socket`
 
 const microcephBaseDeclarationSlots = `
@@ -31,7 +38,7 @@ const microcephBaseDeclarationSlots = `
 const microcephConnectedPlugAppArmor = `
 # Description: allow access to the MicroCeph control socket.
 
-/var/snap/microceph/common/state/control.socket rw,
+/var/snap/###SLOT_INSTANCE_NAME###/common/state/control.socket rw,
 `
 
 const microcephConnectedPlugSecComp = `
@@ -40,12 +47,24 @@ const microcephConnectedPlugSecComp = `
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
+type microcephInterface struct {
+	commonInterface
+}
+
+// AppArmorConnectedPlug uses the connected slot's instance name.
+func (iface *microcephInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	old := "###SLOT_INSTANCE_NAME###"
+	new := slot.Snap().InstanceName().String()
+	snippet := strings.ReplaceAll(microcephConnectedPlugAppArmor, old, new)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "microceph",
-		summary:               microcephSummary,
-		baseDeclarationSlots:  microcephBaseDeclarationSlots,
-		connectedPlugAppArmor: microcephConnectedPlugAppArmor,
-		connectedPlugSecComp:  microcephConnectedPlugSecComp,
-	})
+	registerIface(&microcephInterface{commonInterface{
+		name:                 "microceph",
+		summary:              microcephSummary,
+		baseDeclarationSlots: microcephBaseDeclarationSlots,
+		connectedPlugSecComp: microcephConnectedPlugSecComp,
+	}})
 }

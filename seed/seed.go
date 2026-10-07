@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -70,8 +71,8 @@ type Snap struct {
 	Components []Component
 }
 
-func (s *Snap) SnapName() string {
-	return s.SideInfo.RealName
+func (s *Snap) SnapName() naming.SnapName {
+	return naming.SnapName(s.SideInfo.RealName)
 }
 
 func (s *Snap) ID() string {

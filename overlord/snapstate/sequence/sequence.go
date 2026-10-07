@@ -25,6 +25,7 @@ package sequence
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
@@ -137,14 +138,16 @@ func (snapSeq *SnapSequence) LastIndex(revision snap.Revision) int {
 	return -1
 }
 
-var ErrSnapRevNotInSequence = errors.New("snap is not in the sequence")
+// ErrSnapRevNotInSequence is returned when an operation targets a snap
+// revision that is not present in the snap sequence.
+var ErrSnapRevNotInSequence = errors.New("snap revision is not in the sequence")
 
 // AddComponentForRevision adds a component to the last instance of snapRev in
 // the sequence.
 func (snapSeq *SnapSequence) AddComponentForRevision(snapRev snap.Revision, cs *ComponentState) error {
 	snapIdx := snapSeq.LastIndex(snapRev)
 	if snapIdx == -1 {
-		return ErrSnapRevNotInSequence
+		return fmt.Errorf("%w: %s", ErrSnapRevNotInSequence, snapRev)
 	}
 	revSt := snapSeq.Revisions[snapIdx]
 

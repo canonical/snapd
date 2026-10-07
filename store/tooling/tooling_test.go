@@ -392,7 +392,7 @@ func (s *toolingSuite) TestDownloadSnap(c *C) {
 	dlSnap, err := s.tsto.DownloadSnap("core", nil, opts)
 	c.Assert(err, IsNil)
 	c.Check(dlSnap.Path, Matches, filepath.Join(dlDir, `core_\d+.snap`))
-	c.Check(dlSnap.Info.SnapName(), Equals, "core")
+	c.Check(dlSnap.Info.SnapName().String(), Equals, "core")
 	c.Check(dlSnap.RedirectChannel, Equals, "")
 	c.Check(len(dlSnap.Components), Equals, 0)
 
@@ -475,7 +475,7 @@ func (s *toolingSuite) testDownloadSnapWithComps(c *C, opts tooling.DownloadSnap
 		comp2Path = filepath.Join(dlDir, `required20\+comp2_33.comp`)
 	}
 	c.Check(dlSnap.Path, Equals, snapPath)
-	c.Check(dlSnap.Info.SnapName(), Equals, "required20")
+	c.Check(dlSnap.Info.SnapName().String(), Equals, "required20")
 	c.Check(dlSnap.RedirectChannel, Equals, "")
 	dlComps := dlSnap.Components
 	c.Check(len(dlComps), Equals, 2)
@@ -519,13 +519,13 @@ func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
 	var numCore, numReq int
 	bdf := func(si *snap.Info, cinfos map[string]*snap.ComponentInfo) (targetPath string, compPaths map[string]string, err error) {
 		compPaths = make(map[string]string, len(cinfos))
-		switch si.SnapName() {
+		switch si.SnapName().String() {
 		case "core":
 			c.Check(len(cinfos), Equals, 0)
 			numCore++
 		case "required20":
-			cref1 := naming.NewComponentRef(si.SnapName(), "comp1")
-			cref2 := naming.NewComponentRef(si.SnapName(), "comp2")
+			cref1 := naming.NewComponentRef(si.SnapName().String(), "comp1")
+			cref2 := naming.NewComponentRef(si.SnapName().String(), "comp2")
 			c.Check(cinfos, DeepEquals, map[string]*snap.ComponentInfo{
 				"comp1": {
 					Component:           cref1,
@@ -546,7 +546,7 @@ func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
 		default:
 			c.Error("unexpected snap", si.SnapName())
 		}
-		return filepath.Join(dlDir, si.SnapName()), compPaths, nil
+		return filepath.Join(dlDir, si.SnapName().String()), compPaths, nil
 	}
 	topts := tooling.DownloadManyOptions{
 		BeforeDownloadFunc: bdf,
@@ -555,8 +555,8 @@ func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
 	dss, err := s.tsto.DownloadMany(snapsToDownld, nil, topts)
 	c.Assert(err, IsNil)
 	c.Check(len(dss), Equals, 2)
-	c.Check(dss["core"].Info.SnapName(), Equals, "core")
-	c.Check(dss["required20"].Info.SnapName(), Equals, "required20")
+	c.Check(dss["core"].Info.SnapName().String(), Equals, "core")
+	c.Check(dss["required20"].Info.SnapName().String(), Equals, "required20")
 	c.Check(len(dss["core"].Components), Equals, 0)
 	comps := dss["required20"].Components
 	c.Check(len(comps), Equals, 2)

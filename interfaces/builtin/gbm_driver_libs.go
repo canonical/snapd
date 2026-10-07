@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -133,6 +134,10 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
 	// Look for the driver library
+	// TODO: if all library-source paths refer to components that are not
+	// installed, this should be a no-op. currently filePathInLibDirs returns an
+	// error for a missing client-driver when all backing component paths were
+	// filtered out.
 	path, err := filePathInLibDirs(slot, clientDriver)
 	if err != nil {
 		return err
@@ -174,8 +179,11 @@ func init() {
 			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
+			// library-source filenames also use "_" to separate instance name, slot name and interface name
+			parallelInstancesSlotErr: errors.New("client-driver symlink cannot distinguish parallel instances"),
 		},
 	})
 }

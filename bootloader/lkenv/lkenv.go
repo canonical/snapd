@@ -558,6 +558,32 @@ func (matr bootimgMatrixGeneric) setBootPart(bootpart, bootPartValue string) err
 // currently installed kernel snap revision, so that a new try kernel snap does
 // not overwrite the existing installed kernel snap.
 func (matr bootimgMatrixGeneric) findFreeBootPartition(reserved []string, newValue string) (string, error) {
+	// first check whether newValue is already assigned to a boot image
+	// partition, and if so return that partition. This needs to be a separate
+	// pass over the whole matrix, before any free partition is considered:
+	// otherwise a free partition appearing earlier in the matrix would be
+	// returned and the caller would go on to assign newValue to it too, leaving
+	// the very same value occupying two boot image partitions.
+	// It also needs to be handled before checking the reserved values since we
+	// may sometimes need to find a "free" boot partition for the specific
+	// kernel revision that is already installed, thus it will show up in the
+	// reserved list, but it will also be newValue.
+	// This case happens in practice during seeding of kernels on uc16/uc18,
+	// where we already extracted the kernel at image build time and we will
+	// go to extract the kernel again during seeding, as well as on any
+	// re-extraction of the currently installed kernel at run time.
+	for x := range matr {
+		bootPartLabel := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
+		// skip boot image partition labels that are unset, see the comment in
+		// the loop below
+		if bootPartLabel == "" {
+			continue
+		}
+		if cToGoString(matr[x][MATRIX_ROW_VALUE][:]) == newValue {
+			return bootPartLabel, nil
+		}
+	}
+
 	for x := range matr {
 		bootPartLabel := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
 		// skip boot image partition labels that are unset, for example this may
@@ -570,18 +596,6 @@ func (matr bootimgMatrixGeneric) findFreeBootPartition(reserved []string, newVal
 		}
 
 		val := cToGoString(matr[x][MATRIX_ROW_VALUE][:])
-
-		// if the value is exactly the same, as requested return it, this needs
-		// to be handled before checking the reserved values since we may
-		// sometimes need to find a "free" boot partition for the specific
-		// kernel revision that is already installed, thus it will show up in
-		// the reserved list, but it will also be newValue
-		// this case happens in practice during seeding of kernels on uc16/uc18,
-		// where we already extracted the kernel at image build time and we will
-		// go to extract the kernel again during seeding
-		if val == newValue {
-			return bootPartLabel, nil
-		}
 
 		// if this value was reserved, skip it
 		if strutil.ListContains(reserved, val) {

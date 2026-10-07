@@ -31,7 +31,10 @@ func isFDETask(t *state.Task) bool {
 	return strings.HasPrefix(t.Kind(), "fde-")
 }
 
-func checkFDEChangeConflict(st *state.State) error {
+// CheckFDEChangeConflict verifies if any currently scheduled or
+// running change or task is affecting the FDE configuration and
+// provides an error for the conflict found.
+func CheckFDEChangeConflict(st *state.State) error {
 	for _, chg := range st.Changes() {
 		if chg.Status().Ready() {
 			continue
@@ -64,6 +67,12 @@ func checkFDEChangeConflict(st *state.State) error {
 		case "fde-change-pin":
 			return &snapstate.ChangeConflictError{
 				Message:    "changing pin in progress, no other FDE changes allowed until this is done",
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+			}
+		case "fde-reprovision":
+			return &snapstate.ChangeConflictError{
+				Message:    "reprovision is in progress, no other FDE changes allowed until this is done",
 				ChangeKind: chg.Kind(),
 				ChangeID:   chg.ID(),
 			}
@@ -101,7 +110,7 @@ func dbxUpdateAffectedSnaps(t *state.Task) ([]string, error) {
 // checkSecurebootChangeConflicts checks that there are no conflicting
 // changes for Secureboot Key Database updates. It is a finer grained conflict
 // check that can produce more useful error when exercising Secureboot related
-// APIs, but should be used in combination with checkFDEChangeConflict.
+// APIs, but should be used in combination with CheckFDEChangeConflict.
 func checkSecurebootChangeConflicts(st *state.State, db EFISecurebootKeyDatabase) error {
 	// TODO:FDEM: check if we have sealed keys at all
 
@@ -153,7 +162,7 @@ func addPlatformKeysAffectedSnaps(t *state.Task) ([]string, error) {
 // changes affecting the FDE parameters.
 //
 // Note: This does not check for Secureboot updates and should be used in
-// combination with checkFDEChangeConflict.
+// combination with CheckFDEChangeConflict.
 func checkFDEParametersChangeConflicts(st *state.State) error {
 	snaps, err := fdeRelevantSnaps(st)
 	if err != nil {

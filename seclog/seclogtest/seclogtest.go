@@ -49,9 +49,36 @@ func MockSecurityLogger(buf *bytes.Buffer) seclog.SecurityLogger {
 func (m *mockLogger) LogEvent(event seclog.Event, description string, attrs ...seclog.Attr) {
 	fmt.Fprintf(m.buf, "%s %s", event.Name, description)
 	for _, a := range attrs {
-		fmt.Fprintf(m.buf, " [%s=%#v]", a.Key, a.Value)
+		fmt.Fprintf(m.buf, " [%s=%s]", a.Key, attrValueString(a.Value))
 	}
 	fmt.Fprintln(m.buf)
+}
+
+func attrValueString(v any) string {
+	switch val := v.(type) {
+	case seclog.SystemUserAddOptions:
+		return formatSystemUserAddOptions(val)
+	case *seclog.AssertionRef:
+		if val == nil {
+			return "<nil>"
+		}
+		return formatAssertionRef(*val)
+	default:
+		return fmt.Sprintf("%#v", v)
+	}
+}
+
+func formatAssertionRef(r seclog.AssertionRef) string {
+	return fmt.Sprintf("{type:%s primary_key:%v revision:%d}", r.Type, r.PrimaryKey, r.Revision)
+}
+
+func formatSystemUserAddOptions(o seclog.SystemUserAddOptions) string {
+	assertion := ""
+	if o.Assertion != nil {
+		assertion = fmt.Sprintf(" Assertion:%s", formatAssertionRef(*o.Assertion))
+	}
+	return fmt.Sprintf("SystemUserAddOptions{RealUserName:%q Sudoer:%v ExtraUsers:%v ForcePasswordChange:%v Known:%v%s}",
+		o.RealUserName, o.Sudoer, o.ExtraUsers, o.ForcePasswordChange, o.Known, assertion)
 }
 
 // MockSlogLogger returns a buffer and a constructor function matching the

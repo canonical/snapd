@@ -19,7 +19,9 @@
 
 package builtin
 
-import "github.com/snapcore/snapd/interfaces"
+import (
+	"github.com/snapcore/snapd/interfaces"
+)
 
 /*
  * Microstack is a full OpenStack in a single snap package.
@@ -274,5 +276,7 @@ func init() {
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{microstackSupportServiceSnippet},
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

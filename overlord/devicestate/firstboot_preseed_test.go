@@ -197,7 +197,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 				default:
 					snapsup, err := snapstate.TaskSnapSetup(wt)
 					c.Assert(err, IsNil, Commentf("%#v", wt))
-					c.Check(snapsup.SnapName(), Equals, snaps[matched-1], Commentf("%s: %#v", hsup.Snap, wt))
+					c.Check(snapsup.SnapName().String(), Equals, snaps[matched-1], Commentf("%s: %#v", hsup.Snap, wt))
 					waitsForPreviousSnap = true
 				}
 			}
@@ -210,7 +210,7 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 
 		snapsup, err := snapstate.TaskSnapSetup(task0)
 		c.Assert(err, IsNil, Commentf("%#v", task0))
-		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		c.Check(snapsup.InstanceName().String(), Equals, snaps[matched])
 		matched++
 
 		// find setup-aliases task in current taskset; its position
@@ -591,10 +591,12 @@ snaps:
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
-	c.Assert(err, IsNil)
-	c.Assert(s.overlord.Stop(), IsNil)
-	c.Assert(err, IsNil)
 	st.Lock()
+	c.Assert(err, IsNil)
+	st.Unlock()
+	stopErr := s.overlord.Stop()
+	st.Lock()
+	c.Assert(stopErr, IsNil)
 
 	// Update the change pointer to the change in the new state
 	// otherwise we will be referring to the old one.

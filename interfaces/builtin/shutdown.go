@@ -51,7 +51,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={ListInhibitors,Inhibit,PowerOff,Reboot,Suspend,Hibernate,SuspendThenHibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanSuspendThenHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown,SetWallMessage,SetRebootParameter}
+    member={ListInhibitors,Inhibit,PowerOff,Reboot,RebootWithFlags,Suspend,Hibernate,SuspendThenHibernate,HybridSleep,CanPowerOff,CanReboot,CanSuspend,CanHibernate,CanSuspendThenHibernate,CanHybridSleep,ScheduleShutdown,CancelScheduledShutdown,SetWallMessage,SetRebootParameter}
     peer=(label=unconfined),
 
 # Allow clients to introspect
@@ -88,13 +88,14 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "shutdown",
-		summary:               shutdownSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  shutdownBaseDeclarationPlugs,
-		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
-		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
-		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
+		name:                     "shutdown",
+		summary:                  shutdownSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     shutdownBaseDeclarationPlugs,
+		baseDeclarationSlots:     shutdownBaseDeclarationSlots,
+		connectedPlugAppArmor:    shutdownConnectedPlugAppArmor,
+		connectedPlugSecComp:     shutdownConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

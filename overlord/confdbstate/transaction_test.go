@@ -484,7 +484,7 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
-	err = tx.Clear(s.state)
+	err = tx.Reset(s.state)
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
 	err = tx.Unset(parsePath(c, "foo"))

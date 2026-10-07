@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	devicemgmthandlers "github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -72,7 +73,7 @@ func RegisterConfdbHandler(c SystemConfdbHandler) {
 
 type ConfdbManager struct{}
 
-func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner) *ConfdbManager {
+func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.TaskRunner, device deviceBackend) *ConfdbManager {
 	snapstate.IsConfdbHookname = IsConfdbHookname
 	hookstate.IsConfdbHookname = IsConfdbHookname
 
@@ -102,6 +103,8 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 		return &hookstate.SnapHookHandler{}
 	})
 
+	devicemgmthandlers.Register("confdb", &confdbMessageHandler{device: device})
+
 	return m
 }
 
@@ -124,7 +127,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 	st.Lock()
 	defer st.Unlock()
 
-	tx, _, _, err := GetStoredTransaction(t)
+	tx, _, saveTxChanges, err := GetStoredTransaction(t)
 	if err != nil {
 		return err
 	}
@@ -153,6 +156,65 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		}
 	}
 
+	// changes to "system" confdbs are persisted by subsystem handlers, not by
+	// the usual databag commit path
+	if tx.ConfdbAccount == "system" {
+		handler, ok := systemHandlers[tx.ConfdbName]
+		if !ok {
+			// shouldn't happen; we check for this early
+			return fmt.Errorf("internal error: no system handler registered for confdb-schema %q", tx.ConfdbName)
+		}
+
+		var committed bool
+		if err := t.Get("scheduled-tasks", &committed); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		if committed {
+			// a previous run of this task scheduled async tasks which have now
+			// finished (see the async path below) so we're done. Reset the tx which
+			// re-reads state, so hooks get fully updated state since the subsystem
+			// handlers may make state changes.
+			if err := tx.Reset(st); err != nil {
+				return err
+			}
+			saveTxChanges()
+			return nil
+		}
+
+		taskSets, err := handler.Commit(st, tx)
+		if err != nil {
+			return err
+		}
+
+		if len(taskSets) == 0 {
+			// synchronous commit, nothing to wait for. Reset the tx which re-reads
+			// state, so hooks get fully updated state since the subsystem handlers
+			// may make state changes.
+			if err := tx.Reset(st); err != nil {
+				return err
+			}
+			saveTxChanges()
+			return nil
+		}
+
+		// this confdb handler needs to run tasks asynchronously, so make this task
+		// wait for those and rerun when they're done
+		chg := t.Change()
+		for _, ts := range taskSets {
+			chg.AddAll(ts)
+			t.WaitAll(ts)
+		}
+		// set this to done, so it's picked up again after the dependencies finish
+		t.SetStatus(state.DoStatus)
+		t.Set("scheduled-tasks", true)
+
+		// ensure the new tasks are picked up by the task runner
+		st.EnsureBefore(0)
+
+		return &state.Retry{}
+	}
+
 	// we error early if a write may affect ephemeral data but no save-view hook
 	// is present. However, a change-view hook may have written to an ephemeral
 	// path after that so we have to check again
@@ -164,7 +226,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		}
 
 		view := confdbAssert.Schema().View(viewName)
-		paths := tx.alteredPaths()
+		paths := tx.AlteredPaths()
 		mightAffectEph, err := view.WriteAffectsEphemeral(paths)
 		if err != nil {
 			return fmt.Errorf("cannot commit transaction: cannot check for ephemeral paths: %v", err)
@@ -587,7 +649,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	}
 
 	// clear the transaction changes
-	err = tx.Clear(st)
+	err = tx.Reset(st)
 	if err != nil {
 		return false, fmt.Errorf("cannot rollback failed save-view: cannot clear transaction changes: %v", err)
 	}

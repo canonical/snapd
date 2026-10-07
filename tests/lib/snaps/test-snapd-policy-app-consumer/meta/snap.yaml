@@ -302,6 +302,9 @@ apps:
   vcio:
     command: bin/run
     plugs: [ vcio ]
+  vsock-guest:
+    command: bin/run
+    plugs: [ vsock-guest ]
   x11:
     command: bin/run
     plugs: [ x11 ]

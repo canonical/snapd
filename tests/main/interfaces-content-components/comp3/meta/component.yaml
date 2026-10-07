@@ -1,0 +1,5 @@
+component: test-snapd-content-components-provider+comp3
+type: standard
+version: 1.0
+summary: Component 3 with content
+description: Third component providing content for the content interface, shared as a whole

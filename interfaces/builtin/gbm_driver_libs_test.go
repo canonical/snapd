@@ -252,7 +252,7 @@ func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "gbm-provider", SlotName: "gbm-slot"}: {
+		{InstanceName: "gbm-provider", SlotName: "gbm-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")}})
 }

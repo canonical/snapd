@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
@@ -132,7 +131,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) *snap.Info {
 		Revision: snap.R(1),
 	})
 
-	snapName := snapInfo.SnapName()
+	snapName := snapInfo.SnapName().String()
 	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,
@@ -206,16 +205,10 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 
 	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
 
-	// journal quota is still experimental, so we must enable the experimental
-	// quota-groups option
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
-
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 
 	// Create a new quota group with a journal quota
-	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName().String()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
 	c.Assert(err, IsNil)
 
 	flags := snapstate.Flags{}
@@ -236,12 +229,8 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespaceMountProfileC
 
 	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
 
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
-
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
-	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName().String()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
 	c.Assert(err, IsNil)
 
 	opts, err := m.BuildConfinementOptions(s.st, nil, snapInfo, snapstate.Flags{})

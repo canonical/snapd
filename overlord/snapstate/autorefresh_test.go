@@ -162,7 +162,7 @@ func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
 	// this does an immediate refresh
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 
@@ -193,7 +193,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshManaged(c *C) {
 
 		af := snapstate.NewAutoRefresh(s.state)
 		s.state.Unlock()
-		err := af.Ensure()
+		err := af.EnsureAfterSeed()
 		s.state.Lock()
 		c.Check(err, IsNil)
 		c.Check(s.store.ops, HasLen, 0)
@@ -228,7 +228,7 @@ func (s *autoRefreshTestSuite) TestRefreshManagedTimerWins(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -252,7 +252,7 @@ func (s *autoRefreshTestSuite) TestRefreshManagedIsRespected(c *C) {
 		for i := 0; i < 2; i++ {
 			c.Logf("ensure iteration: %v", i)
 			s.state.Unlock()
-			err := af.Ensure()
+			err := af.EnsureAfterSeed()
 			s.state.Lock()
 			c.Check(err, IsNil)
 			c.Check(s.store.ops, HasLen, 0)
@@ -269,7 +269,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 	s.state.Unlock()
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 0)
 }
@@ -277,7 +277,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshNoRefreshNeeded(c *C) {
 func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	s.store.err = fmt.Errorf("random store error")
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 1)
 
@@ -287,7 +287,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 
 	// call ensure again, our back-off will prevent the store from
 	// being hit again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 1)
 
@@ -300,7 +300,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// ensure hits the store again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 2)
 
@@ -311,7 +311,7 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 
 	// nothing really happens yet: the previous autorefresh failed
 	// but it still counts as having tried to autorefresh
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 2)
 
@@ -321,11 +321,11 @@ func (s *autoRefreshTestSuite) TestRefreshBackoff(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// now yes it happens again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "random store error")
 	c.Check(s.store.ops, HasLen, 3)
 	// and not *again* again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 3)
 
@@ -344,7 +344,7 @@ func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 
 	s.store.err = &httputil.PersistentNetworkError{Err: fmt.Errorf("error")}
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, ErrorMatches, "persistent network error: error")
 	c.Check(s.store.ops, HasLen, 1)
 
@@ -359,7 +359,7 @@ func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// call ensure again, refresh should be attempted again
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, HasLen, 2)
 }
@@ -391,7 +391,7 @@ func (s *autoRefreshTestSuite) TestRefreshHoldForever(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -423,7 +423,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHold(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -452,7 +452,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -522,7 +522,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLoc
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -569,7 +569,7 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	snapstate.MockNextRefresh(af, holdTime.Add(-2*time.Minute))
 
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -606,7 +606,7 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeastZeroTimes(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -646,7 +646,7 @@ func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeast(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 
@@ -727,7 +727,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 
 	af := snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -746,7 +746,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 
 	af = snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -767,7 +767,7 @@ func (s *autoRefreshTestSuite) TestEnsureLastRefreshAnchor(c *C) {
 
 	af = snapstate.NewAutoRefresh(s.state)
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -912,7 +912,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 
 	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	// no refresh
@@ -924,7 +924,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 	// connection being metered
 	s.state.Set("last-refresh", time.Now().Add(-96*24*time.Hour))
 	s.state.Unlock()
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -948,7 +948,7 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 
 	s.state.Set("last-refresh", time.Now().Add(-5*24*time.Hour))
 	s.state.Unlock()
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	s.state.Lock()
 	c.Check(err, IsNil)
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -958,11 +958,6 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
-	})
-	defer restore()
-
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
 	snapst := &snapstate.SnapState{
@@ -971,7 +966,7 @@ func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
 	defer restore()
@@ -993,11 +988,6 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		c.Fatal("shouldn't trigger pending refresh notification unless it was an auto-refresh and we're overdue")
-	})
-	defer restore()
-
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) / 2) // In the middle of the allowed window
 
@@ -1010,7 +1000,7 @@ func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
 	})
 	defer restore()
@@ -1034,14 +1024,6 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	notificationCount := 0
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		notificationCount++
-		c.Check(refreshInfo.InstanceName, Equals, "pkg")
-		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
-	})
-	defer restore()
-
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 
@@ -1054,7 +1036,7 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	}
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: true}}
 
-	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	defer restore()
@@ -1062,17 +1044,11 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
 	inhibitionTimeout, err := snapstate.InhibitRefresh(s.state, snapst, snapsup, info)
 	c.Assert(err == nil, Equals, true)
 	c.Check(inhibitionTimeout, Equals, true)
-	c.Check(notificationCount, Equals, 1)
 }
 
-func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
+func (s *autoRefreshTestSuite) TestInhibitManualRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, refreshInfo *userclient.PendingSnapRefreshInfo) {
-		c.Fatal("shouldn't trigger pending refresh notification if refresh was manual")
-	})
-	defer restore()
 
 	pastInstant := time.Now().Add(-snapstate.MaxInhibitionDuration(s.state))
 
@@ -1086,7 +1062,7 @@ func (s *autoRefreshTestSuite) TestInhibitNoNotificationOnManualRefresh(c *C) {
 	// manual refresh
 	snapsup := &snapstate.SnapSetup{Flags: snapstate.Flags{IsAutoRefresh: false}}
 
-	restore = snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
 		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	defer restore()
@@ -1105,7 +1081,7 @@ func (s *autoRefreshTestSuite) TestBlockedAutoRefreshCreatesPreDownloads(c *C) {
 	defer restore()
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -1136,7 +1112,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshCreatesBothRefreshAndPreDownload(c
 	defer restore()
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -1168,7 +1144,7 @@ func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revis
 
 	var snapsup snapstate.SnapSetup
 	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
-	c.Assert(snapsup.InstanceName(), Equals, name)
+	c.Assert(snapsup.InstanceName().String(), Equals, name)
 	c.Assert(snapsup.Revision(), Equals, rev)
 
 	var refreshInfo userclient.PendingSnapRefreshInfo
@@ -1220,7 +1196,7 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 	setStoreAccess(s.state, "offline")
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -1236,7 +1212,7 @@ func (s *autoRefreshTestSuite) TestSnapStoreOffline(c *C) {
 		return state.NewTaskSet(st.NewTask("process-delayed-security-backend-effects", "Process delayed backend effects"))
 	}))
 
-	err = af.Ensure()
+	err = af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
@@ -1418,7 +1394,6 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 }
 
 func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNotice(c *C) {
-	s.enableRefreshAppAwarenessUX()
 	const markerInterfaceConnected = true
 	const warningFallback = false
 	s.testMaybeAddRefreshInhibitNotice(c, markerInterfaceConnected, warningFallback)
@@ -1444,60 +1419,26 @@ func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallbackEr
 		RefreshInhibitedTime: &now,
 	})
 
-	// Highly unlikely but just in case
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", "trigger-error")
-	tr.Commit()
-
-	err := snapstate.MaybeAddRefreshInhibitNotice(st)
-	// warning fallback error is not propagated, only logged
-	c.Assert(err, IsNil)
-	// check error is logged
-	c.Check(logbuf.String(), testutil.Contains, `Cannot add refresh inhibition warning: refresh-app-awareness-ux can only be set to 'true' or 'false', got "trigger-error"`)
-	// notice recorded
-	checkRefreshInhibitNotice(c, st, 1)
-	// no warnings recorded due to error
-	checkNoRefreshInhibitWarning(c, st)
-
 	restore = snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
 		return false, fmt.Errorf("boom")
 	})
 	defer restore()
 
-	st.Unlock()
-	s.enableRefreshAppAwarenessUX()
-	st.Lock()
-	err = snapstate.MaybeAddRefreshInhibitNotice(st)
+	err := snapstate.MaybeAddRefreshInhibitNotice(st)
 	// warning fallback error is not propagated, only logged
 	c.Assert(err, IsNil)
 	// check error is logged
 	c.Check(logbuf.String(), testutil.Contains, "Cannot add refresh inhibition warning: boom")
-	// set of inhibited snaps unchanged -> ["some-snap"]
-	// no new notice recorded
+	// notice recorded despite the warning fallback error
 	checkRefreshInhibitNotice(c, st, 1)
 	// no warnings recorded due to error
 	checkNoRefreshInhibitWarning(c, st)
 }
 
 func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallback(c *C) {
-	s.enableRefreshAppAwarenessUX()
 	const markerInterfaceConnected = false
 	const warningFallback = true
 	s.testMaybeAddRefreshInhibitNotice(c, markerInterfaceConnected, warningFallback)
-}
-
-func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallbackNoRAAUX(c *C) {
-	const markerInterfaceConnected = false
-	const warningFallback = false // because refresh-app-awareness-ux is disabled
-	s.testMaybeAddRefreshInhibitNotice(c, markerInterfaceConnected, warningFallback)
-}
-
-func (s *autoRefreshTestSuite) enableRefreshAppAwarenessUX() {
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-	s.state.Unlock()
 }
 
 func checkNoRefreshInhibitWarning(c *C, st *state.State) {
@@ -1545,70 +1486,6 @@ func warningToMap(c *C, warning *state.Warning) map[string]any {
 	return n
 }
 
-func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotification(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	var connCheckCalled int
-	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
-		connCheckCalled++
-		c.Check(iface, Equals, "snap-refresh-observe")
-		// no snap has the marker interface connected
-		return false, nil
-	})
-	defer restore()
-
-	expectedInfo := &userclient.PendingSnapRefreshInfo{
-		InstanceName:  "pkg",
-		TimeRemaining: 10 * time.Second,
-	}
-	var notificationCalled int
-	restore = snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, psri *userclient.PendingSnapRefreshInfo) {
-		notificationCalled++
-		c.Check(psri, Equals, expectedInfo)
-	})
-	defer restore()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-
-	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, expectedInfo)
-	// no notification as refresh-appawareness-ux is enabled
-	// i.e. notices + warnings fallback is used instead
-	c.Check(connCheckCalled, Equals, 0)
-	c.Check(notificationCalled, Equals, 0)
-
-	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
-	tr.Commit()
-
-	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, expectedInfo)
-	// notification sent as refresh-appawareness-ux is now disabled
-	c.Check(connCheckCalled, Equals, 1)
-	c.Check(notificationCalled, Equals, 1)
-}
-
-func (s *autoRefreshTestSuite) TestMaybeAsyncPendingRefreshNotificationSkips(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	var connCheckCalled int
-	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
-		connCheckCalled++
-		c.Check(iface, Equals, "snap-refresh-observe")
-		// marker interface found
-		return true, nil
-	})
-	defer restore()
-
-	restore = snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, psri *userclient.PendingSnapRefreshInfo) {
-		c.Fatal("shouldn't trigger pending refresh notification because marker interface is connected")
-	})
-	defer restore()
-
-	snapstate.MaybeAsyncPendingRefreshNotification(context.TODO(), s.state, &userclient.PendingSnapRefreshInfo{})
-}
-
 func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 	s.AddCleanup(snapstate.MockProcessDelayedSecurityBackendEffects(func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet) {
 		// only one snap is updated
@@ -1653,7 +1530,7 @@ func (s *autoRefreshTestSuite) TestAutoRefreshWithConfdbs(c *C) {
 	s.store.refreshable = append(s.store.refreshable, info)
 
 	af := snapstate.NewAutoRefresh(s.state)
-	err := af.Ensure()
+	err := af.EnsureAfterSeed()
 	c.Check(err, IsNil)
 
 	s.state.Lock()

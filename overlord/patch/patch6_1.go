@@ -63,16 +63,16 @@ func processConns(conns map[string]connStatePatch6_1, infos map[string]*snap.Inf
 		var plugSnapInfo, slotSnapInfo *snap.Info
 
 		// read current snap info from disk and keep it around in infos map
-		if plugSnapInfo, ok = infos[connRef.PlugRef.Snap]; !ok {
-			plugSnapInfo, err = snap.ReadCurrentInfo(connRef.PlugRef.Snap)
+		if plugSnapInfo, ok = infos[connRef.PlugRef.Snap.String()]; !ok {
+			plugSnapInfo, err = snap.ReadCurrentInfo(connRef.PlugRef.Snap.String())
 			if err == nil {
-				infos[connRef.PlugRef.Snap] = plugSnapInfo
+				infos[connRef.PlugRef.Snap.String()] = plugSnapInfo
 			}
 		}
-		if slotSnapInfo, ok = infos[connRef.SlotRef.Snap]; !ok {
-			slotSnapInfo, err = snap.ReadCurrentInfo(connRef.SlotRef.Snap)
+		if slotSnapInfo, ok = infos[connRef.SlotRef.Snap.String()]; !ok {
+			slotSnapInfo, err = snap.ReadCurrentInfo(connRef.SlotRef.Snap.String())
 			if err == nil {
-				infos[connRef.SlotRef.Snap] = slotSnapInfo
+				infos[connRef.SlotRef.Snap.String()] = slotSnapInfo
 			}
 		}
 

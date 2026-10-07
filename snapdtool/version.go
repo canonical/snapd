@@ -24,11 +24,55 @@ package snapdtool
 
 //go:generate mkversion.sh
 
-// Version will be overwritten at build-time via mkversion.sh
-var Version = "unknown"
+// UpstreamVersion and DownstreamVersionSuffix are set at build time through
+// one of three intended workflows:
+//
+//   - snapd.git -> source tarball -> downstream distro packaging:
+//     packaging/pack-source generates snapdtool/version_generated.go (included
+//     in the source tarball) with UpstreamVersion set to the upstream release
+//     version. DownstreamVersionSuffix is left empty here.
+//
+//     Each distribution's build rules then set DownstreamVersionSuffix with
+//     the distro-specific suffix (e.g. "~0.fc42", "~1", "-1") via a linker
+//     flag (-X .../snapdtool.DownstreamVersionSuffix=...), typically through
+//     the downstream_version_suffix define in packaging/snapd.mk, so that the
+//     source is not patched. mkversion.sh is not used in this path.
+//
+//   - snapd.git -> snapcraft flow calls mkversion.sh during the build, which
+//     generates version_generated.go from git history. DownstreamVersionSuffix
+//     is not used.
+//
+//   - snapd.git -> ./mkversion.sh -> go build - developer builds overwrite
+//     the version, typically when building the snap for testing.
+var UpstreamVersion = "unknown"
 
-func MockVersion(version string) (restore func()) {
-	old := Version
-	Version = version
-	return func() { Version = old }
+// DownstreamVersionSuffix is the distribution-specific version suffix (release
+// number or revision) appended to the upstream version by distribution
+// packaging. The value includes any separator character, for example "~0.fc42"
+// for Fedora, "~1" for an Arch pkgrel, "-1" for a Debian revision, or
+// "+ubuntu26.04" for an Ubuntu package. It is empty for unpackaged
+// (development) builds and for native packages whose changelog version equals
+// the upstream version. The value is set at link time via
+// -X github.com/snapcore/snapd/snapdtool.DownstreamVersionSuffix=... (see the
+// downstream_version_suffix define in packaging/snapd.mk); it must NOT be
+// assigned in version_generated.go, as an init() assignment would run after
+// the linker and clobber the -X value.
+var DownstreamVersionSuffix = ""
+
+// FullVersion returns the full version string for display and version-tracking
+// purposes, combining the upstream Version with the distribution-specific
+// DownstreamVersionSuffix (if set).
+func FullVersion() string {
+	return UpstreamVersion + DownstreamVersionSuffix
+}
+
+func MockVersion(upstream, downstreamSuffix string) (restore func()) {
+	oldUpstream := UpstreamVersion
+	oldDownstreamSuffix := DownstreamVersionSuffix
+	UpstreamVersion = upstream
+	DownstreamVersionSuffix = downstreamSuffix
+	return func() {
+		UpstreamVersion = oldUpstream
+		DownstreamVersionSuffix = oldDownstreamSuffix
+	}
 }

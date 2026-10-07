@@ -354,21 +354,21 @@ var setGetTests = [][]setGetOp{{
 	`getunder one={"two":{"three":3}}`,
 }, {
 	// Invalid option names.
-	`set BAD=1 => invalid option name: "BAD"`,
-	`set 42=1 => invalid option name: "42"`,
-	`set .bad=1 => invalid option name: ""`,
-	`set bad.=1 => invalid option name: ""`,
-	`set bad..bad=1 => invalid option name: ""`,
-	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
-	`set one.-bad.two=1 => invalid option name: "-bad"`,
-	`set one.bad-.two=1 => invalid option name: "bad-"`,
+	`set BAD=1 => invalid option name "BAD": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set 42=1 => invalid option name "42": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set .bad=1 => invalid option name "": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set bad.=1 => invalid option name "": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set bad..bad=1 => invalid option name "": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one.bad--bad.two=1 => invalid option name "bad--bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one.-bad.two=1 => invalid option name "-bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one.bad-.two=1 => invalid option name "bad-": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
 	// Invalid keys nested in JSON objects.
-	`set one={"Bad":1} => invalid option name: "Bad"`,
-	`set one={"bad_key":1} => invalid option name: "bad_key"`,
-	`set one={"good":{"Bad":1}} => invalid option name: "Bad"`,
-	`set one=[{"Bad":1}] => invalid option name: "Bad"`,
-	`set one=[{"good":{"Bad":1}}] => invalid option name: "Bad"`,
-	`set one=[1,[{"Bad":1}]] => invalid option name: "Bad"`,
+	`set one={"Bad":1} => invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one={"bad_key":1} => invalid JSON field name "bad_key": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one={"good":{"Bad":1}} => invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one=[{"Bad":1}] => invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one=[{"good":{"Bad":1}}] => invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
+	`set one=[1,[{"Bad":1}]] => invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`,
 }}
 
 func (s *transactionSuite) TestSetGet(c *C) {
@@ -631,7 +631,7 @@ func (s *transactionSuite) TestExternalGetError(c *C) {
 		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (any, error) {
 			return nil, nil
 		})
-		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name:.*")
+		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name.*")
 	}
 }
 
@@ -875,10 +875,10 @@ func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 
 func (s *transactionSuite) TestOverlapsWithExternalConfigErr(c *C) {
 	_, err := config.OverlapsWithExternalConfig("invalid#", "valid")
-	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: "invalid#"`)
+	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name "invalid#": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`)
 
 	_, err = config.OverlapsWithExternalConfig("valid", "invalid#")
-	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name: "invalid#"`)
+	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name "invalid#": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`)
 }
 
 func (s *transactionSuite) TestOverlapsWithExternalConfig(c *C) {
@@ -933,9 +933,9 @@ func (s *transactionSuite) TestBadFieldErrorCore26AndSystemSnap(c *C) {
 		val  any
 		err  string
 	}{
-		{snap: "system", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid option name: "Bad"`},
+		{snap: "system", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`},
 		{snap: "system", key: "opts", val: map[string]any{"good": 1}},
-		{snap: "my-snap", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid option name: "Bad"`},
+		{snap: "my-snap", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid JSON field name "Bad": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`},
 		{snap: "my-snap", key: "opts", val: map[string]any{"good": 1}},
 	}
 

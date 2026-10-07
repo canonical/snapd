@@ -113,7 +113,7 @@ execute: |
     echo "The defaults are applied"
     for service in $SERVICES; do
         snap get system "service.$service.disable" | MATCH true
-        systemctl status "$service.service" | MATCH '(inactive|masked)'
+        systemctl status "$service.service" | MATCH ' (inactive|masked) '
     done
     MATCH "SSH has been disabled by snapd system configuration" < /etc/ssh/sshd_not_to_be_run
 

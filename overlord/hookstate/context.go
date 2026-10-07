@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // Context represents the context under which the snap is calling back into snapd.
@@ -98,8 +99,8 @@ func newEphemeralHookContextWithData(st *state.State, setup *HookSetup, contextD
 }
 
 // InstanceName returns the name of the snap instance containing the hook.
-func (c *Context) InstanceName() string {
-	return c.setup.Snap
+func (c *Context) InstanceName() naming.InstanceName {
+	return naming.InstanceName(c.setup.Snap)
 }
 
 // HookSource returns a string that identifies the source of a hook. This could

@@ -58,7 +58,6 @@ type fakeInterfacesRequestsManager struct {
 	iface                string
 	pid                  int32
 	cgroup               string
-	snapdShuttingDown    <-chan struct{}
 	id                   prompting.IDType // used for prompt ID or rule ID
 	ruleConstraintsJSON  prompting.ConstraintsJSON
 	constraintsPatchJSON prompting.ConstraintsJSON
@@ -69,13 +68,12 @@ type fakeInterfacesRequestsManager struct {
 	clientActivity       bool
 }
 
-func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
 	m.userID = uid
 	m.iface = iface
 	m.snap = snap
 	m.pid = pid
 	m.cgroup = cgroup
-	m.snapdShuttingDown = snapdShuttingDown
 	return m.ask, m.err
 }
 
@@ -183,70 +181,65 @@ func (s *promptingSuite) TestGetUserID(c *C) {
 
 	for _, testCase := range []struct {
 		path         string
-		uid          string
+		uid          uint32
+		noUcred      bool
 		expectedUser uint32
 		expectedCode int
 		expectedErr  string
 	}{
 		{
 			path:         "/v2/interfaces/requests/prompts",
-			uid:          "invalid",
+			noUcred:      true,
 			expectedUser: 0,
 			expectedCode: 403,
 			expectedErr:  "cannot get remote user: ",
 		},
 		{
 			path:         "/v2/interfaces/requests/prompts",
-			uid:          "1000",
+			uid:          1000,
 			expectedUser: 1000,
 			expectedCode: 200,
 			expectedErr:  "",
 		},
 		{
 			path:         "/v2/interfaces/requests/prompts?user-id=1000",
-			uid:          "1000",
+			uid:          1000,
 			expectedUser: 0,
 			expectedCode: 403,
 			expectedErr:  `only admins may use the "user-id" parameter`,
 		},
 		{
 			path:         "/v2/interfaces/requests/prompts?user-id=1000&user-id=1234",
-			uid:          "0",
 			expectedUser: 0,
 			expectedCode: 400,
 			expectedErr:  `invalid "user-id" parameter: must only include one "user-id"`,
 		},
 		{
 			path:         "/v2/interfaces/requests/prompts?user-id=invalid",
-			uid:          "0",
 			expectedUser: 0,
 			expectedCode: 400,
 			expectedErr:  `invalid "user-id" parameter: `,
 		},
 		{
 			path:         "/v2/interfaces/requests/prompts?user-id=-1",
-			uid:          "0",
 			expectedUser: 0,
 			expectedCode: 400,
 			expectedErr:  `invalid "user-id" parameter: user ID is not a valid uint32: `,
 		},
 		{
 			path:         fmt.Sprintf("/v2/interfaces/requests/prompts?user-id=4294967296"), // math.MaxUint32 + 1
-			uid:          "0",
 			expectedUser: 0,
 			expectedCode: 400,
 			expectedErr:  `invalid "user-id" parameter: user ID is not a valid uint32: `,
 		},
 		{
 			path:         "/v2/interfaces/requests/prompts?user-id=1234",
-			uid:          "0",
 			expectedUser: 1234,
 			expectedCode: 200,
 			expectedErr:  "",
 		},
 		{
 			path:         fmt.Sprintf("/v2/interfaces/requests/prompts?user-id=4294967295"), // math.MaxUint32
-			uid:          "0",
 			expectedUser: 0xffffffff,
 			expectedCode: 200,
 			expectedErr:  "",
@@ -254,7 +247,9 @@ func (s *promptingSuite) TestGetUserID(c *C) {
 	} {
 		req, err := http.NewRequest("GET", testCase.path, nil)
 		c.Assert(err, IsNil)
-		req.RemoteAddr = fmt.Sprintf("pid=100;uid=%s;socket=;", testCase.uid)
+		if !testCase.noUcred {
+			addUcrednet(req, "snap.some-snap.app", testCase.uid, "")
+		}
 
 		userID, rsp := daemon.GetUserID(req)
 		if testCase.expectedErr == "" {
@@ -733,7 +728,6 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 	c.Check(s.manager.snap, Equals, expectedSnap)
 	c.Check(s.manager.pid, Equals, fakePID)
 	c.Check(s.manager.cgroup, Equals, fakeCgroup)
-	c.Check(s.manager.snapdShuttingDown, NotNil)
 
 	// Check return value
 	responseBody, ok := rsp.Result.(daemon.PostInterfacesRequestsResponse)
@@ -787,14 +781,14 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	c.Assert(err, IsNil)
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, "cannot get remote user: no pid/uid found")
+	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found in request context")
 
 	// Prompting not running
 	s.appArmorPromptingRunning = false
 	body = bytes.NewReader(marshalled)
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
@@ -805,7 +799,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	badBody := bytes.NewReader([]byte(`{"action": "ask", "pid": "bad"}`))
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", badBody)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Matches, "cannot decode request body into ask for prompting access.*")
@@ -814,7 +808,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	badBody = bytes.NewReader([]byte(`{"action": "ask", "pid": 1234}`))
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", badBody)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Matches, `must have non-empty "interface" field`)
@@ -824,7 +818,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	badBody = bytes.NewReader([]byte(`{"action": "ask", "interface": "audio-record"}`))
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", badBody)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Matches, `"pid" field must be a positive integer`)
@@ -837,7 +831,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	body = bytes.NewReader(marshalled)
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Matches, `cannot find cgroup path for process with PID 1234: there's no cgroup`)
@@ -850,7 +844,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	body = bytes.NewReader(marshalled)
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Matches, `cannot find snap security tag for process with PID 1234`)
@@ -882,7 +876,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 		body = bytes.NewReader(marshalled)
 		req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe, DeepEquals, testCase.expected)
 		restore()
@@ -901,7 +895,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	body = bytes.NewReader(marshalled)
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests", body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 503)
 	c.Check(rspe.Message, Equals, "prompting subsystem has already been closed")
@@ -1028,13 +1022,13 @@ func (s *promptingSuite) TestGetPromptsErrors(c *C) {
 	c.Assert(err, IsNil)
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, "cannot get remote user: no pid/uid found")
+	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found in request context")
 
 	// Prompting not running
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -1045,7 +1039,7 @@ func (s *promptingSuite) TestGetPromptsErrors(c *C) {
 	s.manager.err = prompting_errors.ErrPromptingClosed
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 503)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -1060,7 +1054,7 @@ func (s *promptingSuite) makeSyncReq(c *C, method string, path string, uid uint3
 	}
 	req, err := http.NewRequest(method, path, body)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=%d;socket=;", uid)
+	addUcrednet(req, "snap.some-snap.app", uid, "")
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, Equals, 200)
 	return rsp
@@ -1092,12 +1086,12 @@ func (s *promptingSuite) TestGetPromptErrors(c *C) {
 	c.Assert(err, IsNil)
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Message, Equals, "cannot get remote user: no pid/uid found")
+	c.Check(rspe.Message, Equals, "cannot get remote user: no peer credentials found in request context")
 
 	// Can't parse prompt ID
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/not-a-valid-id", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 404)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsPromptNotFound)
@@ -1106,7 +1100,7 @@ func (s *promptingSuite) TestGetPromptErrors(c *C) {
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/0123456789ABCDEF", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -1136,7 +1130,7 @@ func (s *promptingSuite) TestGetPromptErrors(c *C) {
 		s.manager.err = testCase.err
 		req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/0123456789ABCDEF", nil)
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, testCase.expectedCode)
 		c.Check(rspe.Kind, Equals, testCase.expectedKind)
@@ -1273,7 +1267,7 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 	// Can't parse prompt ID
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/not-a-valid-id", bytes.NewReader(validBody))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 404)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsPromptNotFound)
@@ -1282,7 +1276,7 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(validBody))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -1292,7 +1286,7 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 	// Bad json
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader([]byte(`{"action":"allow"`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -1301,11 +1295,11 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 	// Decode body error
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader([]byte(`{"action":"allow","lifespan":10,"constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
-	c.Check(rspe.Message, Matches, "cannot decode request body into prompt reply:.*cannot unmarshal number into Go struct field.*")
+	c.Check(rspe.Message, Matches, "cannot decode request body into prompt reply:.*cannot unmarshal number into.*")
 
 	// Invalid outcome (action) or lifespan
 	for _, testCase := range []struct {
@@ -1346,7 +1340,7 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 	} {
 		req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(testCase.body))
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, testCase.actionKnown)
 		c.Check(rspe.Status, Equals, testCase.expectedCode)
 		c.Check(rspe.Kind, Equals, testCase.expectedKind)
@@ -1438,7 +1432,7 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 		s.manager.err = testCase.err
 		req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(validBody))
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, testCase.expectedCode)
 		c.Check(rspe.Kind, Equals, testCase.expectedKind)
@@ -1548,7 +1542,7 @@ func (s *promptingSuite) TestGetRulesErrors(c *C) {
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -1559,7 +1553,7 @@ func (s *promptingSuite) TestGetRulesErrors(c *C) {
 	s.manager.err = fmt.Errorf("something went wrong")
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -1734,7 +1728,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader(validAddBody))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -1744,7 +1738,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Bad json
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add"`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -1753,7 +1747,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Decode body error
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":"0123456789ABCDEF"}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -1762,7 +1756,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Missing "rule"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add"}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
@@ -1771,7 +1765,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Missing "snap"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":{"snap":"","interface":"home","constraints":{}}}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
@@ -1780,7 +1774,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Missing "interface"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":{"snap":"firefox","interface":"","constraints":{}}}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
@@ -1789,7 +1783,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Missing "selector"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"remove"}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
@@ -1798,7 +1792,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	// Missing "snap" and "interface"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"remove","selector":{"snap":"","interface":""}}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -1867,7 +1861,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 		s.manager.err = testCase.err
 		req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader(testCase.body))
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, testCase.expectedCode)
 		c.Check(rspe.Kind, Equals, testCase.expectedKind)
@@ -1924,7 +1918,7 @@ func (s *promptingSuite) TestGetRuleErrors(c *C) {
 	// Can't parse rule ID
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules/not-a-valid-id", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 404)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsRuleNotFound)
@@ -1933,7 +1927,7 @@ func (s *promptingSuite) TestGetRuleErrors(c *C) {
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules/000000000000012B", nil)
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -1975,7 +1969,7 @@ func (s *promptingSuite) TestGetRuleErrors(c *C) {
 		s.manager.err = testCase.err
 		req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules/000000000000012B", nil)
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, testCase.expectedCode)
 		c.Check(rspe.Kind, Equals, testCase.expectedKind)
@@ -2100,7 +2094,7 @@ func (s *promptingSuite) TestPostRuleErrors(c *C) {
 	// Can't parse rule ID
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/not-a-valid-id", bytes.NewReader(validPatchBody))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 404)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsRuleNotFound)
@@ -2109,7 +2103,7 @@ func (s *promptingSuite) TestPostRuleErrors(c *C) {
 	s.appArmorPromptingRunning = false
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader(validPatchBody))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 500)
 	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
@@ -2119,7 +2113,7 @@ func (s *promptingSuite) TestPostRuleErrors(c *C) {
 	// Bad json
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader([]byte(`{"action":"patch"`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -2128,7 +2122,7 @@ func (s *promptingSuite) TestPostRuleErrors(c *C) {
 	// Decode body error
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader([]byte(`{"action":"patch","rule":"0000001123581321"}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
@@ -2137,7 +2131,7 @@ func (s *promptingSuite) TestPostRuleErrors(c *C) {
 	// Missing "rule"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader([]byte(`{"action":"patch"}`)))
 	c.Assert(err, IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	addUcrednet(req, "snap.some-snap.app", 1000, "")
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
@@ -2227,7 +2221,7 @@ func (s *promptingSuite) TestPostRuleErrors(c *C) {
 		s.manager.err = testCase.err
 		req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader(testCase.body))
 		c.Assert(err, IsNil)
-		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		addUcrednet(req, "snap.some-snap.app", 1000, "")
 		rspe = s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, testCase.expectedCode)
 		c.Check(rspe.Kind, Equals, testCase.expectedKind)

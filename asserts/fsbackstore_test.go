@@ -52,6 +52,9 @@ func (fsbss *fsBackstoreSuite) TestOpenOK(c *C) {
 }
 
 func (fsbss *fsBackstoreSuite) TestOpenCreateFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	parent := filepath.Join(c.MkDir(), "var")
 	topDir := filepath.Join(parent, "asserts-db")
 	// make it not writable

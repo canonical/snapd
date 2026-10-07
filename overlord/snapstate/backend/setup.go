@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -53,7 +54,7 @@ type SetupSnapOptions struct {
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, retErr error) {
+func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName, sideInfo *snap.SideInfo, dev snap.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, retErr error) {
 	if setupOpts == nil {
 		setupOpts = &SetupSnapOptions{}
 	}
@@ -66,7 +67,7 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	// update instance key to what was requested
-	_, s.InstanceKey = snap.SplitInstanceName(instanceName)
+	s.InstanceKey = instanceName.InstanceKey()
 
 	instdir := s.MountDir()
 
@@ -306,7 +307,7 @@ func (b Backend) RemoveComponentFiles(cpi snap.ContainerPlaceInfo, installRecord
 func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	mountDir := s.MountDir()
 
-	_, instanceKey := snap.SplitInstanceName(s.InstanceName())
+	_, instanceKey := snap.SplitInstanceName(s.InstanceName().String())
 	if instanceKey != "" {
 		// always ok to remove instance specific one, failure to remove
 		// is ok, there may be other revisions
@@ -315,7 +316,7 @@ func (b Backend) RemoveSnapDir(s snap.PlaceInfo, hasOtherInstances bool) error {
 	if !hasOtherInstances {
 		// remove only if not used by other instances of the same snap,
 		// failure to remove is ok, there may be other revisions
-		os.Remove(snap.BaseDir(s.SnapName()))
+		os.Remove(snap.BaseDir(s.SnapName().String()))
 	}
 	return nil
 }
@@ -398,7 +399,7 @@ func compsMountPoints(comps []*snap.ComponentSideInfo, kSnapName string, ksnapRe
 	compsMntPts := make([]kernel.ModulesCompMountPoints, 0, len(comps)+1)
 	for _, csi := range comps {
 		compPlaceInfo := snap.MinimalComponentContainerPlaceInfo(csi.Component.ComponentName,
-			csi.Revision, kSnapName)
+			csi.Revision, naming.InstanceName(kSnapName))
 		if dirHasDrivers(compPlaceInfo.MountDir()) {
 			compsMntPts = append(compsMntPts, kernel.ModulesCompMountPoints{
 				LinkName: csi.Component.ComponentName,

@@ -22,6 +22,7 @@ package ifacetest
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -31,11 +32,11 @@ type TestSecurityBackend struct {
 	// SetupCalls stores information about all calls to Setup
 	SetupCalls []TestSetupCall
 	// RemoveCalls stores information about all calls to Remove
-	RemoveCalls []string
+	RemoveCalls []naming.InstanceName
 	// SetupCallback is an callback that is optionally called in Setup
 	SetupCallback func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error
 	// RemoveCallback is a callback that is optionally called in Remove
-	RemoveCallback func(snapName string) error
+	RemoveCallback func(instanceName naming.InstanceName) error
 	// SandboxFeaturesCallback is a callback that is optionally called in SandboxFeatures
 	SandboxFeaturesCallback func() []string
 }
@@ -74,12 +75,12 @@ func (b *TestSecurityBackend) Setup(appSet *interfaces.SnapAppSet, opts interfac
 }
 
 // Remove records information about the call and calls the remove callback if one is defined
-func (b *TestSecurityBackend) Remove(snapName string) error {
-	b.RemoveCalls = append(b.RemoveCalls, snapName)
+func (b *TestSecurityBackend) Remove(instanceName naming.InstanceName) error {
+	b.RemoveCalls = append(b.RemoveCalls, instanceName)
 	if b.RemoveCallback == nil {
 		return nil
 	}
-	return b.RemoveCallback(snapName)
+	return b.RemoveCallback(instanceName)
 }
 
 func (b *TestSecurityBackend) NewSpecification(*interfaces.SnapAppSet, interfaces.ConfinementOptions) interfaces.Specification {
@@ -102,8 +103,8 @@ type TestSecurityBackendSetupMany struct {
 
 	// SetupManyCallback is an callback that is optionally called in Setup
 	SetupManyCallback func(appSets []*interfaces.SnapAppSet,
-		confinement func(snapName string) interfaces.ConfinementOptions,
-		sctx func(snapName string) interfaces.SetupContext,
+		confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions,
+		sctx func(instanceName naming.InstanceName) interfaces.SetupContext,
 		repo *interfaces.Repository,
 		tm timings.Measurer,
 	) []error
@@ -115,7 +116,7 @@ type TestSetupManyCall struct {
 	AppSets []*interfaces.SnapAppSet
 }
 
-func (b *TestSecurityBackendSetupMany) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(snapName string) interfaces.ConfinementOptions, sctx func(snapName string) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
+func (b *TestSecurityBackendSetupMany) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(instanceName naming.InstanceName) interfaces.ConfinementOptions, sctx func(instanceName naming.InstanceName) interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) []error {
 	b.SetupManyCalls = append(b.SetupManyCalls, TestSetupManyCall{AppSets: appSets})
 	if b.SetupManyCallback == nil {
 		return nil
@@ -128,17 +129,17 @@ type TestSecurityBackendDiscardingLate struct {
 	TestSecurityBackend
 
 	RemoveLateCalledFor [][]string
-	RemoveLateCallback  func(snapName string, rev snap.Revision, typ snap.Type) error
+	RemoveLateCallback  func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error
 }
 
-func (b *TestSecurityBackendDiscardingLate) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
+func (b *TestSecurityBackendDiscardingLate) RemoveLate(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 	b.RemoveLateCalledFor = append(b.RemoveLateCalledFor, []string{
-		snapName, rev.String(), string(typ),
+		instanceName.String(), rev.String(), string(typ),
 	})
 	if b.RemoveLateCallback == nil {
 		return nil
 	}
-	return b.RemoveLateCallback(snapName, rev, typ)
+	return b.RemoveLateCallback(instanceName, rev, typ)
 }
 
 // TestSecurityBackendReinitializable implements Reinitialize on top of

@@ -15,8 +15,6 @@ systems:
 
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-journal-quota
-  snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset system experimental.quota-groups
 
 restore: |
   snap remove-quota group-one || true
@@ -101,7 +99,7 @@ execute: |
   systemctl show --property=ControlGroup snap.test-snapd-journal-quota.logger.service | grep -vF "$SLICE_REGEXP"
 
   echo "And the slice is not active anymore"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=inactive$'
 
   # Make sure that the service is running still and now outputting logs
   # into the original journal.

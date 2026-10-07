@@ -20,9 +20,15 @@
 package seclog_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func (s *SecLogSuite) TestReasonString(c *C) {
@@ -83,17 +89,123 @@ func (s *SecLogSuite) TestPeerString(c *C) {
 
 	c.Check(seclog.Peer{Socket: "/run/snapd.socket"}.String(), Equals, "/run/snapd.socket:0:<unknown>")
 
-	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
+	c.Check(seclog.Peer{UID: seclog.PeerNobody}.String(), Equals, "<unknown>:<unknown>:<unknown>")
 }
 
-func (s *SecLogSuite) TestNewAuthzChecks(c *C) {
-	checks := seclog.NewAuthzChecks()
-	c.Check(checks.AccessOptions, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.PeerCreds, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Socket, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Interface, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.OpenAccess, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.UserAuth, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Root, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Polkit, Equals, seclog.AuthzNotApplicable)
+func (s *SecLogSuite) TestRunnableFromSecurityTag(c *C) {
+	cases := []struct {
+		tag      string
+		runnable string
+	}{{
+		tag:      "snap.firefox.firefox",
+		runnable: "app=firefox",
+	}, {
+		tag:      "snap.firefox_foo.firefox",
+		runnable: "app=firefox",
+	}, {
+		tag:      "snap.mysnap.hook.install",
+		runnable: "hook=install",
+	}, {
+		tag:      "snap.mysnap+widget.hook.install",
+		runnable: "comp=widget;hook=install",
+	}, {
+		tag:      "snap.mysnap_foo+widget.hook.install",
+		runnable: "comp=widget;hook=install",
+	}}
+
+	for _, tc := range cases {
+		tag, err := naming.ParseSecurityTag(tc.tag)
+		c.Assert(err, IsNil)
+		c.Check(seclog.RunnableFromSecurityTag(tag), Equals, tc.runnable, Commentf("tag %s", tc.tag))
+	}
+}
+
+func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {
+	c.Check(seclog.GrantRootAuth.WithInterface("desktop-launch", true),
+		Equals, seclog.GrantReason("root-auth desktop-launch plug"))
+	c.Check(seclog.GrantUserAuth.WithInterface("snap-themes-control", false),
+		Equals, seclog.GrantReason("user-auth snap-themes-control slot"))
+	c.Check(seclog.GrantPolkitAuth.WithInterface("snap-fde-control", true),
+		Equals, seclog.GrantReason("polkit-auth snap-fde-control plug"))
+
+	// Empty iface means no interface contributed; the base reason is unchanged.
+	c.Check(seclog.GrantRootAuth.WithInterface("", true), Equals, seclog.GrantRootAuth)
+	c.Check(seclog.GrantRootAuth.WithInterface("", false), Equals, seclog.GrantRootAuth)
+}
+
+func (s *SecLogSuite) TestSystemUserAddOptionsFromStoreEmail(c *C) {
+	opts := &osutil.AddUserOptions{
+		Gecos:               "karl@example.com,Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: true,
+	}
+
+	got := seclog.SystemUserAddOptionsFrom(opts, nil)
+	c.Check(got, DeepEquals, seclog.SystemUserAddOptions{
+		RealUserName:        "Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: true,
+		Known:               false,
+		Assertion:           nil,
+	})
+}
+
+func (s *SecLogSuite) TestSystemUserAddOptionsFromGecosWithoutName(c *C) {
+	// No comma: RealUserName is left empty.
+	c.Check(seclog.SystemUserAddOptionsFrom(&osutil.AddUserOptions{
+		Gecos: "only-email@example.com",
+	}, nil).RealUserName, Equals, "")
+
+	c.Check(seclog.SystemUserAddOptionsFrom(&osutil.AddUserOptions{}, nil).RealUserName, Equals, "")
+}
+
+func (s *SecLogSuite) TestSystemUserAddOptionsFromAssertion(c *C) {
+	su := assertstest.FakeAssertion(map[string]any{
+		"type":         "system-user",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"username":     "example-user",
+		"name":         "Example User",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+		"revision":     "3",
+	}).(*asserts.SystemUser)
+
+	got := seclog.SystemUserAddOptionsFrom(&osutil.AddUserOptions{
+		Gecos:  "foo@bar.com,Example User",
+		Sudoer: true,
+	}, su)
+	c.Check(got, DeepEquals, seclog.SystemUserAddOptions{
+		RealUserName: "Example User",
+		Sudoer:       true,
+		Known:        true,
+		Assertion: &seclog.AssertionRef{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   3,
+		},
+	})
+}
+
+func (s *SecLogSuite) TestAssertionRefFrom(c *C) {
+	c.Check(seclog.AssertionRefFrom(nil), IsNil)
+
+	su := assertstest.FakeAssertion(map[string]any{
+		"type":         "system-user",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"username":     "example-user",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+	}).(*asserts.SystemUser)
+
+	c.Check(seclog.AssertionRefFrom(su), DeepEquals, &seclog.AssertionRef{
+		Type:       "system-user",
+		PrimaryKey: []string{"my-brand", "foo@bar.com"},
+		Revision:   0,
+	})
 }

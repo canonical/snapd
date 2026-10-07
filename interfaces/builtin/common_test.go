@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -277,4 +279,47 @@ slots:
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, false)
 	c.Assert(spec.AddConnectedPlug(iface, plug, slot), IsNil)
 	c.Assert(spec.ControlsDeviceCgroup(), Equals, true)
+}
+
+func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
+	// default: both sides supported
+	iface := &commonInterface{name: "common"}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), IsNil)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), IsNil)
+
+	// plug-side unsupported
+	iface = &commonInterface{
+		name:                     "common",
+		parallelInstancesPlugErr: errors.New("custom plug reason"),
+	}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), ErrorMatches, "custom plug reason")
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), IsNil)
+
+	// slot-side unsupported
+	iface = &commonInterface{
+		name:                     "common",
+		parallelInstancesSlotErr: errors.New("custom slot reason"),
+	}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), IsNil)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), ErrorMatches, "custom slot reason")
+
+	// both unsupported
+	iface = &commonInterface{
+		name:                     "common",
+		parallelInstancesPlugErr: errors.New("custom plug reason"),
+		parallelInstancesSlotErr: errors.New("custom slot reason"),
+	}
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), ErrorMatches, "custom plug reason")
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), ErrorMatches, "custom slot reason")
+}
+
+func (s *commonIfaceSuite) TestParallelInstancesSystemOrGadgetSlotErr(c *C) {
+	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeOS}}
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(systemSlot), Equals, errParallelInstancesSystemSlot)
+
+	snapdSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(snapdSlot), Equals, errParallelInstancesSystemSlot)
+
+	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
+	c.Check(parallelInstancesSystemOrGadgetSlotErr(gadgetSlot), Equals, errParallelInstancesGadgetSlot)
 }

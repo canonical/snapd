@@ -160,8 +160,21 @@ execute: |
         "${SNAP_NAME}".cmd grep "$MOUNT_DEST1" /proc/self/mountinfo
         "${SNAP_NAME}".cmd test -e "$MOUNT_DEST1/file1"
 
-        echo "Remove the persistent mount"
+        unit_name="$(systemd-escape -p "$MOUNT_DEST1").mount"
+
+        echo "Stop the unit and force systemd to unload it from memory"
+        systemctl stop "$unit_name"
+        systemctl daemon-reload
+
+        echo "Verify the unit is no longer visible via 'systemctl show *.mount'"
+        NOMATCH "$unit_name" < <(systemctl show --property=FragmentPath "*.mount")
+
+        echo "Verify snapctl umount still works even though the unit is unloaded"
         "${SNAP_NAME}".cmd snapctl umount "$MOUNT_DEST1"
+
+        echo "Verify that the mount unit file is removed"
+        test ! -e "/etc/systemd/system/$unit_name"
+        test ! -e "/run/systemd/system/$unit_name"
 
         echo "Verify that the mount is gone"
         "${SNAP_NAME}".cmd grep "$MOUNT_DEST1" /proc/self/mountinfo && exit 1

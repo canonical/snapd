@@ -308,7 +308,7 @@ func (s *Store) snapEssentialInfo(fn, snapID string, bs asserts.Backstore) (*ess
 	}
 
 	return &essentialInfo{
-		Name:        cached.info.SnapName(),
+		Name:        cached.info.SnapName().String(),
 		SnapID:      snapID,
 		DeveloperID: develID,
 		DevelName:   devel,

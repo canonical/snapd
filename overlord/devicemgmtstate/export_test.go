@@ -22,6 +22,7 @@ package devicemgmtstate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/overlord/devicemgmtstate/handlers"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -30,12 +31,15 @@ import (
 
 var (
 	DeviceMgmtStateKey = deviceMgmtStateKey
+	TaskMessageKey     = taskMessageKey
 
 	DefaultExchangeLimit    = defaultExchangeLimit
 	DefaultExchangeInterval = defaultExchangeInterval
-
-	MgmtMessageIDKey = mgmtMessageIDKey
 )
+
+func MockFetchAccountKey(f func(st *state.State, userID int, signKeyID string) error) func() {
+	return testutil.Mock(&assertstateFetchAccountKey, f)
+}
 
 func MockMaxSequences(n int) func() {
 	return testutil.Mock(&maxSequences, n)
@@ -48,7 +52,7 @@ func MockMaxBlockedMessagesPerSequence(n int) func() {
 type SequenceState = sequenceState
 type DeviceMgmtState = deviceMgmtState
 
-type ResponseMessageSigner = responseMessageSigner
+type DeviceBackend = deviceBackend
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
 	ms, err := m.getState()
@@ -59,8 +63,8 @@ func (m *DeviceMgmtManager) SetState(ms *DeviceMgmtState) {
 	m.setState(ms)
 }
 
-func (m *DeviceMgmtManager) MockSigner(signer responseMessageSigner) {
-	m.signer = signer
+func (m *DeviceMgmtManager) MockBackend(backend deviceBackend) {
+	m.device = backend
 }
 
 func (m *DeviceMgmtManager) ShouldExchangeMessages(ms *DeviceMgmtState) bool {
@@ -87,12 +91,12 @@ func (m *DeviceMgmtManager) DoQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 	return m.doQueueResponse(t, tomb)
 }
 
-func ParseRequestMessage(msg store.Message) (*RequestMessage, error) {
+func ParseRequestMessage(msg store.Message) (*handlers.RequestMessage, error) {
 	return parseRequestMessage(msg)
 }
 
-func FindChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
-	return findChangeByMgmtMessageID(st, msgID)
+func FindChangeByMgmtMessageKey(st *state.State, msgKey string) *state.Change {
+	return findChangeByMgmtMessageKey(st, msgKey)
 }
 
 func MockTimeNow(t time.Time) func() {

@@ -24,7 +24,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
-    systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH "running"
+    systemctl status snap.test-snapd-service.test-snapd-endure-service|MATCH ' \(running\) '
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > old-main.pid
 
     # keep track of the mount namespace of the snap

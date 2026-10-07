@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/systemd"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -48,17 +47,12 @@ func (*featureSuite) TestName(c *C) {
 	check(features.ParallelInstances, "parallel-instances")
 	check(features.Hotplug, "hotplug")
 	check(features.UserDaemons, "user-daemons")
-	check(features.DbusActivation, "dbus-activation")
 	check(features.HiddenSnapDataHomeDir, "hidden-snap-folder")
 	check(features.MoveSnapHomeDir, "move-snap-home-dir")
 	check(features.CheckDiskSpaceInstall, "check-disk-space-install")
 	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
 	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
-	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
-	check(features.QuotaGroups, "quota-groups")
-	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.Confdb, "confdb")
-	check(features.ConfdbControl, "confdb-control")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 	check(features.ContentCompatLabel, "content-compatibility-label")
 	check(features.Clustering, "clustering")
@@ -89,17 +83,12 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.Hotplug, false)
 	check(features.ParallelInstances, true)
 	check(features.UserDaemons, false)
-	check(features.DbusActivation, false)
 	check(features.HiddenSnapDataHomeDir, true)
 	check(features.MoveSnapHomeDir, true)
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
-	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, false)
-	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdb, true)
-	check(features.ConfdbControl, false)
 	check(features.AppArmorPrompting, true)
 	check(features.ContentCompatLabel, false)
 	check(features.Clustering, false)
@@ -117,24 +106,9 @@ func (*featureSuite) TestIsGraduated(c *C) {
 	for _, feature := range graduated {
 		c.Check(features.IsGraduated(feature), Equals, true)
 	}
+	c.Check(features.IsGraduated("quota-groups"), Equals, true)
+	c.Check(features.IsGraduated("refresh-app-awareness-ux"), Equals, true)
 	c.Check(features.IsGraduated("other-feature"), Equals, false)
-}
-
-func (*featureSuite) TestQuotaGroupsSupportedCallback(c *C) {
-	callback, exists := features.FeaturesSupportedCallbacks[features.QuotaGroups]
-	c.Assert(exists, Equals, true)
-
-	restore1 := systemd.MockSystemdVersion(229, nil)
-	defer restore1()
-	supported, reason := callback()
-	c.Check(supported, Equals, false)
-	c.Check(reason, Matches, "systemd version 229 is too old.*")
-
-	restore2 := systemd.MockSystemdVersion(230, nil)
-	defer restore2()
-	supported, reason = callback()
-	c.Check(supported, Equals, true)
-	c.Check(reason, Equals, "")
 }
 
 func (*featureSuite) TestUserDaemonsSupportedCallback(c *C) {
@@ -225,18 +199,13 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.ParallelInstances, false)
 	check(features.Hotplug, false)
 	check(features.UserDaemons, false)
-	check(features.DbusActivation, true)
 	check(features.HiddenSnapDataHomeDir, false)
 	check(features.MoveSnapHomeDir, false)
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
-	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, true)
-	check(features.RefreshAppAwarenessUX, false)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
-	check(features.ConfdbControl, false)
 	check(features.ContentCompatLabel, false)
 	check(features.Clustering, false)
 	check(features.RemoteDeviceManagement, false)
@@ -250,17 +219,16 @@ func (*featureSuite) TestControlFile(c *C) {
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
-	c.Check(features.RefreshAppAwarenessUX.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness-ux")
 	c.Check(features.Confdb.ControlFile(), Equals, "/var/lib/snapd/features/confdb")
 	c.Check(features.AppArmorPrompting.ControlFile(), Equals, "/var/lib/snapd/features/apparmor-prompting")
 	// Features that are not exported don't have a control file.
 	c.Check(features.Hotplug.ControlFile, PanicMatches, `cannot compute the control file of feature "hotplug" because that feature is not exported`)
 }
 
-func (*featureSuite) TestConfigOptionRefreshAppAwarenessUX(c *C) {
-	snapName, configName := features.RefreshAppAwarenessUX.ConfigOption()
+func (*featureSuite) TestConfigOption(c *C) {
+	snapName, configName := features.Hotplug.ConfigOption()
 	c.Check(snapName, Equals, "core")
-	c.Check(configName, Equals, "experimental.refresh-app-awareness-ux")
+	c.Check(configName, Equals, "experimental.hotplug")
 }
 
 func (s *featureSuite) TestFlag(c *C) {
@@ -292,7 +260,22 @@ func (s *featureSuite) TestFlag(c *C) {
 	c.Assert(err, ErrorMatches, `hotplug can only be set to 'true' or 'false', got "banana"`)
 }
 
+func (*featureSuite) TestPermanentlyDisabledFeatures(c *C) {
+	f := features.GateAutoRefreshHook
+	c.Check(f.IsPermanentlyDisabled(), Equals, true)
+	for _, known := range features.KnownFeatures() {
+		c.Check(known, Not(Equals), f)
+	}
+
+	// disabled flags should not consult configuration
+	flag, err := features.Flag(nil, f)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, false)
+}
+
 func (s *featureSuite) TestAll(c *C) {
+	// the synthetic feature ids below may overlap permanently disabled ids
+	defer features.MockFeaturesPermanentlyDisabled(nil)()
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()

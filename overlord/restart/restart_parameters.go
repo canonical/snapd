@@ -27,6 +27,7 @@ import (
 type RestartParameters struct {
 	SnapName          string              `json:"snap-name,omitempty"`
 	RestartType       RestartType         `json:"restart-type,omitempty"`
+	Reason            RestartReason       `json:"reason,omitempty"`
 	BootloaderOptions *bootloader.Options `json:"bootloader-options,omitempty"`
 }
 
@@ -42,7 +43,7 @@ var restartTypeOrder = []RestartType{
 	RestartSystem,
 }
 
-func (rt *RestartParameters) init(snapName string, restartType RestartType, rebootInfo *boot.RebootInfo) {
+func (rt *RestartParameters) init(snapName string, restartType RestartType, rebootInfo *boot.RebootInfo, reason RestartReason) {
 	for _, r := range restartTypeOrder {
 		// Only set if the one stored isn't already same priority
 		// or higher.
@@ -52,6 +53,7 @@ func (rt *RestartParameters) init(snapName string, restartType RestartType, rebo
 		if restartType == r {
 			rt.SnapName = snapName
 			rt.RestartType = restartType
+			rt.Reason = reason
 			break
 		}
 	}

@@ -257,7 +257,7 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
-		{SnapName: "egl-provider", SlotName: "egl-slot"}: {
+		{InstanceName: "egl-provider", SlotName: "egl-slot"}: {
 			filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1"),
 			filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2"),
 			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1"),

@@ -53,7 +53,7 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		if !rev.Unset() {
 			// TODO: tweak boot.InUse so that it DTRT when rev.Unset, call
 			// it unconditionally as an extra precaution
-			if err := inUse(name, rev, snap.TypeOS, dev); err != nil {
+			if err := inUse(name.String(), rev, snap.TypeOS, dev); err != nil {
 				return err
 			}
 			return nil

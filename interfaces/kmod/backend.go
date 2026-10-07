@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -126,11 +127,11 @@ func (b *Backend) setupModprobe(appSet *interfaces.SnapAppSet, spec *Specificati
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName().String()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain kmod specification for snap %q: %s", instanceName, err)
 	}
 
 	err = b.setupModprobe(appSet, spec.(*Specification))
@@ -151,8 +152,8 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // This method should be called after removing a snap.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Remove(snapName string) error {
-	globs := interfaces.SecurityTagGlobs(snapName)
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
+	globs := interfaces.SecurityTagGlobs(instanceName)
 	var errors []error
 	if _, _, err := osutil.EnsureDirStateGlobs(dirs.SnapKModModulesDir, globs, nil); err != nil {
 		errors = append(errors, err)
@@ -186,7 +187,7 @@ func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) (map[stri
 		buffer.WriteString(module)
 		buffer.WriteRune('\n')
 	}
-	content[fmt.Sprintf("%s.conf", snap.SecurityTag(appSet.InstanceName()))] = &osutil.MemoryFileState{
+	content[fmt.Sprintf("%s.conf", snap.SecurityTag(appSet.InstanceName().String()))] = &osutil.MemoryFileState{
 		Content: buffer.Bytes(),
 		Mode:    0644,
 	}
@@ -210,7 +211,7 @@ func prepareModprobeDirContents(spec *Specification, appSet *interfaces.SnapAppS
 		contents.WriteString(fmt.Sprintf("options %s %s\n", module, options))
 	}
 
-	fileName := fmt.Sprintf("%s.conf", snap.SecurityTag(appSet.InstanceName()))
+	fileName := fmt.Sprintf("%s.conf", snap.SecurityTag(appSet.InstanceName().String()))
 	return map[string]osutil.FileState{
 		fileName: &osutil.MemoryFileState{
 			Content: []byte(contents.String()),

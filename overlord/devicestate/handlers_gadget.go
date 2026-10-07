@@ -68,7 +68,7 @@ func CurrentGadgetData(st *state.State, curDeviceCtx snapstate.DeviceContext) (*
 }
 
 func pendingGadgetData(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
-	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+	info, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
@@ -118,7 +118,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	switch snapsup.Type {
 	case snap.TypeGadget:
 		expectedGadgetSnap := model.Gadget()
-		if snapsup.InstanceName() != expectedGadgetSnap {
+		if snapsup.InstanceName().String() != expectedGadgetSnap {
 			return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
 				snapsup.InstanceName(), expectedGadgetSnap)
 		}
@@ -129,7 +129,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		}
 	case snap.TypeKernel:
 		expectedKernelSnap := model.Kernel()
-		if snapsup.InstanceName() != expectedKernelSnap {
+		if snapsup.InstanceName().String() != expectedKernelSnap {
 			return fmt.Errorf("cannot apply kernel assets update from non-model kernel snap %q, expected %q snap",
 				snapsup.InstanceName(), expectedKernelSnap)
 		}
@@ -167,7 +167,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// if this is a gadget update triggered by an updated kernel we
 	// need to ensure "updateData.KernelRootDir" points to the new kernel
 	if snapsup.Type == snap.TypeKernel {
-		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
 		if err != nil {
 			return fmt.Errorf("cannot read candidate kernel snap details: %v", err)
 		}

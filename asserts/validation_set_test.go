@@ -85,7 +85,7 @@ func (vss *validationSetSuite) TestDecodeOK(c *C) {
 			Revision: 99,
 		},
 	})
-	c.Check(snaps[0].SnapName(), Equals, "baz-linux")
+	c.Check(snaps[0].SnapName().String(), Equals, "baz-linux")
 	c.Check(snaps[0].ID(), Equals, "bazlinuxidididididididididididid")
 }
 

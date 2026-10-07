@@ -163,6 +163,72 @@ func (s *runInhibitSuite) TestUnlockLocked(c *C) {
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg.refresh"), testutil.FileAbsent)
 }
 
+func (s *runInhibitSuite) TestUnlockStaleGateRefreshLocks(c *C) {
+	// pkg1 has a gate-refresh lock
+	err := runinhibit.LockWithHint("pkg1", runinhibit.HintInhibitedGateRefresh, s.inhibitInfo, nil)
+	c.Assert(err, IsNil)
+	// pkg2 has a refresh lock
+	err = runinhibit.LockWithHint("pkg2", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
+	c.Assert(err, IsNil)
+	// pkg3 changed from a gate-refresh lock to a refresh lock, and still has
+	// the gate-refresh inhibit info file
+	err = runinhibit.LockWithHint("pkg3", runinhibit.HintInhibitedGateRefresh, s.inhibitInfo, nil)
+	c.Assert(err, IsNil)
+	err = runinhibit.LockWithHint("pkg3", runinhibit.HintInhibitedForRefresh, s.inhibitInfo, nil)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(runinhibit.InhibitDir, "pkg3.gate-refresh"), testutil.FilePresent)
+
+	var unlockerCalled, relockCalled int
+	fakeUnlocker := func() (relock func()) {
+		unlockerCalled++
+		return func() { relockCalled++ }
+	}
+	unlocked, err := runinhibit.UnlockStaleGateRefreshLocks(fakeUnlocker)
+	c.Assert(err, IsNil)
+	c.Check(unlocked, DeepEquals, []string{"pkg1"})
+	c.Check(unlockerCalled, Equals, 1)
+	c.Check(relockCalled, Equals, 1)
+
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg1.lock"), testutil.FileEquals, "")
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg1.gate-refresh"), testutil.FileAbsent)
+
+	for _, name := range []string{"pkg2", "pkg3"} {
+		hint, info, err := runinhibit.IsLocked(name, nil)
+		c.Assert(err, IsNil)
+		c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
+		c.Check(info, Equals, s.inhibitInfo)
+	}
+}
+
+func (s *runInhibitSuite) TestUnlockStaleGateRefreshLocksNoInhibitDir(c *C) {
+	_, err := os.Stat(runinhibit.InhibitDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
+
+	unlocked, err := runinhibit.UnlockStaleGateRefreshLocks(nil)
+	c.Assert(err, IsNil)
+	c.Check(unlocked, HasLen, 0)
+}
+
+func (s *runInhibitSuite) TestUnlockStaleGateRefreshLocksError(c *C) {
+	err := runinhibit.LockWithHint("pkg1", runinhibit.HintInhibitedGateRefresh, s.inhibitInfo, nil)
+	c.Assert(err, IsNil)
+	err = runinhibit.LockWithHint("pkg2", runinhibit.HintInhibitedGateRefresh, s.inhibitInfo, nil)
+	c.Assert(err, IsNil)
+
+	// replace the hint file of pkg1 with a directory, so that it cannot be
+	// opened for writing
+	hintFile := filepath.Join(runinhibit.InhibitDir, "pkg1.lock")
+	c.Assert(os.Remove(hintFile), IsNil)
+	c.Assert(os.Mkdir(hintFile, 0755), IsNil)
+
+	unlocked, err := runinhibit.UnlockStaleGateRefreshLocks(nil)
+	c.Check(err, ErrorMatches, `cannot release gate-refresh inhibition lock of snap "pkg1": .*`)
+	c.Check(unlocked, DeepEquals, []string{"pkg2"})
+
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg2.lock"), testutil.FileEquals, "")
+	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg2.gate-refresh"), testutil.FileAbsent)
+}
+
 // IsLocked doesn't fail when the lock directory or lock file is missing.
 func (s *runInhibitSuite) TestIsLockedMissing(c *C) {
 	_, err := os.Stat(runinhibit.InhibitDir)

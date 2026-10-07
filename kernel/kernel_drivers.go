@@ -20,6 +20,7 @@
 package kernel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -39,6 +40,88 @@ import (
 
 // For testing purposes
 var osSymlink = os.Symlink
+
+// atomicWriteFile is a mockable wrapper around osutil.AtomicWriteFile, used
+// by writeDriversTreeMeta, so tests can simulate a marker-write failure
+// (e.g. ENOSPC) without needing to actually exhaust disk space.
+var atomicWriteFile = osutil.AtomicWriteFile
+
+// kernelDriversTreeGeneratorVersion identifies the logic that produced a
+// kernel drivers tree (the on-disk symlinks/files under
+// <destDir>/lib/{modules,firmware}).
+//
+// IMPORTANT: bump this whenever there is a change to the layout or organization of the
+// kernel drivers or firmware trees.
+var kernelDriversTreeGeneratorVersion = 1
+
+// driversTreeMeta is the content of the <destDir>/kernel.json marker file
+// written after every successful kernel drivers tree build.
+type driversTreeMeta struct {
+	GeneratorVersion int `json:"generator-version"`
+}
+
+func driversTreeMetaPath(destDir string) string {
+	return filepath.Join(destDir, "kernel.json")
+}
+
+// writeDriversTreeMeta records the generator version that produced destDir.
+func writeDriversTreeMeta(destDir string) error {
+	meta := driversTreeMeta{GeneratorVersion: kernelDriversTreeGeneratorVersion}
+	data, err := json.Marshal(&meta)
+	if err != nil {
+		return err
+	}
+	return atomicWriteFile(driversTreeMetaPath(destDir), data, 0644, 0)
+}
+
+var (
+	errGeneratorMetaCorrupted = errors.New("kernel drivers tree generator metadata file is corrupted")
+)
+
+// readDriversTreeMeta returns the generator metadata recorded for
+// destDir. If no marker value is present a default zero value with
+// GeneratorVersion set to 0 is returned and no error.
+func readDriversTreeMeta(destDir string) (driversTreeMeta, error) {
+	data, err := os.ReadFile(driversTreeMetaPath(destDir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return driversTreeMeta{
+			// Explicit zero value so that there are no misconceptions
+			// of what it means
+			GeneratorVersion: 0,
+		}, nil
+	}
+	if err != nil {
+		return driversTreeMeta{}, err
+	}
+	var meta driversTreeMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		// The marker could be corrupted, which means that the tree likely needs a rebuild.
+		return driversTreeMeta{}, errGeneratorMetaCorrupted
+	}
+	return meta, nil
+}
+
+// DriversTreeOutdated returns true when the kernel modules & firmware tree at
+// destDir was built by an older version of the generator code, indicating it
+// may need to be checked or rebuilt.
+func DriversTreeOutdated(destDir string) (bool, error) {
+	v, err := readDriversTreeMeta(destDir)
+	if err != nil {
+		if errors.Is(err, errGeneratorMetaCorrupted) {
+			// Corrupted metadata file warrants a rebuild.
+			return true, nil
+		}
+		return false, err
+	}
+	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
+		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
+	// A tree marked with a version *newer* than what is currently running (e.g.
+	// after a snapd revert) is deliberately NOT considered outdated: rebuilding
+	// it with older, possibly-buggy logic could regress a fix already applied
+	// by the newer generator. Only consider the kernel tree to be outdated if
+	// the current snapd version is strictly newer.
+	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
+}
 
 // We expect as a minimum something that starts with three numbers
 // separated by dots for the kernel version.
@@ -139,24 +222,66 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 		return err
 	}
 
-	// Copy modinfo files from the snap (these might be overwritten if
-	// kernel-modules components are installed).
-	modsGlob := kMntPts.UnderCurrentPath("modules", kversion, "modules.*")
-	modFiles, err := filepath.Glob(modsGlob)
+	// Discover the content of the modules directory of the current mount
+	// once. The target mount may not exist yet (for example, during
+	// install/preseed the target is the future runtime mount), so it must
+	// not be read for discovery; only the current mount is guaranteed to be
+	// available. The discovered directory names are reused for both the
+	// current and the target symlinks (see createKernelModulesSymlinks).
+	currentMntDir := kMntPts.UnderCurrentPath("modules", kversion)
+	entries, err := os.ReadDir(currentMntDir)
 	if err != nil {
-		// Should not really happen (only possible error is ErrBadPattern)
 		return err
 	}
-	for _, orig := range modFiles {
-		target := filepath.Join(modsRoot, filepath.Base(orig))
-		if err := osutil.CopyFile(orig, target, osutil.CopyFlagDefault); err != nil {
-			return err
+
+	// Copy modinfo files (modules.*) from the snap; these might be
+	// overwritten if kernel-modules components are installed (see
+	// setupModsFromComp, which runs depmod). The files are copied from the
+	// current mount only: their content is path-independent (module paths
+	// are relative to the modules directory), so there is no need to
+	// re-copy them for the target mount, which in any case may not exist
+	// yet during install/preseed. Only the symlinks are re-pointed to the
+	// target mount below, since they encode absolute mount paths.
+	//
+	// While scanning the modules tree, also collect the directories found
+	// under it, to be set up as symlinks below, skipping the ones that are
+	// either reserved or not useful in the drivers tree.
+
+	modDirs := map[string]bool{
+		"kernel": true, // the default kernel drivers tree
+		"vdso":   true, // the expected vdso libs tree
+	}
+	for _, e := range entries {
+		switch {
+		case !e.Type().IsDir(): // files & symlinks
+			// Copy modprobe artifacts (modules.*).
+			if strings.HasPrefix(e.Name(), "modules.") {
+				target := filepath.Join(modsRoot, e.Name())
+				if err := osutil.CopyFile(filepath.Join(currentMntDir, e.Name()), target, osutil.CopyFlagDefault); err != nil {
+					return err
+				}
+			}
+		case e.IsDir():
+			n := e.Name()
+			switch n {
+			// Drop and log entries which would cause conflicts. We are
+			// expecting those to have raised an error during snap pack.
+			case "updates":
+				// Reserved for modules coming from kernel-modules
+				// components; do not link it back to the kernel snap.
+				logger.Debugf("skipping directory %q in the kernel modules tree, reserved for components", n)
+			case "build":
+				// Typically a symlink to the kernel source tree; not
+				// useful in the drivers tree.
+				logger.Debugf("skipping directory %q in the kernel modules tree, typically the kernel source tree", n)
+			default:
+				modDirs[n] = true
+			}
 		}
 	}
 
 	// Symbolic links to current mount of the kernel snap
-	currentMntDir := kMntPts.UnderCurrentPath("modules", kversion)
-	if err := createKernelModulesSymlinks(modsRoot, currentMntDir); err != nil {
+	if err := createKernelModulesSymlinks(modsRoot, currentMntDir, modDirs); err != nil {
 		return err
 	}
 
@@ -165,10 +290,12 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 		return err
 	}
 
-	// Change symlinks to target ones when needed
+	// Change symlinks to target ones when needed. Reuse the directories
+	// discovered from the current mount: the target mount holds the same
+	// kernel snap content, just mounted at a different path.
 	if !kMntPts.CurrentEqualsTarget() {
 		targetMntDir := kMntPts.UnderTargetPath("modules", kversion)
-		if err := createKernelModulesSymlinks(modsRoot, targetMntDir); err != nil {
+		if err := createKernelModulesSymlinks(modsRoot, targetMntDir, modDirs); err != nil {
 			return err
 		}
 	}
@@ -176,11 +303,11 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	return nil
 }
 
-func createKernelModulesSymlinks(modsRoot, kMntPt string) error {
-	for _, d := range []string{"kernel", "vdso"} {
+func createKernelModulesSymlinks(modsRoot, kMntPt string, dirs map[string]bool) error {
+	for d := range dirs {
 		lname := filepath.Join(modsRoot, d)
 		to := filepath.Join(kMntPt, d)
-		// We might be re-creating, first remove
+
 		os.Remove(lname)
 		if err := osSymlink(to, lname); err != nil {
 			return err
@@ -322,6 +449,8 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		if exists && isDir {
 			logger.Debugf("device tree %q already created on installation, not re-creating",
 				targetDir)
+			// Nothing was built here, so the existing marker (if any) is
+			// left untouched.
 			return nil
 		}
 	}
@@ -406,6 +535,14 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 		// Make sure that changes are written
 		syscall.Sync()
+	}
+
+	if opts.KernelInstall {
+		// Record the version of the layout used for the firmware and modules
+		// tree.
+		if err := writeDriversTreeMeta(targetDir); err != nil {
+			return err
+		}
 	}
 
 	return nil

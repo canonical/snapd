@@ -31,9 +31,6 @@ skip:
         [[ "$SPREAD_BACKEND" =~ openstack ]] && os.query is-arm && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
       reason: The nis and windbind variants are not supported on openstack arm due to lack of virtualization
     - if: |
-        [[ "$SPREAD_BACKEND" =~ google ]] && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
-      reason: The nis and windbind variants are not supported on google due to lack of virtualization
-    - if: |
         [[ "$SPREAD_SYSTEM" =~ ubuntu-18 ]] && { [[ "$MODULE" = "nis" ]] || [[ "$MODULE" = "winbind" ]]; }
       reason: The nis and windbind variants are not supported on ubuntu 18.04 due to a lack of a support of LXD VMs
 
@@ -46,7 +43,8 @@ prepare: |
                 exit 1
             fi
             cp "$item" "$item.bak"
-            tests.cleanup defer mv "$item.bak" "$item"
+            # purging the package during task restore may remove the .bak along with their config dirs
+            tests.cleanup defer "mv \"$item.bak\" \"$item\" || true"
         elif [ -d "$item" ]; then
             tests.backup prepare "$item"
             tests.cleanup defer tests.backup restore "$item"
@@ -280,7 +278,7 @@ prepare: |
         domainname "${domain_name}"
         echo "domain $domain_name" >> /etc/yp.conf
         echo "ypserver $(lxc ls server -c 4 -f csv | awk '{print $1}')" >> /etc/yp.conf
-        if os.query is-ubuntu-ge 25.10; then
+        if os.query is-ubuntu-ge 26.04; then
             # the apparmor profile for hostname (which covers also execution of domainname)
             # doesn't grant read permissions to /etc/defaultdomain, which is used in the
             # ExecStartPre section of the ypbind service. Since the domain name is already set,

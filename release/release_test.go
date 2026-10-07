@@ -124,6 +124,7 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 
 	os := release.ReadOSReleaseFromRoot(root)
 	c.Check(os.ID, Equals, "ubuntu")
+	c.Check(os.VariantID, Equals, "")
 	c.Check(os.VersionID, Equals, "18.09")
 }
 
@@ -229,7 +230,7 @@ func (s *ReleaseTestSuite) TestUbuntuCoreVariantRelease(c *C) {
 	dump := `NAME="Ubuntu Core Desktop"
 VERSION="22"
 ID="ubuntu-core"
-VARIANT_ID="desktop"
+VARIANT_ID="Desktop"
 VERSION_ID="22"
 "`
 

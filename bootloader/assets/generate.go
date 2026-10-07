@@ -21,3 +21,4 @@ package assets
 
 //go:generate go run $GOINVOKEFLAGS ./genasset/main.go -name grub.cfg -in ./data/grub.cfg -out ./grub_cfg_asset.go
 //go:generate go run $GOINVOKEFLAGS ./genasset/main.go -name grub-recovery.cfg -in ./data/grub-recovery.cfg -out ./grub_recovery_cfg_asset.go
+//go:generate go run $GOINVOKEFLAGS ./genasset/main.go -name grub-recovery-hybrid.cfg -in ./data/grub-recovery-hybrid.cfg -out ./grub_recovery_hybrid_cfg_asset.go

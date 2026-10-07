@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -63,12 +64,12 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			cfgPatterns = append(cfgPatterns, cfgIface.PathPatterns()...)
 		}
 	}
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain configfiles specification for snap %q: %s",
-			snapName, err)
+			instanceName, err)
 	}
 
 	return b.ensureConfigfiles(spec.(*Specification), cfgPatterns)
@@ -78,7 +79,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 // This method should be called after removing a snap.
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
-func (b *Backend) Remove(snapName string) error {
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	// If called for the system (snapd) snap, that is possible only in a
 	// classic scenario when all other snaps in the system must have been
 	// removed already to allow the removal of the snapd snap. In that

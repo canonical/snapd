@@ -98,6 +98,9 @@ owner /run/user/[0-9]*/doc/{,*/} r,
 # the user guided the access and can specify anything DAC allows.
 /run/user/[0-9]*/doc/*/** rw,
 
+# Permission for Wine to execute files that were accessed via the Document Portal.
+/run/user/[0-9]*/doc/*/** ix,
+
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
     bus=session
@@ -203,6 +206,15 @@ dbus (send)
 # (including supporting context menu)
 dbus (send)
     bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member="{Request,Release}Name"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+dbus (bind)
+    bus=session
+    name=org.freedesktop.StatusNotifierItem-[0-9]*-[0-9]*,
+dbus (send)
+    bus=session
     interface=org.kde.StatusNotifierWatcher
     path=/StatusNotifierWatcher
     member=RegisterStatusNotifierItem
@@ -216,19 +228,37 @@ dbus (send)
 dbus (receive)
     bus=session
     interface=org.kde.StatusNotifierItem
-    path=/StatusNotifierItem
-    member={ProvideXdgActivationToken,Activate}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={ProvideXdgActivationToken,Activate,ContextMenu,Scroll,SecondaryActivate}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.StatusNotifierItem
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/StatusNotifierItem
-    member=GetAll
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="Get{,All}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface={org.kde.StatusNotifierItem,org.freedesktop.StatusNotifierItem}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="New{Icon,IconThemePath,ToolTip}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
     interface=com.canonical.dbusmenu
-    path=/MenuBar
+    path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}
     member={AboutToShow,GetLayout,Event}
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
@@ -237,9 +267,9 @@ const desktopConnectedPlugAppArmorClassic = `
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
-owner @{HOME}/.config/gtk-3.0/*.css r,
+owner @{HOME}/.config/gtk-3.0/{*.css,**/*.css} r,
 owner @{HOME}/.config/gtk-4.0/settings.ini r,
-owner @{HOME}/.config/gtk-4.0/*.css r,
+owner @{HOME}/.config/gtk-4.0/{*.css,**/*.css} r,
 # Note: this leaks directory names that wouldn't otherwise be known to the snap
 owner @{HOME}/.config/gtk-3.0/bookmarks r,
 owner @{HOME}/.config/gtk-4.0/bookmarks r,
@@ -501,19 +531,37 @@ dbus (receive)
 dbus (send)
     bus=session
     interface=org.kde.StatusNotifierItem
-    path=/StatusNotifierItem
-    member={ProvideXdgActivationToken,Activate}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={ProvideXdgActivationToken,Activate,ContextMenu,Scroll,SecondaryActivate}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.StatusNotifierItem
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/StatusNotifierItem
-    member=GetAll
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="Get{,All}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface={org.kde.StatusNotifierItem,org.freedesktop.StatusNotifierItem}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="New{Icon,IconThemePath,ToolTip}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
     interface=com.canonical.dbusmenu
-    path=/MenuBar
+    path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}
     member={AboutToShow,GetLayout,Event}
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
@@ -757,7 +805,7 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	appId := "snap." + plug.Snap().InstanceName()
+	appId := "snap." + plug.Snap().InstanceName().String()
 	spec.AddUserMountEntry(osutil.MountEntry{
 		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
 		Dir:     "$XDG_RUNTIME_DIR/doc",
@@ -874,6 +922,9 @@ func init() {
 			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
 			affectsPlugOnRefresh: true,
+			// desktop slot owns the well-known bus names (org.gtk.Settings, etc.) on the
+			// session bus; only one snap instance can hold it at a time.
+			parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 		},
 	})
 }

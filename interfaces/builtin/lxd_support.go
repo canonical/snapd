@@ -121,14 +121,17 @@ func (iface *lxdSupportInterface) SecCompConnectedPlug(spec *seccomp.Specificati
 
 func init() {
 	registerIface(&lxdSupportInterface{commonInterface{
-		name:                    "lxd-support",
-		summary:                 lxdSupportSummary,
-		implicitOnCore:          true,
-		implicitOnClassic:       true,
-		appArmorUnconfinedPlugs: true,
-		controlsDeviceCgroup:    true,
-		baseDeclarationSlots:    lxdSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:    lxdSupportBaseDeclarationPlugs,
-		serviceSnippets:         []interfaces.PlugServicesSnippet{lxdSupportServiceSnippet}},
+		name:                     "lxd-support",
+		summary:                  lxdSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		appArmorUnconfinedPlugs:  true,
+		controlsDeviceCgroup:     true,
+		baseDeclarationSlots:     lxdSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     lxdSupportBaseDeclarationPlugs,
+		serviceSnippets:          []interfaces.PlugServicesSnippet{lxdSupportServiceSnippet},
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+	},
 	})
 }

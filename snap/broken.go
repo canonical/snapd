@@ -36,7 +36,7 @@ func GuessAppsForBroken(info *Info) map[string]*AppInfo {
 
 	// guess binaries first
 	name := info.InstanceName()
-	for _, p := range []string{name, fmt.Sprintf("%s.*", name)} {
+	for _, p := range []string{name.String(), fmt.Sprintf("%s.*", name)} {
 		matches, _ := filepath.Glob(filepath.Join(dirs.SnapBinariesDir, p))
 		for _, m := range matches {
 			l := strings.SplitN(filepath.Base(m), ".", 2)

@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 )
 
 // Level is the importance or severity of a log event.
@@ -128,6 +129,74 @@ func LogLoggerDisabled() {
 	)
 }
 
+// LogSystemRestartSnapd logs a controlled snapd daemon restart using the
+// global security logger. snapdVersion is the version of the exiting snapd
+// process. reason is a [restart.RestartReason].
+func LogSystemRestartSnapd(snapdVersion string, reason restart.RestartReason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	reasonStr := string(reason)
+	if reasonStr == "" {
+		reasonStr = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_restart_snapd", Level: LevelInfo},
+		fmt.Sprintf("Snapd restart with reason %s", reasonStr),
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "reason", Value: reasonStr},
+	)
+}
+
+// LogSystemStandbySnapd logs a completed socket-activation standby using
+// the global security logger. snapdVersion is the version of the exiting
+// snapd process. reason is a [restart.RestartReason].
+func LogSystemStandbySnapd(snapdVersion string, reason restart.RestartReason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	reasonStr := string(reason)
+	if reasonStr == "" {
+		reasonStr = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_standby_snapd", Level: LevelInfo},
+		fmt.Sprintf("Snapd standby with reason %s", reasonStr),
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "reason", Value: reasonStr},
+	)
+}
+
+// LogSystemStartupSnapd logs a snapd daemon startup using the global
+// security logger. snapdVersion is the version of this snapd process.
+// bootID is the kernel boot id for this boot.
+func LogSystemStartupSnapd(snapdVersion, bootID string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	if bootID == "" {
+		bootID = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_startup_snapd", Level: LevelInfo},
+		"Snapd startup",
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "boot_id", Value: bootID},
+	)
+}
+
 // LogLoginSuccess logs a successful login using the global security logger.
 func LogLoginSuccess(user SnapdUser) {
 	lock.Lock()
@@ -218,20 +287,57 @@ func LogUserRemoved(user SnapdUser) {
 	)
 }
 
+// LogSystemUserCreated logs creation of a Linux system account using the
+// global security logger. This is distinct from [LogUserCreated], which
+// records snapd user state.
+func LogSystemUserCreated(systemUser string, opts SystemUserAddOptions, addReason SystemUserAddReason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_created_system", Level: LevelInfo},
+		fmt.Sprintf("Created system user %s (%s)", systemUser, addReason),
+		Attr{Key: "system_user", Value: systemUser},
+		Attr{Key: "add_options", Value: opts},
+		Attr{Key: "add_reason", Value: string(addReason)},
+	)
+}
+
+// LogSystemUserRemoved logs removal of a Linux system account using the
+// global security logger. This is distinct from [LogUserRemoved], which
+// records snapd user state.
+func LogSystemUserRemoved(systemUser string, opts SystemUserRemoveOptions, removeReason SystemUserRemoveReason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_removed_system", Level: LevelInfo},
+		fmt.Sprintf("Removed system user %s (%s)", systemUser, removeReason),
+		Attr{Key: "system_user", Value: systemUser},
+		Attr{Key: "remove_options", Value: opts},
+		Attr{Key: "remove_reason", Value: string(removeReason)},
+	)
+}
+
 // LogAdminActivity logs an administrative API access event using the
 // global security logger. It is emitted when authorization succeeds (the
 // access gate passed), not when the API operation or handler succeeds.
-func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks) {
+//
+// grantReason identifies why access was granted; see [GrantReason].
+// When an interface connection also contributed, pass the result of
+// [GrantReason.WithInterface].
+func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, grantReason GrantReason) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
-		fmt.Sprintf("User %s from %s accessed %s", user.String(), peer.String(), endpoint.String()),
+		fmt.Sprintf("User %s from %s granted access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), grantReason),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
+		Attr{Key: "reason_granted", Value: grantReason},
 	)
 }
 
@@ -239,18 +345,19 @@ func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks Authz
 // global security logger. It is emitted when authorization fails (the
 // access gate denied the request), not when the API operation or handler
 // fails after access was granted.
-func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks, reason Reason) {
+//
+// denialReason identifies why access was denied; see [DenialReason].
+func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, denialReason DenialReason) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
-		fmt.Sprintf("User %s from %s attempted to access %s without authorization: %s",
-			user.String(), peer.String(), endpoint.String(), reason.String()),
+		fmt.Sprintf("User %s from %s denied access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), denialReason),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
-		Attr{Key: "error", Value: reason},
+		Attr{Key: "reason_denied", Value: denialReason},
 	)
 }

@@ -28,6 +28,8 @@ EOF
     systemctl start snapd.socket
 }
 
+# TODO: consider if we can fully drop staging store support. nothing ever seems
+# to set SPREAD_REMOTE_STORE=staging
 setup_staging_store(){
     _configure_store_backends "SNAPPY_USE_STAGING_STORE=1"
 }

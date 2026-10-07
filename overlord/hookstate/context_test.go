@@ -73,7 +73,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 
 func (s *contextSuite) TestHookSetup(c *C) {
 	c.Check(s.context.HookName(), Equals, "test-hook")
-	c.Check(s.context.InstanceName(), Equals, "test-snap")
+	c.Check(s.context.InstanceName().String(), Equals, "test-snap")
 	c.Check(s.context.IsSnapHook(), Equals, true)
 	c.Check(s.context.IsComponentHook(), Equals, false)
 

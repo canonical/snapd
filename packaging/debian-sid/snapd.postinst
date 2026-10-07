@@ -5,6 +5,9 @@ set -e
 
 case "$1" in
     configure)
+        # Create the private tmp directory for snap-confine
+        install -d -m 0700 /tmp/snap-private-tmp
+
         # ensure /var/lib/snapd/lib/gl is cleared
         if dpkg --compare-versions "$2" lt-nl "2.0.7"; then
             ldconfig

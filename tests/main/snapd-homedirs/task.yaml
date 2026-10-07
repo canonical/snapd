@@ -3,7 +3,8 @@ summary: Test support for non-standard home directory paths and data copy betwee
 details: |
     Verifies that the snap data in non-standard home directories gets properly copied between
     revisions when the snap package is refreshed to a newer revision. Also makes sure that the
-    snap data in non-standard home directories is deleted when the snap package is removed.
+    snap data in non-standard home directories is deleted (only for real users) when the snap
+    package is removed.
 
 systems:
     - -ubuntu-core-*  # Home dirs cannot be changed
@@ -84,6 +85,15 @@ execute: |
         test -e "${h}snap/test-snapd-sh/$rev/mock-data"
     done
 
+    echo "Simulate a directory that looks like a home dir but belongs to no real user"
+    fake_snap_user_base="/remote/users/not-a-real-user/snap/test-snapd-sh"
+    fake_snap_user_data="${fake_snap_user_base}/$rev"
+    fake_snap_user_common="${fake_snap_user_base}/common"
+    mkdir -p "${fake_snap_user_data}"
+    touch "${fake_snap_user_data}/should-not-be-deleted"
+    mkdir -p "${fake_snap_user_common}"
+    touch "${fake_snap_user_common}/should-not-be-deleted"
+
     echo "When the snap is removed"
     snap remove --purge test-snapd-sh
 
@@ -91,3 +101,7 @@ execute: |
     for h in "${homes[@]}"; do
         test ! -e "${h}snap/test-snapd-sh"
     done
+
+    echo "But data under a non-user directory is NOT removed"
+    test -e "${fake_snap_user_data}/should-not-be-deleted"
+    test -e "${fake_snap_user_common}/should-not-be-deleted"

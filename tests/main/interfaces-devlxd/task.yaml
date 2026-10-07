@@ -5,39 +5,59 @@ details: |
     This socket provides instance information and metadata to applications
     running inside LXD instances.
 
+    We test both the VM path and the container path:
+    - VM: socket lives at /dev/lxd/sock, as in LXD VM instances.
+    - Container: socket lives at /var/snap/lxd/common/lxd/devlxd/sock and is
+      bind-mounted into /dev/lxd/sock. This matters, because AppArmor checks the
+      original path.
+
 systems: [ubuntu-*]
 
 environment:
     DEVLXD_PATH: /dev/lxd/sock
     DEVLXD_OUTPUT: /tmp/devlxd-output.txt
 
+    # VM scenario: socket lives directly at /dev/lxd/sock.
+    SOCKET_BACKING_DIR/vm: /dev/lxd
+
+    # Container scenario: socket lives at the LXD snap state path and is
+    # bind-mounted into /dev/lxd/, replicating what LXD does for containers.
+    SOCKET_BACKING_DIR/container: /var/snap/lxd/common/lxd/devlxd
+
 prepare: |
     echo "Given a snap declaring a devlxd plug is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
-    echo "And a unix domain socket listener is set up"
-    if [ -e "$DEVLXD_PATH" ]; then
-        echo "Socket path $DEVLXD_PATH already exists"
+    echo "And a unix domain socket listener is set up at the backing path"
+    backing_socket="$SOCKET_BACKING_DIR/sock"
+
+    if [ -e "$backing_socket" ]; then
+        echo "Socket path $backing_socket already exists"
         exit 1
     fi
 
-    d="$(dirname "$DEVLXD_PATH")"
-    mkdir -p "$d"
-    tests.cleanup defer rm -rf "$d"
+    mkdir -p "$SOCKET_BACKING_DIR"
+    tests.cleanup defer rm -rf "$SOCKET_BACKING_DIR"
 
-    # We create an actual socket to simulate a real /dev/lxd/sock socket
-    systemd-run --unit=fake-lxd -r -q /bin/sh -c "nc -l -U $DEVLXD_PATH > $DEVLXD_OUTPUT"
+    systemd-run --unit=fake-lxd -r -q /bin/sh -c "nc -l -U $backing_socket > $DEVLXD_OUTPUT"
     tests.cleanup defer rm -f "$DEVLXD_OUTPUT"
-    retry -n 30 --wait 1 sh -c "test -S $DEVLXD_PATH"
+    retry -n 30 --wait 1 sh -c "test -S $backing_socket"
 
-    if [ ! -S "$DEVLXD_PATH" ]; then
-        echo "Failed to create unix domain socket at $DEVLXD_PATH"
+    if [ ! -S "$backing_socket" ]; then
+        echo "Failed to create unix domain socket at $backing_socket"
         exit 1
+    fi
+
+    if [ "$SOCKET_BACKING_DIR" != /dev/lxd ]; then
+        echo "And the backing directory is bind-mounted to /dev/lxd/ (container scenario)"
+        mkdir -p /dev/lxd
+        tests.cleanup defer rmdir /dev/lxd
+        mount --bind "$SOCKET_BACKING_DIR" /dev/lxd
+        tests.cleanup defer umount /dev/lxd
     fi
 
 restore: |
-    systemctl stop fake-lxd
-    rm -rf /var/snap/lxd/common/lxd/devlxd /dev/lxd
+    systemctl stop fake-lxd || true
 
 execute: |
     echo "The interface is not connected by default"
@@ -46,7 +66,7 @@ execute: |
     echo "When the plug is connected"
     snap connect test-snapd-sh:devlxd
 
-    echo "Then the snap is able to write to the socket"
+    echo "Then the snap is able to write to the socket via $DEVLXD_PATH"
     test-snapd-sh.with-devlxd-plug -c "python3 - <<'PY'
     import socket
     p = '$DEVLXD_PATH'

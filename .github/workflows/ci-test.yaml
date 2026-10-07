@@ -75,6 +75,9 @@ jobs:
           - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
             variant: pristine
 
+  ubuntu-image-build-not-required:
+    uses: ./.github/workflows/ubuntu-image-build.yaml
+
   create-vendor-dir:
     runs-on: ubuntu-latest
     name: Create go vendor
@@ -159,9 +162,8 @@ jobs:
       fail-fast: false
       matrix:
         build-config:
+          - { system: "ubuntu-26.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '26.10' }
           - { system: "ubuntu-26.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '26.04' }
-          - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10' }
-          - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04' }
           - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }
           - { system: "ubuntu-20.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '20.04' }
@@ -216,7 +218,7 @@ jobs:
       - cache-build-deps
     with:
       runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
+      gochannel: '1.26/stable'
 
   branch-static-checks:
     runs-on: ubuntu-latest
@@ -364,12 +366,12 @@ jobs:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - static-checks-not-required
-    name: "unit-tests (Go latest/stable ${{ matrix.test-case.go-build-tags }}
+    name: "unit-tests (Go 1.26/stable ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
       runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
+      gochannel: '1.26/stable'
       skip-coverage: true
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
       go-test-race: ${{ matrix.test-case.go-test-race }}
@@ -426,7 +428,24 @@ jobs:
       uses: ./.github/actions/go-fuzz
       with:
         fuzzing-search-dir: confdb	
-  
+
+  unit-tests-root:
+    uses: ./.github/workflows/unit-tests.yaml
+    needs:
+      - go-channels
+      - static-checks
+    name: "unit-tests-root (Go default ${{ matrix.gochannel }})"
+    with:
+      runs-on: ubuntu-latest
+      gochannel: ${{ matrix.gochannel }}
+      skip-coverage: true
+      code: 'go'
+      run-as-root: true
+    strategy:
+      fail-fast: false
+      matrix:
+        gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
+
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit
   # tests. This avoids the need to update required status checks whenever the
@@ -438,6 +457,7 @@ jobs:
       - unit-tests-special
       - unit-tests-c
       - unit-tests-cross-distro
+      - unit-tests-root
     if: always()
     steps:
       - name: Checkout code
@@ -550,6 +570,17 @@ jobs:
               if ! grep -q '^Run nested$' <<<$labels; then
                 echo "nested-systems=" >> $GITHUB_OUTPUT
               fi
+            fi
+
+            if grep -q '^Skip spread$' <<<$labels; then
+              github_hosted_runs_on="['ubuntu-latest']"
+              fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-fundamental-systems.json)"
+              non_fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-non-fundamental-systems.json)"
+              nested_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-nested-systems.json)"
+
+              echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
+              echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
+              echo "nested-systems=$nested_systems" >> $GITHUB_OUTPUT
             fi
           fi
 

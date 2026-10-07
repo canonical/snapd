@@ -50,7 +50,7 @@ execute: |
 
         echo "We can see all services running"
         for service in before-middle middle after-middle; do
-            systemctl status "$service_prefix.$service" | MATCH "running"
+            systemctl status "$service_prefix.$service" | MATCH ' \(running\) '
         done
 
         inactive_leave="$(get_prop "InactiveExitTimestampMonotonic" "$service_prefix.before-middle")"

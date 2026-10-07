@@ -45,11 +45,9 @@ environment:
     # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
     OLD_UBUNTU_IMAGE_SNAP_CHANNEL: "2/stable"
-    UBUNTU_IMAGE_SNAP_CHANNEL: "latest/beta"
     SNAPCRAFT_SNAP_CHANNEL: "latest/stable"
-    # controls whether ubuntu-image is built using the current snapd tree as a
-    # dependency or the one listed in its go.mod
-    UBUNTU_IMAGE_ALLOW_API_BREAK: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_ALLOW_API_BREAK:-true}")'
+    # controls whether ubuntu-image is built using the current snapd tree
+    UBUNTU_IMAGE_USE_LOCAL_SNAPD: '$(HOST: echo "${SPREAD_UBUNTU_IMAGE_USE_LOCAL_SNAPD:-false}")'
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     # Channel for kernel cannot be edge as that one is not signed with Canonical keys
@@ -145,225 +143,6 @@ environment:
     SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
 backends:
-    google:
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west2-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-14.04-64:
-                  workers: 6
-            - ubuntu-16.04-64:
-                  workers: 8
-                  storage: 15G
-            - ubuntu-18.04-64:
-                  storage: 15G
-                  workers: 8
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64
-                  storage: 16G
-                  workers: 8
-            - ubuntu-secboot-20.04-64:
-                  image: ubuntu-2004-64
-                  storage: 16G
-                  workers: 1
-                  secure-boot: true
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64
-                  storage: 15G
-                  workers: 8
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64
-                  storage: 15G
-                  workers: 8
-            - ubuntu-25.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2510-amd64
-                  storage: 15G
-                  workers: 8
-
-    google-core:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-core-16-64:
-                  image: ubuntu-16.04-64
-                  workers: 6
-                  storage: 20G
-            - ubuntu-core-18-64:
-                  image: ubuntu-18.04-64
-                  workers: 6
-                  storage: 20G
-            - ubuntu-core-20-64:
-                  image: ubuntu-2004-64
-                  workers: 8
-                  storage: 20G
-            - ubuntu-core-22-64:
-                  image: ubuntu-2204-64
-                  workers: 8
-                  storage: 20G
-            - ubuntu-core-24-64:
-                  image: ubuntu-2404-64
-                  workers: 8
-                  storage: 20G
-            - ubuntu-core-26-64:
-                  image: ubuntu-2604-64
-                  workers: 8
-                  storage: 20G
-
-    google-pro:
-        type: google
-        # XXX the role assigned to the key must allow for attaching service
-        # accounts
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west1-b
-        halt-timeout: 2h
-        systems:
-            - ubuntu-pro-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-pro-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-fips-20.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2004-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-fips-22.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2204-lts
-                  workers: 1
-                  attach-service-account: true
-
-            - ubuntu-fips-24.04-64:
-                  image: ubuntu-os-pro-cloud/ubuntu-pro-2404-lts-amd64
-                  workers: 1
-                  attach-service-account: true
-
-    google-distro:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/europe-west3-b
-        halt-timeout: 2h
-        systems:
-            - debian-12-64:
-                  storage: 20G
-                  workers: 6
-            - debian-sid-64:
-                  storage: 20G
-                  workers: 6
-
-            - amazon-linux-2023-64:
-                  workers: 6
-                  storage: preserve-size
-
-            - arch-linux-64:
-                  workers: 6
-                  storage: 20G
-
-            - centos-9-64:
-                  workers: 6
-                  storage: preserve-size
-                  image: centos-9-64
-
-            - opensuse-16.0-64:
-                  workers: 6
-            - opensuse-tumbleweed-64:
-                  workers: 6
-                  storage: 12G
-            - opensuse-tumbleweed-selinux-64:
-                  image: snapd-spread/opensuse-tumbleweed-64-selinux-enabled
-                  workers: 6
-                  storage: 12G
-
-    google-arm:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        plan: t2a-standard-1
-        halt-timeout: 2h
-        kill-timeout: 60m
-        systems:
-            - ubuntu-20.04-arm-64:
-                  image: ubuntu-os-cloud/ubuntu-2004-lts-arm64
-                  workers: 8
-                  storage: 15G
-            - ubuntu-22.04-arm-64:
-                  image: ubuntu-os-cloud/ubuntu-2204-lts-arm64
-                  workers: 8
-                  storage: 15G
-            - ubuntu-24.04-arm-64:
-                  image: ubuntu-os-cloud/ubuntu-2404-lts-arm64
-                  workers: 8
-                  storage: 15G
-            - ubuntu-core-22-arm-64:
-                  image: ubuntu-22.04-arm-64
-                  workers: 6
-                  storage: 30G
-            - ubuntu-core-24-arm-64:
-                  image: ubuntu-24.04-arm-64
-                  workers: 6
-                  storage: 30G
-    # TODO add garden-sru backend
-    google-nested:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        plan: n2-standard-2
-        halt-timeout: 2h
-        environment:
-            NESTED_ARCHITECTURE: amd64
-        systems: &google-nested-systems
-            - ubuntu-16.04-64:
-                  image: ubuntu-1604-64-virt-enabled
-                  storage: 20G
-                  workers: 4
-            - ubuntu-18.04-64:
-                  image: ubuntu-1804-64-virt-enabled
-                  storage: 20G
-                  workers: 4
-            - ubuntu-20.04-64:
-                  image: ubuntu-2004-64-virt-enabled
-                  storage: 20G
-                  workers: 12
-            - ubuntu-22.04-64:
-                  image: ubuntu-2204-64-virt-enabled
-                  storage: 25G
-                  workers: 14
-            - ubuntu-24.04-64:
-                  image: ubuntu-2404-64-virt-enabled
-                  storage: 30G
-                  workers: 14
-            - ubuntu-26.04-64:
-                  image: ubuntu-2604-64-virt-enabled
-                  storage: 30G
-                  workers: 14
-
-    google-nested-arm:
-        type: google
-        key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: snapd-spread/us-central1-a
-        plan: c4a-highcpu-4
-        halt-timeout: 2h
-        environment:
-            NESTED_ARCHITECTURE: arm64
-            NESTED_ENABLE_KVM: false
-            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
-            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
-        systems:
-            - ubuntu-22.04-arm-64:
-                  image: ubuntu-2204-arm-64-virt-enabled
-                  storage: 25G
-                  workers: 8
-            - ubuntu-24.04-arm-64:
-                  image: ubuntu-2404-arm-64-virt-enabled
-                  storage: 25G
-                  workers: 8
-
     openstack:
         key: '$(HOST: echo "$OS_CREDENTIALS_AMD64_PS7")'
         plan: shared.xsmall
@@ -407,27 +186,27 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64-pro-fips
             - ubuntu-secboot-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64-secboot
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
             - ubuntu-core-18-64:
                 image: snapd-spread/ubuntu-18.04-64
                 workers: 8
             - ubuntu-core-20-64:
-                image: snapd-spread/ubuntu-20.04-64-uefi
+                image: snapd-spread/ubuntu-20.04-64
                 workers: 8
             - ubuntu-core-22-64:
-                image: snapd-spread/ubuntu-22.04-64-uefi
+                image: snapd-spread/ubuntu-22.04-64
                 workers: 8
             - ubuntu-core-24-64:
-                image: snapd-spread/ubuntu-24.04-64-uefi
+                image: snapd-spread/ubuntu-24.04-64
                 workers: 8
             - ubuntu-core-26-64:
-                image: snapd-spread/ubuntu-26.04-64-uefi
+                image: snapd-spread/ubuntu-26.04-64
                 workers: 8
 
             - debian-12-64:
@@ -491,27 +270,27 @@ backends:
         environment: *openstack-env
         systems: &openstack-nested-systems
             - ubuntu-16.04-64:
-                  image: snapd-spread/ubuntu-16.04-64
+                  image: snapd-spread/ubuntu-16.04-64-nested
                   storage: 20G
                   workers: 4
             - ubuntu-18.04-64:
-                  image: snapd-spread/ubuntu-18.04-64
+                  image: snapd-spread/ubuntu-18.04-64-nested
                   storage: 20G
                   workers: 4
             - ubuntu-20.04-64:
-                  image: snapd-spread/ubuntu-20.04-64-hwe
+                  image: snapd-spread/ubuntu-20.04-64-nested
                   storage: 20G
                   workers: 12
             - ubuntu-22.04-64:
-                  image: snapd-spread/ubuntu-22.04-64
+                  image: snapd-spread/ubuntu-22.04-64-nested
                   storage: 25G
                   workers: 12
             - ubuntu-24.04-64:
-                  image: snapd-spread/ubuntu-24.04-64
+                  image: snapd-spread/ubuntu-24.04-64-nested
                   storage: 30G
                   workers: 12
             - ubuntu-26.04-64:
-                  image: snapd-spread/ubuntu-26.04-64
+                  image: snapd-spread/ubuntu-26.04-64-nested
                   storage: 30G
                   workers: 12
 
@@ -589,7 +368,19 @@ backends:
         cidr-port-rel: [10.151.89.0/24:8000]
         volume-auto-delete: true
         environment: *openstack-env
-        systems: *openstack-arm-systems
+        systems: &openstack-arm-nested-systems
+            - ubuntu-20.04-arm-64:
+                image: snapd-spread/ubuntu-20.04-arm-64
+                workers: 8
+            - ubuntu-22.04-arm-64:
+                image: snapd-spread/ubuntu-22.04-arm-64
+                workers: 8
+            - ubuntu-24.04-arm-64:
+                image: snapd-spread/ubuntu-24.04-arm-64-nested
+                workers: 8
+            - ubuntu-26.04-arm-64:
+                image: snapd-spread/ubuntu-26.04-arm-64-nested
+                workers: 8
 
     openstack-arm-dev:
         type: openstack
@@ -635,11 +426,11 @@ backends:
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
     qemu-nested:
@@ -733,7 +524,7 @@ backends:
                 PATH="${SPREAD_HOST_PATH}"
             fi
             # Spread does not expose any settings to ad-hoc backends.
-            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_MEM_OPTION="-m 6144"
             export QEMU_SMP_OPTION="-smp 4"
             exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
@@ -782,9 +573,6 @@ backends:
                   username: root
                   password: root
             - ubuntu-24.04-64:
-                  username: root
-                  password: root
-            - ubuntu-25.10-64:
                   username: root
                   password: root
             - ubuntu-26.04-64:
@@ -1187,11 +975,11 @@ rename:
     - s,^,$DELTA_PREFIX,S
 
 repack: |
-    # For Linode, compute a delta based on a known git reference that can be
+    # For openstack, compute a delta based on a known git reference that can be
     # obtained directly from GitHub. There's nothing special about that reference,
     # other than it will often be in the local repository's history already.
     # The more recent the reference, the smaller the delta.
-    if ! echo "$SPREAD_BACKENDS" | grep -e linode -e google; then
+    if ! echo "$SPREAD_BACKENDS" | grep -e openstack; then
         cat <&3 >&4
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
@@ -1249,9 +1037,6 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
-        # refresh metadatadata
-        # Auto import gpg keys needed for could repository added to support google backend
-        zypper --gpg-auto-import-keys ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
@@ -1260,7 +1045,14 @@ prepare: |
     download.max_silent_tries = 20
     EOF
 
-        # Make sure docs are installed with the packages
+        # Make sure docs are installed with the packages. Newer systems use a
+        # vendor drop-in under /usr/etc, while older ones keep the setting in
+        # /etc/zypp/zypp.conf.
+        mkdir -p /etc/zypp/zypp.conf.d
+        cat <<-EOF > /etc/zypp/zypp.conf.d/excludedocs.conf
+    [main]
+    rpm.install.excludedocs = no
+    EOF
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
 
         # TODO: enable enforcing mode
@@ -1317,12 +1109,6 @@ prepare: |
             fi
             ;;
     esac
-
-    # Make sure ssh service is restarted after it is killed by spread (pkill -o -HUP sshd)
-    # during the machine setup in google systems. For more details see lp:2011458
-    if [[ "$SPREAD_BACKEND" =~ google ]] && [[ "$SPREAD_SYSTEM" == ubuntu-2* ]] && ! systemctl is-active ssh; then
-        systemctl restart ssh
-    fi
 
     # LSM correctness check
     case "$SPREAD_SYSTEM" in
@@ -1465,7 +1251,7 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
-        backends: [google, qemu, garden]
+        backends: [openstack, qemu, garden]
         prepare-each: |
             tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
@@ -1636,14 +1422,12 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # In Arch there is no separate snap-confine package.
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            if tests.pkgs is-installed snap-confine; then
+                distro_purge_package snap-confine
+            fi
+            if tests.pkgs is-installed ubuntu-core-launcher; then
+                distro_purge_package ubuntu-core-launcher
+            fi
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -1706,9 +1490,7 @@ suites:
     tests/nested/manual/:
         summary: Tests for nested images controlled manually from the tests
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - garden
             - openstack-ext
             - openstack-arm-ext
@@ -1749,23 +1531,19 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
+
+            "$TESTSTOOLS"/ubuntu-image ensure
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
@@ -1773,19 +1551,13 @@ suites:
 
             # Build and install initramfs package
             if os.query is-ubuntu-ge 24.04; then
-                #shellcheck source=tests/lib/core-initrd.sh
-                . "$TESTSLIB"/core-initrd.sh
-                build_and_install_initramfs_deb
+                "$TESTSTOOLS"/core-initrd build-initramfs-deb --install
             fi
             tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
 
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested prepare
-            if os.query is-xenial && ! command -v ubuntu-image >/dev/null; then
-                # This is needed because the snap in removed during on restore-each
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            fi
         restore-each: |
             "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
             tests.nested vm remove
@@ -1797,9 +1569,7 @@ suites:
     tests/nested/classic/:
         summary: Tests for nested images
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
@@ -1819,6 +1589,8 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -1828,18 +1600,11 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
+
+            "$TESTSTOOLS"/ubuntu-image ensure
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
@@ -1847,7 +1612,8 @@ suites:
             # Configure the ssh connection to the test vm
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
@@ -1869,9 +1635,7 @@ suites:
     tests/nested/core/:
         summary: Tests for nested images
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
@@ -1895,6 +1659,8 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -1904,35 +1670,27 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
+
+            "$TESTSTOOLS"/ubuntu-image ensure
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP"/cert-file
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
 
             # Build and install initramfs package
             if os.query is-ubuntu-ge 24.04; then
-                #shellcheck source=tests/lib/core-initrd.sh
-                . "$TESTSLIB"/core-initrd.sh
-                build_and_install_initramfs_deb
+                "$TESTSTOOLS"/core-initrd build-initramfs-deb --install
             fi
 
             tests.nested prepare
@@ -1951,9 +1709,7 @@ suites:
     tests/perf/nested/:
         summary: Performance and Load tests preparation suite
         backends:
-            - google-nested
             - qemu-nested
-            - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
@@ -1993,25 +1749,19 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
             install_pkg_dependencies
 
-            if os.query is-xenial; then
-                # the new ubuntu-image expects mkfs to support -d option, which was not
-                # supported yet by the version of mkfs that shipped with Ubuntu 16.04
-                # also ubuntu-image binary is not prebuilt for arm instances
-                snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            else
-                #shellcheck source=tests/lib/image.sh
-                . "$TESTSLIB"/image.sh
-                get_ubuntu_image
+            if os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             fi
+
+            "$TESTSTOOLS"/ubuntu-image ensure
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
@@ -2096,7 +1846,7 @@ suites:
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             case "$SNAP_MOUNT_DIR" in
                 /var/lib/snapd/snap)
-                    ln -sf "$SNAP_MOUNT_DIR" /snap
+                    ln -sfn "$SNAP_MOUNT_DIR" /snap
                     tests.cleanup defer rm -f /snap
                     ;;
             esac

@@ -14,7 +14,7 @@ def _get_obj():
 
 def add_provider():
     obj = _get_obj()
-    return obj.AddProvider()
+    return obj.AddProvider(dbus_interface="com.ubuntu.location.Service")
 
 
 if __name__ == "__main__":

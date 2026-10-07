@@ -116,7 +116,7 @@ func readOSReleaseFromRoot(rootdir string) OS {
 			// This is like ID, except it's a space separated list... hooray?
 			osRelease.IDLike = strings.Fields(strings.ToLower(v))
 		case "VARIANT_ID":
-			osRelease.VariantID = v
+			osRelease.VariantID = strings.ToLower(v)
 		case "VERSION_ID":
 			osRelease.VersionID = v
 		}

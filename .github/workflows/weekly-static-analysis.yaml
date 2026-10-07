@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         gochannel:
-          - 1.23
+          - 1.24
         unit-scenario:
           - normal
 
@@ -78,7 +78,9 @@ jobs:
 
     - name: Test Go with coverage
       run: |
-        go install github.com/boumenot/gocover-cobertura@latest
+        # TODO:GOVERSION gocover-cobertura=v.1.5.0 needs Go>=v1.25.0
+        # (https://github.com/boumenot/gocover-cobertura/releases#release-v1.5.0)
+        go install github.com/boumenot/gocover-cobertura@v1.4.0
 
         cd "${{ github.workspace }}/src/github.com/snapcore/snapd"
         COVERAGE_OUT=.coverage/coverage.txt \
@@ -88,7 +90,7 @@ jobs:
 
     - name: Install TICS dependencies
       run: |
-          # Version 2025.1.1 is the last version to use Go 1.23
+          # Version 2025.1.1 was built with go 1.24.1
           go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
 
     - name: TICS scan

@@ -228,8 +228,16 @@ var (
 func matchCompatLabels(v1, v2 any) bool {
 	// Note that decoding errors should not happen as interfaces are
 	// expected to check the format of the labels before this can even be
-	// called.
-	return compatibility.CheckCompatibility(v1.(string), v2.(string))
+	// called. Still, avoid panicking if malformed values reach this layer.
+	s1, ok := v1.(string)
+	if !ok {
+		return false
+	}
+	s2, ok := v2.(string)
+	if !ok {
+		return false
+	}
+	return compatibility.CheckCompatibility(s1, s2)
 }
 
 func compileEvalOrRefAttrMatcher(cc compileContext, s string) (attrMatcher, error) {

@@ -262,6 +262,9 @@ echo '{"features":[]}'
 	c.Check(observeExistingTrustedRecoveryAssetsCalled, Equals, 1)
 	c.Check(setBootstrappedContainersCalled, Equals, 1)
 
+	c.Check(dataContainer.KeyCommitted, Equals, true)
+	c.Check(saveContainer.KeyCommitted, Equals, true)
+
 	checkSnapdMountUnit(c)
 }
 

@@ -25,7 +25,7 @@ execute: |
     # for snapd to return to a stable state before checking the published view.
     wait_for_snapd_ready() {
         snap wait system seed.loaded
-        retry -n 30 --wait 1 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+        retry -n 30 --wait 1 sh -c "systemctl is-system-running | MATCH '^(running|degraded)$'"
     }
 
     # Garbage collection only reasons about immutable published generations;
@@ -108,7 +108,7 @@ execute: |
         local cert_digest
 
         cert_digest="$(openssl x509 -in "$cert" -inform pem -outform der | sha256sum | awk '{print $1}')"
-        bundle_digests "$bundle" | grep -Fx "$cert_digest"
+        bundle_digests "$bundle" | MATCH "^${cert_digest}$"
     }
 
     wait_for_snapd_ready

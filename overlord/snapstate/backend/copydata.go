@@ -57,7 +57,7 @@ func (b Backend) CopySnapData(newSnap, oldSnap *snap.Info, opts *dirs.SnapDirOpt
 
 	// Make sure the base data directory exists for instance snaps
 	if newSnap.InstanceKey != "" {
-		err := os.MkdirAll(snap.BaseDataDir(newSnap.SnapName()), 0755)
+		err := os.MkdirAll(snap.BaseDataDir(newSnap.SnapName().String()), 0755)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
@@ -122,7 +122,7 @@ func (b Backend) SetupSnapSaveData(info *snap.Info, dev snap.Device, meter progr
 		return nil
 	}
 
-	saveDir := snap.CommonDataSaveDir(info.InstanceName())
+	saveDir := snap.CommonDataSaveDir(info.InstanceName().String())
 	return os.MkdirAll(saveDir, 0755)
 }
 

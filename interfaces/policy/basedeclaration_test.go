@@ -1095,6 +1095,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-firmware-control":          true,
 		"kernel-module-control":            true,
 		"kernel-module-load":               true,
+		"kernel-sched-ext-control":         true,
 		"kubernetes-support":               true,
 		"lxd-support":                      true,
 		"microceph-support":                true,
@@ -1184,7 +1185,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"cups":                      true,
 		"custom-device":             true,
 		"desktop":                   true,
-		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
 		"location-observe":          true,
@@ -1417,6 +1417,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"kernel-firmware-control":          true,
 		"kernel-module-control":            true,
 		"kernel-module-load":               true,
+		"kernel-sched-ext-control":         true,
 		"kubernetes-support":               true,
 		"lxd-support":                      true,
 		"microceph-support":                true,
@@ -1542,6 +1543,31 @@ plugs:
 	cand.PlugSnapDeclaration = plugDecl1
 	err = cand.Check()
 	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestConnectionMediatekAccel(c *C) {
+	const slotYaml = `name: core
+version: 0
+type: os
+slots:
+  mediatek-accel:
+`
+
+	for _, units := range []string{
+		"[apu]",
+		"[vcu]",
+		"[apu, vcu]",
+	} {
+		plugYaml := fmt.Sprintf(`name: consumer
+version: 1.0
+plugs:
+  mediatek-accel:
+    units: %s
+`, units)
+
+		cand := s.connectCand(c, "mediatek-accel", slotYaml, plugYaml)
+		c.Check(cand.Check(), IsNil, Commentf("units %s", units))
+	}
 }
 
 func (s *baseDeclSuite) TestConnectionQualcommIpcRouter(c *C) {

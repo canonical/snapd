@@ -1,0 +1,11 @@
+name: test-snapd-sh
+summary: Minimal snap for testing
+version: 1.0
+base: core24
+
+apps:
+    sh:
+        command: bin/sh
+
+system-usernames:
+  snap_daemon: shared

@@ -174,7 +174,7 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 		}
 		hs = map[string]*HealthState{}
 	}
-	hs[ctx.InstanceName()] = health
+	hs[ctx.InstanceName().String()] = health
 	st.Set("health", hs)
 
 	return nil

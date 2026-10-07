@@ -28,7 +28,9 @@ fi
 # wait for cloud-init to finish before doing any apt operations
 cloud-init status --wait
 
-apt autoremove --purge -y snapd ubuntu-core-launcher
+apt autoremove --purge -y snapd
+# ubuntu-core-launcher is a transitional package and removed in recent distros
+apt autoremove --purge -y ubuntu-core-launcher || true
 apt update
 
 # requires the snapd deb to already have been "lxd file push"d into the 

@@ -40,14 +40,38 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues       = createQuotaValues
+	ParseOptionalTime       = parseOptionalTime
+	SeclogSnapdUserFromAuth = seclogSnapdUserFromAuth
+	NewAuthzRecorder        = newAuthzRecorder
 )
+
+// RecordGranted exposes [authzRecorder.recordGranted] for tests.
+func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
+	rec.recordGranted(reason, iface, onPlugSide)
+}
+
+// RecordDenied exposes [authzRecorder.recordDenied] for tests.
+func (rec *authzRecorder) RecordDenied(reason seclog.DenialReason) {
+	rec.recordDenied(reason)
+}
+
+// Log exposes [authzRecorder.log] for tests.
+func (rec *authzRecorder) Log() {
+	rec.log()
+}
+
+// SeclogPeer exposes [ucrednet.seclogPeer] for tests.
+func (un *ucrednet) SeclogPeer() seclog.Peer {
+	return un.seclogPeer()
+}
 
 func APICommands() []*Command {
 	return api
@@ -82,6 +106,45 @@ func (d *Daemon) RequestedRestart() restart.RestartType {
 
 type Ucrednet = ucrednet
 
+func MockAppArmorLabelFromPid(f func(int) (string, error)) (restore func()) {
+	restore = testutil.Backup(&apparmorLabelFromPid)
+	apparmorLabelFromPid = f
+	return restore
+}
+
+func NewUcrednet(securityTag, processExeName string, uid uint32, socket string) *Ucrednet {
+	var tag naming.SecurityTag
+	if securityTag != "" {
+		var err error
+		tag, err = naming.ParseSecurityTag(securityTag)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return &ucrednet{
+		securityTag:             tag,
+		untrustedProcessExeName: processExeName,
+		Uid:                     uid,
+		Socket:                  socket,
+	}
+}
+
+func (un *ucrednet) SetUntrustedProcessExeNameErr(err error) {
+	un.untrustedProcessExeNameErr = err
+}
+
+func AddUcrednetToRequest(r *http.Request, ucred *Ucrednet, ifaces ...string) {
+	ctx := ucrednetWithCredentials(r.Context(), ucred)
+	for _, iface := range ifaces {
+		ctx = ucrednetAttachInterface(ctx, iface)
+	}
+	*r = *r.WithContext(ctx)
+}
+
+func UcrednetFromRequest(r *http.Request) (*Ucrednet, []string, error) {
+	return ucrednetGetWithInterfaces(r.Context())
+}
+
 func BeforeNewChange(beforeNewChange func(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string)) (restore func()) {
 	oldNewChange := newChange
 	newChange = func(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
@@ -90,14 +153,6 @@ func BeforeNewChange(beforeNewChange func(st *state.State, kind, summary string,
 	}
 	return func() {
 		newChange = oldNewChange
-	}
-}
-
-func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
-	oldUcrednetGet := ucrednetGet
-	ucrednetGet = mock
-	return func() {
-		ucrednetGet = oldUcrednetGet
 	}
 }
 
@@ -315,7 +370,7 @@ func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, c
 	}
 }
 
-func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
+func MockConfigstateConfigureInstalled(f func(st *state.State, name naming.InstanceName, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
 	old := configstateConfigureInstalled
 	configstateConfigureInstalled = f
 	return func() {
@@ -400,7 +455,22 @@ var (
 	MaxReadBuflen = maxReadBuflen
 
 	IsRequestFromSnapCmd = isRequestFromSnapCmd
+
+	// Together these reproduce what Command.ServeHTTP does to a request
+	// before access checking.
+	ExtractRequestAction = extractRequestAction
+	WithActionResult     = withActionResult
+	IsBodyUnusable       = isBodyUnusable
+
+	// The rules Command.ServeHTTP uses to find a request's action, shared
+	// with the action coverage check in api_base_test.go.
+	DecodeAction = decodeActionFromBody
 )
+
+func RequestDecodesAction(r *http.Request) bool {
+	_, decodeAction := requestBodyPolicy(r)
+	return decodeAction
+}
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	restore = testutil.Backup(&rebootNoticeWait)
@@ -464,4 +534,8 @@ func ResetVirtualizationDetection() {
 func ResetBuildIDDetection() {
 	buildIDOnce = sync.Once{}
 	buildID = "unknown"
+}
+
+func MockDevicestateReprovision(f func(st *state.State) (*state.Change, error)) (restore func()) {
+	return testutil.Mock(&devicestateReprovision, f)
 }

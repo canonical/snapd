@@ -56,7 +56,7 @@ prepare: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
         # set up classic execution support
-        ln -sf "$SNAP_MOUNT_DIR" /snap
+        ln -sfn "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -f /snap
     fi
 
@@ -144,6 +144,8 @@ execute: |
     # shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB/systems.sh"
 
+    libexecdir="$(os.paths libexec-dir)"
+
     # only run the destructive mode variant on xenial
     if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-jammy"
@@ -209,6 +211,14 @@ execute: |
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
 
+    # The snapd-info stanza is temporarily disabled in build-aux/snap/snapcraft.yaml
+    # (see PR #17691) until the review-tools store schema update is deployed.
+    # Uncomment the checks below when the stanza is restored.
+    #echo "Check meta/snap.yaml carries empty snapd-info ubuntu-core-tracks"
+    #test -f squashfs-root/meta/snap.yaml
+    #MATCH '^snapd-info:' < squashfs-root/meta/snap.yaml
+    #MATCH 'ubuntu-core-tracks: \{\}' < squashfs-root/meta/snap.yaml
+
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
     echo "Ensure we have apparmor_parser"
@@ -216,6 +226,9 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
+    # See note above about PR #17691; uncomment when the snapd-info stanza is restored.
+    #MATCH '^snapd-info:' < /snap/snapd/current/meta/snap.yaml
+    #MATCH 'ubuntu-core-tracks: \{\}' < /snap/snapd/current/meta/snap.yaml
     cat >> snapd-cleanup.sh <<EOF
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then
@@ -238,6 +251,11 @@ execute: |
     # see LP:2024637
     if grep -q /var/lib/snapd/apparmor/ /lib/apparmor/functions; then
        echo "SKIP: cannot test builtin apparmor parser until /lib/apparmor/functions stops loading the snapd profiles"
+       exit 0
+    fi
+
+    if grep -q 'SNAPD_APPARMOR_REEXEC=0' "$libexecdir"/snapd/info; then
+       echo "SKIP: apparmor reexec disabled by distro packaging"
        exit 0
     fi
 

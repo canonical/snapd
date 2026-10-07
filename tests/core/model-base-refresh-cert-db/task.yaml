@@ -21,7 +21,7 @@ execute: |
         NOMATCH '^Error' < tasks.done
         NOMATCH '^Undone' < tasks.done
         NOMATCH '^Wait' < tasks.done
-        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+        retry -n 30 sh -c "systemctl is-system-running | MATCH '^(running|degraded)$'"
     }
 
     if [ "$SPREAD_REBOOT" -eq 0 ]; then

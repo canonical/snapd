@@ -126,11 +126,19 @@ func (s *binariesTestSuite) prepareReadOnlyLegacyDir(c *C) {
 }
 
 func (s *binariesTestSuite) TestAddSnapBinariesAndRemoveReadOnlyLegacyDir(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
+
 	s.prepareReadOnlyLegacyDir(c)
 	s.testAddSnapBinariesAndRemove(c, true, true)
 }
 
 func (s *binariesTestSuite) TestEnsureSnapBinariesAndRemoveReadOnlyLegacyDir(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
+
 	s.prepareReadOnlyLegacyDir(c)
 	s.testEnsureSnapBinariesAndRemove(c, true, true)
 }

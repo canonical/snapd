@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/check.v1"
@@ -413,7 +414,7 @@ func (s *managerSuite) TestEnsureClusteringDisabled(c *check.C) {
 }
 
 func (s *managerSuite) TestEnsureLoopHasLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("clustermgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("clustermgr.go", c, false)
 }
 
 func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {

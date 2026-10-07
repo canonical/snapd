@@ -21,9 +21,11 @@ package ifacestate
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/logger"
@@ -36,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/timings"
 )
@@ -87,7 +90,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, noticeManager *
 		setupHooks(hookManager)
 	}
 
-	// Leave udevRetryTimeout at the default value, so that udev is initialized on first Ensure run.
+	// Leave udevRetryTimeout at the default value, so that udev is initialized
+	// on first Ensure run.
+
 	m := &InterfaceManager{
 		state: s,
 		repo:  interfaces.NewRepository(),
@@ -179,6 +184,17 @@ func (m *InterfaceManager) StartUp() error {
 
 	s.Lock()
 	defer s.Unlock()
+
+	// Ensure the snap-private-tmp directory exists. It is used by snap-confine
+	// to create per-snap private temporary rootfs directories (e.g.
+	// /tmp/snap-private-tmp/snap.rootfs_XXXXXX). This directory participates in
+	// the ping-pong protocol between snap-run and snapd: if snap-run cannot find
+	// it when checking for system-key mismatch, it treats the absence as a
+	// mismatch and waits for snapd to start, similar to the existing system-key
+	// mismatch protocol.
+	if err := os.MkdirAll(dirs.SnapPrivateTmpDir, 0700); err != nil {
+		return fmt.Errorf("cannot create %s: %w", dirs.SnapPrivateTmpDir, err)
+	}
 
 	// Check whether AppArmor prompting is supported and enabled. It is fine to
 	// do this once, as toggling the feature imposes a restart of snapd.
@@ -315,6 +331,26 @@ func (m *InterfaceManager) Ensure() error {
 	return nil
 }
 
+// interfacesRequestsManagerShutDown calls shutdown on the given manager.
+var interfacesRequestsManagerShutDown = func(interfacesRequestsManager *apparmorprompting.InterfacesRequestsManager) {
+	interfacesRequestsManager.ShutDown()
+}
+
+func (m *InterfaceManager) shutDownInterfacesRequestsManger() {
+	m.interfacesRequestsManagerMu.Lock()
+	defer m.interfacesRequestsManagerMu.Unlock()
+	if m.interfacesRequestsManager == nil {
+		return
+	}
+	interfacesRequestsManagerShutDown(m.interfacesRequestsManager)
+}
+
+// ShutDown implements ShutDowner. It prevents the manager from receiving
+// anymore new requests and reject pending ones.
+func (m *InterfaceManager) ShutDown() {
+	m.shutDownInterfacesRequestsManger()
+}
+
 // Stop implements StateStopper. It stops the udev monitor and prompting,
 // if running.
 func (m *InterfaceManager) Stop() {
@@ -449,16 +485,16 @@ func (m *InterfaceManager) ConnectionStates() (connStateByRef map[string]Connect
 // In both cases the snap name can be omitted to implicitly refer to the core
 // snap. If there's no core snap it is simply assumed to be called "core" to
 // provide consistent error messages.
-func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
-	var connected func(plugSn, plug, slotSn, slot string) (bool, error)
-	var connectedPlugOrSlot func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
+func (m *InterfaceManager) ResolveDisconnect(plugInstanceName naming.InstanceName, plugName string, slotInstanceName naming.InstanceName, slotName string, forget bool) ([]*interfaces.ConnRef, error) {
+	var connected func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error)
+	var connectedPlugOrSlot func(instanceName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error)
 
 	if forget {
 		conns, err := getConns(m.state)
 		if err != nil {
 			return nil, err
 		}
-		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+		connected = func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error) {
 			cref := interfaces.ConnRef{
 				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
 				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
@@ -467,24 +503,24 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			return ok, nil
 		}
 
-		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+		connectedPlugOrSlot = func(instanceName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
 			var refs []*interfaces.ConnRef
 			for connID := range conns {
 				cref, err := interfaces.ParseConnRef(connID)
 				if err != nil {
 					return nil, err
 				}
-				if cref.PlugRef.Snap == snapName && cref.PlugRef.Name == plugOrSlotName {
+				if cref.PlugRef.Snap == instanceName && cref.PlugRef.Name == plugOrSlotName {
 					refs = append(refs, cref)
 				}
-				if cref.SlotRef.Snap == snapName && cref.SlotRef.Name == plugOrSlotName {
+				if cref.SlotRef.Snap == instanceName && cref.SlotRef.Name == plugOrSlotName {
 					refs = append(refs, cref)
 				}
 			}
 			return refs, nil
 		}
 	} else {
-		connected = func(plugSn, plug, slotSn, slot string) (bool, error) {
+		connected = func(plugSn naming.InstanceName, plug string, slotSn naming.InstanceName, slot string) (bool, error) {
 			_, err := m.repo.Connection(&interfaces.ConnRef{
 				PlugRef: interfaces.PlugRef{Snap: plugSn, Name: plug},
 				SlotRef: interfaces.SlotRef{Snap: slotSn, Name: slot},
@@ -498,8 +534,8 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 			return true, nil
 		}
 
-		connectedPlugOrSlot = func(snapName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
-			return m.repo.Connected(snapName, plugOrSlotName)
+		connectedPlugOrSlot = func(instanceName naming.InstanceName, plugOrSlotName string) ([]*interfaces.ConnRef, error) {
+			return m.repo.Connected(instanceName, plugOrSlotName)
 		}
 	}
 
@@ -511,47 +547,47 @@ func (m *InterfaceManager) ResolveDisconnect(plugSnapName, plugName, slotSnapNam
 	// Return exactly one plug/slot or an error if it doesn't exist.
 	case plugName != "" && slotName != "":
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if plugSnapName == "" {
-			plugSnapName = coreSnapName
+		if plugInstanceName == "" {
+			plugInstanceName = coreSnapName
 		}
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if slotSnapName == "" {
-			slotSnapName = coreSnapName
+		if slotInstanceName == "" {
+			slotInstanceName = coreSnapName
 		}
 		// Ensure that slot and plug are connected
-		isConnected, err := connected(plugSnapName, plugName, slotSnapName, slotName)
+		isConnected, err := connected(plugInstanceName, plugName, slotInstanceName, slotName)
 		if err != nil {
 			return nil, err
 		}
 		if !isConnected {
 			if forget {
 				return nil, fmt.Errorf("cannot forget connection %s:%s from %s:%s, it was not connected",
-					plugSnapName, plugName, slotSnapName, slotName)
+					plugInstanceName, plugName, slotInstanceName, slotName)
 			}
 			return nil, fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
-				plugSnapName, plugName, slotSnapName, slotName)
+				plugInstanceName, plugName, slotInstanceName, slotName)
 		}
 		return []*interfaces.ConnRef{
 			{
-				PlugRef: interfaces.PlugRef{Snap: plugSnapName, Name: plugName},
-				SlotRef: interfaces.SlotRef{Snap: slotSnapName, Name: slotName},
+				PlugRef: interfaces.PlugRef{Snap: plugInstanceName, Name: plugName},
+				SlotRef: interfaces.SlotRef{Snap: slotInstanceName, Name: slotName},
 			}}, nil
 	// 2: <snap>:<plug or slot> (through 1st pair)
 	// Return a list of connections involving specified plug or slot.
-	case plugName != "" && slotName == "" && slotSnapName == "":
+	case plugName != "" && slotName == "" && slotInstanceName == "":
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if plugSnapName == "" {
-			plugSnapName = coreSnapName
+		if plugInstanceName == "" {
+			plugInstanceName = coreSnapName
 		}
-		return connectedPlugOrSlot(plugSnapName, plugName)
+		return connectedPlugOrSlot(plugInstanceName, plugName)
 	// 2: <snap>:<plug or slot> (through 2nd pair)
 	// Return a list of connections involving specified plug or slot.
-	case plugSnapName == "" && plugName == "" && slotName != "":
+	case plugInstanceName == "" && plugName == "" && slotName != "":
 		// The snap name can be omitted to implicitly refer to the core snap.
-		if slotSnapName == "" {
-			slotSnapName = coreSnapName
+		if slotInstanceName == "" {
+			slotInstanceName = coreSnapName
 		}
-		return connectedPlugOrSlot(slotSnapName, slotName)
+		return connectedPlugOrSlot(slotInstanceName, slotName)
 	default:
 		return nil, fmt.Errorf("allowed forms are <snap>:<plug> <snap>:<slot> or <snap>:<plug or slot>")
 	}

@@ -33,8 +33,12 @@ import (
 // divided into snapctl and non-snapctl mount groups.
 func listMountsAtOrUnder(snapName, baseDir string) (snapctlMPs, nonSnapctlMPs []string, err error) {
 	sysd := systemd.New(systemd.SystemMode, nil)
-	// mounts created using snapctl have the "mount-control" origin
-	mcMountPoints, err := sysd.ListMountUnits(snapName, "mount-control")
+	// Mounts created using snapctl have the "mount-control" origin.
+	// Only active units are needed here but systemd.LoadedMountUnits
+	// lists loaded units which may be active or inactive. This is still
+	// fine because mcMountPoints is only used to filter the mountInfo
+	// list which only contains active mounts.
+	mcMountPoints, err := sysd.ListMountUnits(snapName, "mount-control", systemd.LoadedMountUnits)
 	if err != nil {
 		return nil, nil, err
 	}

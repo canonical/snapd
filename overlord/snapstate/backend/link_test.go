@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -707,28 +708,46 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnDesktopFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDesktopFilesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnBinariesFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	// this one is the trivial case _as the code stands today_,
 	// but nothing guarantees that ordering.
 	s.testLinkCleanupDirOnFail(c, dirs.SnapBinariesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapServicesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnMountDirFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	s.testLinkCleanupDirOnFail(c, filepath.Dir(s.info.MountDir()))
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnDBusSystemFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDBusSystemServicesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnDBusSessionFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDBusSessionServicesDir)
 }
 
@@ -749,6 +768,10 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 }
 
 func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	// validity check
 	c.Assert(s.info.DataDir(), testutil.FileAbsent)
 
@@ -828,6 +851,10 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	// test failure mode when snapd is first installed, its units were
 	// correctly written and corresponding services were started, but
 	// current symlink failed
@@ -837,6 +864,10 @@ func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapNonFirstInstallOnCore(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	// test failure mode when a new revision of snapd is installed, its was
 	// units were correctly written and corresponding services were started,
 	// but current symlink failed
@@ -1094,9 +1125,9 @@ func (r *OverridenSnapdRestart) Restart() error {
 func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
-	snapName := "mysnap"
+	instanceName := naming.NewInstanceName("mysnap", "")
 	snapRev := snap.R(2)
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
 
 	err := s.be.LinkComponent(cpi, snapRev)
@@ -1104,7 +1135,7 @@ func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
 	err = s.be.LinkComponent(cpi, snapRev)
 	c.Assert(err, IsNil)
 
-	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
+	linkPath := filepath.Join(dirs.SnapMountDir, instanceName.String(),
 		"components", snapRev.String(), compName)
 	relTarget, err := os.Readlink(linkPath)
 	c.Assert(relTarget, Equals, filepath.Join("../mnt", compName, compRev.String()))
@@ -1112,18 +1143,18 @@ func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
 	linkTarget, err := filepath.EvalSymlinks(linkPath)
 	c.Assert(err, IsNil)
 	c.Assert(linkTarget, Equals,
-		filepath.Join(snap.ComponentsBaseDir(snapName), "mnt", compName, compRev.String()))
+		filepath.Join(snap.ComponentsBaseDir(instanceName.String()), "mnt", compName, compRev.String()))
 }
 
 func (s *linkSuite) TestLinkComponentError(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
-	snapName := "mysnap"
+	instanceName := naming.NewInstanceName("mysnap", "")
 	snapRev := snap.R(2)
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
 	// Put a regular directory in the link path
-	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
+	linkPath := filepath.Join(dirs.SnapMountDir, instanceName.String(),
 		"components", snapRev.String(), compName)
 	c.Assert(os.MkdirAll(linkPath, 0755), IsNil)
 
@@ -1134,10 +1165,10 @@ func (s *linkSuite) TestLinkComponentError(c *C) {
 func (s *linkSuite) TestUnlinkComponentIdempotent(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
-	snapName := "mysnap"
+	instanceName := naming.NewInstanceName("mysnap", "")
 	snapRev := snap.R(2)
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
-	linkPath := filepath.Join(dirs.SnapMountDir, snapName,
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
+	linkPath := filepath.Join(dirs.SnapMountDir, instanceName.String(),
 		"components", snapRev.String(), compName)
 	target := filepath.Join("../mnt", compName, compRev.String())
 
@@ -1159,10 +1190,10 @@ func (s *linkSuite) TestUnlinkComponentIdempotent(c *C) {
 func (s *linkSuite) TestUnlinkTwoComponents(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
-	snapName := "mysnap"
+	instanceName := naming.NewInstanceName("mysnap", "")
 	snapRev := snap.R(2)
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
-	compRevPath := filepath.Join(dirs.SnapMountDir, snapName,
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
+	compRevPath := filepath.Join(dirs.SnapMountDir, instanceName.String(),
 		"components", snapRev.String())
 	linkPath := filepath.Join(compRevPath, compName)
 	target := filepath.Join("../mnt", compName, compRev.String())
@@ -1191,12 +1222,12 @@ func (s *linkSuite) TestUnlinkTwoComponents(c *C) {
 func (s *linkSuite) TestUnlinkComponentError(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
-	snapName := "mysnap"
+	instanceName := naming.NewInstanceName("mysnap", "")
 	snapRev := snap.R(2)
-	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, snapName)
+	cpi := snap.MinimalComponentContainerPlaceInfo(compName, compRev, instanceName)
 	c.Assert(os.MkdirAll(cpi.MountDir(), 0755), IsNil)
 	// Put a regular directory inside the link path
-	insideLinkPath := filepath.Join(dirs.SnapMountDir, snapName,
+	insideLinkPath := filepath.Join(dirs.SnapMountDir, instanceName.String(),
 		"components", snapRev.String(), compName, "xx")
 	c.Assert(os.MkdirAll(insideLinkPath, 0755), IsNil)
 

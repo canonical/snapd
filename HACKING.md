@@ -446,10 +446,10 @@ this case each test runs in a new image which is created following the rules
 defined for the test.
 
 The nested tests are executed using the [spread framework](#downloading-spread-framework). 
-See the following examples using the QEMU and Google backends.
+See the following examples using the QEMU and openstack backends.
 
 - _QEMU_: `spread qemu-nested:ubuntu-20.04-64:tests/nested/core20/tpm`  
-- _Google_: `spread google-nested:ubuntu-20.04-64:tests/nested/core20/tpm`  
+- _Openstack_: `spread opentack-ext:ubuntu-20.04-64:tests/nested/core20/tpm`  
 
 The nested system in all the cases is selected based on the host system. The following lines 
 show the relation between host and nested `systemd` (same applies to the classic nested tests):

@@ -146,7 +146,7 @@ func writePreseedAssertion(artifactDigest []byte, opts *preseedCoreOptions) erro
 	snaps := []any{}
 	addSnap := func(sn *seed.Snap) {
 		preseedSnap := map[string]any{}
-		preseedSnap["name"] = sn.SnapName()
+		preseedSnap["name"] = sn.SnapName().String()
 
 		asserted := sn.ID() != ""
 		if asserted {

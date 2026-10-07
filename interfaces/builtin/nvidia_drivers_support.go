@@ -71,13 +71,15 @@ type nvidiaDriversSupportInterface struct {
 
 func init() {
 	registerIface(&nvidiaDriversSupportInterface{commonInterface: commonInterface{
-		name:                  "nvidia-drivers-support",
-		summary:               nvidiaDriversSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  nvidiaDriversSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  nvidiaDriversSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: nvidiaDriversSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  nvidiaDriversSupportConnectedPlugSecComp,
+		name:                     "nvidia-drivers-support",
+		summary:                  nvidiaDriversSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     nvidiaDriversSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     nvidiaDriversSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:    nvidiaDriversSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     nvidiaDriversSupportConnectedPlugSecComp,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

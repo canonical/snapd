@@ -71,7 +71,7 @@ func (s *PreseedSnap) ID() string {
 // Preseed holds preseed assertion, which is a statement about system-label,
 // model, set of snaps and preseed artifact used for preseeding of UC20 system.
 type Preseed struct {
-	assertionBase
+	AssertionBase
 	snaps     []*PreseedSnap
 	timestamp time.Time
 }
@@ -269,7 +269,7 @@ func checkPreseedSnaps(snapList any) ([]*PreseedSnap, error) {
 	return snaps, nil
 }
 
-func assemblePreseed(assert assertionBase) (Assertion, error) {
+func assemblePreseed(assert AssertionBase) (Assertion, error) {
 	// because the authority-id and model-id can differ (as per the model),
 	// authority-id should be validated against allowed IDs when the preseed
 	// blob is being checked
@@ -303,7 +303,7 @@ func assemblePreseed(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 	return &Preseed{
-		assertionBase: assert,
+		AssertionBase: assert,
 		snaps:         snaps,
 		timestamp:     timestamp,
 	}, nil

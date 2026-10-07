@@ -212,6 +212,10 @@ func (s *motdSuite) TestHandleMotdConfigurationSetWritableFileDoesNotExist(c *C)
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationSetMkdirAllError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	// Mock os.MkdirAll(/etc/motd.d) to return an error
 	os.MkdirAll(filepath.Dir(s.writableDirPath), 0555)
 
@@ -226,6 +230,10 @@ func (s *motdSuite) TestHandleMotdConfigurationSetMkdirAllError(c *C) {
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationSetAtomicWriteFileError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	// First add the writable file
 	err := os.MkdirAll(s.writableDirPath, 0755)
 	c.Assert(err, IsNil)
@@ -274,6 +282,10 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetWritableFileExists(c *C) {
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationUnsetWritableFileRemoveError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
+
 	// First add the writable file
 	err := os.MkdirAll(s.writableDirPath, 0755)
 	c.Assert(err, IsNil)
@@ -317,6 +329,10 @@ func (s *motdSuite) TestHandleMotdConfigurationUnsetWritableFileDoesNotExist(c *
 }
 
 func (s *motdSuite) TestHandleMotdConfigurationGetMotdFromSystemReadError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
+
 	// Mock os.ReadFile(s.readonlyFilePath) to return an error
 	os.Chmod(s.readonlyFilePath, 0000)
 	defer os.Chmod(s.readonlyFilePath, 0444)
@@ -482,6 +498,10 @@ func (s *motdSuite) TestGetMotdFromSystemWritable(c *C) {
 }
 
 func (s *motdSuite) TestGetMotdFromSystemReadError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 

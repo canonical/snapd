@@ -212,7 +212,7 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 	c.Assert(err, IsNil)
 	c.Assert(aresults, HasLen, 0)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -328,7 +328,7 @@ func (s *storeActionSuite) TestSnapActionNonZeroEpochAndEpochBump(c *C) {
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -646,7 +646,7 @@ func (s *storeActionSuite) TestSnapActionNoSkipIfResourceChange(c *C) {
 	}, nil, nil, &store.RefreshOptions{IncludeResources: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeActionSuite) TestSnapActionSkipIfNoResourceChange(c *C) {
@@ -911,7 +911,7 @@ func (s *storeActionSuite) TestSnapActionRetryOnEOF(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(n, Equals, 4)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 }
 
 func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
@@ -1000,7 +1000,7 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -1149,7 +1149,7 @@ func (s *storeActionSuite) TestInstallFallbackChannelIsStable(c *C) {
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 }
@@ -1247,7 +1247,7 @@ func (s *storeActionSuite) TestSnapActionNonDefaultsHeaders(c *C) {
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -1340,7 +1340,7 @@ func (s *storeActionSuite) TestSnapActionWithDeltas(c *C) {
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -1428,7 +1428,7 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 	}, nil, nil, &store.RefreshOptions{RefreshManaged: true})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -1552,7 +1552,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -1646,7 +1646,7 @@ func (s *storeActionSuite) TestSnapActionInstallAmend(c *C) {
 		}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -1814,7 +1814,7 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 		}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(28))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -2537,7 +2537,7 @@ func (s *storeActionSuite) TestSnapActionRefreshesBothAuths(c *C) {
 	}, nil, s.user, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Check(refreshSessionRequested, Equals, true)
 	c.Check(n, Equals, 2)
@@ -2639,8 +2639,8 @@ func (s *storeActionSuite) TestSnapActionRefreshParallelInstall(c *C) {
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
-	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world_foo")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -2747,8 +2747,8 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	results, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
-	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world_foo")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 
 	// another request with the same seed, gives same result
@@ -2842,8 +2842,8 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeld(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -2945,8 +2945,8 @@ func (s *storeActionSuite) TestSnapActionRefreshWithHeldUnsupportedProxy(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -3037,8 +3037,8 @@ func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
 	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
-	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
@@ -3270,8 +3270,8 @@ func (s *storeActionSuite) TestSnapActionInstallParallelInstall(c *C) {
 	}, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "hello-world_foo")
-	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName().String(), Equals, "hello-world_foo")
+	c.Assert(results[0].SnapName().String(), Equals, "hello-world")
 	c.Assert(results[0].Revision, Equals, snap.R(28))
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
@@ -3576,7 +3576,7 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 		Other: []error{fmt.Errorf(`snap "hello-world_foo": The Snap is present more than once in the request.`)},
 	})
 	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].InstanceName(), Equals, "foo-2")
+	c.Assert(results[0].InstanceName().String(), Equals, "foo-2")
 	c.Assert(results[0].SnapID, Equals, "foo-2-id")
 }
 

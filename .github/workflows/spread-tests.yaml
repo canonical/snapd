@@ -54,7 +54,16 @@ on:
         description: 'Space-separated list of regex expressions identifying tests to skip. As a regex, they can identify any part of the spread test like an entire suite or a single test. End a single test with $ to avoid inadvertently matching others.'
         required: false
         type: string
-
+      log-to-grafana:
+        description: 'If true, will filter spread logs and send them to Grafana'
+        type: boolean
+        required: false
+        default: true
+      scenario:
+        description: 'The scenario to run (e.g., master, deb, kernels, features)'
+        type: string
+        required: false
+        default: 'generic'
 
 jobs:
   run-spread:
@@ -134,6 +143,9 @@ jobs:
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
           fi
+          if grep -q '^ubuntu-image update required$' <<<$labels; then
+            echo "SPREAD_UBUNTU_IMAGE_USE_LOCAL_SNAPD=true" >> $GITHUB_ENV
+          fi
 
     - name: Get previous attempt
       id: get-previous-attempt
@@ -188,7 +200,7 @@ jobs:
           fi
 
     - name: Setup for local run
-      if: ${{ inputs.backend == 'garden' }}
+      if: ${{ inputs.backend == 'garden' && env.SKIP_SPREAD_LABEL != 'true' }}
       uses: ./.github/actions/setup-image-garden
       with:
         garden-system: ${{ inputs.systems }}
@@ -335,7 +347,7 @@ jobs:
           echo "The following list of tests will run:"
           cat "$RUN_TESTS_FILE"
 
-          if [ -n "$SNAPD_TESTS_SKIP" ]; then
+          if [ -n "${SNAPD_TESTS_SKIP//[[:space:]]/}" ]; then
               echo "$SNAPD_TESTS_SKIP" > skipped_tests_list.txt
           fi
 
@@ -357,7 +369,7 @@ jobs:
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana }}
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
@@ -376,66 +388,85 @@ jobs:
           # Add start line to filtered log
           echo "GRAFANA START: pr ${CHANGE_ID} attempt ${{ github.run_attempt }} run ${{ github.run_id }} group ${{ inputs.group }}" > "$FILTERED_LOG_FILE"
 
-    - name: Download and extract pre-built packages if they exist
+    - name: Build package artifact pattern
+      id: package-pattern
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
       env:
         SYSTEMS: ${{ inputs.systems }}
-      uses: actions/github-script@v9
+      run: |
+        declare -A unique_artifacts
+
+        for system in $SYSTEMS; do
+          artifact_name="package-$system"
+
+          if [[ "$system" =~ ^ubuntu-core-([0-9]+)(-arm)?-64$ ]]; then
+            version="${BASH_REMATCH[1]}"
+            arch="${BASH_REMATCH[2]}"
+            artifact_name="package-ubuntu-${version}.04${arch}-64"
+          fi
+
+          unique_artifacts["$artifact_name"]=1
+        done
+
+        artifact_names=( "${!unique_artifacts[@]}" )
+        if (( ${#artifact_names[@]} == 1 )); then
+          pattern="${artifact_names[0]}"
+        else
+          pattern="{$(IFS=,; echo "${artifact_names[*]}")}"
+        fi
+
+        echo "Downloading artifacts matching: $pattern"
+        echo "pattern=$pattern" >> "$GITHUB_OUTPUT"
+
+    - name: Download selected pre-built packages
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
+      uses: actions/download-artifact@v8
       with:
-        script: |
-          let fs = require('fs');
-          let path = require('path');
-          let os = require('os');
-          let child_process = require('child_process');
-          let systems = process.env.SYSTEMS.split(' ');
+        pattern: '${{ steps.package-pattern.outputs.pattern }}'
+        path: built-pkgs/downloaded
+        merge-multiple: false
 
-          let page = 1;
-          let per_page = 100;
-          let allArtifacts = [];
-          let response;
-          do {
-            response = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-              per_page: per_page,
-              page: page
-            });
-            allArtifacts = allArtifacts.concat(response.data.artifacts);
-            page++;
-          } while (allArtifacts.length < response.data.total_count);
-          
-          for (let system of systems) {
-            let artifactName = `package-${system}`;
-            const match = system.match(/^ubuntu-core-(\d+)(-arm)?-64$/);
-            if (match) {
-              const version = match[1];
-              const arch = match[2] || '';
-              artifactName = `package-ubuntu-${version}.04${arch}-64`;
-            }
-            let artifact = allArtifacts.find(a => a.name === artifactName);
-            if (!artifact) {
-              console.log(`Artifact not found for system: ${system}`);
-              continue;
-            }
-            console.log(`Found artifact "${artifactName}" with id ${artifact.id}, downloading...`);
+    - name: Rename packages to spread system directories
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
+      env:
+        SYSTEMS: ${{ inputs.systems }}
+      run: |
+        shopt -s dotglob nullglob
+        download_dir="built-pkgs/downloaded"
 
-            const download = await github.rest.actions.downloadArtifact({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              artifact_id: artifact.id,
-              archive_format: 'zip',
-            });
+        artifact_for_system() {
+          local system=$1
+          if [[ "$system" =~ ^ubuntu-core-([0-9]+)(-arm)?-64$ ]]; then
+            echo "package-ubuntu-${BASH_REMATCH[1]}.04${BASH_REMATCH[2]}-64"
+          else
+            echo "package-$system"
+          fi
+        }
 
-            const artifactZipPath = path.join(process.env.GITHUB_WORKSPACE, `${artifactName}.zip`);
-            fs.writeFileSync(artifactZipPath, Buffer.from(download.data));
+        declare -A unique_artifacts
+        for system in $SYSTEMS; do
+          unique_artifacts["$(artifact_for_system "$system")"]=1
+        done
 
-            const extractDir = path.join(process.env.GITHUB_WORKSPACE, 'built-pkgs', system);
-            fs.mkdirSync(extractDir, { recursive: true });
-            child_process.execSync(`unzip -q -o ${artifactZipPath} -d ${extractDir}`);
+        for system in $SYSTEMS; do
+          if (( ${#unique_artifacts[@]} == 1 )); then
+            # download-artifact extracts a lone artifact without a per-artifact subdirectory
+            source_dir="$download_dir"
+          else
+            source_dir="$download_dir/$(artifact_for_system "$system")"
+          fi
 
-            fs.unlinkSync(artifactZipPath);
-          }
+          files=( "$source_dir"/* )
+          if (( ${#files[@]} == 0 )); then
+            echo "Artifact not found for system: $system"
+            continue
+          fi
+
+          mkdir -p "built-pkgs/$system"
+          cp -a "${files[@]}" "built-pkgs/$system"/
+        done
+
+        rm -rf "$download_dir"
 
     - name: Set whether to use pre-built packages in spread
       run: |
@@ -459,8 +490,6 @@ jobs:
 
     - name: Run spread tests
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
@@ -547,7 +576,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Report spread errors
-      if: always()
+      if: ${{ always() && inputs.log-to-grafana }}
       run: |
         if [ -e results.json ]; then
             echo "Adding to the filtered log any spread errors found"
@@ -561,6 +590,14 @@ jobs:
         else
             echo "No spread log found, skipping errors reporting"
         fi
+
+    - name: Upload filtered log for Grafana
+      if: ${{ always() && runner.environment != 'self-hosted' && env.RUN_TESTS == 'true' && inputs.log-to-grafana }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
+        path: ${{ env.FILTERED_LOG_FILE }}
+        if-no-files-found: ignore
 
     - name: Analyze spread test results
       if: always()
@@ -632,32 +669,59 @@ jobs:
         path: ${{ env.FAILED_TESTS_FILE }}
 
     - name: Send results to Test-Predictor
-      if: always()
+      if: ${{ always() && runner.environment == 'self-hosted' }}
       continue-on-error: true
+      env:
+        SCENARIO: ${{ inputs.scenario }}
       run: |
-        if [ -f results.json ]; then
-            echo "Sending results to Test-Predictor"
+        source .github/scripts/common.sh
+        send_results_to_test_predictor \
+          results.json \
+          "$GITHUB_REPOSITORY" \
+          "$GITHUB_RUN_ID" \
+          "$GITHUB_RUN_ATTEMPT" \
+          "${{ inputs.group }}" \
+          "$SCENARIO" \
+          "${{ github.event.pull_request.number }}"
 
-            # Get the job ID of the current workflow run by matching job name and matrix group
-            JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id" | head -n 1)
+  sync-test-results:
+    name: Sync test results
+    needs: run-spread
+    if: ${{ always() && !contains(fromJSON(inputs.runs-on), 'self-hosted') }}
+    continue-on-error: true
+    runs-on: [self-hosted, spread-enabled]
+    permissions:
+      actions: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCENARIO: ${{ inputs.scenario }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-            echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.canonical.com:5000/ingest \
-              -F "file=@./results.json" \
-              -F "attempt=${{ github.run_attempt }}" \
-              -F "job_id=$JOB_ID" \
-              -F "run_id=${{ github.run_id }}")
+      - name: Download filtered log for Grafana
+        if: ${{ inputs.log-to-grafana }}
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: "grafana-filtered-log-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
-            if [[ ! $HTTP_CODE =~ ^2[0-9]{2}$ ]]; then
-                echo "Request failed with status $HTTP_CODE"
-                exit 1
-            fi
-            echo "Results sent successfully"
+      - name: Download spread results
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: "spread-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
 
-            echo "Getting predictions for failed tests"
-            wget -q -O predict https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/src/client/predict
-            chmod +x predict
-            ./predict results.json
-        else
-            echo "No spread results log found, skipping sending results to Test-Predictor"
-        fi
+      - name: Send results to test-predictor
+        if: ${{ hashFiles('results.json') != '' }}
+        run: |
+          source .github/scripts/common.sh
+          send_results_to_test_predictor \
+          results.json \
+          "$GITHUB_REPOSITORY" \
+          "$GITHUB_RUN_ID" \
+          "$GITHUB_RUN_ATTEMPT" \
+          "${{ inputs.group }}" \
+          "$SCENARIO" \
+          "${{ github.event.pull_request.number }}"

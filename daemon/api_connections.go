@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var connectionsCmd = &Command{
@@ -38,9 +39,9 @@ var connectionsCmd = &Command{
 }
 
 type collectFilter struct {
-	snapName  string
-	ifaceName string
-	connected bool
+	instanceName naming.InstanceName
+	ifaceName    string
+	connected    bool
 }
 
 func (c *collectFilter) plugOrConnectedSlotMatches(plug *interfaces.PlugRef, connectedSlots []interfaces.SlotRef) bool {
@@ -49,7 +50,7 @@ func (c *collectFilter) plugOrConnectedSlotMatches(plug *interfaces.PlugRef, con
 			return true
 		}
 	}
-	if c.snapName != "" && plug.Snap != c.snapName {
+	if c.instanceName != "" && plug.Snap != c.instanceName {
 		return false
 	}
 	return true
@@ -61,7 +62,7 @@ func (c *collectFilter) slotOrConnectedPlugMatches(slot *interfaces.SlotRef, con
 			return true
 		}
 	}
-	if c.snapName != "" && slot.Snap != c.snapName {
+	if c.instanceName != "" && slot.Snap != c.instanceName {
 		return false
 	}
 	return true
@@ -274,9 +275,9 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	connsjson, err := collectConnections(c.d.overlord.InterfaceManager(), collectFilter{
-		snapName:  snapName,
-		ifaceName: ifaceName,
-		connected: onlyConnected,
+		instanceName: naming.InstanceName(snapName),
+		ifaceName:    ifaceName,
+		connected:    onlyConnected,
 	})
 	if err != nil {
 		return InternalError("collecting connection information failed: %v", err)

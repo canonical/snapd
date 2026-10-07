@@ -50,19 +50,19 @@ execute: |
         -X POST -H "Content-Type: application/json" \
         /v1/service-control
     echo "The service is now visible but not active"
-    tests.session -u test exec systemctl --user show --property=LoadState snap.test-service.service | MATCH LoadState=loaded
-    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
+    tests.session -u test exec systemctl --user show --property=LoadState snap.test-service.service | MATCH '^LoadState=loaded$'
+    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH '^ActiveState=inactive$'
 
     echo "The session agent can start user mode services"
     echo '{"action": "start", "services": ["snap.test-service.service"]}' | snap debug api \
         --fail --session-agent-uid=12345 \
          -X POST -H "Content-Type: application/json" \
         /v1/service-control
-    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=active
+    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH '^ActiveState=active$'
 
     echo "The session agent can stop user mode services"
     echo '{"action": "stop", "services": ["snap.test-service.service"]}' | snap debug api \
         --fail --session-agent-uid=12345 \
         -X POST -H "Content-Type: application/json" \
         /v1/service-control
-    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH ActiveState=inactive
+    tests.session -u test exec systemctl --user show --property=ActiveState snap.test-service.service | MATCH '^ActiveState=inactive$'

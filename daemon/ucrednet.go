@@ -20,121 +20,186 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
-	"regexp"
-	"strconv"
+	"os"
 	"strings"
 	"sync"
 	sys "syscall"
 
+	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
-var errNoID = errors.New("no pid/uid found")
+var errNoPeerCredentials = errors.New("no peer credentials found in request context")
 
-const (
-	ucrednetNoProcess = int32(0)
-	ucrednetNobody    = uint32((1 << 32) - 1)
-)
+type ucrednetContextKey struct{}
+type ucrednetInterfacesContextKey struct{}
 
-var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);(iface=([^;]*);)?$`)
-
-var ucrednetGet = ucrednetGetImpl
-var ucrednetGetWithInterfaces = ucrednetGetWithInterfacesImpl
-
-func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
-	uc, _, err := ucrednetGetWithInterfaces(remoteAddr)
-	return uc, err
+func ucrednetWithCredentials(ctx context.Context, ucred *ucrednet) context.Context {
+	if ucred == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, ucrednetContextKey{}, *ucred)
 }
 
-func ucrednetGetWithInterfacesImpl(remoteAddr string) (ucred *ucrednet, ifaces []string, err error) {
-	// NOTE treat remoteAddr at one point included a user-controlled
-	// string. In case that happens again by accident, treat it as tainted,
-	// and be very suspicious of it.
-	u := &ucrednet{
-		Pid: ucrednetNoProcess,
-		Uid: ucrednetNobody,
+// ucrednetConnContext is provided as snapd's [http.Server.ConnContext]. If the
+// connection if of type [ucrednetConn], then we attach a [ucrednet] to the
+// connection's [context.Context]. Each HTTP request context is dervived from
+// this context.
+func ucrednetConnContext(ctx context.Context, conn net.Conn) context.Context {
+	uconn, ok := conn.(*ucrednetConn)
+	if !ok {
+		return ctx
 	}
-	subs := raddrRegexp.FindStringSubmatch(remoteAddr)
-	if subs != nil {
-		if v, err := strconv.ParseInt(subs[1], 10, 32); err == nil {
-			u.Pid = int32(v)
-		}
-		if v, err := strconv.ParseUint(subs[2], 10, 32); err == nil {
-			u.Uid = uint32(v)
-		}
-		// group: ([^;]*) - socket path following socket=
-		u.Socket = subs[3]
-		// group: (iface=([^;]*);)
-		if len(subs[4]) > 0 {
-			// group: ([^;]*) - actual interfaces joined together with & separator
-			ifaces = strings.Split(subs[5], "&")
-		}
-	}
-	if u.Pid == ucrednetNoProcess || u.Uid == ucrednetNobody {
-		return nil, nil, errNoID
-	}
-
-	return u, ifaces, nil
+	return ucrednetWithCredentials(ctx, uconn.ucrednet)
 }
 
-func ucrednetAttachInterface(remoteAddr, iface string) string {
-	inds := raddrRegexp.FindStringSubmatchIndex(remoteAddr)
-	if inds == nil {
-		// This should only occur if remoteAddr is invalid.
-		return fmt.Sprintf("%siface=%s;", remoteAddr, iface)
+// ucrednetGet attempts to read the [ucrednet] associated with an HTTP request's
+// context. This will be attached to each HTTP request that is served by a
+// [ucrednetListener] [net.Listener].
+func ucrednetGet(ctx context.Context) (*ucrednet, error) {
+	ucred, ok := ctx.Value(ucrednetContextKey{}).(ucrednet)
+	if !ok {
+		return nil, errNoPeerCredentials
 	}
-	// start of string matching group "(iface=([^;]*);)"
-	ifaceSubStart := inds[8]
-	ifaceSubEnd := inds[9]
-	if ifaceSubStart == ifaceSubEnd {
-		// "(iface=([^;]*);)" not present.
-		return fmt.Sprintf("%siface=%s;", remoteAddr, iface)
+	return &ucred, nil
+}
+
+func ucrednetGetWithInterfaces(ctx context.Context) (ucred *ucrednet, ifaces []string, err error) {
+	ucred, err = ucrednetGet(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
-	// string matching group "([^;]*)" within "(iface=([^;]*);)"
-	ifacesStr := remoteAddr[inds[10]:inds[11]]
-	ifaces := strings.Split(ifacesStr, "&")
+	ifaces, _ = ctx.Value(ucrednetInterfacesContextKey{}).([]string)
+	return ucred, append([]string(nil), ifaces...), nil
+}
+
+func ucrednetAttachInterface(ctx context.Context, iface string) context.Context {
+	ifaces, _ := ctx.Value(ucrednetInterfacesContextKey{}).([]string)
 	if strutil.ListContains(ifaces, iface) {
-		return remoteAddr
+		return ctx
 	}
-	ifaces = append(ifaces, iface)
-	return fmt.Sprintf("%siface=%s;", remoteAddr[:ifaceSubStart], strings.Join(ifaces, "&"))
+	updated := make([]string, len(ifaces), len(ifaces)+1)
+	copy(updated, ifaces)
+	updated = append(updated, iface)
+	return context.WithValue(ctx, ucrednetInterfacesContextKey{}, updated)
 }
 
 type ucrednet struct {
-	Pid    int32
-	Uid    uint32
+	securityTag    naming.SecurityTag
+	securityTagErr error
+	// Uid is the peer user ID obtained from the socket credentials.
+	Uid uint32
+	// Socket is the local Unix socket path on which the connection was
+	// accepted.
 	Socket string
+	// PIDForPolkit is the peer PID, for use only in polkit authorization.
+	PIDForPolkit int32
+
+	untrustedProcessExeName    string
+	untrustedProcessExeNameErr error
+}
+
+var (
+	apparmorLabelFromPid              = apparmor.LabelFromPid
+	cgroupProcessPathInTrackingCgroup = cgroup.ProcessPathInTrackingCgroup
+)
+
+// resolveSecurityTag captures the process snap security tag. It uses the
+// tracking cgroup if AppArmor is unavailable or the label is not a valid snap
+// security tag.
+func (un *ucrednet) resolveSecurityTag(pid int) {
+	// only look up the apparmor label if the kernel supports apparmor.
+	_, apparmorErr := apparmor.KernelFeatures()
+	if apparmorErr == nil {
+		// prefer the apparmor label when it identifies a snap
+		var label string
+		label, apparmorErr = apparmorLabelFromPid(pid)
+		if apparmorErr == nil {
+			un.securityTag, apparmorErr = naming.ParseSecurityTag(label)
+			if apparmorErr == nil {
+				return
+			}
+		}
+	}
+
+	// fall back to cgroups if apparmor is unavailable, the label is unreadable,
+	// or the label is not a valid snap security tag.
+	path, cgroupErr := cgroupProcessPathInTrackingCgroup(pid)
+	if cgroupErr == nil {
+		un.securityTag = cgroup.SecurityTagFromCgroupPath(path)
+		if un.securityTag != nil {
+			return
+		}
+		cgroupErr = errors.New("cannot find snap security tag")
+	}
+
+	// TODO:GOVERSION: use errors.Join
+	un.securityTagErr = strutil.JoinErrors(
+		fmt.Errorf("apparmor: %w", apparmorErr),
+		fmt.Errorf("cgroup: %w", cgroupErr),
+	)
+}
+
+// InstanceName returns the snap instance name from the captured security tag.
+// It returns an error if the name is not available.
+func (un *ucrednet) InstanceName() (string, error) {
+	tag, err := un.SecurityTag()
+	if err != nil {
+		return "", err
+	}
+	return tag.InstanceName(), nil
+}
+
+// SecurityTag returns the peer snap security tag captured at acceptance.
+// It returns an error if the tag is not available.
+func (un *ucrednet) SecurityTag() (naming.SecurityTag, error) {
+	if un.securityTagErr != nil {
+		return nil, un.securityTagErr
+	}
+	if un.securityTag == nil {
+		return nil, errors.New("security tag is not available")
+	}
+	return un.securityTag, nil
+}
+
+// UntrustedProcessExeName returns the peer executable path captured at
+// acceptance. This path must not be used for security checks.
+// It returns an error if the path is not available.
+func (un *ucrednet) UntrustedProcessExeName() (string, error) {
+	if un.untrustedProcessExeName == "" && un.untrustedProcessExeNameErr == nil {
+		return "", errors.New("process executable name is not available")
+	}
+	return un.untrustedProcessExeName, un.untrustedProcessExeNameErr
 }
 
 func (un *ucrednet) String() string {
 	if un == nil {
-		return "pid=;uid=;socket=;"
+		return "snap=;uid=;socket=;"
 	}
-	return fmt.Sprintf("pid=%d;uid=%d;socket=%s;", un.Pid, un.Uid, un.Socket)
-}
 
-type ucrednetAddr struct {
-	net.Addr
-	*ucrednet
-}
+	var b strings.Builder
 
-func (wa *ucrednetAddr) String() string {
-	// NOTE we drop the original (user-supplied) net.Addr from the
-	// serialization entirely. We carry it this far so it helps debugging
-	// (via %#v logging), but from here on in it's not helpful.
-	return wa.ucrednet.String()
+	// prefer the snap name if we have it
+	if instanceName, err := un.InstanceName(); err == nil {
+		fmt.Fprintf(&b, "snap=%s;", instanceName)
+	} else {
+		fmt.Fprintf(&b, "pid=%d;", un.PIDForPolkit)
+	}
+
+	fmt.Fprintf(&b, "uid=%d;socket=%s;", un.Uid, un.Socket)
+
+	return b.String()
 }
 
 type ucrednetConn struct {
 	net.Conn
 	*ucrednet
-}
-
-func (wc *ucrednetConn) RemoteAddr() net.Addr {
-	return &ucrednetAddr{wc.Conn.RemoteAddr(), wc.ucrednet}
 }
 
 type ucrednetListener struct {
@@ -145,6 +210,7 @@ type ucrednetListener struct {
 }
 
 var getUcred = sys.GetsockoptUcred
+var osReadlink = os.Readlink
 
 func (wl *ucrednetListener) Accept() (net.Conn, error) {
 	con, err := wl.Listener.Accept()
@@ -171,10 +237,15 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		}
 
 		unet = &ucrednet{
-			Pid:    ucred.Pid,
-			Uid:    ucred.Uid,
-			Socket: ucon.LocalAddr().String(),
+			Uid:          ucred.Uid,
+			Socket:       ucon.LocalAddr().String(),
+			PIDForPolkit: ucred.Pid,
 		}
+
+		unet.resolveSecurityTag(int(ucred.Pid))
+
+		// an unreadable executable must not prevent the connection from being served.
+		unet.untrustedProcessExeName, unet.untrustedProcessExeNameErr = osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
 	}
 
 	return &ucrednetConn{con, unet}, nil

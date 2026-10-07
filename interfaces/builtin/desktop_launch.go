@@ -112,6 +112,10 @@ func (iface *desktopLaunchInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 	return true
 }
 
+func (iface *desktopLaunchInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errParallelInstancesSystemSlot
+}
+
 // Only implicitOnClassic since userd isn't yet usable on core
 func init() {
 	registerIface(&desktopLaunchInterface{})

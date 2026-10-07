@@ -106,7 +106,7 @@ func (s *toolSuite) mockReExecingEnv() func() {
 	restore := []func(){
 		release.MockOnClassic(true),
 		snapdtool.MockCoreSnapdPaths(s.corePath, s.snapdPath),
-		snapdtool.MockVersion("2"),
+		snapdtool.MockVersion("2", ""),
 	}
 
 	return func() {
@@ -205,7 +205,7 @@ func (s *toolSuite) TestSystemSnapSupportsReExecBadVersion(c *C) {
 
 func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
 	// can't re-exec if core version is too old
-	defer snapdtool.MockVersion("2")()
+	defer snapdtool.MockVersion("2", "")()
 	s.fakeCoreVersion(c, s.snapdPath, "0")
 
 	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
@@ -214,12 +214,48 @@ func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExec(c *C) {
-	defer snapdtool.MockVersion("2")()
+	defer snapdtool.MockVersion("2", "")()
 	s.fakeCoreVersion(c, s.snapdPath, "9999")
 
 	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
 	c.Check(ok, Equals, true)
 	c.Check(err, IsNil)
+}
+
+func (s *toolSuite) TestInternalLibExecDirNoReexec(c *C) {
+	c.Assert(os.MkdirAll(dirs.DistroLibExecDir, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
+	})
+	defer restore()
+
+	dir, err := snapdtool.InternalLibExecDir()
+	c.Check(err, IsNil)
+	c.Check(dir, Equals, dirs.DistroLibExecDir)
+}
+
+func (s *toolSuite) TestInternalLibExecDirReadlinkError(c *C) {
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return "", fmt.Errorf("boom")
+	})
+	defer restore()
+
+	dir, err := snapdtool.InternalLibExecDir()
+	c.Check(err, ErrorMatches, "boom")
+	c.Check(dir, Equals, "")
+}
+
+func (s *toolSuite) TestInternalLibExecDirWithReexec(c *C) {
+	libExecDir := filepath.Join(s.snapdPath, "usr/lib/snapd")
+	c.Assert(os.MkdirAll(libExecDir, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(s.snapdPath, "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	dir, err := snapdtool.InternalLibExecDir()
+	c.Assert(err, IsNil)
+	c.Check(dir, Equals, libExecDir)
 }
 
 func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
@@ -231,6 +267,17 @@ func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
 	path, err := snapdtool.InternalToolPath("potato")
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+}
+
+func (s *toolSuite) TestInternalToolPathReadlinkError(c *C) {
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return "", fmt.Errorf("boom")
+	})
+	defer restore()
+
+	path, err := snapdtool.InternalToolPath("potato")
+	c.Check(err, ErrorMatches, "boom")
+	c.Check(path, Equals, "")
 }
 
 func (s *toolSuite) TestInternalToolPathWithReexec(c *C) {
@@ -526,7 +573,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreForced(c *C) {
 	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	// snapd snap version is lower than ours, normally this would not reexec
-	defer snapdtool.MockVersion("999")()
+	defer snapdtool.MockVersion("999", "")()
 
 	// reexec does not happen, because version is lower
 	snapdtool.ExecInSnapdOrCoreSnap()

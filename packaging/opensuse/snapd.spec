@@ -115,7 +115,7 @@
 
 
 Name:           snapd
-Version:        2.76
+Version:        2.78
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -283,10 +283,12 @@ EXTRA_GO_BUILD_FLAGS = -v -x
 EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
-# Set the version and configuration that is compiled into the various executables/
-pushd %{indigo_srcdir}
-./mkversion.sh %{version}
-popd
+# The source tarball carries the upstream version (snapdtool/version_generated.go,
+# cmd/VERSION, data/info) and openSUSE's package version matches it, so no
+# downstream_version_suffix is needed here. Still, run mod-version.sh with the
+# package version as a sanity check: it is a no-op when the spec and the
+# tarball agree, and fails the build otherwise (a desync would otherwise
+# silently ship an info file that does not match the binaries).
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
@@ -309,6 +311,10 @@ static_pie=
 if [ -e build-with-static-pie ]; then
     static_pie=--enable-static-PIE
 fi
+
+# Stamp cmd/VERSION and data/info with the package version (see above); must
+# run before cmd/configure reads cmd/VERSION.
+%{indigo_srcdir}/packaging/mod-version.sh %{version} %{indigo_srcdir}
 
 # Generate autotools build system files.
 pushd %{indigo_srcdir}/cmd
@@ -403,6 +409,11 @@ install -D -p -m 0644 %{indigo_srcdir}/data/selinux/snappy.pp.bz2 \
     %{buildroot}%{_datadir}/selinux/packages/snappy.pp.bz2
 %endif
 
+# Drop tools not shipped on openSUSE (handled via snapd multi-call dispatch
+# on Ubuntu/Debian; on openSUSE these binaries are not needed)
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-gpio-helper
+
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
 chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
@@ -455,6 +466,9 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %service_add_pre %{systemd_services_list}
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
@@ -511,6 +525,10 @@ fi
 
 %post selinux
 %selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/snappy.pp.bz2
+# Ensure the private tmp directory for snap-confine exists and has the correct
+# SELinux label now that the policy module is loaded
+install -d -m 0700 /tmp/snap-private-tmp
+restorecon /tmp/snap-private-tmp || :
 
 %preun selinux
 %selinux_relabel_pre -s %{selinuxtype}
@@ -655,6 +673,7 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
+%{_libexecdir}/snapd/snapd-tool-wrap
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

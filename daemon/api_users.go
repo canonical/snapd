@@ -262,7 +262,9 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{})
+	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{
+		RemoveReason: seclog.RemoveReasonAPI,
+	})
 	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())
@@ -389,10 +391,24 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 	defer st.Unlock()
 
 	if createData.Known {
-		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email)
+		// add_reason records both dimensions of the request: whether one
+		// assertion was selected by email or all were used, and whether the
+		// caller was automation or an operator.
+		var addReason seclog.SystemUserAddReason
+		switch {
+		case createData.Email != "" && createData.Automatic:
+			addReason = seclog.AddReasonAPIAssertionAutomatic
+		case createData.Email != "":
+			addReason = seclog.AddReasonAPIAssertion
+		case createData.Automatic:
+			addReason = seclog.AddReasonAPIAssertionAllAutomatic
+		default:
+			addReason = seclog.AddReasonAPIAssertionAll
+		}
+		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email, addReason)
 	}
 
-	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration)
+	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration, seclog.AddReasonAPIStoreEmail)
 	return []*devicestate.CreatedUser{user}, err
 }
 

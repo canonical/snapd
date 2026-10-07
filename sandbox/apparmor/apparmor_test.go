@@ -104,25 +104,24 @@ func (s *apparmorSuite) TestAppArmorParserDistroAbiIgnored(c *C) {
 			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0")},
 		},
 		{
-			name:     "only abi 5.0 ignored",
+			name:     "only abi 5.0",
 			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
-			expected: []string{mockParserCmd.Exe()},
-			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected but ignored`,
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")},
 		},
 		{
-			name:     "abi 4.0 and 5.0 ignored",
+			name:     "abi 4.0 and 5.0 - uses 5.0",
 			abi40:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/4.0"),
 			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
-			expected: []string{mockParserCmd.Exe()},
-			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected but ignored.* DEBUG: apparmor 4.0 ABI detected but ignored`,
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected`,
 		},
 		{
-			name:     "all three abis - pins to 3.0, ignores 4 and 5",
+			name:     "all three abis - uses 5.0",
 			abi30:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0"),
 			abi40:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/4.0"),
 			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
-			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0")},
-			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected but ignored.* DEBUG: apparmor 4.0 ABI detected but ignored`,
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected`,
 		},
 	}
 
@@ -155,8 +154,8 @@ func (s *apparmorSuite) TestAppArmorParserDistroAbiIgnored(c *C) {
 		c.Check(internal, Equals, false)
 		if tc.logMatch != "" {
 			c.Check(log.String(), Matches, tc.logMatch)
-		} else if tc.name == "no abi files" || tc.name == "only abi 3.0" {
-			// No ABI-5/ABI-4 ignore messages expected; the generic
+		} else if tc.name == "no abi files" || tc.name == "only abi 3.0" || tc.name == "only abi 5.0" {
+			// No ABI-4/ABI-5 ignore messages expected; the generic
 			// "checking distro apparmor_parser" message is still present.
 			c.Check(log.String(), Matches, `(?ms).* DEBUG: checking distro apparmor_parser .*\n`)
 		}
@@ -641,7 +640,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
 
 	// Pretend we have all the features.
-	err := os.WriteFile(parserPath, []byte(fakeParserScript("5.0.1")), 0o755)
+	err := os.WriteFile(parserPath, []byte(fakeParserScript("5.0.2")), 0o755)
 	c.Assert(err, IsNil)
 
 	// Did any feature probes got added to non-test code?

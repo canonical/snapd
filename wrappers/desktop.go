@@ -115,7 +115,7 @@ func detectAppAndRewriteExecLine(s *snap.Info, desktopFile, line string) (appInf
 			// wrapper uses s.InstanceName(), with the instance key
 			// set the command will be 'snap_foo.app' instead of
 			// 'snap.app', need to account for that
-			validCmd = snap.JoinSnapApp(s.SnapName(), app.Name)
+			validCmd = snap.JoinSnapApp(s.SnapName().String(), app.Name)
 		}
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
@@ -375,10 +375,10 @@ func EnsureSnapDesktopFiles(snaps []*snap.Info) error {
 		addGlobPatternAndConflictCheck := func(base, instanceName string) error {
 			// Check if a target desktop file belongs to another snap
 			_, hasTarget := content[base]
-			if hasTarget && instanceName != info.InstanceName() {
+			if hasTarget && instanceName != info.InstanceName().String() {
 				return fmt.Errorf("cannot install %q: %q already exists for another snap", base, filepath.Join(dirs.SnapDesktopFilesDir, base))
 			}
-			if instanceName == info.InstanceName() && !hasTarget && !hasDesktopPrefix(info, base) {
+			if instanceName == info.InstanceName().String() && !hasTarget && !hasDesktopPrefix(info, base) {
 				// An unmangled desktop file exists for the snap, add to glob
 				// patterns for removal
 				desktopFilesGlobs = append(desktopFilesGlobs, base)
@@ -414,7 +414,7 @@ func RemoveSnapDesktopFiles(s *snap.Info) error {
 	desktopFilesGlobs := []string{fmt.Sprintf("%s_*.desktop", s.DesktopPrefix())}
 
 	addGlobPattern := func(base, instanceName string) error {
-		if instanceName == s.InstanceName() && !hasDesktopPrefix(s, base) {
+		if instanceName == s.InstanceName().String() && !hasDesktopPrefix(s, base) {
 			// An unmangled desktop file exists for the snap, add to glob
 			// patterns for removal
 			desktopFilesGlobs = append(desktopFilesGlobs, base)

@@ -2161,7 +2161,7 @@ func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	c.Check(model, Equals, "my-model-2")
 
 	base, mode := runner.BaseMode()
-	c.Check(base, Equals, s.expBase)
+	c.Check(base.String(), Equals, s.expBase)
 	c.Check(mode, Equals, s.expMode)
 
 	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
@@ -2331,6 +2331,9 @@ func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvInvalidContent(c *C) {
 }
 
 func (s *runner20Suite) TestLoadStateInitDeviceInfoModeenvIncorrectPermissions(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
+	}
 	runner := repair.NewRunner()
 
 	err := os.Chmod(dirs.SnapModeenvFile, 0300)

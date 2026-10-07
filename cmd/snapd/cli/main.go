@@ -619,7 +619,7 @@ var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
+	snapdenv.SetUserAgentFromVersion(snapdtool.FullVersion(), nil, "snap")
 
 	apiClient := mkClient()
 	parser := Parser(apiClient)

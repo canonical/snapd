@@ -3652,10 +3652,10 @@ func (s *snapsSuite) TestHoldAllRefreshes(c *check.C) {
 
 	for _, time := range []string{"forever", "0001-02-03T00:00:00Z"} {
 		called := false
-		restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error) {
+		restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name naming.InstanceName, patchValues map[string]any, flags int) (*state.TaskSet, error) {
 			called = true
 			c.Assert(patchValues, check.DeepEquals, map[string]any{"refresh.hold": time})
-			c.Assert(name, check.Equals, "core")
+			c.Assert(name, check.Equals, naming.Core)
 			return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
 		})
 
@@ -3742,9 +3742,9 @@ func (s *snapsSuite) TestHoldRefresh(c *check.C) {
 }
 
 func (s *snapsSuite) TestUnholdAllRefreshes(c *check.C) {
-	restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error) {
+	restore := daemon.MockConfigstateConfigureInstalled(func(s *state.State, name naming.InstanceName, patchValues map[string]any, flags int) (*state.TaskSet, error) {
 		c.Assert(patchValues, check.DeepEquals, map[string]any{"refresh.hold": nil})
-		c.Assert(name, check.Equals, "core")
+		c.Assert(name, check.Equals, naming.Core)
 		return state.NewTaskSet(s.NewTask("fake-task", "Fakeness")), nil
 	})
 	defer restore()
@@ -4394,7 +4394,7 @@ func (s *snapsSuite) TestUpdateManyWithComponents(c *check.C) {
 func (s *snapsSuite) TestInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
 		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
-		c.Check(info.InstanceName(), check.Equals, "some-snap")
+		c.Check(info.InstanceName().String(), check.Equals, "some-snap")
 		t := st.NewTask("fake-install-component", "Doing a fake components install")
 		return []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
@@ -4449,7 +4449,7 @@ func (s *snapsSuite) TestInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 func (s *snapsSuite) TestManyInstallWithComponentsSnapAlreadyInstalled(c *check.C) {
 	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
 		c.Check(names, check.DeepEquals, []string{"comp1", "comp2"})
-		c.Check(info.InstanceName(), check.Equals, "some-snap-with-components")
+		c.Check(info.InstanceName().String(), check.Equals, "some-snap-with-components")
 		t := st.NewTask("fake-install-component", "Doing a fake components install")
 		return []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()

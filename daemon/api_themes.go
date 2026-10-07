@@ -245,7 +245,7 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	names := make([]string, 0, len(installed))
 	for _, snap := range installed {
-		names = append(names, snap.InstanceName())
+		names = append(names, snap.InstanceName().String())
 	}
 
 	var summary string

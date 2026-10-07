@@ -187,8 +187,8 @@ execute: |
     if [ "$SERVICE" = ssh ]; then
         echo "And the ssh service is disabled"
         MATCH "SSH has been disabled by snapd system configuration" < /etc/ssh/sshd_not_to_be_run
-        systemctl status "$SERVICE.service" | MATCH inactive
+        systemctl status "$SERVICE.service" | MATCH ' inactive '
     else
         echo "And the service is masked"
-        systemctl status "$SERVICE.service" | MATCH masked
+        systemctl status "$SERVICE.service" | MATCH ' masked '
     fi

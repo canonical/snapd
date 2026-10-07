@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -46,7 +47,7 @@ var serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 func startHandlers(st *state.State, handlers []*snap.AppInfo) error {
 	var affectedSnaps []string
 	for _, h := range handlers {
-		affectedSnaps = append(affectedSnaps, h.Snap.InstanceName())
+		affectedSnaps = append(affectedSnaps, h.Snap.InstanceName().String())
 	}
 
 	// start and enable prompt handlers
@@ -151,7 +152,12 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 	st.Lock()
 	defer st.Unlock()
 
-	restartRequest(st, restart.RestartDaemon, nil)
+	action := "disabled"
+	if prompting {
+		action = "enabled"
+	}
+	logger.Noticef("requesting daemon restart for %s %s", confName, action)
+	restartRequest(st, restart.RestartDaemon, nil, restart.RestartSnapdFeatureChange)
 
 	return nil
 }

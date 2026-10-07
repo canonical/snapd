@@ -24,7 +24,7 @@ prepare: |
     remote.exec "sudo apt update"
     remote.exec "sudo apt install -y ./snapd_*.deb"
 
-    if os.query is-ubuntu-lt 25.10; then
+    if os.query is-ubuntu-lt 26.04; then
       echo "Install linux-modules-extra package as it provides ftdi_sio and usbserial kernel modules"
       #shellcheck disable=SC2016
       remote.exec 'DEBIAN_FRONTEND=noninteractive sudo -E apt install -y "linux-modules-extra-$(uname -r)"'

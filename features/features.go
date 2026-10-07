@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/systemd"
 )
 
 // SnapdFeature is a named feature that may be on or off.
@@ -41,8 +40,6 @@ const (
 	Hotplug
 	// UserDaemons controls availability of user mode service support.
 	UserDaemons
-	// DbusActivation controls whether snaps daemons can be activated via D-Bus
-	DbusActivation
 	// HiddenSnapDataHomeDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
 	HiddenSnapDataHomeDir
 	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) can be moved to ~/Snap.
@@ -53,33 +50,33 @@ const (
 	CheckDiskSpaceInstall
 	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
 	CheckDiskSpaceRefresh
-	// GateAutoRefreshHook enables refresh control from snaps via gate-auto-refresh hook.
-	GateAutoRefreshHook
-	// QuotaGroups enables any current experimental features related to the Quota Groups API, on top of the features
-	// already graduated past experimental:
-	//  * journal quotas are still experimental
-	// while guota groups creation and management and memory, cpu, quotas are no longer experimental.
-	QuotaGroups
-	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
-	RefreshAppAwarenessUX
 	// Confdb enables experimental configuration based on confdb and views.
 	Confdb
-	// ConfdbControl enables experimental remote management of confdb.
-	ConfdbControl
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
 	AppArmorPrompting
 	// ContentCompatLabel enables compatibility labels for the content interface.
 	ContentCompatLabel
 	// Clustering enables experimental clustering support.
 	Clustering
-	// RemoteDeviceManagement enables experimental remote management of the device through the Store.
+	// RemoteDeviceManagement enables experimental remote management of the device
+	// through the Store, including remote management of confdb.
 	RemoteDeviceManagement
 	// SeedRefresh enables experimental seed creation during model snap refresh.
 	SeedRefresh
 	// SnapDeltaFormat enables deltas that use the "snap delta" format
 	SnapDeltaFormat
-	// lastFeature is the final known feature, it is only used for testing.
+	// lastFeature marks the end of the features available for configuration.
 	lastFeature
+
+	// Permanently disabled features retain their identities and implementation,
+	// but are not enumerated by KnownFeatures.
+
+	// GateAutoRefreshHook enabled refresh control from snaps via
+	// gate-auto-refresh hook.
+	//
+	// TODO:GATEREFRESH: this feature is permanently disabled and code for it
+	// will be removed in a future release.
+	GateAutoRefreshHook
 )
 
 var knownFeaturesImpl = func() []SnapdFeature {
@@ -101,8 +98,7 @@ var featureNames = map[SnapdFeature]string{
 	ParallelInstances: "parallel-instances",
 	Hotplug:           "hotplug",
 
-	UserDaemons:    "user-daemons",
-	DbusActivation: "dbus-activation",
+	UserDaemons: "user-daemons",
 
 	HiddenSnapDataHomeDir: "hidden-snap-folder",
 	MoveSnapHomeDir:       "move-snap-home-dir",
@@ -111,14 +107,7 @@ var featureNames = map[SnapdFeature]string{
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
 	CheckDiskSpaceRemove:  "check-disk-space-remove",
 
-	GateAutoRefreshHook: "gate-auto-refresh-hook",
-
-	QuotaGroups: "quota-groups",
-
-	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
-
-	Confdb:        "confdb",
-	ConfdbControl: "confdb-control",
+	Confdb: "confdb",
 
 	AppArmorPrompting:  "apparmor-prompting",
 	ContentCompatLabel: "content-compatibility-label",
@@ -129,13 +118,13 @@ var featureNames = map[SnapdFeature]string{
 	SeedRefresh: "seed-refresh",
 
 	SnapDeltaFormat: "snap-delta-format",
+
+	// permanently disabled features
+	GateAutoRefreshHook: "gate-auto-refresh-hook",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
-var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	DbusActivation: true,
-	QuotaGroups:    true,
-}
+var featuresEnabledWhenUnset = map[SnapdFeature]bool{}
 
 // featuresExported contains a set of features that are exported outside of snapd.
 var featuresExported = map[SnapdFeature]bool{
@@ -144,9 +133,8 @@ var featuresExported = map[SnapdFeature]bool{
 	HiddenSnapDataHomeDir: true,
 	MoveSnapHomeDir:       true,
 
-	RefreshAppAwarenessUX: true,
-	Confdb:                true,
-	AppArmorPrompting:     true,
+	Confdb:            true,
+	AppArmorPrompting: true,
 }
 
 // featuresGraduated contains features that used to be guarded by an
@@ -156,6 +144,15 @@ var featuresGraduated = map[string]bool{
 	"robust-mount-namespace-updates":    true,
 	"classic-preserves-xdg-runtime-dir": true,
 	"refresh-app-awareness":             true,
+	"refresh-app-awareness-ux":          true,
+	"dbus-activation":                   true,
+	"quota-groups":                      true,
+}
+
+// featuresPermanentlyDisabled contains features whose implementation is
+// retained but which cannot be enabled through configuration.
+var featuresPermanentlyDisabled = map[SnapdFeature]bool{
+	GateAutoRefreshHook: true,
 }
 
 var (
@@ -167,13 +164,6 @@ var (
 // with a reason why the feature is unsupported. If a function has no callback
 // defined, it should be assumed to be supported.
 var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
-	// QuotaGroups requires systemd version 230 or higher
-	QuotaGroups: func() (bool, string) {
-		if err := systemd.EnsureAtLeast(230); err != nil {
-			return false, err.Error()
-		}
-		return true, ""
-	},
 	// UserDaemons requires user units
 	UserDaemons: func() (bool, string) {
 		if !releaseSystemctlSupportsUserUnits() {
@@ -194,6 +184,21 @@ func (f SnapdFeature) String() string {
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
 }
 
+// IsPermanentlyDisabled reports whether a feature cannot be enabled in this build.
+func (f SnapdFeature) IsPermanentlyDisabled() bool {
+	return featuresPermanentlyDisabled[f]
+}
+
+// MockFeaturesPermanentlyDisabled replaces the permanently disabled features for tests.
+func MockFeaturesPermanentlyDisabled(disabled map[SnapdFeature]bool) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesPermanentlyDisabled can only be used in tests")
+	old := featuresPermanentlyDisabled
+	featuresPermanentlyDisabled = disabled
+	return func() {
+		featuresPermanentlyDisabled = old
+	}
+}
+
 // IsEnabledWhenUnset returns true if a feature is enabled when not set.
 //
 // A feature may be enabled or disabled with explicit state in snapd. If
@@ -201,6 +206,16 @@ func (f SnapdFeature) String() string {
 // computed by this function.
 func (f SnapdFeature) IsEnabledWhenUnset() bool {
 	return featuresEnabledWhenUnset[f]
+}
+
+// MockFeaturesEnabledWhenUnset replaces the default-enabled features for tests.
+func MockFeaturesEnabledWhenUnset(enabled map[SnapdFeature]bool) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesEnabledWhenUnset can only be used in tests")
+	old := featuresEnabledWhenUnset
+	featuresEnabledWhenUnset = enabled
+	return func() {
+		featuresEnabledWhenUnset = old
+	}
 }
 
 // IsExported returns true if a feature is copied from snapd state to a feature file.
@@ -269,6 +284,10 @@ func (f SnapdFeature) IsEnabled() bool {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
 	}
 
+	if f.IsPermanentlyDisabled() {
+		return false
+	}
+
 	// TODO: this returns false on errors != ErrNotExist.
 	// Consider using os.Stat and handling other errors
 	return osutil.FileExists(f.ControlFile())
@@ -280,6 +299,10 @@ type confGetter interface {
 
 // Flag returns whether the given feature flag is enabled.
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
+	if feature.IsPermanentlyDisabled() {
+		return false, nil
+	}
+
 	var isEnabled any
 	snapName, confName := feature.ConfigOption()
 	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {
