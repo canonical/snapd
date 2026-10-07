@@ -2437,7 +2437,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		requiredComponents := make([]string, 0, len(sn.Components))
 
 		for name, comp := range sn.Components {
-			compInstalled, currentCompRevision, err := installedComponentRevision(st, naming.SnapName(sn.Name), name)
+			compInstalled, currentCompRevision, err := installedComponentRevision(st, naming.InstanceName(sn.Name), name)
 			if err != nil {
 				return nil, err
 			}
@@ -2685,7 +2685,7 @@ func installedSnapRevision(st *state.State, name string) (bool, snap.Revision, e
 	return true, snapst.Current, nil
 }
 
-func installedComponentRevision(st *state.State, snapName naming.SnapName, compName string) (bool, snap.Revision, error) {
+func installedComponentRevision(st *state.State, snapName naming.InstanceName, compName string) (bool, snap.Revision, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName.String(), &snapst); err != nil {
 		if errors.Is(err, state.ErrNoState) {
@@ -2694,7 +2694,7 @@ func installedComponentRevision(st *state.State, snapName naming.SnapName, compN
 		return false, snap.Revision{}, err
 	}
 
-	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef(snapName, compName))
+	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef(snapName.SnapName(), compName))
 	if csi == nil {
 		return false, snap.Revision{}, nil
 	}
