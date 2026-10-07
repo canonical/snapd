@@ -86,7 +86,7 @@ func (s *XilinxDmaInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/xdma/card[0-9]*/** rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/xdma[0-9]*_{control,user,xvc} rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/module/xdma/parameters/* r,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/qdma{,vf}[0-9]*-{MM,ST}-[0-9]* rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/qdma{,vf}[0-9a-f]*-{MM,ST}-[0-9]* rw,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/module/qdma/parameters/* r,`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/sys/devices/pci*/**/qdma/* rw,`)
 }

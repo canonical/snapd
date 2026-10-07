@@ -47,8 +47,9 @@ const xilinxDmaConnectedPlugAppArmor = `
 # If multiple cards are detected, nodes are created under
 /dev/xdma/card[0-9]*/** rw,
 
-# Access to the device nodes created by the Xilinx QDMA driver
-/dev/qdma{,vf}[0-9]*-{MM,ST}-[0-9]* rw,
+# Access to the device nodes created by the Xilinx QDMA driver, named
+# qdma{,vf}<PCI BDF in hex>-{MM,ST}-<queue index in decimal>
+/dev/qdma{,vf}[0-9a-f]*-{MM,ST}-[0-9]* rw,
 
 # View XDMA driver module parameters
 /sys/module/xdma/parameters/* r,
