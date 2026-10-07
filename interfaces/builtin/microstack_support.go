@@ -276,7 +276,7 @@ func init() {
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{microstackSupportServiceSnippet},
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

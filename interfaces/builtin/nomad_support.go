@@ -108,7 +108,7 @@ func init() {
 		connectedPlugAppArmor:    nomadSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     nomadSupportConnectedPlugSecComp,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{nomadSupportServiceSnippet},
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
