@@ -63,9 +63,9 @@ execute: |
   not remote.exec grep mac80211_hwsim /lib/modules/*/modules.dep
   not remote.exec sudo modprobe mac80211_hwsim
 
-  # Rule to force module loading on system start (we randomly choose
-  # the rtc device add event for this)
-  rule='ACTION==\"add\", SUBSYSTEM==\"rtc\", KERNEL==\"rtc*\", RUN{builtin}+=\"kmod load mac80211_hwsim\"\n'
+  # Rule to force module loading on system start. The cpu0's add events are
+  # guaranteed to show up and does so early.
+  rule='ACTION==\"add\", SUBSYSTEM==\"cpu\", KERNEL==\"cpu0\", RUN{builtin}+=\"kmod load mac80211_hwsim\"\n'
   remote.exec "sudo sh -c 'printf \"$rule\" > /etc/udev/rules.d/70-load-wifi.rules'"
 
   # Install jointly kernel with component
