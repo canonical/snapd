@@ -291,11 +291,13 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 			ExpireAfter: expireAfter,
 			Time:        w.LastAdded,
 		}
-
-		if _, err = time.ParseDuration(w.RepeatAfter); err != nil {
-			w.RepeatAfter = defaultWarningShowAfter.String()
+		showAfter, err := time.ParseDuration(w.RepeatAfter)
+		if err != nil {
+			showAfter = defaultWarningShowAfter
 		}
-		addNoticeOptions.Data["show-after"] = w.RepeatAfter
+		if showAfter != 0 {
+			addNoticeOptions.Data["show-after"] = showAfter.String()
+		}
 
 		if w.LastShown != nil {
 			addNoticeOptions.Data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
