@@ -701,6 +701,7 @@ func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 		"uhid",
 		"uinput",
 		"unity7",
+		"unity8",
 		"unity8-calendar",
 		"unity8-contacts",
 		"upower-observe",
