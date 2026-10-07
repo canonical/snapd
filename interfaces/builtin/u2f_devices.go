@@ -274,11 +274,12 @@ func (iface *u2fDevicesInterface) UDevConnectedPlug(spec *udev.Specification, pl
 
 func init() {
 	registerIface(&u2fDevicesInterface{commonInterface{
-		name:                  "u2f-devices",
-		summary:               u2fDevicesSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  u2fDevicesBaseDeclarationSlots,
-		connectedPlugAppArmor: u2fDevicesConnectedPlugAppArmor,
+		name:                     "u2f-devices",
+		summary:                  u2fDevicesSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     u2fDevicesBaseDeclarationSlots,
+		connectedPlugAppArmor:    u2fDevicesConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
