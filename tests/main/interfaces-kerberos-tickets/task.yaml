@@ -22,7 +22,9 @@ prepare: |
 
     echo "Mock the kerberos ticket at $TICKET"
     echo "$TICKET_CONTENTS" > "$TICKET"
-    mkdir "$DIR_TICKET"
+    tests.cleanup defer rm -f "$TICKET"
+    mkdir -p "$DIR_TICKET"
+    tests.cleanup defer rm -rf "$DIR_TICKET"
     echo "$TICKET_CONTENTS" > "$DIR_TICKET/ticket"
 
 execute: |

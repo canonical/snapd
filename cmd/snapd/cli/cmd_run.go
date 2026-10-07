@@ -794,10 +794,10 @@ func exposeKerberosTickets(info *snap.Info) (string, error) {
 		return "", nil
 	}
 	for _, cacheType := range []string{"FILE:", "DIR:"} {
-		if !strings.HasPrefix(krb5EnvVar, cacheType) {
+		pref, path, ok := strings.Cut(krb5EnvVar, cacheType)
+		if !ok || pref != "" {
 			continue
 		}
-		path := strings.TrimPrefix(krb5EnvVar, cacheType)
 		path = filepath.Clean(path)
 		if filepath.Dir(path) == "/tmp" && strings.HasPrefix(path, "/tmp/krb5cc") {
 			// Preserve the cache type while exposing the host's private /tmp.
