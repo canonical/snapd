@@ -277,6 +277,10 @@ Run "systemctl enable --now snapd.apparmor" to correct this.`)
 
 	ifacerepo.Replace(s, m.repo)
 
+	if err := snapstate.MigrateParallelInstancesIgnoreInstanceErrors(s); err != nil {
+		return fmt.Errorf("cannot migrate parallel instances: %v", err)
+	}
+
 	// wire late profile removal support into snapstate
 	snapstate.SecurityProfilesRemoveLate = m.discardSecurityProfilesLate
 

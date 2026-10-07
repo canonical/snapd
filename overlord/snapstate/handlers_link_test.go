@@ -416,6 +416,76 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInter
 	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
 }
 
+func (s *linkSnapSuite) TestUndoLinkSnapKeepsIgnoreInstanceErrorsFromOldSnapd(c *C) {
+	const migrated = true
+	s.testUndoLinkSnapIgnoreInstanceErrorsFromOldSnapd(c, migrated)
+}
+
+func (s *linkSnapSuite) TestUndoLinkSnapKeepsIgnoreInstanceErrorsUnsetFromOldSnapd(c *C) {
+	const migrated = false
+	s.testUndoLinkSnapIgnoreInstanceErrorsFromOldSnapd(c, migrated)
+}
+
+func (s *linkSnapSuite) testUndoLinkSnapIgnoreInstanceErrorsFromOldSnapd(c *C, migrated bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		Active:      true,
+		InstanceKey: "bar",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+	s.state.Unlock()
+
+	// only link-snap runs, error-trigger is still waiting
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Assert(terr.Status(), Equals, state.DoStatus)
+	c.Assert(t.Has("old-ignore-unsupported-instance-interfaces"), Equals, true)
+
+	// simulate a task from older snapd which did not record the old value,
+	// with the migration then possibly setting the flag
+	t.Set("old-ignore-unsupported-instance-interfaces", nil)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Assert(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
+	snapst.IgnoreUnsupportedInstanceInterfaces = migrated
+	snapstate.Set(s.state, "foo_bar", &snapst)
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, migrated)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	s.state.Lock()
 	// pretend we have an installed snap
