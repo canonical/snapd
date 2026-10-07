@@ -27,17 +27,17 @@ import (
 
 // ComponentRef contains the component name and the owner snap name.
 type ComponentRef struct {
-	SnapName      string `yaml:"snap-name" json:"snap-name"`
-	ComponentName string `yaml:"component-name" json:"component-name"`
+	SnapName      SnapName `yaml:"snap-name" json:"snap-name"`
+	ComponentName string   `yaml:"component-name" json:"component-name"`
 }
 
 // NewComponentRef returns a reference to a snap component.
-func NewComponentRef(snapName, componentName string) ComponentRef {
+func NewComponentRef(snapName SnapName, componentName string) ComponentRef {
 	return ComponentRef{SnapName: snapName, ComponentName: componentName}
 }
 
 // SplitFullComponentName splits <snap>+<comp> in <snap> and <comp> strings.
-func SplitFullComponentName(fullComp string) (string, string, error) {
+func SplitFullComponentName(fullComp string) (SnapName, string, error) {
 	names := strings.Split(fullComp, "+")
 	if len(names) != 2 {
 		return "", "", fmt.Errorf("incorrect component name %q", fullComp)

@@ -550,7 +550,7 @@ type DownloadedComponent struct {
 	Info *snap.ComponentInfo
 }
 
-func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, srr *store.SnapResourceResult, opts DownloadSnapOptions) (downloadedComp *DownloadedComponent, err error) {
+func (tsto *ToolingStore) componentDownload(targetFn string, snapName naming.SnapName, srr *store.SnapResourceResult, opts DownloadSnapOptions) (downloadedComp *DownloadedComponent, err error) {
 	// Check if this is a component we can handle
 	ctyp, err := store.ResourceToComponentType(srr.Type)
 	if err != nil {

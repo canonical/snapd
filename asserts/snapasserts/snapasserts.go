@@ -409,7 +409,7 @@ func SideInfoFromSnapAssertions(snapDecl *asserts.SnapDeclaration, snapRev *asse
 // ComponentSideInfo using digest and size for a component and ID/name for the
 // snap to find the relevant assertions with the information in the given
 // database. It will fail with an asserts.NotFoundError if it cannot find them.
-func DeriveComponentSideInfoFromDigestAndSize(resName, snapName, snapID string, compPath, snapSHA3_384 string, resSize uint64, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
+func DeriveComponentSideInfoFromDigestAndSize(resName string, snapName naming.SnapName, snapID string, compPath, snapSHA3_384 string, resSize uint64, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
 	// get relevant assertions and reconstruct metadata
 	headers := map[string]string{
 		"snap-id":           snapID,

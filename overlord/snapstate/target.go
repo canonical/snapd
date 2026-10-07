@@ -498,7 +498,7 @@ func checkSnapAgainstConstraints(
 	return nil
 }
 
-func checkComponentsPresenceAndRevision(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
+func checkComponentsPresenceAndRevision(snapName naming.SnapName, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
 	verb := "install"
 	switch action {
 	case "refresh":
@@ -526,7 +526,7 @@ func checkComponentsPresenceAndRevision(snapName string, comps map[string]snap.R
 	return nil
 }
 
-func checkComponentsAgainstConstraints(snapName string, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
+func checkComponentsAgainstConstraints(snapName naming.SnapName, comps map[string]snap.Revision, constraints snapasserts.SnapPresenceConstraints, action string) error {
 	verb := "install"
 	switch action {
 	case "refresh":
@@ -732,7 +732,7 @@ func invalidRevisionError(action, snapName string, sets []snapasserts.Validation
 	)
 }
 
-func invalidComponentRevisionError(action, snapName, componentName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
+func invalidComponentRevisionError(action string, snapName naming.SnapName, componentName string, sets []snapasserts.ValidationSetKey, requested, required snap.Revision) error {
 	verb := "install"
 	preposition := "at"
 	switch action {

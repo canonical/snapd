@@ -444,10 +444,10 @@ func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.Mod
 type modelSnapsForRemodel struct {
 	new *asserts.Model
 
-	oldSnap      string
+	oldSnap      naming.SnapName
 	oldModelSnap *asserts.ModelSnap
 
-	newSnap      string
+	newSnap      naming.SnapName
 	newModelSnap *asserts.ModelSnap
 }
 
@@ -467,7 +467,7 @@ type remodeler struct {
 // remodeling to.
 type remodelSnapTarget struct {
 	// name is the name of the snap.
-	name string
+	name naming.SnapName
 	// channel is the channel that the snap should be installed from and track.
 	channel string
 	// newModelSnap is the model snap for this target. This might be nil for
@@ -2685,7 +2685,7 @@ func installedSnapRevision(st *state.State, name string) (bool, snap.Revision, e
 	return true, snapst.Current, nil
 }
 
-func installedComponentRevision(st *state.State, snapName, compName string) (bool, snap.Revision, error) {
+func installedComponentRevision(st *state.State, snapName naming.SnapName, compName string) (bool, snap.Revision, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		if errors.Is(err, state.ErrNoState) {

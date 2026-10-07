@@ -745,8 +745,8 @@ type RemoveComponentsOpts struct {
 }
 
 // RemoveComponents returns a taskset that removes the components in compName
-// that belog to snapName.
-func RemoveComponents(st *state.State, snapName string, compName []string, opts RemoveComponentsOpts) ([]*state.TaskSet, error) {
+// that belong to instanceName.
+func RemoveComponents(st *state.State, instanceName naming.InstanceName, compName []string, opts RemoveComponentsOpts) ([]*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, snapName, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

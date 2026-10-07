@@ -102,7 +102,7 @@ func printInstallHint(assertPath string, containerPaths []string) {
 `), assertPath, strings.Join(relativePaths, " "))
 }
 
-func downloadDirect(snapName string, components []string, opts tooling.DownloadSnapOptions) error {
+func downloadDirect(snapName naming.SnapName, components []string, opts tooling.DownloadSnapOptions) error {
 	compRefs := make([]string, 0, len(components))
 	for _, comp := range components {
 		compRefs = append(compRefs, naming.NewComponentRef(snapName, comp).String())
@@ -251,7 +251,7 @@ func downloadAssertionsImpl(
 	return assertPath, nil
 }
 
-func (x *cmdDownload) downloadFromStore(snap string, comps []string, revision snap.Revision) error {
+func (x *cmdDownload) downloadFromStore(snap naming.SnapName, comps []string, revision snap.Revision) error {
 	return downloadDirect(snap, comps, tooling.DownloadSnapOptions{
 		TargetDir: x.TargetDir,
 		Basename:  x.Basename,
