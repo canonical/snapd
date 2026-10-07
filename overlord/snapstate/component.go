@@ -770,7 +770,7 @@ func RemoveComponents(st *state.State, instanceName naming.InstanceName, compNam
 
 	var tss []*state.TaskSet
 	for _, comp := range compName {
-		cref := naming.NewComponentRef(snapName, comp)
+		cref := naming.NewComponentRef(instanceName.SnapName(), comp)
 		compst := snapst.CurrentComponentState(cref)
 		if compst == nil {
 			return nil, &snap.ComponentNotInstalledError{

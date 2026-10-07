@@ -138,6 +138,48 @@ func (s *snapmgrTestSuite) TestRemoveComponents(c *C) {
 	s.testRemoveComponents(c, snapstate.RemoveComponentsOpts{})
 }
 
+func (s *snapmgrTestSuite) TestRemoveComponentsParallelInstance(c *C) {
+	const snapName = "mysnap"
+	const instanceName = "mysnap_parallel"
+	const componentName = "parallel-comp"
+	snapRev := snap.R(1)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, tc := range []struct {
+		instanceName string
+		instanceKey  string
+		component    string
+	}{
+		{instanceName: snapName, component: "base-comp"},
+		{instanceName: instanceName, instanceKey: "parallel", component: componentName},
+	} {
+		csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, tc.component), snap.R(1))
+		ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: "some-snap-id"}
+		seq := snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{
+				sequence.NewComponentState(csi, snap.StandardComponent),
+			}),
+		})
+		snapstate.Set(s.state, tc.instanceName, &snapstate.SnapState{
+			Active:      true,
+			InstanceKey: tc.instanceKey,
+			Sequence:    seq,
+			Current:     snapRev,
+		})
+	}
+
+	tss, err := snapstate.RemoveComponents(s.state, naming.InstanceName(instanceName),
+		[]string{componentName}, snapstate.RemoveComponentsOpts{})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 1)
+
+	snapsup, err := snapstate.TaskSnapSetup(tss[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.InstanceName().String(), Equals, instanceName)
+}
+
 func (s *snapmgrTestSuite) TestRemoveComponentsRefreshProf(c *C) {
 	s.testRemoveComponents(c, snapstate.RemoveComponentsOpts{RefreshProfile: true})
 }
