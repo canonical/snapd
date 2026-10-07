@@ -220,7 +220,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=nosuid,private",
+			"--options=nosuid,private,discard",
 			"--property=Before=initrd-fs.target",
 		},
 	})
@@ -368,7 +368,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=nosuid,private",
+			"--options=nosuid,private,discard",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -377,7 +377,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
-			"--options=nodev,nosuid,noexec,private",
+			"--options=nodev,nosuid,noexec,private,discard",
 			"--property=Before=initrd-fs.target",
 		},
 	})

@@ -63,10 +63,11 @@ var (
 		Private: true,
 	}
 	needsNoSuidNoDevNoExecMountOpts = &main.SystemdMountOptions{
-		Private: true,
-		NoSuid:  true,
-		NoExec:  true,
-		NoDev:   true,
+		Private:      true,
+		NoSuid:       true,
+		NoExec:       true,
+		NoDev:        true,
+		AllowDiscard: true,
 	}
 	needsFsckAndNoSuidNoDevNoExecMountOpts = &main.SystemdMountOptions{
 		Private:   true,
@@ -75,21 +76,32 @@ var (
 		NoExec:    true,
 		NoDev:     true,
 	}
+	needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts = &main.SystemdMountOptions{
+		Private:      true,
+		NeedsFsck:    true,
+		NoSuid:       true,
+		NoExec:       true,
+		NoDev:        true,
+		AllowDiscard: true,
+	}
 	needsFsckNoPrivateDiskMountOpts = &main.SystemdMountOptions{
-		NeedsFsck: true,
+		NeedsFsck:    true,
+		AllowDiscard: true,
 	}
 	needsFsckDiskMountOpts = &main.SystemdMountOptions{
 		NeedsFsck: true,
 		Private:   true,
 	}
 	needsFsckAndNoSuidDiskMountOpts = &main.SystemdMountOptions{
-		NeedsFsck: true,
-		NoSuid:    true,
-		Private:   true,
+		NeedsFsck:    true,
+		NoSuid:       true,
+		Private:      true,
+		AllowDiscard: true,
 	}
 	needsNoSuidDiskMountOpts = &main.SystemdMountOptions{
-		NoSuid:  true,
-		Private: true,
+		NoSuid:       true,
+		Private:      true,
+		AllowDiscard: true,
 	}
 	snapMountOpts = &main.SystemdMountOptions{
 		ReadOnly: true,
@@ -756,7 +768,7 @@ func (s *baseInitramfsMountsSuite) nodeMount(label string, mode string) systemdM
 		mnt.what = "/dev/sda4"
 		mnt.where = boot.InitramfsUbuntuSaveDir
 		if mode == "run" {
-			mnt.opts = needsFsckAndNoSuidNoDevNoExecMountOpts
+			mnt.opts = needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts
 		} else {
 			mnt.opts = needsNoSuidNoDevNoExecMountOpts
 		}

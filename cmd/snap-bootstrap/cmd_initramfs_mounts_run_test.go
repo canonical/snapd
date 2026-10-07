@@ -477,7 +477,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=nosuid,private",
+			"--options=nosuid,private,discard",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -604,7 +604,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=nosuid,private",
+			"--options=nosuid,private,discard",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -613,7 +613,7 @@ Wants=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=yes",
-			"--options=nodev,nosuid,noexec,private",
+			"--options=nodev,nosuid,noexec,private,discard",
 			"--property=Before=initrd-fs.target",
 		}, {
 			"systemd-mount",
@@ -852,7 +852,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			needsFsckAndNoSuidNoDevNoExecMountOpts,
+			needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts,
 			nil,
 			nil,
 		},
@@ -993,7 +993,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappyRecov
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			needsFsckAndNoSuidNoDevNoExecMountOpts,
+			needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts,
 			nil,
 			nil,
 		},

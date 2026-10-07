@@ -202,6 +202,8 @@ type systemdMountOptions struct {
 	Private bool
 	// Umount the mountpoint
 	Umount bool
+	// AllowDiscard allows the filesystem to discard/trim
+	AllowDiscard bool
 	// FsOpts groups additional options for the mount such as overlayfs or
 	// dm-verity related options.
 	FsOpts fsOpts
@@ -288,6 +290,9 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	}
 	if opts.Private {
 		options = append(options, "private")
+	}
+	if opts.AllowDiscard {
+		options = append(options, "discard")
 	}
 
 	if opts.FsOpts != nil {

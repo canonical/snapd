@@ -147,7 +147,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedSeedI
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		{"/dev/sda2", boot.InitramfsUbuntuBootDir, needsFsckDiskMountOpts, nil, nil},
 		{"/dev/sda3", boot.InitramfsDataDir, needsFsckNoPrivateDiskMountOpts, nil, nil},
-		{"/dev/sda4", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
+		{"/dev/sda4", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts, nil, nil},
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -189,7 +189,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeUnencryptedNoSee
 	restore := s.mockSystemdMountSequence(c, []systemdMount{
 		{"/dev/sda2", boot.InitramfsUbuntuBootDir, needsFsckDiskMountOpts, nil, nil},
 		{"/dev/sda3", boot.InitramfsDataDir, needsFsckNoPrivateDiskMountOpts, nil, nil},
-		{"/dev/sda4", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
+		{"/dev/sda4", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts, nil, nil},
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -291,7 +291,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeEncryptedDataHap
 		{
 			"/dev/mapper/ubuntu-save-random",
 			boot.InitramfsUbuntuSaveDir,
-			needsFsckAndNoSuidNoDevNoExecMountOpts,
+			needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts,
 			nil,
 			nil,
 		},
@@ -497,7 +497,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamName(c *
 		},
 		{"/dev/sda2", boot.InitramfsUbuntuSeedDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
 		{"/dev/sda3", boot.InitramfsDataDir, needsFsckNoPrivateDiskMountOpts, nil, nil},
-		{"/dev/sda5", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
+		{"/dev/sda5", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts, nil, nil},
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)
@@ -571,7 +571,7 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamPath(c *
 		},
 		{"/dev/sda2", boot.InitramfsUbuntuSeedDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
 		{"/dev/sda3", boot.InitramfsDataDir, needsFsckNoPrivateDiskMountOpts, nil, nil},
-		{"/dev/sda5", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecMountOpts, nil, nil},
+		{"/dev/sda5", boot.InitramfsUbuntuSaveDir, needsFsckAndNoSuidNoDevNoExecAllowDiscardMountOpts, nil, nil},
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 	}, nil)

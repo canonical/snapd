@@ -1361,8 +1361,9 @@ func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 	// however, data should always be mounted nosuid to prevent snaps from
 	// extracting suid executables there and trying to circumvent the sandbox
 	mountOpts := &systemdMountOptions{
-		NoSuid:  true,
-		Private: true,
+		NoSuid:       true,
+		Private:      true,
+		AllowDiscard: true,
 	}
 	mountErr := doSystemdMount(data.fsDevice, boot.InitramfsHostUbuntuDataDir, mountOpts)
 	m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr)
@@ -1495,10 +1496,11 @@ func (m *recoverModeStateMachine) mountSave() (stateFunc, error) {
 	save := m.degradedState.partition("ubuntu-save")
 	// TODO: should we fsck ubuntu-save ?
 	mountOpts := &systemdMountOptions{
-		Private: true,
-		NoDev:   true,
-		NoSuid:  true,
-		NoExec:  true,
+		Private:      true,
+		NoDev:        true,
+		NoSuid:       true,
+		NoExec:       true,
+		AllowDiscard: true,
 	}
 	mountErr := doSystemdMount(save.fsDevice, boot.InitramfsUbuntuSaveDir, mountOpts)
 	m.setMountState("ubuntu-save", boot.InitramfsUbuntuSaveDir, mountErr)
@@ -2306,7 +2308,8 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
 	dataMountOpts := systemdMountOptions{
-		NeedsFsck: true,
+		NeedsFsck:    true,
+		AllowDiscard: true,
 	}
 	if !isClassic {
 		dataMountOpts = setUbuntuCoreDataMountOptions(dataMountOpts)
@@ -2322,11 +2325,12 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// 3.2. mount ubuntu-save (if present)
 	saveMountOpts := &systemdMountOptions{
-		NeedsFsck: true,
-		Private:   true,
-		NoDev:     true,
-		NoSuid:    true,
-		NoExec:    true,
+		NeedsFsck:    true,
+		Private:      true,
+		NoDev:        true,
+		NoSuid:       true,
+		NoExec:       true,
+		AllowDiscard: true,
 	}
 	haveSave, saveUnlockRes, err := maybeMountSave(mst.activateContext, disk, rootfsDir, isEncryptedDev, saveMountOpts)
 	if err != nil {
