@@ -185,6 +185,23 @@ nested_prepare_tools() {
     fi
 }
 
+nested_enable_wip_features() {
+    if [ $# -eq 0 ]; then
+        echo "nested_enable_wip_features: at least one feature is required" >&2
+        return 1
+    fi
+
+    local features
+    features="$(IFS=,; echo "$*")"
+
+    # work-in-progress features are enabled only through the environment of
+    # snapd, use a drop-in so the setting persists across reboots
+    remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+    remote.exec "printf '[Service]\nEnvironment=SNAPD_WIP=%s\n' '$features' | sudo tee /etc/systemd/system/snapd.service.d/wip.conf"
+    remote.exec "sudo systemctl daemon-reload"
+    remote.exec "sudo systemctl restart snapd.service"
+}
+
 nested_fetch_spread() {
     mkdir -p "$NESTED_WORK_DIR"
     rm -f "$NESTED_WORK_DIR/spread"

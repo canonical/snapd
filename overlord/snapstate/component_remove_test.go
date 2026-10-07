@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -476,9 +476,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentInSeedRefresh(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	s.AddCleanup(snapstate.MockCheckSeedRefreshRemove(func(*state.State,
 		snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error {

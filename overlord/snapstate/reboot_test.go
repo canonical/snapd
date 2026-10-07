@@ -23,7 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/dot/dottest"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -811,9 +811,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshBeforeLocalModifi
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
@@ -860,9 +858,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefresh(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
@@ -892,9 +888,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefreshBeforeLocalM
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
@@ -940,9 +934,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialSeedRefresh
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
@@ -984,9 +976,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshAppsWaitAfterEsse
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
@@ -1066,9 +1056,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	snapsup := &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
