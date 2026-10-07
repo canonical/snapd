@@ -33,4 +33,4 @@ if [ -n "$XDG_RUNTIME_DIR" ]; then
     fi
 fi
 
-"$SNAP/usr/bin/weston-info"
+"$SNAP/usr/bin/wayland-info"
