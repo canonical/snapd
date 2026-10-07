@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -37,7 +39,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timings"
-	"github.com/snapcore/snapd/usersession/client"
+	"github.com/snapcore/snapd/usersession/service"
 	"github.com/snapcore/snapd/wrappers/internal"
 )
 
@@ -85,13 +87,17 @@ type ScopeOptions struct {
 }
 
 type userServiceClient struct {
-	cli   *client.Client
-	inter Interacter
+	uids    []int
+	targets *service.Targets
+	manager service.Manager
+	context context.Context
+	result  *service.Result
+	inter   Interacter
 }
 
 func newUserServiceClientUids(uids []int, inter Interacter) (*userServiceClient, error) {
 	return &userServiceClient{
-		cli:   client.NewForUids(uids...),
+		uids:  uids,
 		inter: inter,
 	}, nil
 }
@@ -112,10 +118,7 @@ func (c *userServiceClient) stopServices(disable bool, reason snap.ServiceStopRe
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
-	failures, err := c.cli.ServicesStop(ctx, services, disable)
-	for _, f := range failures {
-		c.inter.Notify(fmt.Sprintf("Could not stop service %q for uid %d: %s", f.Service, f.Uid, f.Error))
-	}
+	err := c.do(ctx, func(_ int, m service.Manager) error { return service.Stop(ctx, m, services, disable) })
 
 	// if the request is removal, then we want to just log it
 	if err != nil && reason == snap.StopReasonRemove {
@@ -132,32 +135,47 @@ func (c *userServiceClient) startServices(enable bool, disabledServices map[int]
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
 
-	startFailures, stopFailures, err := c.cli.ServicesStart(ctx, services, client.ClientServicesStartOptions{
-		Enable:           enable,
-		DisabledServices: disabledServices,
-	})
-	for _, f := range startFailures {
-		// If we manage to not receive a comm error, but still receive an error for failing to start one of
-		// the services, then propagate the first one instead of ignoring any start errors.
-		if err == nil {
-			err = fmt.Errorf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error)
+	return c.do(ctx, func(uid int, m service.Manager) error {
+		var filtered []string
+		for _, unit := range services {
+			disabled := false
+			for _, name := range disabledServices[uid] {
+				// Keep the existing disabled-app to activation-unit matching.
+				if strings.Contains(unit, name) {
+					disabled = true
+					break
+				}
+			}
+			if !disabled {
+				filtered = append(filtered, unit)
+			}
 		}
-		c.inter.Notify(fmt.Sprintf("could not start service %q for uid %d: %s", f.Service, f.Uid, f.Error))
-	}
-	for _, f := range stopFailures {
-		c.inter.Notify(fmt.Sprintf("while trying to stop previously started service %q for uid %d: %s", f.Service, f.Uid, f.Error))
-	}
-	return err
+		return service.Start(ctx, m, filtered, enable)
+	})
 }
 
 func (c *userServiceClient) restartServices(reload bool, services ...string) error {
+	if c.manager != nil {
+		return service.Restart(c.context, c.manager, services, reload)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	failures, err := c.cli.ServicesRestart(ctx, services, reload)
-	for _, f := range failures {
-		c.inter.Notify(fmt.Sprintf("Could not restart service %q for uid %d: %s", f.Service, f.Uid, f.Error))
+	return c.do(ctx, func(_ int, m service.Manager) error { return service.Restart(ctx, m, services, reload) })
+}
+
+func (c *userServiceClient) do(ctx context.Context, f func(int, service.Manager) error) error {
+	if c.targets == nil {
+		var err error
+		c.targets, err = service.Select(ctx, c.uids)
+		if err != nil {
+			return err
+		}
 	}
-	return err
+	c.result = c.targets.Do(ctx, f)
+	for _, failure := range c.result.Failures {
+		c.inter.Notify(fmt.Sprintf("cannot manage user services for uid %d: %v", failure.UID, failure.Err))
+	}
+	return c.result.Err()
 }
 
 func reloadOrRestartServices(sysd systemd.Systemd, cli *userServiceClient, reload bool, scope snap.DaemonScope, svcs []string) error {
@@ -249,6 +267,8 @@ func filterUserServicesNotInDisabledMap(disabledSvcs *DisabledServices, original
 type StartServicesOptions struct {
 	Enable bool
 	ScopeOptions
+	// UserServiceResult records the users actually affected by this call.
+	UserServiceResult *service.Result
 }
 
 // StartServices starts service units for the applications from the snap which
@@ -265,6 +285,10 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 	if err != nil {
 		return err
 	}
+	if disabledSvcs != nil && disabledSvcs.UserServiceUIDs != nil {
+		cli.uids = disabledSvcs.UserServiceUIDs
+	}
+	defer func() { opts.UserServiceResult = cli.result }()
 
 	// When starting and enabling services, act on the activated units instead of
 	// the services activated by those units. And since 'static' service units does
@@ -281,7 +305,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 			return
 		}
 
-		// Undo logic for user services is handled by user session agent,
+		// Undo logic for user services is handled by the user-service controller,
 		// we only handle undo logic for system services in this function
 		if undoStart && len(sysApps) > 0 {
 			// filteredApps could have been sorted according to their startup
@@ -381,7 +405,7 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 		if disabledSvcs != nil {
 			disabledUserSvcs = disabledSvcs.UserServices
 		}
-		// Undo logic is handled by user session agent, we only handle undo logic for system services
+		// Undo logic is handled by the user-service controller, we only handle undo logic for system services
 		// in this function
 		timings.Run(tm, "start-user-services", "start user services", func(nested timings.Measurer) {
 			err = cli.startServices(opts.Enable, disabledUserSvcs, userServices...)
@@ -394,10 +418,25 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs *DisabledServices, opts *S
 }
 
 func userDaemonReload() error {
-	cli := client.New()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
 	defer cancel()
-	return cli.ServicesDaemonReload(ctx)
+	targets, err := service.Select(ctx, nil)
+	if err != nil {
+		return err
+	}
+	return targets.Do(ctx, func(_ int, m service.Manager) error { return m.Reload(ctx) }).Err()
+}
+
+// RunningUserServiceUIDs snapshots running user managers for install-mode
+// filtering. Callers must not hold the overlord state lock during discovery.
+func RunningUserServiceUIDs() ([]int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+	defer cancel()
+	targets, err := service.Select(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return targets.UIDs(), nil
 }
 
 func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileState, modified bool, err error) {
@@ -980,6 +1019,9 @@ func filterAppsForStop(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInf
 type StopServicesOptions struct {
 	Disable bool
 	ScopeOptions
+	// UserServiceUIDs is an optional target snapshot; nil discovers all users.
+	UserServiceUIDs   []int
+	UserServiceResult *service.Result
 }
 
 // StopServices stops and optionally disables service units for the applications
@@ -1002,6 +1044,10 @@ func StopServices(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, op
 	if err != nil {
 		return err
 	}
+	if opts.UserServiceUIDs != nil {
+		cli.uids = opts.UserServiceUIDs
+	}
+	defer func() { opts.UserServiceResult = cli.result }()
 
 	// Ensure we stop all running services, also services started by
 	// activators. When disabling this is not necessary, but seems like
@@ -1306,44 +1352,60 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 	}
 	sysd := systemd.New(systemd.SystemMode, inter)
 
-	// Get service statuses for each of the apps
-	sysSvcs, usrSvcsMap, err := internal.QueryServiceStatusMany(apps, sysd)
-	if err != nil {
-		return err
+	// Select the scope before any status I/O. An unavailable user manager must
+	// not prevent a system-only operation, or one targeting another user.
+	var sysApps, userApps []*snap.AppInfo
+	for _, app := range apps {
+		if !app.IsService() || !opts.Scope.matches(app.DaemonScope) {
+			continue
+		}
+		if app.DaemonScope == snap.UserDaemon {
+			userApps = append(userApps, app)
+		} else {
+			sysApps = append(sysApps, app)
+		}
 	}
 
 	// Handle restart of system services if scope was set
-	if opts.Scope != ServiceScopeUser {
+	if len(sysApps) > 0 {
+		sysSvcs, _, err := internal.QueryServiceStatusMany(sysApps, sysd)
+		if err != nil {
+			return err
+		}
 		if err := restartServicesByStatus(sysSvcs, explicitServices, opts, sysd, nil, tm); err != nil {
 			return err
 		}
 	}
 
 	// Handle restart of the user services if scope was set
-	if opts.Scope != ServiceScopeSystem {
-		// Get a list of the uids that we are affecting
-		uids, err := osutil.UsernamesToUids(opts.Users)
+	if len(userApps) > 0 {
+		cli, err := newUserServiceClientNames(opts.Users, inter)
 		if err != nil {
 			return err
 		}
-
-		for uid, stss := range usrSvcsMap {
-			// If specific users were specified, i.e self, then make sure we only
-			// restart services for that user
-			if len(uids) > 0 && uids[uid] == "" {
-				continue
-			}
-
-			// Create a new client, only targeting that user
-			cli, err := newUserServiceClientUids([]int{uid}, inter)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout.DefaultTimeout))
+		defer cancel()
+		units := serviceUnitsFromApps(userApps, true)
+		var timingMu sync.Mutex
+		return cli.do(ctx, func(uid int, m service.Manager) error {
+			// Timings trees are not concurrent containers. Each user owns a
+			// separate subtree, attached under the shared parent while locked.
+			timingMu.Lock()
+			userTiming := tm.StartSpan("restart-user-services", fmt.Sprintf("restart services for uid %d", uid))
+			timingMu.Unlock()
+			defer userTiming.Stop()
+			sts, err := m.Status(ctx, units)
 			if err != nil {
 				return err
 			}
-
-			if err := restartServicesByStatus(stss, explicitServices, opts, sysd, cli, tm); err != nil {
+			byUID, err := internal.UserServiceStatusFromUnits(userApps, map[int][]*systemd.UnitStatus{uid: sts})
+			if err != nil {
 				return err
 			}
-		}
+			// Keep status, selection and every restart in the same operation.
+			perUser := &userServiceClient{manager: m, context: ctx, inter: inter}
+			return restartServicesByStatus(byUID[uid], explicitServices, opts, sysd, perUser, userTiming)
+		})
 	}
 	return nil
 }
@@ -1354,6 +1416,9 @@ func RestartServices(apps []*snap.AppInfo, explicitServices []string,
 // in one instance per user.
 type DisabledServices struct {
 	SystemServices []string
+	// UserServiceUIDs is the target snapshot used to capture UserServices.
+	// nil requests discovery, while an empty non-nil slice selects no users.
+	UserServiceUIDs []int
 	// UserServices is a map of services that should stay disabled on a per-user basis
 	// and is indexed by a users uid.
 	UserServices map[int][]string
@@ -1385,15 +1450,19 @@ func QueryDisabledServices(info *snap.Info, pb progress.Meter) (*DisabledService
 	// Build a new map of the disabled service strings instead
 	// of the internal service status objects
 	var userSvcs map[int][]string
+	userUIDs := make([]int, 0, len(usts))
 	if len(usts) > 0 {
 		userSvcs = make(map[int][]string, len(usts))
 		for uid, sts := range usts {
 			userSvcs[uid] = disabledServiceNames(sts)
+			userUIDs = append(userUIDs, uid)
 		}
 	}
+	sort.Ints(userUIDs)
 
 	return &DisabledServices{
-		SystemServices: disabledServiceNames(ssts),
-		UserServices:   userSvcs,
+		SystemServices:  disabledServiceNames(ssts),
+		UserServices:    userSvcs,
+		UserServiceUIDs: userUIDs,
 	}, nil
 }

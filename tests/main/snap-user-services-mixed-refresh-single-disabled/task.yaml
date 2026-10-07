@@ -4,6 +4,7 @@ details: |
     Given a snap that has a mix of system-services and user-services,
     we can disable and stop those (for current user), and then a refresh
     correctly preserves this state. 
+    Exercise both users with and without their session agents.
 
 # Only run on systems with polkit rules are supported, otherwise
 # are not able to test 'snap xxx --user' functionality as it needs
@@ -13,7 +14,13 @@ systems: [ ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64 ]
 
 kill-timeout: 10m
 
+environment:
+    SESSION_AGENT/agent_present: present
+    SESSION_AGENT/agent_absent: absent
+
 prepare: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
     # disable it.
@@ -32,6 +39,10 @@ prepare: |
         useradd --extrausers -m -d /home/test2 test2
     fi
     tests.session -u test2 prepare
+    if [ "$SESSION_AGENT" = absent ]; then
+        user_service_agent_mask test
+        user_service_agent_mask test2
+    fi
 
     # rules are only supported from 23.10+
     if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
@@ -54,9 +65,13 @@ prepare: |
     fi
 
 restore: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
     snap remove --purge test-snapd-mixed-service || true
     snap remove --purge test-snapd-mixed-service-v2 || true
 
+    user_service_agent_restore test
+    user_service_agent_restore test2
     tests.session -u test2 restore
     if ! userdel -rf test2; then
         userdel --extrausers -rf test2
@@ -71,6 +86,8 @@ restore: |
     rm -f /etc/polkit-1/rules.d/io.snapcraft.snapd.rules || true
 
 execute: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
     function systemctl_as_test() {
       tests.session -u test exec systemctl --user "$@"
     }
@@ -126,3 +143,7 @@ execute: |
 
     systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH '^active$'
     systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^enabled$'
+    if [ "$SESSION_AGENT" = absent ]; then
+        user_service_agent_check test
+        user_service_agent_check test2
+    fi

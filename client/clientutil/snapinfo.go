@@ -133,6 +133,13 @@ func ClientAppInfoNotes(app *client.AppInfo) string {
 // service status information as well, this will be done only if the
 // snap is active and when the app is a service.
 func ClientAppInfosFromSnapAppInfos(apps []*snap.AppInfo, decorator StatusDecorator) ([]client.AppInfo, error) {
+	// A decorator may batch external status queries for this request. This also
+	// gives it a bounded connection lifetime without extending StatusDecorator.
+	if preparer, ok := decorator.(interface{ PrepareStatus([]*snap.AppInfo) error }); ok {
+		if err := preparer.PrepareStatus(apps); err != nil {
+			return nil, err
+		}
+	}
 	out := make([]client.AppInfo, 0, len(apps))
 	for _, app := range apps {
 		appInfo := client.AppInfo{

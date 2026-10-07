@@ -3,6 +3,7 @@ summary: On upgrade failures, user session daemons are restarted
 details: |
     Check that snapd restarts the user session daemons when snap
     refresh fails.
+    Exercise recovery with and without a session agent.
 
 systems:
     # Ubuntu 14.04's systemd doesn't have user@.service
@@ -13,7 +14,13 @@ systems:
 
 kill-timeout: 10m
 
+environment:
+    SESSION_AGENT/agent_present: present
+    SESSION_AGENT/agent_absent: absent
+
 prepare: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
     # Ensure that snapd.session-agent.socket is enabled.  This may not
     # be the case on distributions where presets have been used to
     # disable it.
@@ -25,8 +32,14 @@ prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
     tests.session -u test prepare
+    if [ "$SESSION_AGENT" = absent ]; then
+        user_service_agent_mask test
+    fi
 
 restore: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
+    user_service_agent_restore test
     tests.session -u test restore
     snap remove --purge test-snapd-user-service || true
     snap remove --purge test-snapd-user-service-v2-bad || true
@@ -42,6 +55,8 @@ debug: |
     tests.session -u test exec journalctl --user || true
 
 execute: |
+    # shellcheck source=tests/lib/user-service-agent.sh
+    . "$TESTSLIB/user-service-agent.sh"
     function systemctl_user() {
       tests.session -u test exec systemctl --user "$@"
     }
@@ -67,4 +82,6 @@ execute: |
     systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > new-main.pid
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
-
+    if [ "$SESSION_AGENT" = absent ]; then
+        user_service_agent_check test
+    fi

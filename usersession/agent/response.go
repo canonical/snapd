@@ -93,9 +93,7 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 type errorKind string
 
 const (
-	errorKindLoginRequired  = errorKind("login-required")
-	errorKindServiceControl = errorKind("service-control")
-	errorKindServiceStatus  = errorKind("service-status")
+	errorKindLoginRequired = errorKind("login-required")
 )
 
 type errorValue any

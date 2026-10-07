@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/mvo5/goconfigparser"
@@ -36,16 +35,12 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/usersession/client"
 )
 
 var restApi = []*Command{
 	rootCmd,
 	sessionInfoCmd,
-	serviceControlCmd,
-	serviceStatusCmd,
 	pendingRefreshNotificationCmd,
 	finishRefreshNotificationCmd,
 }
@@ -59,16 +54,6 @@ var (
 	sessionInfoCmd = &Command{
 		Path: "/v1/session-info",
 		GET:  sessionInfo,
-	}
-
-	serviceControlCmd = &Command{
-		Path: "/v1/service-control",
-		POST: postServiceControl,
-	}
-
-	serviceStatusCmd = &Command{
-		Path: "/v1/service-status",
-		GET:  serviceStatus,
 	}
 
 	pendingRefreshNotificationCmd = &Command{
@@ -89,176 +74,6 @@ func sessionInfo(c *Command, r *http.Request) Response {
 	return SyncResponse(m)
 }
 
-func serviceStart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
-	// Refuse to start non-snap services
-	for _, service := range inst.Services {
-		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot start non-snap service %v", service)
-		}
-	}
-
-	startErrors := make(map[string]string)
-	var err error
-	if inst.Enable {
-		if err = sysd.EnableNoReload(inst.Services); err != nil {
-			return InternalError("cannot enable snap services %q: %v", inst.Services, err)
-		}
-
-		// Setup undo logic for the enable in case of errors
-		defer func() {
-			if err == nil && len(startErrors) == 0 {
-				return
-			}
-
-			// Only log errors in this case to avoid overriding the initial error
-			if err := sysd.DisableNoReload(inst.Services); err != nil {
-				logger.Noticef("cannot disable previously enabled services %q: %v", inst.Services, err)
-			}
-			if err := sysd.DaemonReload(); err != nil {
-				logger.Noticef("cannot reload systemd: %v", err)
-			}
-		}()
-
-		if err = sysd.DaemonReload(); err != nil {
-			return InternalError("cannot reload systemd: %v", err)
-		}
-	}
-
-	var started []string
-	for _, service := range inst.Services {
-		if err := sysd.Start([]string{service}); err != nil {
-			startErrors[service] = err.Error()
-			break
-		}
-		started = append(started, service)
-	}
-
-	if len(startErrors) == 0 {
-		return SyncResponse(nil)
-	}
-
-	// If we got any failures, attempt to stop the services we started, and
-	// then re-disable if enable was requested
-	stopErrors := make(map[string]string)
-	for _, service := range started {
-		if err := sysd.Stop([]string{service}); err != nil {
-			stopErrors[service] = err.Error()
-		}
-	}
-
-	return SyncResponse(&resp{
-		Type:   ResponseTypeError,
-		Status: 500,
-		Result: &errorResult{
-			Message: "some user services failed to start",
-			Kind:    errorKindServiceControl,
-			Value: map[string]any{
-				"start-errors": startErrors,
-				"stop-errors":  stopErrors,
-			},
-		},
-	})
-}
-
-func serviceRestart(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
-	// Refuse to restart non-snap services
-	for _, service := range inst.Services {
-		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot restart non-snap service %v", service)
-		}
-	}
-
-	restartErrors := make(map[string]string)
-	for _, service := range inst.Services {
-		if inst.Reload {
-			if err := sysd.ReloadOrRestart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
-			}
-		} else {
-			if err := sysd.Restart([]string{service}); err != nil {
-				restartErrors[service] = err.Error()
-			}
-		}
-	}
-	if len(restartErrors) == 0 {
-		return SyncResponse(nil)
-	}
-	return SyncResponse(&resp{
-		Type:   ResponseTypeError,
-		Status: 500,
-		Result: &errorResult{
-			Message: "some user services failed to restart",
-			Kind:    errorKindServiceControl,
-			Value: map[string]any{
-				"restart-errors": restartErrors,
-			},
-		},
-	})
-}
-
-func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
-	// Refuse to stop non-snap services
-	for _, service := range inst.Services {
-		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot stop non-snap service %v", service)
-		}
-	}
-
-	stopErrors := make(map[string]string)
-	for _, service := range inst.Services {
-		if err := sysd.Stop([]string{service}); err != nil {
-			stopErrors[service] = err.Error()
-		}
-	}
-
-	if len(stopErrors) != 0 {
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Status: 500,
-			Result: &errorResult{
-				Message: "some user services failed to stop",
-				Kind:    errorKindServiceControl,
-				Value: map[string]any{
-					"stop-errors": stopErrors,
-				},
-			},
-		})
-	}
-
-	if inst.Disable {
-		if err := sysd.DisableNoReload(inst.Services); err != nil {
-			return InternalError(fmt.Sprintf("cannot disable services %q: %v", inst.Services, err))
-		}
-		if err := sysd.DaemonReload(); err != nil {
-			return InternalError(fmt.Sprintf("cannot reload systemd: %v", err))
-		}
-	}
-	return SyncResponse(nil)
-}
-
-func serviceDaemonReload(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
-	if len(inst.Services) != 0 {
-		return InternalError("daemon-reload should not be called with any services")
-	}
-	if err := sysd.DaemonReload(); err != nil {
-		return InternalError("cannot reload daemon: %v", err)
-	}
-	return SyncResponse(nil)
-}
-
-var serviceInstructionDispTable = map[string]func(*client.ServiceInstruction, systemd.Systemd) Response{
-	"start":         serviceStart,
-	"stop":          serviceStop,
-	"restart":       serviceRestart,
-	"daemon-reload": serviceDaemonReload,
-}
-
-var systemdLock sync.Mutex
-
-type noopReporter struct{}
-
-func (noopReporter) Notify(string) {}
-
 func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
@@ -276,86 +91,6 @@ func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	}
 
 	return true, nil
-}
-
-func postServiceControl(c *Command, r *http.Request) Response {
-	if ok, resp := validateJSONRequest(r); !ok {
-		return resp
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	var inst client.ServiceInstruction
-	if err := decoder.Decode(&inst); err != nil {
-		return BadRequest("cannot decode request body into service instruction: %v", err)
-	}
-	impl := serviceInstructionDispTable[inst.Action]
-	if impl == nil {
-		return BadRequest("unknown action %s", inst.Action)
-	}
-	// Prevent multiple systemd actions from being carried out simultaneously
-	systemdLock.Lock()
-	defer systemdLock.Unlock()
-	sysd := systemd.New(systemd.UserMode, noopReporter{})
-	return impl(&inst, sysd)
-}
-
-func unitStatusToClientUnitStatus(units []*systemd.UnitStatus) []*client.ServiceUnitStatus {
-	var results []*client.ServiceUnitStatus
-	for _, u := range units {
-		results = append(results, &client.ServiceUnitStatus{
-			Daemon:           u.Daemon,
-			Id:               u.Id,
-			Name:             u.Name,
-			Names:            u.Names,
-			Enabled:          u.Enabled,
-			Active:           u.Active,
-			Installed:        u.Installed,
-			NeedDaemonReload: u.NeedDaemonReload,
-		})
-	}
-	return results
-}
-
-func serviceStatus(c *Command, r *http.Request) Response {
-	query := r.URL.Query()
-	services := strutil.CommaSeparatedList(query.Get("services"))
-
-	// Refuse to accept any non-snap services
-	for _, service := range services {
-		if !strings.HasPrefix(service, "snap.") {
-			return InternalError("cannot query non-snap service %v", service)
-		}
-	}
-
-	// Prevent multiple systemd actions from being carried out simultaneously
-	systemdLock.Lock()
-	defer systemdLock.Unlock()
-	sysd := systemd.New(systemd.UserMode, noopReporter{})
-
-	statusErrors := make(map[string]string)
-	var stss []*systemd.UnitStatus
-	for _, service := range services {
-		sts, err := sysd.Status([]string{service})
-		if err != nil {
-			statusErrors[service] = err.Error()
-			continue
-		}
-		stss = append(stss, sts...)
-	}
-	if len(statusErrors) > 0 {
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Status: 500,
-			Result: &errorResult{
-				Message: "some user services failed to respond to status query",
-				Kind:    errorKindServiceStatus,
-				Value: map[string]any{
-					"status-errors": statusErrors,
-				},
-			},
-		})
-	}
-	return SyncResponse(unitStatusToClientUnitStatus(stss))
 }
 
 var currentLocale = i18n.CurrentLocale

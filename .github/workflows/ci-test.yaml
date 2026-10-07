@@ -87,7 +87,7 @@ jobs:
 
       - name: vendor
         run: |
-          sudo snap install --classic --channel 1.18/stable go
+          sudo snap install --classic --channel 1.20/stable go
           /snap/bin/go mod vendor
           (
             cd c-vendor

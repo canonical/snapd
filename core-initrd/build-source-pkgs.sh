@@ -53,7 +53,7 @@ cp -a ../../cmd/snap-bootstrap/ cmd/
 cat << EOF > go.mod
 module github.com/snapcore/snap-bootstrap
 
-go 1.18
+go 1.20
 
 require	github.com/snapcore/snapd $commit
 EOF

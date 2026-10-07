@@ -132,7 +132,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires: make
-BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
+BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang} >= 1.20
 BuildRequires:  systemd
 BuildRequires:  squashfs-tools
 %{?systemd_requires}
@@ -180,8 +180,8 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/chai2010/gettext-go)
 BuildRequires: golang(github.com/cilium/ebpf)
-BuildRequires: golang(github.com/godbus/dbus/v5)
-BuildRequires: golang(github.com/godbus/dbus/v5/introspect)
+BuildRequires: golang(github.com/godbus/dbus/v5) >= 5.2.2
+BuildRequires: golang(github.com/godbus/dbus/v5/introspect) >= 5.2.2
 BuildRequires: golang(github.com/gorilla/mux)
 BuildRequires: golang(github.com/jessevdk/go-flags)
 BuildRequires: golang(github.com/juju/ratelimit)
@@ -275,8 +275,8 @@ BuildArch:     noarch
 %if ! 0%{?with_bundled}
 Requires:      golang(github.com/bmatcuk/doublestar/v4)
 Requires:      golang(github.com/chai2010/gettext-go)
-Requires:      golang(github.com/godbus/dbus/v5)
-Requires:      golang(github.com/godbus/dbus/v5/introspect)
+Requires:      golang(github.com/godbus/dbus/v5) >= 5.2.2
+Requires:      golang(github.com/godbus/dbus/v5/introspect) >= 5.2.2
 Requires:      golang(github.com/gorilla/mux)
 Requires:      golang(github.com/jessevdk/go-flags)
 Requires:      golang(github.com/juju/ratelimit)
@@ -369,6 +369,7 @@ Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/tool/snap-preseed) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/tool/snap-gpio-helper) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/tool/snapd-apparmor) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snapd-userbus) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/tool/snap-recovery-chooser) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock/runinhibit) = %{version}-%{release}
@@ -493,6 +494,7 @@ Provides:      golang(%{import_path}/timings) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/agent) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/autostart) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/client) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/userbus) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/userd/ui) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/xdgopenproxy) = %{version}-%{release}

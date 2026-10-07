@@ -32,6 +32,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil/user"
@@ -47,38 +48,67 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/usersession/agent"
+	"github.com/snapcore/snapd/usersession/service"
+	"github.com/snapcore/snapd/usersession/service/servicetest"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 type statusDecoratorSuite struct {
-	testutil.DBusTest
-	tempdir string
-	agent   *agent.SessionAgent
+	tempdir          string
+	managersRestorer func()
 }
 
 var _ = Suite(&statusDecoratorSuite{})
 
+type snapshotStatusManager struct {
+	service.Manager
+	queries int
+}
+
+func (m *snapshotStatusManager) Status(_ context.Context, units []string) ([]*systemd.UnitStatus, error) {
+	m.queries++
+	var statuses []*systemd.UnitStatus
+	for _, unit := range units {
+		statuses = append(statuses, &systemd.UnitStatus{Name: unit, Id: unit, Enabled: true, Active: true})
+	}
+	return statuses, nil
+}
+
+func (s *statusDecoratorSuite) TestUserStatusRequestOwnsOneConnection(c *C) {
+	manager := &snapshotStatusManager{}
+	opened, closed := 0, 0
+	restore := service.MockManagers(func(context.Context) ([]int, error) { return []int{1000}, nil }, func(context.Context, int) (service.Manager, func(), error) {
+		opened++
+		return manager, func() { closed++ }, nil
+	})
+	defer restore()
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(1)}}
+	c.Assert(os.MkdirAll(info.MountDir(), 0755), IsNil)
+	c.Assert(os.Symlink(info.Revision.String(), filepath.Join(filepath.Dir(info.MountDir()), "current")), IsNil)
+	apps := []*snap.AppInfo{
+		{Snap: info, Name: "one", Daemon: "simple", DaemonScope: snap.UserDaemon},
+		{Snap: info, Name: "two", Daemon: "simple", DaemonScope: snap.UserDaemon},
+	}
+	sd := servicestate.NewStatusDecoratorForUid(nil, context.Background(), "1000")
+	statuses, err := clientutil.ClientAppInfosFromSnapAppInfos(apps, sd)
+	c.Assert(err, IsNil)
+	c.Assert(statuses, HasLen, 2)
+	c.Assert(statuses[0].Active && statuses[1].Active, Equals, true)
+	c.Assert(opened, Equals, 1)
+	c.Assert(closed, Equals, 1)
+	c.Assert(manager.queries, Equals, 1)
+}
+
 func (s *statusDecoratorSuite) SetUpTest(c *C) {
-	s.DBusTest.SetUpTest(c)
+	s.managersRestorer = servicetest.MockSystemd(os.Getuid())
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
 
-	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
-	err := os.MkdirAll(xdgRuntimeDir, 0700)
-	c.Assert(err, IsNil)
-	s.agent, err = agent.New()
-	c.Assert(err, IsNil)
-	s.agent.Start()
 }
 
 func (s *statusDecoratorSuite) TearDownTest(c *C) {
-	if s.agent != nil {
-		err := s.agent.Stop()
-		c.Check(err, IsNil)
-	}
+	defer s.managersRestorer()
 	dirs.SetRootDir("")
-	s.DBusTest.TearDownTest(c)
 }
 
 func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
