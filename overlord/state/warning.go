@@ -235,9 +235,13 @@ func (s *State) RemoveWarning(message string) error {
 	return nil
 }
 
+const (
+	warningNoticeHasUserID = false
+	warningNoticeUserID    = uint32(0)
+)
+
 func warningNoticeKey(message string) noticeKey {
-	uid, hasUserID := flattenUserID(nil)
-	return noticeKey{hasUserID, uid, WarningNotice, message}
+	return noticeKey{warningNoticeHasUserID, warningNoticeUserID, WarningNotice, message}
 }
 
 func (s *State) noticeBackingWarning(message string) *Notice {
