@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -230,5 +231,5 @@ func refreshCatalogs(ctx context.Context, theStore StoreService) (*timings.Timin
 	err1 := namesFile.Commit()
 	err2 := cmdDB.Commit()
 
-	return perfTimings, errors.Join(err1, err2)
+	return perfTimings, strutil.JoinErrors(err1, err2)
 }
