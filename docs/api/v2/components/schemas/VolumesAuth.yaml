@@ -17,11 +17,12 @@ properties:
       - passphrase
       - pin
     description: >-
-      The authentication mode to use for the volumes. The selected mmust be
-      supported by the system and returned in `storage-encryptfeatures` in
-      SystemDetails ('passphrase-auth' for passphrase, 'pin-auth' PIN).
+      The authentication mode to use for the volumes. The selected must be
+      supported by the system and returned in `storage-encryption.features` in
+      SystemDetails ('passphrase-auth' for passphrase, 'pin-auth' for PIN).
 oneOf:
   - type: object
+    title: passphrase
     additionalProperties: false
     required:
       - mode
@@ -45,6 +46,7 @@ oneOf:
           The key derivation function to use for passphrase
           authentication. If omitted, snapd defaults to 'argon2id'.
   - type: object
+    title: PIN
     additionalProperties: false
     required:
       - mode

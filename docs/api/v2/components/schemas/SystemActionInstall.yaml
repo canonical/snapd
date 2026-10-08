@@ -23,6 +23,7 @@ properties:
 oneOf:
   - type: object
     description: Sets up the system's storage encryption.
+    title: setup-storage-encryption
     required:
       - step
     properties:
@@ -66,6 +67,7 @@ oneOf:
   - type: object
     description: >-
       Generates a recovery key for the system. Complete the `setup-storage-encryption` step before this step.
+    title: generate-recovery-key
     required:
       - step
     properties:
@@ -77,6 +79,7 @@ oneOf:
     description: >-
       Finishes the installation by writing missing volume content, setting up the bootloader, and
       installing the kernel. When complete, the installed system is ready to reboot.
+    title: finish
     required:
       - step
     properties:
@@ -111,6 +114,7 @@ oneOf:
   - type: object
     description: >-
       Preseeds the installed system. Call this step after the `finish` step completes and before rebooting.
+    title: preseed
     required:
       - step
       - target-root
