@@ -21,9 +21,13 @@
 package configcore
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 )
 
 const defaultDiskSpaceReservation = uint64(5 * quantity.SizeMiB)
@@ -42,6 +46,14 @@ func init() {
 
 // MigrateDiskSpaceReservation seeds the reservation while preserving flags for rollback.
 func MigrateDiskSpaceReservation(tr RunTransaction) error {
+	var migrated bool
+	if err := tr.State().Get("disk-space-reservation-migrated", &migrated); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if migrated {
+		return nil
+	}
+
 	enabled, err := legacyDiskSpaceFeatureEnabled(tr)
 	if err != nil {
 		return err
@@ -82,13 +94,35 @@ func legacyDiskSpaceFeatureEnabled(tr RunTransaction) (bool, error) {
 // handleDiskSpaceReservation runs the migration when a legacy experimental flag
 // is toggled at runtime, so the result matches what a snapd restart would do.
 func handleDiskSpaceReservation(tr RunTransaction, opts *fsOnlyContext) error {
-	// Only react to the legacy flags, otherwise an explicit unset of
-	// disk-reservation.size would immediately be migrated back.
-	if !changesLegacyDiskSpaceFeature(tr.Changes()) {
+	if strutil.ListContains(tr.Changes(), "core.disk-reservation.size") || !changesLegacyDiskSpaceFeature(tr.Changes()) {
 		return nil
 	}
 
+	st := tr.State()
+	st.Lock()
+	defer st.Unlock()
 	return MigrateDiskSpaceReservation(tr)
+}
+
+func completeDiskSpaceReservationMigration(tr RunTransaction) error {
+	if !strutil.ListContains(tr.Changes(), "core.disk-reservation.size") && !changesLegacyDiskSpaceFeature(tr.Changes()) {
+		return nil
+	}
+
+	var reservation any
+	if err := tr.GetMaybe("core", "disk-reservation.size", &reservation); err != nil {
+		return err
+	}
+	if reservation == nil && !strutil.ListContains(tr.Changes(), "core.disk-reservation.size") {
+		return nil
+	}
+
+	st := tr.State()
+	st.Lock()
+	defer st.Unlock()
+	tr.Commit()
+	st.Set("disk-space-reservation-migrated", true)
+	return nil
 }
 
 func changesLegacyDiskSpaceFeature(changes []string) bool {

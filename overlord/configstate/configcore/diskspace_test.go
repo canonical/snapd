@@ -165,6 +165,10 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationOnFeatureFlagChange(c *C
 		c.Assert(err, IsNil)
 		tr.Commit()
 
+		var migrated bool
+		c.Assert(s.state.Get("disk-space-reservation-migrated", &migrated), IsNil)
+		c.Check(migrated, Equals, true)
+
 		var enabled bool
 		c.Assert(tr.Get(snapName, confName, &enabled), IsNil)
 		c.Check(enabled, Equals, true)
@@ -177,6 +181,7 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationOnFeatureFlagChange(c *C
 		c.Assert(cleanupTr.Set("core", "disk-reservation.size", nil), IsNil)
 		c.Assert(cleanupTr.Set(snapName, confName, nil), IsNil)
 		cleanupTr.Commit()
+		s.state.Set("disk-space-reservation-migrated", nil)
 	}
 }
 
@@ -199,6 +204,13 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationKeepsExplicitUnset(c *C)
 	c.Assert(err, IsNil)
 	tr.Commit()
 
+	var migrated bool
+	c.Assert(s.state.Get("disk-space-reservation-migrated", &migrated), IsNil)
+	c.Check(migrated, Equals, true)
+	restartTr := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+	c.Assert(configcore.MigrateDiskSpaceReservation(restartTr), IsNil)
+	restartTr.Commit()
+
 	var reservation any
-	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
+	c.Check(config.IsNoOption(config.NewTransaction(s.state).Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }
