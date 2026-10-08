@@ -6678,6 +6678,30 @@ func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceSkippedIfReservationUnset(c *C
 	c.Assert(err, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceIgnoresLegacyFlag(c *C) {
+	for _, legacyFlag := range []any{nil, false, true} {
+		for _, checkEnabled := range []bool{false, true} {
+			s.state.Lock()
+			tr := config.NewTransaction(s.state)
+			c.Assert(tr.Set("core", "experimental.check-disk-space-refresh", legacyFlag), IsNil)
+			c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
+			tr.Commit()
+			s.state.Unlock()
+
+			_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
+				CheckEnabled:      checkEnabled,
+				InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
+				RetryCheckError:   &osutil.NotEnoughDiskSpaceError{},
+			})
+			if checkEnabled {
+				c.Check(err, FitsTypeOf, &snapstate.InsufficientSpaceError{}, Commentf("legacy flag: %v", legacyFlag))
+			} else {
+				c.Check(err, IsNil, Commentf("legacy flag: %v", legacyFlag))
+			}
+		}
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceFailInstallSize(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
 		CheckEnabled:    true,
@@ -7259,7 +7283,9 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 }
 
 func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, checkEnabled, failInstallSize, failDiskCheck bool) error {
+	var diskCheckCalled bool
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		diskCheckCalled = true
 		c.Check(sz, Equals, uint64(123)+snapstate.FallbackDiskSpaceReservation)
 		if failDiskCheck {
 			return &osutil.NotEnoughDiskSpaceError{}
@@ -7307,15 +7333,16 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, checkEnabled, failInst
 	} else {
 		c.Check(installSizeCalled, Equals, false)
 	}
+	c.Check(diskCheckCalled, Equals, checkEnabled && !failInstallSize)
 
 	return err
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationError(c *C) {
-	featureFlag := true
+	checkEnabled := true
 	failInstallSize := false
 	failDiskCheck := true
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
@@ -7323,10 +7350,10 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationHappy(c *C) {
-	featureFlag := true
+	checkEnabled := true
 	failInstallSize := false
 	failDiskCheck := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
 }
 
@@ -7423,19 +7450,39 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c 
 	c.Check(requiredSizes, DeepEquals, []uint64{123})
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfDisabled(c *C) {
-	featureFlag := false
+func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfReservationUnset(c *C) {
+	checkEnabled := false
 	failInstallSize := false
 	failDiskCheck := true
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceIgnoresLegacyFlag(c *C) {
+	for _, legacyFlag := range []any{nil, false, true} {
+		for _, checkEnabled := range []bool{false, true} {
+			s.state.Lock()
+			tr := config.NewTransaction(s.state)
+			c.Assert(tr.Set("core", "experimental.check-disk-space-refresh", legacyFlag), IsNil)
+			c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
+			tr.Commit()
+			s.state.Unlock()
+
+			err := s.testUpdateDiskSpaceCheck(c, checkEnabled, false, true)
+			if checkEnabled {
+				c.Check(err, FitsTypeOf, &snapstate.InsufficientSpaceError{}, Commentf("legacy flag: %v", legacyFlag))
+			} else {
+				c.Check(err, IsNil, Commentf("legacy flag: %v", legacyFlag))
+			}
+		}
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateDiskCheckInstallSizeError(c *C) {
-	featureFlag := true
+	checkEnabled := true
 	failInstallSize := true
 	failDiskCheck := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, ErrorMatches, "boom")
 }
 
@@ -11963,7 +12010,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRecordsFailures(c *C, afterReboot bool
 		restore := snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 		defer restore()
 		time.Sleep(10 * time.Millisecond)
-		// Trigger autorefresh.EnsureAfterSeed().
+		// Trigger autorefresh.Ensure().
 		err := s.snapmgr.Ensure()
 		c.Assert(err, IsNil)
 		s.state.Lock()
@@ -12152,7 +12199,7 @@ func (s *snapmgrTestSuite) testAutoRefreshRefreshInhibitNoticeRecorded(c *C, mar
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.EnsureAfterSeed().
+	// Trigger autorefresh.Ensure().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12271,7 +12318,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnPreDownl
 	}))
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.EnsureAfterSeed().
+	// Trigger autorefresh.Ensure().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12342,7 +12389,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeNotRecorded(c *C) 
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.EnsureAfterSeed().
+	// Trigger autorefresh.Ensure().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12397,7 +12444,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnce(c *C)
 	s.state.Unlock()
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-	// Trigger autorefresh.EnsureAfterSeed().
+	// Trigger autorefresh.Ensure().
 	err := s.snapmgr.Ensure()
 	c.Assert(err, IsNil)
 
@@ -12424,7 +12471,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshRefreshInhibitNoticeRecordedOnce(c *C)
 		restore = snapstate.MockRefreshRetryDelay(1 * time.Millisecond)
 		defer restore()
 		time.Sleep(10 * time.Millisecond)
-		// Trigger autorefresh.EnsureAfterSeed().
+		// Trigger autorefresh.Ensure().
 		c.Assert(s.snapmgr.Ensure(), IsNil)
 		s.state.Lock()
 	}
