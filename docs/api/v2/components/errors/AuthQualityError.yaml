@@ -18,33 +18,20 @@ oneOf:
         type: string
         description: A human-readable error message explaining why the PIN or passphrase did not pass quality checks.
       value:
-        type: object
-        required:
-          - reasons
-          - entropy-bits
-          - min-entropy-bits
-          - optimal-entropy-bits
         description: Machine-readable details about the failure.
-        properties:
-          reasons:
-            type: array
-            description: A list of reasons indicating which quality checks failed.
-            items:
-              type: string
-              enum:
-                - low-entropy
-          entropy-bits:
-            type: integer
-            minimum: 0
-            description: The calculated entropy of the PIN or passphrase in bits.
-          min-entropy-bits:
-            type: integer
-            minimum: 0
-            description: The minimum required entropy of the PIN or passphrase in bits.
-          optimal-entropy-bits:
-            type: integer
-            minimum: 0
-            description: The recommended minimum entropy of the PIN or passphrase in bits.
+        allOf:
+          - $ref: '../schemas/AuthQualityEntropyMetrics.yaml'
+          - type: object
+            required:
+              - reasons
+            properties:
+              reasons:
+                type: array
+                description: A list of reasons indicating which quality checks failed.
+                items:
+                  type: string
+                  enum:
+                    - low-entropy
   - type: object
     additionalProperties: false
     required:

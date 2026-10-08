@@ -94,6 +94,8 @@ components:
       $ref: './v2/components/responses/ServiceUnavailable.yaml'
 
   schemas:
+    AuthQualityEntropyMetrics:
+      $ref: './v2/components/schemas/AuthQualityEntropyMetrics.yaml'
     AuthQualityError:
       $ref: './v2/components/errors/AuthQualityError.yaml'
     ConfdbError:

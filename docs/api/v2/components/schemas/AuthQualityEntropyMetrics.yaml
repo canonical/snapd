@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: AuthQualityEntropyMetrics
+description: Entropy measurements and thresholds for a supplied passphrase or PIN.
+required:
+  - entropy-bits
+  - min-entropy-bits
+  - optimal-entropy-bits
+properties:
+  entropy-bits:
+    type: integer
+    minimum: 0
+    description: The calculated entropy of the passphrase or PIN in bits.
+  min-entropy-bits:
+    type: integer
+    minimum: 0
+    description:
+      The minimum required entropy for the corresponding authentication
+      mode (passphrase or PIN) in bits.
+  optimal-entropy-bits:
+    type: integer
+    minimum: 0
+    description:
+      The recommended minimum entropy for the corresponding authentication
+      mode (passphrase or PIN) in bits.
