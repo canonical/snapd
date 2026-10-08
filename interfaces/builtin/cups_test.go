@@ -249,6 +249,33 @@ func (s *cupsSuite) TestMountSpec(c *C) {
 	c.Assert(specLegacy.UserMountEntries(), HasLen, 0)
 }
 
+// TestParallelInstallProvider verifies that when the provider snap is
+// installed as a parallel instance, the expanded cups-socket-directory
+// reflects the provider's instance name (ie. the perspective of the plug
+// side), rather than the provider's bare snap name.
+func (s *cupsSuite) TestParallelInstallProvider(c *C) {
+	providerSlot, providerSlotInfo := MockConnectedSlot(c, cupsProviderYaml, nil, "cups-socket")
+	providerSlotInfo.Snap.InstanceKey = "instance"
+	c.Assert(providerSlotInfo.Snap.InstanceName().String(), Equals, "provider_instance")
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, providerSlot), IsNil)
+	c.Assert(spec.MountEntries(), DeepEquals, []osutil.MountEntry{
+		{
+			Name:    "/var/snap/provider_instance/common/foo-subdir",
+			Dir:     "/var/cups/",
+			Options: []string{"bind", "rw"},
+		},
+	})
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	aaSpec := apparmor.NewSpecification(appSet)
+	c.Assert(aaSpec.AddConnectedPlug(s.iface, s.plug, providerSlot), IsNil)
+	c.Assert(aaSpec.SnippetForTag("snap.consumer.app"), testutil.Contains, `"/var/snap/provider_instance/common/foo-subdir/**" mrwklix,`)
+	c.Assert(strings.Join(aaSpec.UpdateNS(), ""), testutil.Contains, `mount options=(rw bind) "/var/snap/provider_instance/common/foo-subdir/" -> /var/cups/,`)
+}
+
 func (s *cupsSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
