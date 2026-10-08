@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
@@ -115,6 +116,7 @@ type installSnapInfo struct {
 }
 
 func (ins installSnapInfo) DownloadSize() int64 {
+	// XXX: should this add the integrity data size as well?
 	return ins.DownloadInfo.Size
 }
 
@@ -892,6 +894,7 @@ func downloadTasks(
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
+		IntegrityDownloadInfos:      info.IntegrityDownloadInfos,
 	}
 
 	if sar.RedirectChannel != "" {
@@ -3850,11 +3853,12 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 
 		// start by installing the new snap
 		installTS, err := doInstallOrPreDownload(st, &newSnapst, &SnapSetup{
-			Channel:      oldSnapst.TrackingChannel,
-			DownloadInfo: &newInfo.DownloadInfo,
-			SideInfo:     &newInfo.SideInfo,
-			Type:         newInfo.Type(),
-			Version:      newInfo.Version,
+			Channel:                oldSnapst.TrackingChannel,
+			DownloadInfo:           &newInfo.DownloadInfo,
+			SideInfo:               &newInfo.SideInfo,
+			Type:                   newInfo.Type(),
+			Version:                newInfo.Version,
+			IntegrityDownloadInfos: newInfo.IntegrityDownloadInfos,
 		}, nil, installContext{})
 		if err != nil {
 			return nil, err
@@ -4370,6 +4374,26 @@ func maybeRemoveSnapDownload(file string) error {
 	// skip deleting new downloads
 	if fi.ModTime().Add(maxUnusedDownloadRetention).After(now) {
 		return nil
+	}
+	// TODO: consider removing associated integrity files for component downloads as well
+	if strings.HasSuffix(file, ".snap") {
+		// remove associated integrity files for the snap before removing the
+		// snap itself since the integrity files are downloaded after the snap
+		opts := &integrity.FindIntegrityFilesOptions{IncludePartial: true}
+		integrityFiles, err := integrity.FindIntegrityFilesForSnap(file, opts)
+		if err != nil {
+			return err
+		}
+		var errs []error
+		for _, integrityFile := range integrityFiles {
+			if err := os.Remove(integrityFile); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		// keep the snap so that its integrity files can be found on retry
+		if err := strutil.JoinErrors(errs...); err != nil {
+			return err
+		}
 	}
 
 	return os.Remove(file)

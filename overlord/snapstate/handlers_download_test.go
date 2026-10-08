@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -585,4 +586,149 @@ func (s *downloadSnapSuite) TestUndoDownloadSnapFileDone(c *C) {
 
 func (s *downloadSnapSuite) TestUndoDownloadSnapCleanupErrorNotFatal(c *C) {
 	s.testUndoDownloadSnapFile(c, cleanupErr)
+}
+
+func mockIntegrityDownloadInfo(typ, digest string) snap.IntegrityDownloadInfo {
+	return snap.IntegrityDownloadInfo{
+		IntegrityDataParams: integrity.IntegrityDataParams{
+			Type:          typ,
+			Version:       1,
+			HashAlg:       "sha256",
+			DataBlockSize: 4096,
+			HashBlockSize: 4096,
+			Digest:        digest,
+			Salt:          "salt",
+		},
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/" + digest + ".dmverity",
+			Sha3_384:    "integrity-hash-" + digest,
+		},
+	}
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapWithIntegrityData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "foo-id",
+			Revision: snap.R(11),
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/snap",
+		},
+		IntegrityDownloadInfos: []snap.IntegrityDownloadInfo{
+			mockIntegrityDownloadInfo("dm-verity", "digest"),
+		},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
+		},
+		{
+			name:   "foo",
+			target: filepath.Join(dirs.SnapBlobDir, "foo_11_digest.dmverity"),
+		},
+	})
+}
+
+func (s *downloadSnapSuite) testDoDownloadSnapIntegrityDataError(c *C, infos []snap.IntegrityDownloadInfo, expectedErr string) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "foo-id",
+			Revision: snap.R(11),
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://some-url.com/snap",
+		},
+		IntegrityDownloadInfos: infos,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, expectedErr)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	// the snap itself is not downloaded either
+	c.Check(s.fakeStore.downloads, HasLen, 0)
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapTooManyIntegrityDataEntries(c *C) {
+	infos := []snap.IntegrityDownloadInfo{
+		mockIntegrityDownloadInfo("dm-verity", "digest1"),
+		mockIntegrityDownloadInfo("dm-verity", "digest2"),
+	}
+	s.testDoDownloadSnapIntegrityDataError(c, infos, `(?s).*cannot download integrity data for snap "foo": expected at most one entry, got 2.*`)
+}
+
+func (s *downloadSnapSuite) TestDoDownloadSnapUnsupportedIntegrityDataType(c *C) {
+	infos := []snap.IntegrityDownloadInfo{
+		mockIntegrityDownloadInfo("other", "digest"),
+	}
+	s.testDoDownloadSnapIntegrityDataError(c, infos, `(?s).*cannot download integrity data for snap "foo": unexpected integrity data type "other".*`)
+}
+
+func (s *downloadSnapSuite) TestUndoDownloadSnapWithIntegrityData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			Sha3_384: "some-hash",
+		},
+		IntegrityDownloadInfos: []snap.IntegrityDownloadInfo{
+			mockIntegrityDownloadInfo("dm-verity", "digest"),
+		},
+	}
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", sup)
+	t.SetStatus(state.UndoStatus)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.UndoneStatus, Commentf("%v", chg.Err()))
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "some-hash",
+			path: sup.BlobPath(),
+		},
+		{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "integrity-hash-digest",
+			path: filepath.Join(dirs.SnapBlobDir, "foo_1_digest.dmverity"),
+		},
+	})
 }

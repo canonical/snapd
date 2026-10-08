@@ -69,6 +69,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -496,6 +497,10 @@ SNAPD_APPARMOR_REEXEC=1
 
 	restore = dottest.RegisterChangeExporter(c, s.state)
 	s.AddCleanup(restore)
+
+	s.AddCleanup(snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		return nil, integrity.ErrNoIntegrityDataFoundInRevision
+	}))
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
@@ -5977,6 +5982,31 @@ func (s *snapmgrTestSuite) TestTransitionCoreTasks(c *C) {
 	verifyCoreRemoveTasks(c, tsl[2])
 }
 
+func (s *snapmgrTestSuite) TestTransitionCoreTasksWithIntegrityData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "core", nil)
+	snapstate.Set(s.state, "ubuntu-core", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "ubuntu-core", SnapID: "ubuntu-core-snap-id", Revision: snap.R(1)}}),
+		Current:         snap.R(1),
+		SnapType:        "os",
+		TrackingChannel: "channel-with-integrity-data",
+	})
+
+	tsl, err := snapstate.TransitionCore(s.state, "ubuntu-core", "core")
+	c.Assert(err, IsNil)
+	c.Assert(tsl, HasLen, 3)
+
+	snapsup, err := snapstate.TaskSnapSetup(tsl[0].Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.InstanceName().String(), Equals, "core")
+	c.Assert(snapsup.IntegrityDownloadInfos, HasLen, 2)
+	c.Check(snapsup.IntegrityDownloadInfos[0].Digest, Equals, "digest1")
+	c.Check(snapsup.IntegrityDownloadInfos[1].Digest, Equals, "digest2")
+}
+
 func (s *snapmgrTestSuite) TestTransitionCoreTasksWithUbuntuCoreAndCore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -10826,8 +10856,35 @@ WantedBy=multi-user.target
 	c.Assert(mountFile, testutil.FileEquals, mountContent)
 }
 
-func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
-	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, withIntegrityData, integrityFileExists bool) {
+	idp := &integrity.IntegrityDataParams{
+		Type:   "dm-verity",
+		Digest: "deadbeef",
+	}
+	testSnapSideInfo := &snap.SideInfo{RealName: "test-snap", SnapID: "test-snap-id", Revision: snap.R(42)}
+	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		if !withIntegrityData {
+			return nil, integrity.ErrNoIntegrityDataFoundInRevision
+		}
+		if snapID != testSnapSideInfo.SnapID {
+			return nil, integrity.ErrNoIntegrityDataFoundInRevision
+		}
+		c.Check(rev, Equals, testSnapSideInfo.Revision)
+		return idp, nil
+	})
+	defer restore()
+
+	lookupCalls := 0
+	restore = snapstate.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		lookupCalls++
+		c.Check(params, DeepEquals, idp)
+		if !integrityFileExists {
+			return "", fmt.Errorf("integrity file does not exist")
+		}
+		return params.IntegrityFile(snapPath)
+	})
+	defer restore()
+
 	testSnapState := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{testSnapSideInfo}),
 		Current:  snap.R(42),
@@ -10843,7 +10900,7 @@ apps:
 
 	s.state.Lock()
 	snapstate.Set(s.state, "test-snap", testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
+	info := snaptest.MockSnapCurrent(c, testYaml, testSnapSideInfo)
 	s.state.Unlock()
 
 	what := fmt.Sprintf("%s/%s_%s.snap", "/var/lib/snapd/snaps", "test-snap", "42")
@@ -10853,7 +10910,7 @@ apps:
 		c.Assert(os.Remove(mountFile), IsNil)
 	}
 
-	restore := snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
+	restore = snapstate.MockEnsuredMountsUpdated(s.snapmgr, false)
 	defer restore()
 
 	s.restarts[unitName] = 0
@@ -10862,6 +10919,19 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Assert(s.restarts[unitName], Equals, 1)
+
+	if withIntegrityData {
+		c.Check(lookupCalls, Equals, 1)
+	} else {
+		c.Check(lookupCalls, Equals, 0)
+	}
+
+	options := "nodev,ro,x-gdu.hide,x-gvfs-hide"
+	if withIntegrityData && integrityFileExists {
+		integrityMountOpts, err := idp.MountOptions(info.MountFile())
+		c.Assert(err, IsNil)
+		options = options + "," + strings.Join(integrityMountOpts, ",")
+	}
 
 	expectedContent := fmt.Sprintf(`
 [Unit]
@@ -10873,15 +10943,33 @@ Before=snapd.mounts.target
 What=%s
 Where=%s/test-snap/42
 Type=squashfs
-Options=nodev,ro,x-gdu.hide,x-gvfs-hide
+Options=%s
 LazyUnmount=yes
 
 [Install]
 WantedBy=snapd.mounts.target
 WantedBy=multi-user.target
-`[1:], what, dirs.StripRootDir(dirs.SnapMountDir))
+`[1:], what, dirs.StripRootDir(dirs.SnapMountDir), options)
 
 	c.Assert(mountFile, testutil.FileEquals, expectedContent)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsCreated(c *C) {
+	const withIntegrityData = false
+	const integrityFileExists = false
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityData(c *C) {
+	const withIntegrityData = true
+	const integrityFileExists = true
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
+}
+
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataNotExist(c *C) {
+	const withIntegrityData = true
+	const integrityFileExists = false
+	s.testEnsureSnapStateRewriteMountsCreated(c, withIntegrityData, integrityFileExists)
 }
 
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteDesktopFiles(c *C) {
@@ -11521,6 +11609,22 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
 
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
+}
+
+func (s *snapmgrTestSuite) TestDownloadWithIntegrityData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "foo", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel: "channel-with-integrity-data",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.MaybeEdge(snapstate.SnapSetupEdge))
+	c.Assert(err, IsNil)
+	c.Assert(snapsup.IntegrityDownloadInfos, HasLen, 2)
+	c.Check(snapsup.IntegrityDownloadInfos[0].Digest, Equals, "digest1")
+	c.Check(snapsup.IntegrityDownloadInfos[1].Digest, Equals, "digest2")
 }
 
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {
@@ -12409,6 +12513,125 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsKeepsNewDownloads(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestCleanSnapDownloadsIntegrityData(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockMaxUnusedDownloadRetention(0)
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	for _, name := range []string{
+		// unused revision, removed with its integrity data
+		"some-snap_1.snap",
+		"some-snap_1_aaa.dmverity",
+		"some-snap_1_bbb.dmverity.partial",
+		// revision in sequence, kept with its integrity data
+		"some-snap_2.snap",
+		"some-snap_2_ccc.dmverity",
+		"some-snap_2_ddd.dmverity.partial",
+		// parallel instance some-snap_1 revision 2 shares the some-snap_1_ prefix
+		"some-snap_1_2.snap",
+		"some-snap_1_2_eee.dmverity",
+	} {
+		c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, name), nil, 0644), IsNil)
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}},
+			},
+		},
+		Current:  snap.R(2),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap_1", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)}},
+			},
+		},
+		Current:     snap.R(2),
+		SnapType:    "app",
+		InstanceKey: "1",
+	})
+
+	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
+	c.Check(err, IsNil)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(matches, DeepEquals, []string{
+		filepath.Join(dirs.SnapBlobDir, "some-snap_1_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_1_2_eee.dmverity"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2_ccc.dmverity"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2_ddd.dmverity.partial"),
+	})
+}
+
+func (s *snapmgrTestSuite) TestCleanSnapDownloadsIntegrityDataFollowsSnapAge(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockMaxUnusedDownloadRetention(time.Hour)
+	defer restore()
+
+	old := time.Now().Add(-2 * time.Hour)
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	for _, tc := range []struct {
+		name string
+		old  bool
+	}{
+		// old snap with new integrity data, both are removed
+		{"some-snap_1.snap", true},
+		{"some-snap_1_aaa.dmverity", false},
+		// new snap with old integrity data, both are kept
+		{"some-snap_2.snap", false},
+		{"some-snap_2_bbb.dmverity", true},
+	} {
+		fn := filepath.Join(dirs.SnapBlobDir, tc.name)
+		c.Assert(os.WriteFile(fn, nil, 0644), IsNil)
+		if tc.old {
+			c.Assert(os.Chtimes(fn, old, old), IsNil)
+		}
+	}
+
+	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
+	c.Check(err, IsNil)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(matches, DeepEquals, []string{
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2_bbb.dmverity"),
+	})
+}
+
+func (s *snapmgrTestSuite) TestCleanSnapDownloadsIntegrityDataRemovalError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockMaxUnusedDownloadRetention(0)
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), nil, 0644), IsNil)
+	// a non-empty directory cannot be removed with os.Remove
+	integrityDir := filepath.Join(dirs.SnapBlobDir, "some-snap_1_aaa.dmverity")
+	c.Assert(os.MkdirAll(integrityDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(integrityDir, "file"), nil, 0644), IsNil)
+
+	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
+	c.Check(err, ErrorMatches, ".*some-snap_1_aaa.dmverity: directory not empty")
+
+	// the snap is kept so that its integrity data can be found on retry
+	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), testutil.FilePresent)
+}
+
 func (s *snapmgrTestSuite) TestCleanDownloads(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -12420,13 +12643,16 @@ func (s *snapmgrTestSuite) TestCleanDownloads(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 	// revision not in sequence should be removed
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1_aaa.dmverity"), nil, 0644), IsNil)
 	// both files will be kept as revisions are present in the state
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2_bbb.dmverity"), nil, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), nil, 0644), IsNil)
 	// unlikely but a duplicate of a fully downloaded snap
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap.partial"), nil, 0644), IsNil)
 	// all of the rest goes away
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-snap_1.snap"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-snap_1_ccc.dmverity.partial"), nil, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-other-other-snap_1.snap"), nil, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-yet-another-snap_1.snap.partial"), nil, 0644), IsNil)
 
@@ -12449,6 +12675,7 @@ func (s *snapmgrTestSuite) TestCleanDownloads(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(matches, DeepEquals, []string{
 		filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2_bbb.dmverity"),
 		filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"),
 	})
 }

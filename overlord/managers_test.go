@@ -98,6 +98,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -139,6 +140,8 @@ type baseMgrsSuite struct {
 	serveRevision map[string]string
 	serveOldPaths map[string][]string
 	serveOldRevs  map[string][]string
+	// serveIntegrity maps "<name>_<revno>" to the integrity data served for it
+	serveIntegrity map[string][]byte
 
 	hijackServeSnap func(http.ResponseWriter)
 
@@ -343,6 +346,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.serveRevision = make(map[string]string)
 	s.serveOldPaths = make(map[string][]string)
 	s.serveOldRevs = make(map[string][]string)
+	s.serveIntegrity = make(map[string][]byte)
 	s.hijackServeSnap = nil
 
 	s.checkDeviceAndAuthContext = nil
@@ -607,6 +611,10 @@ SNAPD_APPARMOR_REEXEC=1
 	logbuf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
 	s.logbuf = logbuf
+
+	s.AddCleanup(overlord.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		return nil, integrity.ErrNoIntegrityDataFoundInRevision
+	}))
 }
 
 func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandID, model, serialN string) *asserts.Serial {
@@ -1217,6 +1225,34 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			baseStr = fmt.Sprintf("%q", info.Base)
 		}
 		hit = strings.Replace(hit, `@BASE@`, baseStr, -1)
+
+		if data, ok := s.serveIntegrity[name+"_"+revno]; ok {
+			h := crypto.SHA3_384.New()
+			h.Write(data)
+			var m map[string]any
+			if err := json.Unmarshal([]byte(hit), &m); err != nil {
+				panic(err)
+			}
+			m["integrity"] = []map[string]any{{
+				"type":            "dm-verity",
+				"version":         "1",
+				"hash-algorithm":  "sha256",
+				"data-block-size": 4096,
+				"hash-block-size": 4096,
+				"digest":          "digest" + revno,
+				"salt":            "salt",
+				"download": map[string]any{
+					"url":      baseURL.String() + "/api/v1/snaps/download/" + name + "/" + revno + ".dmverity",
+					"size":     len(data),
+					"sha3-384": fmt.Sprintf("%x", h.Sum(nil)),
+				},
+			}}
+			buf, err := json.Marshal(m)
+			if err != nil {
+				panic(err)
+			}
+			hit = string(buf)
+		}
 		return hit
 	}
 
@@ -1310,6 +1346,14 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			if s.failNextDownload == comps[1] {
 				s.failNextDownload = ""
 				w.WriteHeader(418)
+				return
+			}
+			if revno, ok := strings.CutSuffix(comps[2], ".dmverity"); ok {
+				data, ok := s.serveIntegrity[comps[1]+"_"+revno]
+				if !ok {
+					panic("unexpected integrity data download: " + r.URL.Path)
+				}
+				w.Write(data)
 				return
 			}
 			if s.hijackServeSnap != nil {
@@ -1591,6 +1635,62 @@ apps:
 
 	// check updated service file
 	c.Assert(svcFile, testutil.FileContains, "/var/snap/foo/"+revno)
+}
+
+func (s *mgrsSuite) TestHappyRemoteInstallUpdateRemoveWithIntegrityData(c *C) {
+	s.prereqSnapAssertions(c)
+
+	snapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 1}", "42")
+	s.serveSnap(snapPath, "42")
+	s.serveIntegrity["foo_42"] = []byte("integrity data 42")
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	runChange := func(kind string, ts *state.TaskSet) {
+		chg := st.NewChange(kind, "...")
+		chg.AddAll(ts)
+
+		st.Unlock()
+		err := s.o.Settle(settleTimeout)
+		st.Lock()
+		c.Assert(err, IsNil)
+		c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("%s change failed with: %v", kind, chg.Err()))
+	}
+
+	ts, err := snapstate.Install(context.TODO(), st, "foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	runChange("install-snap", ts)
+
+	integrity42 := filepath.Join(dirs.SnapBlobDir, "foo_42_digest42.dmverity")
+	c.Check(integrity42, testutil.FileEquals, "integrity data 42")
+
+	snapPath, _ = s.makeStoreTestSnap(c, "{name: foo, version: 2}", "50")
+	s.serveSnap(snapPath, "50")
+	s.serveIntegrity["foo_50"] = []byte("integrity data 50")
+
+	ts, err = snapstate.Update(st, "foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	runChange("upgrade-snap", ts)
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(50))
+
+	integrity50 := filepath.Join(dirs.SnapBlobDir, "foo_50_digest50.dmverity")
+	c.Check(integrity50, testutil.FileEquals, "integrity data 50")
+	c.Check(integrity42, testutil.FilePresent)
+
+	ts, err = snapstate.Remove(st, "foo", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	runChange("remove-snap", ts)
+
+	c.Check(integrity42, testutil.FileAbsent)
+	c.Check(integrity50, testutil.FileAbsent)
 }
 
 func (s *mgrsSuite) TestHappyRemoteInstallAndUpdateWithEpochBump(c *C) {

@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -29,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -169,6 +172,90 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 	})
 
+}
+
+func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, integrityFileExists bool) {
+	v1 := "name: mock\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		c.Assert(snapID, Equals, "snap-id")
+		c.Assert(rev, Equals, snap.R(33))
+		// make sure the state is locked
+		st.Unlock()
+		st.Lock()
+		return &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "some-digest",
+		}, nil
+	})
+	defer restore()
+
+	restore = snapstate.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		if integrityFileExists {
+			return params.IntegrityFile(snapPath)
+		}
+		return "", fmt.Errorf("integrity file does not exist")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			SnapID:   "snap-id",
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		SnapPath:     testSnap,
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "https://some"},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(osutil.FileExists(testSnap), Equals, true)
+
+	var expectedIdp integrity.IntegrityDataParams
+	if integrityFileExists {
+		expectedIdp = integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "some-digest",
+		}
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:                  "setup-snap",
+			name:                "foo",
+			path:                testSnap,
+			revno:               snap.R(33),
+			integrityDataParams: expectedIdp,
+		},
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
+	const integrityFileExists = true
+	s.testDoMountSnapWithIntegrityData(c, integrityFileExists)
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataNotExist(c *C) {
+	const integrityFileExists = false
+	s.testDoMountSnapWithIntegrityData(c, integrityFileExists)
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {
