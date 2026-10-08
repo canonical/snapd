@@ -187,7 +187,7 @@ func sideloadOrTrySnap(ctx context.Context, c *Command, body io.ReadCloser, boun
 	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
-	flags.IgnoreInstanceErrors = isTrue(form, "ignore-instance-errors")
+	flags.IgnoreUnsupportedInstanceInterfaces = isTrue(form, "ignore-unsupported-instance-interfaces")
 	trasactionVals := form.Values["transaction"]
 	flags.Transaction = client.TransactionPerSnap
 	if len(trasactionVals) > 0 {

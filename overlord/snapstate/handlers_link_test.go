@@ -315,7 +315,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreInstanceErrors(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterfaces(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -324,7 +324,7 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreInstanceErrors(c *C) {
 			Revision: snap.R(33),
 		},
 		InstanceKey: "bar",
-		Flags:       snapstate.Flags{IgnoreInstanceErrors: true},
+		Flags:       snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
 	})
 	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
@@ -336,10 +336,10 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreInstanceErrors(c *C) {
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
-	c.Check(snapst.IgnoreInstanceErrors, Equals, true)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreInstanceErrorsOnRefresh(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOnRefresh(c *C) {
 	s.state.Lock()
 	si11 := &snap.SideInfo{
 		RealName: "foo",
@@ -349,7 +349,7 @@ func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreInstanceErrorsOnRefresh(c *C) {
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
 		Current:     si11.Revision,
 		InstanceKey: "bar",
-		Flags:       snapstate.Flags{IgnoreInstanceErrors: true},
+		Flags:       snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -370,10 +370,10 @@ func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreInstanceErrorsOnRefresh(c *C) {
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(33))
-	c.Check(snapst.IgnoreInstanceErrors, Equals, true)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
 }
 
-func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreInstanceErrors(c *C) {
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInterfaces(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -394,7 +394,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreInstanceErrors(c *C) {
 			Revision: snap.R(33),
 		},
 		InstanceKey: "bar",
-		Flags:       snapstate.Flags{IgnoreInstanceErrors: true},
+		Flags:       snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -413,7 +413,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreInstanceErrors(c *C) {
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(11))
-	c.Check(snapst.IgnoreInstanceErrors, Equals, false)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {

@@ -43,28 +43,28 @@ const (
 )
 
 type SnapOptions struct {
-	Channel              string          `json:"channel,omitempty"`
-	Revision             string          `json:"revision,omitempty"`
-	CohortKey            string          `json:"cohort-key,omitempty"`
-	LeaveCohort          bool            `json:"leave-cohort,omitempty"`
-	DevMode              bool            `json:"devmode,omitempty"`
-	JailMode             bool            `json:"jailmode,omitempty"`
-	Classic              bool            `json:"classic,omitempty"`
-	Dangerous            bool            `json:"dangerous,omitempty"`
-	IgnoreValidation     bool            `json:"ignore-validation,omitempty"`
-	IgnoreInstanceErrors bool            `json:"ignore-instance-errors,omitempty"`
-	IgnoreRunning        bool            `json:"ignore-running,omitempty"`
-	Unaliased            bool            `json:"unaliased,omitempty"`
-	Prefer               bool            `json:"prefer,omitempty"`
-	Purge                bool            `json:"purge,omitempty"`
-	Terminate            bool            `json:"terminate,omitempty"`
-	Amend                bool            `json:"amend,omitempty"`
-	Transaction          TransactionType `json:"transaction,omitempty"`
-	QuotaGroupName       string          `json:"quota-group,omitempty"`
-	ValidationSets       []string        `json:"validation-sets,omitempty"`
-	Time                 string          `json:"time,omitempty"`
-	HoldLevel            string          `json:"hold-level,omitempty"`
-	Users                []string        `json:"users,omitempty"`
+	Channel                             string          `json:"channel,omitempty"`
+	Revision                            string          `json:"revision,omitempty"`
+	CohortKey                           string          `json:"cohort-key,omitempty"`
+	LeaveCohort                         bool            `json:"leave-cohort,omitempty"`
+	DevMode                             bool            `json:"devmode,omitempty"`
+	JailMode                            bool            `json:"jailmode,omitempty"`
+	Classic                             bool            `json:"classic,omitempty"`
+	Dangerous                           bool            `json:"dangerous,omitempty"`
+	IgnoreValidation                    bool            `json:"ignore-validation,omitempty"`
+	IgnoreUnsupportedInstanceInterfaces bool            `json:"ignore-unsupported-instance-interfaces,omitempty"`
+	IgnoreRunning                       bool            `json:"ignore-running,omitempty"`
+	Unaliased                           bool            `json:"unaliased,omitempty"`
+	Prefer                              bool            `json:"prefer,omitempty"`
+	Purge                               bool            `json:"purge,omitempty"`
+	Terminate                           bool            `json:"terminate,omitempty"`
+	Amend                               bool            `json:"amend,omitempty"`
+	Transaction                         TransactionType `json:"transaction,omitempty"`
+	QuotaGroupName                      string          `json:"quota-group,omitempty"`
+	ValidationSets                      []string        `json:"validation-sets,omitempty"`
+	Time                                string          `json:"time,omitempty"`
+	HoldLevel                           string          `json:"hold-level,omitempty"`
+	Users                               []string        `json:"users,omitempty"`
 }
 
 func writeFieldBool(mw *multipart.Writer, key string, val bool) error {
@@ -102,7 +102,7 @@ func (opts *SnapOptions) writeModeFields(mw *multipart.Writer) error {
 func (opts *SnapOptions) writeOptionFields(mw *multipart.Writer) error {
 	fields := []field{
 		{"ignore-running", opts.IgnoreRunning},
-		{"ignore-instance-errors", opts.IgnoreInstanceErrors},
+		{"ignore-unsupported-instance-interfaces", opts.IgnoreUnsupportedInstanceInterfaces},
 		{"unaliased", opts.Unaliased},
 		{"prefer", opts.Prefer},
 	}

@@ -1735,14 +1735,14 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateUnsupportedPlug(c *C) {
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_instance" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected`)
 
 	// requesting it on refresh skips the check and carries it to link-snap
-	ts, err := snapstate.Update(s.state, "some-snap_instance", nil, s.user.ID, snapstate.Flags{IgnoreInstanceErrors: true})
+	ts, err := snapstate.Update(s.state, "some-snap_instance", nil, s.user.ID, snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true})
 	c.Assert(err, IsNil)
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
-	c.Check(snapsup.IgnoreInstanceErrors, Equals, true)
+	c.Check(snapsup.IgnoreUnsupportedInstanceInterfaces, Equals, true)
 
 	// the flag persisted in the state at install time skips the check
-	snapst.IgnoreInstanceErrors = true
+	snapst.IgnoreUnsupportedInstanceInterfaces = true
 	snapstate.Set(s.state, "some-snap_instance", snapst)
 
 	_, err = snapstate.Update(s.state, "some-snap_instance", nil, s.user.ID, snapstate.Flags{})
@@ -1786,16 +1786,16 @@ func (s *snapmgrTestSuite) TestParallelInstanceRefreshToUnsupportedInterfaceNeed
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap_instance", &snapst), IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(7))
-	c.Check(snapst.IgnoreInstanceErrors, Equals, false)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
 
 	_, err = snapstate.Update(s.state, "some-snap_instance", &snapstate.RevisionOptions{Channel: "latest/stable"}, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_instance" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected`)
 
 	warns := s.state.AllWarnings()
 	c.Assert(warns, HasLen, 1)
-	c.Check(warns[0].String(), Equals, `refresh of snap "some-snap_instance" is blocked as it uses interfaces not supported for parallel instances: cannot install snap "some-snap_instance" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected; use --ignore-instance-errors to refresh anyway`)
+	c.Check(warns[0].String(), Equals, `refresh of snap "some-snap_instance" is blocked as it uses interfaces not supported for parallel instances: cannot install snap "some-snap_instance" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected; use --ignore-unsupported-instance-interfaces to refresh anyway`)
 
-	ts, err = snapstate.Update(s.state, "some-snap_instance", &snapstate.RevisionOptions{Channel: "latest/stable"}, s.user.ID, snapstate.Flags{IgnoreInstanceErrors: true})
+	ts, err = snapstate.Update(s.state, "some-snap_instance", &snapstate.RevisionOptions{Channel: "latest/stable"}, s.user.ID, snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true})
 	c.Assert(err, IsNil)
 	chg = s.state.NewChange("refresh", "refresh a snap")
 	chg.AddAll(ts)
@@ -1804,7 +1804,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRefreshToUnsupportedInterfaceNeed
 
 	c.Assert(snapstate.Get(s.state, "some-snap_instance", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(11))
-	c.Check(snapst.IgnoreInstanceErrors, Equals, true)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
