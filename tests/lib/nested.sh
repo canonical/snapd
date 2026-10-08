@@ -1237,6 +1237,27 @@ nested_force_start_vm() {
     systemctl start "$NESTED_VM"
 }
 
+nested_get_available_cpus() {
+    # Leave one CPU for the host and return the remaining CPU count for the VM.
+    local available_cpus
+    available_cpus=$(( $(nproc) - 1 ))
+    if [ "$available_cpus" -lt 1 ]; then
+        available_cpus=1
+    fi
+    echo "$available_cpus"
+}
+
+nested_get_available_memory_mb() {
+    # Leave 1 GiB for the host and return the remaining memory in MiB for the VM.
+    local available_memory_mb
+    available_memory_mb=$(awk '/^MemTotal:/ { print int($2 / 1024) - 1024 }' /proc/meminfo)
+    if [ "$available_memory_mb" -lt 1 ]; then
+        echo "not enough host memory to reserve 1 GiB for the host" >&2
+        return 1
+    fi
+    echo "$available_memory_mb"
+}
+
 nested_create_vm_service() {
     local QEMU CURRENT_IMAGE PARAM_OPT
     CURRENT_IMAGE=$1
@@ -1250,24 +1271,9 @@ nested_create_vm_service() {
     # TODO remove once LP#2143151 is fixed.
     apparmor_parser -R /etc/apparmor.d/nc.openbsd || true
 
-    # Now qemu parameters are defined
-
-    # use only 2G of RAM for qemu-nested
-    # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
-    if [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-2048}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-8192}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-6}"
-    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]] || [[ "$SPREAD_BACKEND" = "openstack-validation" ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
-    fi
+    PARAM_MEM="-m ${NESTED_MEM:-$(nested_get_available_memory_mb)}"
+    PARAM_SMP="-smp ${NESTED_CPUS:-$(nested_get_available_cpus)}"
 
     PARAM_PHYS_BLOCK_SIZE="physical_block_size=${NESTED_DISK_PHYSICAL_BLOCK_SIZE}"
     PARAM_LOGI_BLOCK_SIZE="logical_block_size=${NESTED_DISK_LOGICAL_BLOCK_SIZE}"
