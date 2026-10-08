@@ -132,7 +132,7 @@ func targetFromLocalSnapWithStoreComponents(
 		si = snapst.CurrentSideInfo()
 	}
 
-	info, err := readInfo(snapst.InstanceName().String(), si, errorOnBroken)
+	info, err := readInfo(snapst.InstanceName(), si, errorOnBroken)
 	if err != nil {
 		return target{}, err
 	}

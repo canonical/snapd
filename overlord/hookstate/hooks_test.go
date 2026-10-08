@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -142,8 +143,8 @@ func checkIsNotHeld(c *C, st *state.State, heldSnap string) {
 	c.Check(held[heldSnap], IsNil)
 }
 
-func checkRunInhibit(c *C, snapName string, expectedHint runinhibit.Hint, expectedInfo runinhibit.InhibitInfo) {
-	hint, info, err := runinhibit.IsLocked(snapName, nil)
+func checkRunInhibit(c *C, instanceName naming.InstanceName, expectedHint runinhibit.Hint, expectedInfo runinhibit.InhibitInfo) {
+	hint, info, err := runinhibit.IsLocked(instanceName, nil)
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, expectedHint)
 	c.Check(info, Equals, expectedInfo)

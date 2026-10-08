@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var errNoSnap = errors.New("snap not installed")
@@ -158,7 +159,7 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 		var info *snap.Info
 		if sel == snapSelectAll {
 			for _, si := range snapst.Sequence.SideInfos() {
-				info, err = snap.ReadInfo(name, si)
+				info, err = snap.ReadInfo(naming.InstanceName(name), si)
 				if err != nil {
 					// single revision may be broken
 					_, instanceKey := snap.SplitInstanceName(name)

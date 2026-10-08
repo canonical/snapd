@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -1958,9 +1959,9 @@ func (s *autorefreshGatingSuite) TestUnholdSnaps(c *C) {
 	c.Assert(gating, HasLen, 0)
 }
 
-func fakeReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+func fakeReadInfo(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 	info := &snap.Info{
-		SuggestedName: name,
+		SuggestedName: name.SnapName().String(),
 		SideInfo:      *si,
 		Architectures: []string{"all"},
 		SnapType:      snap.TypeApp,

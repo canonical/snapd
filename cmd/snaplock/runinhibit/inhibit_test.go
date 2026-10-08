@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -192,7 +193,7 @@ func (s *runInhibitSuite) TestUnlockStaleGateRefreshLocks(c *C) {
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg1.lock"), testutil.FileEquals, "")
 	c.Check(filepath.Join(runinhibit.InhibitDir, "pkg1.gate-refresh"), testutil.FileAbsent)
 
-	for _, name := range []string{"pkg2", "pkg3"} {
+	for _, name := range []naming.InstanceName{"pkg2", "pkg3"} {
 		hint, info, err := runinhibit.IsLocked(name, nil)
 		c.Assert(err, IsNil)
 		c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)

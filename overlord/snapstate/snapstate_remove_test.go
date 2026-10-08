@@ -2665,9 +2665,9 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 		return nil, errors.New("unexpected component")
 	}))
 
-	s.AddCleanup(snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	s.AddCleanup(snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{
-			SuggestedName: name,
+			SuggestedName: name.SnapName().String(),
 			SideInfo:      *si,
 			SnapType:      snap.TypeApp,
 			Components: map[string]*snap.Component{

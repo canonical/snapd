@@ -964,7 +964,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
-	cpi := snap.MinimalSnapContainerPlaceInfo(snapName, snap.R(snapRev.SnapRevision()))
+	cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(snapName), snap.R(snapRev.SnapRevision()))
 	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedContainer(cpi, snapPath, tm)
 	if err != nil {
 		return "", nil, nil, err
@@ -1101,7 +1101,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 			seedComps = append(seedComps, comp)
 		}
 
-		pinfo := snap.MinimalSnapContainerPlaceInfo(info.SnapName().String(), snap.R(-1))
+		pinfo := snap.MinimalSnapContainerPlaceInfo(info.InstanceName(), snap.R(-1))
 		newPath, err := handler.HandleUnassertedContainer(pinfo, path, tm)
 		if err != nil {
 			return nil, err

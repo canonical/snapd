@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -87,12 +88,12 @@ func HintFile(snapName string) string {
 	return filepath.Join(InhibitDir, fmt.Sprintf("%s.%s", snapName, hintFilePostfix))
 }
 
-func InhibitInfoFile(snapName string, hint Hint) string {
-	return filepath.Join(InhibitDir, fmt.Sprintf("%s.%s", snapName, hint))
+func InhibitInfoFile(instanceName naming.InstanceName, hint Hint) string {
+	return filepath.Join(InhibitDir, fmt.Sprintf("%s.%s", instanceName, hint))
 }
 
-func openHintFileLock(snapName string) (*osutil.FileLock, error) {
-	return osutil.NewFileLockWithMode(HintFile(snapName), 0644)
+func openHintFileLock(instanceName naming.InstanceName) (*osutil.FileLock, error) {
+	return osutil.NewFileLockWithMode(HintFile(instanceName.String()), 0644)
 }
 
 // InhibitInfo holds data of the previous snap revision that will be needed by
@@ -147,7 +148,7 @@ type Unlocker func() (relock func())
 // If unlocker is passed it indicates that the global state needs to be unlocked
 // before taking the inhibition hint file lock. It is the responsibility of the
 // caller to make sure state is locked if a non-nil unlocker is passed.
-func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocker) error {
+func LockWithHint(instanceName naming.InstanceName, hint Hint, info InhibitInfo, unlocker Unlocker) error {
 	if unlocker != nil {
 		// unlock/relock global state
 		relock := unlocker()
@@ -163,7 +164,7 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 	if err := os.MkdirAll(InhibitDir, 0755); err != nil {
 		return err
 	}
-	flock, err := openHintFileLock(snapName)
+	flock, err := openHintFileLock(instanceName)
 	if err != nil {
 		return err
 	}
@@ -179,7 +180,7 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(InhibitInfoFile(snapName, hint), buf, 0644); err != nil {
+	if err := os.WriteFile(InhibitInfoFile(instanceName, hint), buf, 0644); err != nil {
 		return err
 	}
 	// Write hint
@@ -204,14 +205,14 @@ func LockWithHint(snapName string, hint Hint, info InhibitInfo, unlocker Unlocke
 // If unlocker is passed it indicates that the global state needs to be unlocked
 // before taking the inhibition hint file lock. It is the responsibility of the
 // caller to make sure state is locked if a non-nil unlocker is passed.
-func Unlock(snapName string, unlocker Unlocker) error {
+func Unlock(instanceName naming.InstanceName, unlocker Unlocker) error {
 	if unlocker != nil {
 		// unlock/relock global state
 		relock := unlocker()
 		defer relock()
 	}
 
-	flock, err := openHintFileLock(snapName)
+	flock, err := openHintFileLock(instanceName)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -234,7 +235,7 @@ func Unlock(snapName string, unlocker Unlocker) error {
 		return err
 	}
 	// Remove inhibit info file
-	if err := removeInhibitInfoFiles(snapName); err != nil {
+	if err := removeInhibitInfoFiles(instanceName.String()); err != nil {
 		return err
 	}
 
@@ -339,14 +340,14 @@ func unlockStaleGateRefresh(instanceName string) (unlocked bool, err error) {
 // If unlocker is passed it indicates that the global state needs to be unlocked
 // before taking the inhibition hint file lock. It is the responsibility of the
 // caller to make sure state is locked if a non-nil unlocker is passed.
-func IsLocked(snapName string, unlocker Unlocker) (Hint, InhibitInfo, error) {
+func IsLocked(instanceName naming.InstanceName, unlocker Unlocker) (Hint, InhibitInfo, error) {
 	if unlocker != nil {
 		// unlock/relock global state
 		relock := unlocker()
 		defer relock()
 	}
 
-	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(snapName))
+	hintFlock, err := osutil.OpenExistingLockForReading(HintFile(instanceName.String()))
 	if os.IsNotExist(err) {
 		return "", InhibitInfo{}, nil
 	}
@@ -369,7 +370,7 @@ func IsLocked(snapName string, unlocker Unlocker) (Hint, InhibitInfo, error) {
 		return hint, InhibitInfo{}, nil
 	}
 	// Read inhibit info
-	info, err := readInhibitInfo(snapName, hint)
+	info, err := readInhibitInfo(instanceName, hint)
 	if err != nil {
 		return "", InhibitInfo{}, err
 	}
@@ -452,7 +453,7 @@ var newTicker = func(interval time.Duration) ticker {
 // NOTE: A snap without a hint file is considered not inhibited and a nil FileLock is returned.
 //
 // NOTE: It is the caller's responsibility to release the returned file lock.
-var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, err error) {
+var WaitWhileInhibited = func(ctx context.Context, instanceName naming.InstanceName, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint Hint, inhibitInfo *InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, err error) {
 	ticker := newTicker(interval)
 
 	// Release lock if we return early with an error
@@ -465,7 +466,7 @@ var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited
 	}()
 
 	for {
-		flock, err = osutil.OpenExistingLockForReading(HintFile(snapName))
+		flock, err = osutil.OpenExistingLockForReading(HintFile(instanceName.String()))
 		// We must return flock alongside errors so that cleanup defer can close it.
 		if os.IsNotExist(err) {
 			if notInhibited != nil {
@@ -501,7 +502,7 @@ var WaitWhileInhibited = func(ctx context.Context, snapName string, notInhibited
 			return flock, nil
 		} else {
 			if inhibited != nil {
-				inhibitInfo, err := readInhibitInfo(snapName, hint)
+				inhibitInfo, err := readInhibitInfo(instanceName, hint)
 				if err != nil {
 					return flock, err
 				}
@@ -533,8 +534,8 @@ func hintFromFile(hintFile *os.File) (Hint, error) {
 	return Hint(string(buf)), nil
 }
 
-func readInhibitInfo(snapName string, hint Hint) (InhibitInfo, error) {
-	buf, err := os.ReadFile(InhibitInfoFile(snapName, hint))
+func readInhibitInfo(instanceName naming.InstanceName, hint Hint) (InhibitInfo, error) {
+	buf, err := os.ReadFile(InhibitInfoFile(instanceName, hint))
 	if err != nil {
 		return InhibitInfo{}, err
 	}
