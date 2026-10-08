@@ -105,15 +105,7 @@ func handleDiskSpaceReservation(tr RunTransaction, opts *fsOnlyContext) error {
 }
 
 func completeDiskSpaceReservationMigration(tr RunTransaction) error {
-	if !strutil.ListContains(tr.Changes(), "core.disk-reservation.size") && !changesLegacyDiskSpaceFeature(tr.Changes()) {
-		return nil
-	}
-
-	var reservation any
-	if err := tr.GetMaybe("core", "disk-reservation.size", &reservation); err != nil {
-		return err
-	}
-	if reservation == nil && !strutil.ListContains(tr.Changes(), "core.disk-reservation.size") {
+	if !strutil.ListContains(tr.Changes(), "core.disk-reservation.size") {
 		return nil
 	}
 

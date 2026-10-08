@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -60,12 +61,9 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
 		return err
 	}
-	var reservation any
-	if err := tr.GetMaybe("core", "disk-reservation.size", &reservation); err != nil {
-		return err
-	}
+	reservationWritten := strutil.ListContains(rt.Changes(), "core.disk-reservation.size")
 	rt.Commit()
-	if reservation != nil {
+	if reservationWritten {
 		st.Set("disk-space-reservation-migrated", true)
 	}
 
