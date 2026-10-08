@@ -91,9 +91,9 @@ func legacyDiskSpaceFeatureEnabled(tr RunTransaction) (bool, error) {
 	return false, nil
 }
 
-// handleDiskSpaceReservation runs the migration when a legacy experimental flag
+// handleLegacyDiskSpaceFeatures runs the migration when a legacy experimental flag
 // is toggled at runtime, so the result matches what a snapd restart would do.
-func handleDiskSpaceReservation(tr RunTransaction, opts *fsOnlyContext) error {
+func handleLegacyDiskSpaceFeatures(tr RunTransaction, opts *fsOnlyContext) error {
 	if strutil.ListContains(tr.Changes(), "core.disk-reservation.size") || !changesLegacyDiskSpaceFeature(tr.Changes()) {
 		return nil
 	}
