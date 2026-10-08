@@ -191,7 +191,6 @@ func (s *snapmgrTestSuite) testRemoveDiskSpaceCheck(c *C, checkEnabled, automati
 	}
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-remove", false)
 	if checkEnabled {
 		tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	}
@@ -252,10 +251,6 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceCheckSkippedIfReservationUnset(c *
 		return nil
 	})
 	defer restore()
-
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-remove", true), IsNil)
-	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -1653,7 +1648,6 @@ func (s *snapmgrTestSuite) testRemoveManyDiskSpaceCheck(c *C, checkEnabled, auto
 	}
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-remove", false)
 	if checkEnabled {
 		tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	}
@@ -1727,7 +1721,6 @@ func (s *snapmgrTestSuite) TestRemoveConfigureDiskSpaceReservation(c *C) {
 	}
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-remove", true)
 	tr.Set("core", "disk-reservation.size", "2000")
 	tr.Commit()
 
@@ -1793,10 +1786,6 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckSkippedIfReservationUnset
 	})
 	defer restore()
 
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-remove", true), IsNil)
-	tr.Commit()
-
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
@@ -1841,7 +1830,6 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceReservationZeroChecksSnapshotS
 	}
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-remove", false)
 	// snap set stores plain numbers in their parsed form, so a zero
 	// reservation comes through as a number rather than a string
 	tr.Set("core", "disk-reservation.size", 0)

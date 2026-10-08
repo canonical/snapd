@@ -7385,7 +7385,6 @@ func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", true)
 	tr.Set("core", "disk-reservation.size", "2000")
 	tr.Commit()
 
@@ -7433,7 +7432,6 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c 
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", true)
 	// snap set stores plain numbers in their parsed form, so a zero
 	// reservation comes through as a number rather than a string
 	tr.Set("core", "disk-reservation.size", 0)
