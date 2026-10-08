@@ -48,7 +48,6 @@
 #include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/classic.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
-#include "../libsnap-confine-private/feature.h"
 #include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/mountinfo.h"
@@ -124,7 +123,7 @@ void sc_reassociate_with_pid1_mount_ns(void) {
     }
 }
 
-void sc_initialize_mount_ns(unsigned int experimental_features) {
+void sc_initialize_mount_ns(void) {
     debug("unsharing snap namespace directory");
 
     /* Ensure that /run/snapd/ns is a directory. */
@@ -166,13 +165,6 @@ void sc_initialize_mount_ns(unsigned int experimental_features) {
         if (mount(NULL, sc_ns_dir, NULL, MS_PRIVATE, NULL) < 0) {
             die("cannot change propagation type to MS_PRIVATE in %s", sc_ns_dir);
         }
-    }
-
-    /* code that follows is experimental */
-    if (experimental_features & SC_FEATURE_PARALLEL_INSTANCES) {
-        // Ensure that SNAP_MOUNT_DIR and /var/snap are shared mount points
-        debug("(experimental) ensuring snap mount and data directories are mount points");
-        sc_ensure_snap_dir_shared_mounts();
     }
 }
 

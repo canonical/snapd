@@ -18,6 +18,7 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
+#include <stdbool.h>
 #include <sys/types.h>
 #include "../libsnap-confine-private/apparmor-support.h"
 #include "snap-confine-invocation.h"
@@ -45,13 +46,13 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
                           const gid_t real_gid, const gid_t saved_gid);
 
 /**
- * Ensure that / or /snap is mounted with the SHARED option.
+ * Check whether the given directory is a mount point.
  *
- * If the system is found to be not having a shared mount for "/"
- * snap-confine will create a shared bind mount for "/snap" to
- * ensure that "/snap" is mounted shared. See LP:#1668659
+ * This inspects /proc/self/mountinfo and returns true if dir is listed there
+ * as a mount point (regardless of its propagation type). It does not create
+ * or modify any mounts.
  */
-void sc_ensure_shared_snap_mount(void);
+bool sc_is_mount_point(const char *dir) __attribute__((nonnull(1)));
 
 /**
  * Set up user mounts, private to this process.
@@ -63,15 +64,6 @@ void sc_ensure_shared_snap_mount(void);
  * - perform all user mounts
  */
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd, const char *snap_name);
-
-/**
- * Ensure that SNAP_MOUNT_DIR and /var/snap are mount points.
- *
- * Create bind mounts and set up shared propagation for SNAP_MOUNT_DIR and
- * /var/snap as needed. This allows for further propagation changes after the
- * initial mount namespace is unshared.
- */
-void sc_ensure_snap_dir_shared_mounts(void);
 
 /**
  * Set up mount namespace for parallel installed classic snap
