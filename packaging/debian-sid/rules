@@ -29,6 +29,15 @@ export GOCACHE:=/tmp/go-build
 
 # this is overridden in the ubuntu/14.04 release branch
 SYSTEMD_UNITS_DESTDIR="$(shell pkg-config --variable=systemdsystemunitdir systemd)"
+# $(wildcard) does not do shell-style quote removal, unlike the shell
+# commands using SYSTEMD_UNITS_DESTDIR elsewhere in this file; strip the
+# quotes for use in Make functions below.
+SYSTEMD_UNITS_DESTDIR_UNQUOTED := $(subst ",,$(SYSTEMD_UNITS_DESTDIR))
+
+# Whichever of snap.mount/var-lib-snapd-snap.mount actually got shipped,
+# plus var-snap.mount; see override_dh_installsystemd below.
+MOUNT_UNITS = $(filter snap.mount var-lib-snapd-snap.mount var-snap.mount, \
+$(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR_UNQUOTED)/*)))
 
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
@@ -105,6 +114,17 @@ override_dh_fixperms:
 override_dh_installdeb:
 	dh_apparmor --profile-name=usr.lib.snapd.snap-confine.real -psnapd
 	dh_installdeb
+
+override_dh_installsystemd:
+	# snap.mount/var-lib-snapd-snap.mount and var-snap.mount: enable+start
+	# on fresh install like any other unit, but never stop/restart them on
+	# upgrade. A running bind mount's own per-snap child content mounts do
+	# not survive that (see packaging/debian-sid/snapd.postinst for the
+	# 2.31 incident this caused previously).
+	dh_installsystemd -psnapd --no-stop-on-upgrade $(MOUNT_UNITS)
+	dh_installsystemd -psnapd \
+	$(filter-out $(MOUNT_UNITS), $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR_UNQUOTED)/*)))
+	dh_installsystemduser -psnapd
 
 override_dh_clean:
 	dh_clean

@@ -1,0 +1,18 @@
+[Unit]
+Description=snap mount directory mount
+Documentation=https://forum.snapcraft.io/
+# Only set up the self bind mount with shared propagation when there is no
+# preserved snap mount namespace yet.
+ConditionPathExistsGlob=!/run/snapd/ns/*.mnt
+Before=snapd.mounts-pre.target
+
+[Mount]
+# rbind - recursively bind the dir on top of itself, inherits shared
+# private - stop propagating to parent
+# shared - create a new shared peer group
+What=/var/lib/snapd/snap
+Where=/var/lib/snapd/snap
+Options=rbind,private,shared
+
+[Install]
+WantedBy=snapd.mounts-pre.target
