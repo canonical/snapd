@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -788,6 +790,75 @@ func (s *snapmgrTestSuite) TestInstallComponentUpdateConflict(c *C) {
 	c.Assert(err.Error(), Equals, `snap "some-snap" has "update" change in progress`)
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentNoConflictWithOtherInstance(c *C) {
+	const snapName = "some-snap"
+	const compName = "standard-component"
+	snapRev := snap.R(1)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: "some-snap-id"}
+	snapstate.Set(s.state, "some-snap_key", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, nil)}),
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
+		InstanceKey:     "key",
+	})
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: "http://example.com/" + compName,
+			},
+			Name:      compName,
+			Revision:  3,
+			Type:      "component/standard",
+			Version:   "1.0",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	tss, err := snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install-component", "install a component")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	// The in-progress change for the non-instance snap does not block the instance snap
+	instanceInfo := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	instanceInfo.InstanceKey = "key"
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, instanceInfo, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	chg = s.state.NewChange("install-component", "install a component")
+	tss, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, instanceInfo, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+	_, err = snapstate.Update(s.state, "some-snap_key", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap_key" has "install-component" change in progress`)
+
+	// and the in-progress instance change does not block the plain snap
+	for _, other := range s.state.Changes() {
+		if other != chg {
+			other.SetStatus(state.DoneStatus)
+		}
+	}
+	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, info, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestInstallComponentConflictsWithSelf(c *C) {
 	const (
 		snapName              = "some-snap"
@@ -1029,12 +1100,19 @@ func (s *snapmgrTestSuite) TestInstallComponentsWithUserIDInstallOpts(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentsParallelInstance(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		instanceKey: "key",
+	})
+}
+
 type testInstallComponentsOpts struct {
 	lane              int
 	transaction       client.TransactionType
 	userIDInstallOpts int
 	userIDSnapState   int
 	snapIsClassic     bool
+	instanceKey       string
 }
 
 func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponentsOpts) {
@@ -1050,6 +1128,8 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	if opts.snapIsClassic {
 		info.Confinement = snap.ClassicConfinement
 	}
+	info.InstanceKey = opts.instanceKey
+	instanceName := info.InstanceName().String()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1060,7 +1140,12 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		SnapID:   "some-snap-id",
 	}
 
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	if opts.instanceKey != "" {
+		// the non-instance snap must be left untouched
+		setStateWithOneSnap(s.state, snapName, snapRev)
+	}
+
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
 			sequence.NewRevisionSideState(si, nil),
@@ -1071,6 +1156,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		Flags: snapstate.Flags{
 			Classic: opts.snapIsClassic,
 		},
+		InstanceKey: opts.instanceKey,
 	})
 
 	components := []string{"standard-component", "kernel-modules-component"}
@@ -1084,7 +1170,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	}
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName().String(), DeepEquals, snapName)
+		c.Assert(info.InstanceName().String(), DeepEquals, instanceName)
 		var results []store.SnapResourceResult
 		for _, compName := range components {
 			results = append(results, store.SnapResourceResult{
@@ -1166,6 +1252,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	// ensure that we didn't drop persistent classic flag when installing the
 	// component
 	c.Assert(snapsup.Classic, Equals, opts.snapIsClassic)
+	c.Assert(snapsup.InstanceKey, Equals, opts.instanceKey)
 
 	for _, ts := range tss[0 : len(tss)-1] {
 		task := ts.Tasks()[0]
@@ -1173,6 +1260,9 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		c.Assert(err, IsNil)
 		c.Assert(compsup, NotNil)
 		c.Assert(snapsup, NotNil)
+		c.Assert(snapsup.InstanceName().String(), Equals, instanceName)
+		c.Assert(filepath.Base(compsup.BlobPath(instanceName)), Equals,
+			fmt.Sprintf("%s+%s_3.comp", instanceName, compsup.ComponentName()))
 
 		opts := compOptMultiCompInstall
 		if compNameToType(compsup.ComponentName()) == snap.KernelModulesComponent {

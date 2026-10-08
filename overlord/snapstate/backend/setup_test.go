@@ -520,14 +520,21 @@ func (s *setupSuite) testSetupComponentDoUndo(c *C, compName, snapName string, i
 }
 
 func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
-	instanceName := naming.NewInstanceName("mysnap", "")
+	s.testSetupComponentCleanupAfterFail(c, naming.NewInstanceName("mysnap", ""))
+}
+
+func (s *setupSuite) TestSetupComponentCleanupAfterFailParallelInstance(c *C) {
+	s.testSetupComponentCleanupAfterFail(c, naming.NewInstanceName("mysnap", "inst"))
+}
+
+func (s *setupSuite) testSetupComponentCleanupAfterFail(c *C, instanceName naming.InstanceName) {
 	compName := "mycomp"
 	compRev := snap.R(33)
 
 	componentYaml := fmt.Sprintf(`component: %s+%s
 type: standard
 version: 1.0
-`, instanceName, compName)
+`, instanceName.SnapName(), compName)
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
 
