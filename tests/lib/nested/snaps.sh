@@ -137,172 +137,173 @@ nested_prepare_kernel() {
     fi
 }
 
+nested_get_gadget_extra_cmdline() {
+    local extra_cmdline=""
+    if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
+        extra_cmdline="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
+    elif os.query is-arm; then
+        extra_cmdline="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
+    fi
+    if [ -n "$TAG_FEATURES" ]; then
+        extra_cmdline="$extra_cmdline tag.features=1"
+    fi
+    if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
+        extra_cmdline="ds=nocloud $extra_cmdline $NESTED_EXTRA_CMDLINE"
+    fi
+    echo "$extra_cmdline"
+}
+
+nested_sign_gadget_snap() {
+    local gadget_snap="$1"
+    local snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+
+    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+        "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$gadget_snap" "$snap_id"
+    fi
+}
+
+nested_repack_core_gadget() {
+    local key_name snakeoil_key snakeoil_cert gadget_extra_cmdline
+    key_name="$(nested_get_snakeoil_key)"
+    snakeoil_key="$PWD/$key_name.key"
+    snakeoil_cert="$PWD/$key_name.pem"
+    gadget_extra_cmdline="$(nested_get_gadget_extra_cmdline)"
+
+    local -a repack_gadget_args=(
+        --gadget-branch "$(nested_get_version)"
+        --gadget-channel "$(nested_get_gadget_channel)"
+        --output-snap "$NESTED_ASSETS_DIR/pc_repacked.snap"
+        --sign-key "$snakeoil_key"
+        --sign-cert "$snakeoil_cert"
+        --persistent-journal
+    )
+    case "${NESTED_UBUNTU_SAVE:-}" in
+        add)
+            repack_gadget_args+=(--ubuntu-save add)
+            touch ubuntu-save-added
+            ;;
+        remove)
+            repack_gadget_args+=(--ubuntu-save remove)
+            touch ubuntu-save-removed
+            ;;
+    esac
+    if [ -n "$gadget_extra_cmdline" ]; then
+        echo "Configuring command line parameters in the gadget snap: \"$gadget_extra_cmdline\""
+        repack_gadget_args+=(--write-cmdline-extra "$gadget_extra_cmdline")
+    fi
+    if [ -n "$NESTED_UBUNTU_SEED_SIZE" ]; then
+        repack_gadget_args+=(--ubuntu-seed-size "$NESTED_UBUNTU_SEED_SIZE")
+    fi
+    if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
+        repack_gadget_args+=(--prepare-device-url http://10.0.2.2:11029)
+    fi
+
+    "$TESTSTOOLS"/repack-gadget "${repack_gadget_args[@]}"
+    cp "$NESTED_ASSETS_DIR/pc_repacked.snap" "$(nested_get_extra_snaps_path)/pc.snap"
+    rm -f "$snakeoil_key" "$snakeoil_cert"
+}
+
 nested_prepare_gadget() {
-    if [ "$NESTED_REPACK_GADGET_SNAP" = "true" ]; then
-        if nested_is_core_ge 20; then
-            # Prepare the pc gadget snap (unless provided by extra-snaps)
-            local snap_id version existing_snap
-            version="$(nested_get_version)"
-            snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+    if [ "$NESTED_REPACK_GADGET_SNAP" != "true" ]; then
+        return
+    fi
 
-            existing_snap=$(find "$(nested_get_extra_snaps_path)" -maxdepth 1 -type f \( -name pc.snap -o -name 'pc_*.snap' \) -print -quit)
-            if [ -n "$existing_snap" ]; then
-                echo "Using generated pc gadget snap $existing_snap"
-                if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                    "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
-                fi
-                return
-            fi
-
-            # XXX: deal with [ "$NESTED_ENABLE_SECURE_BOOT" != "true" ] && [ "$NESTED_ENABLE_TPM" != "true" ]
-            echo "Repacking pc snap"
-            # Get the snakeoil key and cert
-            local key_name snakeoil_key snakeoil_cert
-            key_name=$(nested_get_snakeoil_key)
-            snakeoil_key="$PWD/$key_name.key"
-            snakeoil_cert="$PWD/$key_name.pem"
-
-            local -a repack_gadget_args
-            repack_gadget_args=(
-                --gadget-branch "$version"
-                --gadget-channel "$(nested_get_gadget_channel)"
-                --output-snap "$NESTED_ASSETS_DIR/pc_repacked.snap"
-                --sign-key "$snakeoil_key"
-                --sign-cert "$snakeoil_cert"
-                --persistent-journal
-            )
-            case "${NESTED_UBUNTU_SAVE:-}" in
-                add)
-                    # ensure that ubuntu-save is present
-                    repack_gadget_args+=(--ubuntu-save add)
-                    touch ubuntu-save-added
-                    ;;
-                remove)
-                    # ensure that ubuntu-save is removed
-                    repack_gadget_args+=(--ubuntu-save remove)
-                    touch ubuntu-save-removed
-                    ;;
-            esac
-
-            local GADGET_EXTRA_CMDLINE=""
-            if [ "$NESTED_SNAPD_DEBUG_TO_SERIAL" = "true" ]; then
-                # add snapd debug and log to serial console for extra
-                # visibility what happens when a machine fails to boot
-                GADGET_EXTRA_CMDLINE="console=ttyS0 snapd.debug=1 systemd.journald.forward_to_console=1"
-            elif os.query is-arm; then
-                GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
-            fi
-
-            if [ -n "$TAG_FEATURES" ]; then
-                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE tag.features=1"
-            fi
-
-            if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
-                GADGET_EXTRA_CMDLINE="ds=nocloud $GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
-            fi
-
-            if [ -n "$GADGET_EXTRA_CMDLINE" ]; then
-                echo "Configuring command line parameters in the gadget snap: \"console=ttyS0 $GADGET_EXTRA_CMDLINE\""
-                repack_gadget_args+=(--write-cmdline-extra "$GADGET_EXTRA_CMDLINE")
-            fi
-
-            if [ -n "$NESTED_UBUNTU_SEED_SIZE" ]; then
-                repack_gadget_args+=(--ubuntu-seed-size "$NESTED_UBUNTU_SEED_SIZE")
-            fi
-
-            if [ "$NESTED_REPACK_FOR_FAKESTORE" = "true" ]; then
-                repack_gadget_args+=(--prepare-device-url http://10.0.2.2:11029)
-            fi
-
-            "$TESTSTOOLS"/repack-gadget "${repack_gadget_args[@]}"
-            cp "$NESTED_ASSETS_DIR/pc_repacked.snap" "$(nested_get_extra_snaps_path)/pc.snap"
-            rm -f "$snakeoil_key" "$snakeoil_cert"
+    if nested_is_core_ge 20; then
+        local existing_snap
+        existing_snap="$(find "$(nested_get_extra_snaps_path)" -maxdepth 1 -type f \( -name pc.snap -o -name 'pc_*.snap' \) -print -quit)"
+        if [ -n "$existing_snap" ]; then
+            echo "Using generated pc gadget snap $existing_snap"
+            nested_sign_gadget_snap "$existing_snap"
+            return
         fi
-        # sign the pc gadget snap with fakestore if requested
-        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            # XXX: this is a bit of a hack, but some nested tests 
-            # need extra bits in their snap declaration, so inject
-            # that here, it could end up being empty in which case
-            # it is ignored
-            "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
-        fi
-        if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
-            snap="$NESTED_ASSETS_DIR/pc_repacked.snap"
-            "$TESTSTOOLS"/repack-gadget --gadget-branch 18 --gadget-channel "$(nested_get_gadget_channel)" --output-snap "$snap" --persistent-journal --tag-features-grub
-            cp "$snap" "$(nested_get_extra_snaps_path)/pc.snap"
-        fi
+
+        echo "Repacking pc snap"
+        nested_repack_core_gadget
+        nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap"
+    fi
+
+    if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
+        local gadget_snap="$NESTED_ASSETS_DIR/pc_repacked.snap"
+        "$TESTSTOOLS"/repack-gadget --gadget-branch 18 --gadget-channel "$(nested_get_gadget_channel)" --output-snap "$gadget_snap" --persistent-journal --tag-features-grub
+        cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
+        nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap"
+    fi
+}
+
+nested_get_base_snap_details() {
+    case "$(nested_get_version)" in
+        18) echo "core18 CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6" ;;
+        20) echo "core20 DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q" ;;
+        22) echo "core22 amcUKQILKXHHTlmSa7NMdnXSx02dNeeT" ;;
+        24) echo "core24 dwTAh7MZZ01zyriOZErqd1JynQLiOGvM" ;;
+        26) echo "core26 cUqM61hRuZAJYmIS898Ux66VY61gBbZf" ;;
+        *)
+            echo "Unknown nested core version" >&2
+            return 1
+            ;;
+    esac
+}
+
+nested_repack_base() {
+    local snap_name="$1"
+    local output_name="$2"
+    local base_branch=latest base_channel
+    base_channel="$(nested_get_base_channel)"
+    if [[ "$base_channel" = */* ]]; then
+        base_branch="${base_channel%/*}"
+        base_channel="${base_channel##*/}"
+    fi
+
+    local -a repack_base_args=(
+        --base-name "$snap_name"
+        --base-branch "$base_branch"
+        --base-channel "$base_channel"
+        --output-snap "$NESTED_ASSETS_DIR/$output_name"
+        --enable-test-logging
+        --completion-file "$SPREAD_PATH/data/completion/bash/complete.sh"
+    )
+    if [ "$NESTED_REPACK_FOR_FAKESTORE" = true ]; then
+        repack_base_args+=(--store-url http://10.0.2.2:11028)
+    fi
+    if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        repack_base_args+=(--proxy-env /etc/environment)
+    fi
+    "$TESTSTOOLS"/repack-base "${repack_base_args[@]}"
+}
+
+nested_sign_base_snap() {
+    local base_snap="$1"
+    local snap_id="$2"
+    if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
+        "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$base_snap" "$snap_id"
     fi
 }
 
 nested_prepare_base() {
-    if [ "$NESTED_REPACK_BASE_SNAP" = "true" ]; then
-    local base_branch base_channel
-    local -a repack_base_args
+    if [ "$NESTED_REPACK_BASE_SNAP" != "true" ]; then
+        return
+    fi
+    if nested_is_core_16_system; then
+        echo "No base snap to prepare in core 16"
+        return
+    fi
 
-        if nested_is_core_16_system; then
-            echo "No base snap to prepare in core 16"
-            return
-        elif nested_is_core_18_system; then
-            snap_name="core18"
-            snap_id="CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
-        elif nested_is_core_20_system; then
-            snap_name="core20"
-            snap_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
-        elif nested_is_core_22_system; then
-            snap_name="core22"
-            snap_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT"
-        elif nested_is_core_24_system; then
-            snap_name="core24"
-            snap_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM"
-        elif nested_is_core_26_system; then
-            snap_name="core26"
-            snap_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf"
-        else
-            echo "Unknown nested core version" >&2
-            exit 1
-        fi
-        output_name="${snap_name}.snap"
+    local snap_name snap_id output_name existing_snap
+    read -r snap_name snap_id < <(nested_get_base_snap_details) || return 1
+    output_name="${snap_name}.snap"
+    existing_snap="$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap" -print -quit)"
+    if [ -n "$existing_snap" ]; then
+        echo "Using generated base snap $existing_snap"
+        nested_sign_base_snap "$existing_snap" "$snap_id"
+        return
+    fi
 
-        existing_snap=$(find "$(nested_get_extra_snaps_path)" -name "${snap_name}*.snap")
-        if [ -n "$existing_snap" ]; then
-            echo "Using generated base snap $existing_snap"
-            if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$existing_snap" "$snap_id"
-            fi
-            return
-        fi
-
-        if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
-            echo "Repacking $snap_name snap"
-            base_branch=latest
-            base_channel="$(nested_get_base_channel)"
-            if [[ "$base_channel" = */* ]]; then
-                base_branch="${base_channel%/*}"
-                base_channel="${base_channel##*/}"
-            fi
-            repack_base_args=(
-                --base-name "$snap_name"
-                --base-branch "$base_branch"
-                --base-channel "$base_channel"
-                --output-snap "$NESTED_ASSETS_DIR/$output_name"
-                --enable-test-logging
-                --completion-file "$SPREAD_PATH/data/completion/bash/complete.sh"
-            )
-            if [ "$NESTED_REPACK_FOR_FAKESTORE" = true ]; then
-                repack_base_args+=(--store-url http://10.0.2.2:11028)
-            fi
-            if [ "${SNAPD_USE_PROXY:-}" = true ]; then
-                repack_base_args+=(--proxy-env /etc/environment)
-            fi
-            "$TESTSTOOLS"/repack-base "${repack_base_args[@]}"
-        fi
-        cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
-
-        # sign the base snap with fakestore if requested
-        if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-            "$TESTSTOOLS"/store-state make-snap-installable --noack "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/${snap_name}.snap" "$snap_id"
-        fi
-    fi 
+    if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
+        echo "Repacking $snap_name snap"
+        nested_repack_base "$snap_name" "$output_name"
+    fi
+    cp "$NESTED_ASSETS_DIR/$output_name" "$(nested_get_extra_snaps_path)/$output_name"
+    nested_sign_base_snap "$(nested_get_extra_snaps_path)/$output_name" "$snap_id"
 }
 
 nested_prepare_essential_snaps() {
