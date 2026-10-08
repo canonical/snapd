@@ -37,10 +37,12 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -339,6 +341,54 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterface
 	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapMigratesPendingParallelInstance(c *C) {
+	s.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+	c.Assert(repo.AddInterface(&testParallelInstancesPlugRejectingInterface{}), IsNil)
+	c.Assert(repo.AddInterface(&testParallelInstancesSupportedInterface{}), IsNil)
+	restoreInfo := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.InstanceKey = "bar"
+		interfaceName := "pi-ok-iface"
+		if si.RealName == "foo" {
+			interfaceName = "pi-nok-plug-iface"
+		}
+		info.Plugs = map[string]*snap.PlugInfo{
+			"test-plug": {Snap: info, Name: "test-plug", Interface: interfaceName},
+		}
+		return info, nil
+	})
+	defer restoreInfo()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "foo", Revision: snap.R(33)},
+		InstanceKey: "bar",
+	})
+	t.Set("parallel-instance-migration-pending", true)
+	supportedTask := s.state.NewTask("link-snap", "test supported instance")
+	supportedTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "baz", Revision: snap.R(33)},
+		InstanceKey: "bar",
+	})
+	supportedTask.Set("parallel-instance-migration-pending", true)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	chg.AddTask(supportedTask)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
+	c.Assert(snapstate.Get(s.state, "baz_bar", &snapst), IsNil)
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOnRefresh(c *C) {
 	s.state.Lock()
 	si11 := &snap.SideInfo{
@@ -414,6 +464,55 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInter
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(11))
 	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapPreservesParallelInstanceMigration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+	c.Assert(repo.AddInterface(&testParallelInstancesPlugRejectingInterface{}), IsNil)
+	restoreInfo := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		info.InstanceKey = "bar"
+		info.Plugs = map[string]*snap.PlugInfo{
+			"pi-nok-plug": {Snap: info, Name: "pi-nok-plug", Interface: "pi-nok-plug-iface"},
+		}
+		return info, nil
+	})
+	defer restoreInfo()
+
+	si11 := &snap.SideInfo{RealName: "foo", Revision: snap.R(11)}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		Active:      true,
+		InstanceKey: "bar",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "foo", Revision: snap.R(33)},
+		InstanceKey: "bar",
+	})
+	t.Set("parallel-instance-migration-pending", true)
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	errTask := s.state.NewTask("error-trigger", "provoking total undo")
+	errTask.WaitFor(t)
+	chg.AddTask(errTask)
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
 }
 
 func (s *linkSnapSuite) TestUndoLinkSnapKeepsIgnoreInstanceErrorsFromOldSnapd(c *C) {

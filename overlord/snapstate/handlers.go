@@ -1918,6 +1918,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	if err != nil {
 		return err
 	}
+	var parallelInstanceMigrationPending bool
+	if err := t.Get(parallelInstanceMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, newInfo) != nil {
+		snapst.IgnoreUnsupportedInstanceInterfaces = true
+	}
 
 	// record type
 	snapst.SetType(newInfo.Type())
@@ -2604,6 +2611,13 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		snapst.Base = oldInfo.Base
+		var parallelInstanceMigrationPending bool
+		if err := t.Get(parallelInstanceMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, oldInfo) != nil {
+			snapst.IgnoreUnsupportedInstanceInterfaces = true
+		}
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName().String(), snapsup.SideInfo, 0)

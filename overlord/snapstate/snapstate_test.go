@@ -12906,8 +12906,17 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces
 	defer s.state.Unlock()
 
 	s.mockParallelInstancesForMigration(c)
+	link := s.state.NewTask("link-snap", "install parallel instance")
+	link.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)},
+		InstanceKey: "in-flight",
+	})
+	s.state.NewChange("install", "Install parallel instance").AddTask(link)
 
 	c.Assert(snapstate.MigrateParallelInstancesIgnoreInstanceErrors(s.state), IsNil)
+	var migrationPending bool
+	c.Assert(link.Get("parallel-instance-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
 
 	for name, expected := range map[string]bool{
 		"some-snap":     false,
