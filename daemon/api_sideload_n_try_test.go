@@ -1234,7 +1234,7 @@ func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
-func (s *sideloadSuite) TestInstallPathIgnoreInstanceErrors(c *check.C) {
+func (s *sideloadSuite) TestInstallPathIgnoreUnsupportedInstanceInterfaces(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
@@ -1245,12 +1245,12 @@ func (s *sideloadSuite) TestInstallPathIgnoreInstanceErrors(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"ignore-instance-errors\"\r\n" +
+		"Content-Disposition: form-data; name=\"ignore-unsupported-instance-interfaces\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	flags := snapstate.Flags{IgnoreInstanceErrors: true, RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap}
+	flags := snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true, RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionPerSnap}
 	chgSummary, _ := s.sideloadCheck(c, body, head, "local", flags)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }

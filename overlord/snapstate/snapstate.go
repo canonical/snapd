@@ -661,10 +661,10 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
-	if !flags.IgnoreInstanceErrors && !snapst.IgnoreInstanceErrors {
+	if !flags.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces {
 		if err := checkParallelInstancesSupport(st, info); err != nil {
 			if snapst.IsInstalled() {
-				st.Warnf("refresh of snap %q is blocked as it uses interfaces not supported for parallel instances: %v; use --ignore-instance-errors to refresh anyway", info.InstanceName(), err)
+				st.Warnf("refresh of snap %q is blocked as it uses interfaces not supported for parallel instances: %v; use --ignore-unsupported-instance-interfaces to refresh anyway", info.InstanceName(), err)
 			}
 			return flags, err
 		}
