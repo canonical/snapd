@@ -115,6 +115,7 @@ type installSnapInfo struct {
 }
 
 func (ins installSnapInfo) DownloadSize() int64 {
+	// XXX: should this add the integrity data size as well?
 	return ins.DownloadInfo.Size
 }
 
