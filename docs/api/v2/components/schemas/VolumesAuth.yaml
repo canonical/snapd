@@ -46,7 +46,7 @@ oneOf:
           The key derivation function to use for passphrase
           authentication. If omitted, snapd defaults to 'argon2id'.
   - type: object
-    title: PIN
+    title: pin
     additionalProperties: false
     required:
       - mode
