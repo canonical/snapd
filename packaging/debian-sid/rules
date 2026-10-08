@@ -186,10 +186,10 @@ endif
 	# and build, we cannot use modules as packaging on Debian requires us to use
 	# dependencies from the distro, and this would require further updates to the
 	# go.mod file
-	GO111MODULE=off dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+	GO111MODULE=on dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 	# remove snapd built by dh_auto_build and build it again using the right tags
 	rm -v $(CURDIR)/_build/bin/snapd
-	GO111MODULE=off GOPATH=$(CURDIR)/_build \
+	GO111MODULE=on GOPATH=$(CURDIR)/_build \
 		$(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snapd SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# (static linking on powerpc with cgo is broken)
@@ -197,8 +197,8 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-update-ns and snapctl
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GO111MODULE=on GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GO111MODULE=on GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(MAKE) -f packaging/snapd.mk check-static-binaries SNAPD_DEFINES_DIR=$(CURDIR)
@@ -227,7 +227,7 @@ endif
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	LANG=C.utf-8 LC_ALL=C.utf-8 SNAPD_SKIP_SLOW_TESTS=true GO111MODULE=off dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/...
+	LANG=C.utf-8 LC_ALL=C.utf-8 SNAPD_SKIP_SLOW_TESTS=true GO111MODULE=on dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/...
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
