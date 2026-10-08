@@ -53,6 +53,5 @@ func init() {
 		connectedPlugAppArmor:    physicalMemoryControlConnectedPlugAppArmor,
 		connectedPlugUDev:        physicalMemoryControlConnectedPlugUDev,
 		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

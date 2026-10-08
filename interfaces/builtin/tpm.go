@@ -44,13 +44,12 @@ var tpmConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "tpm",
-		summary:                  tpmSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     tpmBaseDeclarationSlots,
-		connectedPlugAppArmor:    tpmConnectedPlugAppArmor,
-		connectedPlugUDev:        tpmConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "tpm",
+		summary:               tpmSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  tpmBaseDeclarationSlots,
+		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
+		connectedPlugUDev:     tpmConnectedPlugUDev,
 	})
 }

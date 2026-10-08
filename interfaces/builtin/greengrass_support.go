@@ -492,6 +492,5 @@ func init() {
 		baseDeclarationSlots:     greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     greengrassSupportBaseDeclarationPlugs,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

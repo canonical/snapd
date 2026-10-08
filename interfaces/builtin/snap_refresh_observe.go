@@ -37,12 +37,11 @@ const snapRefreshObserveBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "snap-refresh-observe",
-		summary:                  snapRefreshObserveSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     snapRefreshObserveBaseDeclarationPlugs,
-		baseDeclarationSlots:     snapRefreshObserveBaseDeclarationSlots,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                 "snap-refresh-observe",
+		summary:              snapRefreshObserveSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: snapRefreshObserveBaseDeclarationPlugs,
+		baseDeclarationSlots: snapRefreshObserveBaseDeclarationSlots,
 	})
 }

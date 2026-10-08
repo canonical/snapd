@@ -106,10 +106,6 @@ func (iface *spiInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
-func (iface *spiInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
-	return parallelInstancesSystemOrGadgetSlotErr(slot)
-}
-
 func init() {
 	registerIface(&spiInterface{})
 }

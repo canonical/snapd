@@ -44,6 +44,5 @@ func init() {
 		baseDeclarationPlugs:     rosSnapdSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     rosSnapdSupportBaseDeclarationSlots,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

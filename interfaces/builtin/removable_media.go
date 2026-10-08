@@ -51,12 +51,11 @@ const removableMediaConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "removable-media",
-		summary:                  removableMediaSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     removableMediaBaseDeclarationSlots,
-		connectedPlugAppArmor:    removableMediaConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "removable-media",
+		summary:               removableMediaSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  removableMediaBaseDeclarationSlots,
+		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
 	})
 }

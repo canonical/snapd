@@ -55,14 +55,13 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "devlxd",
-		summary:                  devlxdSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     devlxdBaseDeclarationPlugs,
-		baseDeclarationSlots:     devlxdBaseDeclarationSlots,
-		connectedPlugAppArmor:    devlxdConnectedPlugAppArmor,
-		connectedPlugSecComp:     devlxdConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "devlxd",
+		summary:               devlxdSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  devlxdBaseDeclarationPlugs,
+		baseDeclarationSlots:  devlxdBaseDeclarationSlots,
+		connectedPlugAppArmor: devlxdConnectedPlugAppArmor,
+		connectedPlugSecComp:  devlxdConnectedPlugSecComp,
 	})
 }

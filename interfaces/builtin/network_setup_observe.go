@@ -77,12 +77,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "network-setup-observe",
-		summary:                  networkSetupObserveSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     networkSetupObserveBaseDeclarationSlots,
-		connectedPlugAppArmor:    networkSetupObserveConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "network-setup-observe",
+		summary:               networkSetupObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkSetupObserveBaseDeclarationSlots,
+		connectedPlugAppArmor: networkSetupObserveConnectedPlugAppArmor,
 	})
 }

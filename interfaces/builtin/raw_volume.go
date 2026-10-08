@@ -154,10 +154,6 @@ func (iface *rawVolumeInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) boo
 	return true
 }
 
-func (iface *rawVolumeInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
-	return parallelInstancesSystemOrGadgetSlotErr(slot)
-}
-
 func init() {
 	registerIface(&rawVolumeInterface{})
 }
