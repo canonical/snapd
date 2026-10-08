@@ -2317,7 +2317,6 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 	defer restoreModel()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", true)
 	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
 	tr.Commit()
 
