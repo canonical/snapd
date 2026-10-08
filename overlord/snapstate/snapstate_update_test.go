@@ -6678,30 +6678,6 @@ func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceSkippedIfReservationUnset(c *C
 	c.Assert(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceIgnoresLegacyFlag(c *C) {
-	for _, legacyFlag := range []any{nil, false, true} {
-		for _, checkEnabled := range []bool{false, true} {
-			s.state.Lock()
-			tr := config.NewTransaction(s.state)
-			c.Assert(tr.Set("core", "experimental.check-disk-space-refresh", legacyFlag), IsNil)
-			c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
-			tr.Commit()
-			s.state.Unlock()
-
-			_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
-				CheckEnabled:      checkEnabled,
-				InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
-				RetryCheckError:   &osutil.NotEnoughDiskSpaceError{},
-			})
-			if checkEnabled {
-				c.Check(err, FitsTypeOf, &snapstate.InsufficientSpaceError{}, Commentf("legacy flag: %v", legacyFlag))
-			} else {
-				c.Check(err, IsNil, Commentf("legacy flag: %v", legacyFlag))
-			}
-		}
-	}
-}
-
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceFailInstallSize(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
 		CheckEnabled:    true,
@@ -7454,26 +7430,6 @@ func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfReservationUnset(c *C) {
 	failDiskCheck := true
 	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
-}
-
-func (s *snapmgrTestSuite) TestUpdateDiskSpaceIgnoresLegacyFlag(c *C) {
-	for _, legacyFlag := range []any{nil, false, true} {
-		for _, checkEnabled := range []bool{false, true} {
-			s.state.Lock()
-			tr := config.NewTransaction(s.state)
-			c.Assert(tr.Set("core", "experimental.check-disk-space-refresh", legacyFlag), IsNil)
-			c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
-			tr.Commit()
-			s.state.Unlock()
-
-			err := s.testUpdateDiskSpaceCheck(c, checkEnabled, false, true)
-			if checkEnabled {
-				c.Check(err, FitsTypeOf, &snapstate.InsufficientSpaceError{}, Commentf("legacy flag: %v", legacyFlag))
-			} else {
-				c.Check(err, IsNil, Commentf("legacy flag: %v", legacyFlag))
-			}
-		}
-	}
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskCheckInstallSizeError(c *C) {
