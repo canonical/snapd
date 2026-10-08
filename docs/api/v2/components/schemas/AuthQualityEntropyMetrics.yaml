@@ -17,11 +17,9 @@ properties:
     type: integer
     minimum: 0
     description:
-      The minimum required entropy for the corresponding authentication
-      mode (passphrase or PIN) in bits.
+      The minimum required entropy for the passphrase or PIN in bits.
   optimal-entropy-bits:
     type: integer
     minimum: 0
     description:
-      The recommended minimum entropy for the corresponding authentication
-      mode (passphrase or PIN) in bits.
+      The recommended minimum entropy for the passphrase or PIN in bits.
