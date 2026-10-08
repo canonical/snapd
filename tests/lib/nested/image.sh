@@ -240,83 +240,99 @@ nested_configure_default_user() {
     cp -v "$IMAGE_PATH" "$IMAGE_PATH.pristine"
 }
 
+nested_restore_core_image() {
+    local IMAGE_PATH="$1"
+
+    if [ ! -f "$IMAGE_PATH" ]; then
+        return 1
+    fi
+
+    IMAGE_PATH="$(realpath "$IMAGE_PATH")"
+    if [ ! -f "$IMAGE_PATH.pristine" ]; then
+        return 1
+    fi
+
+    cp -v "$IMAGE_PATH.pristine" "$IMAGE_PATH"
+    if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+        nested_create_assertions_disk
+    fi
+}
+
+nested_generate_core_image() {
+    local IMAGE_NAME="$1"
+
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
+        nested_prepare_snapd
+        nested_prepare_kernel
+        nested_prepare_gadget
+        nested_prepare_base
+    fi
+
+    local base_channel=""
+    local image_channel
+    local -a image_generator_args
+    image_channel="$(nested_get_image_channel)"
+
+    # Core 26 may need a base channel (for example cloud-init/edge) that
+    # differs from the image-wide channel used by earlier Core versions.
+    if nested_is_core_26_system; then
+        base_channel="$(nested_get_base_channel)"
+    fi
+    image_generator_args=(
+        --core-version "$(nested_get_version)"
+        --model "$(nested_get_model)"
+        --output-dir "$NESTED_IMAGES_DIR"
+        --image-name "$IMAGE_NAME"
+        --image-base-name "$(nested_get_image_name_base core)"
+        --log-file "$NESTED_LOGS_DIR/ubuntu-image.log"
+        --sector-size "$NESTED_DISK_LOGICAL_BLOCK_SIZE"
+        --store-url "$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
+        --debug
+    )
+    if [ -n "$base_channel" ]; then
+        image_generator_args+=(--base-channel "$base_channel")
+    fi
+    if [ -n "$image_channel" ]; then
+        image_generator_args+=(--channel "$image_channel")
+    fi
+    if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
+        image_generator_args+=(--preseed-sign-key "$NESTED_UBUNTU_IMAGE_PRESEED_KEY")
+    fi
+    while IFS= read -r mysnap; do
+        image_generator_args+=(--snap "$mysnap")
+    done < <(nested_get_extra_snaps)
+    while IFS= read -r mycomp; do
+        image_generator_args+=(--component "$mycomp")
+    done < <(nested_get_extra_comps)
+    if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
+        image_generator_args+=(--component "pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp")
+    fi
+    if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
+        image_generator_args+=(--gadget-yaml pc-gadget/meta/gadget.yaml)
+    fi
+    "$TESTSTOOLS"/image-generator "${image_generator_args[@]}"
+}
+
 nested_create_core_vm() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
 
-    local IMAGE_NAME
+    local IMAGE_NAME IMAGE_PATH
     IMAGE_NAME="$(nested_get_image_name core)"
+    IMAGE_PATH="$NESTED_IMAGES_DIR/$IMAGE_NAME"
     mkdir -p "$NESTED_IMAGES_DIR"
 
-    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-        local IMAGE_PATH
-        IMAGE_PATH="$(realpath "$NESTED_IMAGES_DIR/$IMAGE_NAME")"
+    if nested_restore_core_image "$IMAGE_PATH"; then
+        return
+    fi
 
-        if [ -f "$IMAGE_PATH.pristine" ]; then
-            cp -v "$IMAGE_PATH.pristine" "$IMAGE_PATH"
-            if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-                nested_create_assertions_disk
-            fi
-            return
-        fi
-
-    else
+    if [ ! -f "$IMAGE_PATH" ]; then
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
-            # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
         else
-            if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-                nested_prepare_snapd
-                nested_prepare_kernel
-                nested_prepare_gadget
-                nested_prepare_base
-            fi
-
-            local base_channel=""
-            local image_channel
-            local -a image_generator_args
-            image_channel="$(nested_get_image_channel)"
-
-            # Core 26 may need a base channel (for example cloud-init/edge) that
-            # differs from the image-wide channel used by earlier Core versions.
-            if nested_is_core_26_system; then
-                base_channel="$(nested_get_base_channel)"
-            fi
-            image_generator_args=(
-                --core-version "$(nested_get_version)"
-                --model "$(nested_get_model)"
-                --output-dir "$NESTED_IMAGES_DIR"
-                --image-name "$IMAGE_NAME"
-                --image-base-name "$(nested_get_image_name_base core)"
-                --log-file "$NESTED_LOGS_DIR/ubuntu-image.log"
-                --sector-size "$NESTED_DISK_LOGICAL_BLOCK_SIZE"
-                --store-url "$NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL"
-                --debug
-            )
-            if [ -n "$base_channel" ]; then
-                image_generator_args+=(--base-channel "$base_channel")
-            fi
-            if [ -n "$image_channel" ]; then
-                image_generator_args+=(--channel "$image_channel")
-            fi
-            if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
-                image_generator_args+=(--preseed-sign-key "$NESTED_UBUNTU_IMAGE_PRESEED_KEY")
-            fi
-            while IFS= read -r mysnap; do
-                image_generator_args+=(--snap "$mysnap")
-            done < <(nested_get_extra_snaps)
-            while IFS= read -r mycomp; do
-                image_generator_args+=(--component "$mycomp")
-            done < <(nested_get_extra_comps)
-            if [ -n "$NESTED_KERNEL_MODULES_COMP" ] && [ "$(nested_get_version)" -ge "24" ]; then
-                image_generator_args+=(--component "pc-kernel+${NESTED_KERNEL_MODULES_COMP}.comp")
-            fi
-            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
-                image_generator_args+=(--gadget-yaml pc-gadget/meta/gadget.yaml)
-            fi
-            "$TESTSTOOLS"/image-generator "${image_generator_args[@]}"
+            nested_generate_core_image "$IMAGE_NAME"
         fi
     fi
 
