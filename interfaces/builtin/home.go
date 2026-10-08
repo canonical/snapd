@@ -131,11 +131,10 @@ func (iface *homeInterface) AppArmorConnectedPlug(spec *apparmor.Specification, 
 
 func init() {
 	registerIface(&homeInterface{commonInterface{
-		name:                     "home",
-		summary:                  homeSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     homeBaseDeclarationSlots,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                 "home",
+		summary:              homeSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: homeBaseDeclarationSlots,
 	}})
 }

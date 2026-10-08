@@ -80,6 +80,5 @@ func init() {
 		connectedPlugAppArmor:    nvidiaDriversSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     nvidiaDriversSupportConnectedPlugSecComp,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

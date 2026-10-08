@@ -40,6 +40,5 @@ func init() {
 		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

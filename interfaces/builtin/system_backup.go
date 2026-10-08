@@ -52,12 +52,11 @@ type systemBackupInterface struct {
 
 func init() {
 	registerIface(&systemBackupInterface{commonInterface{
-		name:                     "system-backup",
-		summary:                  systemBackupSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     systemBackupBaseDeclarationSlots,
-		connectedPlugAppArmor:    systemBackupConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "system-backup",
+		summary:               systemBackupSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  systemBackupBaseDeclarationSlots,
+		connectedPlugAppArmor: systemBackupConnectedPlugAppArmor,
 	}})
 }

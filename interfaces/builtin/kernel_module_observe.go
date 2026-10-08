@@ -49,12 +49,11 @@ capability syslog,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "kernel-module-observe",
-		summary:                  kernelModuleObserveSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     kernelModuleObserveBaseDeclarationSlots,
-		connectedPlugAppArmor:    kernelModuleObserveConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "kernel-module-observe",
+		summary:               kernelModuleObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  kernelModuleObserveBaseDeclarationSlots,
+		connectedPlugAppArmor: kernelModuleObserveConnectedPlugAppArmor,
 	})
 }

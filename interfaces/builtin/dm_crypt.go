@@ -94,6 +94,5 @@ func init() {
 		connectedPlugKModModules: dmCryptConnectedPlugKmod,
 		connectedPlugUDev:        dmCryptConnectedPlugUDev,
 		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

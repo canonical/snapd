@@ -73,6 +73,5 @@ func init() {
 		connectedPlugAppArmor:    pppConnectedPlugAppArmor,
 		connectedPlugKModModules: pppConnectedPlugKmod,
 		connectedPlugUDev:        pppConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

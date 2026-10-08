@@ -44,6 +44,5 @@ func init() {
 		baseDeclarationPlugs:     firmwareUpdaterSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     firmwareUpdaterSupportBaseDeclarationSlots,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

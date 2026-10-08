@@ -69,6 +69,5 @@ func init() {
 		connectedPlugAppArmor:    fpgaConnectedPlugAppArmor,
 		connectedPlugUDev:        fpgaConnectedPlugUDev,
 		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }
