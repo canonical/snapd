@@ -94,6 +94,21 @@ func (s *DesktopInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
+func (s *DesktopInterfaceSuite) TestParallelInstancesSupportedForPlug(c *C) {
+	definer := s.iface.(interfaces.ParallelInstancesPlugDefiner)
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.plugInfo), IsNil)
+	for _, value := range []any{[]any{"org.example.App"}, []any{}} {
+		s.plugInfo.Attrs = map[string]any{"desktop-file-ids": value}
+		c.Check(definer.ParallelInstancesSupportedForPlug(s.plugInfo), ErrorMatches, `"desktop-file-ids" attribute must not be set`)
+	}
+}
+
+func (s *DesktopInterfaceSuite) TestParallelInstancesUnsupportedForSlot(c *C) {
+	definer := s.iface.(interfaces.ParallelInstancesSlotDefiner)
+	c.Check(definer.ParallelInstancesSupportedForSlot(s.appSlotInfo), ErrorMatches, "owning a unique global resource cannot have parallel instances")
+	c.Check(definer.ParallelInstancesSupportedForSlot(s.coreSlotInfo), ErrorMatches, "owning a unique global resource cannot have parallel instances")
+}
+
 func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)

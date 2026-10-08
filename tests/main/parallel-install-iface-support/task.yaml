@@ -278,6 +278,10 @@ execute: |
 
     check_parallel_install_slot_rejected desktop
     check_parallel_install_plug_allowed desktop
+    check_parallel_install_plug_rejected desktop \
+        "desktop-file-ids: [org.example.App]"
+    check_parallel_install_plug_rejected desktop \
+        "desktop-file-ids: []"
 
     # desktop-launch plug cannot be installed on an arbitrary app
     # snap at all (allow-installation: false), so there is nothing
