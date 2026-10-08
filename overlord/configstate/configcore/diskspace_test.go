@@ -119,7 +119,7 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationDoesNothingWhenFeaturesD
 	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }
 
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationRetiresFlags(c *C) {
+func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationPreservesFlags(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -133,15 +133,13 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationRetiresFlags(c *C) {
 	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
 	tr.Commit()
 
-	for _, feature := range []features.SnapdFeature{
-		features.CheckDiskSpaceInstall,
-		features.CheckDiskSpaceRefresh,
-		features.CheckDiskSpaceRemove,
-	} {
-		snapName, confName := feature.ConfigOption()
-		var value any
-		c.Check(config.IsNoOption(tr.Get(snapName, confName, &value)), Equals, true)
-	}
+	var enabled bool
+	c.Assert(tr.Get(installSnap, installConf, &enabled), IsNil)
+	c.Check(enabled, Equals, true)
+	c.Assert(tr.Get(removeSnap, removeConf, &enabled), IsNil)
+	c.Check(enabled, Equals, false)
+	refreshSnap, refreshConf := features.CheckDiskSpaceRefresh.ConfigOption()
+	c.Check(config.IsNoOption(tr.Get(refreshSnap, refreshConf, &enabled)), Equals, true)
 
 	var reservation uint64
 	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
@@ -166,6 +164,10 @@ func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationOnFeatureFlagChange(c *C
 		s.state.Lock()
 		c.Assert(err, IsNil)
 		tr.Commit()
+
+		var enabled bool
+		c.Assert(tr.Get(snapName, confName, &enabled), IsNil)
+		c.Check(enabled, Equals, true)
 
 		var reservation uint64
 		c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)

@@ -21,6 +21,7 @@
 package configstate
 
 import (
+	"errors"
 	"regexp"
 
 	"github.com/snapcore/snapd/dirs"
@@ -53,15 +54,21 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// ensure that graduated features are cleared from the state
 	rt := configcore.NewRunTransaction(tr, nil)
 
-	// Migrate disk space reservation prior to graduated feature pruning
-	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
+	var diskSpaceReservationMigrated bool
+	if err := st.Get("disk-space-reservation-migrated", &diskSpaceReservationMigrated); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
+	}
+	if !diskSpaceReservationMigrated {
+		if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
+			return err
+		}
 	}
 
 	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
 		return err
 	}
 	rt.Commit()
+	st.Set("disk-space-reservation-migrated", true)
 
 	var homedirs string
 	if err := tr.GetMaybe("core", "homedirs", &homedirs); err != nil {

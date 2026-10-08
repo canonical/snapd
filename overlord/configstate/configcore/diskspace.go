@@ -40,9 +40,7 @@ func init() {
 	supportedConfigurations["core.disk-reservation.size"] = true
 }
 
-// MigrateDiskSpaceReservation converts the legacy experimental feature flags
-// into disk-reservation.size and then retires the flags, so the option stays
-// authoritative. It can be removed with those flags in a later release.
+// MigrateDiskSpaceReservation seeds the reservation while preserving flags for rollback.
 func MigrateDiskSpaceReservation(tr RunTransaction) error {
 	enabled, err := legacyDiskSpaceFeatureEnabled(tr)
 	if err != nil {
@@ -62,13 +60,6 @@ func MigrateDiskSpaceReservation(tr RunTransaction) error {
 		}
 	case err != nil:
 		return err
-	}
-
-	for _, feature := range legacyDiskSpaceFeatures {
-		snapName, confName := feature.ConfigOption()
-		if err := tr.Set(snapName, confName, nil); err != nil {
-			return err
-		}
 	}
 
 	return nil
