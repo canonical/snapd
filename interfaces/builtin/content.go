@@ -81,6 +81,13 @@ func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
+// slotPathOpts and plugPathOpts are the PathVariablesOptions.
+// slot-side paths allow $SNAP_INSTANCE_NAME, plug-side paths do not.
+var (
+	slotPathOpts = &snap.PathVariablesOptions{AllowSnapInstanceName: true}
+	plugPathOpts = &snap.PathVariablesOptions{AllowSnapInstanceName: false}
+)
+
 func validatePath(path string) error {
 	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
 		return fmt.Errorf("content interface path is invalid: %v", err)
@@ -101,11 +108,10 @@ func validateCompSubPath(path string) error {
 	return nil
 }
 
-func validateNonCompPath(path string) error {
+func validateNonCompPath(path string, opts *snap.PathVariablesOptions) error {
 	if err := validatePath(path); err != nil {
 		return err
 	}
-	opts := &snap.PathVariablesOptions{AllowSnapInstanceName: true}
 	if err := snap.ValidatePathVariablesWithOptions(path, opts); err != nil {
 		return fmt.Errorf("content interface path is invalid: %v", err)
 	}
@@ -214,7 +220,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			return fmt.Errorf("component paths can only be used with read, not write: %q", p)
 		}
 
-		if err := validateNonCompPath(p); err != nil {
+		if err := validateNonCompPath(p, slotPathOpts); err != nil {
 			return err
 		}
 	}
@@ -231,7 +237,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			continue
 		}
 
-		if err := validateNonCompPath(p); err != nil {
+		if err := validateNonCompPath(p, slotPathOpts); err != nil {
 			return err
 		}
 	}
@@ -250,7 +256,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if err := validateNonCompPath(target); err != nil {
+	if err := validateNonCompPath(target, plugPathOpts); err != nil {
 		return err
 	}
 
@@ -292,18 +298,17 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 }
 
 // resolveSpecialVariable resolves the $SNAP* variables of a given path. The
-// path may start with $SNAP, $SNAP_DATA or $SNAP_COMMON and may refer to
-// $SNAP_INSTANCE_NAME anywhere but at the beginning. If the path does not start
-// with a supported variable, $SNAP is implicitly assumed (this is the behavior
-// that was used before variables were supported). The perspective parameter
-// controls how $SNAP is expanded accounting for features like parallel
-// installs: PerspectiveOther uses the most precise instance name (e.g.
-// snap_key), while PerspectiveSelf uses the snap name (e.g. snap).
-// $SNAP_INSTANCE_NAME always expands to the instance name.
-func resolveSpecialVariable(path string, snapInfo *snap.Info, perspective snap.ExpandSnapPerspective) string {
+// path may start with $SNAP, $SNAP_DATA or $SNAP_COMMON and, when starting with
+// $SNAP_DATA or $SNAP_COMMON, may also refer to $SNAP_INSTANCE_NAME if allowed
+// by opts. If the path does not start with a supported variable, $SNAP is
+// implicitly assumed (this is the behavior that was used before variables were
+// supported). The perspective parameter controls how $SNAP is expanded accounting
+// for features like parallel installs: PerspectiveOther uses the most precise
+// instance name (e.g. snap_key), while PerspectiveSelf uses the snap name
+// (e.g. snap). $SNAP_INSTANCE_NAME always expands to the instance name.
+func resolveSpecialVariable(path string, snapInfo *snap.Info, perspective snap.ExpandSnapPerspective, opts *snap.PathVariablesOptions) string {
 	// Content cannot be mounted at arbitrary locations, validate the path
 	// for extra safety.
-	opts := &snap.PathVariablesOptions{AllowSnapInstanceName: true}
 	if err := snap.ValidatePathVariablesWithOptions(path, opts); err == nil && strings.HasPrefix(path, "$") {
 		// The path starts with $ and validation ensures that
 		// the leading variable is one of $SNAP, $SNAP_DATA or $SNAP_COMMON
@@ -376,10 +381,10 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 		source, sourceNameOverride = resolveComponentSource(slot.Snap(), ci, subPath)
 	} else {
 		// Regular (non-component) $SNAP/$SNAP_DATA/$SNAP_COMMON path.
-		source = resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther)
+		source = resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther, slotPathOpts)
 	}
 	// Target uses PerspectiveSelf as the consumer sees its own snap name.
-	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf)
+	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf, plugPathOpts)
 
 	// Figure out the target path if the source is supposed to be exported on a
 	// path beneath the target prescribed in the plug.
@@ -439,7 +444,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				// Use PerspectiveOther: resolve to provider's precise instance
 				// name
-				resolveSpecialVariable(w, slot.Snap(), snap.PerspectiveOther))
+				resolveSpecialVariable(w, slot.Snap(), snap.PerspectiveOther, slotPathOpts))
 			// Write paths can never reference components (rejected in
 			// BeforePrepareSlot), so ok is always true here.
 			source, target, _ := sourceTarget(plug, slot, w)

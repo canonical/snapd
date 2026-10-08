@@ -1069,16 +1069,15 @@ func ValidatePathVariables(path string) error {
 
 // ValidatePathVariablesWithOptions ensures that the given path contains only
 // $SNAP, $SNAP_DATA or $SNAP_COMMON. When enabled by opts, $SNAP_INSTANCE_NAME
-// is also allowed and may appear anywhere except at the beginning of the path.
+// is also allowed, but only in paths starting with $SNAP_DATA or $SNAP_COMMON.
 func ValidatePathVariablesWithOptions(path string, opts *PathVariablesOptions) error {
-	firstVariable := true
+	allowInstanceName := opts != nil && opts.AllowSnapInstanceName
+	startsWithDataOrCommon := strings.HasPrefix(path, "$SNAP_DATA") || strings.HasPrefix(path, "$SNAP_COMMON")
 	for path != "" {
 		start := strings.IndexRune(path, '$')
 		if start < 0 {
 			break
 		}
-		atStart := firstVariable && start == 0
-		firstVariable = false
 		path = path[start+1:]
 		end := strings.IndexFunc(path, func(c rune) bool {
 			return (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '_'
@@ -1087,9 +1086,9 @@ func ValidatePathVariablesWithOptions(path string, opts *PathVariablesOptions) e
 			end = len(path)
 		}
 		v := path[:end]
-		if opts != nil && opts.AllowSnapInstanceName && v == "SNAP_INSTANCE_NAME" {
-			if atStart {
-				return fmt.Errorf("path cannot start with variable %q", "$"+v)
+		if allowInstanceName && v == "SNAP_INSTANCE_NAME" {
+			if !startsWithDataOrCommon {
+				return fmt.Errorf("variable %q can only be used in a path starting with $SNAP_DATA or $SNAP_COMMON", "$"+v)
 			}
 		} else if v != "SNAP" && v != "SNAP_DATA" && v != "SNAP_COMMON" {
 			return fmt.Errorf("reference to unknown variable %q", "$"+v)

@@ -38,6 +38,11 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	allowInstanceNameOpts    = &snap.PathVariablesOptions{AllowSnapInstanceName: true}
+	disallowInstanceNameOpts = &snap.PathVariablesOptions{AllowSnapInstanceName: false}
+)
+
 type ContentSuite struct {
 	iface interfaces.Interface
 }
@@ -200,7 +205,7 @@ slots:
 	for _, rw := range []string{
 		"read: [$SNAP_DATA/assets/$SNAP_INSTANCE_NAME]",
 		"write: [$SNAP_COMMON/assets/$SNAP_INSTANCE_NAME]",
-		"source: {read: [$SNAP/assets/$SNAP_INSTANCE_NAME]}",
+		"source: {read: [$SNAP_COMMON/assets/$SNAP_INSTANCE_NAME]}",
 		"source: {write: [$SNAP_DATA/$SNAP_INSTANCE_NAME]}",
 	} {
 		info := snaptest.MockInfo(c, mockSnapYaml+"  "+rw, nil)
@@ -221,9 +226,10 @@ slots:
 		attr   string
 		errMsg string
 	}{
-		{"read: [$SNAP_INSTANCE_NAME/assets]", `path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
-		{"write: [$SNAP_INSTANCE_NAME/assets]", `path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
-		{"source: {read: [$SNAP_INSTANCE_NAME/assets]}", `path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
+		{"read: [$SNAP_INSTANCE_NAME/assets]", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
+		{"write: [$SNAP_INSTANCE_NAME/assets]", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
+		{"source: {read: [$SNAP_INSTANCE_NAME/assets]}", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
+		{"read: [$SNAP/assets/$SNAP_INSTANCE_NAME]", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
 		{"read: [$SNAP_DATA/$FOO]", `reference to unknown variable "\$FOO"`},
 		{"write: [$FOO/assets]", `reference to unknown variable "\$FOO"`},
 	} {
@@ -425,13 +431,15 @@ plugs:
 		{target: "/import"},
 		// bare root, ends up as $SNAP
 		{target: "/"},
-		// the instance name may be referred to anywhere but at the start
-		{target: "$SNAP_DATA/import/$SNAP_INSTANCE_NAME"},
-		{target: "import/$SNAP_INSTANCE_NAME"},
 
 		// trailing slash is not a clean path, inconsistent with the rest
 		{target: "$SNAP/", errMsg: `content interface path is not clean: .*`},
-		{target: "$SNAP_INSTANCE_NAME/import", errMsg: `content interface path is invalid: path cannot start with variable "\$SNAP_INSTANCE_NAME"`},
+		// $SNAP_INSTANCE_NAME is never allowed in the plug's target, to
+		// avoid any confusion that it is mapped to the slot-side instance
+		// name.
+		{target: "$SNAP_DATA/import/$SNAP_INSTANCE_NAME", errMsg: `content interface path is invalid: reference to unknown variable "\$SNAP_INSTANCE_NAME"`},
+		{target: "import/$SNAP_INSTANCE_NAME", errMsg: `content interface path is invalid: reference to unknown variable "\$SNAP_INSTANCE_NAME"`},
+		{target: "$SNAP_INSTANCE_NAME/import", errMsg: `content interface path is invalid: reference to unknown variable "\$SNAP_INSTANCE_NAME"`},
 		{target: "$FOO/import", errMsg: `content interface path is invalid: reference to unknown variable "\$FOO"`},
 	} {
 		info := snaptest.MockInfo(c, fmt.Sprintf(snapYamlTemplate, tc.target), nil)
@@ -480,20 +488,21 @@ func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
 	c.Check(info.InstanceName().String(), Equals, "name")
 
 	for _, persp := range []snap.ExpandSnapPerspective{snap.PerspectiveSelf, snap.PerspectiveOther} {
-		c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
-		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, persp), Equals, "/var/snap/name/42/foo")
-		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, persp), Equals, "/var/snap/name/common/foo")
-		c.Check(builtin.ResolveSpecialVariable("$SNAP", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
-		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp), Equals, "/var/snap/name/42")
-		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp), Equals, "/var/snap/name/common")
-		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp), Equals, "/var/snap/name/42/")
-		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp), Equals, "/var/snap/name/42/foo/name")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42/foo")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/common/foo")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/common")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42/")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42/foo/name")
 		// automatically prefixed with $SNAP
-		c.Check(builtin.ResolveSpecialVariable("foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
-		c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp), Equals, "/snap/name/42/foo/snap/bar")
+		c.Check(builtin.ResolveSpecialVariable("foo", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+		c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp, allowInstanceNameOpts), Equals, "/snap/name/42/foo/snap/bar")
 		// contain invalid variables
-		c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp), Equals, "/snap/name/42//bar")
-		c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp), Equals, "/snap/name/42/bar//foo")
+		c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp, allowInstanceNameOpts), Equals, "/snap/name/42//bar")
+		c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp, allowInstanceNameOpts), Equals, "/snap/name/42/bar//foo")
+		c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp, disallowInstanceNameOpts), Equals, "/snap/name/42//var/snap/name/42/foo/")
 	}
 }
 
@@ -504,37 +513,39 @@ func (s *ContentSuite) TestResolveSpecialVariableParallel(c *C) {
 	c.Check(info.InstanceName().String(), Equals, "name_foo")
 
 	persp := snap.PerspectiveOther
-	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, persp), Equals, "/var/snap/name_foo/42/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, persp), Equals, "/var/snap/name_foo/common/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42"))
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp), Equals, "/var/snap/name_foo/42")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp), Equals, "/var/snap/name_foo/common")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp), Equals, "/var/snap/name_foo/42/")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name_foo/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name_foo/common/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name_foo/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name_foo/common")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name_foo/42/")
 	// $SNAP_INSTANCE_NAME is instance specific regardless of the perspective
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp), Equals, "/var/snap/name_foo/42/foo/name_foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name_foo/42/foo/name_foo")
 	// automatically prefixed with $SNAP
-	c.Check(builtin.ResolveSpecialVariable("foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
-	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp), Equals, "/snap/name_foo/42/foo/snap/bar")
+	c.Check(builtin.ResolveSpecialVariable("foo", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name_foo/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp, allowInstanceNameOpts), Equals, "/snap/name_foo/42/foo/snap/bar")
 	// contain invalid variables
-	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp), Equals, "/snap/name_foo/42//bar")
-	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp), Equals, "/snap/name_foo/42/bar//foo")
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp, allowInstanceNameOpts), Equals, "/snap/name_foo/42//bar")
+	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp, allowInstanceNameOpts), Equals, "/snap/name_foo/42/bar//foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp, disallowInstanceNameOpts), Equals, "/snap/name_foo/42//var/snap/name_foo/42/foo/")
 
 	persp = snap.PerspectiveSelf
-	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, persp), Equals, "/var/snap/name/42/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, persp), Equals, "/var/snap/name/common/foo")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp), Equals, "/var/snap/name/42")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp), Equals, "/var/snap/name/common")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp), Equals, "/var/snap/name/42/")
-	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp), Equals, "/var/snap/name/42/foo/name_foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/common/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42"))
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/common")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42/")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp, allowInstanceNameOpts), Equals, "/var/snap/name/42/foo/name_foo")
 	// automatically prefixed with $SNAP
-	c.Check(builtin.ResolveSpecialVariable("foo", info, persp), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
-	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp), Equals, "/snap/name/42/foo/snap/bar")
+	c.Check(builtin.ResolveSpecialVariable("foo", info, persp, allowInstanceNameOpts), Equals, filepath.Join(dirs.CoreSnapMountDir, "name/42/foo"))
+	c.Check(builtin.ResolveSpecialVariable("foo/snap/bar", info, persp, allowInstanceNameOpts), Equals, "/snap/name/42/foo/snap/bar")
 	// contain invalid variables
-	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp), Equals, "/snap/name/42//bar")
-	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp), Equals, "/snap/name/42/bar//foo")
+	c.Check(builtin.ResolveSpecialVariable("$PRUNE/bar", info, persp, allowInstanceNameOpts), Equals, "/snap/name/42//bar")
+	c.Check(builtin.ResolveSpecialVariable("bar/$PRUNE/foo", info, persp, allowInstanceNameOpts), Equals, "/snap/name/42/bar//foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo/$SNAP_INSTANCE_NAME", info, persp, disallowInstanceNameOpts), Equals, "/snap/name/42//var/snap/name/42/foo/")
 }
 
 // A parallel installed provider can share per-instance content by referring to
@@ -568,40 +579,6 @@ apps:
 	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
 		Name:    "/var/snap/producer_s1/5/package-assets/producer_s1",
 		Dir:     "/var/snap/consumer/7/package-assets/producer_s1",
-		Options: []string{"bind", "ro"},
-	}})
-}
-
-// A parallel installed consumer can refer to its instance name in the target
-// path while $SNAP_DATA retains the consumer's own perspective.
-func (s *ContentSuite) TestConnectedPlugInstanceNameVariableInTarget(c *C) {
-	const slotYaml = `name: producer
-version: 0
-slots:
-  content:
-    interface: content
-    read:
-      - $SNAP_DATA/package-assets
-`
-	const plugYaml = `name: consumer
-version: 0
-plugs:
-  content:
-    interface: content
-    target: $SNAP_DATA/import/$SNAP_INSTANCE_NAME
-apps:
-  app:
-    plugs: [content]
-`
-	plug, _ := MockConnectedPlug(c, plugYaml, &snap.SideInfo{Revision: snap.R(7)}, "content")
-	slot, _ := MockConnectedSlot(c, slotYaml, &snap.SideInfo{Revision: snap.R(5)}, "content")
-	plug.AppSet().Info().InstanceKey = "p1"
-
-	mountSpec := &mount.Specification{}
-	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
-	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
-		Name:    "/var/snap/producer/5/package-assets",
-		Dir:     "/var/snap/consumer/7/import/consumer_p1",
 		Options: []string{"bind", "ro"},
 	}})
 }

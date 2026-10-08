@@ -7,7 +7,10 @@ apps:
 plugs:
     assets:
         interface: content
-        target: $SNAP_DATA/assets/$SNAP_INSTANCE_NAME
+        target: $SNAP_DATA/assets
     assets-legacy:
         interface: content
         target: $SNAP_COMMON/legacy-assets
+    assets-bad:
+        interface: content
+        target: $SNAP_DATA/assets/$SNAP_INSTANCE_NAME

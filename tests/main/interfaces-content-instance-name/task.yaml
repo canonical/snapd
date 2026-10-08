@@ -1,15 +1,16 @@
 summary: Ensure $SNAP_INSTANCE_NAME works in content interface paths
 
 details: |
-    Content providers and consumers can refer to $SNAP_INSTANCE_NAME inside
-    their source and target paths. The variable must expand to the instance
-    name of the snap owning each path, both when the mount is computed and when
-    the snaps access it.
+    Content providers can refer to $SNAP_INSTANCE_NAME inside their source
+    paths, as long as the path starts with $SNAP_DATA or $SNAP_COMMON. The
+    variable must expand to the instance name of the snap owning the path,
+    both when the mount is computed and when the snap accesses it.
 
-    The variable cannot be the first element of the path, as content can only
-    be shared out of $SNAP, $SNAP_DATA or $SNAP_COMMON. Such a slot is rejected
-    and the snap is installed without it. Component subpaths cannot contain
-    variable references, and slots declaring such paths are also rejected.
+    The variable is rejected if the path does not start with $SNAP_DATA nor
+    $SNAP_COMMON. It is also rejected in a plug's target path. Component
+    subpaths cannot contain variable references at all. Slots or plugs
+    declaring such invalid paths are rejected and the snap is installed
+    without them.
 
 environment:
     PROVIDER: test-snapd-content-inst-slot
@@ -40,10 +41,6 @@ execute: |
     MATCH "/var/snap/$PROVIDER/x[0-9]+/assets/$PROVIDER " < "$fstab"
     MATCH "/var/snap/$PROVIDER_INST/x[0-9]+/assets/$PROVIDER_INST " < "$fstab"
 
-    echo "The mount targets contain the consumer instance name"
-    MATCH "/var/snap/$CONSUMER/x[0-9]+/assets/$CONSUMER_INST/$PROVIDER " < "$fstab"
-    MATCH "/var/snap/$CONSUMER/x[0-9]+/assets/$CONSUMER_INST/$PROVIDER_INST " < "$fstab"
-
     echo "Each provider writes into its own directory"
     for name in "$PROVIDER" "$PROVIDER_INST"; do
         #shellcheck disable=SC2016
@@ -55,7 +52,7 @@ execute: |
     echo "And the consumer sees both, each under the providing instance name"
     for name in "$PROVIDER" "$PROVIDER_INST"; do
         #shellcheck disable=SC2016
-        "${CONSUMER_INST}.sh" -c 'cat $SNAP_DATA/assets/$SNAP_INSTANCE_NAME/'"$name"'/canary' | MATCH "$name"
+        "${CONSUMER_INST}.sh" -c 'cat $SNAP_DATA/assets/'"$name"'/canary' | MATCH "$name"
     done
 
     echo "The legacy (non-source) read attribute also expands \$SNAP_INSTANCE_NAME"
@@ -75,7 +72,7 @@ execute: |
 
     echo "A slot with a path rooted at the SNAP_INSTANCE_NAME variable is rejected"
     #shellcheck disable=SC2016
-    MATCH 'path cannot start with variable "\$SNAP_INSTANCE_NAME"' < warnings-output.txt
+    MATCH 'variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON' < warnings-output.txt
 
     echo "The slot is not present"
     snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:assets"
@@ -86,9 +83,20 @@ execute: |
     echo "A slot with a variable in its component subpath is rejected"
     MATCH 'component subpath cannot contain variable references' < warnings-output.txt
 
-    echo "The component slot is also absent"
+    echo "The component slot is not present"
     snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:component-assets"
 
     echo "Connecting to the rejected component slot fails"
     snap connect "${CONSUMER_INST}:assets" "${PROVIDER_BAD}:component-assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no slot named "component-assets"'
+
+    echo "A plug with SNAP_INSTANCE_NAME in its target is rejected"
+    #shellcheck disable=SC2016
+    MATCH 'content interface path is invalid: reference to unknown variable "\$SNAP_INSTANCE_NAME"' < warnings-output.txt
+
+    echo "The bad plug is not present"
+    snap connections "$CONSUMER_INST" | NOMATCH "$CONSUMER_INST:assets-bad"
+
+    echo "Connecting to the rejected plug fails"
+    snap connect "${CONSUMER_INST}:assets-bad" "${PROVIDER}:assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no plug named "assets-bad"'
+
     snap okay
