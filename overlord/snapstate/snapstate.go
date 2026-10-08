@@ -1742,9 +1742,10 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 	// we only toggle validation set enforcement if we are refreshing exactly
 	// one snap
 	toggleIgnoreValidation := (snapst.IgnoreValidation != snapsup.IgnoreValidation) && opts.ExpectOneSnap
+	setIgnoreUnsupportedInstanceInterfaces := snapsup.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces
 
 	// nothing to do, we can leave early
-	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation {
+	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation && !setIgnoreUnsupportedInstanceInterfaces {
 		return nil, nil
 	}
 
@@ -1764,7 +1765,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		tasks = append(tasks, switchSnap)
 	}
 
-	if toggleIgnoreValidation {
+	if toggleIgnoreValidation || setIgnoreUnsupportedInstanceInterfaces {
 		toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 		if snapsupTask == nil {
 			toggle.Set("snap-setup", &snapsup)

@@ -2767,8 +2767,10 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// for now we support toggling only ignore-validation
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
+	if snapsup.IgnoreUnsupportedInstanceInterfaces {
+		snapst.IgnoreUnsupportedInstanceInterfaces = true
+	}
 
 	Set(st, snapsup.InstanceName().String(), snapst)
 	return nil

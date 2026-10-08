@@ -3560,6 +3560,77 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	}, nil))
 }
 
+func (s *snapmgrTestSuite) TestUpdateSameRevisionIgnoreUnsupportedInstanceInterfaces(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, test := range []struct {
+		channel        string
+		alreadyOptedIn bool
+		flags          snapstate.Flags
+		taskKinds      []string
+	}{
+		{
+			channel:   "channel-for-7/stable",
+			flags:     snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
+			taskKinds: []string{"switch-snap-channel", "toggle-snap-flags"},
+		},
+		{
+			flags:     snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
+			taskKinds: []string{"toggle-snap-flags"},
+		},
+		{
+			channel:        "channel-for-7/stable",
+			alreadyOptedIn: true,
+			taskKinds:      []string{"switch-snap-channel"},
+		},
+		{
+			alreadyOptedIn: true,
+			flags:          snapstate.Flags{IgnoreValidation: true},
+			taskKinds:      []string{"toggle-snap-flags"},
+		},
+	} {
+		c.Logf("channel=%q alreadyOptedIn=%v flags=%+v", test.channel, test.alreadyOptedIn, test.flags)
+		si := &snap.SideInfo{
+			RealName: "some-snap",
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			Channel:  "channel-for-7/stable",
+		}
+		trackingChannel := "channel-for-7/stable"
+		if test.channel != "" {
+			trackingChannel = "other-channel/stable"
+		}
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Active:          true,
+			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			TrackingChannel: trackingChannel,
+			Current:         si.Revision,
+			Flags:           snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: test.alreadyOptedIn},
+		})
+
+		ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: test.channel}, s.user.ID, test.flags)
+		c.Assert(err, IsNil)
+		var taskKinds []string
+		for _, task := range ts.Tasks() {
+			taskKinds = append(taskKinds, task.Kind())
+		}
+		c.Check(taskKinds, DeepEquals, test.taskKinds)
+
+		chg := s.state.NewChange("refresh", "refresh a snap")
+		chg.AddAll(ts)
+		s.settle(c)
+		c.Assert(chg.Err(), IsNil)
+
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+		c.Check(snapst.Current, Equals, snap.R(7))
+		c.Check(snapst.TrackingChannel, Equals, "channel-for-7/stable")
+		c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
+		c.Check(snapst.IgnoreValidation, Equals, test.flags.IgnoreValidation)
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidation(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
