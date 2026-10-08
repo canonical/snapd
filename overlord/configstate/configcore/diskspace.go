@@ -26,11 +26,10 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
-
-const defaultDiskSpaceReservation = uint64(5 * quantity.SizeMiB)
 
 // legacyDiskSpaceFeatures are the experimental flags superseded by
 // disk-reservation.size.
@@ -66,8 +65,8 @@ func MigrateDiskSpaceReservation(tr RunTransaction) error {
 	err = tr.Get("core", "disk-reservation.size", &reservation)
 	switch {
 	case config.IsNoOption(err):
-		// only seed the default when the option is not configured already
-		if err := tr.Set("core", "disk-reservation.size", defaultDiskSpaceReservation); err != nil {
+		// only seed the fallback when the option is not configured already
+		if err := tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation); err != nil {
 			return err
 		}
 	case err != nil:

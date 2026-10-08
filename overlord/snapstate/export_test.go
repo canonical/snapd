@@ -66,7 +66,6 @@ const (
 	RevertHidden                 = revertHidden
 	DisableHome                  = disableHome
 	RevertFull                   = revertFull
-	FallbackDiskSpaceReservation = fallbackDiskSpaceReservation
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
