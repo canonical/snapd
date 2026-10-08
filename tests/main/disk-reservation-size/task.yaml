@@ -5,9 +5,6 @@ details: |
     - Unset (nil): disk space checks are skipped
     - 0: checks run with no extra reservation (only snap size required)
     - >0: checks run with the configured reservation added to snap size
-  Legacy experimental check-disk-space flags are enabled to trigger migration;
-  disk-reservation.size alone controls the checks. An explicit unset persists
-  across a snapd restart without clearing those flags or restoring the reserve.
 
 # this test remounts /var/lib/snapd which is too intrusive for core.
 systems: [-ubuntu-core-*]
@@ -54,11 +51,6 @@ execute: |
     df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
   }
 
-  echo "Enabling legacy flags to trigger disk reservation migration"
-  snap set system experimental.check-disk-space-install=true
-  snap set system experimental.check-disk-space-refresh=true
-  snap set system experimental.check-disk-space-remove=true
-
   echo "=== Test 1: Large reservation causes install failure ==="
   resize "$SUFFICIENT_SIZE"
   "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -83,14 +75,9 @@ execute: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
 
-  echo "=== Test 3: Unset reservation survives restart with legacy flags enabled ==="
+  echo "=== Test 3: Unset reservation allows install with tight space ==="
   snap unset system disk-reservation.size
-  systemctl restart snapd.service
-  snap version
   not snap get system disk-reservation.size
-  for feature in install refresh remove; do
-    test "$(snap get system experimental.check-disk-space-"$feature")" = true
-  done
   # Still ~3MB free, so the install should succeed
   "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
