@@ -98,8 +98,6 @@ const fallbackDiskSpaceReservation = 5 * 1024 * 1024
 
 var diskSpaceUnsetError = errors.New("disk space reservation is not set in the state")
 
-var diskSpaceUnsetError = errors.New("disk space reservation is not set in the state")
-
 // TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
 // from a broken snapd that does not generate a "update-gadget-assets" task.
 // See LP:#1940553
