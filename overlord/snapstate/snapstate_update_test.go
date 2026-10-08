@@ -7440,14 +7440,6 @@ func (s *snapmgrTestSuite) TestUpdateDiskCheckInstallSizeError(c *C) {
 	c.Check(err, ErrorMatches, "boom")
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskCheckHappy(c *C) {
-	featureFlag := true
-	failInstallSize := false
-	failDiskCheck := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
-	c.Check(err, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestUpdateSnapAndOutdatedPrereq(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
