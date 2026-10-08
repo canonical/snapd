@@ -163,10 +163,7 @@ func addWithStateHandler(validate func(RunTransaction) error, handle func(RunTra
 }
 
 func Run(dev sysconfig.Device, cfg RunTransaction) error {
-	if err := applyHandlers(dev, cfg, handlers); err != nil {
-		return err
-	}
-	return completeDiskSpaceReservationMigration(cfg)
+	return applyHandlers(dev, cfg, handlers)
 }
 
 func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHandler) error {

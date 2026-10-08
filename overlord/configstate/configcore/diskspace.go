@@ -104,19 +104,6 @@ func handleDiskSpaceReservation(tr RunTransaction, opts *fsOnlyContext) error {
 	return MigrateDiskSpaceReservation(tr)
 }
 
-func completeDiskSpaceReservationMigration(tr RunTransaction) error {
-	if !strutil.ListContains(tr.Changes(), "core.disk-reservation.size") {
-		return nil
-	}
-
-	st := tr.State()
-	st.Lock()
-	defer st.Unlock()
-	tr.Commit()
-	st.Set("disk-space-reservation-migrated", true)
-	return nil
-}
-
 func changesLegacyDiskSpaceFeature(changes []string) bool {
 	for _, feature := range legacyDiskSpaceFeatures {
 		snapName, confName := feature.ConfigOption()

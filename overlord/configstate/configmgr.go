@@ -51,18 +51,22 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
 
-	// ensure that graduated features are cleared from the state
 	rt := configcore.NewRunTransaction(tr, nil)
 
 	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
 		return err
 	}
 
+	// if the migration is going to run, we should mark it as done in the state
+	reservationWritten := strutil.ListContains(rt.Changes(), "core.disk-reservation.size")
+
+	// ensure that graduated features are cleared from the state
 	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
 		return err
 	}
-	reservationWritten := strutil.ListContains(rt.Changes(), "core.disk-reservation.size")
+
 	rt.Commit()
+
 	if reservationWritten {
 		st.Set("disk-space-reservation-migrated", true)
 	}
