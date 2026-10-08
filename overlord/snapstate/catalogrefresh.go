@@ -151,6 +151,7 @@ func (r *catalogRefresh) EnsureAfterSeed(deviceCtx DeviceContext) error {
 	r.catalogC = make(chan struct{})
 
 	go func() {
+		defer close(r.catalogC)
 		timings, err := refreshCatalogs(r.ctx, theStore)
 		if err != nil {
 			switch {
@@ -164,7 +165,6 @@ func (r *catalogRefresh) EnsureAfterSeed(deviceCtx DeviceContext) error {
 			default:
 				logger.Noticef("Catalog refresh failed: %v.", err)
 			}
-			close(r.catalogC)
 			return
 		}
 		logger.Debug("Catalog refresh succeeded.")
@@ -172,10 +172,6 @@ func (r *catalogRefresh) EnsureAfterSeed(deviceCtx DeviceContext) error {
 		defer r.state.Unlock()
 		// save the timings, since we're holding the lock anyway
 		timings.Save(r.state)
-		// signal we're done
-		close(r.catalogC)
-		// kick off the state loop
-		r.state.EnsureBefore(0)
 	}()
 	return nil
 }

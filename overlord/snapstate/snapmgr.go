@@ -964,9 +964,6 @@ func (m *SnapManager) Stop() {
 // that should not block daemon shutdown.
 //
 // TODO: remove this when Ensure gets the appropriate context from Overlord.
-//
-// Note: ShutDown needs to be a proper subset of Stop but currently it isn't.
-// This is acceptable for now as resolving the above TODO will remove ShutDown.
 func (m *SnapManager) ShutDown() {
 	m.catalogRefresh.ShutDown()
 }
