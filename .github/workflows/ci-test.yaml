@@ -296,8 +296,6 @@ jobs:
 
   unit-tests-not-required:
     uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - static-checks-not-required
     name: "unit-tests (Go default latest/stable})"
     with:
       runs-on: ubuntu-latest
