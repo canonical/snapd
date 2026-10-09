@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-recovery-chooser"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-kernel-probe"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -46,6 +47,7 @@ var (
 		"snap-gpio-helper":      snap_gpio_helper.Main,
 		"snap-recovery-chooser": snap_recovery_chooser.Main,
 		"snap-fde-keymgr":       snap_fde_keymgr.Main,
+		"snapd-kernel-probe":    snapd_kernel_probe.Main,
 	}
 
 	// list of snapd tools that expect reexec
