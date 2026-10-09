@@ -32,6 +32,7 @@ import (
 )
 
 type IsUnderAnyDirOptions = isUnderAnyDirOptions
+type MountUnitOptions = mountUnitOptions
 
 var (
 	AddMountUnit       = addMountUnit
@@ -75,6 +76,10 @@ func MockMkdirAllChown(f func(string, os.FileMode, sys.UserID, sys.GroupID) erro
 
 func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error)) func() {
 	return testutil.Mock(&kernelEnsureKernelDriversTree, f)
+}
+
+func MockOsRemoveAll(f func(path string) error) func() {
+	return testutil.Mock(&osRemoveAll, f)
 }
 
 func MockCgroupKillSnapProcesses(f func(ctx context.Context, snapName string) error) func() {

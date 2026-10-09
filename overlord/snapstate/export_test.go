@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -683,4 +684,12 @@ func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []in
 
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 	return s.catalogRefreshDelayWithDelta
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
+	return testutil.Mock(&ValidatedIntegrityData, f)
+}
+
+func MockIntegrityLookupDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
+	return testutil.Mock(&integrityLookupDataAndCrossCheck, f)
 }

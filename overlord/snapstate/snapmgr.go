@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
@@ -191,6 +192,8 @@ type SnapSetup struct {
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 
 	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
+	//
+	// FIXME: This should be an array to support multiple integrity data entries.
 	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
 }
 
@@ -1477,6 +1480,39 @@ func getSystemD() systemd.Systemd {
 	}
 }
 
+// maybeAppendIntegrityMountOptions appends integrity mount options to the given mount
+// options in-place if the snap has validated integrity data.
+func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
+	// TODO: only mount with integrity data if on UC and model base snap
+	//       has validated integrity data.
+	if !info.Revision.Store() {
+		return nil
+	}
+
+	idp, err := ValidatedIntegrityData(st, info.SnapID, info.Revision)
+	// TODO: when policy for choosing the preferred integrity method is
+	//       implemented, not having integrity data should return an error
+	//       if enforced through some policy
+	if err != nil && !errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+		return err
+	}
+	if idp != nil {
+		if _, err := integrityLookupDataAndCrossCheck(info.MountFile(), idp); err != nil {
+			if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
+				logger.Noticef("cannot find integrity data for snap %q: %v", info.InstanceName(), err)
+				return nil
+			}
+			return fmt.Errorf("cannot validate integrity data for snap %q: %w", info.InstanceName(), err)
+		}
+		integrityMountOpts, err := idp.MountOptions(info.MountFile())
+		if err != nil {
+			return err
+		}
+		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
+	}
+	return nil
+}
+
 func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1528,6 +1564,10 @@ func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) erro
 			}
 
 			if err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", startBeforeDriversLoad); err != nil {
+				return err
+			}
+
+			if err := maybeAppendIntegrityMountOptions(m.state, mountOptions, info); err != nil {
 				return err
 			}
 

@@ -106,7 +106,7 @@ func makeSnapInDir(c *C, dir, manifest, data string) *squashfs.Snap {
 }
 
 func makeSnapIntegrityData(c *C, snapPath string, rootHash string) {
-	fileName := snapPath + ".dmverity_" + rootHash
+	fileName := strings.TrimSuffix(snapPath, ".snap") + ".dmverity_" + rootHash
 	file, err := os.Create(fileName)
 	c.Assert(err, IsNil)
 	defer file.Close()
@@ -332,14 +332,14 @@ func (s *SquashfsTestSuite) TestInstallSeedWithIntegrityData(c *C) {
 	c.Assert(os.MkdirAll(systemSnapsDir, 0755), IsNil)
 	snapf := makeSnapInDir(c, systemSnapsDir, "name: test2", "")
 
-	verityFile, err := os.Create(filepath.Join(systemSnapsDir, "foo.snap.dmverity_"+rootHash))
+	expectedVerityPath := filepath.Join(systemSnapsDir, "foo.dmverity_"+rootHash)
+	err := os.WriteFile(expectedVerityPath, []byte("verity-data"), 0644)
 	c.Assert(err, IsNil)
-	defer verityFile.Close()
 
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	c.Check(targetPath, testutil.FileAbsent)
 
-	targetVerityPath := filepath.Join(filepath.Dir(targetPath), "target.snap.dmverity_"+rootHash)
+	targetVerityPath := filepath.Join(filepath.Dir(targetPath), "target.dmverity_"+rootHash)
 	c.Check(targetVerityPath, testutil.FileAbsent)
 
 	opts := &snap.InstallOptions{
@@ -354,6 +354,7 @@ func (s *SquashfsTestSuite) TestInstallSeedWithIntegrityData(c *C) {
 	c.Assert(didNothing, Equals, false)
 	c.Check(osutil.IsSymlink(targetPath), Equals, true)
 	c.Check(osutil.IsSymlink(targetVerityPath), Equals, true)
+	c.Check(targetVerityPath, testutil.FileEquals, "verity-data")
 }
 
 func (s *SquashfsTestSuite) TestInstallWithIntegrityDataNoCp(c *C) {
@@ -376,7 +377,7 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataNoCp(c *C) {
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	c.Check(targetPath, testutil.FileAbsent)
 
-	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	targetVerityPath := strings.TrimSuffix(targetPath, ".snap") + ".dmverity_" + rootHash
 	c.Check(targetVerityPath, testutil.FileAbsent)
 
 	mountDir := c.MkDir()
@@ -422,7 +423,7 @@ func (s *SquashfsTestSuite) TestInstallWithIntegrityDataOnOverlayfs(c *C) {
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
 	c.Check(targetPath, testutil.FileAbsent)
 
-	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	targetVerityPath := strings.TrimSuffix(targetPath, ".snap") + ".dmverity_" + rootHash
 	c.Check(targetVerityPath, testutil.FileAbsent)
 
 	installOpts := &snap.InstallOptions{
@@ -457,7 +458,7 @@ exec /bin/cp "$@"
 	makeSnapIntegrityData(c, sn.Path(), rootHash)
 
 	targetPath := filepath.Join(c.MkDir(), "target.snap")
-	targetVerityPath := targetPath + ".dmverity_" + rootHash
+	targetVerityPath := strings.TrimSuffix(targetPath, ".snap") + ".dmverity_" + rootHash
 	mountDir := c.MkDir()
 	installOpts := &snap.InstallOptions{
 		IntegrityDataParams: &integrity.IntegrityDataParams{
