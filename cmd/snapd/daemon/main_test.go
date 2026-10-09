@@ -148,3 +148,30 @@ func (s *snapdSuite) TestMainInitializesSdNotifySocket(c *C) {
 
 	c.Assert(snapd.Main, PanicMatches, "systemd-init-sd-notify-socket-called")
 }
+
+func (s *snapdSuite) TestMaybeProbeAppArmor5NetworkBug(c *C) {
+	probeCalled := 0
+	restore := snapd.MockEnsureAppArmor5NetworkBugProbe(func() error {
+		probeCalled++
+		return nil
+	})
+	defer restore()
+
+	snapd.MaybeProbeAppArmor5NetworkBug()
+	c.Check(probeCalled, Equals, 1)
+}
+
+func (s *snapdSuite) TestMaybeProbeAppArmor5NetworkBugSkippedWhilePreseeding(c *C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	probeCalled := 0
+	restore = snapd.MockEnsureAppArmor5NetworkBugProbe(func() error {
+		probeCalled++
+		return nil
+	})
+	defer restore()
+
+	snapd.MaybeProbeAppArmor5NetworkBug()
+	c.Check(probeCalled, Equals, 0)
+}
