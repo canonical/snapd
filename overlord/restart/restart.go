@@ -380,10 +380,25 @@ const (
 	RestartSnapdFeatureChange RestartReason = "snapd-feature-change"
 )
 
+// Reasons recorded when snapd exits and is started again, without a
+// RestartDaemon or RestartSocket request.
+const (
+	// RestartSnapdFailureRecovered is a restart after snap-failure
+	// found nothing to recover and starts snapd.service again.
+	RestartSnapdFailureRecovered RestartReason = "snapd-restart-failure-recovered"
+	// RestartSnapdStopFailed is a restart after Daemon.Stop returned
+	// an error. systemd starts snapd again.
+	RestartSnapdStopFailed RestartReason = "snapd-stop-failed"
+)
+
 // Reasons for type RestartSocket.
 const (
 	// RestartSnapdIdle is socket-activation standby because snapd is idle.
 	RestartSnapdIdle RestartReason = "snapd-idle"
+	// RestartSnapdStandbyAborted is a restart after socket-activation
+	// standby was requested but pending requests prevented it.
+	// systemd starts snapd again.
+	RestartSnapdStandbyAborted RestartReason = "snapd-standby-aborted"
 )
 
 // Request asks for a restart of the managing process.

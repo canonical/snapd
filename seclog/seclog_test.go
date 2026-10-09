@@ -233,6 +233,24 @@ func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
 }
 
+func (s *SecLogSuite) TestLogSystemRestartSnapdStopFailed(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdStopFailed)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-stop-failed")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-stop-failed"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdStandbyAborted(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdStandbyAborted)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-standby-aborted")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-standby-aborted"]`)
+}
+
 func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {
 	seclog.LogSystemStandbySnapd("2.78", restart.RestartSnapdIdle)
 

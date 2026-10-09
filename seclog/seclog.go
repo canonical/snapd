@@ -129,8 +129,8 @@ func LogLoggerDisabled() {
 	)
 }
 
-// LogSystemRestartSnapd logs a controlled snapd daemon restart using the
-// global security logger. snapdVersion is the version of the exiting snapd
+// LogSystemRestartSnapd logs a snapd daemon restart using the global
+// security logger. snapdVersion is the version of the exiting snapd
 // process. reason is a [restart.RestartReason].
 func LogSystemRestartSnapd(snapdVersion string, reason restart.RestartReason) {
 	lock.Lock()

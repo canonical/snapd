@@ -104,9 +104,9 @@ func Main() {
 		} else if errors.Is(err, daemon.ErrNoFailureRecoveryNeeded) {
 			// Similar consideration as above.
 			fmt.Fprintln(os.Stdout, err)
-			// We were invoked from a failure handler, but there is
-			// nothing to recover from in the state, as such the
-			// failure handling was successful.
+			// Failure handling found nothing to recover. Exit 0 so
+			// snap-failure can restart snapd.service. The restart
+			// was already recorded.
 			return
 		}
 		fmt.Fprintf(os.Stderr, "cannot run daemon: %v\n", err)
