@@ -5852,24 +5852,24 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyHappy(c *C) {
 
 	restore = gadget.MockVolumeStructureToLocationMap(func(gm gadget.Model, oldVolumes, _ map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
 		return map[string]map[int]gadget.StructureLocation{
-			"lun-0": {
-				0: {
-					Device:         oldVolumes["lun-0"].AssignedDevice,
-					Offset:         quantity.OffsetMiB,
-					RootMountPoint: "/run/mnt/ubuntu-boot",
+				"lun-0": {
+					0: {
+						Device:         oldVolumes["lun-0"].AssignedDevice,
+						Offset:         quantity.OffsetMiB,
+						RootMountPoint: "/run/mnt/ubuntu-boot",
+					},
 				},
-			},
-			"lun-1": {
-				0: {
-					Device:         oldVolumes["lun-1"].AssignedDevice,
-					Offset:         quantity.OffsetMiB,
-					RootMountPoint: "/run/mnt/ubuntu-test",
+				"lun-1": {
+					0: {
+						Device:         oldVolumes["lun-1"].AssignedDevice,
+						Offset:         quantity.OffsetMiB,
+						RootMountPoint: "/run/mnt/ubuntu-test",
+					},
 				},
-			},
-		}, map[string]map[int]*gadget.OnDiskStructure{
-			"lun-0": gadget.OnDiskStructsFromGadget(oldVolumes["lun-0"]),
-			"lun-1": gadget.OnDiskStructsFromGadget(oldVolumes["lun-1"]),
-		}, nil
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"lun-0": gadget.OnDiskStructsFromGadget(oldVolumes["lun-0"]),
+				"lun-1": gadget.OnDiskStructsFromGadget(oldVolumes["lun-1"]),
+			}, nil
 	})
 	defer restore()
 
