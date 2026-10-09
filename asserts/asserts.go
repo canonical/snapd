@@ -299,15 +299,15 @@ func init() {
 	}
 }
 
-// ConfigureExternalTypes extends the process-wide set of assertion types. It must be
+// InitExternalTypes extends the process-wide set of assertion types. It must be
 // called during application initialization and complete before concurrent
-// assertion processing or assertion type lookups begin. A non-empty
-// configuration can be successfully applied only once. Empty calls are no-ops.
+// assertion processing or assertion type lookups begin. Initialization can
+// succeed only once and requires at least one assertion type.
 // Failed calls leave the active set unchanged and may be retried. Assertion
-// types must not be mutated after a successful non-empty call.
-func ConfigureExternalTypes(assertionTypes ...*AssertionType) error {
+// types must not be mutated after a successful call.
+func InitExternalTypes(assertionTypes ...*AssertionType) error {
 	if len(assertionTypes) == 0 {
-		return nil
+		return fmt.Errorf("cannot initialize external assertion types: at least one assertion type is required")
 	}
 	if registryConfigured {
 		return fmt.Errorf("assertion types are already configured")
