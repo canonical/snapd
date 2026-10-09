@@ -4435,6 +4435,8 @@ apps:
 	stoppedSvc := [][]string{
 		{"stop", filepath.Base(survivorFile)},
 		{"show", "--property=ActiveState", "snap.survive-snap.survivor.service"},
+		{"--no-reload", "disable", filepath.Base(survivorFile)},
+		{"daemon-reload"},
 	}
 	type testcase struct {
 		reason      snap.ServiceStopReason
@@ -4461,7 +4463,8 @@ apps:
 
 	for _, tc := range tcs {
 		s.sysdLog = nil
-		err = wrappers.StopServices(info.Services(), tc.removedSvcs, nil, tc.reason, progress.Null, s.perfTimings)
+		opts := &wrappers.StopServicesOptions{Disable: true}
+		err = wrappers.StopServices(info.Services(), tc.removedSvcs, opts, tc.reason, progress.Null, s.perfTimings)
 		c.Assert(err, IsNil)
 		c.Assert(s.sysdLog, DeepEquals, tc.sysdLog)
 	}
