@@ -109,11 +109,6 @@ type State struct {
 	changes map[string]*Change
 	tasks   map[string]*Task
 
-	// warningsMu allows warnings to be read without requiring the state lock
-	// to be held. Any modification to warnings requires the state lock as well.
-	warningsMu sync.RWMutex
-	warnings   map[string]*Warning
-
 	// noticesMu allows notices to be read without requiring the state lock to
 	// be held. Any modifications to notices requires the state lock as well.
 	noticesMu  sync.RWMutex
@@ -141,7 +136,6 @@ func New(backend Backend) *State {
 		data:                make(customData),
 		changes:             make(map[string]*Change),
 		tasks:               make(map[string]*Task),
-		warnings:            make(map[string]*Warning),
 		notices:             make(map[noticeKey]*Notice),
 		modified:            true,
 		cache:               make(map[any]any),
@@ -192,11 +186,16 @@ func (s *State) unlock() {
 }
 
 type marshalledState struct {
-	Data     map[string]*json.RawMessage `json:"data"`
-	Changes  map[string]*Change          `json:"changes"`
-	Tasks    map[string]*Task            `json:"tasks"`
-	Warnings []*Warning                  `json:"warnings,omitempty"`
-	Notices  []*Notice                   `json:"notices,omitempty"`
+	Data    map[string]*json.RawMessage `json:"data"`
+	Changes map[string]*Change          `json:"changes"`
+	Tasks   map[string]*Task            `json:"tasks"`
+
+	// Included to migrate warnings to notices. This will only ever be
+	// unmarshalled from disk, never populated into state itself or when
+	// marshalling to disk.
+	Warnings []*jsonWarning `json:"warnings,omitempty"`
+
+	Notices []*Notice `json:"notices,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
@@ -210,11 +209,10 @@ type marshalledState struct {
 func (s *State) MarshalJSON() ([]byte, error) {
 	s.reading()
 	return json.Marshal(marshalledState{
-		Data:     s.data,
-		Changes:  s.changes,
-		Tasks:    s.tasks,
-		Warnings: s.flattenWarnings(),
-		Notices:  s.flattenNotices(),
+		Data:    s.data,
+		Changes: s.changes,
+		Tasks:   s.tasks,
+		Notices: s.flattenNotices(),
 
 		LastTaskId:   s.lastTaskId,
 		LastChangeId: s.lastChangeId,
@@ -236,12 +234,15 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.data = unmarshalled.Data
 	s.changes = unmarshalled.Changes
 	s.tasks = unmarshalled.Tasks
-	s.unflattenWarnings(unmarshalled.Warnings)
 	s.unflattenNotices(unmarshalled.Notices)
 	s.lastChangeId = unmarshalled.LastChangeId
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
+	// migrate the old warnings to notices after setting the lastNoticeId
+	if len(unmarshalled.Warnings) > 0 {
+		s.migrateWarnings(unmarshalled.Warnings)
+	}
 	// Update the last notice timestamp if the one saved to disk is later.
 	// The timestamp on disk is only guaranteed to reflect the most recent
 	// timestamp of notices which are stored in state, since state lock was
@@ -262,6 +263,55 @@ func (s *State) UnmarshalJSON(data []byte) error {
 		chg.finishUnmarshal()
 	}
 	return nil
+}
+
+// migrateWarnings migrates the old warning structs found when unmarshalling
+// state to warnings backed by notices.
+func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+
+	now := timeNow()
+	for _, w := range oldWarnings {
+		if w.FirstAdded.IsZero() {
+			continue
+		}
+		expireAfter, err := time.ParseDuration(w.ExpireAfter)
+		if err != nil {
+			expireAfter = defaultWarningExpireAfter
+		}
+
+		if w.LastAdded.Add(expireAfter).Before(now) {
+			continue
+		}
+
+		addNoticeOptions := &AddNoticeOptions{
+			Data:        map[string]string{},
+			RepeatAfter: 0,
+			ExpireAfter: expireAfter,
+			Time:        w.LastAdded,
+		}
+		showAfter, err := time.ParseDuration(w.RepeatAfter)
+		if err != nil {
+			showAfter = defaultWarningShowAfter
+		}
+		if showAfter != 0 {
+			addNoticeOptions.Data["show-after"] = showAfter.String()
+		}
+
+		if w.LastShown != nil {
+			addNoticeOptions.Data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
+		}
+
+		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
+		if err != nil {
+			continue
+		}
+		// doAddNotice sets firstOccurred to addNoticeOptions.Time for new notices
+		// and leaves it unchanged for reoccuring notices. firstOccurred should be
+		// set to the warning's FirstAdded value. This assignment has no side effects.
+		notice.firstOccurred = w.FirstAdded
+	}
 }
 
 func (s *State) checkpointData() []byte {
@@ -502,7 +552,7 @@ func (s *State) RegisterPendingChangeByAttr(attr string, f func(*Change) bool) {
 //     changes than the limit set via "maxReadyChanges" those changes in ready
 //     state will also removed even if they are below the pruneWait duration.
 //
-//   - it removes expired warnings and notices.
+//   - it removes expired notices.
 func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Duration, maxReadyChanges int) {
 	now := time.Now()
 	pruneLimit := now.Add(-pruneWait)
@@ -523,8 +573,6 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		}
 		readyChangesCount++
 	}
-
-	s.pruneWarnings(now)
 
 	s.pruneNotices(now)
 
@@ -565,16 +613,6 @@ NextChange:
 		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {
 			s.writing()
 			delete(s.tasks, tid)
-		}
-	}
-}
-
-func (s *State) pruneWarnings(now time.Time) {
-	s.warningsMu.Lock()
-	defer s.warningsMu.Unlock()
-	for k, w := range s.warnings {
-		if w.ExpiredBefore(now) {
-			delete(s.warnings, k)
 		}
 	}
 }

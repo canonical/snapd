@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -91,6 +92,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 2.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// If total time since last repeated is greater than repeatAfter, should
 	// be repeated, even if time since last occurred is shorter.
@@ -102,6 +104,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 3.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// The repeatAfter value passed into Reoccur is used, rather than the value
 	// saved in the notice, so check that the former has precedence.
@@ -114,6 +117,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 4.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// The saved repeatAfter is shorter, but the argument has precedence
 	prevTimestamp = timestamp
@@ -126,6 +130,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-repeated"], Equals, prevTimestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 5.0)
 	c.Check(n["repeat-after"], Equals, repeatAfter.String())
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 
 	// If the repeatAfter argument is 0, then always repeat
 	repeatAfter = 0
@@ -137,6 +142,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-repeated"], Equals, timestamp.Format(time.RFC3339Nano))
 	c.Check(n["occurrences"], Equals, 6.0)
 	c.Check(n["repeat-after"], IsNil)
+	c.Check(n["expire-after"], Equals, expireAfter.String())
 }
 
 func (s *noticesSuite) TestDeepCopy(c *C) {
@@ -261,6 +267,31 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnmarshalErrors(c *C) {
+	var n *state.Notice
+	c.Check(json.Unmarshal([]byte(`42`), &n), check.ErrorMatches, ".* cannot unmarshal .*")
+
+	type T struct{ b, e string }
+	// validity check
+	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`
+	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
+	for _, t := range []T{
+		// remove a field at a time:
+		{`{"key": "x", "type":"warning",                                           "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "invalid first-occurred time: .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                                          "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "invalid last-occurred time: .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z",                                          "expire-after": "1h", "repeat-after": "1h"}`, "invalid last-repeated time: .*"},
+		// some bogus values
+		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006"                , "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006"                , "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), check.ErrorMatches, t.e)
+	}
+}
+
 func (s *noticesSuite) TestString(c *C) {
 	noticeJSON := []byte(`{
 		"id": "1",
@@ -286,7 +317,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"first-occurred": "2023-09-01T05:23:01Z",
 		"last-occurred": "2023-09-01T07:23:02Z",
 		"last-repeated": "2023-09-01T06:23:03.123456789Z",
-		"occurrences": 2
+		"occurrences": 2,
+		"expire-after": "168h0m0s"
 	}`)
 	err = json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)
@@ -684,7 +716,7 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	backend := &fakeStateBackend{}
 	st := state.New(backend)
 	st.Lock()
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", nil)
+	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "foo.com/bar", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
 
@@ -697,7 +729,7 @@ func (s *noticesSuite) TestCheckpoint(c *C) {
 	c.Assert(notices, HasLen, 1)
 	n := noticeToMap(c, notices[0])
 	c.Check(n["user-id"], Equals, nil)
-	c.Check(n["type"], Equals, "warning")
+	c.Check(n["type"], Equals, "interfaces-requests-prompt")
 	c.Check(n["key"], Equals, "foo.com/bar")
 }
 
@@ -706,7 +738,7 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	old := time.Now().Add(-8 * 24 * time.Hour)
+	old := time.Now().Add(-28 * 24 * time.Hour)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", &state.AddNoticeOptions{
 		Time: old,
 	})
@@ -980,6 +1012,10 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
 	c.Check(err, ErrorMatches, `internal error: cannot add refresh-inhibit notice with invalid key "123": only "-" key is supported`)
 	c.Check(id, Equals, "")
+
+	// Warning with no options
+	err = state.ValidateNotice(state.WarningNotice, "danger", nil)
+	c.Check(err, ErrorMatches, "cannot add warning notice without specifying options")
 }
 
 func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
