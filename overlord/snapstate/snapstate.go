@@ -137,7 +137,7 @@ type InsufficientSpaceError struct {
 	// Path is the filesystem path checked for available disk space
 	Path string
 	// Snaps affected by the failing operation
-	Snaps []string
+	Snaps []naming.InstanceName
 	// Kind of the change that failed
 	ChangeKind string
 	// Message is optional, otherwise one is composed from the other information
@@ -149,7 +149,13 @@ func (e *InsufficientSpaceError) Error() string {
 		return e.Message
 	}
 	if len(e.Snaps) > 0 {
-		snaps := strings.Join(e.Snaps, ", ")
+		snaps := strings.Join(func() []string {
+			s := make([]string, len(e.Snaps))
+			for i, snap := range e.Snaps {
+				s[i] = string(snap)
+			}
+			return s
+		}(), ", ")
 		return fmt.Sprintf("insufficient space in %q to perform %q change for the following snaps: %s", e.Path, e.ChangeKind, snaps)
 	}
 	return fmt.Sprintf("insufficient space in %q", e.Path)
@@ -2584,11 +2590,6 @@ func checkForAvailableSpace(totalSize, reservation uint64, snaps []naming.Instan
 
 	requiredSpace := totalSize + reservation
 
-	var snapsStr = make([]string, len(snaps))
-	for i, snap := range snaps {
-		snapsStr[i] = string(snap)
-	}
-
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 			message := ""
@@ -2597,7 +2598,7 @@ func checkForAvailableSpace(totalSize, reservation uint64, snaps []naming.Instan
 			}
 			return &InsufficientSpaceError{
 				Path:       rootDir,
-				Snaps:      snapsStr,
+				Snaps:      snaps,
 				ChangeKind: changeKind,
 				Message:    message,
 			}

@@ -232,7 +232,7 @@ func (s *snapmgrTestSuite) TestRemoveDiskSpaceForSnapshotError(c *C) {
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `cannot create automatic snapshot when removing last revision of the snap: insufficient space.*`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 	c.Check(diskSpaceErr.ChangeKind, Equals, "remove")
 }
 
@@ -1688,7 +1688,7 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceError(c *C) {
 
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("one"), ""), naming.NewInstanceName(naming.SnapName("two"), "")})
 	c.Check(diskSpaceErr.ChangeKind, Equals, "remove")
 }
 

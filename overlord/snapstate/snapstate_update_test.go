@@ -6625,7 +6625,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceCheckError(c *C) {
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: snapd, some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"snapd", "some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("snapd"), ""), naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceDoesNotSplitAllSnapsTransaction(c *C) {
@@ -6637,7 +6637,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceDoesNotSplitAllSnapsTransactio
 		Flags: &snapstate.Flags{Transaction: client.TransactionAllSnaps},
 	})
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"snapd", "some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("snapd"), ""), naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceRefreshesEssentialSnaps(c *C) {
@@ -7322,7 +7322,7 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationError(c *C) {
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationHappy(c *C) {

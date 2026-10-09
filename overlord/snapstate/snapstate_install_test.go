@@ -4005,7 +4005,7 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestInstallDiskSpaceCheckSkippedIfReservationUnset(c *C) {
@@ -4647,7 +4647,7 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: one, two`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"one", "two"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("one"), ""), naming.NewInstanceName(naming.SnapName("two"), "")})
 	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
 }
 
@@ -6217,7 +6217,7 @@ epoch: 1
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap, other-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, snapNames)
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), ""), naming.NewInstanceName(naming.SnapName("other-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestInstallPathManyClassic(c *C) {

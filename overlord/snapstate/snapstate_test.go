@@ -573,7 +573,6 @@ func (s *snapmgrTestSuite) TestCheckForAvailableSpace(c *C) {
 
 func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
 	rootDir := c.MkDir()
-	snaps := []string{"some-snap", "other-snap"}
 	instanceSnaps := []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), ""), naming.NewInstanceName(naming.SnapName("other-snap"), "")}
 	noSpaceErr := &osutil.NotEnoughDiskSpaceError{}
 	checkErr := errors.New("cannot check free space")
@@ -587,7 +586,7 @@ func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
 			description: "insufficient space",
 			checkError:  noSpaceErr,
 			expected: &snapstate.InsufficientSpaceError{
-				Path: rootDir, Snaps: snaps, ChangeKind: "remove",
+				Path: rootDir, Snaps: instanceSnaps, ChangeKind: "remove",
 			},
 		},
 		{
@@ -595,7 +594,7 @@ func (s *snapmgrTestSuite) TestCheckForAvailableSpaceError(c *C) {
 			checkError:    noSpaceErr,
 			messagePrefix: "cannot create automatic snapshot",
 			expected: &snapstate.InsufficientSpaceError{
-				Path: rootDir, Snaps: snaps, ChangeKind: "remove",
+				Path: rootDir, Snaps: instanceSnaps, ChangeKind: "remove",
 				Message: fmt.Sprintf("cannot create automatic snapshot: %v", noSpaceErr),
 			},
 		},
@@ -12153,7 +12152,7 @@ func (s *snapmgrTestSuite) TestDownloadOutOfSpace(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "download" change for the following snaps: foo`)
 	c.Check(diskSpaceErr.Path, Equals, downloadDir)
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"foo"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("foo"), "")})
 }
 
 func (s *snapmgrTestSuite) TestDownloadSpecifyCohort(c *C) {
