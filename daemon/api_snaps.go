@@ -679,7 +679,7 @@ func removeSnapComponents(inst *snapInstruction, st *state.State) (msg string, a
 	for snap, comps := range inst.CompsForSnaps {
 		// We call from here only when we remove components, not the
 		// full snap, so we need to refresh the security profiles.
-		tss, err := snapstateRemoveComponents(st, snap, comps,
+		tss, err := snapstateRemoveComponents(st, naming.InstanceName(snap), comps,
 			snapstate.RemoveComponentsOpts{RefreshProfile: true})
 		if err != nil {
 			return "", nil, err
@@ -983,7 +983,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 			var compsToInstall []string
 			var alreadyInstalled []string
 			for _, comp := range comps {
-				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(name, comp)) == nil {
+				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(naming.InstanceName(name).SnapName(), comp)) == nil {
 					compsToInstall = append(compsToInstall, comp)
 				} else {
 					alreadyInstalled = append(alreadyInstalled, comp)

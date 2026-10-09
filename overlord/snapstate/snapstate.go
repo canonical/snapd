@@ -1137,7 +1137,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	var invComps []string
 	for snapName, cerr := range valErr.ComponentErrors {
 		for compName := range cerr.InvalidComponents {
-			invComps = append(invComps, naming.NewComponentRef(snapName, compName).String())
+			invComps = append(invComps, naming.NewComponentRef(naming.SnapName(snapName), compName).String())
 		}
 	}
 	if len(invComps) != 0 {

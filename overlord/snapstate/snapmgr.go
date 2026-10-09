@@ -280,7 +280,7 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // custom location, this will be under dirs.SnapBlobDir.
 func (compsu *ComponentSetup) BlobPath(instanceName string) string {
 	if instanceName == "" {
-		instanceName = compsu.CompSideInfo.Component.SnapName
+		instanceName = compsu.CompSideInfo.Component.SnapName.String()
 	}
 
 	blobDir := compsu.DownloadBlobDir

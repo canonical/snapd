@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/snap/naming"
 )
 
 var shortComponentsHelp = i18n.G("List available and installed components for installed snaps")
@@ -95,11 +94,9 @@ func (x *cmdComponents) Execute(args []string) error {
 	for _, snap := range snaps {
 		sort.Slice(snap.Components, componentsByInstallStatusAndSnapName(snap.Components))
 		for _, comp := range snap.Components {
-			// note that snap.Name is actually an instance name, and this isn't
-			// how we'd usually use a naming.ComponentRef. however, presenting
-			// users with a string that they can copy-paste into a "snap
-			// install" command seems useful
-			name := naming.NewComponentRef(snap.Name, comp.Name).String()
+			// Provide the <instance-name>+<component> that users can copy and
+			// paste into snap install
+			name := fmt.Sprintf("%s+%s", snap.Name, comp.Name)
 			status := "available"
 			if comp.InstallDate != nil {
 				status = "installed"

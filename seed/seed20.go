@@ -229,7 +229,7 @@ func (s *seed20) availableAssertedContainers() (map[string]bool, map[string]map[
 	assertedComps := make(map[string]map[string]bool)
 	snapIDToName := make(map[string]string)
 	for snapID, decl := range s.snapDeclsByID {
-		snapName := decl.SnapName()
+		snapName := decl.SnapName().String()
 		snapIDToName[snapID] = snapName
 		assertedNames[snapName] = true
 	}
@@ -388,7 +388,7 @@ func snapInModel(cref naming.SnapRef, modelSnaps map[string]*asserts.ModelSnap) 
 }
 
 func componentInModel(cref naming.ComponentRef, modelSnaps map[string]*asserts.ModelSnap) bool {
-	sn, ok := modelSnaps[cref.SnapName]
+	sn, ok := modelSnaps[cref.SnapName.String()]
 	if !ok {
 		return false
 	}
@@ -644,11 +644,11 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 			return err
 		}
 		snapDecl := a.(*asserts.SnapDeclaration)
-		if snapDecl1 := snapDeclsByName[snapDecl.SnapName()]; snapDecl1 != nil {
+		if snapDecl1 := snapDeclsByName[snapDecl.SnapName().String()]; snapDecl1 != nil {
 			return fmt.Errorf("cannot have multiple snap-declarations for the same snap-name: %s", snapDecl.SnapName())
 		}
 		snapDeclsByID[snapDecl.SnapID()] = snapDecl
-		snapDeclsByName[snapDecl.SnapName()] = snapDecl
+		snapDeclsByName[snapDecl.SnapName().String()] = snapDecl
 	}
 
 	snapRevsByID := make(map[string]*asserts.SnapRevision, len(revRefs))
@@ -825,7 +825,7 @@ type errorComponentNotInSeed struct {
 }
 
 func modelContainsComponent(modelSnaps map[string]*asserts.ModelSnap, cref naming.ComponentRef) bool {
-	sn, ok := modelSnaps[cref.SnapName]
+	sn, ok := modelSnaps[cref.SnapName.String()]
 	if !ok {
 		return false
 	}
@@ -964,7 +964,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 		return "", nil, nil, fmt.Errorf("cannot validate %q for snap %q (snap-id %q), wrong size", snapPath, snapName, snapID)
 	}
 
-	cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(snapName), snap.R(snapRev.SnapRevision()))
+	cpi := snap.MinimalSnapContainerPlaceInfo(snapName.AsInstanceName(), snap.R(snapRev.SnapRevision()))
 	newPath, snapSHA3_384, _, err := handler.HandleAndDigestAssertedContainer(cpi, snapPath, tm)
 	if err != nil {
 		return "", nil, nil, err
@@ -978,7 +978,7 @@ func (s *seed20) lookupVerifiedRevision(snapRef naming.SnapRef, handler Containe
 		snapPath = newPath
 	}
 
-	if _, err := snapasserts.CrossCheckProvenance(snapName, snapRev, snapDecl, s.model, s.db); err != nil {
+	if _, err := snapasserts.CrossCheckProvenance(snapName.String(), snapRev, snapDecl, s.model, s.db); err != nil {
 		return "", nil, nil, err
 	}
 
@@ -999,7 +999,7 @@ func (s *seed20) lookupUnassertedComponent(comp20 internal.Component20, info *sn
 		return Component{}, fmt.Errorf("cannot read unasserted component: %v", err)
 	}
 	compName := cinfo.Component.ComponentName
-	cref := naming.NewComponentRef(info.SnapName().String(), compName)
+	cref := naming.NewComponentRef(info.SnapName(), compName)
 	// Unasserted components from the seed will have an x1 revision when installed
 	csi := snap.NewComponentSideInfo(cref, snap.R(-1))
 	cpi := snap.MinimalComponentContainerPlaceInfo(
@@ -1029,7 +1029,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 		seedComps = make([]Component, 0, len(modelSnap.Components))
 		for comp, modelComp := range modelSnap.Components {
 			seedComp, err := s.lookupVerifiedComponent(
-				naming.NewComponentRef(snapDecl.SnapName(), comp),
+				naming.NewComponentRef(naming.SnapName(snapDecl.SnapName()), comp),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
 				snapRev.Provenance(), handler, tm)
 			if err != nil {
@@ -1063,7 +1063,7 @@ func (s *seed20) deriveSideInfo(snapRef naming.SnapRef, modelSnap *asserts.Model
 			}
 
 			seedComp, err := s.lookupVerifiedComponent(
-				naming.NewComponentRef(snapDecl.SnapName(), comp.Name),
+				naming.NewComponentRef(naming.SnapName(snapDecl.SnapName()), comp.Name),
 				snap.R(snapRev.SnapRevision()), snapDecl.SnapID(),
 				snapRev.Provenance(), handler, tm)
 			if err != nil {

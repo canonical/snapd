@@ -180,7 +180,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 		if len(control) == 0 {
 			continue
 		}
-		gatingNames[gatingID] = decl.SnapName()
+		gatingNames[gatingID] = decl.SnapName().String()
 		for _, gatedID := range control {
 			controlled[gatedID] = append(controlled[gatedID], gatingID)
 		}

@@ -444,10 +444,10 @@ func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.Mod
 type modelSnapsForRemodel struct {
 	new *asserts.Model
 
-	oldSnap      string
+	oldSnap      naming.SnapName
 	oldModelSnap *asserts.ModelSnap
 
-	newSnap      string
+	newSnap      naming.SnapName
 	newModelSnap *asserts.ModelSnap
 }
 
@@ -467,7 +467,7 @@ type remodeler struct {
 // remodeling to.
 type remodelSnapTarget struct {
 	// name is the name of the snap.
-	name string
+	name naming.SnapName
 	// channel is the channel that the snap should be installed from and track.
 	channel string
 	// newModelSnap is the model snap for this target. This might be nil for
@@ -525,7 +525,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	}
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, rt.name, &snapst); err != nil {
+	if err := snapstate.Get(st, rt.name.String(), &snapst); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
 			return 0, nil, err
 		}
@@ -597,7 +597,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	switch {
 	case needsRevisionChange || needsChannelChange:
 		if r.shouldSwitchWithoutRefresh(rt, needsRevisionChange) && !needsComponentChanges {
-			ts, err := snapstate.Switch(st, rt.name, &snapstate.RevisionOptions{
+			ts, err := snapstate.Switch(st, rt.name.String(), &snapstate.RevisionOptions{
 				Channel: rt.channel,
 			}, r.tracker)
 			if err != nil {
@@ -717,7 +717,7 @@ func (r *remodeler) shouldSwitchWithoutRefresh(rt remodelSnapTarget, needsRevisi
 
 	// if we have a local container for this snap, then we should use that in
 	// addition to switching the tracked channel
-	if _, ok := r.localSnaps[rt.name]; ok {
+	if _, ok := r.localSnaps[rt.name.String()]; ok {
 		return false
 	}
 
@@ -743,7 +743,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	constraints snapasserts.SnapPresenceConstraints,
 ) (snapstate.UpdateGoal, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, sn.name, &snapst); err != nil {
+	if err := snapstate.Get(st, sn.name.String(), &snapst); err != nil {
 		return nil, err
 	}
 
@@ -759,7 +759,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	ss := snapst.Sequence.Revisions[index]
 	comps := make([]snapstate.PathComponent, 0, len(ss.Components))
 	for _, c := range components {
-		cref := naming.NewComponentRef(snap.InstanceSnap(sn.name), c)
+		cref := naming.NewComponentRef(sn.name, c)
 		cs := ss.FindComponent(cref)
 		if cs == nil {
 			return nil, fmt.Errorf("cannot find required component in set of already installed components: %s", cref)
@@ -791,7 +791,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	}
 
 	return snapstatePathUpdateGoal(snapstate.PathSnap{
-		InstanceName: sn.name,
+		InstanceName: sn.name.String(),
 		Path:         snap.MountFile(naming.InstanceName(sn.name), constraints.Revision),
 		SideInfo:     &sideInfo,
 		Components:   comps,
@@ -805,7 +805,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 
 func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components []string, constraints snapasserts.SnapPresenceConstraints) (snapstate.UpdateGoal, error) {
 	if r.offline {
-		ls, ok := r.localSnaps[sn.name]
+		ls, ok := r.localSnaps[sn.name.String()]
 		if !ok {
 			// this attempts to create a snapstate.UpdateGoal that will switch
 			// back to a previously installed snap revision that is still in the
@@ -858,7 +858,7 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 	// and it might already contain any of the components that are already
 	// installed. the snapstate code handles this case correctly.
 	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
-		InstanceName:         sn.name,
+		InstanceName:         sn.name.String(),
 		AdditionalComponents: components,
 		InstallIfMissing:     true,
 		RevOpts: snapstate.RevisionOptions{
@@ -874,7 +874,7 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 	if r.offline {
 		var tss []*state.TaskSet
 		for _, c := range components {
-			ref := naming.NewComponentRef(info.SnapName().String(), c)
+			ref := naming.NewComponentRef(info.SnapName(), c)
 
 			lc, ok := r.localComponents[ref.String()]
 			if !ok {
@@ -976,7 +976,7 @@ func remodelEssentialSnapTasks(
 		// already be handled
 		return tss, nil
 	case remodelNoAction, remodelAddComponentsAction:
-		ts, err := switchEssentialTasks(ms.newSnap, rm.fromChange)
+		ts, err := switchEssentialTasks(ms.newSnap.String(), rm.fromChange)
 		if err != nil {
 			return nil, err
 		}
@@ -1024,10 +1024,10 @@ func tasksForEssentialSnap(
 	}
 
 	ms := modelSnapsForRemodel{
-		oldSnap:      currentSnap,
+		oldSnap:      naming.SnapName(currentSnap),
 		oldModelSnap: currentModelSnap,
 		new:          new,
-		newSnap:      newSnap,
+		newSnap:      naming.SnapName(newSnap),
 		newModelSnap: newModelSnap,
 	}
 	return remodelEssentialSnapTasks(ctx, st, rm, ms)
@@ -1168,7 +1168,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 
 		_, sets, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{
-			name:         modelSnap.SnapName().String(),
+			name:         modelSnap.SnapName(),
 			channel:      newModelSnapChannel,
 			newModelSnap: modelSnap,
 		})
@@ -2437,7 +2437,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		requiredComponents := make([]string, 0, len(sn.Components))
 
 		for name, comp := range sn.Components {
-			compInstalled, currentCompRevision, err := installedComponentRevision(st, sn.Name, name)
+			compInstalled, currentCompRevision, err := installedComponentRevision(st, naming.InstanceName(sn.Name), name)
 			if err != nil {
 				return nil, err
 			}
@@ -2498,7 +2498,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			tracker.Add(info)
 
 			for comp := range sn.Components {
-				cref := naming.NewComponentRef(sn.Name, comp)
+				cref := naming.NewComponentRef(naming.SnapName(sn.Name), comp)
 				rev := constraints.Component(comp).Revision
 
 				localComp, err := offlineComponentInfo(cref, rev, opts.LocalComponents)
@@ -2685,16 +2685,16 @@ func installedSnapRevision(st *state.State, name string) (bool, snap.Revision, e
 	return true, snapst.Current, nil
 }
 
-func installedComponentRevision(st *state.State, snapName, compName string) (bool, snap.Revision, error) {
+func installedComponentRevision(st *state.State, snapName naming.InstanceName, compName string) (bool, snap.Revision, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
+	if err := snapstate.Get(st, snapName.String(), &snapst); err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return false, snap.Revision{}, nil
 		}
 		return false, snap.Revision{}, err
 	}
 
-	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef(snapName, compName))
+	csi := snapst.CurrentComponentSideInfo(naming.NewComponentRef(snapName.SnapName(), compName))
 	if csi == nil {
 		return false, snap.Revision{}, nil
 	}

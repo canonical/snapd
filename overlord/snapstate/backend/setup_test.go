@@ -772,7 +772,7 @@ func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) [
 		c.Assert(os.Symlink(compDir, linkPath), IsNil)
 
 		comps[i] = snap.NewComponentSideInfo(
-			naming.NewComponentRef(ksnap, compName), compRev)
+			naming.NewComponentRef(naming.SnapName(ksnap), compName), compRev)
 	}
 	return comps
 }

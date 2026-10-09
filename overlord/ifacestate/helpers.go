@@ -1426,7 +1426,7 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 	if err != nil {
 		return "", err
 	}
-	return decl.SnapName(), nil
+	return decl.SnapName().String(), nil
 }
 
 // SnapMapper offers APIs for re-mapping snap names in interfaces and the

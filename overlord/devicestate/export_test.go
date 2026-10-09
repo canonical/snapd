@@ -390,6 +390,7 @@ var (
 
 	RenderExtraSnapdKernelCommandLineFragments = renderExtraSnapdKernelCommandLineFragments
 	KernelCommandLineAppendArgsFromSnapd       = kernelCommandLineAppendArgsFromSnapd
+	InstalledComponentRevision                 = installedComponentRevision
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {

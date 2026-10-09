@@ -237,7 +237,7 @@ type setupInfoGetter struct {
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
 	if allowlist := ig.setup.Allowlist; allowlist != nil {
-		if !strutil.ListContains(allowlist.Components[cref.SnapName], cref.ComponentName) {
+		if !strutil.ListContains(allowlist.Components[cref.SnapName.String()], cref.ComponentName) {
 			return nil, "", false, nil
 		}
 	}
@@ -490,7 +490,7 @@ func createSystemForModelFromValidatedSnaps(
 		var comps []seedwriter.OptionsComponent
 		modelComponents[sn.Name] = make(map[string]*snap.ComponentInfo)
 		for compName, comp := range sn.Components {
-			cref := naming.NewComponentRef(sn.Name, compName)
+			cref := naming.NewComponentRef(naming.SnapName(sn.Name), compName)
 			compInfo, compPath, present, err := getInfo.ComponentInfo(st, cref, snapInfo)
 			if err != nil {
 				return fmt.Errorf("cannot obtain component %q information: %v", cref, err)

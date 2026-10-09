@@ -2178,7 +2178,7 @@ func getCompsFromSymlinks(symLinksDir, kernelName string, compSet map[snap.Compo
 			logger.Noticef("warning: wrong revision in symlink %s: %v", dest, err)
 			continue
 		}
-		csi := snap.NewComponentSideInfo(naming.NewComponentRef(kernelName, dirs[0]), rev)
+		csi := snap.NewComponentSideInfo(naming.NewComponentRef(naming.SnapName(kernelName), dirs[0]), rev)
 		compSet[*csi] = true
 	}
 

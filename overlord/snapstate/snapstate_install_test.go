@@ -7277,7 +7277,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	var componentStates []*sequence.ComponentState
 	for i, compName := range opts.components {
 		componentStates = append(componentStates, sequence.NewComponentState(&snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(opts.snapName, compName),
+			Component: naming.NewComponentRef(naming.SnapName(opts.snapName), compName),
 			Revision:  snap.R(i + 1),
 		}, componentNameToType(c, compName)))
 	}
@@ -7481,7 +7481,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	kmodComps := make([]*snap.ComponentSideInfo, 0, len(opts.components))
 	for i, compName := range opts.components {
 		csi := snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(opts.snapName, compName),
+			Component: naming.NewComponentRef(naming.SnapName(opts.snapName), compName),
 			Revision:  snap.R(i + 1),
 		}
 		if strings.HasPrefix(compName, string(snap.KernelModulesComponent)) {
@@ -7557,7 +7557,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	for i, comp := range opts.components {
 		compsups = append(compsups, snapstate.ComponentSetup{
 			CompSideInfo: &snap.ComponentSideInfo{
-				Component: naming.NewComponentRef(opts.snapName, comp),
+				Component: naming.NewComponentRef(naming.SnapName(opts.snapName), comp),
 				Revision:  snap.R(i + 1),
 			},
 			CompType: componentNameToType(c, comp),
@@ -7603,7 +7603,7 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 		for i, compName := range opts.components {
 			compst = append(compst, &sequence.ComponentState{
 				SideInfo: &snap.ComponentSideInfo{
-					Component: naming.NewComponentRef(opts.snapName, compName),
+					Component: naming.NewComponentRef(naming.SnapName(opts.snapName), compName),
 					Revision:  snap.R(i + 1),
 				},
 				CompType: componentNameToType(c, compName),
@@ -7730,7 +7730,7 @@ func (s *snapmgrTestSuite) testSeedingGoalWithComponentsRunThrough(c *C, opts te
 	var componentStates []*sequence.ComponentState
 	for _, compName := range opts.components {
 		csi := &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(opts.snapName, compName),
+			Component: naming.NewComponentRef(naming.SnapName(opts.snapName), compName),
 			Revision:  compRevs[compName],
 		}
 		if opts.unasserted {
@@ -7750,7 +7750,7 @@ version: 1.0
 		})
 
 		csSideInfo := &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(opts.snapName, compName),
+			Component: naming.NewComponentRef(naming.SnapName(opts.snapName), compName),
 			Revision:  compRevs[compName],
 		}
 		componentStates = append(componentStates, sequence.NewComponentState(csSideInfo, componentNameToType(c, compName)))
@@ -7964,7 +7964,7 @@ components:
 	for _, comp := range opts.components {
 		compsups = append(compsups, snapstate.ComponentSetup{
 			CompSideInfo: &snap.ComponentSideInfo{
-				Component: naming.NewComponentRef(opts.snapName, comp),
+				Component: naming.NewComponentRef(naming.SnapName(opts.snapName), comp),
 				Revision:  compRevs[comp],
 			},
 			CompType: componentNameToType(c, comp),
