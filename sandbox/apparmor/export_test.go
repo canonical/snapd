@@ -22,6 +22,8 @@ package apparmor
 import (
 	"io"
 	"os"
+	"os/exec"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
@@ -120,4 +122,45 @@ var (
 
 func FreshAppArmorAssessment() {
 	appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
+}
+
+// MockNetworkBugProbeRunner mocks the function that runs the AppArmor 5.0
+// network mediation bug probe.
+func MockNetworkBugProbeRunner(f func(parser *exec.Cmd) (bool, error)) func() {
+	r := testutil.Backup(&networkBugProbeRunner)
+	networkBugProbeRunner = f
+	return r
+}
+
+// ResetNetworkBugProbe resets the per-process probe state so that a
+// test can trigger a fresh probe.
+func ResetNetworkBugProbe() {
+	networkBugProbeMu.Lock()
+	defer networkBugProbeMu.Unlock()
+	networkBugProbeDone = false
+	atomic.StoreUint32(&networkBugProbeDowngrade, 0)
+}
+
+// NetworkBugMarkerPath exposes the marker file path for tests.
+func NetworkBugMarkerPath() string {
+	return networkBugMarkerPath()
+}
+
+// NetworkBugForcedAbi40 exposes the downgrade decision for tests.
+func NetworkBugForcedAbi40() bool {
+	return networkBugForcedAbi40()
+}
+
+// NetworkBugProbeProfile exposes the probe profile template substitution
+// for tests.
+func NetworkBugProbeProfile() (source, name string) {
+	return networkBugProbeProfile()
+}
+
+// MockOsExecutable mocks the lookup of the running executable used to
+// invoke the probe stub.
+func MockOsExecutable(f func() (string, error)) func() {
+	r := testutil.Backup(&osExecutable)
+	osExecutable = f
+	return r
 }
