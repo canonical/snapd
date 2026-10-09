@@ -59,7 +59,8 @@ var (
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
 
-	awaitSubsystemRetryInterval = 30 * time.Second
+	taskRetryInterval      = 60 * time.Second
+	taskMaxRetryTentatives = 15
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
@@ -282,8 +283,9 @@ func (ms *deviceMgmtState) evictSequence(seqKey string) {
      V                                     |
    Valid and authorized?                   |    <- validate-mgmt-message
      |  \                                  |
-     |   \ No --> [rejected] or            |
-     |            [unauthorized] --------->|
+     |   \ No --> [rejected],              |
+     |            [unauthorized], or       |
+     |            [error] ---------------->|
      | Yes                                 |
      V                                     |
    Subsystem change created?               |    <- apply-mgmt-message
@@ -448,6 +450,24 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 
 	// If disabled, still exchange to deliver responses for already-processed messages.
 	return m.isRemoteDeviceManagementEnabled() || len(ms.ReadyResponses) > 0
+}
+
+// retryTaskTentative increments and persists a retry counter on t under key,
+// returning Retry until taskMaxRetryTentatives is exceeded, then nil.
+func retryTaskTentative(t *state.Task, key string) error {
+	var tentatives int
+	err := t.Get(key, &tentatives)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	tentatives++
+	if tentatives > taskMaxRetryTentatives {
+		return nil
+	}
+	t.Set(key, tentatives)
+
+	return &state.Retry{After: taskRetryInterval}
 }
 
 // doExchangeMessages exchanges messages with the store: sends queued response messages,
@@ -717,13 +737,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	fetched, err := m.ensureAccountKey(a.SignKeyID())
-	if err != nil {
-		// TODO: need to distinguish between:
-		//  - transient errors (like store unreachable) - retry
-		//  - permanent errors - determine whether to fail the task or reject the message.
-		return err
-	}
+	fetched, fetchErr := m.ensureAccountKey(a.SignKeyID())
 	if fetched {
 		// The state lock was dropped during the store fetch. Concurrent tasks in
 		// other lanes may have mutated state in that window, so re-read before mutating.
@@ -731,6 +745,15 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		if err != nil {
 			return err
 		}
+	}
+	if fetchErr != nil {
+		retryErr := retryTaskTentative(t, "account-key-fetch-tentatives")
+		if retryErr != nil {
+			return retryErr
+		}
+
+		setMsgResponse(asserts.MessageStatusError, fmt.Sprintf("cannot fetch signing key: %v", fetchErr))
+		return nil
 	}
 
 	err = assertstate.DB(m.state).Check(a)
@@ -767,7 +790,11 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	err = handler.Validate(tomb.Context(nil), m.state, *msg)
+	ctx := tomb.Context(nil)
+	err = handler.Validate(ctx, m.state, *msg)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return &state.Retry{}
+	}
 	if err != nil {
 		var unauthorizedErr *handlers.UnauthorizedError
 		status := asserts.MessageStatusRejected
@@ -846,10 +873,11 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 		return nil
 	}
 
-	// TODO: If a shutdown terminates this context while we're waiting for
-	// another op to complete, we'll error out of this call and mark the
-	// message as failed. It would make sense to retry this task instead.
-	chgID, applyErr := handler.Apply(tomb.Context(nil), m.state, *msg)
+	ctx := tomb.Context(nil)
+	chgID, applyErr := handler.Apply(ctx, m.state, *msg)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return &state.Retry{}
+	}
 
 	// MessageHandler.Apply may drop the state lock internally. Concurrent tasks in
 	// other lanes may have mutated the state in that window, so re-read before mutating.
@@ -892,23 +920,20 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 		return nil
 	}
 
-	err = m.setMessageResponseFromChange(tomb.Context(nil), msg)
+	status, body, err := m.responseFromChange(tomb.Context(nil), t, msg)
 	if err != nil {
 		return err
 	}
 
 	// MessageHandler.ResultFromChange may drop the state lock internally. Concurrent tasks
 	// in other lanes may have mutated the state in that window, so re-read before mutating.
-	responseStatus := msg.ResponseStatus
-	responseBody := msg.ResponseBody
-
 	ms, msg, err = m.getMessageAndState(msgKey)
 	if err != nil {
 		return err
 	}
 
-	msg.ResponseStatus = responseStatus
-	msg.ResponseBody = responseBody
+	msg.ResponseStatus = status
+	msg.ResponseBody = body
 
 	bodyBytes, err := json.Marshal(msg.ResponseBody)
 	if err != nil {
@@ -952,46 +977,51 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 	return nil
 }
 
-// setMessageResponseFromChange populates msg's response fields from the completed apply change.
-func (m *DeviceMgmtManager) setMessageResponseFromChange(ctx context.Context, msg *handlers.RequestMessage) error {
+// responseFromChange determines the response status and body for msg from its
+// subsystem apply change, retrying while the change is not yet ready.
+func (m *DeviceMgmtManager) responseFromChange(ctx context.Context, t *state.Task, msg *handlers.RequestMessage) (asserts.MessageStatus, map[string]any, error) {
 	if msg.ResponseStatus != "" {
-		return nil
+		return msg.ResponseStatus, msg.ResponseBody, nil
 	}
 
 	handler := handlers.Get(msg.Kind)
 	if handler == nil {
-		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
-		return nil
+		return asserts.MessageStatusError,
+			map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)},
+			nil
 	}
 
 	chg := m.state.Change(msg.ApplyChangeID)
 	if chg == nil {
-		return fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
+		return "", nil, fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
 	}
 	if !chg.Status().Ready() {
-		return &state.Retry{After: awaitSubsystemRetryInterval}
+		err := retryTaskTentative(t, "subsystem-await-tentatives")
+		if err != nil {
+			return "", nil, err
+		}
+
+		return asserts.MessageStatusError,
+			map[string]any{"message": fmt.Sprintf("cannot process message: subsystem change %q did not complete after %d attempts", msg.ApplyChangeID, taskMaxRetryTentatives)},
+			nil
 	}
 	if chg.Status() != state.DoneStatus {
-		msg.ResponseStatus = asserts.MessageStatusError
 		err := chg.Err()
 		if err == nil {
 			err = fmt.Errorf("cannot process message: change is in unexpected status %q", chg.Status())
 		}
-		msg.ResponseBody = map[string]any{"message": err.Error()}
-		return nil
+		return asserts.MessageStatusError, map[string]any{"message": err.Error()}, nil
 	}
 
 	body, err := handler.ResultFromChange(ctx, chg)
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return "", nil, &state.Retry{}
+	}
 	if err != nil {
-		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": err.Error()}
-	} else {
-		msg.ResponseStatus = asserts.MessageStatusSuccess
-		msg.ResponseBody = body
+		return asserts.MessageStatusError, map[string]any{"message": err.Error()}, nil
 	}
 
-	return nil
+	return asserts.MessageStatusSuccess, body, nil
 }
 
 // parseRequestMessage decodes a store message body into a RequestMessage.
