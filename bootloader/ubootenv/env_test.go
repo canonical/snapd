@@ -717,3 +717,39 @@ func (u *uenvTestSuite) TestIsNewerFlag(c *C) {
 	c.Assert(ubootenv.IsNewerFlag(1, 255), Equals, true)
 	c.Assert(ubootenv.IsNewerFlag(255, 1), Equals, false)
 }
+
+func (u *uenvTestSuite) TestSaveTooLarge(c *C) {
+	// 64 bytes minus the 5 byte header leaves 59 bytes for the data
+	env, err := ubootenv.Create(u.envFile, 64, ubootenv.CreateOptions{HeaderFlagByte: true})
+	c.Assert(err, IsNil)
+
+	// "foo=" + 53 bytes + "\0" + terminating "\0" is exactly 59 bytes
+	env.Set("foo", strings.Repeat("x", 53))
+	c.Assert(env.Save(), IsNil)
+
+	// one byte more must be refused rather than silently truncated
+	env.Set("foo", strings.Repeat("x", 54))
+	err = env.Save()
+	c.Assert(err, ErrorMatches, `environment data of 60 bytes does not fit in the 59 bytes available`)
+
+	// the previous content is untouched
+	env2, err := ubootenv.Open(u.envFile)
+	c.Assert(err, IsNil)
+	c.Assert(env2.Get("foo"), Equals, strings.Repeat("x", 53))
+}
+
+func (u *uenvTestSuite) TestSaveRedundantTooLarge(c *C) {
+	env, err := ubootenv.CreateRedundant(u.envFile, 64)
+	c.Assert(err, IsNil)
+	env.Set("foo", "bar")
+	c.Assert(env.Save(), IsNil)
+
+	env.Set("foo", strings.Repeat("x", 54))
+	err = env.Save()
+	c.Assert(err, ErrorMatches, `environment data of 60 bytes does not fit in the 59 bytes available`)
+
+	// the active copy still holds the previous content
+	env2, err := ubootenv.OpenRedundant(u.envFile, 64)
+	c.Assert(err, IsNil)
+	c.Assert(env2.String(), Equals, "foo=bar\n")
+}
