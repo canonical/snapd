@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/logger"
@@ -217,11 +218,7 @@ func (s *snapmgrTestSuite) setupSeedRefreshUpdateTest(c *C, classic, enabled boo
 	}
 
 	if enabled {
-		s.state.Lock()
-		tr := config.NewTransaction(s.state)
-		c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-		tr.Commit()
-		s.state.Unlock()
+		restores = append(restores, features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 	}
 
 	return observed, func() {

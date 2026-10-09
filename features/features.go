@@ -21,8 +21,10 @@ package features
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -61,8 +63,6 @@ const (
 	// RemoteDeviceManagement enables experimental remote management of the device
 	// through the Store, including remote management of confdb.
 	RemoteDeviceManagement
-	// SeedRefresh enables experimental seed creation during model snap refresh.
-	SeedRefresh
 	// SnapDeltaFormat enables deltas that use the "snap delta" format
 	SnapDeltaFormat
 	// lastFeature marks the end of the features available for configuration.
@@ -77,6 +77,14 @@ const (
 	// TODO:GATEREFRESH: this feature is permanently disabled and code for it
 	// will be removed in a future release.
 	GateAutoRefreshHook
+
+	// Work-in-progress features are not enumerated by KnownFeatures. They are
+	// not controlled through the state, they are enabled only through the
+	// SNAPD_WIP environment variable.
+
+	// SeedRefresh enables work-in-progress seed creation during model snap
+	// refresh.
+	SeedRefresh
 )
 
 var knownFeaturesImpl = func() []SnapdFeature {
@@ -115,12 +123,13 @@ var featureNames = map[SnapdFeature]string{
 
 	RemoteDeviceManagement: "remote-device-management",
 
-	SeedRefresh: "seed-refresh",
-
 	SnapDeltaFormat: "snap-delta-format",
 
 	// permanently disabled features
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
+
+	// work-in-progress features
+	SeedRefresh: "seed-refresh",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -153,6 +162,13 @@ var featuresGraduated = map[string]bool{
 // retained but which cannot be enabled through configuration.
 var featuresPermanentlyDisabled = map[SnapdFeature]bool{
 	GateAutoRefreshHook: true,
+}
+
+// featuresWIP contains work-in-progress features. These features are enabled
+// only through the SNAPD_WIP environment variable, which holds a
+// comma-separated list of feature names.
+var featuresWIP = map[SnapdFeature]bool{
+	SeedRefresh: true,
 }
 
 var (
@@ -196,6 +212,49 @@ func MockFeaturesPermanentlyDisabled(disabled map[SnapdFeature]bool) (restore fu
 	featuresPermanentlyDisabled = disabled
 	return func() {
 		featuresPermanentlyDisabled = old
+	}
+}
+
+// IsWIP reports whether a feature is a work-in-progress feature.
+//
+// Work-in-progress features are not controlled through the state. They are
+// enabled only through the SNAPD_WIP environment variable.
+func (f SnapdFeature) IsWIP() bool {
+	return featuresWIP[f]
+}
+
+// isWIPEnabled reports whether the work-in-progress feature is listed in the
+// SNAPD_WIP environment variable.
+func (f SnapdFeature) isWIPEnabled() bool {
+	name := f.String()
+	for _, n := range strings.Split(os.Getenv("SNAPD_WIP"), ",") {
+		if strings.TrimSpace(n) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// MockFeaturesWIPEnvironment sets the SNAPD_WIP environment variable so that
+// only the given work-in-progress features are enabled. It is for tests only.
+func MockFeaturesWIPEnvironment(enabled ...SnapdFeature) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesWIPEnvironment can only be used in tests")
+	names := make([]string, 0, len(enabled))
+	for _, f := range enabled {
+		if !f.IsWIP() {
+			panic(fmt.Sprintf("cannot mock feature %q as enabled because that feature is not work in progress", f))
+		}
+		names = append(names, f.String())
+	}
+
+	old, wasSet := os.LookupEnv("SNAPD_WIP")
+	os.Setenv("SNAPD_WIP", strings.Join(names, ","))
+	return func() {
+		if wasSet {
+			os.Setenv("SNAPD_WIP", old)
+		} else {
+			os.Unsetenv("SNAPD_WIP")
+		}
 	}
 }
 
@@ -298,9 +357,16 @@ type confGetter interface {
 }
 
 // Flag returns whether the given feature flag is enabled.
+//
+// For work-in-progress features the state is not used. Such a feature is
+// enabled only if it is listed in the SNAPD_WIP environment variable.
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
 	if feature.IsPermanentlyDisabled() {
 		return false, nil
+	}
+
+	if feature.IsWIP() {
+		return feature.isWIPEnabled(), nil
 	}
 
 	var isEnabled any

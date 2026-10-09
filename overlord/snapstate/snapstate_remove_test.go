@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -1376,9 +1377,7 @@ func (s *snapmgrTestSuite) TestRemoveConsultsSeedRefreshRemoveHookOnlyWhenEnable
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, false)
 
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: blocked by test hook`)
@@ -1405,9 +1404,7 @@ func (s *snapmgrTestSuite) TestRemoveSpecificRevisionDoesNotConsultSeedRefreshRe
 		SnapType: "app",
 	})
 
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	called := false
 	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error {
