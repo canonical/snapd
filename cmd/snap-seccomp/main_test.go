@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/seccomp/libseccomp-golang"
@@ -52,6 +53,7 @@ var _ = Suite(&snapSeccompSuite{})
 const (
 	Deny = iota
 	DenyExplicit
+	DenyENOSYS
 	Allow
 )
 
@@ -182,12 +184,15 @@ int main(int argc, char** argv)
     // for details.
     syscall_ret = syscall(l[0], l[1], l[2], l[3], l[4], l[5], l[6]);
     // 911 is our mocked errno for implicit denials via unlisted syscalls and
-    // 999 is explicit denial
+    // 999 is explicit denial and ENOSYS is explicit denial with ~ENOSYS:
     if (syscall_ret < 0 && errno == 911) {
         ret = 10;
     }
     if (syscall_ret < 0 && errno == 999) {
         ret = 20;
+    }
+    if (syscall_ret < 0 && errno == ENOSYS) {
+        ret = 30;
     }
     syscall(SYS_exit, ret, 0, 0, 0, 0, 0);
     return 0;
@@ -379,7 +384,7 @@ clock_gettime64
 	// else is unexpected (segv, strtoll failure, ...)
 	exitCode, e := osutil.ExitCode(err)
 	c.Assert(e, IsNil)
-	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompAllowlist))
+	c.Assert(exitCode == 0 || exitCode == 10 || exitCode == 20 || exitCode == 30, Equals, true, Commentf("unexpected exit code: %v for %v - test setup broken", exitCode, seccompAllowlist))
 	switch expected {
 	case Allow:
 		if err != nil {
@@ -395,6 +400,13 @@ clock_gettime64
 	case DenyExplicit:
 		if exitCode != 20 {
 			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompAllowlist, bpfInput, exitCode, 20)
+		}
+		if err == nil {
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompAllowlist, bpfInput)
+		}
+	case DenyENOSYS:
+		if exitCode != 30 {
+			c.Fatalf("unexpected exit code for %q %q (%v != %v)", seccompAllowlist, bpfInput, exitCode, 30)
 		}
 		if err == nil {
 			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompAllowlist, bpfInput)
@@ -503,6 +515,18 @@ func (s *snapSeccompSuite) TestCompile(c *C) {
 		{"ioctl - TIOCSTI", "ioctl;native;-,99", Deny},
 		{"ioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", Deny},
 		{"ioctl\n~ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
+		// explicit denial with a custom errno
+		{"ioctl\n~ENOSYS:ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", DenyENOSYS},
+		{"ioctl\n~ENOSYS:ioctl - TIOCSTI", "ioctl;native;-,TIOCLINUX", Allow},
+		{"ioctl\n~ENOSYS:ioctl", "ioctl;native;-,TIOCSTI", DenyENOSYS},
+		// ENOSYS is returned even if the allow set does not list the syscall
+		{"~ENOSYS:ioctl", "ioctl;native;-,TIOCSTI", DenyENOSYS},
+		{"read\n~ENOSYS:ioctl - TIOCSTI", "ioctl;native;-,TIOCSTI", DenyENOSYS},
+		// and the rule is still conditional on arguments
+		{"read\n~ENOSYS:ioctl - TIOCSTI", "ioctl;native;-,TIOCLINUX", Deny},
+		// explicit allow and denial of the same syscall, in either order
+		{"ioctl\n~ENOSYS:ioctl", "ioctl;native;-,TIOCSTI", DenyENOSYS},
+		{"~ENOSYS:ioctl\nioctl", "ioctl;native;-,TIOCSTI", DenyENOSYS},
 		// also check we can deny multiple uses of ioctl but still allow
 		// others
 		{"ioctl\n~ioctl - TIOCSTI\n~ioctl - TIOCLINUX\nioctl - !TIOCSTI", "ioctl;native;-,TIOCSTI", DenyExplicit},
@@ -591,11 +615,30 @@ func (s *snapSeccompSuite) TestCompileSocket(c *C) {
 
 }
 
+func (s *snapSeccompSuite) TestCompileExplicitDenialMatchingImplicitErrno(c *C) {
+	// The allow filter returns EPERM by default and libseccomp rejects rules
+	// that match the default action, make sure ~EPERM:... still compiles.
+	defer main.MockErrnoOnImplicitDenial(int16(syscall.EPERM))()
+
+	for _, inp := range []string{
+		"ioctl\n~EPERM:ioctl",
+		"ioctl\n~EPERM:ioctl - TIOCSTI",
+		"~EPERM:ioctl",
+	} {
+		outPath := filepath.Join(c.MkDir(), "bpf")
+		err := main.Compile([]byte(inp), outPath)
+		c.Check(err, IsNil, Commentf("%q", inp))
+	}
+}
+
 func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
 	for _, t := range []struct {
 		inp    string
 		errMsg string
 	}{
+		// bad errno in explicit denial
+		{"~EFOO:ioctl", `cannot parse line: cannot parse errno "EFOO" in line "~EFOO:ioctl"`},
+		{"ENOSYS:ioctl", `cannot parse line: cannot specify errno without explicit denial in line "ENOSYS:ioctl"`},
 		// test_bad_seccomp_filter_args_clone (various typos in input)
 		{"setns - CLONE_NEWNE", `cannot parse line: cannot parse token "CLONE_NEWNE" \(line "setns - CLONE_NEWNE"\)`},
 		{"setns - CLONE_NEWNETT", `cannot parse line: cannot parse token "CLONE_NEWNETT" \(line "setns - CLONE_NEWNETT"\)`},
