@@ -1,19 +1,19 @@
-usr/bin/snapd /usr/lib/snapd/
-usr/bin/snapctl /usr/lib/snapd/
-usr/bin/snap-repair /usr/lib/snapd/
-usr/bin/snap-failure /usr/lib/snapd/
-usr/bin/snap-update-ns /usr/lib/snapd/
-usr/bin/snap-seccomp /usr/lib/snapd/
-usr/bin/snap-bootstrap /usr/lib/snapd/
+usr/lib/snapd/snapd
+usr/lib/snapd/snapctl
+usr/lib/snapd/snap-repair
+usr/lib/snapd/snap-failure
+usr/lib/snapd/snap-update-ns
+usr/lib/snapd/snap-seccomp
+usr/lib/snapd/snap-bootstrap
 
 # bash completion
-data/completion/bash/snap /usr/share/bash-completion/completions
-data/completion/bash/complete.sh /usr/lib/snapd/
-data/completion/bash/etelpmoc.sh /usr/lib/snapd/
+usr/share/bash-completion/completions/snap
+usr/lib/snapd/complete.sh
+usr/lib/snapd/etelpmoc.sh
 # zsh completion
-data/completion/zsh/_snap /usr/share/zsh/vendor-completions
+usr/share/zsh/vendor-completions/_snap
 # snap/snapd version information
-data/info /usr/lib/snapd/
+usr/lib/snapd/info
 # apt hook
 data/apt/20snapd.conf /etc/apt/apt.conf.d/
 
@@ -36,9 +36,47 @@ usr/lib/snapd/snap-strace-shim
 c-vendor/squashfuse/snapfuse usr/bin
 
 # upstream changelog
-NEWS.md /usr/share/doc/snapd/
+usr/share/doc/snapd/NEWS.md
 
 # use "usr/lib" here because apparently systemd looks only there
 usr/lib/systemd/system-environment-generators
 # system generators use <systemdutildir>/system-generators (resolved via pkg-config)
 @systemd-lib@/system-generators
+@systemd-lib@/system
+
+usr/bin/snapctl
+usr/lib/snapd/snap-exec
+usr/bin/snap
+usr/lib/snapd/snap-preseed
+usr/lib/snapd/snapd-apparmor
+usr/lib/snapd/snap-gpio-helper
+
+etc/profile.d/snapd.sh
+etc/xdg/autostart/snap-userd-autostart.desktop
+usr/lib/dracut/dracut.conf.d/50-snapd.conf
+usr/lib/environment.d/990-snapd.conf
+usr/lib/snapd/snap-mgmt-selinux
+usr/lib/snapd/snapd.run-from-snap
+usr/lib/systemd/system/snapd.apparmor.service
+usr/lib/systemd/system/snapd.mounts-pre.target
+usr/lib/systemd/system/snapd.mounts.target
+usr/lib/systemd/system/snapd.seeded.service
+usr/lib/systemd/system/snapd.service
+usr/lib/systemd/system/snapd.socket
+usr/lib/systemd/user/snapd.session-agent.service
+usr/lib/systemd/user/snapd.session-agent.socket
+usr/lib/tmpfiles.d/snapd.conf
+usr/share/applications/io.snapcraft.SessionAgent.desktop
+usr/share/applications/snap-handle-link.desktop
+usr/share/dbus-1/services/io.snapcraft.Launcher.service
+usr/share/dbus-1/services/io.snapcraft.SessionAgent.service
+usr/share/dbus-1/services/io.snapcraft.Settings.service
+usr/share/dbus-1/session.d/snapd.session-services.conf
+usr/share/dbus-1/system.d/snapd.system-services.conf
+usr/share/fish/vendor_conf.d/snapd.fish
+usr/share/polkit-1/actions/io.snapcraft.snapd.policy
+usr/share/snapd/snapcraft-logo-bird.svg
+
+usr/lib/snapd/snap-fde-keymgr
+usr/lib/snapd/snap-recovery-chooser
+usr/lib/snapd/snapd.core-fixup.sh
