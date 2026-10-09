@@ -2584,14 +2584,14 @@ func checkForAvailableSpace(totalSize, reservation uint64, snaps []naming.Instan
 
 	requiredSpace := totalSize + reservation
 
-	var snapsStr = []string{}
-	for _, snap := range snaps {
-		snapsStr = append(snapsStr, string(snap))
+	var snapsStr = make([]string, len(snaps))
+	for i, snap := range snaps {
+		snapsStr[i] = string(snap)
 	}
 
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
-			message := err.Error()
+			message := ""
 			if messagePrefix != "" {
 				message = fmt.Sprintf("%s: %v", messagePrefix, err)
 			}
@@ -3345,11 +3345,11 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 			ts, err := AutomaticSnapshot(st, instanceName.String())
 			if err == nil {
 				// check there is sufficient disk space if making a snapshot
-				// and there is a disk space reservation size set
+				// and there is a disk space reservation size set; the actual
+				// free space check is done by Remove/RemoveMany with the
+				// aggregated snapshot sizes
 				_, isSet := diskSpaceReservation(config.NewTransaction(st))
-				if !isSet {
-					return nil, 0, nil
-				} else {
+				if isSet {
 					snapshotSize, err = EstimateSnapshotSize(st, instanceName.String(), nil)
 					if err != nil {
 						return nil, 0, err

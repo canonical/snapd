@@ -516,28 +516,23 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservation(c *C) {
 		configured  bool
 		value       any
 		expected    uint64
-		err         error
+		isSet       bool
 	}{
-		{description: "unset", err: snapstate.DiskSpaceUnsetError},
-		{description: "nil", configured: true, value: nil, err: snapstate.DiskSpaceUnsetError},
-		{description: "invalid", configured: true, value: "invalid", expected: snapstate.FallbackDiskSpaceReservation},
-		{description: "numeric bytes", configured: true, value: 2048, expected: 2048},
-		{description: "string bytes", configured: true, value: "4096", expected: 4096},
-		{description: "quantity", configured: true, value: "1G", expected: 1024 * 1024 * 1024},
-		{description: "zero", configured: true, value: 0, expected: 0},
+		{description: "unset", isSet: false},
+		{description: "nil", configured: true, value: nil, isSet: false},
+		{description: "invalid", configured: true, value: "invalid", expected: snapstate.FallbackDiskSpaceReservation, isSet: true},
+		{description: "numeric bytes", configured: true, value: 2048, expected: 2048, isSet: true},
+		{description: "string bytes", configured: true, value: "4096", expected: 4096, isSet: true},
+		{description: "quantity", configured: true, value: "1G", expected: 1024 * 1024 * 1024, isSet: true},
+		{description: "zero", configured: true, value: 0, expected: 0, isSet: true},
 	} {
 		tr := config.NewTransaction(s.state)
 		if tc.configured {
 			c.Assert(tr.Set("core", "disk-reservation.size", tc.value), IsNil)
 		}
 
-		reservation, err := snapstate.DiskSpaceReservation(tr)
-		if tc.err != nil {
-			c.Check(err, testutil.ErrorIs, tc.err, Commentf(tc.description))
-			continue
-		}
-
-		c.Check(err, IsNil, Commentf(tc.description))
+		reservation, isSet := snapstate.DiskSpaceReservation(tr)
+		c.Check(isSet, Equals, tc.isSet, Commentf(tc.description))
 		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
 	}
 }
