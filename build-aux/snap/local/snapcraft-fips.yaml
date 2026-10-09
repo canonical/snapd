@@ -431,6 +431,9 @@ parts:
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fde-keymgr"
 
+      # the kernel probe helper is freestanding; it only needs to be tiny
+      strip "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-kernel-probe-helper"
+
       # set up FIPS dispatch: replace each original binary with a symlink
       # to snap-fips-dispatch, and rename the original to a -fips suffix.
       #

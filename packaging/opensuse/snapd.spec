@@ -674,6 +674,7 @@ fi
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 %{_libexecdir}/snapd/snapd-tool-wrap
+%{_libexecdir}/snapd/snapd-kernel-probe-helper
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

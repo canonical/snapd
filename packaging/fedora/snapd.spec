@@ -842,6 +842,7 @@ make -C data -k check
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snapd-apparmor
 %{_libexecdir}/snapd/snapd-tool-wrap
+%{_libexecdir}/snapd/snapd-kernel-probe-helper
 %if 0%{?with_selinux}
 %{_libexecdir}/snapd/snap-mgmt-selinux
 %endif

@@ -192,6 +192,28 @@ check-static-binaries:
 		fi; \
 		echo "  snap-gdbserver-shim: OK (static) [$$shim]"; \
 	fi
+	@# snapd-kernel-probe-helper is likewise a C binary built by the autotools cmd/
+	@# build. It must be static and freestanding (no dynamic loader at all): it runs
+	@# under a restrictive AppArmor probe profile and links no libc. The helper is
+	@# built unconditionally, so its absence is an error; this target must be
+	@# invoked after the cmd/ build has produced it.
+	@probe=""; \
+	for candidate in \
+		"$(builddir)/snapd-kernel-probe-helper" \
+		"$(sourcedir)/cmd/snapd-kernel-probe-helper/snapd-kernel-probe-helper" \
+		"$(DESTDIR)$(libexecdir)/snapd/snapd-kernel-probe-helper"; do \
+		if [ -f "$$candidate" ]; then probe="$$candidate"; break; fi; \
+	done; \
+	if [ -z "$$probe" ]; then \
+		echo "ERROR: snapd-kernel-probe-helper not found; run this check after the cmd/ build"; \
+		exit 1; \
+	fi; \
+	if ! file "$$probe" | grep -q -F static; then \
+		echo "ERROR: snapd-kernel-probe-helper is dynamically linked, must be static"; \
+		ldd "$$probe"; \
+		exit 1; \
+	fi; \
+	echo "  snapd-kernel-probe-helper: OK (static) [$$probe]"
 	@echo "All static binary checks passed."
 
 # Know how to create certain directories.
