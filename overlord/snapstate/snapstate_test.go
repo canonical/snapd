@@ -499,6 +499,8 @@ SNAPD_APPARMOR_REEXEC=1
 }
 
 func (s *snapmgrBaseTest) TearDownTest(c *C) {
+	// the background catalog refresh must not outlive the test's root dir
+	snapstate.StopCatalogRefresh(s.snapmgr)
 	s.BaseTest.TearDownTest(c)
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
