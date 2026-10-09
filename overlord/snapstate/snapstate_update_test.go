@@ -6522,7 +6522,7 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 }
 
 type updateManyDiskSpaceCheckTest struct {
-	FeatureEnabled    bool
+	CheckEnabled      bool
 	InitialCheckError error
 	RetryCheckError   error
 	FailInstallSize   bool
@@ -6534,7 +6534,7 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, tc updateManyDiskS
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
 		diskCheckCalls++
 		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-		c.Check(sz, Equals, uint64(123)+snapstate.DefaultDiskSpaceReservation)
+		c.Check(sz, Equals, uint64(123)+snapstate.FallbackDiskSpaceReservation)
 		switch diskCheckCalls {
 		case 1:
 			return tc.InitialCheckError
@@ -6569,7 +6569,9 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, tc updateManyDiskS
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", tc.FeatureEnabled)
+	if tc.CheckEnabled {
+		tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
+	}
 	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -6591,7 +6593,7 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, tc updateManyDiskS
 	})
 
 	updates, tss, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, 0, tc.Flags)
-	if tc.FeatureEnabled {
+	if tc.CheckEnabled {
 		c.Check(installSizeCalls > 0, Equals, true)
 		if tc.FailInstallSize {
 			c.Check(diskCheckCalls, Equals, 0)
@@ -6616,31 +6618,31 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, tc updateManyDiskS
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceCheckError(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
-		FeatureEnabled:    true,
+		CheckEnabled:      true,
 		InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
 		RetryCheckError:   &osutil.NotEnoughDiskSpaceError{},
 	})
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: snapd, some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"snapd", "some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("snapd"), ""), naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceDoesNotSplitAllSnapsTransaction(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
-		FeatureEnabled:    true,
+		CheckEnabled:      true,
 		InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
 		// if all snaps are in the same transaction, we should not proceed with
 		// just the essential snaps
 		Flags: &snapstate.Flags{Transaction: client.TransactionAllSnaps},
 	})
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"snapd", "some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("snapd"), ""), naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceRefreshesEssentialSnaps(c *C) {
 	updates, tss, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
-		FeatureEnabled:    true,
+		CheckEnabled:      true,
 		InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
 	})
 	c.Assert(err, IsNil)
@@ -6662,14 +6664,14 @@ func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceRefreshesEssentialSnaps(c *C) 
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceRetryError(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
-		FeatureEnabled:    true,
+		CheckEnabled:      true,
 		InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
 		RetryCheckError:   errors.New("boom"),
 	})
 	c.Assert(err, ErrorMatches, "boom")
 }
 
-func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceSkippedIfFeatureDisabled(c *C) {
+func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceSkippedIfReservationUnset(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
 		InitialCheckError: &osutil.NotEnoughDiskSpaceError{},
 	})
@@ -6678,7 +6680,7 @@ func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceSkippedIfFeatureDisabled(c *C)
 
 func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceFailInstallSize(c *C) {
 	_, _, err := s.testUpdateManyDiskSpaceCheck(c, updateManyDiskSpaceCheckTest{
-		FeatureEnabled:  true,
+		CheckEnabled:    true,
 		FailInstallSize: true,
 	})
 	c.Assert(err, ErrorMatches, "boom")
@@ -7256,9 +7258,11 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 }
 
-func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInstallSize, failDiskCheck bool) error {
+func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, checkEnabled, failInstallSize, failDiskCheck bool) error {
+	var diskCheckCalled bool
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
-		c.Check(sz, Equals, uint64(123)+snapstate.DefaultDiskSpaceReservation)
+		diskCheckCalled = true
+		c.Check(sz, Equals, uint64(123)+snapstate.FallbackDiskSpaceReservation)
 		if failDiskCheck {
 			return &osutil.NotEnoughDiskSpaceError{}
 		}
@@ -7283,7 +7287,9 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", featureFlag)
+	if checkEnabled {
+		tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
+	}
 	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -7298,33 +7304,32 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	_, err := snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 
-	if featureFlag {
+	if checkEnabled {
 		c.Check(installSizeCalled, Equals, true)
 	} else {
 		c.Check(installSizeCalled, Equals, false)
 	}
+	c.Check(diskCheckCalled, Equals, checkEnabled && !failInstallSize)
 
 	return err
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationError(c *C) {
-	featureFlag := true
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationError(c *C) {
+	checkEnabled := true
 	failInstallSize := false
 	failDiskCheck := true
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{naming.NewInstanceName(naming.SnapName("some-snap"), "")})
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationHappy(c *C) {
-	featureFlag := true
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationHappy(c *C) {
+	checkEnabled := true
 	failInstallSize := false
 	failDiskCheck := false
-	// No disk-reservation.size is set, so the default 5MB reservation is used.
-	// The helper asserts required size == 123 + DefaultDiskSpaceReservation.
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
 }
 
@@ -7350,7 +7355,6 @@ func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", true)
 	tr.Set("core", "disk-reservation.size", "2000")
 	tr.Commit()
 
@@ -7398,7 +7402,6 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c 
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-refresh", true)
 	// snap set stores plain numbers in their parsed form, so a zero
 	// reservation comes through as a number rather than a string
 	tr.Set("core", "disk-reservation.size", 0)
@@ -7421,28 +7424,20 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c 
 	c.Check(requiredSizes, DeepEquals, []uint64{123})
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfDisabled(c *C) {
-	featureFlag := false
+func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfReservationUnset(c *C) {
+	checkEnabled := false
 	failInstallSize := false
 	failDiskCheck := true
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskCheckInstallSizeError(c *C) {
-	featureFlag := true
+	checkEnabled := true
 	failInstallSize := true
 	failDiskCheck := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	err := s.testUpdateDiskSpaceCheck(c, checkEnabled, failInstallSize, failDiskCheck)
 	c.Check(err, ErrorMatches, "boom")
-}
-
-func (s *snapmgrTestSuite) TestUpdateDiskCheckHappy(c *C) {
-	featureFlag := true
-	failInstallSize := false
-	failDiskCheck := false
-	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
-	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateSnapAndOutdatedPrereq(c *C) {

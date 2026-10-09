@@ -370,6 +370,9 @@ func (s *configcoreHijackSuite) TestConfigMngrInitMigratesDiskSpaceReservation(c
 	var reservation uint64
 	c.Assert(t.Get("core", "disk-reservation.size", &reservation), IsNil)
 	c.Check(reservation, Equals, uint64(5*1024*1024))
+	var enabled bool
+	c.Assert(t.Get("core", "experimental.check-disk-space-install", &enabled), IsNil)
+	c.Check(enabled, Equals, true)
 }
 
 type witnessManager struct {

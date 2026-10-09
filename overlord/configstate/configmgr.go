@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -50,18 +51,25 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
 
-	// ensure that graduated features are cleared from the state
 	rt := configcore.NewRunTransaction(tr, nil)
 
-	// Migrate disk space reservation prior to graduated feature pruning
 	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
 		return err
 	}
 
+	// if the migration is going to run, we should mark it as done in the state
+	reservationWritten := strutil.ListContains(rt.Changes(), "core.disk-reservation.size")
+
+	// ensure that graduated features are cleared from the state
 	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
 		return err
 	}
+
 	rt.Commit()
+
+	if reservationWritten {
+		st.Set("disk-space-reservation-migrated", true)
+	}
 
 	var homedirs string
 	if err := tr.GetMaybe("core", "homedirs", &homedirs); err != nil {

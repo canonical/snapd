@@ -2,11 +2,9 @@ summary: Check that disk-reservation.size option controls disk space checks.
 
 details: |
   Verify the tri-state behavior of the disk-reservation.size option:
-    - Unset (nil): uses the default 5MB reservation
+    - Unset (nil): disk space checks are skipped
     - 0: checks run with no extra reservation (only snap size required)
     - >0: checks run with the configured reservation added to snap size
-  The checks are gated behind the experimental check-disk-space feature
-  flags, which are all enabled by this test.
 
 # this test remounts /var/lib/snapd which is too intrusive for core.
 systems: [-ubuntu-core-*]
@@ -53,11 +51,6 @@ execute: |
     df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
   }
 
-  echo "Enabling experimental disk space checks"
-  snap set system experimental.check-disk-space-install=true
-  snap set system experimental.check-disk-space-refresh=true
-  snap set system experimental.check-disk-space-remove=true
-
   echo "=== Test 1: Large reservation causes install failure ==="
   resize "$SUFFICIENT_SIZE"
   "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -82,17 +75,10 @@ execute: |
   "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
 
-  echo "=== Test 3: Unset reservation uses default 5MB ==="
+  echo "=== Test 3: Unset reservation allows install with tight space ==="
   snap unset system disk-reservation.size
-  # Still ~3MB free, so the default 5MB reservation makes the install fail
-  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
-    echo "expected install to fail with default reservation and tight space"
-    exit 1
-  fi
-  MATCH "due to low disk space" < install-error.txt
-  # With ~8MB free the snap plus the 5MB default reservation fits
-  NEWSIZE=$(($(get_disk_usage) + 8))
-  resize "${NEWSIZE}M"
+  not snap get system disk-reservation.size
+  # Still ~3MB free, so the install should succeed
   "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
 

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // configureHandler is the handler for the configure hook.
@@ -191,8 +192,19 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 	tr = config.NewTransaction(context.State())
 
 	context.OnDone(func() error {
+		// hack: any time a user sets core.disk-reservation.size, we should mark
+		// the disk-space migration as done. this ensure that any manual
+		// modification of disk-reservation.size isn't undone by a future
+		// migration attempt
+		reservationWritten := context.InstanceName() == naming.Core &&
+			strutil.ListContains(tr.Changes(), "core.disk-reservation.size")
+
 		tr.Commit()
+
 		if context.InstanceName() == naming.Core {
+			if reservationWritten {
+				context.State().Set("disk-space-reservation-migrated", true)
+			}
 			// make sure the Ensure logic can process
 			// system configuration changes as soon as possible
 			context.State().EnsureBefore(0)
