@@ -178,7 +178,14 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	authzRec := newAuthzRecorder(
+		seclogSnapdUserFromAuth(user),
+		ucred.seclogPeer(),
+		seclog.Endpoint{Method: r.Method, Path: r.URL.Path, Action: action},
+	)
+	rspe := access.CheckAccess(c.d, r, ucred, user, authzRec)
+	authzRec.log()
+	if rspe != nil {
 		rspe.ServeHTTP(w, r)
 		return
 	}
@@ -612,6 +619,8 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 		d.requestedRestart = t
 		d.restartSocket = true
 	case restart.StopDaemon:
+		// Preseed runs on the build host, not the device in the field, so no
+		// security event is emitted.
 		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)

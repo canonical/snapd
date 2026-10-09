@@ -37,7 +37,7 @@ var _ = Suite(&componentRefSuite{})
 
 func (s *componentRefSuite) TestNewComponentRefAndString(c *C) {
 	fooRef := naming.NewComponentRef("foo", "foo-comp")
-	c.Check(fooRef.SnapName, Equals, "foo")
+	c.Check(fooRef.SnapName.String(), Equals, "foo")
 	c.Check(fooRef.ComponentName, Equals, "foo-comp")
 	c.Check(fooRef.String(), Equals, "foo+foo-comp")
 }
@@ -84,7 +84,7 @@ func (s *componentRefSuite) TestSplitFullComponentNameErr(c *C) {
 		snap, comp, err := naming.SplitFullComponentName(tc)
 		c.Assert(err, NotNil)
 		c.Assert(err.Error(), Equals, fmt.Sprintf("incorrect component name %q", tc))
-		c.Check(snap, Equals, "")
+		c.Check(snap.String(), Equals, "")
 		c.Check(comp, Equals, "")
 	}
 }

@@ -34,10 +34,10 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -167,9 +167,7 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	// enable seed refresh to prove that we don't accidentally trigger one
-	tr := config.NewTransaction(st)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	bs.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	bs.bootloader.SetBootBase("core_1.snap")
 	err := snapstate.UpdateBootRevisions(st)

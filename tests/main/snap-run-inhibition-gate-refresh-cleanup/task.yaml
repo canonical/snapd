@@ -1,0 +1,84 @@
+summary: Check that snapd removes gate-auto-refresh leftovers on startup
+
+details: |
+    The gate-auto-refresh hook is no longer supported. An older snapd can leave
+    a run inhibition lock with the gate-refresh hint, for example when it stops
+    while the hook runs. An older snapd can also leave refresh holds that were
+    placed by snaps.
+
+    Check that on startup snapd releases the gate-refresh locks and removes the
+    holds that were not placed by the system.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
+
+execute: |
+    INHIBIT_DIR=/var/lib/snapd/inhibit
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    SH_REV="$(readlink "$SNAP_MOUNT_DIR"/test-snapd-sh/current)"
+    TOOLS_REV="$(readlink "$SNAP_MOUNT_DIR"/test-snapd-tools/current)"
+
+    # hold test-snapd-tools by the system
+    snap refresh --hold=forever test-snapd-tools
+    gojq -r '.data["snaps-hold"]["test-snapd-tools"] | keys | join(",")' < /var/lib/snapd/state.json | MATCH '^system$'
+    SYSTEM_HOLD="$(gojq -c '.data["snaps-hold"]["test-snapd-tools"].system' < /var/lib/snapd/state.json)"
+
+    systemctl stop snapd.service snapd.socket
+
+    # mock a stale gate-refresh lock, as left by an older snapd
+    mkdir -p "$INHIBIT_DIR"
+    echo -n gate-refresh > "$INHIBIT_DIR"/test-snapd-sh.lock
+    echo -n '{"previous":"'"$SH_REV"'"}' > "$INHIBIT_DIR"/test-snapd-sh.gate-refresh
+
+    # mock a refresh lock that also has a gate-refresh inhibit info file
+    echo -n refresh > "$INHIBIT_DIR"/test-snapd-tools.lock
+    echo -n '{"previous":"'"$TOOLS_REV"'"}' > "$INHIBIT_DIR"/test-snapd-tools.refresh
+    echo -n '{"previous":"'"$TOOLS_REV"'"}' > "$INHIBIT_DIR"/test-snapd-tools.gate-refresh
+
+    # precondition: the stale gate-refresh lock blocks snap run. snap run does
+    # not contact snapd for this hint, thus snapd can be stopped
+    rc=0
+    timeout 5 test-snapd-sh.sh -c true || rc=$?
+    test "$rc" -eq 124
+
+    # mock refresh holds placed by snaps, as left by an older snapd.
+    # test-snapd-sh is held only by a snap, test-snapd-tools is held by a snap
+    # and by the system
+    gojq '
+        .data["snaps-hold"]["test-snapd-sh"] = {"test-snapd-tools": {"first-held": "2025-01-01T00:00:00Z", "hold-until": "2099-01-01T00:00:00Z"}} |
+        .data["snaps-hold"]["test-snapd-tools"]["test-snapd-sh"] = {"first-held": "2025-01-01T00:00:00Z", "hold-until": "2099-01-01T00:00:00Z"}
+        ' < /var/lib/snapd/state.json > state.json.new
+    mv state.json.new /var/lib/snapd/state.json
+
+    "$TESTSTOOLS"/journal-state start-new-log
+    systemctl start snapd.socket snapd.service
+    # snap version waits for snapd to answer on the socket. the cleanup occurs
+    # before snapd answers, so it is safe to examine the result after this.
+    snap version
+
+    # the stale gate-refresh lock is released
+    test -f "$INHIBIT_DIR"/test-snapd-sh.lock
+    not test -s "$INHIBIT_DIR"/test-snapd-sh.lock
+    not test -e "$INHIBIT_DIR"/test-snapd-sh.gate-refresh
+    timeout 30 test-snapd-sh.sh -c 'echo ok' | MATCH '^ok$'
+    "$TESTSTOOLS"/journal-state match-log \
+        'released stale gate-refresh run inhibition locks of snaps: test-snapd-sh' -u snapd
+
+    # the refresh lock is not changed
+    MATCH '^refresh$' < "$INHIBIT_DIR"/test-snapd-tools.lock
+    test -f "$INHIBIT_DIR"/test-snapd-tools.refresh
+    test -f "$INHIBIT_DIR"/test-snapd-tools.gate-refresh
+
+    # only the hold placed by the system is kept
+    gojq '.data["snaps-hold"] | has("test-snapd-sh")' < /var/lib/snapd/state.json | MATCH '^false$'
+    gojq -r '.data["snaps-hold"]["test-snapd-tools"] | keys | join(",")' < /var/lib/snapd/state.json | MATCH '^system$'
+    test "$(gojq -c '.data["snaps-hold"]["test-snapd-tools"].system' < /var/lib/snapd/state.json)" = "$SYSTEM_HOLD"
+
+    # the cleanup does nothing on a subsequent startup
+    "$TESTSTOOLS"/journal-state start-new-log
+    systemctl restart snapd.service
+    snap version
+    "$TESTSTOOLS"/journal-state get-log -u snapd | NOMATCH 'released stale gate-refresh'
+    MATCH '^refresh$' < "$INHIBIT_DIR"/test-snapd-tools.lock
+    gojq -r '.data["snaps-hold"]["test-snapd-tools"] | keys | join(",")' < /var/lib/snapd/state.json | MATCH '^system$'

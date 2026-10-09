@@ -213,16 +213,16 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
-	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // MountDir returns the path to the directory where this snap would be mounted.
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // BlobPath returns the path to the snap/squashfs file that backs the snap that
@@ -233,7 +233,7 @@ func (snapsup *SnapSetup) BlobPath() string {
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
 	}
-	return snap.MountFileInDir(blobDir, snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
 }
 
 // ComponentSetup holds the necessary component details to perform
@@ -283,7 +283,7 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // custom location, this will be under dirs.SnapBlobDir.
 func (compsu *ComponentSetup) BlobPath(instanceName string) string {
 	if instanceName == "" {
-		instanceName = compsu.CompSideInfo.Component.SnapName
+		instanceName = compsu.CompSideInfo.Component.SnapName.String()
 	}
 
 	blobDir := compsu.DownloadBlobDir
@@ -629,7 +629,7 @@ var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.Task
 var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
 var EstimateSnapshotSize func(st *state.State, instanceName string, users []string) (uint64, error)
 
-func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
+func readInfo(name naming.InstanceName, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)
 	if err != nil && flags&errorOnBroken != 0 {
 		return nil, err
@@ -638,11 +638,10 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
-		_, instanceKey := snap.SplitInstanceName(name)
 		info = &snap.Info{
-			SuggestedName: name,
+			SuggestedName: name.SnapName().String(),
 			Broken:        bse.Broken(),
-			InstanceKey:   instanceKey,
+			InstanceKey:   name.InstanceKey(),
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -676,7 +675,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 		return nil, ErrNoCurrent
 	}
 
-	name := snap.InstanceName(cur.RealName, snapst.InstanceKey).String()
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
@@ -714,7 +713,7 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 
 	revState := snapst.Sequence.Revisions[index]
 
-	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey).String()
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
 	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
 	if err != nil {
 		return nil, err
@@ -936,6 +935,12 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
+	// remove what the gate-auto-refresh-hook feature of an older snapd left
+	// behind. this must happen before the task runner resumes any tasks.
+	if err := cleanupGateAutoRefreshFeature(m.state); err != nil {
+		logger.Noticef("cannot clean up gate-auto-refresh leftovers: %v", err)
+	}
+
 	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
 		// This handler records a refresh-inhibit notice when the set of inhibited snaps is changed.
 		processInhibitedAutoRefresh(chg, old, new)
@@ -951,9 +956,11 @@ func (m *SnapManager) StartUp() error {
 	return nil
 }
 
-// Stop implements StateStopper. It will unregister the change callback
-// handler from state.
+// Stop implements StateStopper. It will stop any background catalog refresh
+// and unregister the change callback handler from state.
 func (m *SnapManager) Stop() {
+	m.catalogRefresh.Stop()
+
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
@@ -965,9 +972,6 @@ func (m *SnapManager) Stop() {
 // that should not block daemon shutdown.
 //
 // TODO: remove this when Ensure gets the appropriate context from Overlord.
-//
-// Note: ShutDown needs to be a proper subset of Stop but currently it isn't.
-// This is acceptable for now as resolving the above TODO will remove ShutDown.
 func (m *SnapManager) ShutDown() {
 	m.catalogRefresh.ShutDown()
 }

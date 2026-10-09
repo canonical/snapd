@@ -291,7 +291,7 @@ func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision
 
 func setStateWithOneComponent(st *state.State, snapName string,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
-	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(naming.SnapName(snapName), compName), compRev)
 	setStateWithComponents(st, snapName, snapRev,
 		[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})
 }

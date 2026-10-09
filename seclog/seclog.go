@@ -175,6 +175,28 @@ func LogSystemStandbySnapd(snapdVersion string, reason restart.RestartReason) {
 	)
 }
 
+// LogSystemStartupSnapd logs a snapd daemon startup using the global
+// security logger. snapdVersion is the version of this snapd process.
+// bootID is the kernel boot id for this boot.
+func LogSystemStartupSnapd(snapdVersion, bootID string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	if bootID == "" {
+		bootID = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_startup_snapd", Level: LevelInfo},
+		"Snapd startup",
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "boot_id", Value: bootID},
+	)
+}
+
 // LogLoginSuccess logs a successful login using the global security logger.
 func LogLoginSuccess(user SnapdUser) {
 	lock.Lock()

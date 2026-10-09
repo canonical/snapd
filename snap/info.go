@@ -124,16 +124,14 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a
 // snap of the given instance name and revision.
-func MinimalPlaceInfo(instanceName string, revision Revision) PlaceInfo {
-	storeName, instanceKey := SplitInstanceName(instanceName)
-	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+func MinimalPlaceInfo(instanceName naming.InstanceName, revision Revision) PlaceInfo {
+	return &Info{SideInfo: SideInfo{RealName: instanceName.SnapName().String(), Revision: revision}, InstanceKey: instanceName.InstanceKey()}
 }
 
 // MinimalSnapContainerPlaceInfo returns a ContainerPlaceInfo with just the location
 // information for a snap of the given instance name and revision.
-func MinimalSnapContainerPlaceInfo(instanceName string, revision Revision) ContainerPlaceInfo {
-	storeName, instanceKey := SplitInstanceName(instanceName)
-	return &Info{SideInfo: SideInfo{RealName: storeName, Revision: revision}, InstanceKey: instanceKey}
+func MinimalSnapContainerPlaceInfo(instanceName naming.InstanceName, revision Revision) ContainerPlaceInfo {
+	return &Info{SideInfo: SideInfo{RealName: instanceName.SnapName().String(), Revision: revision}, InstanceKey: instanceName.InstanceKey()}
 }
 
 // ParsePlaceInfoFromSnapFileName returns a PlaceInfo with just the location
@@ -172,26 +170,26 @@ func BaseDir(name string) string {
 
 // MountDir returns the base directory where it gets mounted of the snap with
 // the given name and revision.
-func MountDir(name string, revision Revision) string {
-	return filepath.Join(BaseDir(name), revision.String())
+func MountDir(name naming.InstanceName, revision Revision) string {
+	return filepath.Join(BaseDir(name.String()), revision.String())
 }
 
 // ComponentMountDir returns the directory where a component gets mounted, which
 // will be of the form:
 // /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
-func ComponentMountDir(componentName string, compRevision Revision, snapInstance string) string {
+func ComponentMountDir(componentName string, compRevision Revision, snapInstance naming.InstanceName) string {
 	return filepath.Join(ComponentsBaseDir(snapInstance), "mnt", componentName, compRevision.String())
 }
 
 // MountFile returns the path where the snap file that is mounted is installed,
 // using the default blob directory (dirs.SnapBlobDir).
-func MountFile(name string, revision Revision) string {
+func MountFile(name naming.InstanceName, revision Revision) string {
 	return MountFileInDir(dirs.SnapBlobDir, name, revision)
 }
 
 // MountFileInDir returns the path where the snap file that is mounted is
 // installed in a given directory.
-func MountFileInDir(dir, name string, revision Revision) string {
+func MountFileInDir(dir string, name naming.InstanceName, revision Revision) string {
 	return filepath.Join(dir, fmt.Sprintf("%s_%s.snap", name, revision))
 }
 
@@ -256,15 +254,14 @@ func SequenceFile(name string) string {
 }
 
 // HooksDir returns the directory containing the snap's hooks for given snap
-// name. The name can be either a snap name or snap instance name.
-func HooksDir(name string, revision Revision) string {
+// instance name.
+func HooksDir(name naming.InstanceName, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
 }
 
 // ComponentHooksDir returns the directory containing the component's hooks for
-// the given component hook name. The provided snap name can be either a snap
-// name or snap instance name.
-func ComponentHooksDir(componentName string, compRevision Revision, snapInstance string) string {
+// the given component hook name.
+func ComponentHooksDir(componentName string, compRevision Revision, snapInstance naming.InstanceName) string {
 	return filepath.Join(ComponentMountDir(componentName, compRevision, snapInstance), "meta", "hooks")
 }
 
@@ -672,12 +669,12 @@ func (s *Info) Type() Type {
 
 // MountDir returns the base directory of the snap where it gets mounted.
 func (s *Info) MountDir() string {
-	return MountDir(s.InstanceName().String(), s.Revision)
+	return MountDir(s.InstanceName(), s.Revision)
 }
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return MountFile(s.InstanceName().String(), s.Revision)
+	return MountFile(s.InstanceName(), s.Revision)
 }
 
 // MountDescription returns the mount unit Description field.
@@ -687,7 +684,7 @@ func (s *Info) MountDescription() string {
 
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
-	return HooksDir(s.InstanceName().String(), s.Revision)
+	return HooksDir(s.InstanceName(), s.Revision)
 }
 
 // DataDir returns the data directory of the snap.
@@ -1643,7 +1640,7 @@ type BrokenSnapError interface {
 }
 
 type NotFoundError struct {
-	Snap     string
+	Snap     naming.InstanceName
 	Revision Revision
 	// Path encodes the path that triggered the not-found error. It may refer to
 	// a file inside the snap or to the snap file itself.
@@ -1668,7 +1665,7 @@ func (e NotFoundError) Broken() string {
 }
 
 type invalidMetaError struct {
-	Snap     string
+	Snap     naming.InstanceName
 	Revision Revision
 	Msg      string
 }
@@ -1698,13 +1695,13 @@ var SanitizePlugsSlots = sanitizePlugsSlotsUnimpl
 
 // ReadInfo reads the snap information for the installed snap with the given
 // name and given side-info.
-func ReadInfo(name string, si *SideInfo) (*Info, error) {
+func ReadInfo(name naming.InstanceName, si *SideInfo) (*Info, error) {
 	return ReadInfoFromMountPoint(name, MountDir(name, si.Revision), MountFile(name, si.Revision), si)
 }
 
 // ReadInfoFromMountPoint reads the snap information for a mounted
 // snap given the mound point, mount file, and side info.
-func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
+func ReadInfoFromMountPoint(name naming.InstanceName, mountPoint, mountFile string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(mountPoint, "meta", "snap.yaml")
 	meta, err := os.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
@@ -1720,8 +1717,7 @@ func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*
 		return nil, &invalidMetaError{Snap: name, Revision: si.Revision, Msg: err.Error()}
 	}
 
-	_, instanceKey := SplitInstanceName(name)
-	info.InstanceKey = instanceKey
+	info.InstanceKey = name.InstanceKey()
 
 	hooksDir := filepath.Join(mountPoint, "meta", "hooks")
 	err = addImplicitHooks(info, hooksDir)
@@ -1754,11 +1750,11 @@ func ReadInfoFromMountPoint(name, mountPoint, mountFile string, si *SideInfo) (*
 
 // ReadCurrentInfo reads the snap information from the installed snap in
 // 'current' revision
-func ReadCurrentInfo(snapName string) (*Info, error) {
-	curFn := filepath.Join(dirs.SnapMountDir, snapName, "current")
+func ReadCurrentInfo(instanceName naming.InstanceName) (*Info, error) {
+	curFn := filepath.Join(dirs.SnapMountDir, instanceName.String(), "current")
 	realFn, err := os.Readlink(curFn)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", NotFoundError{Snap: snapName, Revision: R(0)}, err)
+		return nil, fmt.Errorf("%w: %s", NotFoundError{Snap: instanceName, Revision: R(0)}, err)
 	}
 	rev := filepath.Base(realFn)
 	revision, err := ParseRevision(rev)
@@ -1766,7 +1762,7 @@ func ReadCurrentInfo(snapName string) (*Info, error) {
 		return nil, fmt.Errorf("cannot read revision %s: %s", rev, err)
 	}
 
-	return ReadInfo(snapName, &SideInfo{Revision: revision})
+	return ReadInfo(instanceName, &SideInfo{Revision: revision})
 }
 
 // NewContainerFromDir creates a new Container from the given directory.
@@ -1800,7 +1796,7 @@ func ReadCurrentComponentInfo(component string, info *Info) (*ComponentInfo, err
 
 	return ReadComponentInfoFromContainer(container, info, &ComponentSideInfo{
 		Revision:  revision,
-		Component: naming.NewComponentRef(info.SnapName().String(), component),
+		Component: naming.NewComponentRef(info.SnapName(), component),
 	})
 }
 
@@ -1894,9 +1890,9 @@ func SplitInstanceName(instanceName string) (snapName, instanceKey string) {
 // SplitSnapComponentInstanceName extracts the snap component name from
 // a snap component instance name. Example:
 //   - SplitSnapComponentInstanceName("snap_1+component_1") -> "snap_1", "component"
-func SplitSnapComponentInstanceName(name string) (snapInstance, componentName string) {
-	snapInstance, componentName, _ = strings.Cut(name, "+")
-	return snapInstance, componentName
+func SplitSnapComponentInstanceName(name string) (snapInstance naming.InstanceName, componentName string) {
+	instanceString, componentName, _ := strings.Cut(name, "+")
+	return naming.InstanceName(instanceString), componentName
 }
 
 // SplitSnapInstanceAndComponents splits a name of the form
