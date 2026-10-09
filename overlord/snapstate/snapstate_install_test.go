@@ -1392,6 +1392,41 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByAppSettings(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	for _, t := range []struct {
+		setting string
+		mutate  func(app *snap.AppInfo)
+	}{
+		{"common-id", func(app *snap.AppInfo) { app.CommonID = "org.example.App" }},
+		{"bus-name", func(app *snap.AppInfo) { app.BusName = "org.example.App" }},
+	} {
+		s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+			if info.SnapName() == "some-snap" {
+				app := &snap.AppInfo{Snap: info, Name: "app"}
+				t.mutate(app)
+				info.Apps = map[string]*snap.AppInfo{"app": app}
+			}
+			return nil
+		}
+
+		_, err := snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot install snap "some-snap_foo" as parallel instance: app "app" uses %s which is not supported for parallel instances`, t.setting), Commentf("%s", t.setting))
+
+		// the same snap is allowed as a non-instance install
+		_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
+		c.Check(err, IsNil, Commentf("%s", t.setting))
+	}
+}
+
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
