@@ -51,8 +51,9 @@ func logstr(task *state.Task) string {
 	return strings.Join(task.Log(), "\n")
 }
 
-func changeWithLanesAndSnapSetups(st *state.State, snapNames ...string) *state.Change {
+func changeWithLanesAndSnapSetupsAndTask(st *state.State, task *state.Task, snapNames ...string) *state.Change {
 	chg := st.NewChange("sample", "...")
+	var tasks []*state.Task
 	for _, snapName := range snapNames {
 		lane := st.NewLane()
 		tsk := st.NewTask("download-snap", fmt.Sprintf("a-task-for-snap-%s-in-lane-%d", snapName, lane))
@@ -61,7 +62,13 @@ func changeWithLanesAndSnapSetups(st *state.State, snapNames ...string) *state.C
 		})
 		chg.AddTask(tsk)
 		tsk.JoinLane(lane)
-		tsk.SetStatus(state.DoneStatus)
+		tasks = append(tasks, tsk)
+	}
+	if task != nil {
+		chg.AddTask(task)
+	}
+	for _, task := range tasks {
+		task.SetStatus(state.DoneStatus)
 	}
 	return chg
 }
@@ -78,9 +85,8 @@ func (s *reRefreshSuite) SetUpTest(c *C) {
 
 func (s *reRefreshSuite) TestDoCheckReRefreshFailsWithoutReRefreshSetup(c *C) {
 	s.state.Lock()
-	chg := changeWithLanesAndSnapSetups(s.state, "some-snap")
 	task := s.state.NewTask("check-rerefresh", "test")
-	chg.AddTask(task)
+	changeWithLanesAndSnapSetupsAndTask(s.state, task, "some-snap")
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -99,10 +105,9 @@ func (s *reRefreshSuite) TestDoCheckReRefreshFailsIfUpdateFails(c *C) {
 	})()
 
 	s.state.Lock()
-	chg := changeWithLanesAndSnapSetups(s.state, "some-snap")
 	task := s.state.NewTask("check-rerefresh", "test")
 	task.Set("rerefresh-setup", map[string]any{})
-	chg.AddTask(task)
+	changeWithLanesAndSnapSetupsAndTask(s.state, task, "some-snap")
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -123,10 +128,9 @@ func (s *reRefreshSuite) TestDoCheckReRefreshNoReRefreshes(c *C) {
 	})()
 
 	s.state.Lock()
-	chg := changeWithLanesAndSnapSetups(s.state, "some-snap")
 	task := s.state.NewTask("check-rerefresh", "test")
 	task.Set("rerefresh-setup", map[string]any{})
-	chg.AddTask(task)
+	changeWithLanesAndSnapSetupsAndTask(s.state, task, "some-snap")
 	s.state.Unlock()
 
 	s.se.Ensure()
@@ -163,8 +167,7 @@ func (s *reRefreshSuite) TestDoCheckReRefreshPassesReRefreshSetupData(c *C) {
 		"devmode":  true,
 		"jailmode": true,
 	})
-	chg := changeWithLanesAndSnapSetups(s.state, "foo", "bar", "baz")
-	chg.AddTask(task)
+	chg := changeWithLanesAndSnapSetupsAndTask(s.state, task, "foo", "bar", "baz")
 	chgID = chg.ID()
 	s.state.Unlock()
 
@@ -192,10 +195,9 @@ func (s *reRefreshSuite) TestDoCheckReRefreshAddsNewTasks(c *C) {
 	})()
 
 	s.state.Lock()
-	chg := changeWithLanesAndSnapSetups(s.state, "foo", "bar", "baz")
 	task := s.state.NewTask("check-rerefresh", "check rerefresh")
 	task.Set("rerefresh-setup", map[string]any{})
-	chg.AddTask(task)
+	chg := changeWithLanesAndSnapSetupsAndTask(s.state, task, "foo", "bar", "baz")
 	s.state.Unlock()
 
 	s.se.Ensure()
