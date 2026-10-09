@@ -53,9 +53,12 @@ var (
 	NewAuthzRecorder        = newAuthzRecorder
 )
 
+// AuthzRecorder is [authzRecorder] for tests outside package daemon.
+type AuthzRecorder = authzRecorder
+
 // RecordGranted exposes [authzRecorder.recordGranted] for tests.
-func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
-	rec.recordGranted(reason, iface, onPlugSide)
+func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
+	rec.recordGranted(reason, iface, side)
 }
 
 // RecordDenied exposes [authzRecorder.recordDenied] for tests.
@@ -362,7 +365,7 @@ func MockSnapstateHoldRefreshesBySystem(f func(st *state.State, level snapstate.
 	}
 }
 
-func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateRemoveComponents(mock func(st *state.State, instanceName naming.InstanceName, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRemoveComponents := snapstateRemoveComponents
 	snapstateRemoveComponents = mock
 	return func() {

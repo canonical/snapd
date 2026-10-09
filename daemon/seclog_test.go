@@ -158,7 +158,7 @@ func (s *seclogSuite) TestAuthzRecorderLogGranted(c *C) {
 	endpoint := seclog.Endpoint{Method: "POST", Path: "/v2/snaps", Action: "install"}
 
 	rec := daemon.NewAuthzRecorder(user, peer, endpoint)
-	rec.RecordGranted(seclog.GrantRootAuth, "desktop-launch", true)
+	rec.RecordGranted(seclog.GrantRootAuth, "desktop-launch", seclog.InterfaceSidePlug)
 	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, "authz_admin")
@@ -173,7 +173,7 @@ func (s *seclogSuite) TestAuthzRecorderLogSlotSide(c *C) {
 	defer restore()
 
 	rec := daemon.NewAuthzRecorder(seclog.SnapdUser{}, seclog.Peer{}, seclog.Endpoint{})
-	rec.RecordGranted(seclog.GrantRootAuth, "fwupd", false)
+	rec.RecordGranted(seclog.GrantRootAuth, "fwupd", seclog.InterfaceSideSlot)
 	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, `[reason_granted="root-auth fwupd slot"]`)
@@ -189,7 +189,7 @@ func (s *seclogSuite) TestAuthzRecorderReplaceOutcome(c *C) {
 		seclog.Endpoint{Method: "POST", Path: "/v2/snaps", Action: "install"},
 	)
 
-	rec.RecordGranted(seclog.GrantRootAuth, "desktop-launch", true)
+	rec.RecordGranted(seclog.GrantRootAuth, "desktop-launch", seclog.InterfaceSidePlug)
 	rec.RecordDenied(seclog.DenialUserAuth)
 	rec.Log()
 
@@ -198,7 +198,7 @@ func (s *seclogSuite) TestAuthzRecorderReplaceOutcome(c *C) {
 	c.Check(buf.String(), Not(testutil.Contains), "authz_admin")
 
 	buf.Reset()
-	rec.RecordGranted(seclog.GrantUserAuth, "", false)
+	rec.RecordGranted(seclog.GrantUserAuth, "", "")
 	rec.Log()
 
 	c.Check(buf.String(), testutil.Contains, "authz_admin")

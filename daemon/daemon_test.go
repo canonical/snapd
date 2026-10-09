@@ -378,10 +378,10 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec *authzRecorder) *apiError
 
-func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return f(d, r, ucred, user)
+func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec *authzRecorder) *apiError {
+	return f(d, r, ucred, user, rec)
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
@@ -390,7 +390,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ *authzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -403,7 +403,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(user, check.IsNil)
 		return nil
 	})
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ *authzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
@@ -424,12 +424,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ *authzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ *authzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -479,12 +479,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ *authzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, _ *authzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -514,6 +514,46 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(accessCalled, check.Equals, true)
+}
+
+func (s *daemonSuite) TestServeHTTPAuthzEndpointUsesRequestPath(c *check.C) {
+	buf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(buf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	cmd := &Command{
+		Path: "/v2/snaps/{name}",
+		d:    d,
+		GET: func(*Command, *http.Request, *auth.UserState) Response {
+			return SyncResponse(nil)
+		},
+		ReadAccess: rootAccess{},
+	}
+	req := httptest.NewRequest("GET", "/v2/snaps/firefox", nil)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(buf.String(), testutil.Contains, "GET:/v2/snaps/firefox:<none>")
+	c.Check(buf.String(), check.Not(testutil.Contains), "/v2/snaps/{name}")
+
+	buf.Reset()
+	cmd = &Command{
+		PathPrefix: "/v2/debug/pprof/",
+		d:          d,
+		GET: func(*Command, *http.Request, *auth.UserState) Response {
+			return SyncResponse(nil)
+		},
+		ReadAccess: rootAccess{},
+	}
+	req = httptest.NewRequest("GET", "/v2/debug/pprof/heap", nil)
+	addUcrednet(req, "snap.some-snap.app", 0, dirs.SnapdSocket)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(buf.String(), testutil.Contains, "GET:/v2/debug/pprof/heap:<none>")
+	c.Check(buf.String(), testutil.Contains, `Path:"/v2/debug/pprof/heap"`)
 }
 
 func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
@@ -677,14 +717,10 @@ version: 1`, si)
 	<-snapdDone
 	<-snapDone
 
-	d.SetExitSignal(syscall.SIGTERM)
 	err = d.Stop(nil)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
-	c.Check(seclogBuf.String(), testutil.Contains, "sys_exit_signal_snapd")
-	c.Check(seclogBuf.String(), testutil.Contains, "Snapd received exit signal sigterm")
-	c.Check(seclogBuf.String(), testutil.Contains, `[exit_signal="sigterm"]`)
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
 }
 
@@ -1258,10 +1294,6 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
-	seclogBuf := &bytes.Buffer{}
-	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
-	defer seclog.Setup(seclog.NewNopLogger())
-
 	d := s.newTestDaemon(c)
 	makeDaemonListeners(c, d)
 	s.markSeeded(d)
@@ -1275,16 +1307,12 @@ func (s *daemonSuite) TestRestartShutdownWithSigtermInBetween(c *check.C) {
 
 	ch := make(chan os.Signal, 2)
 	ch <- syscall.SIGTERM
-	// stop will check if we got a sigterm in between (which we did).
-	// The remembered SIGTERM is the signal the run loop exited on.
-	d.SetExitSignal(syscall.SIGTERM)
+	// stop will check if we got a sigterm in between (which we did)
 	err := d.Stop(ch)
 	c.Assert(err, check.IsNil)
 
 	// we must have called reboot twice
 	c.Check(nRebootCall, check.Equals, 2)
-	c.Check(strings.Count(seclogBuf.String(), "sys_exit_signal_snapd"), check.Equals, 1)
-	c.Check(seclogBuf.String(), testutil.Contains, `[exit_signal="sigterm"]`)
 }
 
 // This test tests that when there is a shutdown we close the sigterm
@@ -1371,10 +1399,6 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	r := MockReboot(rebootCheck)
 	defer r()
 
-	seclogBuf := &bytes.Buffer{}
-	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
-	defer seclog.Setup(seclog.NewNopLogger())
-
 	d := s.newTestDaemon(c)
 	c.Check(d.overlord, check.IsNil)
 	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
@@ -1398,13 +1422,10 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 	sigCh := make(chan os.Signal, 2)
 	// stop (this will timeout but thats not relevant for this test)
-	d.SetExitSignal(syscall.SIGTERM)
 	d.Stop(sigCh)
 
 	// we must have called reboot once
 	c.Check(nRebootCall, check.Equals, 1)
-	c.Check(seclogBuf.String(), testutil.Contains, "sys_exit_signal_snapd")
-	c.Check(seclogBuf.String(), testutil.Contains, `[exit_signal="sigterm"]`)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {

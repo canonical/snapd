@@ -354,3 +354,7 @@ func (s *rawVolumeInterfaceSuite) TestAutoConnect(c *C) {
 func (s *rawVolumeInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *rawVolumeInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}

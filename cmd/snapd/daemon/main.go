@@ -69,10 +69,19 @@ func Main() {
 	// This should be called as early as possible to read and unset NOTIFY_SOCKET.
 	systemdInitSdNotifySocket()
 
+	// Exits after one Argon2 request when invoked as the out-of-process helper.
+	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
+
 	// Set up security logging via the audit subsystem.
 	teardownSecurityLogging := setupSecurityLogging()
 
-	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
+	// Log startup before Start, including attempts that then fail.
+	// If the boot id cannot be read, record <unknown> and continue.
+	bootID, bootErr := osutil.BootID()
+	if bootErr != nil {
+		bootID = ""
+	}
+	seclog.LogSystemStartupSnapd(snapdtool.FullVersion(), bootID)
 
 	snapdtool.MaybeCompleteFIPSSetup()
 	// TODO look into signal.NotifyContext
@@ -206,7 +215,7 @@ out:
 		select {
 		case sig := <-ch:
 			logger.Noticef("Exiting on %s signal.\n", sig)
-			d.SetExitSignal(sig)
+			seclog.LogSystemExitSignalSnapd(d.Version, sig)
 			break out
 		case <-d.Dying():
 			// daemon.HandleRestart or daemon.Start killed the tomb.

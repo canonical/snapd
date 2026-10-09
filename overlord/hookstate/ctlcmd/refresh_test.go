@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -64,6 +65,11 @@ func mockRefreshCandidate(snapName, channel, version string, revision snap.Revis
 
 func (s *refreshSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	// TODO:GATEREFRESH: once gate-auto-refresh-hook impl is removed, drop this
+	// override
+	s.AddCleanup(features.MockFeaturesPermanentlyDisabled(nil))
+
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.st = state.New(nil)
@@ -74,6 +80,12 @@ func (s *refreshSuite) SetUpTest(c *C) {
 	// no interfaces needed for this test suite
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	// TODO:GATEREFRESH: remove with the gate-auto-refresh-hook impl
+	tr := config.NewTransaction(s.st)
+	c.Assert(tr.Set("core", "experimental.gate-auto-refresh-hook", true), IsNil)
+	tr.Commit()
+
 	ifacerepo.Replace(s.st, repo)
 }
 

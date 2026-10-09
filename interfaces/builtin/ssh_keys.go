@@ -45,11 +45,12 @@ owner @{HOME}/.ssh/{,**} r,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "ssh-keys",
-		summary:               sshKeysSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  sshKeysBaseDeclarationSlots,
-		connectedPlugAppArmor: sshKeysConnectedPlugAppArmor,
+		name:                     "ssh-keys",
+		summary:                  sshKeysSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     sshKeysBaseDeclarationSlots,
+		connectedPlugAppArmor:    sshKeysConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

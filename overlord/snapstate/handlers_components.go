@@ -338,7 +338,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (retErr erro
 // ReadComponentInfo reads the snap's component and returns a ComponentInfo.
 func ReadComponentInfo(snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 	compName, compRev := csi.Component.ComponentName, csi.Revision
-	mountDir := snap.ComponentMountDir(compName, compRev, snapInfo.InstanceName().String())
+	mountDir := snap.ComponentMountDir(compName, compRev, snapInfo.InstanceName())
 	return readComponentInfoAt(mountDir, snapInfo, csi)
 }
 
@@ -752,7 +752,7 @@ func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.To
 		// configuration has been already written but DoneStatus in the state
 		// has not.
 		cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
-		newInfo, err = readInfo(snapsup.InstanceName().String(), cand.Snap, 0)
+		newInfo, err = readInfo(snapsup.InstanceName(), cand.Snap, 0)
 		if err != nil {
 			return err
 		}

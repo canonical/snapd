@@ -52,13 +52,11 @@ func (*featureSuite) TestName(c *C) {
 	check(features.CheckDiskSpaceInstall, "check-disk-space-install")
 	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
 	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
-	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
 	check(features.Confdb, "confdb")
 	check(features.AppArmorPrompting, "apparmor-prompting")
 	check(features.ContentCompatLabel, "content-compatibility-label")
 	check(features.Clustering, "clustering")
 	check(features.RemoteDeviceManagement, "remote-device-management")
-	check(features.SeedRefresh, "seed-refresh")
 	check(features.SnapDeltaFormat, "snap-delta-format")
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -89,13 +87,11 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
-	check(features.GateAutoRefreshHook, false)
 	check(features.Confdb, true)
 	check(features.AppArmorPrompting, true)
 	check(features.ContentCompatLabel, false)
 	check(features.Clustering, false)
 	check(features.RemoteDeviceManagement, false)
-	check(features.SeedRefresh, false)
 	check(features.SnapDeltaFormat, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -206,13 +202,11 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceInstall, false)
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
-	check(features.GateAutoRefreshHook, false)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
 	check(features.ContentCompatLabel, false)
 	check(features.Clustering, false)
 	check(features.RemoteDeviceManagement, false)
-	check(features.SeedRefresh, false)
 	check(features.SnapDeltaFormat, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
@@ -263,7 +257,84 @@ func (s *featureSuite) TestFlag(c *C) {
 	c.Assert(err, ErrorMatches, `hotplug can only be set to 'true' or 'false', got "banana"`)
 }
 
+func (*featureSuite) TestPermanentlyDisabledFeatures(c *C) {
+	f := features.GateAutoRefreshHook
+	c.Check(f.IsPermanentlyDisabled(), Equals, true)
+	for _, known := range features.KnownFeatures() {
+		c.Check(known, Not(Equals), f)
+	}
+
+	// disabled flags should not consult configuration
+	flag, err := features.Flag(nil, f)
+	c.Assert(err, IsNil)
+	c.Check(flag, Equals, false)
+}
+
+func (*featureSuite) TestWIPFeatures(c *C) {
+	f := features.SeedRefresh
+	c.Check(f.IsWIP(), Equals, true)
+	c.Check(f.String(), Equals, "seed-refresh")
+	c.Check(f.IsExported(), Equals, false)
+	c.Check(f.IsEnabledWhenUnset(), Equals, false)
+	for _, known := range features.KnownFeatures() {
+		c.Check(known, Not(Equals), f)
+	}
+}
+
+func (s *featureSuite) TestFlagWIP(c *C) {
+	fake := features.SnapdFeature(1000)
+	fakeOther := features.SnapdFeature(1001)
+	defer features.MockFeatureNames(map[features.SnapdFeature]string{
+		fake:      "fake-wip",
+		fakeOther: "fake-wip-other",
+	})()
+	defer features.MockFeaturesWIP(map[features.SnapdFeature]bool{
+		fake:      true,
+		fakeOther: true,
+	})()
+
+	// restore the original value of SNAPD_WIP after the test cases below
+	// change it
+	defer features.MockFeaturesWIPEnvironment()()
+
+	// work-in-progress features do not consult configuration
+	os.Unsetenv("SNAPD_WIP")
+	for _, f := range []features.SnapdFeature{fake, fakeOther} {
+		flag, err := features.Flag(nil, f)
+		c.Assert(err, IsNil)
+		c.Check(flag, Equals, false, Commentf("SNAPD_WIP unset, feature=%s", f))
+	}
+
+	for _, tc := range []struct {
+		env     string
+		enabled []features.SnapdFeature
+	}{
+		{env: ""},
+		{env: ","},
+		{env: "fake-wip-other", enabled: []features.SnapdFeature{fakeOther}},
+		{env: "fake-wip,fake-wip-other", enabled: []features.SnapdFeature{fake, fakeOther}},
+		{env: " other , fake-wip ,", enabled: []features.SnapdFeature{fake}},
+	} {
+		os.Setenv("SNAPD_WIP", tc.env)
+
+		enabled := make(map[features.SnapdFeature]bool, len(tc.enabled))
+		for _, f := range tc.enabled {
+			enabled[f] = true
+		}
+
+		for _, f := range []features.SnapdFeature{fake, fakeOther} {
+			flag, err := features.Flag(nil, f)
+			c.Assert(err, IsNil)
+			c.Check(flag, Equals, enabled[f], Commentf("SNAPD_WIP=%q, feature=%s", tc.env, f))
+		}
+	}
+}
+
 func (s *featureSuite) TestAll(c *C) {
+	// the synthetic feature ids below may overlap permanently disabled and
+	// work-in-progress ids
+	defer features.MockFeaturesPermanentlyDisabled(nil)()
+	defer features.MockFeaturesWIP(nil)()
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()

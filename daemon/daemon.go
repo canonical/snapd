@@ -93,8 +93,6 @@ type Daemon struct {
 	// set to remember that we need to exit the daemon in a way that
 	// prevents systemd from restarting it
 	restartSocket bool
-	// signal the run loop exited on, or nil
-	storedExitSignal os.Signal
 	// degradedErr is set when the daemon is in degraded mode
 	degradedErr error
 
@@ -180,7 +178,14 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	authzRec := newAuthzRecorder(
+		seclogSnapdUserFromAuth(user),
+		ucred.seclogPeer(),
+		seclog.Endpoint{Method: r.Method, Path: r.URL.Path, Action: action},
+	)
+	rspe := access.CheckAccess(c.d, r, ucred, user, authzRec)
+	authzRec.log()
+	if rspe != nil {
 		rspe.ServeHTTP(w, r)
 		return
 	}
@@ -614,6 +619,8 @@ func (d *Daemon) HandleRestart(t restart.RestartType, rebootInfo *boot.RebootInf
 		d.requestedRestart = t
 		d.restartSocket = true
 	case restart.StopDaemon:
+		// Preseed runs on the build host, not the device in the field, so no
+		// security event is emitted.
 		logger.Noticef("stopping snapd as requested")
 	default:
 		logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
@@ -650,27 +657,8 @@ func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
 	return osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644, 0)
 }
 
-// SetExitSignal records the signal the run loop exited on.
-func (d *Daemon) SetExitSignal(sig os.Signal) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.storedExitSignal = sig
-}
-
-// exitSignal returns the signal the run loop exited on, or nil.
-func (d *Daemon) exitSignal() os.Signal {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.storedExitSignal
-}
-
-// Stop shuts down the Daemon.
+// Stop shuts down the Daemon
 func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
-	// always log the exit signal, even if another restart will be requested
-	if sig := d.exitSignal(); sig != nil {
-		seclog.LogSystemExitSignalSnapd(d.Version, sig)
-	}
-
 	// we need to schedule/wait for a system restart again
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate

@@ -131,7 +131,7 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 // SetupKernelSnap does extra configuration for kernel snaps.
 func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
 	// Build kernel tree that will be mounted from initramfs
-	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
+	cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(instanceName), rev)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
 	// TODO:COMPS: consider components when installed jointly
@@ -367,7 +367,7 @@ func (b Backend) SetupKernelModulesComponents(currentComps, finalComps []*snap.C
 // moveKModsComponentsState changes kernel-modules set-up from currentComps to
 // finalComps, for the kernel/revision specified by ksnapName/ksnapRev.
 func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, cleanErrMsg string) (err error) {
-	cpi := snap.MinimalSnapContainerPlaceInfo(ksnapName, ksnapRev)
+	cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(ksnapName), ksnapRev)
 	kMntPts := kernel.MountPoints{
 		Current: cpi.MountDir(),
 		Target:  cpi.MountDir(),

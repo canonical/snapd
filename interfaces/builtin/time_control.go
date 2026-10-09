@@ -138,13 +138,14 @@ var timeControlConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "time-control",
-		summary:               timeControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  timeControlBaseDeclarationSlots,
-		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
-		connectedPlugUDev:     timeControlConnectedPlugUDev,
+		name:                     "time-control",
+		summary:                  timeControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     timeControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    timeControlConnectedPlugAppArmor,
+		connectedPlugSecComp:     timeControlConnectedPlugSecComp,
+		connectedPlugUDev:        timeControlConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

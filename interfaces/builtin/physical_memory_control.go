@@ -52,6 +52,7 @@ func init() {
 		baseDeclarationSlots:     physicalMemoryControlBaseDeclarationSlots,
 		connectedPlugAppArmor:    physicalMemoryControlConnectedPlugAppArmor,
 		connectedPlugUDev:        physicalMemoryControlConnectedPlugUDev,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

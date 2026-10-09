@@ -22,6 +22,7 @@ package seclog
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"syscall"
 
@@ -187,20 +188,57 @@ func LogSystemExitSignalSnapd(snapdVersion string, sig os.Signal) {
 	if snapdVersion == "" {
 		snapdVersion = unknown
 	}
-	// Only SIGINT and SIGTERM are exit_signal values we emit.
-	exitSignal := unknown
+	// SIGINT and SIGTERM are recorded by name, with the number in brackets in
+	// the description. Any other signal is its number.
+	var exitSignal string
+	var signalNumber string
+	if s, ok := sig.(syscall.Signal); ok {
+		signalNumber = strconv.Itoa(int(s))
+	}
 	switch sig {
 	case syscall.SIGTERM:
-		exitSignal = "sigterm"
+		exitSignal = "SIGTERM"
 	case syscall.SIGINT:
-		exitSignal = "sigint"
+		exitSignal = "SIGINT"
+	default:
+		if signalNumber != "" {
+			exitSignal = signalNumber
+		} else {
+			exitSignal = unknown
+		}
+	}
+	description := fmt.Sprintf("Snapd received exit signal %s", exitSignal)
+	if signalNumber != "" && exitSignal != signalNumber {
+		description = fmt.Sprintf("%s (%s)", description, signalNumber)
 	}
 
 	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_exit_signal_snapd", Level: LevelInfo},
-		fmt.Sprintf("Snapd received exit signal %s", exitSignal),
+		description,
 		Attr{Key: "snapd_version", Value: snapdVersion},
 		Attr{Key: "exit_signal", Value: exitSignal},
+	)
+}
+
+// LogSystemStartupSnapd logs a snapd daemon startup using the global
+// security logger. snapdVersion is the version of this snapd process.
+// bootID is the kernel boot id for this boot.
+func LogSystemStartupSnapd(snapdVersion, bootID string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	if bootID == "" {
+		bootID = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_startup_snapd", Level: LevelInfo},
+		"Snapd startup",
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "boot_id", Value: bootID},
 	)
 }
 

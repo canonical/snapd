@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const (
@@ -62,7 +63,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSystem(c *C) {
 	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap")))
 	c.Assert(err, IsNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
@@ -97,7 +98,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsSession(c *C) {
 	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "other-snap")))
 	c.Assert(err, IsNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
@@ -132,7 +133,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
 	systemSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "system-snap")))
 	c.Assert(err, IsNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "session-snap":
 			return sessionSnap, nil
@@ -181,7 +182,7 @@ func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsDifferentBuses(c *C) {
 func (s *snapmgrTestSuite) TestCheckDBusServiceConflictsNoConflictWithSelf(c *C) {
 	info, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSessionYamlTemplate, "some-snap")))
 	c.Assert(err, IsNil)
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return info, nil
@@ -219,7 +220,7 @@ func (s *snapmgrTestSuite) TestInstallDBusActivationConflicts(c *C) {
 	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap")))
 	c.Assert(err, IsNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
@@ -256,7 +257,7 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 	otherSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(dbusSystemYamlTemplate, "other-snap")))
 	c.Assert(err, IsNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
