@@ -831,6 +831,7 @@ var (
 		"gpio-control":              {"core"},
 		"greengrass-support":        {"core"},
 		"hidraw":                    {"core", "gadget"},
+		"hdmi-cec":                  {"core"},
 		"i2c":                       {"core", "gadget"},
 		"iio":                       {"core", "gadget"},
 		"iscsi-initiator":           {"core"},
