@@ -5,12 +5,32 @@ details: |
   parallel instances create a recursive bind mount of $SNAP_MOUNT_DIR. This
   should not prevent snaps from being unmounted when removed.
 
+skip:
+    - reason: classic parallel installs require the var-snap and
+        snap-mount-dir mount units shipped by the native package
+      if: os.query is-classic && not systemctl cat var-snap.mount
+
 prepare: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
         # set up classic execution support
         ln -sfn "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -f /snap
+    fi
+
+    if os.query is-classic; then
+        # On Fedora/openSUSE/Arch the native package ships these units but
+        # does not auto-enable/start them (opt-in, like classic snap support
+        # in general on those distros); Debian/Ubuntu already have them
+        # enabled and active. Ensure both are active before installing
+        # anything, since a parallel installed classic snap cannot be
+        # installed while they are not.
+        if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
+            SNAP_MOUNT_UNIT="snap.mount"
+        else
+            SNAP_MOUNT_UNIT="var-lib-snapd-snap.mount"
+        fi
+        systemctl enable --now "$SNAP_MOUNT_UNIT" var-snap.mount
     fi
 
 restore: |
