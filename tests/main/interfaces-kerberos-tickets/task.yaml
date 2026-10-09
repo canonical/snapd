@@ -25,7 +25,8 @@ prepare: |
     tests.cleanup defer rm -f "$TICKET"
     mkdir -p "$DIR_TICKET"
     tests.cleanup defer rm -rf "$DIR_TICKET"
-    echo "$TICKET_CONTENTS" > "$DIR_TICKET/ticket"
+    echo "$TICKET_CONTENTS" > "$DIR_TICKET/tkt_foo"
+    echo "tkt_foo" > "$DIR_TICKET/primary"
 
 execute: |
     echo "KRB5CCNAME was correctly overwritten in the snap's environment."
@@ -47,7 +48,7 @@ execute: |
         kerberos-tickets-consumer | MATCH "KRB5CCNAME:$EXPECTED_DIR_KRB5CCNAME"
         kerberos-tickets-consumer | MATCH "$TICKET_CONTENTS"
         kerberos-tickets-consumer | MATCH "appended contents"
-        test "$(cat "$DIR_TICKET/created")" = "created contents"
+        test "$(cat "$DIR_TICKET/tkt_bar")" = "created contents"
         export KRB5CCNAME="FILE:$TICKET"
 
         echo "When the plug is disconnected"
