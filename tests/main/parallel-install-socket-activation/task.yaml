@@ -1,8 +1,11 @@
 summary: Verify socket activation abstract socket remapping for parallel instances.
 
 details: |
-    Companion to tests/main/services-socket-activation but verifies interaction
-    between parallel instances and socket activation.
+    Companion to tests/main/services-socket-activation: installs a snap
+    defining a socket-activated service twice, once regularly and once as a
+    parallel instance, and verifies that the abstract socket address used for
+    activation is remapped per instance key, and that enabling/disabling one
+    instance's socket unit does not affect the other's.
 
 environment:
     CONFINEMENT/strict: strict
@@ -12,6 +15,10 @@ skip:
     - reason: Cannot install classic snaps on core
       if: |
         [ "$CONFINEMENT" = classic ] && os.query is-core
+    - reason: classic parallel installs require the var-snap and
+        snap-mount-dir mount units shipped by the native package
+      if: |
+        [ "$CONFINEMENT" = classic ] && not systemctl cat var-snap.mount
 
 prepare: |
     case "$CONFINEMENT" in
@@ -24,6 +31,20 @@ prepare: |
                 ln -sfn "$SNAP_MOUNT_DIR" /snap
                 tests.cleanup defer rm -f /snap
             fi
+
+            # Fedora/openSUSE/Arch/Debian make var-snap.mount opt-in; Ubuntu
+            # enables it. Classic parallel installs need both mount points.
+            if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
+                SNAP_MOUNT_UNIT="snap.mount"
+            else
+                SNAP_MOUNT_UNIT="var-lib-snapd-snap.mount"
+            fi
+            for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+                printf '%s %s %s\n' "$u" "$(systemctl is-enabled "$u" || true)" "$(systemctl is-active "$u" || true)"
+            done > mount-units.state
+            systemctl enable --now var-snap.mount
+            systemctl start "$SNAP_MOUNT_UNIT"
+
             "$TESTSTOOLS"/snaps-state install-local socket-activation-classic --classic
             ;;
         strict)
@@ -32,6 +53,30 @@ prepare: |
     esac
 
 restore: |
+    # Both fixtures install as socket-activation, regardless of confinement.
+    # Remove test snaps before stopping a parent mount.
+    for name in socket-activation_foo socket-activation; do
+        if snap list "$name" >/dev/null 2>&1; then
+            snap remove --purge "$name"
+        fi
+    done
+    snap unset system experimental.parallel-instances
+    if [ "$CONFINEMENT" = classic ] && [ -f mount-units.state ]; then
+        while read -r u enabled active; do
+            if [ "$active" != active ]; then
+                systemctl stop "$u"
+            fi
+            case "$enabled" in
+                enabled) systemctl enable "$u" ;;
+                disabled) systemctl disable "$u" ;;
+                static) : ;;
+                *) echo "unexpected initial state for $u: $enabled" >&2; exit 1 ;;
+            esac
+            if [ "$active" = active ]; then
+                systemctl start "$u"
+            fi
+        done < mount-units.state
+    fi
     systemctl daemon-reload
 
 execute: |
@@ -59,15 +104,12 @@ execute: |
     }
 
     snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
 
     if [ "$CONFINEMENT" = classic ]; then
         "$TESTSTOOLS"/snaps-state install-local-as socket-activation-classic socket-activation_foo --classic
     else
         "$TESTSTOOLS"/snaps-state install-local-as socket-activation socket-activation_foo
     fi
-    tests.cleanup defer snap remove --purge socket-activation_foo
-
     unit_abstract=/etc/systemd/system/snap.socket-activation.sleep-daemon.sock-abstract.socket
     unit_abstract_foo=/etc/systemd/system/snap.socket-activation_foo.sleep-daemon.sock-abstract.socket
 
