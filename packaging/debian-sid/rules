@@ -199,9 +199,6 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# inside the core snap because not all bases will have a libc
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -tags "$(TAGS)" $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
-
-	# ensure we generated a static build
-	$(MAKE) -f packaging/snapd.mk check-static-binaries SNAPD_DEFINES_DIR=$(CURDIR)
 endif
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
@@ -222,6 +219,10 @@ endif
 	cd cmd && ( autoreconf -i -f )
 	cd cmd && ( ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --libexecdir=/usr/lib/snapd $(VENDOR_ARGS))
 	$(MAKE) -C cmd all
+
+	# ensure we generated static binaries (this checks the C binaries built
+	# above, so it must run after the cmd build)
+	$(MAKE) -f packaging/snapd.mk check-static-binaries SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# Generate the real systemd/dbus/env config files
 	$(MAKE) -C data all
