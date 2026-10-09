@@ -1101,7 +1101,7 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 }
 
 // validatePINImpl checks that the passed PIN is formatted properly.
-// If the supplied PIN larger than 255 characters or contains
+// If the supplied PIN larger than 256 characters or contains
 // anything other than base-10 digits, an error will be returned.
 func validatePINImpl(pin string) error {
 	_, err := secboot.ParsePIN(pin)
