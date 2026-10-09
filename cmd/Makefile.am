@@ -34,13 +34,14 @@ subdirs = \
 		  snap-update-ns \
 		  snapd-env-generator \
 		  snapd-generator \
+		  snapd-kernel-probe-helper \
 		  system-shutdown \
 		  snap-cli-wrap \
 		  snapd-tool-wrap
 
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-unit-tests
+check: check-unit-tests check-kernel-probe-helper
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
@@ -60,6 +61,15 @@ else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
 endif
+
+# Run the real architecture-specific probe helper, not a stub: the Go tests
+# replace the helper with a shell stub, so an architecture-specific syscall
+# ABI or parent/child protocol error could otherwise ship as long as the
+# binary links. The helper does a loopback socket exchange and exits 0
+# unconfined, unless the running kernel has the probed-for bug.
+.PHONY: check-kernel-probe-helper
+check-kernel-probe-helper: snapd-kernel-probe-helper/snapd-kernel-probe-helper$(EXEEXT)
+	./snapd-kernel-probe-helper/snapd-kernel-probe-helper$(EXEEXT)
 
 # NOTE: clang-format is using project-wide .clang-format file.
 .PHONY: fmt
@@ -421,6 +431,7 @@ endif
 	rmdir $(DESTDIR)$(snapdstatedir)/void || true
 	rm -f $(DESTDIR)$(libexecdir)/snap-confine.caps || true
 	rm -f $(DESTDIR)$(libexecdir)/snap-confine.v2-only.caps || true
+	rm -f $(DESTDIR)$(libexecdir)/snapd-kernel-probe-helper || true
 
 ##
 ## snap-mgmt
@@ -478,6 +489,53 @@ libexec_PROGRAMS += snapd-tool-wrap/snapd-tool-wrap
 snapd_tool_wrap_snapd_tool_wrap_SOURCES = snapd-tool-wrap/snapd-tool-wrap.c
 snapd_tool_wrap_snapd_tool_wrap_CFLAGS = $(AM_CFLAGS) $(SANITIZE_CFLAGS)
 snapd_tool_wrap_snapd_tool_wrap_LDFLAGS = $(AM_LDFLAGS) $(SANITIZE_LDFLAGS)
+
+##
+## snapd-kernel-probe-helper
+##
+## Static, freestanding raw-syscall probe executed under an AppArmor profile
+## by "snapd snapd-kernel-probe" to detect kernel bugs snapd must work around
+## at runtime (the first one being the AppArmor 5.0 "file_perm class=net"
+## socket read/write mis-mediation, LP: #2169038). It links no libc: the
+## binary must do nothing but the probed syscalls under confinement.
+##
+
+# Build the helper by hand rather than via libexec_PROGRAMS. The automatic
+# per-target rules append the inherited $(CFLAGS)/$(LDFLAGS) *after* the
+# per-target flags, so a distro that injects hardening/LTO flags there
+# (dpkg's -fstack-protector-strong -flto=auto, $RPM_OPT_FLAGS) would win
+# over any -fno-* we set: with -nostdlib a stack protector emits references
+# to __stack_chk_fail / the TLS canary and the link fails, and link-time
+# LTO recompilation applies the LDFLAGS flag set, re-enabling the stack
+# protector even when the compile was clean. Keep the distro flags out of
+# this one target entirely.
+#
+# We deliberately honour a small, explicit subset of the environment
+# (CPPFLAGS for the odd -I) and nothing else: no hardening, no LTO, no
+# sanitizers, no coverage.
+SNAPD_KERNEL_PROBE_HELPER_CFLAGS = \
+	-ffreestanding -fno-stack-protector -fno-pie -fno-lto -Os
+SNAPD_KERNEL_PROBE_HELPER_LDFLAGS = \
+	-static -nostdlib -nostartfiles -no-pie
+
+all-local:: snapd-kernel-probe-helper/snapd-kernel-probe-helper$(EXEEXT)
+
+snapd-kernel-probe-helper/snapd_kernel_probe_helper-probe.o: $(srcdir)/snapd-kernel-probe-helper/probe.c
+	$(AM_V_CC)$(MKDIR_P) snapd-kernel-probe-helper && \
+	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) \
+		$(SNAPD_KERNEL_PROBE_HELPER_CFLAGS) \
+		-c -o $@ $(srcdir)/snapd-kernel-probe-helper/probe.c
+
+snapd-kernel-probe-helper/snapd-kernel-probe-helper$(EXEEXT): snapd-kernel-probe-helper/snapd_kernel_probe_helper-probe.o
+	$(AM_V_CCLD)$(CC) $(SNAPD_KERNEL_PROBE_HELPER_CFLAGS) \
+		$(SNAPD_KERNEL_PROBE_HELPER_LDFLAGS) \
+		-o $@ snapd-kernel-probe-helper/snapd_kernel_probe_helper-probe.o
+
+CLEANFILES += \
+	snapd-kernel-probe-helper/snapd-kernel-probe-helper \
+	snapd-kernel-probe-helper/snapd_kernel_probe_helper-probe.o
+
+EXTRA_DIST += snapd-kernel-probe-helper/probe.c
 
 ##
 ## snap-device-helper
@@ -625,6 +683,7 @@ CLEANFILES += snapd-env-generator/snapd-env-generator.8
 
 install-exec-local:
 	install -d -m 755 $(DESTDIR)$(libexecdir)
+	$(INSTALL_PROGRAM) snapd-kernel-probe-helper/snapd-kernel-probe-helper$(EXEEXT) "$(DESTDIR)$(libexecdir)/snapd-kernel-probe-helper$(EXEEXT)"
 
 AM_DISTCHECK_CONFIGURE_FLAGS =								\
 	SYSTEMD_PREFIX=$${dc_install_base}						\
