@@ -64,12 +64,13 @@ func init() {
 	registerIface(&systemFilesInterface{
 		commonFilesInterface{
 			commonInterface: commonInterface{
-				name:                 "system-files",
-				summary:              systemFilesSummary,
-				implicitOnCore:       true,
-				implicitOnClassic:    true,
-				baseDeclarationPlugs: systemFilesBaseDeclarationPlugs,
-				baseDeclarationSlots: systemFilesBaseDeclarationSlots,
+				name:                     "system-files",
+				summary:                  systemFilesSummary,
+				implicitOnCore:           true,
+				implicitOnClassic:        true,
+				baseDeclarationPlugs:     systemFilesBaseDeclarationPlugs,
+				baseDeclarationSlots:     systemFilesBaseDeclarationSlots,
+				parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 			},
 			apparmorHeader:    systemFilesConnectedPlugAppArmor,
 			extraPathValidate: validateSinglePathSystem,

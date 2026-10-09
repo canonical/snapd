@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -465,7 +466,7 @@ func (s *mountSnapSuite) TestDoMountNotMountedRetryRetry(c *C) {
 	r := snapstate.MockMountPollInterval(10 * time.Millisecond)
 	defer r()
 	n := 0
-	slowMountedReadInfo := func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	slowMountedReadInfo := func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		n++
 		if n < 3 {
 			return nil, &snap.NotFoundError{Snap: "not-there", Revision: si.Revision}

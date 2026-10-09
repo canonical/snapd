@@ -60,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -74,6 +75,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store/storetest"
@@ -4954,4 +4956,42 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEInstall(c *C) {
 	devicestate.SetSystemMode(s.mgr, "install")
 	err := devicestate.EnsureFDE(s.mgr)
 	c.Assert(err, IsNil)
+}
+
+func TestInstalledComponentRevisionForParallelInstance(t *testing.T) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	instanceName := naming.NewInstanceName("test-snap", "instance")
+	componentName := "test-component"
+	snapRevision := snap.R(1)
+	componentRevision := snap.R(2)
+	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snapRevision}
+	componentSideInfo := snap.NewComponentSideInfo(
+		naming.NewComponentRef("test-snap", componentName), componentRevision,
+	)
+	snapstate.Set(st, instanceName.String(), &snapstate.SnapState{
+		Active:      true,
+		Current:     snapRevision,
+		InstanceKey: "instance",
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(sideInfo, []*sequence.ComponentState{
+					sequence.NewComponentState(componentSideInfo, snap.StandardComponent),
+				}),
+			},
+		},
+	})
+
+	installed, revision, err := devicestate.InstalledComponentRevision(st, instanceName, componentName)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !installed {
+		t.Fatal("expected component to be reported as installed")
+	}
+	if revision != componentRevision {
+		t.Errorf("got component revision %s, want %s", revision, componentRevision)
+	}
 }

@@ -61,8 +61,8 @@ func (snapdcl *SnapDeclaration) SnapID() string {
 }
 
 // SnapName returns the declared snap name.
-func (snapdcl *SnapDeclaration) SnapName() string {
-	return snapdcl.HeaderString("snap-name")
+func (snapdcl *SnapDeclaration) SnapName() naming.SnapName {
+	return naming.SnapName(snapdcl.HeaderString("snap-name"))
 }
 
 // PublisherID returns the identifier of the publisher of the declared snap.

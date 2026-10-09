@@ -70,7 +70,7 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
 
-func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+func MockSnapReadInfo(mock func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	old := snapReadInfo
 	snapReadInfo = mock
 	return func() { snapReadInfo = old }
@@ -277,6 +277,16 @@ func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 
 func NextCatalogRefresh(cr *catalogRefresh) time.Time {
 	return cr.nextCatalogRefresh
+}
+
+func WaitCatalogRefresh(cr *catalogRefresh) {
+	if cr.catalogC != nil {
+		<-cr.catalogC
+	}
+}
+
+func StopCatalogRefresh(m *SnapManager) {
+	m.catalogRefresh.Stop()
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {

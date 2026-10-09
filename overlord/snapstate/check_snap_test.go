@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
@@ -1452,7 +1453,7 @@ func (s *snapmgrTestSuite) TestCheckDesktopFileIDsConflicts(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(otherSnap.Plugs["desktop"], NotNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
@@ -1486,7 +1487,7 @@ func (s *snapmgrTestSuite) TestCheckDesktopFileIDsConflictsNoConflictWithSelf(c 
 	c.Assert(err, IsNil)
 	c.Assert(someSnap.Plugs["desktop"], NotNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
@@ -1521,7 +1522,7 @@ func (s *snapmgrTestSuite) TestInstallDesktopFileIDsConflicts(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(otherSnap.Plugs["desktop"], NotNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil
@@ -1560,7 +1561,7 @@ func (s *snapmgrTestSuite) TestInstallManyDesktopFileIDsConflicts(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(otherSnap.Plugs["desktop"], NotNil)
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		switch name {
 		case "some-snap":
 			return someSnap, nil

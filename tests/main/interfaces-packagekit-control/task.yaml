@@ -32,7 +32,7 @@ execute: |
     snap connections test-snapd-packagekit | MATCH "packagekit-control +test-snapd-packagekit:packagekit-control +:packagekit-control +manual"
 
     echo "With the plug connected it is possible to communicate with packagekit"
-    if test-snapd-packagekit.pkcon backend-details | grep -qF 'setting the proxy failed'; then
+    if test-snapd-packagekit.pkcon backend-details | MATCH '(setting the proxy failed|proxy could not be set)'; then
         # Some versions of PackageKit cannot handle the presence of commonly
         # used proxy environment variables. Specifically those that lack the patch
         # 4626cc3bec7affb632122b1d3d4898d7a5bd0e7d (pk-engine:

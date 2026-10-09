@@ -66,12 +66,13 @@ perf_event_open
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "system-trace",
-		summary:               systemTraceSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  systemTraceBaseDeclarationSlots,
-		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
-		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
+		name:                     "system-trace",
+		summary:                  systemTraceSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     systemTraceBaseDeclarationSlots,
+		connectedPlugAppArmor:    systemTraceConnectedPlugAppArmor,
+		connectedPlugSecComp:     systemTraceConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

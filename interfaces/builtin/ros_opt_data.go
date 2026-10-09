@@ -54,11 +54,12 @@ type rosOptDataInterface struct {
 
 func init() {
 	registerIface(&rosOptDataInterface{commonInterface{
-		name:                  "ros-opt-data",
-		summary:               rosOptDataSummary,
-		implicitOnCore:        false,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  rosOptDataBaseDeclarationSlots,
-		connectedPlugAppArmor: rosOptDataConnectedPlugAppArmor,
+		name:                     "ros-opt-data",
+		summary:                  rosOptDataSummary,
+		implicitOnCore:           false,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     rosOptDataBaseDeclarationSlots,
+		connectedPlugAppArmor:    rosOptDataConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

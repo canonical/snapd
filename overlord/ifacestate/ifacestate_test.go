@@ -5143,7 +5143,7 @@ func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, comp
 
 	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapInfo.SnapName().String(), compName),
+			Component: naming.NewComponentRef(snapInfo.SnapName(), compName),
 			Revision:  snap.R(1),
 		},
 		CompType: snap.StandardComponent,
@@ -5292,7 +5292,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	// includes it
 	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapInfo.SnapName().String(), "comp2"),
+			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp2"),
 			Revision:  snap.R(1),
 		},
 		CompType: snap.StandardComponent,
@@ -5304,7 +5304,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	c.Assert(snapstate.Get(s.state, coreSnapInfo.InstanceName().String(), &coreSnapst), IsNil)
 	coreSnapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapInfo.SnapName().String(), "comp"),
+			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp"),
 			Revision:  snap.R(1),
 		},
 		CompType: snap.StandardComponent,
