@@ -1479,7 +1479,8 @@ func getSystemD() systemd.Systemd {
 // maybeAppendIntegrityMountOptions appends integrity mount options to the given mount
 // options in-place if the snap has validated integrity data.
 func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
-	// TODO: only base snaps should be mounted with integrity data currently
+	// TODO: only mount with integrity data if on UC and model base snap
+	//       has validated integrity data.
 	if !info.Revision.Store() {
 		return nil
 	}
