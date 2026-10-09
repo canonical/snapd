@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -1376,9 +1377,7 @@ func (s *snapmgrTestSuite) TestRemoveConsultsSeedRefreshRemoveHookOnlyWhenEnable
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, false)
 
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: blocked by test hook`)
@@ -1405,9 +1404,7 @@ func (s *snapmgrTestSuite) TestRemoveSpecificRevisionDoesNotConsultSeedRefreshRe
 		SnapType: "app",
 	})
 
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
-	tr.Commit()
+	s.AddCleanup(features.MockFeaturesWIPEnvironment(features.SeedRefresh))
 
 	called := false
 	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error {
@@ -2089,10 +2086,7 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 	st.Lock()
 	defer st.Unlock()
 
-	// enable gate-auto-refresh-hook feature
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
-	tr.Commit()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	for _, sn := range []string{"some-snap", "another-snap", "foo-snap"} {
 		si := snap.SideInfo{
@@ -2170,6 +2164,7 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
 	t := time.Now()
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -2667,9 +2662,9 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 		return nil, errors.New("unexpected component")
 	}))
 
-	s.AddCleanup(snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	s.AddCleanup(snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		info := &snap.Info{
-			SuggestedName: name,
+			SuggestedName: name.SnapName().String(),
 			SideInfo:      *si,
 			SnapType:      snap.TypeApp,
 			Components: map[string]*snap.Component{

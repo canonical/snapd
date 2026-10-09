@@ -1491,7 +1491,7 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 
 	restore := daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 		path string, opts snapstate.Options) (*state.TaskSet, error) {
-		c.Check(csi.Component.SnapName, check.Equals, "three")
+		c.Check(csi.Component.SnapName.String(), check.Equals, "three")
 		c.Check(csi.Component.ComponentName, check.Equals, "comp-four")
 		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
 		c.Check(path, testutil.FileEquals, "comp-four")
@@ -1598,7 +1598,7 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 			snapName = "three"
 		}
 		return &snap.ComponentInfo{
-			Component:   naming.NewComponentRef(snapName, components[readComponentInfoCalled]),
+			Component:   naming.NewComponentRef(naming.SnapName(snapName), components[readComponentInfoCalled]),
 			Type:        snap.TestComponent,
 			CompVersion: "1.0",
 		}, nil
@@ -1680,7 +1680,7 @@ func (s *sideloadSuite) TestSideloadManyAssertedSnapsAndComponents(c *check.C) {
 
 	restore := daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 		path string, opts snapstate.Options) (*state.TaskSet, error) {
-		c.Check(csi.Component.SnapName, check.Equals, "three")
+		c.Check(csi.Component.SnapName.String(), check.Equals, "three")
 		c.Check(csi.Component.ComponentName, check.Equals, "comp-four")
 		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
 
@@ -1975,7 +1975,7 @@ func (s *sideloadSuite) TestSideloadManyOnlyComponents(c *check.C) {
 	components := []string{"comp-one", "comp-two", "comp-three", "comp-four"}
 	restore := daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 		path string, opts snapstate.Options) (*state.TaskSet, error) {
-		c.Check(csi.Component.SnapName, check.Equals, "one")
+		c.Check(csi.Component.SnapName.String(), check.Equals, "one")
 		c.Check(components, testutil.Contains, csi.Component.ComponentName)
 		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
 

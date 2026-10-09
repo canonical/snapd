@@ -21,8 +21,10 @@ package features
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -50,8 +52,6 @@ const (
 	CheckDiskSpaceInstall
 	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
 	CheckDiskSpaceRefresh
-	// GateAutoRefreshHook enables refresh control from snaps via gate-auto-refresh hook.
-	GateAutoRefreshHook
 	// Confdb enables experimental configuration based on confdb and views.
 	Confdb
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
@@ -63,12 +63,28 @@ const (
 	// RemoteDeviceManagement enables experimental remote management of the device
 	// through the Store, including remote management of confdb.
 	RemoteDeviceManagement
-	// SeedRefresh enables experimental seed creation during model snap refresh.
-	SeedRefresh
 	// SnapDeltaFormat enables deltas that use the "snap delta" format
 	SnapDeltaFormat
-	// lastFeature is the final known feature, it is only used for testing.
+	// lastFeature marks the end of the features available for configuration.
 	lastFeature
+
+	// Permanently disabled features retain their identities and implementation,
+	// but are not enumerated by KnownFeatures.
+
+	// GateAutoRefreshHook enabled refresh control from snaps via
+	// gate-auto-refresh hook.
+	//
+	// TODO:GATEREFRESH: this feature is permanently disabled and code for it
+	// will be removed in a future release.
+	GateAutoRefreshHook
+
+	// Work-in-progress features are not enumerated by KnownFeatures. They are
+	// not controlled through the state, they are enabled only through the
+	// SNAPD_WIP environment variable.
+
+	// SeedRefresh enables work-in-progress seed creation during model snap
+	// refresh.
+	SeedRefresh
 )
 
 var knownFeaturesImpl = func() []SnapdFeature {
@@ -99,8 +115,6 @@ var featureNames = map[SnapdFeature]string{
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
 	CheckDiskSpaceRemove:  "check-disk-space-remove",
 
-	GateAutoRefreshHook: "gate-auto-refresh-hook",
-
 	Confdb: "confdb",
 
 	AppArmorPrompting:  "apparmor-prompting",
@@ -109,9 +123,13 @@ var featureNames = map[SnapdFeature]string{
 
 	RemoteDeviceManagement: "remote-device-management",
 
-	SeedRefresh: "seed-refresh",
-
 	SnapDeltaFormat: "snap-delta-format",
+
+	// permanently disabled features
+	GateAutoRefreshHook: "gate-auto-refresh-hook",
+
+	// work-in-progress features
+	SeedRefresh: "seed-refresh",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
@@ -138,6 +156,19 @@ var featuresGraduated = map[string]bool{
 	"refresh-app-awareness-ux":          true,
 	"dbus-activation":                   true,
 	"quota-groups":                      true,
+}
+
+// featuresPermanentlyDisabled contains features whose implementation is
+// retained but which cannot be enabled through configuration.
+var featuresPermanentlyDisabled = map[SnapdFeature]bool{
+	GateAutoRefreshHook: true,
+}
+
+// featuresWIP contains work-in-progress features. These features are enabled
+// only through the SNAPD_WIP environment variable, which holds a
+// comma-separated list of feature names.
+var featuresWIP = map[SnapdFeature]bool{
+	SeedRefresh: true,
 }
 
 var (
@@ -167,6 +198,64 @@ func (f SnapdFeature) String() string {
 		return name
 	}
 	panic(fmt.Sprintf("unknown feature flag code %d", f))
+}
+
+// IsPermanentlyDisabled reports whether a feature cannot be enabled in this build.
+func (f SnapdFeature) IsPermanentlyDisabled() bool {
+	return featuresPermanentlyDisabled[f]
+}
+
+// MockFeaturesPermanentlyDisabled replaces the permanently disabled features for tests.
+func MockFeaturesPermanentlyDisabled(disabled map[SnapdFeature]bool) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesPermanentlyDisabled can only be used in tests")
+	old := featuresPermanentlyDisabled
+	featuresPermanentlyDisabled = disabled
+	return func() {
+		featuresPermanentlyDisabled = old
+	}
+}
+
+// IsWIP reports whether a feature is a work-in-progress feature.
+//
+// Work-in-progress features are not controlled through the state. They are
+// enabled only through the SNAPD_WIP environment variable.
+func (f SnapdFeature) IsWIP() bool {
+	return featuresWIP[f]
+}
+
+// isWIPEnabled reports whether the work-in-progress feature is listed in the
+// SNAPD_WIP environment variable.
+func (f SnapdFeature) isWIPEnabled() bool {
+	name := f.String()
+	for _, n := range strings.Split(os.Getenv("SNAPD_WIP"), ",") {
+		if strings.TrimSpace(n) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// MockFeaturesWIPEnvironment sets the SNAPD_WIP environment variable so that
+// only the given work-in-progress features are enabled. It is for tests only.
+func MockFeaturesWIPEnvironment(enabled ...SnapdFeature) (restore func()) {
+	osutil.MustBeTestBinary("MockFeaturesWIPEnvironment can only be used in tests")
+	names := make([]string, 0, len(enabled))
+	for _, f := range enabled {
+		if !f.IsWIP() {
+			panic(fmt.Sprintf("cannot mock feature %q as enabled because that feature is not work in progress", f))
+		}
+		names = append(names, f.String())
+	}
+
+	old, wasSet := os.LookupEnv("SNAPD_WIP")
+	os.Setenv("SNAPD_WIP", strings.Join(names, ","))
+	return func() {
+		if wasSet {
+			os.Setenv("SNAPD_WIP", old)
+		} else {
+			os.Unsetenv("SNAPD_WIP")
+		}
+	}
 }
 
 // IsEnabledWhenUnset returns true if a feature is enabled when not set.
@@ -254,6 +343,10 @@ func (f SnapdFeature) IsEnabled() bool {
 		panic(fmt.Sprintf("cannot check if feature %q is enabled because that feature is not exported", f))
 	}
 
+	if f.IsPermanentlyDisabled() {
+		return false
+	}
+
 	// TODO: this returns false on errors != ErrNotExist.
 	// Consider using os.Stat and handling other errors
 	return osutil.FileExists(f.ControlFile())
@@ -264,7 +357,18 @@ type confGetter interface {
 }
 
 // Flag returns whether the given feature flag is enabled.
+//
+// For work-in-progress features the state is not used. Such a feature is
+// enabled only if it is listed in the SNAPD_WIP environment variable.
 func Flag(tr confGetter, feature SnapdFeature) (bool, error) {
+	if feature.IsPermanentlyDisabled() {
+		return false, nil
+	}
+
+	if feature.IsWIP() {
+		return feature.isWIPEnabled(), nil
+	}
+
 	var isEnabled any
 	snapName, confName := feature.ConfigOption()
 	if err := tr.GetMaybe(snapName, confName, &isEnabled); err != nil {

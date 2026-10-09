@@ -862,7 +862,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// double check that the snap is mounted
 	var readInfoErr error
 	for i := 0; i < 10; i++ {
-		_, readInfoErr = readInfo(snapsup.InstanceName().String(), snapsup.SideInfo, errorOnBroken)
+		_, readInfoErr = readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
 		if readInfoErr == nil {
 			logger.Debugf("snap %q (%v) available at %q", snapsup.InstanceName(), snapsup.Revision(), snapsup.placeInfo().MountDir())
 			break
@@ -1106,7 +1106,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 		defer lock.Close()
 		defer func() {
 			if retErr != nil {
-				if unlockErr := runinhibit.Unlock(snapsup.InstanceName().String(), nil); unlockErr != nil {
+				if unlockErr := runinhibit.Unlock(snapsup.InstanceName(), nil); unlockErr != nil {
 					t.Logf("cannot unlock run inhibition: %v", unlockErr)
 				}
 			}
@@ -1189,7 +1189,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 			return err
 		}
 
-		newInfo, err := readInfo(snapsup.InstanceName().String(), snapsup.SideInfo, errorOnBroken)
+		newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
 		if err != nil {
 			return err
 		}
@@ -1352,7 +1352,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.InstanceName().String(), snapsup.SideInfo, errorOnBroken)
+	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, errorOnBroken)
 	if err != nil {
 		return err
 	}
@@ -1496,7 +1496,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(snapsup.InstanceName().String(), snapsup.SideInfo, 0)
+	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
@@ -1910,7 +1910,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// migration related ops
 	setMigrationFlagsInState(snapst, snapsup)
 
-	newInfo, err := readInfo(snapsup.InstanceName().String(), cand.Snap, 0)
+	newInfo, err := readInfo(snapsup.InstanceName(), cand.Snap, 0)
 	if err != nil {
 		return err
 	}
@@ -2593,7 +2593,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.Base = oldInfo.Base
 	}
 
-	newInfo, err := readInfo(snapsup.InstanceName().String(), snapsup.SideInfo, 0)
+	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
 	if err != nil {
 		return err
 	}
@@ -3042,7 +3042,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		// if we're refreshing, compute the set of removed services so we stop
 		// them regardless of their "stop-mode"
 		instanceName := snapsup.InstanceName()
-		newInfo, err := readInfo(instanceName.String(), snapsup.SideInfo, errorOnBroken)
+		newInfo, err := readInfo(instanceName, snapsup.SideInfo, errorOnBroken)
 		if err != nil {
 			return err
 		}
@@ -3206,7 +3206,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (retErr error)
 	}
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snapsup.Revision()}
-	if err := runinhibit.LockWithHint(instanceName.String(), hint, inhibitInfo, st.Unlocker()); err != nil {
+	if err := runinhibit.LockWithHint(instanceName, hint, inhibitInfo, st.Unlocker()); err != nil {
 		return err
 	}
 
@@ -3222,7 +3222,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (retErr error)
 		// avoid keeping the snap stuck at this inhibited state.
 		if retErr != nil {
 			// state is unlocked, it is okay to pass nil here
-			runinhibit.Unlock(instanceName.String(), nil)
+			runinhibit.Unlock(instanceName, nil)
 		}
 	}()
 
@@ -3267,7 +3267,7 @@ func (m *SnapManager) undoKillSnapApps(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := runinhibit.Unlock(snapsup.InstanceName().String(), st.Unlocker()); err != nil {
+	if err := runinhibit.Unlock(snapsup.InstanceName(), st.Unlocker()); err != nil {
 		return err
 	}
 
@@ -3316,7 +3316,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	}
 	defer func() {
 		if retErr != nil {
-			if unlockErr := runinhibit.Unlock(snapsup.InstanceName().String(), st.Unlocker()); unlockErr != nil {
+			if unlockErr := runinhibit.Unlock(snapsup.InstanceName(), st.Unlocker()); unlockErr != nil {
 				t.Logf("cannot unlock run inhibition: %v", unlockErr)
 			}
 		}

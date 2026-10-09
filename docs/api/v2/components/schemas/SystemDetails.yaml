@@ -128,11 +128,17 @@ properties:
           enum:
             - passphrase-auth
             - pin-auth
-        description: A list of supported encryption features.
+        description: |-
+          A list of supported encryption features:
+          - 'passphrase-auth' indicates that passphrase-based authentication is supported;
+          - 'pin-auth' indicates that PIN-based authentication is supported.
       requirements:
         type: array
         items:
           type: string
           enum:
             - volumes-auth
-        description: A list of requirements that must be met for storage encryption to be supported.
+        description: >-
+          A list of requirements that must be met for storage encryption to be supported.
+          'volumes-auth' indicates that volumes authentication using a PIN or passphrase
+          is required, likely because hardware root of trust (HWROT) is missing.

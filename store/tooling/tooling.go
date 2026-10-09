@@ -279,7 +279,7 @@ func (tsto *ToolingStore) downloadComponents(comps []string, sar *store.SnapActi
 
 		targetFn := filepath.Join(targetDir, baseName)
 
-		downloadedComp, err := tsto.componentDownload(targetFn, sar.SnapName().String(), srr, snapOpts)
+		downloadedComp, err := tsto.componentDownload(targetFn, sar.SnapName(), srr, snapOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -440,7 +440,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 				return nil, err
 			}
 
-			cref := naming.NewComponentRef(sar.SnapName().String(), res.Name)
+			cref := naming.NewComponentRef(sar.SnapName(), res.Name)
 			csi := snap.NewComponentSideInfo(cref, snap.R(res.Revision))
 			cinfos[res.Name] = snap.NewComponentInfo(
 				cref, ctyp, res.Version, "", "", sar.Provenance(), csi)
@@ -550,7 +550,7 @@ type DownloadedComponent struct {
 	Info *snap.ComponentInfo
 }
 
-func (tsto *ToolingStore) componentDownload(targetFn string, snapName string, srr *store.SnapResourceResult, opts DownloadSnapOptions) (downloadedComp *DownloadedComponent, err error) {
+func (tsto *ToolingStore) componentDownload(targetFn string, snapName naming.SnapName, srr *store.SnapResourceResult, opts DownloadSnapOptions) (downloadedComp *DownloadedComponent, err error) {
 	// Check if this is a component we can handle
 	ctyp, err := store.ResourceToComponentType(srr.Type)
 	if err != nil {

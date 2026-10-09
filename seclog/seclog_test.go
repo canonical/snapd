@@ -251,6 +251,24 @@ func (s *SecLogSuite) TestLogSystemStandbySnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
 }
 
+func (s *SecLogSuite) TestLogSystemStartupSnapd(c *C) {
+	seclog.LogSystemStartupSnapd("2.78", "11111111-2222-3333-4444-555555555555")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_startup_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd startup")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[boot_id="11111111-2222-3333-4444-555555555555"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemStartupSnapdUnknownVersionAndBootID(c *C) {
+	seclog.LogSystemStartupSnapd("", "")
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_startup_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd startup")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[boot_id="<unknown>"]`)
+}
+
 func (s *SecLogSuite) TestLogUserCreated(c *C) {
 	user := seclog.SnapdUser{
 		ID:             1,
@@ -367,7 +385,7 @@ func (s *SecLogSuite) TestLogAdminActivityWithInterface(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
 	peer := seclog.Peer{Socket: "/run/snapd-snap.socket", UID: 0, PID: 4242}
 	endpoint := seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}
-	reason := seclog.GrantRootAuth.WithInterface("desktop-launch", true)
+	reason := seclog.GrantRootAuth.WithInterface("desktop-launch", seclog.InterfaceSidePlug)
 	seclog.LogAdminActivity(user, peer, endpoint, reason)
 
 	c.Check(s.buf.String(), testutil.Contains, "granted access to GET:/v2/snaps:<none> (root-auth desktop-launch plug)")

@@ -285,7 +285,7 @@ func (s *SlogSuite) TestGrantReasonLogValue(c *C) {
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"test",
-		seclog.Attr{Key: "reason_granted", Value: seclog.GrantRootAuth.WithInterface("desktop-launch", true)},
+		seclog.Attr{Key: "reason_granted", Value: seclog.GrantRootAuth.WithInterface("desktop-launch", seclog.InterfaceSidePlug)},
 	)
 
 	var obtained record
@@ -359,6 +359,40 @@ func (s *SlogSuite) TestLogSystemStandbySnapd(c *C) {
 	c.Check(keys, DeepEquals, []string{
 		"datetime", "level", "description",
 		"app_id", "type", "category", "event", "snapd_version", "reason",
+	})
+}
+
+func (s *SlogSuite) TestLogSystemStartupSnapd(c *C) {
+	type record struct {
+		baseAttrs
+		Event        string `json:"event"`
+		SnapdVersion string `json:"snapd_version"`
+		BootID       string `json:"boot_id"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "SYS", Name: "sys_startup_snapd", Level: seclog.LevelInfo},
+		"Snapd startup",
+		seclog.Attr{Key: "snapd_version", Value: "2.78"},
+		seclog.Attr{Key: "boot_id", Value: "11111111-2222-3333-4444-555555555555"},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Snapd startup")
+	c.Check(obtained.Category, Equals, "SYS")
+	c.Check(obtained.Event, Equals, "sys_startup_snapd")
+	c.Check(obtained.SnapdVersion, Equals, "2.78")
+	c.Check(obtained.BootID, Equals, "11111111-2222-3333-4444-555555555555")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_version", "boot_id",
 	})
 }
 
