@@ -18,8 +18,6 @@ properties:
     enum:
       - check-pin-quality
   pin:
-    type: string
-    format: password
-    pattern: '^[0-9]+$'
-    maxLength: 256
+    allOf:
+      - $ref: 'PIN.yaml'
     description: The PIN to validate.

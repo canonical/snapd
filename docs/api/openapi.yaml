@@ -167,6 +167,10 @@ components:
       $ref: './v2/components/schemas/Notice.yaml'
     NoticeType:
       $ref: './v2/components/schemas/NoticeType.yaml'
+    PIN:
+      $ref: './v2/components/schemas/PIN.yaml'
+    Passphrase:
+      $ref: './v2/components/schemas/Passphrase.yaml'
     Plug:
       $ref: './v2/components/schemas/Plug.yaml'
     PlugRef:

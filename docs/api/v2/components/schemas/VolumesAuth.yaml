@@ -33,9 +33,7 @@ oneOf:
         enum:
           - passphrase
       passphrase:
-        type: string
-        format: password
-        minLength: 1
+        $ref: 'Passphrase.yaml'
       kdf-type:
         type: string
         enum:
@@ -57,7 +55,4 @@ oneOf:
         enum:
           - pin
       pin:
-        type: string
-        format: password
-        minLength: 1
-        maxLength: 255
+        $ref: 'PIN.yaml'

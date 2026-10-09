@@ -18,6 +18,6 @@ properties:
     enum:
       - check-passphrase-quality
   passphrase:
-    type: string
-    format: password
+    allOf:
+      - $ref: 'Passphrase.yaml'
     description: The passphrase to validate.
