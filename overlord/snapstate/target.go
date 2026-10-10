@@ -304,6 +304,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 		UserID:             snapUserID,
 		Flags:              flags.ForSnapSetup(),
 		SideInfo:           &t.info.SideInfo,
+		Publisher:          t.info.Publisher,
 		Type:               t.info.Type(),
 		Version:            t.info.Version,
 		PlugsOnly:          len(t.info.Slots) == 0,

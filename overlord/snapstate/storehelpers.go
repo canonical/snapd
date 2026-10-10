@@ -51,8 +51,11 @@ var EnforceLocalValidationSets func(*state.State, map[string][]string, map[strin
 var EnforceValidationSets func(*state.State, map[string]*asserts.ValidationSet, map[string]int, []*snapasserts.InstalledSnap, map[string]bool, int) error
 
 // ValidatedIntegrityData allows to hook fetching integrity data for snap-revisions that
-// have been already validated by inclusion in the assertion database. It's hooked from assertstate.
+// are handled directly by assertstate without reaching the store
 var ValidatedIntegrityData func(*state.State, string, snap.Revision) (*integrity.IntegrityDataParams, error)
+
+// PublisherStoreAccount allows hooking into assertstate to fetch publisher info from assertions.
+var PublisherStoreAccount func(st *state.State, snapID string) (snap.StoreAccount, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
