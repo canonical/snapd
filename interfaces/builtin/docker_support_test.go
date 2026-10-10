@@ -22,6 +22,7 @@ package builtin_test
 import (
 	"errors"
 	"os/exec"
+	"strings"
 
 	"github.com/snapcore/snapd/strutil"
 	. "gopkg.in/check.v1"
@@ -246,6 +247,12 @@ func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "/sys/fs/cgroup/*/docker/   rw,\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
 	c.Check(spec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "userns,\n")
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /[^s]** -> {,[&]}docker-default,`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `signal (send, receive) peer="docker-default//[&]@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `ptrace (read, readby, trace, tracedby) peer="docker-default//[&]@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /[^s]** -> {,[&]}cri-containerd.apparmor.d,`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `signal (send, receive) peer="cri-containerd.apparmor.d//[&]@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `ptrace (read, readby, trace, tracedby) peer="cri-containerd.apparmor.d//[&]@{profile_name}",`)
 
 	// test with apparmor userns support too
 	restore = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
@@ -481,7 +488,7 @@ pivot_root,
 # TODO: When we drop support for executing other snaps from devmode snaps (or 
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:
-# change_profile unsafe /** -> docker-default,
+# change_profile unsafe /** -> {,[&]}docker-default,
 # but until then we are stuck with:
 change_profile unsafe /[^s]** -> docker-default,
 change_profile unsafe /s[^n]** -> docker-default,
@@ -552,17 +559,18 @@ change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-conf[^i]** -> docker-defa
 change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confi[^n]** -> docker-default,
 change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** -> docker-default,
 
-
 # signal/tracing rules too
 signal (send) peer=docker-default,
+signal (send, receive) peer="docker-default//[&]@{profile_name}",
 ptrace (read, trace) peer=docker-default,
+ptrace (read, readby, trace, tracedby) peer="docker-default//[&]@{profile_name}",
 
 
 # defaults for containerd
 # TODO: When we drop support for executing other snaps from devmode snaps (or 
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:	
-# change_profile unsafe /** -> cri-containerd.apparmor.d,
+# change_profile unsafe /** -> {,[&]}cri-containerd.apparmor.d,
 # see above comment, we need this because we can't have nice things
 change_profile unsafe /[^s]** -> cri-containerd.apparmor.d,
 change_profile unsafe /s[^n]** -> cri-containerd.apparmor.d,
@@ -635,7 +643,9 @@ change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** -> cri-conta
 
 # signal/tracing rules too
 signal (send) peer=cri-containerd.apparmor.d,
+signal (send, receive) peer="cri-containerd.apparmor.d//[&]@{profile_name}",
 ptrace (read, trace) peer=cri-containerd.apparmor.d,
+ptrace (read, readby, trace, tracedby) peer="cri-containerd.apparmor.d//[&]@{profile_name}",
 
 # Graph (storage) driver bits
 /{dev,run}/shm/aufs.xino mrw,
@@ -881,6 +891,8 @@ ptrace (read, trace) peer=unconfined,
 
 	// Generate profile to compare with
 	privilegedProfile := dockerSupportPrivilegedAppArmor + dockerSupportConnectedPlugAppArmor
+	privilegedProfile = strings.ReplaceAll(privilegedProfile, " -> docker-default,", " -> {,[&]}docker-default,")
+	privilegedProfile = strings.ReplaceAll(privilegedProfile, " -> cri-containerd.apparmor.d,", " -> {,[&]}cri-containerd.apparmor.d,")
 
 	if (apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Partial) && (apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Full) {
 		c.Skip(apparmor_sandbox.Summary())
