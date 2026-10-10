@@ -1,0 +1,14 @@
+name: test-snapd-content-inst-slot
+summary: Content provider sharing a per-instance directory
+version: 1.0
+apps:
+    sh:
+        command: bin/sh
+slots:
+    assets:
+        interface: content
+        source:
+            read: [$SNAP_DATA/assets/$SNAP_INSTANCE_NAME]
+    assets-legacy:
+        interface: content
+        read: [$SNAP_COMMON/legacy/$SNAP_INSTANCE_NAME]

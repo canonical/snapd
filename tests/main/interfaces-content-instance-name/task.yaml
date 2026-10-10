@@ -1,0 +1,102 @@
+summary: Ensure $SNAP_INSTANCE_NAME works in content interface paths
+
+details: |
+    Content providers can refer to $SNAP_INSTANCE_NAME inside their source
+    paths, as long as the path starts with $SNAP_DATA or $SNAP_COMMON. The
+    variable must expand to the instance name of the snap owning the path,
+    both when the mount is computed and when the snap accesses it.
+
+    The variable is rejected if the path does not start with $SNAP_DATA nor
+    $SNAP_COMMON. It is also rejected in a plug's target path. Component
+    subpaths cannot contain variable references at all. Slots or plugs
+    declaring such invalid paths are rejected and the snap is installed
+    without them.
+
+environment:
+    PROVIDER: test-snapd-content-inst-slot
+    PROVIDER_INST: test-snapd-content-inst-slot_s1
+    PROVIDER_BAD: test-snapd-content-inst-bad-slot
+    CONSUMER: test-snapd-content-inst-plug
+    CONSUMER_INST: test-snapd-content-inst-plug_p1
+
+prepare: |
+    # Clear any pre-existing warnings.
+    snap warnings >/dev/null
+    snap okay || true
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+execute: |
+    echo "Install the content provider under its own name and as an instance"
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER"
+    "$TESTSTOOLS"/snaps-state install-local-as "$PROVIDER" "$PROVIDER_INST"
+    "$TESTSTOOLS"/snaps-state install-local-as "$CONSUMER" "$CONSUMER_INST"
+
+    echo "Both instances provide the shared content"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER}:assets"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER_INST}:assets"
+
+    echo "The mount sources are instance specific"
+    fstab="/var/lib/snapd/mount/snap.$CONSUMER_INST.fstab"
+    MATCH "/var/snap/$PROVIDER/x[0-9]+/assets/$PROVIDER " < "$fstab"
+    MATCH "/var/snap/$PROVIDER_INST/x[0-9]+/assets/$PROVIDER_INST " < "$fstab"
+
+    echo "Each provider writes into its own directory"
+    for name in "$PROVIDER" "$PROVIDER_INST"; do
+        #shellcheck disable=SC2016
+        "${name}.sh" -c 'mkdir -p "$SNAP_DATA/assets/$SNAP_INSTANCE_NAME"'
+        #shellcheck disable=SC2016
+        "${name}.sh" -c 'echo '"$name"' > "$SNAP_DATA/assets/$SNAP_INSTANCE_NAME/canary"'
+    done
+
+    echo "And the consumer sees both, each under the providing instance name"
+    for name in "$PROVIDER" "$PROVIDER_INST"; do
+        #shellcheck disable=SC2016
+        "${CONSUMER_INST}.sh" -c 'cat $SNAP_DATA/assets/'"$name"'/canary' | MATCH "$name"
+    done
+
+    echo "The legacy (non-source) read attribute also expands \$SNAP_INSTANCE_NAME"
+    snap connect "${CONSUMER_INST}:assets-legacy" "${PROVIDER_INST}:assets-legacy"
+    MATCH "/var/snap/$PROVIDER_INST/common/legacy/$PROVIDER_INST " < "$fstab"
+    #shellcheck disable=SC2016
+    "${PROVIDER_INST}.sh" -c 'mkdir -p "$SNAP_COMMON/legacy/$SNAP_INSTANCE_NAME"'
+    #shellcheck disable=SC2016
+    "${PROVIDER_INST}.sh" -c 'echo legacy > "$SNAP_COMMON/legacy/$SNAP_INSTANCE_NAME/canary"'
+    #shellcheck disable=SC2016
+    "${CONSUMER_INST}.sh" -c 'cat "$SNAP_COMMON/legacy-assets/canary"' | MATCH legacy
+
+    echo "Install the provider with invalid slot paths"
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_BAD"
+    snap warnings | tr '\n' ' ' | tr -s ' ' > warnings-output.txt
+    tests.cleanup defer rm -f warnings-output.txt
+
+    echo "A slot with a path rooted at the SNAP_INSTANCE_NAME variable is rejected"
+    #shellcheck disable=SC2016
+    MATCH 'variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON' < warnings-output.txt
+
+    echo "The slot is not present"
+    snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:assets"
+
+    echo "And connecting to it fails"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER_BAD}:assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no slot named "assets"'
+
+    echo "A slot with a variable in its component subpath is rejected"
+    MATCH 'component subpath cannot contain variable references' < warnings-output.txt
+
+    echo "The component slot is not present"
+    snap connections "$PROVIDER_BAD" | NOMATCH "$PROVIDER_BAD:component-assets"
+
+    echo "Connecting to the rejected component slot fails"
+    snap connect "${CONSUMER_INST}:assets" "${PROVIDER_BAD}:component-assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no slot named "component-assets"'
+
+    echo "A plug with SNAP_INSTANCE_NAME in its target is rejected"
+    #shellcheck disable=SC2016
+    MATCH 'content interface path is invalid: reference to unknown variable "\$SNAP_INSTANCE_NAME"' < warnings-output.txt
+
+    echo "The bad plug is not present"
+    snap connections "$CONSUMER_INST" | NOMATCH "$CONSUMER_INST:assets-bad"
+
+    echo "Connecting to the rejected plug fails"
+    snap connect "${CONSUMER_INST}:assets-bad" "${PROVIDER}:assets" 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'has no plug named "assets-bad"'
+
+    snap okay
