@@ -99,6 +99,7 @@ func (s *OnlineAccountsServiceInterfaceSuite) TestAppArrmorPermanentSlot(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 1)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `member={RequestName,ReleaseName,GetConnectionCredentials}`)
 	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.ubuntu.OnlineAccounts.Manager"`)
+	c.Assert(spec.SnippetForTag("snap.provider.app"), testutil.Contains, `name="com.lomiri.OnlineAccounts.Manager"`)
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSecCompPermanentSlot(c *C) {
