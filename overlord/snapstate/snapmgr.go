@@ -1524,6 +1524,7 @@ func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) erro
 				Description:              info.MountDescription(),
 				What:                     squashfsPath,
 				Where:                    whereDir,
+				RootDir:                  dirs.GlobalRootDir,
 				PreventRestartIfModified: true,
 			}
 

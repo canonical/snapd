@@ -36,7 +36,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -478,7 +477,7 @@ type Systemd interface {
 	// EnsureMountUnitFile adds/enables/starts a mount unit with options.
 	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
-	RemoveMountUnitFile(baseDir string) error
+	RemoveMountUnitFile(rootDir, baseDir string) error
 	// ListMountUnits gets the list of mount points of the mount units created
 	// by the `origin` module for the given snap. filter controls whether only
 	// units currently loaded in systemd's memory are returned (LoadedMountUnits)
@@ -566,7 +565,7 @@ type Reporter interface {
 func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd {
 	switch be {
 	case RunningSystemdBackend:
-		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+		return &systemd{chrootRootDir: rootDir, mode: mode, reporter: rep}
 	case EmulationModeBackend:
 		return &emulation{rootDir: rootDir}
 	default:
@@ -589,9 +588,6 @@ func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
 // systemd is not really called, but instead its functions are emulated
 // by other means.
 func NewEmulationMode(rootDir string) Systemd {
-	if rootDir == "" {
-		rootDir = dirs.GlobalRootDir
-	}
 	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
 
@@ -614,9 +610,10 @@ const (
 )
 
 type systemd struct {
-	rootDir  string
-	reporter Reporter
-	mode     InstanceMode
+	// chrootRootDir is passed to systemctl with --root when set.
+	chrootRootDir string
+	reporter      Reporter
+	mode          InstanceMode
 }
 
 func (s *systemd) systemctl(args ...string) ([]byte, error) {
@@ -685,9 +682,9 @@ func (s *systemd) EnableNoReload(serviceNames []string) error {
 		return nil
 	}
 	var args []string
-	if s.rootDir != "" {
+	if s.chrootRootDir != "" {
 		// passing root already implies no reload
-		args = append(args, "--root", s.rootDir)
+		args = append(args, "--root", s.chrootRootDir)
 	} else {
 		args = append(args, "--no-reload")
 	}
@@ -699,8 +696,8 @@ func (s *systemd) EnableNoReload(serviceNames []string) error {
 
 func (s *systemd) Unmask(serviceName string) error {
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "unmask", serviceName)
 	} else {
 		_, err = s.systemctl("unmask", serviceName)
 	}
@@ -712,9 +709,9 @@ func (s *systemd) DisableNoReload(serviceNames []string) error {
 		return nil
 	}
 	var args []string
-	if s.rootDir != "" {
+	if s.chrootRootDir != "" {
 		// passing root already implies no reload
-		args = append(args, "--root", s.rootDir)
+		args = append(args, "--root", s.chrootRootDir)
 	} else {
 		args = append(args, "--no-reload")
 	}
@@ -726,8 +723,8 @@ func (s *systemd) DisableNoReload(serviceNames []string) error {
 
 func (s *systemd) Mask(serviceName string) error {
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "mask", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "mask", serviceName)
 	} else {
 		_, err = s.systemctl("mask", serviceName)
 	}
@@ -907,8 +904,8 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	// not make sense.  We can determine the global "enabled"
 	// state of the services though.
 	cmd := append([]string{"is-enabled"}, unitNames...)
-	if s.rootDir != "" {
-		cmd = append([]string{"--root", s.rootDir}, cmd...)
+	if s.chrootRootDir != "" {
+		cmd = append([]string{"--root", s.chrootRootDir}, cmd...)
 	}
 	bs, err := s.systemctl(cmd...)
 	if err != nil {
@@ -1073,8 +1070,8 @@ func (s *systemd) Status(unitNames []string) ([]*UnitStatus, error) {
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "is-enabled", serviceName)
 	} else {
 		_, err = s.systemctl("is-enabled", serviceName)
 	}
@@ -1095,8 +1092,8 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 		panic("cannot call is-active with GlobalUserMode")
 	}
 	var err error
-	if s.rootDir != "" {
-		_, err = s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	if s.chrootRootDir != "" {
+		_, err = s.systemctl("--root", s.chrootRootDir, "is-active", serviceName)
 	} else {
 		_, err = s.systemctl("is-active", serviceName)
 	}
@@ -1438,42 +1435,59 @@ const (
 	Transient
 )
 
-// MountUnitPath returns the path of a {,auto}mount unit
-func MountUnitPath(baseDir string) string {
+// MountUnitPath returns the path of a {,auto}mount unit.
+func MountUnitPath(rootDir, baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
-	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
+	return filepath.Join(rootDir, "/etc/systemd/system", escapedPath+".mount")
 }
 
 // mountUnitPathWithLifetime returns the path of a {,auto}mount unit created in
 // the systemd directory suitable for the given unit lifetime. rootDir is the
 // directory for the root filesystem.
-func mountUnitPathWithLifetime(lifetime UnitLifetime, mountPointDir, rootDir string) string {
-	if rootDir == "" {
-		rootDir = dirs.GlobalRootDir
-	}
+func mountUnitPathWithLifetime(rootDir, mountPointDir string, lifetime UnitLifetime) string {
 	escapedPath := EscapeUnitNamePath(mountPointDir)
 	var servicesPath string
 	switch lifetime {
 	case Persistent:
-		servicesPath = dirs.SnapServicesDirUnder(rootDir)
+		servicesPath = filepath.Join(rootDir, "/etc/systemd/system")
 	case Transient:
-		servicesPath = dirs.SnapRuntimeServicesDirUnder(rootDir)
+		servicesPath = filepath.Join(rootDir, "/run/systemd/system")
 	default:
 		panic(fmt.Sprintf("unknown systemd unit lifetime %q", lifetime))
 	}
 	return filepath.Join(servicesPath, escapedPath+".mount")
 }
 
-// ExistingMountUnitPath finds the location of an existing mount unit
-func ExistingMountUnitPath(mountPointDir string) string {
+// ExistingMountUnitPath finds the location of an existing mount unit.
+func ExistingMountUnitPath(rootDir, mountPointDir string) string {
 	lifetimes := []UnitLifetime{Persistent, Transient}
 	for _, lifetime := range lifetimes {
-		unit := mountUnitPathWithLifetime(lifetime, mountPointDir, "")
+		unit := mountUnitPathWithLifetime(rootDir, mountPointDir, lifetime)
 		if osutil.FileExists(unit) {
 			return unit
 		}
 	}
 	return ""
+}
+
+// stripRootDir strips the given root directory prefix from the specified
+// absolute path, returning a path absolute to the root filesystem. An error
+// is returned if dir is not an absolute path or is not under rootDir.
+func stripRootDir(rootDir, dir string) (string, error) {
+	if !filepath.IsAbs(dir) {
+		return "", fmt.Errorf("supplied path is not absolute %q", dir)
+	}
+	if rootDir == "" {
+		rootDir = "/"
+	}
+	result, err := filepath.Rel(rootDir, dir)
+	if err != nil {
+		return "", err
+	}
+	if result == ".." || strings.HasPrefix(result, "../") {
+		return "", fmt.Errorf("supplied path %q is not under root directory %q", dir, rootDir)
+	}
+	return "/" + result, nil
 }
 
 var squashfsFsType = squashfs.FsType
@@ -1519,8 +1533,11 @@ func EnsureMountUnitFileContent(u *MountUnitOptions) (mountUnitName string, modi
 	if u == nil {
 		return "", MountUnchanged, errors.New("ensureMountUnitFile() expects valid mount options")
 	}
+	if u.RootDir == "" {
+		return "", MountUnchanged, errors.New("ensureMountUnitFile() expects a non-empty root directory")
+	}
 
-	mu := mountUnitPathWithLifetime(u.Lifetime, u.Where, u.RootDir)
+	mu := mountUnitPathWithLifetime(u.RootDir, u.Where, u.Lifetime)
 
 	if osutil.FileExists(mu) {
 		modified = MountUpdated
@@ -1606,7 +1623,11 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, modified, err := EnsureMountUnitFileContent(unitOptions)
+	opts := *unitOptions
+	if opts.RootDir == "" {
+		opts.RootDir = s.chrootRootDir
+	}
+	mountUnitName, modified, err := EnsureMountUnitFileContent(&opts)
 	if err != nil {
 		return "", err
 	}
@@ -1643,7 +1664,7 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 	return mountUnitName, nil
 }
 
-func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
+func (s *systemd) RemoveMountUnitFile(rootDir, mountedDir string) error {
 	// unmount regardless of whether the unit file exists as
 	// the unit file may have been deleted while the mount is
 	// still active
@@ -1664,7 +1685,11 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	mountPointDir, err := stripRootDir(rootDir, mountedDir)
+	if err != nil {
+		return err
+	}
+	unit := ExistingMountUnitPath(rootDir, mountPointDir)
 	if unit == "" {
 		return nil
 	}

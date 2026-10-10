@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -69,7 +70,7 @@ func (m *umountCommand) Execute([]string) error {
 			continue
 		}
 
-		if err := sysd.RemoveMountUnitFile(where); err != nil {
+		if err := sysd.RemoveMountUnitFile(dirs.GlobalRootDir, where); err != nil {
 			return fmt.Errorf("cannot remove mount unit: %v", err)
 		}
 		found = true

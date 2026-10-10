@@ -49,6 +49,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags Mo
 		Description:              c.MountDescription(),
 		What:                     squashfsPath,
 		Where:                    whereDir,
+		RootDir:                  dirs.GlobalRootDir,
 		PreventRestartIfModified: mountFlags.PreventRestartIfModified,
 	}
 
@@ -62,7 +63,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags Mo
 
 func removeMountUnit(mountDir string, meter progress.Meter) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
-	return sysd.RemoveMountUnitFile(mountDir)
+	return sysd.RemoveMountUnitFile(dirs.GlobalRootDir, mountDir)
 }
 
 // RemoveContainerMountUnits removes mount units for the given container. Only
@@ -86,7 +87,7 @@ func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter prog
 		if len(baseDirs) > 0 && !isUnderAnyDir(mountPoint, baseDirs, opts) {
 			continue
 		}
-		if err := sysd.RemoveMountUnitFile(mountPoint); err != nil {
+		if err := sysd.RemoveMountUnitFile(dirs.GlobalRootDir, mountPoint); err != nil {
 			return err
 		}
 	}
@@ -144,7 +145,7 @@ func (b Backend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *di
 }
 
 func listNonSnapctlMounts(info *snap.Info, baseDirs []string) ([]string, error) {
-	sysd := systemd.New(systemd.SystemMode, nil)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, nil)
 	// Mounts created using snapctl have the "mount-control" origin.
 	// Only active units are needed here but systemd.LoadedMountUnits
 	// lists loaded units which may be active or inactive. This is still

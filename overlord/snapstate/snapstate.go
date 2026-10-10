@@ -3486,7 +3486,7 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 }
 
 func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
-	nfsMount, err := osutil.SnapDirsUnderNFSMounts()
+	nfsMount, err := osutil.SnapDirsUnderNFSMounts(dirs.AllDataHomeGlobs())
 	if err != nil {
 		logger.Noticef("cannot check if any snap dirs are under remote mouts: %v", err)
 		return nil

@@ -24,7 +24,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -34,10 +33,6 @@ type mockDiskSuite struct {
 }
 
 var _ = Suite(&mockDiskSuite{})
-
-func (s *mockDiskSuite) SetUpTest(c *C) {
-	dirs.SetRootDir(c.MkDir())
-}
 
 func (s *mockDiskSuite) TestMockDeviceNameToDiskMapping(c *C) {
 	// one disk with different device names

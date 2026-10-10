@@ -28,7 +28,12 @@ func DiskFromDeviceName(deviceName string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
-var diskFromDeviceName = func(deviceName string) (Disk, error) {
+// DiskFromDeviceNameUnderRoot is not implemented on darwin
+func DiskFromDeviceNameUnderRoot(rootDir, deviceName string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromDeviceName = func(rootDir, deviceName string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
@@ -37,12 +42,26 @@ func DiskFromPartitionDeviceNode(node string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
+// DiskFromPartitionDeviceNodeUnderRoot is not implemented on darwin
+func DiskFromPartitionDeviceNodeUnderRoot(rootDir, node string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromPartitionDeviceNode = func(rootDir, node string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
 // DiskFromDevicePath is not implemented on darwin
 func DiskFromDevicePath(devicePath string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
-var diskFromDevicePath = func(devicePath string) (Disk, error) {
+// DiskFromDevicePathUnderRoot is not implemented on darwin
+func DiskFromDevicePathUnderRoot(rootDir, devicePath string) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromDevicePath = func(rootDir, devicePath string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
@@ -51,19 +70,25 @@ func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
+// DiskFromMountPointUnderRoot is not implemented on darwin
+func DiskFromMountPointUnderRoot(rootDir, mountpoint string, opts *Options) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
+var diskFromMountPoint = func(rootDir, mountpoint string, opts *Options) (Disk, error) {
+	return nil, osutil.ErrDarwin
+}
+
 func AllPhysicalDisks() ([]Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
-var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
+// AllPhysicalDisksUnderRoot is not implemented on darwin
+func AllPhysicalDisksUnderRoot(rootDir string) ([]Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
 var mountPointsForPartitionRoot = func(p Partition, opts map[string]string) ([]string, error) {
-	return nil, osutil.ErrDarwin
-}
-
-var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
 	return nil, osutil.ErrDarwin
 }
 
