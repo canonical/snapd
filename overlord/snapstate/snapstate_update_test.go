@@ -17471,9 +17471,14 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			inhibitHint:        "refresh",
 		}}...)
 	if opts.snapType == snap.TypeKernel {
-		expected = append(expected, fakeOp{
-			op: "prepare-kernel-snap",
-		}, fakeOp{
+		prepareKernelSnapOp := fakeOp{op: "prepare-kernel-snap"}
+		if opts.useSameSnapRev {
+			// same-revision refresh: SetupKernelRegenerate plus the active
+			// kernel-modules components.
+			prepareKernelSnapOp.currentComps = currentKmodComps
+			prepareKernelSnapOp.regenerate = true
+		}
+		expected = append(expected, prepareKernelSnapOp, fakeOp{
 			op:    "update-gadget-assets:Doing",
 			name:  instanceName.String(),
 			revno: newSnapRev,
@@ -19576,7 +19581,13 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	if opts.snapType == snap.TypeKernel {
 		expected = append(expected,
 			fakeOp{
-				op: "prepare-kernel-snap",
+				// component-only refresh: kernel revision is unchanged, so
+				// doPrepareKernelSnap always uses SetupKernelRegenerate. The
+				// component is already unlinked by this point, so
+				// currentComps is empty here.
+				op:           "prepare-kernel-snap",
+				currentComps: []*snap.ComponentSideInfo{},
+				regenerate:   true,
 			},
 			fakeOp{
 				op:    "update-gadget-assets:Doing",

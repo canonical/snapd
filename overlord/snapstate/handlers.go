@@ -5041,15 +5041,24 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// A same-revision refresh (explicit --revision, or a kernel-modules
+	// component refresh) targets the live, mounted drivers tree, not a
+	// fresh scratch dir: ask the backend to regenerate instead of
+	// install, passing the active components.
+	var currentComps []*snap.ComponentSideInfo
+	reason := backend.SetupKernelForInstall
+	if snapSt.Current == snapsup.Revision() {
+		currentComps = snapSt.Sequence.ComponentsWithTypeForRev(snapSt.Current, snap.KernelModulesComponent)
+		reason = backend.SetupKernelRegenerate
+	}
+
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	timings.Run(perfTimings, "prepare-kernel-snap",
 		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
-			// TODO explicitly indicate when we could be regenerating the
-			// drivers tree as a result of a refresh to the same revision.
 			err = m.backend.SetupKernelSnap(
-				snapsup.InstanceName().String(), snapsup.Revision(), pm)
+				snapsup.InstanceName().String(), snapsup.Revision(), currentComps, reason, pm)
 		})
 	st.Lock()
 	if err != nil {
@@ -5208,7 +5217,7 @@ func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb)
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName().String(), prevKernelRev, pm)
+					currInfo.InstanceName().String(), prevKernelRev, nil, backend.SetupKernelForInstall, pm)
 			})
 		st.Lock()
 		if err != nil {
