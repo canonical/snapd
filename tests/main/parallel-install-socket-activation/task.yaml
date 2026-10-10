@@ -1,0 +1,119 @@
+summary: Verify socket activation abstract socket remapping for parallel instances.
+
+details: |
+    Companion to tests/main/services-socket-activation: installs a snap
+    defining a socket-activated service twice, once regularly and once as a
+    parallel instance, and verifies that the abstract socket address used for
+    activation is remapped per instance key, and that enabling/disabling one
+    instance's socket unit does not affect the other's.
+
+environment:
+    CONFINEMENT/strict: strict
+    CONFINEMENT/classic: classic
+
+skip:
+    - reason: Cannot install classic snaps on core
+      if: |
+        [ "$CONFINEMENT" = classic ] && os.query is-core
+    - reason: classic parallel installs require the var-snap and
+        snap-mount-dir mount units shipped by the native package
+      if: |
+        [ "$CONFINEMENT" = classic ] && not systemctl cat var-snap.mount
+
+prepare: |
+    case "$CONFINEMENT" in
+        classic)
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            if [ "$SNAP_MOUNT_DIR" != "/snap" ] && [ ! -L /snap ]; then
+                # although classic snaps do not work out of the box on fedora,
+                # we still want to verify if the basics do work if the user
+                # symlinks /snap to $SNAP_MOUNT_DIR themselves
+                ln -sfn "$SNAP_MOUNT_DIR" /snap
+                tests.cleanup defer rm -f /snap
+            fi
+
+            # On Fedora/openSUSE/Arch the native package ships these units
+            # but does not auto-enable/start them (opt-in, like classic snap
+            # support in general on those distros); Debian/Ubuntu already
+            # have them enabled and active. Ensure both are active before
+            # installing anything, since a parallel installed classic snap
+            # cannot be installed while they are not.
+            if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
+                SNAP_MOUNT_UNIT="snap.mount"
+            else
+                SNAP_MOUNT_UNIT="var-lib-snapd-snap.mount"
+            fi
+            systemctl enable --now "$SNAP_MOUNT_UNIT" var-snap.mount
+
+            "$TESTSTOOLS"/snaps-state install-local socket-activation-classic --classic
+            ;;
+        strict)
+            "$TESTSTOOLS"/snaps-state install-local socket-activation
+            ;;
+    esac
+
+restore: |
+    systemctl daemon-reload
+
+execute: |
+    verify_unit_status() {
+        local UNIT="$1"
+        local UNIT_FILE_STATE="$2"
+        local ACTIVE_STATE="$3"
+
+        systemctl show --property=UnitFileState "$UNIT" | MATCH "^UnitFileState=${UNIT_FILE_STATE}$"
+        systemctl show --property=ActiveState "$UNIT" | MATCH "^ActiveState=${ACTIVE_STATE}$"
+    }
+
+    verify_unit_status_non_instance() {
+        local UNIT_FILE_STATE="$1"
+        local ACTIVE_STATE="$2"
+
+        verify_unit_status snap.socket-activation.sleep-daemon.sock-abstract.socket "$UNIT_FILE_STATE" "$ACTIVE_STATE"
+    }
+
+    verify_unit_status_instance() {
+        local UNIT_FILE_STATE="$1"
+        local ACTIVE_STATE="$2"
+
+        verify_unit_status snap.socket-activation_foo.sleep-daemon.sock-abstract.socket "$UNIT_FILE_STATE" "$ACTIVE_STATE"
+    }
+
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+    if [ "$CONFINEMENT" = classic ]; then
+        "$TESTSTOOLS"/snaps-state install-local-as socket-activation-classic socket-activation_foo --classic
+    else
+        "$TESTSTOOLS"/snaps-state install-local-as socket-activation socket-activation_foo
+    fi
+    tests.cleanup defer snap remove --purge socket-activation_foo
+
+    unit_abstract=/etc/systemd/system/snap.socket-activation.sleep-daemon.sock-abstract.socket
+    unit_abstract_foo=/etc/systemd/system/snap.socket-activation_foo.sleep-daemon.sock-abstract.socket
+
+    MATCH '^ListenStream=@snap.socket-activation\.abstract$' < "$unit_abstract"
+    MATCH '^ListenStream=@snap.socket-activation_foo\.abstract$' < "$unit_abstract_foo"
+
+    echo "Verify abstract socket unit status"
+    verify_unit_status_non_instance enabled active
+    verify_unit_status_instance enabled active
+
+    echo "Verify disabling one instance does not affect the other"
+    snap stop --disable socket-activation_foo.sleep-daemon
+    verify_unit_status_instance disabled inactive
+    verify_unit_status_non_instance enabled active
+
+    echo "Re-enable disabled instance"
+    snap start --enable socket-activation_foo.sleep-daemon
+    verify_unit_status_instance enabled active
+
+    echo "Verify disabling non-instance does not affect instance"
+    snap stop --disable socket-activation.sleep-daemon
+    verify_unit_status_non_instance disabled inactive
+    verify_unit_status_instance enabled active
+
+    echo "Re-enable disabled non-instance"
+    snap start --enable socket-activation.sleep-daemon
+    verify_unit_status_non_instance enabled active
+    verify_unit_status_instance enabled active

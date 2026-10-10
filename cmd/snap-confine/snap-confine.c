@@ -528,15 +528,7 @@ int main(int argc, char **argv) {
         sc_reassociate_with_pid1_mount_ns();
         // Do global initialization:
         int global_lock_fd = sc_lock_global();
-        // Ensure that "/" or "/snap" is mounted with the
-        // "shared" option on legacy systems, see LP:#1668659
-        debug("ensuring that snap mount directory is shared");
-        sc_ensure_shared_snap_mount();
-        unsigned int experimental_features = 0;
-        if (sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES)) {
-            experimental_features |= SC_FEATURE_PARALLEL_INSTANCES;
-        }
-        sc_initialize_mount_ns(experimental_features);
+        sc_initialize_mount_ns();
         sc_unlock(global_lock_fd);
     }
 
@@ -664,6 +656,23 @@ int main(int argc, char **argv) {
     return 1;
 }
 
+/* sc_mount_unit_file_exists checks whether the named systemd unit file is
+ * shipped on disk, regardless of whether it is currently enabled or active;
+ * used to tell "needs enabling" apart from "needs a package update" in the
+ * error messages below. */
+static bool sc_mount_unit_file_exists(const char *unit) {
+    static const char *const unit_dirs[] = {"/usr/lib/systemd/system", "/lib/systemd/system", NULL};
+    char path[PATH_MAX] = {0};
+    struct stat st = {0};
+    for (const char *const *dir = unit_dirs; *dir != NULL; dir++) {
+        sc_must_snprintf(path, sizeof path, "%s/%s", *dir, unit);
+        if (stat(path, &st) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void enter_classic_execution_environment(const sc_invocation *inv, gid_t real_gid, gid_t saved_gid) {
     /* with parallel-instances enabled, main() reassociated with the mount ns of
      * PID 1 to make /run/snapd/ns visible */
@@ -681,16 +690,34 @@ static void enter_classic_execution_environment(const sc_invocation *inv, gid_t 
         return;
     }
 
-    /* all of the following code is experimental and part of parallel instances
-     * of classic snaps support */
+    bool has_instance_key = !sc_streq(inv->snap_instance, inv->snap_name);
 
-    debug("(experimental) unsharing the mount namespace (per-classic-snap)");
+    /* MS_SLAVE below requires SNAP_MOUNT_DIR and /var/snap to already be
+     * mount points, otherwise it silently applies to whatever larger mount
+     * contains them. Only matters with a non-empty instance key. */
+    if (has_instance_key) {
+        const char *snap_mount_dir = sc_snap_mount_dir(NULL);
+        if (!sc_is_mount_point(snap_mount_dir) || !sc_is_mount_point("/var/snap")) {
+            const char *snap_mount_unit =
+                sc_streq(snap_mount_dir, SC_CANONICAL_SNAP_MOUNT_DIR) ? "snap.mount" : "var-lib-snapd-snap.mount";
+            if (sc_mount_unit_file_exists(snap_mount_unit) && sc_mount_unit_file_exists("var-snap.mount")) {
+                die("cannot run parallel installed classic snap instance %s: the following mount units need to "
+                    "be enabled and started: %s, var-snap.mount",
+                    inv->snap_instance, snap_mount_unit);
+            } else {
+                die("cannot run parallel installed classic snap instance %s: the snapd native package needs "
+                    "updating to support parallel installed classic snaps",
+                    inv->snap_instance);
+            }
+        }
+    }
+
+    debug("unsharing the mount namespace (per-classic-snap)");
 
     /* Construct a mount namespace where the snap instance directories are
      * visible under the regular snap name. In order to do that we will:
      *
-     * - convert SNAP_MOUNT_DIR into a mount point (global init)
-     * - convert /var/snap into a mount point (global init)
+     * - SNAP_MOUNT_DIR and /var/snap are already mount points
      * - always create a new mount namespace
      * - for snaps with non empty instance key:
      *   - set slave propagation recursively on SNAP_MOUNT_DIR and /var/snap
@@ -707,8 +734,8 @@ static void enter_classic_execution_environment(const sc_invocation *inv, gid_t 
     }
 
     /* Parallel installed classic snap get special handling */
-    if (!sc_streq(inv->snap_instance, inv->snap_name)) {
-        debug("(experimental) setting up environment for classic snap instance %s", inv->snap_instance);
+    if (has_instance_key) {
+        debug("setting up environment for classic snap instance %s", inv->snap_instance);
 
         /* set up mappings for snap and data directories */
         sc_setup_parallel_instance_classic_mounts(inv->snap_name, inv->snap_instance);

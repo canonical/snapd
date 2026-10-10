@@ -975,38 +975,19 @@ void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
     sc_call_snap_update_ns(snap_update_ns_fd, inv->snap_instance, apparmor);
 }
 
-static bool is_mounted_with_shared_option(const char *dir) __attribute__((nonnull(1)));
-
-static bool is_mounted_with_shared_option(const char *dir) {
+bool sc_is_mount_point(const char *dir) {
     sc_mountinfo *sm SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
     sm = sc_parse_mountinfo(NULL);
     if (sm == NULL) {
         die("cannot parse /proc/self/mountinfo");
     }
-    sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm);
-    while (entry != NULL) {
-        const char *mount_dir = entry->mount_dir;
-        if (sc_streq(mount_dir, dir)) {
-            const char *optional_fields = entry->optional_fields;
-            if (strstr(optional_fields, "shared:") != NULL) {
-                return true;
-            }
+    for (sc_mountinfo_entry *entry = sc_first_mountinfo_entry(sm); entry != NULL;
+         entry = sc_next_mountinfo_entry(entry)) {
+        if (sc_streq(entry->mount_dir, dir)) {
+            return true;
         }
-        entry = sc_next_mountinfo_entry(entry);
     }
     return false;
-}
-
-void sc_ensure_shared_snap_mount(void) {
-    if (!is_mounted_with_shared_option("/") && !is_mounted_with_shared_option(sc_snap_mount_dir(NULL))) {
-        // TODO: We could be more aggressive and refuse to function but since
-        // we have no data on actual environments that happen to limp along in
-        // this configuration let's not do that yet.  This code should be
-        // removed once we have a measurement and feedback mechanism that lets
-        // us decide based on measurable data.
-        sc_do_mount(sc_snap_mount_dir(NULL), sc_snap_mount_dir(NULL), "none", MS_BIND | MS_REC, NULL);
-        sc_do_mount("none", sc_snap_mount_dir(NULL), NULL, MS_SHARED | MS_REC, NULL);
-    }
 }
 
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd, const char *snap_name) {
@@ -1026,27 +1007,6 @@ void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd, c
     // but don't propagate our own changes.
     sc_do_mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL);
     sc_call_snap_update_ns_as_user(snap_update_ns_fd, snap_name, apparmor);
-}
-
-void sc_ensure_snap_dir_shared_mounts(void) {
-    const char *dirs[] = {sc_snap_mount_dir(NULL), "/var/snap", NULL};
-    for (int i = 0; dirs[i] != NULL; i++) {
-        const char *dir = dirs[i];
-        if (!is_mounted_with_shared_option(dir)) {
-            /* Since this directory isn't yet shared (but it should be),
-             * recursively bind mount it, then recursively share it so that
-             * changes to the host are seen in the snap and vice-versa. This
-             * allows us to fine-tune propagation events elsewhere for this new
-             * mountpoint.
-             *
-             * Not using MS_SLAVE because it's too late for SNAP_MOUNT_DIR,
-             * since snaps are already mounted, and it's not needed for
-             * /var/snap.
-             */
-            sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, NULL);
-            sc_do_mount("none", dir, NULL, MS_REC | MS_SHARED, NULL);
-        }
-    }
 }
 
 void sc_setup_parallel_instance_classic_mounts(const char *snap_name, const char *snap_instance_name) {

@@ -18,12 +18,24 @@ BINDIR := /usr/bin
 LIBEXECDIR := /usr/lib
 SYSTEMDSYSTEMUNITDIR := /lib/systemd/system
 
+# Selects which snap-mount-dir unit to install: snap.mount (canonical
+# /snap) or var-lib-snapd-snap.mount (/var/lib/snapd/snap). Alternate wins
+# if both are set.
+USE_CANONICAL_SNAP_MOUNT_DIR ?= true
+USE_ALT_SNAP_MOUNT_DIR ?= false
+ifeq ($(USE_ALT_SNAP_MOUNT_DIR),true)
+SNAP_MOUNT_DIR_UNIT := var-lib-snapd-snap.mount
+else
+SNAP_MOUNT_DIR_UNIT := snap.mount
+endif
+
 # NOTE: the code in wrappers/core18.go assumes that all our service units's
 # name start with the "snapd." prefix; units whose filename does not have this
-# prefix will not be installed on the host!
+# prefix will not be installed on the host! SNAP_MOUNT_DIR_UNIT and
+# var-snap.mount rely on this to stay classic-only.
 SYSTEMD_UNITS_GENERATED := $(wildcard *.in)
 # NOTE: sort removes duplicates so this gives us all the units, generated or otherwise
-SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket) $(wildcard *.target))
+SYSTEMD_UNITS = $(sort $(SYSTEMD_UNITS_GENERATED:.in=) $(wildcard *.service) $(wildcard *.timer) $(wildcard *.socket) $(wildcard *.target) $(SNAP_MOUNT_DIR_UNIT) var-snap.mount)
 
 .PHONY: all
 all: $(SYSTEMD_UNITS)

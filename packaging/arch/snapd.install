@@ -33,11 +33,34 @@ _disable_services() {
   _systemctl_do_for_all --no-reload disable
 }
 
+_stop_mounts() {
+  # Harmless if never enabled: a user is expected to opt in to parallel
+  # installed classic snap support themselves, same as classic snap
+  # support in general on this distro.
+  /usr/bin/systemctl stop \
+    var-lib-snapd-snap.mount \
+    var-snap.mount > /dev/null 2>&1 || :
+}
+
+_disable_mounts() {
+  /usr/bin/systemctl --no-reload disable \
+    var-lib-snapd-snap.mount \
+    var-snap.mount > /dev/null 2>&1 || :
+}
+
 pre_remove() {
   _stop_services
   _disable_services
 
   /usr/lib/snapd/snap-mgmt --purge || :
+
+  # snap-mgmt --purge already unmounts these (it tears down per-snap
+  # content mounts first, then these parent self-binds last); run after
+  # it, not before, so a premature stop here doesn't cascade-stop those
+  # per-snap mounts out from under snap-mgmt's own cleanup. Only the
+  # disable (dropping enablement symlinks) is not covered by purge.
+  _stop_mounts
+  _disable_mounts
 }
 
 pre_upgrade() {

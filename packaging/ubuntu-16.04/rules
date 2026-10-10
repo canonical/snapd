@@ -85,6 +85,11 @@ endif
 
 SYSTEMD_UNITS_DESTDIR:=$(or $(shell pkg-config --variable=systemdsystemunitdir systemd),$(error pkg-config did not return systemdsystemunitdir))
 
+# Whichever of snap.mount/var-lib-snapd-snap.mount actually got shipped,
+# plus var-snap.mount; see override_dh_systemd_start below.
+MOUNT_UNITS = $(filter snap.mount var-lib-snapd-snap.mount var-snap.mount, \
+$(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
+
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
@@ -421,5 +426,12 @@ override_dh_systemd_start:
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.socket
 	# Then service
 	dh_systemd_start $(DH_SYSTEMD_START_OPTS) snapd.service
+	# snap.mount/var-lib-snapd-snap.mount and var-snap.mount: enable+start
+	# on fresh install like any other unit, but never stop/restart them on
+	# upgrade regardless of DH_SYSTEMD_START_OPTS. A running bind mount's
+	# own per-snap child content mounts do not survive that (see
+	# packaging/debian-sid/snapd.postinst for the 2.31 incident this
+	# caused previously).
+	dh_systemd_start --no-stop-on-upgrade $(MOUNT_UNITS)
 	# Then the rest
-	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
+	dh_systemd_start $(DH_SYSTEMD_START_OPTS) $(filter-out snapd.socket snapd.service snapd.mounts-pre.target $(MOUNT_UNITS), $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
