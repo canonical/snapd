@@ -182,7 +182,8 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionStillRecordsPrevio
 	// same-revision refresh: target revision equals snapst.Current.
 	// previous-kernel-rev is still recorded unconditionally; safety is
 	// enforced by the consumers (discard-old-kernel-snap-setup and its
-	// undo), not by withholding this value.
+	// undo), not by withholding this value. SetupKernelSnap also gets
+	// SetupKernelRegenerate here.
 	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -209,7 +210,9 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionStillRecordsPrevio
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "prepare-kernel-snap",
+			op:           "prepare-kernel-snap",
+			currentComps: []*snap.ComponentSideInfo{},
+			regenerate:   true,
 		},
 	})
 }
@@ -228,8 +231,8 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnapSameRevisionDoesNotRemove(
 		UserID:  1,
 	})
 
-	// same-revision refresh: do's SetupKernelSnap was a no-op on the live
-	// tree, so undo must not remove it.
+	// same-revision refresh: do's SetupKernelSnap uses SetupKernelRegenerate,
+	// not a fresh install, so undo must not remove the live tree.
 	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -259,7 +262,9 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnapSameRevisionDoesNotRemove(
 	// no remove-kernel-snap-setup: that would delete the live/mounted tree
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
-			op: "prepare-kernel-snap",
+			op:           "prepare-kernel-snap",
+			currentComps: []*snap.ComponentSideInfo{},
+			regenerate:   true,
 		},
 	})
 }

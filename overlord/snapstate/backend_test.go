@@ -103,6 +103,8 @@ type fakeOp struct {
 	currentComps []*snap.ComponentSideInfo
 	finalComps   []*snap.ComponentSideInfo
 
+	regenerate bool
+
 	containerName     string
 	containerFileName string
 
@@ -1189,11 +1191,17 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, instanceName naming.I
 	return snapType, &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, reason backend.SetupKernelReason, meter progress.Meter) error {
 	meter.Notify("prepare-kernel-snap")
-	f.appendOp(&fakeOp{
-		op: "prepare-kernel-snap",
-	})
+	op := &fakeOp{
+		op:           "prepare-kernel-snap",
+		currentComps: currentComps,
+		regenerate:   reason == backend.SetupKernelRegenerate,
+	}
+	f.appendOp(op)
+	if err := f.maybeErr(op); err != nil {
+		return err
+	}
 	return nil
 }
 
