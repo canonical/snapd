@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
@@ -502,10 +503,10 @@ func MockSnapdtoolIsReexecd(f func() (bool, error)) (restore func()) {
 	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
 
-func MockSquashfsGenerateDelta(f func(context.Context, string, string, string, string) error) (restore func()) {
+func MockSquashfsGenerateDelta(f func(context.Context, string, string, string, string, *squashfs.GenerateDeltaOpts) error) (restore func()) {
 	return testutil.Mock(&squashfsGenerateDelta, f)
 }
 
-func MockSquashfsApplyDelta(f func(context.Context, string, string, string) error) (restore func()) {
+func MockSquashfsApplyDelta(f func(context.Context, string, string, string, *squashfs.ApplyDeltaOpts) error) (restore func()) {
 	return testutil.Mock(&squashfsApplyDelta, f)
 }
