@@ -124,7 +124,7 @@ func init() {
 		baseDeclarationPlugs:     multipassSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor:    multipassSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     multipassSupportConnectedPlugSecComp,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

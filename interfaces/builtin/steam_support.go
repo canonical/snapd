@@ -422,7 +422,7 @@ func init() {
 		baseDeclarationSlots:     steamSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     steamSupportBaseDeclarationPlugs,
 		connectedPlugSecComp:     steamSupportConnectedPlugSecComp,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }
