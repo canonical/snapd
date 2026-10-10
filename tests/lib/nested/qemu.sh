@@ -39,6 +39,89 @@ nested_print_serial_log() {
     fi
 }
 
+nested_configure_vm_resources() {
+    if [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
+        PARAM_MEM="-m ${NESTED_MEM:-2048}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
+    elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-6}"
+    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]] || [[ "$SPREAD_BACKEND" = "openstack-validation" ]]; then
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+}
+
+nested_configure_legacy_vm_machine() {
+    if [[ "$SPREAD_BACKEND" = openstack* ]]; then
+        PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+    elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
+        if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
+            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
+        else
+            PARAM_MACHINE=""
+            PARAM_CPU=""
+            ATTR_KVM=""
+        fi
+    else
+        echo "unknown spread backend $SPREAD_BACKEND"
+        exit 1
+    fi
+}
+
+nested_configure_vm_firmware() {
+    if [ -n "$NESTED_CUSTOM_FIRMWARE" ]; then
+        PARAM_BIOS="-drive file=${NESTED_CUSTOM_FIRMWARE},if=pflash,format=raw,readonly=on"
+        return
+    fi
+
+    nested_ensure_ovmf
+    local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
+    if os.query is-arm; then
+        OVMF=AAVMF
+        OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.ms.fd"
+    else
+        OVMF=OVMF
+        OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
+    fi
+    OVMF_CODE="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_CODE.fd"
+    OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
+    OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
+
+    if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
+        if nested_is_secure_boot_enabled; then
+            cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
+        else
+            cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
+        fi
+    fi
+    PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
+}
+
+nested_configure_vm_tpm() {
+    if ! nested_is_tpm_enabled; then
+        return
+    fi
+
+    if snap list test-snapd-swtpm >/dev/null; then
+        if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ]; then
+            nested_vm_clear_tpm
+        fi
+    else
+        snap install test-snapd-swtpm --edge
+    fi
+    retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
+    PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm"
+    if os.query is-arm; then
+        PARAM_TPM="$PARAM_TPM -device tpm-tis-device,tpmdev=tpm0"
+    else
+        PARAM_TPM="$PARAM_TPM -device tpm-tis,tpmdev=tpm0"
+    fi
+}
+
 nested_create_vm_service() {
     local QEMU CURRENT_IMAGE PARAM_OPT
     CURRENT_IMAGE=$1
@@ -57,19 +140,7 @@ nested_create_vm_service() {
     # use only 2G of RAM for qemu-nested
     # the caller can override PARAM_MEM
     local PARAM_MEM PARAM_SMP
-    if [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-2048}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-8192}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-6}"
-    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]] || [[ "$SPREAD_BACKEND" = "openstack-validation" ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
-    fi
+    nested_configure_vm_resources
 
     PARAM_PHYS_BLOCK_SIZE="physical_block_size=${NESTED_DISK_PHYSICAL_BLOCK_SIZE}"
     PARAM_LOGI_BLOCK_SIZE="logical_block_size=${NESTED_DISK_LOGICAL_BLOCK_SIZE}"
@@ -132,50 +203,11 @@ nested_create_vm_service() {
     PARAM_REEXEC_ON_FAILURE=""
 
     if nested_is_core_lt 20; then
-        if [[ "$SPREAD_BACKEND" = openstack* ]]; then
-            PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-        elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
-            # check if we have nested kvm
-            if [ "$(cat /sys/module/kvm_*/parameters/nested)" = "1" ]; then
-                PARAM_MACHINE="-machine ubuntu${ATTR_KVM}"
-            else
-                # and if not reset kvm related parameters
-                PARAM_MACHINE=""
-                PARAM_CPU=""
-                ATTR_KVM=""
-            fi
-        else
-            echo "unknown spread backend $SPREAD_BACKEND"
-            exit 1
-        fi
+        nested_configure_legacy_vm_machine
     fi
 
     if nested_is_core_ge 20; then
-        if [ -z "$NESTED_CUSTOM_FIRMWARE" ]; then
-            nested_ensure_ovmf
-            local OVMF_CODE OVMF_VARS OVMF_VARS_SECBOOT OVMF_VARS_CURRENT OVMF
-            if os.query is-arm; then
-                OVMF=AAVMF
-                OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.ms.fd"
-            else
-                OVMF=OVMF
-                OVMF_VARS_SECBOOT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.enrolled.fd"
-            fi
-            OVMF_CODE="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_CODE.fd"
-            OVMF_VARS="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.fd"
-            OVMF_VARS_CURRENT="${NESTED_ASSETS_DIR}/ovmf/fw/${OVMF}_VARS.current.fd"
-
-            if [ -z "$NESTED_KEEP_FIRMWARE_STATE" ] || ! [ -e "${OVMF_VARS_CURRENT}" ]; then
-                if nested_is_secure_boot_enabled; then
-                    cp -fv "${OVMF_VARS_SECBOOT}" "${OVMF_VARS_CURRENT}"
-                else
-                    cp -fv "${OVMF_VARS}" "${OVMF_VARS_CURRENT}"
-                fi
-            fi
-            PARAM_BIOS="-drive file=${OVMF_CODE},if=pflash,format=raw,readonly=on -drive file=${OVMF_VARS_CURRENT},if=pflash,format=raw"
-        else
-            PARAM_BIOS="-drive file=${NESTED_CUSTOM_FIRMWARE},if=pflash,format=raw,readonly=on"
-        fi
+        nested_configure_vm_firmware
 
         local ENABLE_ARM_TRUSTZONE
         ENABLE_ARM_TRUSTZONE=""
@@ -190,24 +222,7 @@ nested_create_vm_service() {
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
         fi
 
-        if nested_is_tpm_enabled; then
-            if snap list test-snapd-swtpm >/dev/null; then
-                if [ -z "${NESTED_KEEP_FIRMWARE_STATE-}" ]; then
-                    # reset the tpm state
-                    nested_vm_clear_tpm
-                fi
-            else
-                snap install test-snapd-swtpm --edge
-            fi
-            # wait for the tpm sock file to exist
-            retry -n 10 --wait 1 test -S /var/snap/test-snapd-swtpm/current/swtpm-sock
-            PARAM_TPM="-chardev socket,id=chrtpm,path=/var/snap/test-snapd-swtpm/current/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm"
-            if os.query is-arm; then
-                PARAM_TPM="$PARAM_TPM -device tpm-tis-device,tpmdev=tpm0"
-            else
-                PARAM_TPM="$PARAM_TPM -device tpm-tis,tpmdev=tpm0"
-            fi
-        fi
+        nested_configure_vm_tpm
         # addr=5 is to make tests/nested/manual/install-volume-assignment have stable address
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device virtio-blk-pci,drive=disk1,bootindex=1,addr=5"
     else
