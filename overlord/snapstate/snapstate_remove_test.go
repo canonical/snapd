@@ -2916,6 +2916,100 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 	checkComps(s.fakeBackend.ops[20:26], expected[20:23], expected[23:26])
 }
 
+func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
+	const snapName = "snap1"
+	const instanceName = "snap1_key"
+	const compName = "comp1"
+
+	cref := naming.NewComponentRef(snapName, compName)
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         cref,
+			Type:              snap.StandardComponent,
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	s.AddCleanup(snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		_, key := snap.SplitInstanceName(name.String())
+		info := &snap.Info{
+			SuggestedName: name.SnapName().String(),
+			InstanceKey:   key,
+			SideInfo:      *si,
+			SnapType:      snap.TypeApp,
+			Components: map[string]*snap.Component{
+				compName: {Name: compName, Type: snap.StandardComponent},
+			},
+		}
+		info.Apps = map[string]*snap.AppInfo{
+			"app": {Snap: info, Name: "app"},
+		}
+		return info, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	newSeq := func() sequence.SnapSequence {
+		si := &snap.SideInfo{RealName: snapName, Revision: snap.R(1)}
+		csi := snap.NewComponentSideInfo(cref, snap.R(11))
+		return snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(si, []*sequence.ComponentState{
+					sequence.NewComponentState(csi, snap.StandardComponent),
+				}),
+			})
+	}
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		Sequence: newSeq(),
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+		Active:      true,
+		Sequence:    newSeq(),
+		Current:     snap.R(1),
+		SnapType:    "app",
+		InstanceKey: "key",
+	})
+
+	ts, err := snapstate.Remove(s.state, instanceName, snap.R(0), nil)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("remove", "remove a snap")
+	chg.AddAll(ts)
+
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:   "unlink-component",
+		path: filepath.Join(dirs.SnapMountDir, "snap1_key/components/mnt/comp1/11"),
+	})
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:                "undo-setup-component",
+		containerName:     "snap1_key+comp1",
+		containerFileName: "snap1_key+comp1_11.comp",
+	})
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:                "remove-component-dir",
+		containerName:     "snap1_key+comp1",
+		containerFileName: "snap1_key+comp1_11.comp",
+	})
+	for _, op := range s.fakeBackend.ops {
+		c.Check(op.containerName, Not(Equals), "snap1+comp1")
+		c.Check(op.path, Not(Equals), filepath.Join(dirs.SnapMountDir, "snap1/components/mnt/comp1/11"))
+	}
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), testutil.ErrorIs, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Check(snapst.IsComponentInCurrentSeq(cref), Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestRemoveWithTerminate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

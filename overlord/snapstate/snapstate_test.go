@@ -11083,6 +11083,116 @@ func (s *snapmgrTestSuite) TestSaveRefreshCandidatesOnAutoRefresh(c *C) {
 	c.Check(cands["some-other-snap"], NotNil)
 }
 
+func (s *snapmgrTestSuite) TestAutoRefreshComponentsForParallelInstances(c *C) {
+	snapName := naming.SnapName("some-snap")
+	instanceName := naming.NewInstanceName(snapName, "key")
+	componentName := "standard-component"
+	snapID := "some-snap-id"
+	channel := "channel-for-components"
+	snapRev := snap.R(1)
+	componentRev := snap.R(1)
+
+	snapYAML := `name: some-snap
+version: 1.0
+components:
+  standard-component:
+    type: standard
+`
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.parallel-instances", true), IsNil)
+	tr.Commit()
+
+	cref := naming.NewComponentRef(snapName, componentName)
+	for _, name := range []naming.InstanceName{snapName.AsInstanceName(), instanceName} {
+		si := &snap.SideInfo{
+			RealName: snapName.String(),
+			SnapID:   snapID,
+			Revision: snapRev,
+			Channel:  channel,
+		}
+		snaptest.MockSnapInstance(c, name.String(), snapYAML, si)
+
+		componentState := sequence.NewComponentState(
+			snap.NewComponentSideInfo(cref, componentRev), snap.StandardComponent)
+		seq := snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(si, []*sequence.ComponentState{componentState}),
+			},
+		)
+		snapstate.Set(s.state, name.String(), &snapstate.SnapState{
+			Active:          true,
+			Sequence:        seq,
+			Current:         snapRev,
+			TrackingChannel: channel,
+			SnapType:        "app",
+			InstanceKey:     name.InstanceKey(),
+		})
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		_ string, _ *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              snap.StandardComponent,
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	s.fakeStore.refreshRevnos[snapID] = snap.R(2)
+	seenResources := make(map[naming.InstanceName]bool)
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		seenResources[info.InstanceName()] = true
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{DownloadURL: "http://example.com/" + componentName},
+			Name:         componentName,
+			Revision:     3,
+			Type:         "component/standard",
+			Version:      "1.0",
+			CreatedAt:    "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	updated, taskSets, err := snapstate.AutoRefresh(context.Background(), s.state)
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{snapName.String(), instanceName.String()})
+	c.Assert(taskSets.Refresh, Not(IsNil))
+	c.Check(seenResources, DeepEquals, map[naming.InstanceName]bool{
+		snapName.AsInstanceName(): true,
+		instanceName:              true,
+	})
+
+	chg := s.state.NewChange("auto-refresh", "refresh snaps")
+	for _, ts := range taskSets.Refresh {
+		chg.AddAll(ts)
+	}
+
+	componentTasks := make(map[naming.InstanceName]int)
+	for _, ts := range taskSets.Refresh {
+		for _, task := range ts.Tasks() {
+			if !task.Has("component-setup") {
+				continue
+			}
+
+			compsup, snapsup, err := snapstate.TaskComponentSetup(task)
+			c.Assert(err, IsNil)
+			name := snapsup.InstanceName()
+			c.Check(snapsup.Flags.IsAutoRefresh, Equals, true)
+			c.Check(filepath.Base(compsup.BlobPath(name.String())), Equals,
+				fmt.Sprintf("%s+%s_3.comp", name, componentName))
+			componentTasks[name]++
+		}
+	}
+	c.Check(componentTasks, DeepEquals, map[naming.InstanceName]int{
+		snapName.AsInstanceName(): 1,
+		instanceName:              1,
+	})
+}
+
 func (s *snapmgrTestSuite) testBackoffOnAutoRefresh(c *C, afterReboot bool) {
 	s.state.Lock()
 	defer s.state.Unlock()

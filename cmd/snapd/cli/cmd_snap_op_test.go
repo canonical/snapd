@@ -424,6 +424,32 @@ func (s *SnapOpSuite) TestInstallWithComponent(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallWithComponentInstance(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo_bar")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+			"action":      "install",
+			"components":  []any{"comp1", "comp2"},
+			"transaction": string(client.TransactionPerSnap),
+		})
+	}
+
+	s.srv.snap = "foo_bar"
+	s.srv.components = []string{"comp1", "comp2"}
+	s.RedirectClientToTestServer(s.srv.handle)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo_bar+comp1+comp2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo_bar 1.0 from Bar installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp1 3.2 for foo_bar 1.0 installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp2 3.2 for foo_bar 1.0 installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallManyWithComponents(c *check.C) {
 	total := 4
 	n := 0
@@ -523,6 +549,46 @@ func (s *SnapOpSuite) TestRemoveWithComponent(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 
 	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestRemoveWithComponentInstance(c *check.C) {
+	total := 3
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo_bar")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+				"action":     "remove",
+				"components": []any{"comp1"},
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"components": {"foo_bar": ["comp1"]}}}}`)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo_bar+comp1"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	c.Check(s.Stdout(), check.Equals, "component comp1 for foo_bar removed\n")
+	c.Check(s.Stderr(), check.Equals, "")
+
 	c.Check(n, check.Equals, total)
 }
 
@@ -1378,6 +1444,46 @@ func (s *SnapOpSuite) TestComponentInstallPath(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestComponentInstallPathInstance(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+
+		form := testForm(r, c)
+		defer form.RemoveAll()
+
+		c.Check(form.Value["action"], check.DeepEquals, []string{"install"})
+		c.Check(form.Value["name"], check.DeepEquals, []string{"foo_bar"})
+		c.Check(form.Value["dangerous"], check.DeepEquals, []string{"true"})
+		c.Check(form.Value["snap-path"], check.NotNil)
+		c.Check(form.Value["transaction"], check.NotNil)
+		c.Check(form.Value, check.HasLen, 5)
+
+		name, _, body := formFile(form, c)
+		c.Check(name, check.Equals, "snap")
+		c.Check(string(body), check.Equals, "component-data")
+	}
+	s.srv.snap = "foo_bar"
+	s.srv.onlyComponentChange = "mycomp"
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	compPath := filepath.Join(c.MkDir(), "foo+mycomp.comp")
+	err := os.WriteFile(compPath, []byte("component-data"), 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", "--name", "foo_bar", compPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component mycomp 3.2 for foo_bar 1.0 installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestInstallPathSnapAndComponentWithInstance(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--dangerous", "--name", "foo_bar", "foo.snap", "foo+mycomp.comp"})
+	c.Assert(err, check.ErrorMatches, "cannot use instance name when installing multiple snaps")
 }
 
 func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
