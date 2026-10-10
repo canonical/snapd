@@ -1,0 +1,222 @@
+summary: Test components with parallel instances of a snap
+
+details: |
+  Verifies that components can be installed, refreshed, reverted and removed
+  for parallel instances of a snap, and that the components of an instance are
+  isolated from the components of the other instances of the same snap.
+
+  Covers store installs, local installs with --dangerous and --name, asserted
+  sideloads with --name, component hooks and snapctl install/remove when run
+  from a parallel instance.
+
+systems: [ubuntu-*, fedora-*]
+
+prepare: |
+  snap set system experimental.parallel-instances=true
+  tests.cleanup defer snap set system experimental.parallel-instances=null
+  snap refresh --hold
+  tests.cleanup defer snap refresh --unhold
+
+  # the component hooks access /etc/mdns.allow to verify that the network plug
+  # is connected, see component-refresh-hooks
+  path="/etc/mdns.allow"
+  if [ -d /writable ]; then
+    path="/writable/system-data/etc/mdns.allow"
+  fi
+  if [ ! -f "${path}" ]; then
+    touch "${path}"
+    tests.cleanup defer rm "${path}"
+  fi
+
+execute: |
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+  # check_comp_installed <snap-instance-name> <component-name>
+  check_comp_installed() {
+    local snap_rev comp_rev blob mnt
+    snap_rev=$(readlink "$SNAP_MOUNT_DIR/$1/current")
+    comp_rev=$(basename "$(readlink "$SNAP_MOUNT_DIR/$1/components/$snap_rev/$2")")
+    blob="/var/lib/snapd/snaps/${1}+${2}_${comp_rev}.comp"
+    mnt="$SNAP_MOUNT_DIR/$1/components/mnt/$2/$comp_rev"
+    test -f "$blob"
+    # the mount source is not checked since store blobs of the same revision are
+    # hard links to the download cache and share a loop device across instances
+    mount | MATCH " on ${mnt} type squashfs"
+  }
+
+  # check_comp_not_installed <snap-instance-name> <component-name>
+  check_comp_not_installed() {
+    local snap_rev
+    snap_rev=$(readlink "$SNAP_MOUNT_DIR/$1/current")
+    not test -e "$SNAP_MOUNT_DIR/$1/components/$snap_rev/$2"
+    find /var/lib/snapd/snaps -name "${1}+${2}_*.comp" | NOMATCH .
+  }
+
+  echo "Store installs isolate requested components between instances"
+  snap install test-snap-with-components+one+three
+  snap install test-snap-with-components_key+one+two
+
+  for comp in one two; do
+    snap run test-snap-with-components_key "$comp"
+    check_comp_installed test-snap-with-components_key "$comp"
+  done
+  not snap run test-snap-with-components_key three
+  check_comp_not_installed test-snap-with-components_key three
+
+  for comp in one three; do
+    snap run test-snap-with-components "$comp"
+    check_comp_installed test-snap-with-components "$comp"
+  done
+  not snap run test-snap-with-components two
+  check_comp_not_installed test-snap-with-components two
+
+  snap components test-snap-with-components_key | MATCH "test-snap-with-components_key\+two\s+installed\s+test"
+  snap components test-snap-with-components_key | MATCH "test-snap-with-components_key\+three\s+available\s+test"
+  snap components test-snap-with-components | MATCH "test-snap-with-components\+two\s+available\s+test"
+
+  echo "Removing a component from an instance does not affect other instances"
+  snap remove test-snap-with-components_key+one
+  check_comp_not_installed test-snap-with-components_key one
+  not snap run test-snap-with-components_key one
+  check_comp_installed test-snap-with-components one
+  snap run test-snap-with-components one
+
+  echo "Installing a component for an already installed instance"
+  snap install test-snap-with-components_key+three
+  check_comp_installed test-snap-with-components_key three
+  snap run test-snap-with-components_key three
+
+  echo "Removing a component from the base snap does not affect its instances"
+  snap remove test-snap-with-components+three
+  check_comp_not_installed test-snap-with-components three
+  not snap run test-snap-with-components three
+  check_comp_installed test-snap-with-components_key three
+  snap run test-snap-with-components_key three
+  snap install test-snap-with-components+three
+  check_comp_installed test-snap-with-components three
+
+  echo "Asserted sideload of a component into an instance with --name"
+  cp /var/lib/snapd/snaps/test-snap-with-components+one_*.comp test-snap-with-components+one.comp
+  snap install --name test-snap-with-components_key ./test-snap-with-components+one.comp
+  snap components test-snap-with-components_key | MATCH "test-snap-with-components_key\+one\s+installed\s+test"
+  check_comp_installed test-snap-with-components_key one
+  snap run test-snap-with-components_key one
+
+  echo "Removing an instance removes only its components"
+  snap remove --purge test-snap-with-components_key
+  for comp in one three; do
+    check_comp_installed test-snap-with-components "$comp"
+    snap run test-snap-with-components "$comp"
+  done
+
+  echo "Local install of components into an instance with --dangerous and --name"
+  snap pack snap-with-comps/
+  snap pack comp1/
+  snap install --dangerous snap-with-comps_1.0_all.snap
+  snap install --dangerous --name snap-with-comps_key snap-with-comps_1.0_all.snap
+
+  snap install --dangerous --name snap-with-comps_key snap-with-comps+comp1_1.0.comp |
+      MATCH 'component comp1 1\.0 for snap-with-comps_key 1\.0 installed'
+  check_comp_installed snap-with-comps_key comp1
+  snap-with-comps_key.test
+  
+  # The non-instance snap does not see the component installed on the instance snap
+  not snap-with-comps.test
+  check_comp_not_installed snap-with-comps comp1
+
+  # the non-instance snap gets its own local component revision
+  snap install --dangerous snap-with-comps+comp1_1.0.comp
+  check_comp_installed snap-with-comps comp1
+  snap-with-comps.test
+
+  # an instance name cannot be used with multiple files
+  not snap install --dangerous --name snap-with-comps_key \
+      snap-with-comps_1.0_all.snap snap-with-comps+comp1_1.0.comp 2>&1 |
+      MATCH 'cannot use instance name when installing multiple snaps'
+
+  snap remove --purge snap-with-comps_key
+  snap remove --purge snap-with-comps
+
+  echo "Refresh and revert of an instance with components"
+  snap install test-snap-component-refreshes+one --revision=3 --edge
+  snap install test-snap-component-refreshes_key+one+two --revision=3 --edge
+  test-snap-component-refreshes_key one | MATCH '.*revision 3$'
+  test-snap-component-refreshes_key two | MATCH '.*revision 3$'
+
+  snap refresh test-snap-component-refreshes_key --revision=4
+  test-snap-component-refreshes_key one | MATCH '.*revision 4$'
+  test-snap-component-refreshes_key two | MATCH '.*revision 4$'
+
+  snap revert test-snap-component-refreshes_key
+  test-snap-component-refreshes_key one | MATCH '.*revision 3$'
+  test-snap-component-refreshes_key two | MATCH '.*revision 3$'
+
+  snap refresh test-snap-component-refreshes_key
+  test-snap-component-refreshes_key one | MATCH '.*revision 5$'
+  test-snap-component-refreshes_key two | MATCH '.*revision 5$'
+
+  # the non-instance snap is untouched
+  test-snap-component-refreshes one | MATCH '.*revision 3$'
+  not test-snap-component-refreshes two
+
+  snap remove --purge test-snap-component-refreshes_key test-snap-component-refreshes
+
+  echo "Component hooks run in the context of the instance"
+  snap install test-snap-component-hooks_key+one+two --revision=12
+  snap connections test-snap-component-hooks_key | MATCH "network-bind"
+  snap get test-snap-component-hooks_key one-installed | MATCH 10
+  snap get test-snap-component-hooks_key two-installed | MATCH 10
+
+  snap refresh test-snap-component-hooks_key --revision=13 --channel=latest/candidate
+  snap get test-snap-component-hooks_key one-prerefreshed | MATCH 10
+  snap get test-snap-component-hooks_key two-prerefreshed | MATCH 10
+  snap get test-snap-component-hooks_key one-postrefreshed | MATCH 11
+  snap get test-snap-component-hooks_key two-postrefreshed | MATCH 11
+
+  snap remove test-snap-component-hooks_key+two
+  test -e /tmp/snap-private-tmp/snap.test-snap-component-hooks_key/tmp/two-remove-hook-executed
+  not test -e /tmp/snap-private-tmp/snap.test-snap-component-hooks/tmp/two-remove-hook-executed
+
+  snap remove --purge test-snap-component-hooks_key
+
+  echo "snapctl install/remove from an instance"
+  snap install --edge test-snap-components-snapctl+one+two
+  snap install --edge test-snap-components-snapctl_key
+
+  echo "Snap app commands install and remove components for their own instance"
+  snap set test-snap-components-snapctl_key command="install +one+two"
+  for comp in one two; do
+    check_comp_installed test-snap-components-snapctl_key "$comp"
+    check_comp_installed test-snap-components-snapctl "$comp"
+  done
+
+  snap set test-snap-components-snapctl_key command="remove +one+two"
+  not test -d "$SNAP_MOUNT_DIR/test-snap-components-snapctl_key/components/"
+  for comp in one two; do
+    check_comp_not_installed test-snap-components-snapctl_key "$comp"
+    check_comp_installed test-snap-components-snapctl "$comp"
+  done
+
+  # ephemeral context, using the instance name
+  echo "Ephemeral snapctl context accepts explicit and relative component names"
+  # shellcheck disable=SC2016
+  snap run --shell test-snap-components-snapctl_key -c 'snapctl install "$SNAP_INSTANCE_NAME+one"'
+  snap components test-snap-components-snapctl_key | MATCH "test-snap-components-snapctl_key\+one\s+installed\s+test"
+  snap components test-snap-components-snapctl_key | MATCH "test-snap-components-snapctl_key\+two\s+available\s+test"
+  check_comp_installed test-snap-components-snapctl_key one
+  check_comp_not_installed test-snap-components-snapctl_key two
+
+  snap run --shell test-snap-components-snapctl_key -c 'snapctl install +two'
+  check_comp_installed test-snap-components-snapctl_key two
+
+  # shellcheck disable=SC2016
+  snap run --shell test-snap-components-snapctl_key -c 'snapctl remove "$SNAP_INSTANCE_NAME+one"'
+  check_comp_not_installed test-snap-components-snapctl_key one
+  check_comp_installed test-snap-components-snapctl_key two
+  check_comp_installed test-snap-components-snapctl one
+
+  snap run --shell test-snap-components-snapctl_key -c 'snapctl remove +two'
+  for comp in one two; do
+    check_comp_not_installed test-snap-components-snapctl_key "$comp"
+    check_comp_installed test-snap-components-snapctl "$comp"
+  done
