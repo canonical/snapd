@@ -64,6 +64,9 @@ func maybeLogRetrySummary(startTime time.Time, url string, attempt *retry.Attemp
 	}
 }
 
+// RetryResponsePolicy decides whether a response is worth another attempt.
+type RetryResponsePolicy func(attempt *retry.Attempt, resp *http.Response) bool
+
 func ShouldRetryHttpResponse(attempt *retry.Attempt, resp *http.Response) bool {
 	if !attempt.More() {
 		return false
@@ -262,6 +265,12 @@ func isTimeout(err error) bool {
 
 // RetryRequest calls doRequest and read the response body in a retry loop using the given retryStrategy.
 func RetryRequest(endpoint string, doRequest func() (*http.Response, error), readResponseBody func(resp *http.Response) error, retryStrategy retry.Strategy) (resp *http.Response, err error) {
+	return RetryRequestWithPolicy(endpoint, doRequest, readResponseBody, retryStrategy, ShouldRetryHttpResponse)
+}
+
+// RetryRequestWithPolicy is like RetryRequest but decides which responses to
+// retry with the given policy instead of ShouldRetryHttpResponse.
+func RetryRequestWithPolicy(endpoint string, doRequest func() (*http.Response, error), readResponseBody func(resp *http.Response) error, retryStrategy retry.Strategy, shouldRetryResponse RetryResponsePolicy) (resp *http.Response, err error) {
 	var attempt *retry.Attempt
 	startTime := time.Now()
 	for attempt = retry.Start(retryStrategy, nil); attempt.Next(); {
@@ -279,7 +288,7 @@ func RetryRequest(endpoint string, doRequest func() (*http.Response, error), rea
 			break
 		}
 
-		if ShouldRetryHttpResponse(attempt, resp) {
+		if shouldRetryResponse(attempt, resp) {
 			resp.Body.Close()
 			continue
 		} else {

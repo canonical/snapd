@@ -270,6 +270,15 @@ func MockRequestTimeout(d time.Duration) (restore func()) {
 	}
 }
 
+// MockRefreshRetryStrategy mocks the retry strategy used by snap-action.
+func MockRefreshRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
+	originalRefreshRetryStrategy := refreshRetryStrategy
+	refreshRetryStrategy = strategy
+	t.AddCleanup(func() {
+		refreshRetryStrategy = originalRefreshRetryStrategy
+	})
+}
+
 type (
 	ErrorListEntryJSON   = errorListEntry
 	SnapActionResultJSON = snapActionResult
