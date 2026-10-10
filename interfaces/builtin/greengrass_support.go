@@ -491,7 +491,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     greengrassSupportBaseDeclarationPlugs,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

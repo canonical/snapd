@@ -400,7 +400,6 @@ func init() {
 		implicitOnCore:           true,
 		baseDeclarationPlugs:     kubernetesSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     kubernetesSupportBaseDeclarationSlots,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

@@ -125,81 +125,7 @@ execute: |
     #            UNSUPPORTED PLUG AND SLOT INTERFACES                  #
     ####################################################################
 
-    # Note: only a representative subset is covered here due to the large
-    # number of interfaces, but all are unit tested.
-
-    check_parallel_install_plug_and_slot_rejected acrn-support
-
-    check_parallel_install_plug_and_slot_rejected adb-support
-
-    check_parallel_install_plug_and_slot_rejected auditd-support
-
-    check_parallel_install_plug_and_slot_rejected checkbox-support
-
-    check_parallel_install_plug_and_slot_rejected classic-support
-
     check_parallel_install_plug_and_slot_rejected core-support
-
-    check_parallel_install_plug_rejected cuda-driver-libs
-
-    check_parallel_install_slot_rejected cuda-driver-libs \
-        "compatibility: cuda-(9..12)-ubuntu-2404" \
-        "library-source: [\$SNAP/lib]"
-
-    check_parallel_install_plug_and_slot_rejected dm-crypt
-
-    check_parallel_install_plug_and_slot_rejected docker-support
-
-    check_parallel_install_plug_rejected egl-driver-libs
-
-    check_parallel_install_slot_rejected egl-driver-libs \
-        "priority: 10" \
-        "compatibility: egl-1-5-ubuntu-2404" \
-        "icd-source: [\$SNAP/icd]" \
-        "library-source: [\$SNAP/lib]"
-
-    check_parallel_install_plug_and_slot_rejected firmware-updater-support
-
-    check_parallel_install_plug_rejected gbm-driver-libs
-
-    check_parallel_install_slot_rejected gbm-driver-libs \
-        "client-driver: driver.so" \
-        "compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510" \
-        "library-source: [\$SNAP/lib]"
-
-    check_parallel_install_plug_and_slot_rejected greengrass-support
-
-    check_parallel_install_plug_and_slot_rejected kubernetes-support
-
-    check_parallel_install_plug_and_slot_rejected lxd-support
-
-    check_parallel_install_plug_and_slot_rejected microceph-support
-
-    check_parallel_install_plug_and_slot_rejected microstack-support
-
-    check_parallel_install_plug_and_slot_rejected multipass-support
-
-    check_parallel_install_plug_and_slot_rejected nomad-support
-
-    check_parallel_install_plug_and_slot_rejected nvidia-drivers-support
-
-    check_parallel_install_plug_rejected nvidia-video-driver-libs
-
-    check_parallel_install_slot_rejected nvidia-video-driver-libs \
-        "compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2404" \
-        "library-source: [\$SNAP/lib]"
-
-    check_parallel_install_plug_rejected opengl-driver-libs
-
-    check_parallel_install_slot_rejected opengl-driver-libs \
-        "compatibility: opengl-4-6-ubuntu-2510" \
-        "library-source: [\$SNAP/lib]"
-
-    check_parallel_install_plug_rejected opengles-driver-libs
-
-    check_parallel_install_slot_rejected opengles-driver-libs \
-        "compatibility: opengles-2-0-ubuntu-2510" \
-        "library-source: [\$SNAP/lib]"
 
     if snap debug sandbox-features --required apparmor:parser:mqueue-posix; then
         check_parallel_install_plug_rejected posix-mq
@@ -210,27 +136,6 @@ execute: |
         echo "SKIP: AppArmor does not support POSIX message queues"
     fi
 
-    check_parallel_install_plug_and_slot_rejected ros-snapd-support
-
-    # without private attribute (defaults to false)
-    check_parallel_install_plug_rejected shared-memory
-
-    # with private attribute set to true
-    check_parallel_install_plug_allowed shared-memory \
-        "private: true"
-
-    check_parallel_install_slot_rejected shared-memory \
-        "write: [myshm]"
-
-    check_parallel_install_plug_and_slot_rejected steam-support
-
-    check_parallel_install_plug_rejected vulkan-driver-libs
-
-    check_parallel_install_slot_rejected vulkan-driver-libs \
-        "compatibility: vulkan-1-(2..5)-ubuntu-2404" \
-        "icd-source: [\$SNAP/icd]" \
-        "library-source: [\$SNAP/lib]"
-
     ####################################################################
     #                   UNSUPPORTED SLOT INTERFACES                    #
     ####################################################################
@@ -238,65 +143,47 @@ execute: |
     # Note: only a representative subset is covered here due to the large
     # number of interfaces, but all are unit tested.
 
-    check_parallel_install_slot_rejected accel
-    check_parallel_install_plug_allowed accel
-
-    check_parallel_install_slot_rejected account-control
-    check_parallel_install_plug_allowed account-control
-
-    check_parallel_install_slot_rejected appstream-metadata
-    check_parallel_install_plug_allowed appstream-metadata
-
     check_parallel_install_slot_rejected audio-playback
     check_parallel_install_plug_allowed audio-playback
-
-    check_parallel_install_slot_rejected autopilot-introspection
-    check_parallel_install_plug_allowed autopilot-introspection
 
     check_parallel_install_slot_rejected avahi-control
     check_parallel_install_plug_allowed avahi-control
 
-    check_parallel_install_slot_rejected avahi-observe
-    check_parallel_install_plug_allowed avahi-observe
-
-    check_parallel_install_slot_rejected bluetooth-control
-    check_parallel_install_plug_allowed bluetooth-control
-
     check_parallel_install_slot_rejected bluez
     check_parallel_install_plug_allowed bluez
 
-    check_parallel_install_slot_rejected browser-support
-    check_parallel_install_plug_allowed browser-support
-
-    check_parallel_install_slot_rejected cifs-mount
-    check_parallel_install_plug_allowed cifs-mount
-
-    check_parallel_install_slot_rejected confdb
-    check_parallel_install_plug_allowed confdb \
-        "account: my-publisher" \
-        "view: my-schema/my-view"
-
-    check_parallel_install_slot_rejected desktop
-    check_parallel_install_plug_allowed desktop
-
-    # desktop-launch plug cannot be installed on an arbitrary app
-    # snap at all (allow-installation: false), so there is nothing
-    # to check beyond their slot-side rejection.
-    check_parallel_install_slot_rejected desktop-launch
-
-    check_parallel_install_slot_rejected desktop-legacy
-    check_parallel_install_plug_allowed desktop-legacy
-
-    # devlxd plug cannot be installed on an arbitrary app
-    # snap at all (allow-installation: false), so there is nothing
-    # to check beyond their slot-side rejection.
-    check_parallel_install_slot_rejected devlxd
-
-    check_parallel_install_slot_rejected docker
-    check_parallel_install_plug_allowed docker
-
-    check_parallel_install_slot_rejected fuse-support
-    check_parallel_install_plug_allowed fuse-support
-
     check_parallel_install_slot_rejected fwupd
     check_parallel_install_plug_allowed fwupd
+
+    check_parallel_install_slot_rejected network-manager
+    check_parallel_install_plug_allowed network-manager
+
+    check_parallel_install_slot_rejected ubuntu-download-manager
+    check_parallel_install_plug_allowed ubuntu-download-manager
+
+    check_parallel_install_slot_rejected vulkan-driver-libs \
+        "compatibility: vulkan-1-(2..5)-ubuntu-2404" \
+        "icd-source: [\$SNAP/icd]" \
+        "library-source: [\$SNAP/lib]"
+    # Note: the plug side is not checked here as this interface is
+    # restricted to the system snap.
+
+    ####################################################################
+    #                   UNSUPPORTED PLUG INTERFACES                    #
+    ####################################################################
+
+    # Note: only a representative subset is covered here due to the large
+    # number of interfaces, but all are unit tested.
+
+    # Note: the slot side is not checked here as these interfaces are
+    # restricted to the system/gadget snaps.
+
+    check_parallel_install_plug_rejected acrn-support
+
+    check_parallel_install_plug_rejected dm-crypt
+
+    check_parallel_install_plug_rejected dsp
+
+    check_parallel_install_plug_rejected openvswitch-support
+
+    check_parallel_install_plug_rejected xilinx-dma

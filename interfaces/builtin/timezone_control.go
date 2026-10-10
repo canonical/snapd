@@ -108,13 +108,12 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "timezone-control",
-		summary:                  timezoneControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     timezoneControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    timezoneControlConnectedPlugAppArmor,
-		connectedPlugSecComp:     timezoneControlConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "timezone-control",
+		summary:               timezoneControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timezoneControlBaseDeclarationSlots,
+		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timezoneControlConnectedPlugSecComp,
 	})
 }

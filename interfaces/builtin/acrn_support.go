@@ -54,7 +54,6 @@ func init() {
 		connectedPlugUDev:        acrnSupportConnectedPlugUDev,
 		baseDeclarationSlots:     acrnSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    acrnSupportConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

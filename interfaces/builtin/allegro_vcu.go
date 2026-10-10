@@ -53,13 +53,12 @@ var allegroVcuConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "allegro-vcu",
-		summary:                  allegroVcuSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     allegroVcuBaseDeclarationSlots,
-		connectedPlugAppArmor:    allegroVcuConnectedPlugAppArmor,
-		connectedPlugUDev:        allegroVcuConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "allegro-vcu",
+		summary:               allegroVcuSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  allegroVcuBaseDeclarationSlots,
+		connectedPlugAppArmor: allegroVcuConnectedPlugAppArmor,
+		connectedPlugUDev:     allegroVcuConnectedPlugUDev,
 	})
 }

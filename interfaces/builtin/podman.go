@@ -50,12 +50,11 @@ socket AF_NETLINK - NETLINK_GENERIC
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "podman",
-		summary:                  podmanSummary,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     podmanBaseDeclarationSlots,
-		connectedPlugAppArmor:    podmanConnectedPlugAppArmor,
-		connectedPlugSecComp:     podmanConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "podman",
+		summary:               podmanSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  podmanBaseDeclarationSlots,
+		connectedPlugAppArmor: podmanConnectedPlugAppArmor,
+		connectedPlugSecComp:  podmanConnectedPlugSecComp,
 	})
 }

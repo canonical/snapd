@@ -53,12 +53,11 @@ const dcdbasControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "dcdbas-control",
-		summary:                  dcdbasControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     dcdbasControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    dcdbasControlConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "dcdbas-control",
+		summary:               dcdbasControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  dcdbasControlBaseDeclarationSlots,
+		connectedPlugAppArmor: dcdbasControlConnectedPlugAppArmor,
 	})
 }

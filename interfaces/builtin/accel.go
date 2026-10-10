@@ -44,13 +44,12 @@ var accelConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "accel",
-		summary:                  accelSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     accelBaseDeclarationSlots,
-		connectedPlugAppArmor:    accelConnectedPlugAppArmor,
-		connectedPlugUDev:        accelConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "accel",
+		summary:               accelSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  accelBaseDeclarationSlots,
+		connectedPlugAppArmor: accelConnectedPlugAppArmor,
+		connectedPlugUDev:     accelConnectedPlugUDev,
 	})
 }

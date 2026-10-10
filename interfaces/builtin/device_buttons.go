@@ -81,13 +81,12 @@ func (iface *deviceButtonsInterface) UDevConnectedPlug(spec *udev.Specification,
 
 func init() {
 	registerIface(&deviceButtonsInterface{commonInterface{
-		name:                     "device-buttons",
-		summary:                  deviceButtonsSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     deviceButtonsBaseDeclarationSlots,
-		connectedPlugAppArmor:    deviceButtonsConnectedPlugAppArmor,
-		connectedPlugUDev:        deviceButtonsConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "device-buttons",
+		summary:               deviceButtonsSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  deviceButtonsBaseDeclarationSlots,
+		connectedPlugAppArmor: deviceButtonsConnectedPlugAppArmor,
+		connectedPlugUDev:     deviceButtonsConnectedPlugUDev,
 	}})
 }

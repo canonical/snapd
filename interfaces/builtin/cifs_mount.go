@@ -66,13 +66,12 @@ umount /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/common/{,**},
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "cifs-mount",
-		summary:                  cifsMountSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     cifsMountBaseDeclarationSlots,
-		connectedPlugAppArmor:    cifsMountConnectedPlugAppArmor,
-		connectedPlugSecComp:     cifsMountConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "cifs-mount",
+		summary:               cifsMountSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  cifsMountBaseDeclarationSlots,
+		connectedPlugAppArmor: cifsMountConnectedPlugAppArmor,
+		connectedPlugSecComp:  cifsMountConnectedPlugSecComp,
 	})
 }

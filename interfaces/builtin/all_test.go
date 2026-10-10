@@ -501,36 +501,8 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 // own test file (e.g., see shared-memory).
 func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 	unsupportedInterfaces := []string{
-		"acrn-support",
-		"adb-support",
-		"auditd-support",
-		"checkbox-support",
-		"classic-support",
 		"core-support",
-		"cuda-driver-libs",
-		"dm-crypt",
-		"docker-support",
-		"egl-driver-libs",
-		"firmware-updater-support",
-		"fpga",
-		"gbm-driver-libs",
-		"greengrass-support",
-		"kubernetes-support",
-		"lxd-support",
-		"microceph-support",
-		"microstack-support",
-		"multipass-support",
-		"nomad-support",
-		"nvidia-drivers-support",
-		"nvidia-video-driver-libs",
-		"opengl-driver-libs",
-		"opengles-driver-libs",
-		"physical-memory-control",
 		"posix-mq",
-		"ros-snapd-support",
-		"steam-support",
-		"vulkan-driver-libs",
-		"xilinx-dma",
 	}
 	for _, name := range unsupportedInterfaces {
 		iface := builtin.Interface(name)
@@ -544,6 +516,49 @@ func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 	}
 }
 
+// TestParallelInstancesUnsupportedOnOnlyPlugSide checks interfaces that
+// unconditionally block parallel instances for plugs only, while still
+// supporting parallel instances on the slot side. Interfaces where the
+// decision depends on plug/slot attributes must be tested in their own test
+// file (e.g., see shared-memory).
+func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlyPlugSide(c *C) {
+	unsupportedInterfaces := []string{
+		"acrn-support",
+		"adb-support",
+		"auditd-support",
+		"checkbox-support",
+		"classic-support",
+		"dm-crypt",
+		"docker-support",
+		"dsp",
+		"firmware-updater-support",
+		"fpga",
+		"greengrass-support",
+		"kubernetes-support",
+		"lxd-support",
+		"microceph-support",
+		"microstack-support",
+		"multipass-support",
+		"nomad-support",
+		"nvidia-drivers-support",
+		"openvswitch-support",
+		"physical-memory-control",
+		"ros-snapd-support",
+		"steam-support",
+		"xilinx-dma",
+	}
+	for _, name := range unsupportedInterfaces {
+		iface := builtin.Interface(name)
+		c.Assert(iface, NotNil, Commentf("interface %q is not registered", name))
+		plugDefiner, ok := iface.(interfaces.ParallelInstancesPlugDefiner)
+		c.Assert(ok, Equals, true, Commentf("interface %q", name))
+		c.Check(plugDefiner.ParallelInstancesSupportedForPlug(nil), NotNil, Commentf("interface %q", name))
+		if slotDefiner, ok := iface.(interfaces.ParallelInstancesSlotDefiner); ok {
+			c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), IsNil, Commentf("interface %q", name))
+		}
+	}
+}
+
 // TestParallelInstancesUnsupportedOnOnlySlotSide checks interfaces that
 // unconditionally block parallel instances for slots only, while still
 // supporting parallel instances on the plug side. Interfaces where the
@@ -551,166 +566,42 @@ func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 // file (e.g., see shared-memory).
 func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 	unsupportedInterfaces := []string{
-		"accel",
-		"account-control",
-		"accounts-service",
-		"allegro-vcu",
-		"alsa",
-		"appstream-metadata",
 		"audio-playback",
-		"autopilot-introspection",
 		"avahi-control",
 		"avahi-observe",
-		"block-devices",
-		"bluetooth-control",
 		"bluez",
-		"broadcom-asic-control",
-		"browser-support",
-		"calendar-service",
-		"camera",
-		"can-bus",
-		"cifs-mount",
-		"confdb",
-		"contacts-service",
-		"cpu-control",
-		"custom-device",
-		"daemon-notify",
-		"dcdbas-control",
+		"cuda-driver-libs",
 		"desktop",
-		"desktop-launch",
-		"desktop-legacy",
-		"device-buttons",
-		"devlxd",
-		"display-control",
-		"dm-multipath",
 		"docker",
-		"dvb",
-		"firewall-control",
-		"framebuffer",
-		"fuse-support",
+		"egl-driver-libs",
 		"fwupd",
-		"gconf",
-		"gpg-keys",
-		"gpg-public-keys",
-		"gpio-chardev",
-		"gpio-control",
-		"gpio-memory-control",
-		"gsettings",
-		"hardware-observe",
-		"hardware-random-control",
-		"hardware-random-observe",
-		"home",
-		"hostname-control",
-		"hugepages-control",
-		"intel-mei",
-		"intel-qat",
-		"io-ports-control",
-		"ion-memory-control",
-		"iscsi-initiator",
-		"jack1",
-		"joystick",
-		"juju-client-observe",
-		"kerberos-tickets",
-		"kernel-crypto-api",
-		"kernel-firmware-control",
-		"kernel-module-control",
-		"kernel-module-load",
-		"kernel-module-observe",
-		"kvm",
-		"libvirt",
-		"locale-control",
+		"gbm-driver-libs",
 		"location-control",
 		"location-observe",
-		"log-observe",
-		"login-session-control",
-		"login-session-observe",
 		"maliit",
-		"media-control",
 		"media-hub",
-		"mediatek-accel",
 		"mir",
 		"modem-manager",
-		"mount-control",
-		"mount-observe",
-		"netlink-audit",
-		"netlink-connector",
-		"network",
-		"network-bind",
-		"network-control",
 		"network-manager",
-		"network-observe",
-		"network-setup-control",
-		"network-setup-observe",
-		"network-status",
-		"nfs-mount",
-		"nvme-control",
+		"nvidia-video-driver-libs",
 		"ofono",
 		"online-accounts-service",
-		"opengl",
-		"openvswitch",
-		"optical-drive",
-		"packagekit-control",
-		"password-manager-service",
-		"pcscd",
-		"personal-files",
-		"physical-memory-observe",
+		"opengl-driver-libs",
+		"opengles-driver-libs",
 		"pipewire",
 		"pkcs11",
-		"podman",
-		"polkit",
-		"polkit-agent",
-		"power-control",
-		"ppp",
-		"process-control",
-		"ptp",
 		"pulseaudio",
-		"raw-input",
-		"raw-usb",
-		"remoteproc",
-		"removable-media",
-		"ros-opt-data",
-		"screencast-legacy",
-		"scsi-generic",
-		"sd-control",
-		"shutdown",
-		"snap-fde-control",
-		"snap-interfaces-requests-control",
-		"snap-refresh-control",
-		"snap-refresh-observe",
-		"snap-themes-control",
-		"snapd-control",
-		"ssh-keys",
-		"ssh-public-keys",
 		"storage-framework-service",
-		"system-backup",
-		"system-files",
-		"system-observe",
-		"system-packages-doc",
-		"system-source-code",
-		"system-trace",
-		"tee",
 		"thumbnailer-service",
-		"time-control",
-		"timeserver-control",
-		"timezone-control",
-		"tpm",
-		"u2f-devices",
 		"ubuntu-download-manager",
-		"ubuntu-pro-control",
 		"udisks2",
-		"uhid",
-		"uinput",
-		"unity7",
 		"unity8",
 		"unity8-calendar",
 		"unity8-contacts",
 		"upower-observe",
-		"usb-gadget",
-		"userns",
-		"vcio",
+		"vulkan-driver-libs",
 		"wayland",
 		"x11",
-		"xdg-portal-permission-store",
 	}
 	for _, name := range unsupportedInterfaces {
 		iface := builtin.Interface(name)
@@ -722,15 +613,4 @@ func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 		c.Assert(ok, Equals, true, Commentf("interface %q", name))
 		c.Check(slotDefiner.ParallelInstancesSupportedForSlot(nil), NotNil, Commentf("interface %q", name))
 	}
-}
-
-func checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c *C, iface interfaces.Interface) {
-	definer, ok := iface.(interfaces.ParallelInstancesSlotDefiner)
-	c.Assert(ok, Equals, true)
-
-	systemSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeSnapd}}
-	c.Check(definer.ParallelInstancesSupportedForSlot(systemSlot), Equals, builtin.ErrParallelInstancesSystemSlot)
-
-	gadgetSlot := &snap.SlotInfo{Snap: &snap.Info{SnapType: snap.TypeGadget}}
-	c.Check(definer.ParallelInstancesSupportedForSlot(gadgetSlot), Equals, builtin.ErrParallelInstancesGadgetSlot)
 }

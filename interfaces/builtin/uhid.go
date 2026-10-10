@@ -41,12 +41,11 @@ const uhidConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "uhid",
-		summary:                  uhidSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     uhidBaseDeclarationSlots,
-		connectedPlugAppArmor:    uhidConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "uhid",
+		summary:               uhidSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  uhidBaseDeclarationSlots,
+		connectedPlugAppArmor: uhidConnectedPlugAppArmor,
 	})
 }

@@ -71,16 +71,15 @@ var kernelModuleControlConnectedPlugUDev = []string{`KERNEL=="mem"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "kernel-module-control",
-		summary:                  kernelModuleControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     kernelModuleControlBaseDeclarationPlugs,
-		baseDeclarationSlots:     kernelModuleControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    kernelModuleControlConnectedPlugAppArmor,
-		connectedPlugSecComp:     kernelModuleControlConnectedPlugSecComp,
-		connectedPlugUDev:        kernelModuleControlConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "kernel-module-control",
+		summary:               kernelModuleControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  kernelModuleControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  kernelModuleControlBaseDeclarationSlots,
+		connectedPlugAppArmor: kernelModuleControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  kernelModuleControlConnectedPlugSecComp,
+		connectedPlugUDev:     kernelModuleControlConnectedPlugUDev,
 
 		usesSysModuleCapability: true,
 	})

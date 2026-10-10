@@ -238,12 +238,11 @@ func (iface *usbGadgetInterface) SecCompConnectedPlug(spec *seccomp.Specificatio
 func init() {
 	registerIface(&usbGadgetInterface{
 		commonInterface: commonInterface{
-			name:                     "usb-gadget",
-			summary:                  usbGadgetSummary,
-			baseDeclarationPlugs:     usbGadgetBaseDeclarationPlugs,
-			baseDeclarationSlots:     usbGadgetBaseDeclarationSlots,
-			implicitOnCore:           true,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			name:                 "usb-gadget",
+			summary:              usbGadgetSummary,
+			baseDeclarationPlugs: usbGadgetBaseDeclarationPlugs,
+			baseDeclarationSlots: usbGadgetBaseDeclarationSlots,
+			implicitOnCore:       true,
 		},
 	})
 }

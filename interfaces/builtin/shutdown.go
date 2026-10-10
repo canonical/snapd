@@ -88,14 +88,13 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "shutdown",
-		summary:                  shutdownSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     shutdownBaseDeclarationPlugs,
-		baseDeclarationSlots:     shutdownBaseDeclarationSlots,
-		connectedPlugAppArmor:    shutdownConnectedPlugAppArmor,
-		connectedPlugSecComp:     shutdownConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "shutdown",
+		summary:               shutdownSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  shutdownBaseDeclarationPlugs,
+		baseDeclarationSlots:  shutdownBaseDeclarationSlots,
+		connectedPlugAppArmor: shutdownConnectedPlugAppArmor,
+		connectedPlugSecComp:  shutdownConnectedPlugSecComp,
 	})
 }

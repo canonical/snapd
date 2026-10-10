@@ -41,12 +41,11 @@ const snapRefreshControlBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "snap-refresh-control",
-		summary:                  snapRefreshControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     snapRefreshControlBaseDeclarationPlugs,
-		baseDeclarationSlots:     snapRefreshControlBaseDeclarationSlots,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                 "snap-refresh-control",
+		summary:              snapRefreshControlSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: snapRefreshControlBaseDeclarationPlugs,
+		baseDeclarationSlots: snapRefreshControlBaseDeclarationSlots,
 	})
 }
