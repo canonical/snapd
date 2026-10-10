@@ -21,6 +21,8 @@ package seclog_test
 
 import (
 	"bytes"
+	"fmt"
+	"syscall"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -249,6 +251,33 @@ func (s *SecLogSuite) TestLogSystemStandbySnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason <unknown>")
 	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemExitSignalSnapdSigterm(c *C) {
+	seclog.LogSystemExitSignalSnapd("2.78", syscall.SIGTERM)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_exit_signal_snapd")
+	c.Check(s.buf.String(), testutil.Contains, fmt.Sprintf("Snapd received exit signal SIGTERM (%d)", syscall.SIGTERM))
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[exit_signal="SIGTERM"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemExitSignalSnapdSigint(c *C) {
+	seclog.LogSystemExitSignalSnapd("2.78", syscall.SIGINT)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_exit_signal_snapd")
+	c.Check(s.buf.String(), testutil.Contains, fmt.Sprintf("Snapd received exit signal SIGINT (%d)", syscall.SIGINT))
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[exit_signal="SIGINT"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemExitSignalSnapdOtherSignal(c *C) {
+	seclog.LogSystemExitSignalSnapd("", syscall.SIGUSR1)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_exit_signal_snapd")
+	c.Check(s.buf.String(), testutil.Contains, fmt.Sprintf("Snapd received exit signal %d [snapd_version=", syscall.SIGUSR1))
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, fmt.Sprintf(`[exit_signal="%d"]`, syscall.SIGUSR1))
 }
 
 func (s *SecLogSuite) TestLogSystemStartupSnapd(c *C) {

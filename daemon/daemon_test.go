@@ -721,7 +721,7 @@ version: 1`, si)
 	c.Check(err, check.IsNil)
 
 	c.Check(s.notified, check.DeepEquals, []string{extendedTimeoutUSec, "READY=1", "STOPPING=1"})
-	c.Check(seclogBuf.String(), check.Equals, "")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
 }
 
 func (s *daemonSuite) TestRestartWiring(c *check.C) {

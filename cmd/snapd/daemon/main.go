@@ -193,6 +193,9 @@ func run(ch chan os.Signal) error {
 
 	d.Version = snapdtool.FullVersion()
 
+	// If an expected system restart did not happen, daemon.New records that
+	// and daemon.Start kills the tomb without serving. Dying closes, the loop
+	// exits, and run calls daemon.Stop, which schedules the reboot again.
 	if err := d.Start(ctx); err != nil {
 		return err
 	}
@@ -212,9 +215,10 @@ out:
 		select {
 		case sig := <-ch:
 			logger.Noticef("Exiting on %s signal.\n", sig)
+			seclog.LogSystemExitSignalSnapd(d.Version, sig)
 			break out
 		case <-d.Dying():
-			// something called Stop()
+			// daemon.HandleRestart or daemon.Start killed the tomb.
 			break out
 		case <-checkTicker:
 			if err := syscheckCheckSystem(); err == nil {
