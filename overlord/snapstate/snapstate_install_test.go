@@ -1426,6 +1426,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c 
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected`)
+	// no refresh warning for a fresh install
+	c.Check(s.state.AllWarnings(), HasLen, 0)
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true})
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c *C) {
@@ -1462,6 +1466,8 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c 
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances: slot rejected`)
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true})
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySupportedInterface(c *C) {

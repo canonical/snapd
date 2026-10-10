@@ -48,6 +48,11 @@ type Flags struct {
 	// to ignore refresh control validation.
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
 
+	// IgnoreUnsupportedInstanceInterfaces is set when the user requested to install
+	// snap parallel instances with unsupported interfaces.It is
+	// persisted in SnapState and honored on subsequent refreshes.
+	IgnoreUnsupportedInstanceInterfaces bool `json:"ignore-unsupported-instance-interfaces,omitempty"`
+
 	// IgnoreRunning is set to indicate that running apps or hooks should be
 	// ignored.
 	IgnoreRunning bool `json:"ignore-running,omitempty"`

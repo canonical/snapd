@@ -661,8 +661,13 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
-	if err := checkParallelInstancesSupport(st, info); err != nil {
-		return flags, err
+	if !flags.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces {
+		if err := checkParallelInstancesSupport(st, info); err != nil {
+			if snapst.IsInstalled() {
+				st.Warnf("refresh of snap %q is blocked as it uses interfaces not supported for parallel instances: %v; use --ignore-unsupported-instance-interfaces to refresh anyway", info.InstanceName(), err)
+			}
+			return flags, err
+		}
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
@@ -1737,9 +1742,10 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 	// we only toggle validation set enforcement if we are refreshing exactly
 	// one snap
 	toggleIgnoreValidation := (snapst.IgnoreValidation != snapsup.IgnoreValidation) && opts.ExpectOneSnap
+	setIgnoreUnsupportedInstanceInterfaces := snapsup.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces
 
 	// nothing to do, we can leave early
-	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation {
+	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation && !setIgnoreUnsupportedInstanceInterfaces {
 		return nil, nil
 	}
 
@@ -1759,7 +1765,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		tasks = append(tasks, switchSnap)
 	}
 
-	if toggleIgnoreValidation {
+	if toggleIgnoreValidation || setIgnoreUnsupportedInstanceInterfaces {
 		toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 		if snapsupTask == nil {
 			toggle.Set("snap-setup", &snapsup)

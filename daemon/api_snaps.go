@@ -268,26 +268,27 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	CompsRaw               json.RawMessage                  `json:"components"`
-	CompsForSnaps          map[string][]string              `json:"-"`
-	DevMode                bool                             `json:"devmode"`
-	JailMode               bool                             `json:"jailmode"`
-	Classic                bool                             `json:"classic"`
-	IgnoreValidation       bool                             `json:"ignore-validation"`
-	IgnoreRunning          bool                             `json:"ignore-running"`
-	Unaliased              bool                             `json:"unaliased"`
-	Prefer                 bool                             `json:"prefer"`
-	Purge                  bool                             `json:"purge,omitempty"`
-	Terminate              bool                             `json:"terminate"`
-	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
-	Transaction            client.TransactionType           `json:"transaction"`
-	Snaps                  []string                         `json:"snaps"`
-	Users                  []string                         `json:"users"`
-	SnapshotOptions        map[string]*snap.SnapshotOptions `json:"snapshot-options"`
-	ValidationSets         []string                         `json:"validation-sets"`
-	QuotaGroupName         string                           `json:"quota-group"`
-	Time                   string                           `json:"time"`
-	HoldLevel              string                           `json:"hold-level"`
+	CompsRaw                            json.RawMessage                  `json:"components"`
+	CompsForSnaps                       map[string][]string              `json:"-"`
+	DevMode                             bool                             `json:"devmode"`
+	JailMode                            bool                             `json:"jailmode"`
+	Classic                             bool                             `json:"classic"`
+	IgnoreValidation                    bool                             `json:"ignore-validation"`
+	IgnoreUnsupportedInstanceInterfaces bool                             `json:"ignore-unsupported-instance-interfaces"`
+	IgnoreRunning                       bool                             `json:"ignore-running"`
+	Unaliased                           bool                             `json:"unaliased"`
+	Prefer                              bool                             `json:"prefer"`
+	Purge                               bool                             `json:"purge,omitempty"`
+	Terminate                           bool                             `json:"terminate"`
+	SystemRestartImmediate              bool                             `json:"system-restart-immediate"`
+	Transaction                         client.TransactionType           `json:"transaction"`
+	Snaps                               []string                         `json:"snaps"`
+	Users                               []string                         `json:"users"`
+	SnapshotOptions                     map[string]*snap.SnapshotOptions `json:"snapshot-options"`
+	ValidationSets                      []string                         `json:"validation-sets"`
+	QuotaGroupName                      string                           `json:"quota-group"`
+	Time                                string                           `json:"time"`
+	HoldLevel                           string                           `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -334,6 +335,7 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
 	}
+	flags.IgnoreUnsupportedInstanceInterfaces = inst.IgnoreUnsupportedInstanceInterfaces
 	if inst.Prefer {
 		flags.Prefer = true
 	}
@@ -607,6 +609,7 @@ func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*s
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
 	}
+	flags.IgnoreUnsupportedInstanceInterfaces = inst.IgnoreUnsupportedInstanceInterfaces
 	if inst.Amend {
 		flags.Amend = true
 	}
@@ -840,7 +843,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Prefer {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Prefer || inst.IgnoreUnsupportedInstanceInterfaces {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if len(inst.CompsRaw) > 0 {
@@ -1076,8 +1079,9 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 	}
 
 	flags := snapstate.Flags{
-		IgnoreRunning: inst.IgnoreRunning,
-		Transaction:   inst.Transaction,
+		IgnoreRunning:                       inst.IgnoreRunning,
+		IgnoreUnsupportedInstanceInterfaces: inst.IgnoreUnsupportedInstanceInterfaces,
+		Transaction:                         inst.Transaction,
 	}
 
 	// TODO: once we completely move away from the old snapstate API, this

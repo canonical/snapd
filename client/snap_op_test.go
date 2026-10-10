@@ -607,6 +607,37 @@ func (cs *clientSuite) TestClientOpInstallUnaliased(c *check.C) {
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"unaliased\"\r\n\r\ntrue\r\n.*")
 }
 
+func (cs *clientSuite) TestClientOpInstallIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{"change":"66b3","status-code":202,"type":"async"}`
+	opts := &client.SnapOptions{IgnoreUnsupportedInstanceInterfaces: true}
+
+	_, err := cs.cli.Install("foo_instance", nil, opts)
+	c.Assert(err, check.IsNil)
+	body, err := io.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var action map[string]any
+	c.Assert(json.Unmarshal(body, &action), check.IsNil)
+	c.Check(action["ignore-unsupported-instance-interfaces"], check.Equals, true)
+
+	// not supported for multi-snap operations
+	_, err = cs.cli.InstallMany([]string{"foo_instance", "bar_instance"}, nil, opts)
+	c.Assert(err, check.IsNil)
+	body, err = io.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	action = nil
+	c.Assert(json.Unmarshal(body, &action), check.IsNil)
+	c.Check(action["ignore-unsupported-instance-interfaces"], check.IsNil)
+
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	c.Assert(os.WriteFile(snapPath, []byte("snap-data"), 0644), check.IsNil)
+	_, err = cs.cli.InstallPath(snapPath, "foo_instance", opts)
+	c.Assert(err, check.IsNil)
+	body, err = io.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	c.Check(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"ignore-unsupported-instance-interfaces\"\r\n\r\ntrue\r\n.*")
+}
+
 func (cs *clientSuite) TestClientOpInstallTransactional(c *check.C) {
 	cs.status = 202
 	cs.rsp = `{
