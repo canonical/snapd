@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -304,7 +305,7 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 	return collectCurrentSnaps(snapStates, holds, nil)
 }
 
-func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]string, consider func(*store.CurrentSnap, *SnapState) error) (curSnaps []*store.CurrentSnap, err error) {
+func collectCurrentSnaps(snapStates map[naming.InstanceName]*SnapState, holds map[string][]string, consider func(*store.CurrentSnap, *SnapState) error) (curSnaps []*store.CurrentSnap, err error) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
 	for _, snapst := range snapStates {
@@ -373,7 +374,7 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, holds map[string][]st
 //
 // Note: This wrapper is a short term solution and should be removed once a better
 // solution is reached.
-func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*SnapState, requested map[string]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
+func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[naming.InstanceName]*SnapState, requested map[naming.InstanceName]StoreUpdate, user *auth.UserState, refreshOpts *store.RefreshOptions, opts Options) (updatePlan, error) {
 	// initialize options before using
 	refreshOpts, err := refreshOptions(st, refreshOpts)
 	if err != nil {
@@ -427,8 +428,8 @@ func storeUpdatePlan(ctx context.Context, st *state.State, allSnaps map[string]*
 	return plan, nil
 }
 
-func detectThrottledUpdatesToRetry(st *state.State, requested map[string]StoreUpdate, plan updatePlan) (retry map[string]StoreUpdate, err error) {
-	var oldHints map[string]*refreshCandidate
+func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.InstanceName]StoreUpdate, plan updatePlan) (retry map[naming.InstanceName]StoreUpdate, err error) {
+	var oldHints map[naming.InstanceName]*refreshCandidate
 	if err := st.Get("refresh-candidates", &oldHints); err != nil {
 		// no refresh-candidates, nothing to do
 		if errors.Is(err, &state.NoStateError{}) {
@@ -693,13 +694,13 @@ func ignoreValidationSetsForRefresh(snapst *SnapState, opts Options) bool {
 
 func collectCurrentSnapsAndActions(
 	st *state.State,
-	allSnaps map[string]*SnapState,
-	updates map[string]StoreUpdate,
-	requested []string,
+	allSnaps map[naming.InstanceName]*SnapState,
+	updates map[naming.InstanceName]StoreUpdate,
+	requested []naming.InstanceName,
 	opts Options,
 	fallbackID int,
-) (actionsByUserID map[int][]*store.SnapAction, hasLocalRevision map[string]*SnapState, current []*store.CurrentSnap, err error) {
-	hasLocalRevision = make(map[string]*SnapState)
+) (actionsByUserID map[int][]*store.SnapAction, hasLocalRevision map[naming.InstanceName]*SnapState, current []*store.CurrentSnap, err error) {
+	hasLocalRevision = make(map[naming.InstanceName]*SnapState)
 	actionsByUserID = make(map[int][]*store.SnapAction)
 	refreshAll := len(requested) == 0
 
@@ -811,7 +812,7 @@ func collectCurrentSnapsAndActions(
 	return actionsByUserID, hasLocalRevision, current, nil
 }
 
-func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opts Options, fallbackID int) (map[int][]*store.SnapAction, []string, error) {
+func installActionsForAmend(st *state.State, updates map[naming.InstanceName]StoreUpdate, opts Options, fallbackID int) (map[int][]*store.SnapAction, []naming.InstanceName, error) {
 	actionsByUserID := make(map[int][]*store.SnapAction)
 	var localAmends []string
 	for _, up := range updates {
@@ -873,7 +874,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 	return actionsByUserID, localAmends, nil
 }
 
-func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID map[int][]*store.SnapAction, current []*store.CurrentSnap, refreshOpts *store.RefreshOptions, opts Options) (sars []store.SnapActionResult, noUpdatesAvailable []string, err error) {
+func sendActionsByUserID(ctx context.Context, st *state.State, actionsByUserID map[int][]*store.SnapAction, current []*store.CurrentSnap, refreshOpts *store.RefreshOptions, opts Options) (sars []store.SnapActionResult, noUpdatesAvailable []naming.InstanceName, err error) {
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]
 	for userID, actions := range actionsByUserID {
@@ -959,7 +960,7 @@ func combineErrs(saErr *store.SnapActionError) map[string]error {
 
 // SnapHolds returns a map of held snaps to lists of holding snaps (including
 // "system" for user holds).
-func SnapHolds(st *state.State, snaps []string) (map[string][]string, error) {
+func SnapHolds(st *state.State, snaps []naming.InstanceName) (map[string][]string, error) {
 	allSnapsHoldTime, err := effectiveRefreshHold(st)
 	if err != nil {
 		return nil, err

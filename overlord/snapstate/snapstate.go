@@ -1050,7 +1050,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 // InstallMany installs everything from the given list of names. When specifying
 // revisions, the checks against enforced validation sets are bypassed.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+func InstallMany(st *state.State, names []naming.InstanceName, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1120,7 +1120,7 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updatable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+func UpdateMany(ctx context.Context, st *state.State, names []naming.InstanceName, revOpts []*RevisionOptions, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
 	updated, tasksetGrp, err := updateManyFiltered(ctx, st, names, revOpts, userID, nil, flags, "")
 	if err != nil {
 		return nil, nil, err
@@ -1293,7 +1293,7 @@ func keys[K comparable, V any](m map[K]V) []K {
 // consider.
 type updateFilter = func(*snap.Info, *SnapState) bool
 
-func updateManyFiltered(ctx context.Context, st *state.State, names []string, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
+func updateManyFiltered(ctx context.Context, st *state.State, names []naming.InstanceName, revOpts []*RevisionOptions, userID int, filter updateFilter, flags *Flags, fromChange string) ([]string, *UpdateTaskSets, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1509,7 +1509,7 @@ func (u *update) satisfied() (bool, error) {
 	return areRevisionsSatisfied(&u.SnapState, u.Setup.Revision(), u.Components)
 }
 
-func doPotentiallySplitUpdate(st *state.State, requested []string, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
+func doPotentiallySplitUpdate(st *state.State, requested []naming.InstanceName, updates []update, opts Options) ([]string, *UpdateTaskSets, error) {
 	if opts.Flags.Transaction == client.TransactionAllSnaps && opts.Flags.Lane == 0 {
 		opts.Flags.Lane = st.NewLane()
 	}
@@ -1554,7 +1554,7 @@ func doPotentiallySplitUpdate(st *state.State, requested []string, updates []upd
 // doUpdate processes the list of requested updates and return a list of updated
 // snaps, indicate whether any snaps got their revisions changed (which may
 // require a re-refresh check) and constructs update task sets.
-func doUpdate(st *state.State, requested []string, updates []update, opts Options) (
+func doUpdate(st *state.State, requested []naming.InstanceName, updates []update, opts Options) (
 	updatedSnaps []string, snapRevisionsChanged bool, uts *UpdateTaskSets, err error,
 ) {
 	if opts.DeviceCtx == nil {
@@ -1858,7 +1858,7 @@ func reRefreshSummary(updated []string, flags *Flags) string {
 	return msg
 }
 
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, copts ConflictOptions, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+func applyAutoAliasesDelta(st *state.State, delta map[naming.InstanceName][]string, op string, refreshAll bool, copts ConflictOptions, linkTs func(instanceName naming.InstanceName, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Refresh aliases for snap %q")
@@ -1893,7 +1893,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 	return applyTs, nil
 }
 
-func autoAliasesUpdate(st *state.State, requested []string, updates []update) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
+func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates []update) (changed map[naming.InstanceName][]string, mustPrune map[naming.InstanceName][]string, transferTargets map[naming.InstanceName]bool, err error) {
 	changed, dropped, err := autoAliasesDelta(st, nil)
 	if err != nil {
 		if len(requested) != 0 {
@@ -1984,7 +1984,7 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
+func resolveChannel(snapName naming.InstanceName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return oldChannel, nil
 	}
@@ -2083,7 +2083,7 @@ func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
 }
 
 // Switch switches a snap to a new channel and/or cohort
-func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTracker) (*state.TaskSet, error) {
+func Switch(st *state.State, name naming.InstanceName, opts *RevisionOptions, prqt PrereqTracker) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -2174,7 +2174,7 @@ func firstNonEmpty(strs ...string) string {
 }
 
 // resolveChannel resolves the channel for the given snap.
-func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
+func (r *RevisionOptions) resolveChannel(instanceName naming.InstanceName, fallback string, deviceCtx DeviceContext) error {
 	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
 	if err != nil {
 		return err
@@ -2186,7 +2186,7 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 // resolveChannelForStore conditionally resolves the channel for the given snap.
 // If the the revision is set and the channel is empty, then we assume that the
 // caller wants to install by revision and does not mutate the channel.
-func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext) error {
+func (r *RevisionOptions) resolveChannelForStore(instanceName naming.InstanceName, fallback string, deviceCtx DeviceContext) error {
 	// if the revision is set and the caller didn't provide a channel, then we
 	// shouldn't mess with the channel. this is because we don't want the caller
 	// to have to pick the right channel when refreshing/installing by revision.
@@ -2227,7 +2227,7 @@ func (r *RevisionOptions) initializeValidationSets(vsets cachedValidationSets, o
 // identifying the last task before the first task that introduces system
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
-func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
+func Update(st *state.State, name naming.InstanceName, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
 	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, nil, "")
 }
 
@@ -2239,7 +2239,7 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 // identifying the last task before the first task that introduces system
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
-func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+func UpdateWithDeviceContext(st *state.State, name naming.InstanceName, opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -2616,7 +2616,7 @@ func checkForAvailableSpace(totalSize, reservation uint64, snaps []naming.Instan
 
 // MigrateHome migrates a set of snaps to use a ~/Snap sub-directory as HOME.
 // The state must be locked by the caller.
-func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
+func MigrateHome(st *state.State, snaps []naming.InstanceName) ([]*state.TaskSet, error) {
 	tr := config.NewTransaction(st)
 	moveDir, err := features.Flag(tr, features.MoveSnapHomeDir)
 	if err != nil {
@@ -3986,7 +3986,7 @@ func Get(st *state.State, name string, snapst *SnapState) error {
 }
 
 // All retrieves return a map from name to SnapState for all current snaps in the system state.
-func All(st *state.State) (map[string]*SnapState, error) {
+func All(st *state.State) (map[naming.InstanceName]*SnapState, error) {
 	// XXX: result is a map because sideloaded snaps carry no name
 	// atm in their sideinfos
 	var stateMap map[string]*SnapState

@@ -574,7 +574,7 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 	return ts, nil
 }
 
-func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []string, opts Options) (*state.TaskSet, error) {
+func maybeUpdateContentProvider(t *state.Task, snapName naming.InstanceName, contentAttrs []string, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 	provided, err := hasAllContentAttrs(st, snapName, contentAttrs)
 	if err != nil {

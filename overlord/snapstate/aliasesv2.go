@@ -155,8 +155,8 @@ var AutoAliases func(st *state.State, info *snap.Info) (map[string]string, error
 // declaration for the installed snaps with the given names (or all if
 // names is empty) and returns changed and dropped auto-aliases by
 // snap name.
-func autoAliasesDelta(st *state.State, names []string) (changed map[string][]string, dropped map[string][]string, err error) {
-	var snapStates map[string]*SnapState
+func autoAliasesDelta(st *state.State, names []naming.InstanceName) (changed map[naming.InstanceName][]string, dropped map[naming.InstanceName][]string, err error) {
+	var snapStates map[naming.InstanceName]*SnapState
 	if len(names) == 0 {
 		var err error
 		snapStates, err = All(st)
@@ -279,7 +279,7 @@ func (e *AliasConflictError) Error() string {
 	return fmt.Sprintf("cannot enable alias %q for %q, %s", e.Alias, e.Snap, e.Reason)
 }
 
-func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]bool, aliasConflicts map[string][]string, changing map[string]*SnapState) error {
+func addAliasConflicts(st *state.State, skipSnap naming.InstanceName, testAliases map[string]bool, aliasConflicts map[string][]string, changing map[string]*SnapState) error {
 	snapStates, err := All(st)
 	if err != nil {
 		return err
@@ -320,7 +320,7 @@ func addAliasConflicts(st *state.State, skipSnap string, testAliases map[string]
 // conflicting snaps and aliases for alias conflicts.
 // changing can specify about to be set states for some snaps that will
 // then be considered.
-func checkAliasesConflicts(st *state.State, snapName string, candAutoDisabled bool, candAliases map[string]*AliasTarget, changing map[string]*SnapState) (conflicts map[string][]string, err error) {
+func checkAliasesConflicts(st *state.State, snapName naming.InstanceName, candAutoDisabled bool, candAliases map[string]*AliasTarget, changing map[string]*SnapState) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
 	err = st.Get("snaps", &snapNames)
 	if err != nil && !errors.Is(err, state.ErrNoState) {

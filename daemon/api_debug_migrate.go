@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -33,7 +34,7 @@ var snapstateMigrateHome = snapstate.MigrateHome
 
 var migrateHomeChangeKind = swfeats.RegisterChangeKind("migrate-home")
 
-func migrateHome(st *state.State, snaps []string) Response {
+func migrateHome(st *state.State, snaps []naming.InstanceName) Response {
 	if len(snaps) == 0 {
 		return BadRequest("no snaps were provided")
 	}

@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -126,7 +127,7 @@ func themePackageCandidates(prefix, themeName string) []string {
 	return packages
 }
 
-func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, status map[string]themeStatus, candidateSnaps map[string]bool) error {
+func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreService, user *auth.UserState, prefix string, themes, installed []string, status map[string]themeStatus, candidateSnaps map[naming.InstanceName]bool) error {
 	for _, theme := range themes {
 		// Skip duplicates
 		if _, ok := status[theme]; ok {
@@ -158,7 +159,7 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 	return nil
 }
 
-func themeStatusAndCandidateSnaps(ctx context.Context, d *Daemon, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, candidateSnaps map[string]bool, err error) {
+func themeStatusAndCandidateSnaps(ctx context.Context, d *Daemon, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, candidateSnaps map[naming.InstanceName]bool, err error) {
 	installedGtk, installedIcon, installedSound, err := installedThemes(d.overlord)
 	if err != nil {
 		return themeStatusResponse{}, nil, err

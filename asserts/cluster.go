@@ -73,7 +73,7 @@ type ClusterSnap struct {
 	// removed).
 	State ClusterSnapState
 	// Instance is the snap's instance name.
-	Instance string
+	Instance naming.InstanceName
 	// Channel is the channel the snap should track.
 	Channel string
 }

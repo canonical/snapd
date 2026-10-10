@@ -352,11 +352,11 @@ type SnapToDownload struct {
 }
 
 type CurrentSnap struct {
-	SnapName string
-	SnapID   string
-	Revision snap.Revision
-	Channel  string
-	Epoch    snap.Epoch
+	InstanceName naming.InstanceName
+	SnapID       string
+	Revision     snap.Revision
+	Channel      string
+	Epoch        snap.Epoch
 }
 
 type DownloadManyOptions struct {

@@ -343,7 +343,7 @@ type storeInstallGoal struct {
 	snaps []StoreSnap
 }
 
-func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
+func (s *storeInstallGoal) snap(name naming.InstanceName) (StoreSnap, bool) {
 	for _, sn := range s.snaps {
 		if sn.InstanceName == name {
 			return sn, true
@@ -355,7 +355,7 @@ func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
 // StoreSnap represents a snap that is to be installed from the store.
 type StoreSnap struct {
 	// InstanceName is the name of snap to install.
-	InstanceName string
+	InstanceName naming.InstanceName
 	// Components is the list of components to install with this snap.
 	Components []string
 	// RevOpts contains options that apply to the installation of this snap.
@@ -754,7 +754,7 @@ func invalidComponentRevisionError(action string, snapName naming.SnapName, comp
 	)
 }
 
-func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[string]*SnapState, opts Options) error {
+func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[naming.InstanceName]*SnapState, opts Options) error {
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 	uninstalled := s.snaps[:0]
 	var alreadyInstalled []string
@@ -1050,7 +1050,7 @@ func validatedComponentInfo(path string, si *snap.Info, csi *snap.ComponentSideI
 type updatePlan struct {
 	// requested is the list of snaps that were requested to be updated. If
 	// RefreshAll is true, then this list should be empty.
-	requested []string
+	requested []naming.InstanceName
 	// targets is the list of snaps that are to be updated. Note that this list
 	// does not necessarily match the list of snaps in requested.
 	targets []target
@@ -1420,7 +1420,7 @@ type storeUpdateGoal struct {
 // StoreUpdate represents a snap that is to be updated from the store.
 type StoreUpdate struct {
 	// InstanceName is the instance name of the snap to update.
-	InstanceName string
+	InstanceName naming.InstanceName
 	// RevOpts contains options that apply to the update of this snap.
 	RevOpts RevisionOptions
 	// AdditionalComponents is a list of additional components to install during
@@ -1482,7 +1482,7 @@ func (*storeUpdateGoal) filterGatedSnaps(st *state.State, plan *updatePlan, opts
 	return plan.validateAndFilterTargets(st, opts)
 }
 
-func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
+func validateAndInitStoreUpdates(st *state.State, allSnaps map[naming.InstanceName]*SnapState, updates map[naming.InstanceName]StoreUpdate, opts Options) error {
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 	for _, sn := range updates {
 		snapst, ok := allSnaps[sn.InstanceName]
@@ -1535,7 +1535,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 	return nil
 }
 
-func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[string]*SnapState) (map[string]StoreUpdate, error) {
+func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[naming.InstanceName]*SnapState) (map[naming.InstanceName]StoreUpdate, error) {
 	var vsets *snapasserts.ValidationSets
 	if !opts.Flags.IgnoreValidation {
 		enforced, err := EnforcedValidationSets(st)

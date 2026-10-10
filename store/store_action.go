@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // TODO: rename this type to something more general, since it is used for more
@@ -56,7 +57,7 @@ type RefreshOptions struct {
 // snap action: install/refresh
 
 type CurrentSnap struct {
-	InstanceName     string
+	InstanceName     naming.InstanceName
 	SnapID           string
 	Revision         snap.Revision
 	TrackingChannel  string
