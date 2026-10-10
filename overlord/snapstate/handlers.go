@@ -1883,6 +1883,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
+	oldIgnoreUnsupportedInstanceInterfaces := snapst.IgnoreUnsupportedInstanceInterfaces
+	if snapsup.IgnoreUnsupportedInstanceInterfaces {
+		snapst.IgnoreUnsupportedInstanceInterfaces = true
+	}
 	oldRefreshInhibitedTime := snapst.RefreshInhibitedTime
 	oldLastRefreshTime := snapst.LastRefreshTime
 	// only set userID if unset or logged out in snapst and if we
@@ -1913,6 +1917,13 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	newInfo, err := readInfo(snapsup.InstanceName(), cand.Snap, 0)
 	if err != nil {
 		return err
+	}
+	var parallelInstanceMigrationPending bool
+	if err := t.Get(parallelInstanceMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, newInfo) != nil {
+		snapst.IgnoreUnsupportedInstanceInterfaces = true
 	}
 
 	// record type
@@ -2064,6 +2075,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-classic", oldClassic)
 	t.Set("old-ignore-validation", oldIgnoreValidation)
+	t.Set("old-ignore-unsupported-instance-interfaces", oldIgnoreUnsupportedInstanceInterfaces)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -2464,6 +2476,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
+	var oldIgnoreUnsupportedInstanceInterfaces *bool
+	err = t.Get("old-ignore-unsupported-instance-interfaces", &oldIgnoreUnsupportedInstanceInterfaces)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
 	var oldTryMode bool
 	err = t.Get("old-trymode", &oldTryMode)
 	if err != nil {
@@ -2567,6 +2584,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	snapst.TrackingChannel = oldChannel
 	snapst.IgnoreValidation = oldIgnoreValidation
+	if oldIgnoreUnsupportedInstanceInterfaces != nil {
+		snapst.IgnoreUnsupportedInstanceInterfaces = *oldIgnoreUnsupportedInstanceInterfaces
+	}
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
@@ -2591,6 +2611,13 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		snapst.Base = oldInfo.Base
+		var parallelInstanceMigrationPending bool
+		if err := t.Get(parallelInstanceMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, oldInfo) != nil {
+			snapst.IgnoreUnsupportedInstanceInterfaces = true
+		}
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)

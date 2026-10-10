@@ -8082,6 +8082,45 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
 }
 
+type parallelInstancesRejectingInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *parallelInstancesRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errors.New("plug rejected")
+}
+
+func (s *interfaceManagerSuite) TestStartupMigratesParallelInstancesWithUnsupportedInterfaces(c *C) {
+	s.mockIface(&ifacetest.TestInterface{InterfaceName: "pi-ok"})
+	s.mockIface(&parallelInstancesRejectingInterface{ifacetest.TestInterface{InterfaceName: "pi-nok"}})
+	s.mockSnapInstance(c, "consumer_ok", `name: consumer
+version: 1
+plugs:
+  plug:
+    interface: pi-ok
+`)
+	s.mockSnapInstance(c, "consumer_nok", `name: consumer
+version: 1
+plugs:
+  plug:
+    interface: pi-nok
+`)
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for name, expected := range map[string]bool{
+		"consumer_ok":  false,
+		"consumer_nok": true,
+	} {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
+		c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, expected, Commentf(name))
+	}
+}
+
 func (s *interfaceManagerSuite) TestStartupTimings(c *C) {
 	restore := interfaces.MockSystemKey(`{"core": "123"}`)
 	defer restore()

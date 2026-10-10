@@ -661,8 +661,13 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
-	if err := checkParallelInstancesSupport(st, info); err != nil {
-		return flags, err
+	if !flags.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces {
+		if err := checkParallelInstancesSupport(st, info); err != nil {
+			if snapst.IsInstalled() {
+				st.Warnf("refresh of snap %q is blocked as it uses interfaces not supported for parallel instances: %v; use --ignore-unsupported-instance-interfaces to refresh anyway", info.InstanceName(), err)
+			}
+			return flags, err
+		}
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
@@ -4540,4 +4545,64 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 	}
 
 	return append(tss, pde)
+}
+
+// parallelInstancesMigratedKey marks that existing parallel instances were
+// evaluated once support checks on refresh were introduced
+const parallelInstancesMigratedKey = "parallel-instances-ignore-errors-migrated"
+
+const parallelInstanceMigrationPendingKey = "parallel-instance-migration-pending"
+
+// MigrateParallelInstancesIgnoreInstanceErrors sets IgnoreInstanceErrors on
+// parallel instances installed before the feature was graduated. It must be
+// called with the state locked and after the interface repository has been set up.
+func MigrateParallelInstancesIgnoreInstanceErrors(st *state.State) error {
+	var done bool
+	if err := st.Get(parallelInstancesMigratedKey, &done); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if done {
+		return nil
+	}
+
+	all, err := All(st)
+	if err != nil {
+		return err
+	}
+	for name, snapst := range all {
+		if snapst.InstanceKey == "" || snapst.IgnoreUnsupportedInstanceInterfaces {
+			continue
+		}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot check parallel instance support of snap %q: %v", name, err)
+			continue
+		}
+		if err := checkParallelInstancesSupport(st, info); err == nil {
+			continue
+		}
+		snapst.IgnoreUnsupportedInstanceInterfaces = true
+		Set(st, name, snapst)
+	}
+
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		for _, task := range chg.Tasks() {
+			if task.Kind() != "link-snap" {
+				continue
+			}
+			snapsup, err := TaskSnapSetup(task)
+			if err != nil {
+				return fmt.Errorf("cannot get snap setup for pending link-snap task: %w", err)
+			}
+			if snapsup.InstanceKey != "" {
+				task.Set(parallelInstanceMigrationPendingKey, true)
+			}
+		}
+	}
+
+	st.Set(parallelInstancesMigratedKey, true)
+	return nil
 }
