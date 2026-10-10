@@ -1050,6 +1050,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	defer seclog.Setup(seclog.NewNopLogger())
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -1078,12 +1079,18 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	expectedAction := boot.RebootReboot
 	expectedOp := "reboot"
+	expectedEvent := "sys_restart"
+	expectedDescription := "System restart"
 	if restartKind == restart.RestartSystemHaltNow {
 		expectedAction = boot.RebootHalt
 		expectedOp = "halt"
+		expectedEvent = "sys_shutdown"
+		expectedDescription = "System shutdown"
 	} else if restartKind == restart.RestartSystemPoweroffNow {
 		expectedAction = boot.RebootPoweroff
 		expectedOp = "poweroff"
+		expectedEvent = "sys_shutdown"
+		expectedDescription = "System shutdown"
 	}
 	var delays []time.Duration
 	reboot = func(a boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
@@ -1154,6 +1161,24 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	c.Check(timeToStop > rebootWaitTimeout+rebootNoticeWait, check.Equals, true)
 	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, expectedEvent+" ")
+	logged := fmt.Sprintf("%s of type %s", expectedDescription, restartKind)
+	if expectedEvent == "sys_restart" && wait > 0 {
+		logged = fmt.Sprintf("%s in %s", logged, wait)
+	} else {
+		// immediate restarts and shutdowns have no delay clause
+		c.Check(seclogBuf.String(), check.Not(testutil.Contains), " in ")
+	}
+	// the description ends where the attributes begin
+	c.Check(seclogBuf.String(), testutil.Contains, logged+" [")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, fmt.Sprintf(`[restart_type="%s"]`, restartKind))
+	if expectedEvent == "sys_restart" {
+		c.Check(seclogBuf.String(), testutil.Contains, `[retry=false]`)
+	} else {
+		c.Check(seclogBuf.String(), check.Not(testutil.Contains), `[retry=`)
+	}
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), `[reason=`)
 
 	c.Check(delays, check.HasLen, 2)
 	c.Check(delays[1], check.DeepEquals, wait)
@@ -1387,6 +1412,10 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	rebootRetryWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	nRebootCall := 0
 	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
 		nRebootCall++
@@ -1400,6 +1429,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	defer r()
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	c.Check(d.overlord, check.IsNil)
 	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
 
@@ -1426,6 +1456,14 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 	// we must have called reboot once
 	c.Check(nRebootCall, check.Equals, 1)
+	c.Check(strings.Count(seclogBuf.String(), "sys_restart "), check.Equals, 1)
+	// the retry's scheduled time is now or in the past, so there is no delay clause
+	c.Check(seclogBuf.String(), testutil.Contains, "System restart retry of type restart-system [")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), " in ")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[restart_type="restart-system"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[retry=true]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), `[reason=`)
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {

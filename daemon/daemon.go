@@ -865,10 +865,14 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 	}
 	action := boot.RebootReboot
 	switch rst {
+	case restart.RestartSystem, restart.RestartSystemNow:
+		seclog.LogSystemRestart(d.Version, rst, d.expectedRebootDidNotHappen, rebootDelay)
 	case restart.RestartSystemHaltNow:
 		action = boot.RebootHalt
+		seclog.LogSystemShutdown(d.Version, rst)
 	case restart.RestartSystemPoweroffNow:
 		action = boot.RebootPoweroff
+		seclog.LogSystemShutdown(d.Version, rst)
 	}
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restarted by systemd

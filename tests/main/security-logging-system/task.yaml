@@ -1,0 +1,102 @@
+summary: Checks that system lifecycle security events are written to the audit log
+
+details: |
+    The snapd daemon writes structured security audit events via the kernel
+    audit subsystem (AUDIT_TRUSTED_APP, type 1121). This test verifies that
+    requesting a reboot with "snap reboot" produces a "sys_restart" event with
+    restart_type "restart-system-now" and a snapd_version field. The shutdown
+    command is mocked so the event can be checked before spread reboots the
+    system.
+
+systems: [ubuntu-*]
+
+prepare: |
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        python3 "$TESTSLIB/enable-audit.py"
+
+        if ! systemctl is-active systemd-journald-audit.socket; then
+            touch audit-socket-was-inactive
+            systemctl stop systemd-journald.service
+            systemctl start systemd-journald-audit.socket
+            systemctl restart systemd-journald.service
+        fi
+    fi
+
+restore: |
+    # The suite-level cleanup runs after this section. Unmount the systemctl
+    # mock here, before the /tmp/orig-systemctl it delegates to is removed.
+    tests.cleanup restore
+
+    rm -f /tmp/mock-shutdown.calls /tmp/orig-systemctl
+
+    if [ -f audit-socket-was-inactive ]; then
+        systemctl stop systemd-journald-audit.socket
+        systemctl restart systemd-journald.service
+        rm -f audit-socket-was-inactive
+    fi
+
+execute: |
+    if [ "$SPREAD_REBOOT" != 0 ]; then
+        # we rebooted as expected, make sure snapd is back
+        snap wait system seed.loaded
+        exit 0
+    fi
+
+    # auditd holds the netlink audit socket exclusively; if it is running,
+    # journald cannot receive audit messages.
+    AUDITD_ACTIVE=0
+    if systemctl is-active --quiet auditd.service; then
+        AUDITD_ACTIVE=1
+        auditctl -e 1
+    fi
+    AUDIT_LOG_POS=0
+
+    pin_logs() {
+        if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+            AUDIT_LOG_POS=$(wc -c < /var/log/audit/audit.log)
+        else
+            "$TESTSTOOLS"/journal-state start_new_log
+        fi
+    }
+
+    # Assert that structured security events are present in the right backend.
+    # Usage: security_event_match <expression>
+    security_event_match() {
+        local expression="$1"
+
+        if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+            tail -c +$((AUDIT_LOG_POS+1)) /var/log/audit/audit.log | grep -Eq "$expression"
+        else
+            "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 >/dev/null 2>&1
+        fi
+    }
+
+    echo "Checking that snap reboot produces a sys_restart audit event"
+    pin_logs
+
+    # mock the shutdown command so that when snapd requests a reboot, we can
+    # observe this and reboot with spread instead
+
+    # save the original systemctl command since we essentially need to mock it
+    cp /bin/systemctl /tmp/orig-systemctl
+
+    mount -o bind "$TESTSLIB/mock-shutdown" /bin/systemctl
+    tests.cleanup defer umount /bin/systemctl
+
+    snap reboot | MATCH '^Reboot$'
+
+    # snapd schedules a slow timeout and an immediate one, however it is
+    # scheduled asynchronously, try to keep the check simple
+    # shellcheck disable=SC2016
+    retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
+    # a reboot in 10 minutes should have been scheduled
+    MATCH -- '-r \+10' < /tmp/mock-shutdown.calls
+    # and an immediate reboot should have been scheduled
+    MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
+
+    security_event_match '"level":"INFO","description":"System restart of type restart-system-now","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_restart","snapd_version":"[^"]+","restart_type":"restart-system-now","retry":false'
+
+    # restore shutdown so that spread can reboot the host
+    tests.cleanup pop
+
+    REBOOT
