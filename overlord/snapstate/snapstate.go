@@ -625,7 +625,32 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 		}
 	}
 
+	for _, appName := range sortedAppNames(info) {
+		app := info.Apps[appName]
+		var unsupported string
+		switch {
+		case app.CommonID != "":
+			unsupported = "common-id"
+		case app.BusName != "":
+			unsupported = "bus-name"
+		}
+		if unsupported != "" {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"app %q uses %s which is not supported for parallel instances",
+				info.InstanceName(), appName, unsupported)
+		}
+	}
+
 	return nil
+}
+
+func sortedAppNames(info *snap.Info) []string {
+	names := make([]string, 0, len(info.Apps))
+	for name := range info.Apps {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
