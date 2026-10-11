@@ -45,10 +45,16 @@ prepare: |
     systemctl restart snapd.service
 
 restore: |
+    # Restore the unit override before starting snapd. A process
+    # started while SNAPD_STANDBY_WAIT=1s is still installed keeps
+    # that environment; daemon-reload does not update it.
     if [ -f "$OVERRIDES_FILE.bak" ]; then
         mv "$OVERRIDES_FILE.bak" "$OVERRIDES_FILE"
         systemctl daemon-reload
+        systemctl try-restart snapd.service || true
     fi
+
+    systemctl start snapd.socket snapd.service || true
 
     if [ -f audit-socket-was-inactive ]; then
         systemctl stop systemd-journald-audit.socket
