@@ -394,6 +394,9 @@ func (inst *snapInstruction) validateSnapshotOptions() error {
 
 func (inst *snapInstruction) validate() error {
 	if inst.IgnoreUnsupportedInstanceInterfaces {
+		if inst.Action != installCmdAction && inst.Action != refreshCmdAction {
+			return fmt.Errorf("ignore-unsupported-instance-interfaces can only be specified for install or refresh")
+		}
 		for _, snapName := range inst.Snaps {
 			_, instanceKey := snap.SplitInstanceName(snapName)
 			if instanceKey == "" {

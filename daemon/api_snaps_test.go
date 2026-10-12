@@ -2314,6 +2314,22 @@ func (s *snapsSuite) TestPostSnapIgnoreUnsupportedInstanceInterfacesRequiresPara
 	c.Check(rs.Message, check.Equals, "ignore-unsupported-instance-interfaces can only be used with parallel instances")
 }
 
+func (s *snapsSuite) TestPostSnapIgnoreUnsupportedInstanceInterfacesUnsupportedAction(c *check.C) {
+	s.daemon(c)
+	const expectedErr = "ignore-unsupported-instance-interfaces can only be specified for install or refresh"
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "switch"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": %q, "ignore-unsupported-instance-interfaces": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap_instance", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rs := s.errorReq(c, req, nil, true)
+		c.Check(rs.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rs.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *snapsSuite) TestInstall(c *check.C) {
 	var calledName string
 
