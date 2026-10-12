@@ -550,6 +550,33 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
 	c.Assert(osutil.IsSymlink(fwPath), Equals, true)
 }
 
+func (s *kernelDriversTestSuite) TestRegenerateKernelDriversOnlyFw(c *C) {
+	// Kernel with no modules directory should not fail during regenerate.
+
+	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	createKernelSnapFilesOnlyFw(c, mountDir)
+
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	mountPoints := kernel.MountPoints{Current: mountDir, Target: mountDir}
+	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, nil, destDir, kernel.KernelInstallMode), IsNil)
+
+	fwDir := filepath.Join(destDir, "lib", "firmware")
+	// Regeneration should replace the updates directory even without modules.
+	staleFw := filepath.Join(fwDir, "updates", "stale.bin")
+	c.Assert(os.WriteFile(staleFw, nil, 0644), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, nil, destDir, kernel.RegenerateMode), IsNil)
+
+	fwLink := filepath.Join(fwDir, "wifi_fw.bin")
+	linkTarget, err := os.Readlink(fwLink)
+	c.Assert(err, IsNil)
+	c.Check(linkTarget, Equals, filepath.Join(mountDir, "firmware", "wifi_fw.bin"))
+	c.Check(osutil.FileExists(staleFw), Equals, false)
+	_, err = os.Stat(filepath.Join(fwDir, "updates"))
+	c.Check(err, IsNil)
+	_, err = os.Stat(destDir + "_tmp")
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFwWithTargetDir(c *C) {
 	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
 	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
