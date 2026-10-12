@@ -525,6 +525,7 @@ func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 		"nvidia-video-driver-libs",
 		"opengl-driver-libs",
 		"opengles-driver-libs",
+		"openvswitch-support",
 		"physical-memory-control",
 		"posix-mq",
 		"ros-snapd-support",

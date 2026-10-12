@@ -886,7 +886,7 @@ func init() {
 		baseDeclarationSlots:     dockerSupportBaseDeclarationSlots,
 		controlsDeviceCgroup:     true,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{dockerSupportServiceSnippet},
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		// docker-support also uses ptrace(trace), but it already declares this in
 		// the AppArmorConnectedPlug method

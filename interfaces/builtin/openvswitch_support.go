@@ -39,5 +39,7 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

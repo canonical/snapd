@@ -144,7 +144,7 @@ func init() {
 			// handled by AppArmorConnectedPlug
 			connectedPlugAppArmor:    "",
 			connectedPlugSecComp:     classicSupportPlugSecComp,
-			parallelInstancesPlugErr: errParallelInstancesSharedResources,
+			parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
