@@ -64,7 +64,7 @@ conflicts with existing installs. This behaviour can be altered by passing
 conflicting aliases of other snaps whose automatic aliases will be disabled and
 manual aliases will be removed.
 
-Use --ignore-unsupported-instance-interfaces to install parallel instances even when their
+Use --allow-unsupported-instances to install parallel instances even when their
 plugs, slots, or apps do not support parallel instances.
 
 With no further options, the snaps are installed tracking the stable channel,
@@ -106,7 +106,7 @@ channels of a snap are listed in its 'snap info' output.
 When --revision is used, a later refresh will typically undo the revision
 override.
 
-Use --ignore-unsupported-instance-interfaces to refresh blocked parallel instances even when their
+Use --allow-unsupported-instances to refresh blocked parallel instances even when their
 plugs, slots, or apps do not support parallel instances.
 
 Hold (--hold) is used to postpone snap refresh updates for all snaps when no
@@ -734,13 +734,13 @@ type cmdInstall struct {
 
 	Name string `long:"name"`
 
-	Cohort                              string                 `long:"cohort"`
-	IgnoreValidation                    bool                   `long:"ignore-validation"`
-	IgnoreUnsupportedInstanceInterfaces bool                   `long:"ignore-unsupported-instance-interfaces"`
-	IgnoreRunning                       bool                   `long:"ignore-running" hidden:"yes"`
-	Transaction                         client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
-	QuotaGroupName                      string                 `long:"quota-group"`
-	Positional                          struct {
+	Cohort                    string                 `long:"cohort"`
+	IgnoreValidation          bool                   `long:"ignore-validation"`
+	AllowUnsupportedInstances bool                   `long:"allow-unsupported-instances"`
+	IgnoreRunning             bool                   `long:"ignore-running" hidden:"yes"`
+	Transaction               client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	QuotaGroupName            string                 `long:"quota-group"`
+	Positional                struct {
 		Snaps []remoteSnapName `positional-arg-name:"<snap>" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
@@ -937,17 +937,17 @@ func (x *cmdInstall) Execute([]string) error {
 
 	dangerous := x.Dangerous || x.ForceDangerous
 	opts := &client.SnapOptions{
-		Channel:                             x.Channel,
-		Revision:                            x.Revision,
-		Dangerous:                           dangerous,
-		Unaliased:                           x.Unaliased,
-		CohortKey:                           x.Cohort,
-		IgnoreValidation:                    x.IgnoreValidation,
-		IgnoreUnsupportedInstanceInterfaces: x.IgnoreUnsupportedInstanceInterfaces,
-		IgnoreRunning:                       x.IgnoreRunning,
-		Transaction:                         x.Transaction,
-		QuotaGroupName:                      x.QuotaGroupName,
-		Prefer:                              x.Prefer,
+		Channel:                   x.Channel,
+		Revision:                  x.Revision,
+		Dangerous:                 dangerous,
+		Unaliased:                 x.Unaliased,
+		CohortKey:                 x.Cohort,
+		IgnoreValidation:          x.IgnoreValidation,
+		AllowUnsupportedInstances: x.AllowUnsupportedInstances,
+		IgnoreRunning:             x.IgnoreRunning,
+		Transaction:               x.Transaction,
+		QuotaGroupName:            x.QuotaGroupName,
+		Prefer:                    x.Prefer,
 	}
 	x.setModes(opts)
 
@@ -971,7 +971,7 @@ func (x *cmdInstall) Execute([]string) error {
 	if x.Prefer {
 		return errors.New(i18n.G("a single snap name is needed to specify the prefer flag"))
 	}
-	if x.IgnoreUnsupportedInstanceInterfaces {
+	if x.AllowUnsupportedInstances {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring unsupported parallel instances"))
 	}
 
@@ -988,20 +988,20 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	Amend                               bool                   `long:"amend"`
-	Revision                            string                 `long:"revision"`
-	Cohort                              string                 `long:"cohort"`
-	LeaveCohort                         bool                   `long:"leave-cohort"`
-	List                                bool                   `long:"list"`
-	Time                                bool                   `long:"time"`
-	IgnoreValidation                    bool                   `long:"ignore-validation"`
-	IgnoreUnsupportedInstanceInterfaces bool                   `long:"ignore-unsupported-instance-interfaces"`
-	IgnoreRunning                       bool                   `long:"ignore-running" hidden:"yes"`
-	Tracking                            bool                   `long:"tracking"`
-	Transaction                         client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
-	Hold                                string                 `long:"hold" optional:"yes" optional-value:"forever"`
-	Unhold                              bool                   `long:"unhold"`
-	Positional                          struct {
+	Amend                     bool                   `long:"amend"`
+	Revision                  string                 `long:"revision"`
+	Cohort                    string                 `long:"cohort"`
+	LeaveCohort               bool                   `long:"leave-cohort"`
+	List                      bool                   `long:"list"`
+	Time                      bool                   `long:"time"`
+	IgnoreValidation          bool                   `long:"ignore-validation"`
+	AllowUnsupportedInstances bool                   `long:"allow-unsupported-instances"`
+	IgnoreRunning             bool                   `long:"ignore-running" hidden:"yes"`
+	Tracking                  bool                   `long:"tracking"`
+	Transaction               client.TransactionType `long:"transaction" default:"per-snap" choice:"all-snaps" choice:"per-snap"`
+	Hold                      string                 `long:"hold" optional:"yes" optional-value:"forever"`
+	Unhold                    bool                   `long:"unhold"`
+	Positional                struct {
 		Snaps []installedSnapName `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
@@ -1181,7 +1181,7 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	otherFlags := x.Amend || x.Revision != "" || x.Cohort != "" ||
 		x.LeaveCohort || x.List || x.Time || x.IgnoreValidation || x.IgnoreRunning ||
-		x.IgnoreUnsupportedInstanceInterfaces || x.Transaction != client.TransactionPerSnap
+		x.AllowUnsupportedInstances || x.Transaction != client.TransactionPerSnap
 
 	switch {
 	case x.Tracking:
@@ -1204,15 +1204,15 @@ func (x *cmdRefresh) Execute([]string) error {
 	names := installedSnapNames(x.Positional.Snaps)
 	if len(names) == 1 {
 		opts := &client.SnapOptions{
-			Amend:                               x.Amend,
-			Channel:                             x.Channel,
-			IgnoreValidation:                    x.IgnoreValidation,
-			IgnoreUnsupportedInstanceInterfaces: x.IgnoreUnsupportedInstanceInterfaces,
-			IgnoreRunning:                       x.IgnoreRunning,
-			Revision:                            x.Revision,
-			CohortKey:                           x.Cohort,
-			LeaveCohort:                         x.LeaveCohort,
-			Transaction:                         x.Transaction,
+			Amend:                     x.Amend,
+			Channel:                   x.Channel,
+			IgnoreValidation:          x.IgnoreValidation,
+			AllowUnsupportedInstances: x.AllowUnsupportedInstances,
+			IgnoreRunning:             x.IgnoreRunning,
+			Revision:                  x.Revision,
+			CohortKey:                 x.Cohort,
+			LeaveCohort:               x.LeaveCohort,
+			Transaction:               x.Transaction,
 		}
 		x.setModes(opts)
 		return x.refreshOne(names[0], opts)
@@ -1232,7 +1232,7 @@ func (x *cmdRefresh) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
 
-	if x.IgnoreUnsupportedInstanceInterfaces {
+	if x.AllowUnsupportedInstances {
 		return errors.New(i18n.G("a single snap name must be specified when ignoring unsupported parallel instances"))
 	}
 
@@ -1660,7 +1660,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"ignore-unsupported-instance-interfaces": i18n.G("Ignore errors for unsupported parallel instances"),
+			"allow-unsupported-instances": i18n.G("Allow unsupported parallel instances"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -1685,7 +1685,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"ignore-unsupported-instance-interfaces": i18n.G("Ignore errors for unsupported parallel instances"),
+			"allow-unsupported-instances": i18n.G("Allow unsupported parallel instances"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.

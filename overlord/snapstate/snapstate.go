@@ -661,10 +661,10 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
-	if !flags.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces {
+	if !flags.AllowUnsupportedInstances && !snapst.AllowUnsupportedInstances {
 		if err := checkParallelInstancesSupport(st, info); err != nil {
 			if snapst.IsInstalled() {
-				st.Warnf("refresh of snap %q is blocked as it is not supported for parallel instances: %v; use --ignore-unsupported-instance-interfaces to refresh anyway", info.InstanceName(), err)
+				st.Warnf("refresh of snap %q is blocked as it is not supported for parallel instances: %v; use --allow-unsupported-instances to refresh anyway", info.InstanceName(), err)
 			}
 			return flags, err
 		}
@@ -1742,10 +1742,10 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 	// we only toggle validation set enforcement if we are refreshing exactly
 	// one snap
 	toggleIgnoreValidation := (snapst.IgnoreValidation != snapsup.IgnoreValidation) && opts.ExpectOneSnap
-	setIgnoreUnsupportedInstanceInterfaces := snapsup.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces
+	setAllowUnsupportedInstances := snapsup.AllowUnsupportedInstances && !snapst.AllowUnsupportedInstances
 
 	// nothing to do, we can leave early
-	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation && !setIgnoreUnsupportedInstanceInterfaces {
+	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation && !setAllowUnsupportedInstances {
 		return nil, nil
 	}
 
@@ -1765,7 +1765,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		tasks = append(tasks, switchSnap)
 	}
 
-	if toggleIgnoreValidation || setIgnoreUnsupportedInstanceInterfaces {
+	if toggleIgnoreValidation || setAllowUnsupportedInstances {
 		toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 		if snapsupTask == nil {
 			toggle.Set("snap-setup", &snapsup)

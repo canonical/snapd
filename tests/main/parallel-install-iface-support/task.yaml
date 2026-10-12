@@ -4,7 +4,7 @@ details: |
     Some interfaces declare that they do not support parallel instances.
     Installing a snap as a parallel instance when it has a plug or slot using
     such an interface must be rejected, while a regular (non-instanced) install
-    of the same snap must still succeed. The --ignore-unsupported-instance-interfaces flag
+    of the same snap must still succeed. The --allow-unsupported-instances flag
     allows an unsupported parallel instance to be installed explicitly.
 
 prepare: |
@@ -308,10 +308,10 @@ execute: |
 
     # Both plugs and slots of acrn-support reject parallel instances.
     make_test_snap ignore-acrn-support-plug acrn-support plug
-    snap install --dangerous --ignore-unsupported-instance-interfaces --name ignore-acrn-support-plug_foo /tmp/ignore-acrn-support-plug.snap
+    snap install --dangerous --allow-unsupported-instances --name ignore-acrn-support-plug_foo /tmp/ignore-acrn-support-plug.snap
     snap list | MATCH '^ignore-acrn-support-plug_foo '
 
     # Only slots of audio-playback reject parallel instances.
     make_test_snap ignore-audio-playback-slot audio-playback slot
-    snap install --dangerous --ignore-unsupported-instance-interfaces --name ignore-audio-playback-slot_foo /tmp/ignore-audio-playback-slot.snap
+    snap install --dangerous --allow-unsupported-instances --name ignore-audio-playback-slot_foo /tmp/ignore-audio-playback-slot.snap
     snap list | MATCH '^ignore-audio-playback-slot_foo '

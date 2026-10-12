@@ -7913,7 +7913,7 @@ func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
 		IsAutoRefresh:                       true,
 		NoReRefresh:                         true,
 		RequireTypeBase:                     true,
-		IgnoreUnsupportedInstanceInterfaces: true,
+		AllowUnsupportedInstances: true,
 	}
 	flags = flags.ForSnapSetup()
 
@@ -7933,7 +7933,7 @@ func (s *snapmgrTestSuite) TestForSnapSetupResetsFlags(c *C) {
 		IsAutoRefresh:                       true,
 		NoReRefresh:                         false,
 		RequireTypeBase:                     false,
-		IgnoreUnsupportedInstanceInterfaces: true,
+		AllowUnsupportedInstances: true,
 	})
 }
 

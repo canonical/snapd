@@ -693,17 +693,17 @@ func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestInstallIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+func (s *SnapOpSuite) TestInstallAllowUnsupportedInstances(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo_instance")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
-			"action":                                 "install",
-			"ignore-unsupported-instance-interfaces": true,
-			"transaction":                            string(client.TransactionPerSnap),
+			"action":                      "install",
+			"allow-unsupported-instances": true,
+			"transaction":                 string(client.TransactionPerSnap),
 		})
 	}
 	s.RedirectClientToTestServer(s.srv.handle)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-unsupported-instance-interfaces", "foo_instance"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--allow-unsupported-instances", "foo_instance"})
 	c.Assert(err, check.IsNil)
 }
 
@@ -1709,9 +1709,9 @@ func (s *SnapOpSuite) TestInstallPathManyChannel(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify channel flags`)
 }
 
-func (s *SnapOpSuite) TestInstallManyIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+func (s *SnapOpSuite) TestInstallManyAllowUnsupportedInstances(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-unsupported-instance-interfaces", "one_foo", "two_bar"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--allow-unsupported-instances", "one_foo", "two_bar"})
 	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring unsupported parallel instances`)
 }
 
@@ -2840,23 +2840,23 @@ func (s *SnapOpSuite) TestRefreshManyIgnoreRunning(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *SnapOpSuite) TestRefreshOneIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+func (s *SnapOpSuite) TestRefreshOneAllowUnsupportedInstances(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one_foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
-			"action":                                 "refresh",
-			"ignore-unsupported-instance-interfaces": true,
-			"transaction":                            "per-snap",
+			"action":                      "refresh",
+			"allow-unsupported-instances": true,
+			"transaction":                 "per-snap",
 		})
 	}
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-unsupported-instance-interfaces", "one_foo"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--allow-unsupported-instances", "one_foo"})
 	c.Assert(err, check.IsNil)
 }
 
-func (s *SnapOpSuite) TestRefreshAllIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+func (s *SnapOpSuite) TestRefreshAllAllowUnsupportedInstances(c *check.C) {
 	s.RedirectClientToTestServer(nil)
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-unsupported-instance-interfaces"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--allow-unsupported-instances"})
 	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring unsupported parallel instances`)
 }
 

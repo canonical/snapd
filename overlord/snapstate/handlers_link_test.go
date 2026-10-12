@@ -315,11 +315,11 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterfaces(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapPersistsAllowUnsupportedInstances(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
 
-	// the IgnoreUnsupportedInstanceInterfaces flag is set on install
+	// the AllowUnsupportedInstances flag is set on install
 	// and persisted in snapstate after completion
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -327,7 +327,7 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterface
 			Revision: snap.R(33),
 		},
 		InstanceKey: "bar",
-		Flags:       snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
+		Flags:       snapstate.Flags{AllowUnsupportedInstances: true},
 	})
 	s.state.NewChange("sample", "...").AddTask(t)
 	s.state.Unlock()
@@ -339,26 +339,26 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterface
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
-	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
 	var oldValue bool
 	c.Assert(t.Get("old-ignore-unsupported-instance-interfaces", &oldValue), IsNil)
 	c.Check(oldValue, Equals, false)
 }
 
-func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOnRefresh(c *C) {
+func (s *linkSnapSuite) TestDoLinkSnapKeepsAllowUnsupportedInstancesOnRefresh(c *C) {
 	s.state.Lock()
 	si11 := &snap.SideInfo{
 		RealName: "foo",
 		Revision: snap.R(11),
 	}
 
-	// IgnoreUnsupportedInstanceInterfaces is already set in snapstate,
+	// AllowUnsupportedInstances is already set in snapstate,
 	// the handler persists it after completion
 	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
 		Current:     si11.Revision,
 		InstanceKey: "bar",
-		Flags:       snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
+		Flags:       snapstate.Flags{AllowUnsupportedInstances: true},
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -379,13 +379,13 @@ func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOn
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(33))
-	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
 	var oldValue bool
 	c.Assert(t.Get("old-ignore-unsupported-instance-interfaces", &oldValue), IsNil)
 	c.Check(oldValue, Equals, true)
 }
 
-func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInterfaces(c *C) {
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresAllowUnsupportedInstances(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -406,7 +406,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInter
 			Revision: snap.R(33),
 		},
 		InstanceKey: "bar",
-		Flags:       snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true},
+		Flags:       snapstate.Flags{AllowUnsupportedInstances: true},
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -425,7 +425,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInter
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(11))
-	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {

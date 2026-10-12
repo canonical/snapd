@@ -478,14 +478,14 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
 		for weird, v := range map[string]string{
-			"channel":                                `"beta"`,
-			"revision":                               `"1"`,
-			"devmode":                                "true",
-			"jailmode":                               "true",
-			"cohort-key":                             `"what"`,
-			"leave-cohort":                           "true",
-			"prefer":                                 "true",
-			"ignore-unsupported-instance-interfaces": "true",
+			"channel":                     `"beta"`,
+			"revision":                    `"1"`,
+			"devmode":                     "true",
+			"jailmode":                    "true",
+			"cohort-key":                  `"what"`,
+			"leave-cohort":                "true",
+			"prefer":                      "true",
+			"allow-unsupported-instances": "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -2302,24 +2302,24 @@ func (s *snapsSuite) TestPostSnapOptionsUnsupportedAction(c *check.C) {
 	}
 }
 
-func (s *snapsSuite) TestPostSnapIgnoreUnsupportedInstanceInterfacesRequiresParallelInstance(c *check.C) {
+func (s *snapsSuite) TestPostSnapAllowUnsupportedInstancesRequiresParallelInstance(c *check.C) {
 	s.daemon(c)
-	buf := strings.NewReader(`{"action": "install", "ignore-unsupported-instance-interfaces": true}`)
+	buf := strings.NewReader(`{"action": "install", "allow-unsupported-instances": true}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
 	rs := s.errorReq(c, req, nil, true)
 	c.Check(rs.Status, check.Equals, 400)
-	c.Check(rs.Message, check.Equals, "ignore-unsupported-instance-interfaces can only be used with parallel instances")
+	c.Check(rs.Message, check.Equals, "allow-unsupported-instances can only be used with parallel instances")
 }
 
-func (s *snapsSuite) TestPostSnapIgnoreUnsupportedInstanceInterfacesUnsupportedAction(c *check.C) {
+func (s *snapsSuite) TestPostSnapAllowUnsupportedInstancesUnsupportedAction(c *check.C) {
 	s.daemon(c)
-	const expectedErr = "ignore-unsupported-instance-interfaces can only be specified for install or refresh"
+	const expectedErr = "allow-unsupported-instances can only be specified for install or refresh"
 
 	for _, action := range []string{"remove", "revert", "enable", "disable", "switch"} {
-		buf := strings.NewReader(fmt.Sprintf(`{"action": %q, "ignore-unsupported-instance-interfaces": true}`, action))
+		buf := strings.NewReader(fmt.Sprintf(`{"action": %q, "allow-unsupported-instances": true}`, action))
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap_instance", buf)
 		c.Assert(err, check.IsNil)
 		req.Header.Set("Content-Type", "application/json")
@@ -2546,9 +2546,9 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 	c.Check(res.Summary, check.Equals, `Install "some-snap" snap`)
 }
 
-func (s *snapsSuite) TestInstallIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+func (s *snapsSuite) TestInstallAllowUnsupportedInstances(c *check.C) {
 	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
-		c.Check(opts.Flags.IgnoreUnsupportedInstanceInterfaces, check.Equals, true)
+		c.Check(opts.Flags.AllowUnsupportedInstances, check.Equals, true)
 		task := st.NewTask("fake-install-snap", "Doing a fake install")
 		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(task)}, nil
 	})()
@@ -2557,7 +2557,7 @@ func (s *snapsSuite) TestInstallIgnoreUnsupportedInstanceInterfaces(c *check.C) 
 	})()
 
 	d := s.daemon(c)
-	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"some-snap"}, IgnoreUnsupportedInstanceInterfaces: true}
+	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"some-snap"}, AllowUnsupportedInstances: true}
 	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
@@ -3035,7 +3035,7 @@ func (s *snapsSuite) TestRefreshIgnoreRunning(c *check.C) {
 	c.Check(res.Summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
-func (s *snapsSuite) TestRefreshIgnoreUnsupportedInstanceInterfaces(c *check.C) {
+func (s *snapsSuite) TestRefreshAllowUnsupportedInstances(c *check.C) {
 	var calledFlags snapstate.Flags
 	defer daemon.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
 		calledFlags = opts.Flags
@@ -3048,9 +3048,9 @@ func (s *snapsSuite) TestRefreshIgnoreUnsupportedInstanceInterfaces(c *check.C) 
 
 	d := s.daemon(c)
 	inst := &daemon.SnapInstruction{
-		Action:                              "refresh",
-		IgnoreUnsupportedInstanceInterfaces: true,
-		Snaps:                               []string{"some-snap_foo"},
+		Action:                    "refresh",
+		AllowUnsupportedInstances: true,
+		Snaps:                     []string{"some-snap_foo"},
 	}
 
 	st := d.Overlord().State()
@@ -3059,8 +3059,8 @@ func (s *snapsSuite) TestRefreshIgnoreUnsupportedInstanceInterfaces(c *check.C) 
 	_, err := inst.Dispatch()(context.Background(), inst, st)
 	c.Assert(err, check.IsNil)
 	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{
-		IgnoreUnsupportedInstanceInterfaces: true,
-		Transaction:                         client.TransactionPerSnap,
+		AllowUnsupportedInstances: true,
+		Transaction:               client.TransactionPerSnap,
 	})
 }
 

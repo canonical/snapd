@@ -1883,9 +1883,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	if snapsup.Required { // set only on install and left alone on refresh
 		snapst.Required = true
 	}
-	oldIgnoreUnsupportedInstanceInterfaces := snapst.IgnoreUnsupportedInstanceInterfaces
-	if snapsup.IgnoreUnsupportedInstanceInterfaces {
-		snapst.IgnoreUnsupportedInstanceInterfaces = true
+	oldAllowUnsupportedInstances := snapst.AllowUnsupportedInstances
+	if snapsup.AllowUnsupportedInstances {
+		snapst.AllowUnsupportedInstances = true
 	}
 	oldRefreshInhibitedTime := snapst.RefreshInhibitedTime
 	oldLastRefreshTime := snapst.LastRefreshTime
@@ -2068,7 +2068,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-classic", oldClassic)
 	t.Set("old-ignore-validation", oldIgnoreValidation)
-	t.Set("old-ignore-unsupported-instance-interfaces", oldIgnoreUnsupportedInstanceInterfaces)
+	t.Set("old-ignore-unsupported-instance-interfaces", oldAllowUnsupportedInstances)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -2469,8 +2469,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	var oldIgnoreUnsupportedInstanceInterfaces bool
-	err = t.Get("old-ignore-unsupported-instance-interfaces", &oldIgnoreUnsupportedInstanceInterfaces)
+	var oldAllowUnsupportedInstances bool
+	err = t.Get("old-ignore-unsupported-instance-interfaces", &oldAllowUnsupportedInstances)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -2577,7 +2577,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	snapst.TrackingChannel = oldChannel
 	snapst.IgnoreValidation = oldIgnoreValidation
-	snapst.IgnoreUnsupportedInstanceInterfaces = oldIgnoreUnsupportedInstanceInterfaces
+	snapst.AllowUnsupportedInstances = oldAllowUnsupportedInstances
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
@@ -2766,8 +2766,8 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.IgnoreValidation = snapsup.IgnoreValidation
-	if snapsup.IgnoreUnsupportedInstanceInterfaces {
-		snapst.IgnoreUnsupportedInstanceInterfaces = true
+	if snapsup.AllowUnsupportedInstances {
+		snapst.AllowUnsupportedInstances = true
 	}
 
 	Set(st, snapsup.InstanceName().String(), snapst)
