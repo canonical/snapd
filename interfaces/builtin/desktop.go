@@ -731,6 +731,13 @@ type desktopInterface struct {
 	commonInterface
 }
 
+func (iface *desktopInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	if _, exists := plug.Lookup("desktop-file-ids"); exists {
+		return fmt.Errorf(`"desktop-file-ids" attribute must not be set`)
+	}
+	return nil
+}
+
 func (iface *desktopInterface) shouldMountHostFontCache(attribs interfaces.Attrer) (bool, error) {
 	value, ok := attribs.Lookup("mount-host-font-cache")
 	if !ok {

@@ -576,7 +576,7 @@ func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 		"custom-device",
 		"daemon-notify",
 		"dcdbas-control",
-		"desktop",
+		"dbus",
 		"desktop-launch",
 		"desktop-legacy",
 		"device-buttons",

@@ -220,6 +220,10 @@ dbus (receive, send)
 
 type dbusInterface struct{}
 
+func (iface *dbusInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func (iface *dbusInterface) Name() string {
 	return "dbus"
 }
