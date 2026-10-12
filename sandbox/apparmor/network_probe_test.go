@@ -323,10 +323,24 @@ func (s *networkProbeSuite) TestProbeEaccesOnOtherOperationIsInconclusive(c *C) 
 	c.Assert(os.IsNotExist(err), Equals, true)
 }
 
-func (s *networkProbeSuite) TestProbeNetworkNamespaceIsPrivate(c *C) {
-	if os.Geteuid() != 0 {
-		c.Skip("creating a network namespace requires root")
+// skipUnlessCanCreateNetns skips the test unless a child process can really be
+// started in a new network namespace. Being root is not enough: containers
+// commonly run root without CAP_SYS_ADMIN, and unprivileged user may be
+// allowed to do so.
+func skipUnlessCanCreateNetns(c *C) {
+	path, err := exec.LookPath("true")
+	if err != nil {
+		c.Skip("cannot find true: " + err.Error())
 	}
+	cmd := exec.Command(path)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: syscall.CLONE_NEWNET}
+	if err := cmd.Run(); err != nil {
+		c.Skip("cannot create network namespaces: " + err.Error())
+	}
+}
+
+func (s *networkProbeSuite) TestProbeNetworkNamespaceIsPrivate(c *C) {
+	skipUnlessCanCreateNetns(c)
 	s.mockParserWithAbi50(c)
 	restore := apparmor.MockNetworkBugProbeCloneflags(syscall.CLONE_NEWNET)
 	defer restore()
