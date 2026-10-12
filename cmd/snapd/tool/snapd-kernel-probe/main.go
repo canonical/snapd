@@ -63,6 +63,14 @@ func runConfinedHelper(profileName string) error {
 		return fmt.Errorf("%s is not executable: %s", snapdKernelProbeHelper, helperPath)
 	}
 
+	// The probe runs in a private network namespace (the caller starts us
+	// with CLONE_NEWNET) whose loopback is down. Raise it now, while still
+	// unconfined, so the confined helper needs no capability or ioctl
+	// permissions and can run before the host's loopback is up.
+	if err := raiseLoopback(); err != nil {
+		return err
+	}
+
 	// Transition at exec: the kernel re-evaluates confinement on exec(2)
 	// and, because the probe profile has no attachment, an immediate
 	// change_profile via attr/current would be lost across the exec.

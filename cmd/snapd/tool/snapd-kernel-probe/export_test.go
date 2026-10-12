@@ -26,6 +26,7 @@ import (
 var (
 	Run               = run
 	RunConfinedHelper = runConfinedHelper
+	EnsureOwnNetns    = ensureOwnNetns
 )
 
 func MockOsWriteFile(f func(string, []byte, os.FileMode) error) (restore func()) {
@@ -49,5 +50,13 @@ func MockProcThreadSelfAttrExec(new string) (restore func()) {
 	procThreadSelfAttrExec = new
 	return func() {
 		procThreadSelfAttrExec = old
+	}
+}
+
+func MockRaiseLoopback(f func() error) (restore func()) {
+	old := raiseLoopback
+	raiseLoopback = f
+	return func() {
+		raiseLoopback = old
 	}
 }

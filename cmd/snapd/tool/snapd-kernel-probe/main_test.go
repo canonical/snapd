@@ -50,6 +50,7 @@ func (s *kernelProbeSuite) SetUpTest(c *C) {
 	s.fakeroot = c.MkDir()
 	dirs.SetRootDir(s.fakeroot)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
+	s.AddCleanup(snapd_kernel_probe.MockRaiseLoopback(func() error { return nil }))
 	// pretend the current process is the distro snapd binary so that
 	// InternalToolPath resolves the helper from the (mocked) distro
 	// libexec dir
@@ -130,4 +131,70 @@ func (s *kernelProbeSuite) TestNetworkBugProbeAttrWriteFails(c *C) {
 
 	err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
 	c.Check(err, ErrorMatches, `cannot set AppArmor exec profile "some-profile": attr write denied`)
+}
+
+func (s *kernelProbeSuite) TestNetworkBugProbeRaisesLoopbackBeforeTransition(c *C) {
+	s.installHelper(c)
+
+	var calls []string
+	restore := snapd_kernel_probe.MockRaiseLoopback(func() error {
+		calls = append(calls, "loopback")
+		return nil
+	})
+	defer restore()
+	restore = snapd_kernel_probe.MockOsWriteFile(func(path string, data []byte, perm os.FileMode) error {
+		calls = append(calls, "attr")
+		return nil
+	})
+	defer restore()
+	restore = snapd_kernel_probe.MockSyscallExec(func(argv0 string, argv []string, envv []string) error {
+		calls = append(calls, "exec")
+		return nil
+	})
+	defer restore()
+
+	err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
+	c.Assert(err, IsNil)
+	c.Check(calls, DeepEquals, []string{"loopback", "attr", "exec"})
+}
+
+func (s *kernelProbeSuite) TestNetworkBugProbeLoopbackFailureAborts(c *C) {
+	s.installHelper(c)
+	restore := snapd_kernel_probe.MockRaiseLoopback(func() error {
+		return errors.New("cannot bring up loopback: boom")
+	})
+	defer restore()
+	restore = snapd_kernel_probe.MockOsWriteFile(func(path string, data []byte, perm os.FileMode) error {
+		c.Error("attr/exec must not be written when loopback setup fails")
+		return nil
+	})
+	defer restore()
+	restore = snapd_kernel_probe.MockSyscallExec(func(argv0 string, argv []string, envv []string) error {
+		c.Error("helper must not be executed when loopback setup fails")
+		return nil
+	})
+	defer restore()
+
+	err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
+	c.Check(err, ErrorMatches, "cannot bring up loopback: boom")
+}
+
+func (s *kernelProbeSuite) TestEnsureOwnNetns(c *C) {
+	dir := c.MkDir()
+	a := filepath.Join(dir, "a")
+	b := filepath.Join(dir, "b")
+	c.Assert(os.WriteFile(a, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(b, nil, 0644), IsNil)
+	// a hard link has the same device and inode, like two references
+	// to the same namespace
+	alias := filepath.Join(dir, "alias")
+	c.Assert(os.Link(a, alias), IsNil)
+
+	c.Check(snapd_kernel_probe.EnsureOwnNetns(a, b), IsNil)
+	c.Check(snapd_kernel_probe.EnsureOwnNetns(a, alias), ErrorMatches,
+		"refusing to configure loopback in the network namespace of the parent process")
+	c.Check(snapd_kernel_probe.EnsureOwnNetns(filepath.Join(dir, "missing"), b), ErrorMatches,
+		"cannot inspect own network namespace: .*")
+	c.Check(snapd_kernel_probe.EnsureOwnNetns(a, filepath.Join(dir, "missing")), ErrorMatches,
+		"cannot inspect parent network namespace: .*")
 }
