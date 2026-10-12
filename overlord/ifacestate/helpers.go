@@ -1324,10 +1324,10 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			}
 
 			appSets = append(appSets, set)
-			seen[instanceName] = true
+			seen[instanceName.String()] = true
 		} else if snapst.PendingSecurity != nil {
 			// we tracked any pending security profiles for the snap
-			seen[instanceName] = true
+			seen[instanceName.String()] = true
 			si := snapst.PendingSecurity.SideInfo
 			if si == nil {
 				// profiles removed (already)

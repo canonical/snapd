@@ -139,17 +139,17 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 	}
 
 	for name, snapst := range snapStates {
-		if len(wanted) > 0 && !wanted[name] {
+		if len(wanted) > 0 && !wanted[name.String()] {
 			continue
 		}
-		health := clientHealthFromHealthstate(healths[name])
+		health := clientHealthFromHealthstate(healths[name.String()])
 
-		userHold, gatingHold, err := getUserAndGatingHolds(st, name)
+		userHold, gatingHold, err := getUserAndGatingHolds(st, name.String())
 		if err != nil {
 			return nil, err
 		}
 
-		refreshInhibit := clientSnapRefreshInhibit(st, snapst, name)
+		refreshInhibit := clientSnapRefreshInhibit(st, snapst, name.String())
 		if sel == snapSelectRefreshInhibited && refreshInhibit == nil {
 			// skip snaps whose refresh is not inhibited
 			continue
@@ -162,10 +162,9 @@ func allLocalSnapInfos(st *state.State, sel snapSelect, wanted map[string]bool) 
 				info, err = snap.ReadInfo(naming.InstanceName(name), si)
 				if err != nil {
 					// single revision may be broken
-					_, instanceKey := snap.SplitInstanceName(name)
 					info = &snap.Info{
 						SideInfo:    *si,
-						InstanceKey: instanceKey,
+						InstanceKey: name.InstanceKey(),
 						Broken:      err.Error(),
 					}
 					// clear the error

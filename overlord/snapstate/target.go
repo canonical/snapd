@@ -368,7 +368,7 @@ type StoreSnap struct {
 // If a snap is provided more than once in the list, the first instance of it
 // will be used to provide the installation options.
 func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
-	seen := make(map[string]bool, len(snaps))
+	seen := make(map[naming.InstanceName]bool, len(snaps))
 	unique := make([]StoreSnap, 0, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := seen[sn.InstanceName]; ok {
@@ -422,12 +422,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName().String())
+		sn, ok := s.snap(r.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
 
-		snapst, ok := allSnaps[r.InstanceName().String()]
+		snapst, ok := allSnaps[r.InstanceName()]
 		if !ok {
 			snapst = &SnapState{}
 		}
@@ -441,7 +441,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	for _, t := range installs {
-		sn, ok := s.snap(t.info.InstanceName().String())
+		sn, ok := s.snap(t.info.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
@@ -759,7 +759,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 	uninstalled := s.snaps[:0]
 	var alreadyInstalled []string
 	for _, sn := range s.snaps {
-		if err := snap.ValidateInstanceName(sn.InstanceName); err != nil {
+		if err := snap.ValidateInstanceName(sn.InstanceName.String()); err != nil {
 			return fmt.Errorf("invalid instance name: %v", err)
 		}
 
@@ -770,7 +770,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 		snapst, ok := installedSnaps[sn.InstanceName]
 		if ok && snapst.IsInstalled() {
 			if !sn.SkipIfPresent {
-				alreadyInstalled = append(alreadyInstalled, sn.InstanceName)
+				alreadyInstalled = append(alreadyInstalled, sn.InstanceName.String())
 			}
 			continue
 		}
@@ -1414,7 +1414,7 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 // of snaps that are to be updated from the store.
 type storeUpdateGoal struct {
 	// snaps is a mapping of snap names to StoreUpdate structs.
-	snaps map[string]StoreUpdate
+	snaps map[naming.InstanceName]StoreUpdate
 }
 
 // StoreUpdate represents a snap that is to be updated from the store.
@@ -1433,7 +1433,7 @@ type StoreUpdate struct {
 
 // StoreUpdateGoal creates a new UpdateGoal to update snaps from the store.
 func StoreUpdateGoal(snaps ...StoreUpdate) UpdateGoal {
-	mapping := make(map[string]StoreUpdate, len(snaps))
+	mapping := make(map[naming.InstanceName]StoreUpdate, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := mapping[sn.InstanceName]; ok {
 			continue
@@ -1488,7 +1488,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[naming.InstanceNa
 		snapst, ok := allSnaps[sn.InstanceName]
 		if !ok {
 			if !sn.InstallIfMissing {
-				return snap.NotInstalledError{Snap: sn.InstanceName}
+				return snap.NotInstalledError{Snap: sn.InstanceName.String()}
 			}
 			snapst = &SnapState{}
 		}
@@ -1507,10 +1507,8 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[naming.InstanceNa
 
 		additional := make([]string, 0, len(sn.AdditionalComponents))
 
-		// filter out additional components that are already installed
-		snapName, _ := snap.SplitInstanceName(sn.InstanceName)
 		for _, add := range sn.AdditionalComponents {
-			if snapst.CurrentComponentState(naming.NewComponentRef(naming.SnapName(snapName), add)) == nil {
+			if snapst.CurrentComponentState(naming.NewComponentRef(sn.InstanceName.SnapName(), add)) == nil {
 				additional = append(additional, add)
 			}
 		}
@@ -1547,10 +1545,10 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[nami
 		vsets = snapasserts.NewValidationSets()
 	}
 
-	updates := make(map[string]StoreUpdate, len(allSnaps))
+	updates := make(map[naming.InstanceName]StoreUpdate, len(allSnaps))
 	for _, snapst := range allSnaps {
-		updates[snapst.InstanceName().String()] = StoreUpdate{
-			InstanceName: snapst.InstanceName().String(),
+		updates[snapst.InstanceName()] = StoreUpdate{
+			InstanceName: snapst.InstanceName(),
 
 			// default the channel and cohort key to the existing values,
 			RevOpts: RevisionOptions{
@@ -1619,7 +1617,7 @@ func PathUpdateGoal(snaps ...PathSnap) UpdateGoal {
 
 func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Options) (updatePlan, error) {
 	targets := make([]target, 0, len(p.updates))
-	names := make([]string, 0, len(p.updates))
+	names := make([]naming.InstanceName, 0, len(p.updates))
 
 	for _, sn := range p.updates {
 		var snapst SnapState
@@ -1633,7 +1631,7 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 		}
 
 		targets = append(targets, t)
-		names = append(names, sn.InstanceName)
+		names = append(names, naming.InstanceName(sn.InstanceName))
 	}
 
 	return updatePlan{
@@ -1690,7 +1688,7 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		update.RevOpts.Channel = update.SideInfo.Channel
 	}
 
-	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx); err != nil {
+	if err := update.RevOpts.resolveChannel(naming.InstanceName(update.InstanceName), trackingChannel, opts.DeviceCtx); err != nil {
 		return target{}, err
 	}
 

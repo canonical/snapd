@@ -205,7 +205,7 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 		var ts *state.TaskSet
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
 			ts, err = ensurePrerequisite(t, contentAttrs, StoreSnap{
-				InstanceName: prereqName,
+				InstanceName: naming.InstanceName(prereqName),
 				RevOpts: RevisionOptions{
 					Channel: defaultPrereqSnapsChannel(),
 				},
@@ -228,7 +228,7 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 			baseTS, err = ensurePrerequisite(t, nil, StoreSnap{
-				InstanceName: base,
+				InstanceName: naming.InstanceName(base),
 				RevOpts: RevisionOptions{
 					Channel: defaultBaseSnapsChannel(),
 				},
@@ -502,7 +502,7 @@ func removalInProgress(st *state.State, snapName string) (*state.Change, error) 
 func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 
-	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
+	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName.String(), opts.Flags.RequireTypeBase)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +529,7 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 		}
 	}
 
-	installed, err := isInstalled(st, sn.InstanceName)
+	installed, err := isInstalled(st, sn.InstanceName.String())
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +576,7 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 
 func maybeUpdateContentProvider(t *state.Task, snapName naming.InstanceName, contentAttrs []string, opts Options) (*state.TaskSet, error) {
 	st := t.State()
-	provided, err := hasAllContentAttrs(st, snapName, contentAttrs)
+	provided, err := hasAllContentAttrs(st, snapName.String(), contentAttrs)
 	if err != nil {
 		return nil, err
 	}

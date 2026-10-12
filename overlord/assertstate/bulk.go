@@ -80,7 +80,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[naming.InstanceN
 		}
 		// update snap-declaration (and prereqs) for the snap,
 		// they were originally added at install time
-		if err := pool.AddToUpdate(declRef, instanceName); err != nil {
+		if err := pool.AddToUpdate(declRef, instanceName.String()); err != nil {
 			return fmt.Errorf("cannot prepare snap-declaration refresh for snap %q: %v", instanceName, err)
 		}
 

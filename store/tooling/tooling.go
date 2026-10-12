@@ -390,7 +390,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 			ch = csnap.Channel
 		}
 		current = append(current, &store.CurrentSnap{
-			InstanceName:     csnap.SnapName,
+			InstanceName:     csnap.InstanceName,
 			SnapID:           csnap.SnapID,
 			Revision:         csnap.Revision,
 			TrackingChannel:  ch,

@@ -59,7 +59,7 @@ func IntsToCommaSeparated(vals []int) string {
 func Quoted[T ~string](names []T) string {
 	quoted := make([]string, len(names))
 	for i, name := range names {
-		quoted[i] = strconv.Quote(name)
+		quoted[i] = strconv.Quote(string(name))
 	}
 
 	return strings.Join(quoted, ", ")

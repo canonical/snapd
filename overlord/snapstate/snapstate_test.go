@@ -379,7 +379,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	})
 
 	s.BaseTest.AddCleanup(snapstate.MockReRefreshRetryTimeout(time.Second / 200))
-	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []string, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
+	s.BaseTest.AddCleanup(snapstate.MockReRefreshUpdateMany(func(context.Context, *state.State, []naming.InstanceName, []*snapstate.RevisionOptions, int, snapstate.UpdateFilter, *snapstate.Flags, string) ([]string, *snapstate.UpdateTaskSets, error) {
 		return nil, nil, nil
 	}))
 
@@ -7799,7 +7799,7 @@ func (s *snapmgrTestSuite) TestSnapManagerCanStandby(c *C) {
 
 func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 	type test struct {
-		snap        string
+		snap        naming.InstanceName
 		cur         string
 		new         string
 		exp         string
@@ -9408,7 +9408,7 @@ func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
 	})
 
 	chg := s.state.NewChange("migrate-home", "...")
-	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap"})
+	tss, err := snapstate.MigrateHome(s.state, []naming.InstanceName{"some-snap"})
 	c.Assert(err, IsNil)
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -9467,7 +9467,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeUndo(c *C) {
 	})
 
 	chg := s.state.NewChange("migrate-home", "...")
-	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap"})
+	tss, err := snapstate.MigrateHome(s.state, []naming.InstanceName{"some-snap"})
 	c.Assert(err, IsNil)
 
 	c.Assert(tss, HasLen, 1)
@@ -9513,7 +9513,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeFailIfUnsetFeature(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap"})
+	tss, err := snapstate.MigrateHome(s.state, []naming.InstanceName{"some-snap"})
 	c.Check(tss, IsNil)
 	c.Assert(err, ErrorMatches, `cannot migrate to ~/Snap: flag "experimental.move-snap-home-dir" is not set`)
 }
@@ -9534,7 +9534,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeFailIfSnapNotInstalled(c *C) {
 		SnapType: "app",
 	})
 
-	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap", "other-snap"})
+	tss, err := snapstate.MigrateHome(s.state, []naming.InstanceName{"some-snap", "other-snap"})
 	c.Check(tss, IsNil)
 	c.Assert(err, ErrorMatches, `snap "other-snap" is not installed`)
 }
@@ -9590,7 +9590,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeFailIfAlreadyMigrated(c *C) {
 		MigratedToExposedHome: true,
 	})
 
-	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap"})
+	tss, err := snapstate.MigrateHome(s.state, []naming.InstanceName{"some-snap"})
 	c.Check(tss, IsNil)
 	c.Assert(err, ErrorMatches, `cannot migrate "some-snap" to ~/Snap: already migrated`)
 }

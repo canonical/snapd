@@ -773,7 +773,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	}
 
 	target := StoreInstallGoal(StoreSnap{
-		InstanceName: name,
+		InstanceName: naming.InstanceName(name),
 		RevOpts:      *opts,
 	})
 
@@ -865,7 +865,7 @@ func downloadTasks(
 	}
 
 	sar, err := sendOneDownloadAction(ctx, st, StoreSnap{
-		InstanceName: name,
+		InstanceName: naming.InstanceName(name),
 		Components:   components,
 		RevOpts:      revOpts,
 	}, opts)
@@ -1180,7 +1180,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 		resolved[name] = true
 
 		updates = append(updates, StoreUpdate{
-			InstanceName: name,
+			InstanceName: naming.InstanceName(name),
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
@@ -1191,7 +1191,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	for name := range valErr.MissingSnaps {
 		resolved[name] = true
 		updates = append(updates, StoreUpdate{
-			InstanceName: name,
+			InstanceName: naming.InstanceName(name),
 			RevOpts: RevisionOptions{
 				ValidationSets: vsets,
 			},
@@ -1570,7 +1570,7 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 	if len(requested) != 0 {
 		nameSet = make(map[string]bool, len(requested))
 		for _, name := range requested {
-			nameSet[name] = true
+			nameSet[name.String()] = true
 		}
 	}
 
@@ -1579,13 +1579,13 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 		return nil, false, nil, err
 	}
 
-	reportUpdated := make(map[string]bool, len(updates))
+	reportUpdated := make(map[naming.InstanceName]bool, len(updates))
 	var pruningAutoAliasesTs *state.TaskSet
 
 	if len(mustPruneAutoAliases) != 0 {
 		var err error
-		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, opts.ConflictOptions, func(snapName string, _ *state.TaskSet) {
-			if nameSet[snapName] {
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, opts.ConflictOptions, func(snapName naming.InstanceName, _ *state.TaskSet) {
+			if nameSet[snapName.String()] {
 				reportUpdated[snapName] = true
 			}
 		})
@@ -1596,7 +1596,7 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 	}
 
 	// wait for the auto-alias prune tasks as needed
-	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
+	scheduleUpdate := func(snapName naming.InstanceName, ts *state.TaskSet) {
 		if pruningAutoAliasesTs != nil && (mustPruneAutoAliases[snapName] != nil || transferTargets[snapName]) {
 			ts.WaitAll(pruningAutoAliasesTs)
 		}
@@ -1676,7 +1676,7 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 		tss = append(tss, sts.ts)
 		snapInstallTSS = append(snapInstallTSS, sts)
 
-		scheduleUpdate(up.Setup.InstanceName().String(), sts.ts)
+		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
 	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
@@ -1718,12 +1718,12 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 
 		switchTs.JoinLane(generateLane(st, opts))
 		tss = append(tss, switchTs)
-		reportUpdated[up.Setup.InstanceName().String()] = true
+		reportUpdated[up.Setup.InstanceName()] = true
 	}
 
 	updated := make([]string, 0, len(reportUpdated))
 	for name := range reportUpdated {
-		updated = append(updated, name)
+		updated = append(updated, name.String())
 	}
 
 	updateTss := &UpdateTaskSets{
@@ -1876,10 +1876,9 @@ func applyAutoAliasesDelta(st *state.State, delta map[naming.InstanceName][]stri
 			return nil, err
 		}
 
-		snapName, instanceKey := snap.SplitInstanceName(instanceName)
 		snapsup := &SnapSetup{
-			SideInfo:    &snap.SideInfo{RealName: snapName},
-			InstanceKey: instanceKey,
+			SideInfo:    &snap.SideInfo{RealName: instanceName.SnapName().String()},
+			InstanceKey: instanceName.InstanceKey(),
 		}
 		alias := st.NewTask(kind, fmt.Sprintf(msg, snapsup.InstanceName()))
 		alias.Set("snap-setup", &snapsup)
@@ -1907,7 +1906,7 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 	refreshAll := len(requested) == 0
 
 	// dropped alias -> snapName
-	droppedAliases := make(map[string][]string, len(dropped))
+	droppedAliases := make(map[string][]naming.InstanceName, len(dropped))
 	for instanceName, aliases := range dropped {
 		for _, alias := range aliases {
 			droppedAliases[alias] = append(droppedAliases[alias], instanceName)
@@ -1917,7 +1916,7 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 	// filter changed considering only names if set:
 	// we add auto-aliases only for mentioned snaps
 	if !refreshAll && len(changed) != 0 {
-		filteredChanged := make(map[string][]string, len(changed))
+		filteredChanged := make(map[naming.InstanceName][]string, len(changed))
 		for _, name := range requested {
 			if changed[name] != nil {
 				filteredChanged[name] = changed[name]
@@ -1927,8 +1926,8 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 	}
 
 	// mark snaps that are sources or target of transfers
-	transferSources := make(map[string]bool, len(dropped))
-	transferTargets = make(map[string]bool, len(changed))
+	transferSources := make(map[naming.InstanceName]bool, len(dropped))
+	transferTargets = make(map[naming.InstanceName]bool, len(changed))
 	for instanceName, aliases := range changed {
 		for _, alias := range aliases {
 			if sources := droppedAliases[alias]; len(sources) != 0 {
@@ -1953,26 +1952,26 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 
 	// add explicitly auto-aliases only for snaps that are not updated
 	for instanceName := range changed {
-		if updating[instanceName] {
+		if updating[instanceName.String()] {
 			delete(changed, instanceName)
 		}
 	}
 
 	// prune explicitly auto-aliases only for snaps that are mentioned
 	// and not updated OR the source of transfers
-	mustPrune = make(map[string][]string, len(dropped))
+	mustPrune = make(map[naming.InstanceName][]string, len(dropped))
 	for instanceName := range transferSources {
-		mustPrune[instanceName] = dropped[instanceName]
+		mustPrune[instanceName] = dropped[naming.InstanceName(instanceName)]
 	}
 	if refreshAll {
 		for instanceName, aliases := range dropped {
-			if !updating[instanceName] {
+			if !updating[instanceName.String()] {
 				mustPrune[instanceName] = aliases
 			}
 		}
 	} else {
 		for _, name := range requested {
-			if !updating[name] && dropped[name] != nil {
+			if !updating[name.String()] && dropped[name] != nil {
 				mustPrune[name] = dropped[name]
 			}
 		}
@@ -1993,10 +1992,10 @@ func resolveChannel(snapName naming.InstanceName, oldChannel, newChannel string,
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	if snapName == model.Kernel() && model.KernelTrack() != "" {
+	if snapName.String() == model.Kernel() && model.KernelTrack() != "" {
 		pinnedTrack, which = model.KernelTrack(), "kernel"
 	}
-	if snapName == model.Gadget() && model.GadgetTrack() != "" {
+	if snapName.String() == model.Gadget() && model.GadgetTrack() != "" {
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
 	}
 
@@ -2096,12 +2095,12 @@ func Switch(st *state.State, name naming.InstanceName, opts *RevisionOptions, pr
 	}
 
 	var snapst SnapState
-	err := Get(st, name, &snapst)
+	err := Get(st, name.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
-		return nil, &snap.NotInstalledError{Snap: name}
+		return nil, &snap.NotInstalledError{Snap: name.String()}
 	}
 
 	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
@@ -2635,7 +2634,7 @@ func MigrateHome(st *state.State, snaps []naming.InstanceName) ([]*state.TaskSet
 
 	for _, name := range snaps {
 		if snapst, ok := allSnaps[name]; !ok {
-			return nil, snap.NotInstalledError{Snap: name}
+			return nil, snap.NotInstalledError{Snap: name.String()}
 		} else if snapst.MigratedToExposedHome {
 			return nil, fmt.Errorf("cannot migrate %q to ~/Snap: already migrated", name)
 		}
@@ -3849,7 +3848,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 		}
 
 		result, err := sendOneInstallAction(context.TODO(), st, StoreSnap{
-			InstanceName: newName,
+			InstanceName: naming.InstanceName(newName),
 			RevOpts: RevisionOptions{
 				Channel:        oldSnapst.TrackingChannel,
 				ValidationSets: enforced,
@@ -3989,11 +3988,11 @@ func Get(st *state.State, name string, snapst *SnapState) error {
 func All(st *state.State) (map[naming.InstanceName]*SnapState, error) {
 	// XXX: result is a map because sideloaded snaps carry no name
 	// atm in their sideinfos
-	var stateMap map[string]*SnapState
+	var stateMap map[naming.InstanceName]*SnapState
 	if err := st.Get("snaps", &stateMap); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
-	curStates := make(map[string]*SnapState, len(stateMap))
+	curStates := make(map[naming.InstanceName]*SnapState, len(stateMap))
 	for instanceName, snapst := range stateMap {
 		curStates[instanceName] = snapst
 	}

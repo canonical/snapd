@@ -52,7 +52,7 @@ func migrateHome(st *state.State, snaps []naming.InstanceName) Response {
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
-	chg.Set("api-data", map[string][]string{"snap-names": snaps})
+	chg.Set("api-data", map[string][]naming.InstanceName{"snap-names": snaps})
 
 	ensureStateSoon(st)
 	return AsyncResponse(nil, chg.ID())

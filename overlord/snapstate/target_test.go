@@ -464,7 +464,7 @@ func (s *targetTestSuite) TestUpdateSnapInstallIfMissingChannelCases(c *C) {
 
 		op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
 		c.Check(op.action.Action, Equals, "install", Commentf(tc.name))
-		c.Check(op.action.InstanceName, Equals, tc.update.InstanceName, Commentf(tc.name))
+		c.Check(op.action.InstanceName, Equals, tc.update.InstanceName.String(), Commentf(tc.name))
 		c.Check(op.action.Channel, Equals, tc.expectedActionChan, Commentf(tc.name))
 
 		if tc.update.RevOpts.Revision.Unset() {
@@ -476,7 +476,7 @@ func (s *targetTestSuite) TestUpdateSnapInstallIfMissingChannelCases(c *C) {
 		var snapsup *snapstate.SnapSetup
 		for _, task := range ts.Tasks() {
 			cand, setupErr := snapstate.TaskSnapSetup(task)
-			if setupErr == nil && cand.InstanceName().String() == tc.update.InstanceName {
+			if setupErr == nil && cand.InstanceName() == tc.update.InstanceName {
 				snapsup = cand
 				break
 			}
@@ -1464,7 +1464,7 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataEssentialSnap(c *C) {
 	defer s.state.Unlock()
 
 	tests := []struct {
-		instanceName string
+		instanceName naming.InstanceName
 		Comment      string
 	}{
 		{"some-base", "integrity data should be used for base snaps"},

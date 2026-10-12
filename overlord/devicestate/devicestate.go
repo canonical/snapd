@@ -597,7 +597,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	switch {
 	case needsRevisionChange || needsChannelChange:
 		if r.shouldSwitchWithoutRefresh(rt, needsRevisionChange) && !needsComponentChanges {
-			ts, err := snapstate.Switch(st, rt.name.String(), &snapstate.RevisionOptions{
+			ts, err := snapstate.Switch(st, rt.name.AsInstanceName(), &snapstate.RevisionOptions{
 				Channel: rt.channel,
 			}, r.tracker)
 			if err != nil {
@@ -858,7 +858,7 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 	// and it might already contain any of the components that are already
 	// installed. the snapstate code handles this case correctly.
 	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
-		InstanceName:         sn.name.String(),
+		InstanceName:         sn.name.AsInstanceName(),
 		AdditionalComponents: components,
 		InstallIfMissing:     true,
 		RevOpts: snapstate.RevisionOptions{

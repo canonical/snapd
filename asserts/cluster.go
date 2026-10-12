@@ -195,7 +195,7 @@ func checkClusterSnap(snap map[string]any) (ClusterSnap, error) {
 
 	return ClusterSnap{
 		State:    ClusterSnapState(state),
-		Instance: instance,
+		Instance: naming.InstanceName(instance),
 		Channel:  ch,
 	}, nil
 }

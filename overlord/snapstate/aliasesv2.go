@@ -164,10 +164,10 @@ func autoAliasesDelta(st *state.State, names []naming.InstanceName) (changed map
 			return nil, nil, err
 		}
 	} else {
-		snapStates = make(map[string]*SnapState, len(names))
+		snapStates = make(map[naming.InstanceName]*SnapState, len(names))
 		for _, name := range names {
 			var snapst SnapState
-			err := Get(st, name, &snapst)
+			err := Get(st, name.String(), &snapst)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -175,8 +175,8 @@ func autoAliasesDelta(st *state.State, names []naming.InstanceName) (changed map
 		}
 	}
 	var firstErr error
-	changed = make(map[string][]string)
-	dropped = make(map[string][]string)
+	changed = make(map[naming.InstanceName][]string)
+	dropped = make(map[naming.InstanceName][]string)
 	for instanceName, snapst := range snapStates {
 		aliases := snapst.Aliases
 		info, err := snapst.CurrentInfo()
@@ -289,7 +289,7 @@ func addAliasConflicts(st *state.State, skipSnap naming.InstanceName, testAliase
 			// skip
 			continue
 		}
-		if nextSt, ok := changing[otherSnap]; ok {
+		if nextSt, ok := changing[otherSnap.String()]; ok {
 			snapst = nextSt
 		}
 		autoDisabled := snapst.AutoAliasesDisabled
@@ -309,7 +309,7 @@ func addAliasConflicts(st *state.State, skipSnap naming.InstanceName, testAliase
 			}
 		}
 		if len(confls) > 0 {
-			aliasConflicts[otherSnap] = confls
+			aliasConflicts[otherSnap.String()] = confls
 		}
 	}
 	return nil
@@ -342,7 +342,7 @@ func checkAliasesConflicts(st *state.State, snapName naming.InstanceName, candAu
 		if snapNames[namespace] != nil {
 			return nil, &AliasConflictError{
 				Alias:  alias,
-				Snap:   snapName,
+				Snap:   snapName.String(),
 				Reason: fmt.Sprintf("it conflicts with the command namespace of installed snap %q", namespace),
 			}
 		}
@@ -354,7 +354,7 @@ func checkAliasesConflicts(st *state.State, snapName naming.InstanceName, candAu
 		return nil, err
 	}
 	if len(conflicts) != 0 {
-		return conflicts, &AliasConflictError{Snap: snapName, Conflicts: conflicts}
+		return conflicts, &AliasConflictError{Snap: snapName.String(), Conflicts: conflicts}
 	}
 	return nil, nil
 }
@@ -493,7 +493,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 
 	withAliases := make(map[string]*SnapState, len(snapStates))
 	for instanceName, snapst := range snapStates {
-		err := m.backend.RemoveSnapAliases(instanceName)
+		err := m.backend.RemoveSnapAliases(instanceName.String())
 		if err != nil {
 			logger.Noticef("cannot cleanup aliases for %q: %v", instanceName, err)
 			continue
@@ -512,7 +512,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 		// TODO: check for conflicts
 		if len(newAliases) != 0 {
 			snapst.Aliases = newAliases
-			withAliases[instanceName] = snapst
+			withAliases[instanceName.String()] = snapst
 		}
 		snapst.AutoAliasesDisabled = false
 		if !snapst.Active {

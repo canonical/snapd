@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 )
@@ -575,7 +576,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSnapsOnly(c *C) {
 	_, err := snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-c", 24*time.Hour, "snap-a", "snap-b")
 	c.Assert(err, IsNil)
 
-	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b", "snap-c"})
+	snapHolds, err := snapstate.SnapHolds(st, []naming.InstanceName{"snap-a", "snap-b", "snap-c"})
 	c.Assert(err, IsNil)
 	c.Check(snapHolds, DeepEquals, map[string][]string{
 		"snap-a": {"snap-c"},
@@ -605,7 +606,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSystemOnly(c *C) {
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	snapHolds, err := snapstate.SnapHolds(st, []naming.InstanceName{"snap-a", "snap-b"})
 	c.Assert(err, IsNil)
 	c.Check(snapHolds, DeepEquals, map[string][]string{
 		"snap-a": {"system"},
@@ -617,7 +618,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSystemOnly(c *C) {
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	snapHolds, err = snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	snapHolds, err = snapstate.SnapHolds(st, []naming.InstanceName{"snap-a", "snap-b"})
 	c.Assert(err, IsNil)
 	c.Check(snapHolds, DeepEquals, map[string][]string{
 		"snap-a": {"system"},
