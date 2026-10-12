@@ -21,7 +21,11 @@
 
 package main
 
-import "github.com/snapcore/snapd/testutil"
+import (
+	"sort"
+
+	"github.com/snapcore/snapd/testutil"
+)
 
 // Main exposes the unexported main() for testing.
 var Main = main
@@ -44,4 +48,19 @@ func MockDaemonMain(f func()) (restore func()) {
 // MockCLIMain replaces the CLI entry point for the duration of a test.
 func MockCLIMain(f func()) (restore func()) {
 	return testutil.Mock(&cliMain, f)
+}
+
+// ToolNames returns the sorted names in the real toolMains dispatch table.
+func ToolNames() []string {
+	names := make([]string, 0, len(toolMains))
+	for name := range toolMains {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ReexecToolNames returns the tools that reexec into snapd or the core snap.
+func ReexecToolNames() []string {
+	return append([]string(nil), reexecTools...)
 }
