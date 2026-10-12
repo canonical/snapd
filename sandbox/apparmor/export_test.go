@@ -164,3 +164,11 @@ func MockOsExecutable(f func() (string, error)) func() {
 	osExecutable = f
 	return r
 }
+
+// MockNetworkBugProbeCloneflags mocks the clone flags the probe process is
+// started with.
+func MockNetworkBugProbeCloneflags(flags uintptr) func() {
+	r := testutil.Backup(&networkBugProbeCloneflags)
+	networkBugProbeCloneflags = flags
+	return r
+}

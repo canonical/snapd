@@ -21,10 +21,12 @@ package apparmor_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -47,6 +49,8 @@ func (s *networkProbeSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(s.fakeroot)
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	s.AddCleanup(apparmor.ResetNetworkBugProbe)
+	// creating a network namespace needs privileges the tests may not have
+	s.AddCleanup(apparmor.MockNetworkBugProbeCloneflags(0))
 }
 
 func (s *networkProbeSuite) writeMarker(c *C, content string) {
@@ -277,6 +281,22 @@ func (s *networkProbeSuite) TestProbeEaccesOnOtherOperationIsInconclusive(c *C) 
 	// inconclusive: no verdict recorded, a later process re-probes
 	_, err = os.Stat(apparmor.NetworkBugMarkerPath())
 	c.Assert(os.IsNotExist(err), Equals, true)
+}
+
+func (s *networkProbeSuite) TestProbeNetworkNamespaceIsPrivate(c *C) {
+	if os.Geteuid() != 0 {
+		c.Skip("creating a network namespace requires root")
+	}
+	s.mockParserWithAbi50(c)
+	restore := apparmor.MockNetworkBugProbeCloneflags(syscall.CLONE_NEWNET)
+	defer restore()
+	ours, err := os.Readlink("/proc/self/ns/net")
+	c.Assert(err, IsNil)
+	// the stub fails with a distinctive status if it shares our namespace
+	s.mockProbeStub(c, fmt.Sprintf(`[ "$(readlink /proc/self/ns/net)" != %q ] || exit 99`, ours))
+
+	c.Assert(apparmor.EnsureAppArmor5NetworkBugProbe(), IsNil)
+	c.Check(apparmor.NetworkBugForcedAbi40(), Equals, false)
 }
 
 func (s *networkProbeSuite) TestProbeCleanRunIsNotBuggy(c *C) {

@@ -245,6 +245,9 @@ func runNetworkBugProbe(parser *exec.Cmd) (bool, error) {
 	}
 	cmd := exec.Command(self, "snapd-kernel-probe", "apparmor-5-network-bug", name)
 	cmd.Args[0] = "snapd"
+	// Start the probe in a fresh network namespace; it raises "lo" there
+	// before confining itself, see cmd/snapd/tool/snapd-kernel-probe.
+	cmd.SysProcAttr = networkBugProbeSysProcAttr()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	runErr := cmd.Run()
