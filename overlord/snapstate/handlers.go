@@ -2469,7 +2469,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	var oldIgnoreUnsupportedInstanceInterfaces *bool
+	var oldIgnoreUnsupportedInstanceInterfaces bool
 	err = t.Get("old-ignore-unsupported-instance-interfaces", &oldIgnoreUnsupportedInstanceInterfaces)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -2577,9 +2577,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = false
 	snapst.TrackingChannel = oldChannel
 	snapst.IgnoreValidation = oldIgnoreValidation
-	if oldIgnoreUnsupportedInstanceInterfaces != nil {
-		snapst.IgnoreUnsupportedInstanceInterfaces = *oldIgnoreUnsupportedInstanceInterfaces
-	}
+	snapst.IgnoreUnsupportedInstanceInterfaces = oldIgnoreUnsupportedInstanceInterfaces
 	snapst.TryMode = oldTryMode
 	snapst.DevMode = oldDevMode
 	snapst.JailMode = oldJailMode
