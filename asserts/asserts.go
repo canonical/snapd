@@ -101,9 +101,6 @@ func (at *AssertionType) validate() error {
 	if at.assembler == nil {
 		return fmt.Errorf("assertion type %q assembler cannot be nil", at.Name)
 	}
-	if len(at.PrimaryKey) == 0 && at.flags&noAuthority == 0 {
-		return fmt.Errorf("assertion type %q must have at least one primary key header", at.Name)
-	}
 	primaryKeys := make(map[string]bool, len(at.PrimaryKey))
 	for _, name := range at.PrimaryKey {
 		if !headerNameValidity.MatchString(name) {
@@ -150,6 +147,9 @@ func NewAssertionType(def TypeDefinition) (*AssertionType, error) {
 	}
 	if err := at.validate(); err != nil {
 		return nil, err
+	}
+	if len(at.PrimaryKey) == 0 {
+		return nil, fmt.Errorf("assertion type %q must have at least one primary key header", at.Name)
 	}
 	return at, nil
 }
@@ -322,6 +322,9 @@ func InitExternalTypes(assertionTypes ...*AssertionType) error {
 		}
 		if err := assertionType.validate(); err != nil {
 			return fmt.Errorf("cannot configure assertion types: %v", err)
+		}
+		if len(assertionType.PrimaryKey) == 0 {
+			return fmt.Errorf("cannot configure assertion types: assertion type %q must have at least one primary key header", assertionType.Name)
 		}
 		if _, ok := types[assertionType.Name]; ok {
 			return fmt.Errorf("cannot configure assertion types: assertion type %q is already registered", assertionType.Name)

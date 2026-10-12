@@ -131,6 +131,12 @@ func (s *registrySuite) TestInitExternalTypesIsAtomicAndRetryable(c *C) {
 	c.Check(asserts.Type("external-atomic"), IsNil)
 	c.Check(asserts.Type("external-keyless"), IsNil)
 
+	keylessNoAuthorityType := *asserts.SerialRequestType
+	keylessNoAuthorityType.Name = "external-keyless-request"
+	err = asserts.InitExternalTypes(&keylessNoAuthorityType)
+	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-keyless-request" must have at least one primary key header`)
+	c.Check(asserts.Type("external-keyless-request"), IsNil)
+
 	externalType.OptionalPrimaryKeyDefaults = map[string]string{"unknown-id": "default"}
 	err = asserts.InitExternalTypes(externalType)
 	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-atomic" has defaults values for unknown primary key headers`)
