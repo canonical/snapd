@@ -309,15 +309,9 @@ execute: |
     # Both plugs and slots of acrn-support reject parallel instances.
     make_test_snap ignore-acrn-support-plug acrn-support plug
     snap install --dangerous --ignore-unsupported-instance-interfaces --name ignore-acrn-support-plug_foo /tmp/ignore-acrn-support-plug.snap
-    tests.cleanup defer snap remove --purge ignore-acrn-support-plug_foo
     snap list | MATCH '^ignore-acrn-support-plug_foo '
-    snap remove --purge ignore-acrn-support-plug_foo
-    rm -f /tmp/ignore-acrn-support-plug.snap
 
     # Only slots of audio-playback reject parallel instances.
     make_test_snap ignore-audio-playback-slot audio-playback slot
     snap install --dangerous --ignore-unsupported-instance-interfaces --name ignore-audio-playback-slot_foo /tmp/ignore-audio-playback-slot.snap
-    tests.cleanup defer snap remove --purge ignore-audio-playback-slot_foo
     snap list | MATCH '^ignore-audio-playback-slot_foo '
-    snap remove --purge ignore-audio-playback-slot_foo
-    rm -f /tmp/ignore-audio-playback-slot.snap
