@@ -2068,7 +2068,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-classic", oldClassic)
 	t.Set("old-ignore-validation", oldIgnoreValidation)
-	t.Set("old-ignore-unsupported-instance-interfaces", oldAllowUnsupportedInstances)
+	t.Set("old-allow-unsupported-instances", oldAllowUnsupportedInstances)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("old-candidate-index", oldCandidateIndex)
@@ -2470,7 +2470,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	var oldAllowUnsupportedInstances bool
-	err = t.Get("old-ignore-unsupported-instance-interfaces", &oldAllowUnsupportedInstances)
+	err = t.Get("old-allow-unsupported-instances", &oldAllowUnsupportedInstances)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}

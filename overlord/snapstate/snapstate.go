@@ -1742,7 +1742,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 	// we only toggle validation set enforcement if we are refreshing exactly
 	// one snap
 	toggleIgnoreValidation := (snapst.IgnoreValidation != snapsup.IgnoreValidation) && opts.ExpectOneSnap
-	setAllowUnsupportedInstances := snapsup.AllowUnsupportedInstances && !snapst.AllowUnsupportedInstances
+	setAllowUnsupportedInstances := snapsup.AllowUnsupportedInstances && !snapst.AllowUnsupportedInstances && opts.ExpectOneSnap
 
 	// nothing to do, we can leave early
 	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation && !setAllowUnsupportedInstances {

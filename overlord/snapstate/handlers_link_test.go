@@ -341,7 +341,7 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsAllowUnsupportedInstances(c *C) {
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
 	var oldValue bool
-	c.Assert(t.Get("old-ignore-unsupported-instance-interfaces", &oldValue), IsNil)
+	c.Assert(t.Get("old-allow-unsupported-instances", &oldValue), IsNil)
 	c.Check(oldValue, Equals, false)
 }
 
@@ -381,7 +381,7 @@ func (s *linkSnapSuite) TestDoLinkSnapKeepsAllowUnsupportedInstancesOnRefresh(c 
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
 	var oldValue bool
-	c.Assert(t.Get("old-ignore-unsupported-instance-interfaces", &oldValue), IsNil)
+	c.Assert(t.Get("old-allow-unsupported-instances", &oldValue), IsNil)
 	c.Check(oldValue, Equals, true)
 }
 

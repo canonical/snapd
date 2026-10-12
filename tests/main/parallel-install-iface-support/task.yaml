@@ -303,15 +303,15 @@ execute: |
     check_parallel_install_plug_allowed fwupd
 
     ####################################################################
-    #              IGNORE PARALLEL INSTANCE ERRORS                     #
+    #           ALLOW UNSUPPORTED PARALLEL INSTANCES                   #
     ####################################################################
 
-    # Both plugs and slots of acrn-support reject parallel instances.
-    make_test_snap ignore-acrn-support-plug acrn-support plug
-    snap install --dangerous --allow-unsupported-instances --name ignore-acrn-support-plug_foo /tmp/ignore-acrn-support-plug.snap
-    snap list | MATCH '^ignore-acrn-support-plug_foo '
+    # Only plugs of acrn-support reject parallel instances.
+    make_test_snap allow-acrn-support-plug acrn-support plug
+    snap install --dangerous --allow-unsupported-instances --name allow-acrn-support-plug_foo /tmp/allow-acrn-support-plug.snap
+    snap list | MATCH '^allow-acrn-support-plug_foo '
 
     # Only slots of audio-playback reject parallel instances.
-    make_test_snap ignore-audio-playback-slot audio-playback slot
-    snap install --dangerous --allow-unsupported-instances --name ignore-audio-playback-slot_foo /tmp/ignore-audio-playback-slot.snap
-    snap list | MATCH '^ignore-audio-playback-slot_foo '
+    make_test_snap allow-audio-playback-slot audio-playback slot
+    snap install --dangerous --allow-unsupported-instances --name allow-audio-playback-slot_foo /tmp/allow-audio-playback-slot.snap
+    snap list | MATCH '^allow-audio-playback-slot_foo '

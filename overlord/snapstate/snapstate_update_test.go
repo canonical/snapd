@@ -3631,6 +3631,49 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionAllowUnsupportedInstances(c *C)
 	}
 }
 
+func (s *snapmgrTestSuite) TestToggleSnapFlagsAllowUnsupportedInstances(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, test := range []struct {
+		alreadyAllowed bool
+		requested      bool
+		expected       bool
+	}{
+		{alreadyAllowed: false, requested: false, expected: false},
+		{alreadyAllowed: false, requested: true, expected: true},
+		{alreadyAllowed: true, requested: false, expected: true},
+		{alreadyAllowed: true, requested: true, expected: true},
+	} {
+		c.Logf("alreadyAllowed=%v requested=%v", test.alreadyAllowed, test.requested)
+		si := &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(7),
+		}
+		snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+			Active:   true,
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Current:  si.Revision,
+			Flags:    snapstate.Flags{AllowUnsupportedInstances: test.alreadyAllowed},
+		})
+
+		task := s.state.NewTask("toggle-snap-flags", "toggle snap flags")
+		task.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+			Flags:    snapstate.Flags{AllowUnsupportedInstances: test.requested},
+		})
+		chg := s.state.NewChange("refresh", "refresh a snap")
+		chg.AddTask(task)
+		s.settle(c)
+		c.Assert(chg.Err(), IsNil)
+		c.Assert(task.Status(), Equals, state.DoneStatus)
+
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+		c.Check(snapst.AllowUnsupportedInstances, Equals, test.expected)
+	}
+}
+
 func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidation(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",

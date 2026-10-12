@@ -397,8 +397,8 @@ func (inst *snapInstruction) validate() error {
 		if inst.Action != installCmdAction && inst.Action != refreshCmdAction {
 			return fmt.Errorf("allow-unsupported-instances can only be specified for install or refresh")
 		}
-		for _, snapName := range inst.Snaps {
-			_, instanceKey := snap.SplitInstanceName(snapName)
+		for _, instanceName := range inst.Snaps {
+			_, instanceKey := snap.SplitInstanceName(instanceName)
 			if instanceKey == "" {
 				return fmt.Errorf("allow-unsupported-instances can only be used with parallel instances")
 			}
@@ -1091,9 +1091,8 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 	}
 
 	flags := snapstate.Flags{
-		IgnoreRunning:             inst.IgnoreRunning,
-		AllowUnsupportedInstances: inst.AllowUnsupportedInstances,
-		Transaction:               inst.Transaction,
+		IgnoreRunning: inst.IgnoreRunning,
+		Transaction:   inst.Transaction,
 	}
 
 	// TODO: once we completely move away from the old snapstate API, this
