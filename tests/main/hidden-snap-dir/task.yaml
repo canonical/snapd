@@ -175,6 +175,29 @@ execute: |
     "$NAME".echo "$data" > "$HOME/snap/$NAME/x2/file"
     "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
 
+    echo "Check parallel instances use separate hidden snap data"
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap set system experimental.parallel-instances=null
+    "$TESTSTOOLS"/snaps-state install-local-as "$NAME" "${NAME}_foo"
+
+    #shellcheck disable=SC2016
+    "$NAME".cmd sh -c 'echo "regular-data" > "$SNAP_USER_DATA/parallel-data"'
+    #shellcheck disable=SC2016
+    "${NAME}_foo".cmd sh -c 'echo "instance-data" > "$SNAP_USER_DATA/parallel-data"'
+
+    snap set system experimental.hidden-snap-folder=true
+    "$TESTSTOOLS"/snaps-state install-local "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local-as "$NAME" "${NAME}_foo"
+
+    not test -e "$HOME/snap/$NAME"
+    not test -e "$HOME/snap/${NAME}_foo"
+    "$NAME".env | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/$NAME/.+"
+    "${NAME}_foo".env | MATCH "SNAP_USER_DATA=$HOME/\.snap/data/${NAME}_foo/.+"
+    MATCH "regular-data" < "$HOME/.snap/data/$NAME/current/parallel-data"
+    MATCH "instance-data" < "$HOME/.snap/data/${NAME}_foo/current/parallel-data"
+    not MATCH "instance-data" < "$HOME/.snap/data/$NAME/current/parallel-data"
+    not MATCH "regular-data" < "$HOME/.snap/data/${NAME}_foo/current/parallel-data"
+
     # core22 snap isn't available for x86
     if os.query is-pc-i386; then
       exit 0

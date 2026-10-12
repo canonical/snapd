@@ -9467,6 +9467,40 @@ func (s *snapmgrTestSuite) TestMigrateHomeFailIfSnapNotInstalled(c *C) {
 	c.Assert(err, ErrorMatches, `snap "other-snap" is not installed`)
 }
 
+func (s *snapmgrTestSuite) TestMigrateHomeInstanceSetsInstanceKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.move-snap-home-dir", true), IsNil)
+	tr.Commit()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap_foo", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "foo",
+	})
+
+	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap_foo"})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 1)
+
+	prepare := tss[0].Tasks()[0]
+	snapsup, err := snapstate.TaskSnapSetup(prepare)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.InstanceKey, Equals, "foo")
+	c.Check(snapsup.InstanceName().String(), Equals, "some-snap_foo")
+}
+
 func (s *snapmgrTestSuite) TestMigrateHomeFailIfAlreadyMigrated(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
