@@ -91,28 +91,7 @@ type AssertionType struct {
 	flags     typeFlags
 }
 
-func (at *AssertionType) validate() {
-	if len(at.OptionalPrimaryKeyDefaults) != 0 && at.flags&sequenceForming != 0 {
-		panic(fmt.Sprintf("assertion type %q cannot be both sequence forming and have optional primary keys", at.Name))
-	}
-	noptional := 0
-	for _, k := range at.PrimaryKey {
-		defl := at.OptionalPrimaryKeyDefaults[k]
-		if noptional > 0 {
-			if defl == "" {
-				panic(fmt.Sprintf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k))
-			}
-		}
-		if defl != "" {
-			noptional++
-		}
-	}
-	if len(at.OptionalPrimaryKeyDefaults) != noptional {
-		panic(fmt.Sprintf("assertion type %q has defaults values for unknown primary key headers", at.Name))
-	}
-}
-
-func (at *AssertionType) validateForRegistration() error {
+func (at *AssertionType) validate() error {
 	if at.Name == "" {
 		return fmt.Errorf("assertion type name cannot be empty")
 	}
@@ -122,7 +101,7 @@ func (at *AssertionType) validateForRegistration() error {
 	if at.assembler == nil {
 		return fmt.Errorf("assertion type %q assembler cannot be nil", at.Name)
 	}
-	if len(at.PrimaryKey) == 0 {
+	if len(at.PrimaryKey) == 0 && at.flags&noAuthority == 0 {
 		return fmt.Errorf("assertion type %q must have at least one primary key header", at.Name)
 	}
 	primaryKeys := make(map[string]bool, len(at.PrimaryKey))
@@ -140,6 +119,24 @@ func (at *AssertionType) validateForRegistration() error {
 			}
 		}
 	}
+	if len(at.OptionalPrimaryKeyDefaults) != 0 && at.flags&sequenceForming != 0 {
+		return fmt.Errorf("assertion type %q cannot be both sequence forming and have optional primary keys", at.Name)
+	}
+	noptional := 0
+	for _, k := range at.PrimaryKey {
+		defl := at.OptionalPrimaryKeyDefaults[k]
+		if noptional > 0 {
+			if defl == "" {
+				return fmt.Errorf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k)
+			}
+		}
+		if defl != "" {
+			noptional++
+		}
+	}
+	if len(at.OptionalPrimaryKeyDefaults) != noptional {
+		return fmt.Errorf("assertion type %q has defaults values for unknown primary key headers", at.Name)
+	}
 	return nil
 }
 
@@ -151,7 +148,7 @@ func NewAssertionType(def TypeDefinition) (*AssertionType, error) {
 		PrimaryKey: append([]string(nil), def.PrimaryKey...),
 		assembler:  def.Assembler,
 	}
-	if err := at.validateForRegistration(); err != nil {
+	if err := at.validate(); err != nil {
 		return nil, err
 	}
 	return at, nil
@@ -295,7 +292,9 @@ func init() {
 	maxSupportedFormat[AccountKeyType.Name] = 1
 
 	for _, at := range typeRegistry {
-		at.validate()
+		if err := at.validate(); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -321,7 +320,7 @@ func InitExternalTypes(assertionTypes ...*AssertionType) error {
 		if assertionType == nil {
 			return fmt.Errorf("cannot configure assertion types: assertion type cannot be nil")
 		}
-		if err := assertionType.validateForRegistration(); err != nil {
+		if err := assertionType.validate(); err != nil {
 			return fmt.Errorf("cannot configure assertion types: %v", err)
 		}
 		if _, ok := types[assertionType.Name]; ok {

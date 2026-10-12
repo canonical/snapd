@@ -131,6 +131,19 @@ func (s *registrySuite) TestInitExternalTypesIsAtomicAndRetryable(c *C) {
 	c.Check(asserts.Type("external-atomic"), IsNil)
 	c.Check(asserts.Type("external-keyless"), IsNil)
 
+	externalType.OptionalPrimaryKeyDefaults = map[string]string{"unknown-id": "default"}
+	err = asserts.InitExternalTypes(externalType)
+	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-atomic" has defaults values for unknown primary key headers`)
+	c.Check(asserts.Type("external-atomic"), IsNil)
+
+	externalType.PrimaryKey = []string{"external-id", "another-id"}
+	externalType.OptionalPrimaryKeyDefaults = map[string]string{"external-id": "default"}
+	err = asserts.InitExternalTypes(externalType)
+	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-atomic" primary key header "another-id" has no default, optional primary keys must be a proper suffix of the primary key`)
+	c.Check(asserts.Type("external-atomic"), IsNil)
+	externalType.PrimaryKey = []string{"external-id"}
+	externalType.OptionalPrimaryKeyDefaults = nil
+
 	err = asserts.InitExternalTypes(externalType, asserts.AccountType)
 	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "account" is already registered`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
