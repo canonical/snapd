@@ -678,7 +678,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 
 	// sort the curSnaps slice for test consistency
 	sort.Slice(curSnaps, func(i, j int) bool {
-		return curSnaps[i].SnapName < curSnaps[j].SnapName
+		return curSnaps[i].InstanceName < curSnaps[j].InstanceName
 	})
 	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 		BeforeDownloadFunc: beforeDownload,
@@ -698,10 +698,10 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 			continue
 		}
 		localSnaps = append(localSnaps, &tooling.CurrentSnap{
-			SnapName: sn.Info.SnapName().String(),
-			SnapID:   sn.Info.ID(),
-			Revision: sn.Info.Revision,
-			Epoch:    sn.Info.Epoch,
+			InstanceName: sn.Info.InstanceName(),
+			SnapID:       sn.Info.ID(),
+			Revision:     sn.Info.Revision,
+			Epoch:        sn.Info.Epoch,
 		})
 	}
 	return localSnaps
@@ -727,11 +727,11 @@ func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts se
 			}
 
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
-				SnapName: sn.Info.SnapName().String(),
-				SnapID:   sn.Info.ID(),
-				Revision: sn.Info.Revision,
-				Epoch:    sn.Info.Epoch,
-				Channel:  sn.Channel,
+				InstanceName: sn.Info.InstanceName(),
+				SnapID:       sn.Info.ID(),
+				Revision:     sn.Info.Revision,
+				Epoch:        sn.Info.Epoch,
+				Channel:      sn.Channel,
 			})
 		}
 
