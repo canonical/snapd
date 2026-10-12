@@ -294,15 +294,6 @@ jobs:
       matrix:
         gochannel: ${{ fromJson(needs.go-channels.outputs.go-channels) }}
 
-  unit-tests-not-required:
-    uses: ./.github/workflows/unit-tests.yaml
-    name: "unit-tests (Go default latest/stable})"
-    with:
-      runs-on: ubuntu-latest
-      gochannel: 'latest/stable'
-      skip-coverage: true
-      code: 'go'
-
   unit-tests-c:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
