@@ -121,13 +121,42 @@ func (s *systemVolumesSuite) TestSystemVolumesBadContentType(c *C) {
 	s.daemon(c)
 	s.mockHybridSystem()
 
+	for _, tc := range []struct {
+		contentType string
+		expectedMsg string
+	}{
+		{"", "cannot parse content type: mime: no media type"},
+		{"text/plain", `unexpected content type: "text/plain"`},
+		{"text/plain; charset=utf-8", `unexpected content type: "text/plain; charset=utf-8"`},
+		{"application/jsonx", `unexpected content type: "application/jsonx"`},
+		{"application/json; charset", "cannot parse content type: mime: invalid media parameter"},
+	} {
+		body := strings.NewReader(`{"action": "blah"}`)
+		req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+		c.Assert(err, IsNil)
+		if tc.contentType != "" {
+			req.Header.Add("Content-Type", tc.contentType)
+		}
+
+		rsp := s.errorReq(c, req, nil, actionIsUnexpected)
+		c.Check(rsp.Status, Equals, 400)
+		c.Check(rsp.Message, Equals, tc.expectedMsg)
+	}
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesContentTypeWithParams(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
 	body := strings.NewReader(`{"action": "blah"}`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json; charset=utf-8")
 
+	// reaching action dispatch means the JSON content type was accepted
 	rsp := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Assert(rsp.Status, Equals, 400)
-	c.Assert(rsp.Message, Equals, `unexpected content type: ""`)
+	c.Assert(rsp.Message, Equals, `unsupported system volumes action "blah"`)
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesBogusAction(c *C) {

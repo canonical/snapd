@@ -22,6 +22,7 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 
@@ -516,7 +517,12 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default)
 	}
 
-	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+	if mediaType != "application/json" {
 		return BadRequest("unexpected content type: %q", contentType)
 	}
 
