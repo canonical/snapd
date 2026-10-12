@@ -49,17 +49,20 @@ func (s *kernelProbeSuite) SetUpTest(c *C) {
 }
 
 func (s *kernelProbeSuite) TestUnknownProbe(c *C) {
-	_, err := snapd_kernel_probe.Run([]string{"frobnicate"})
+	status, err := snapd_kernel_probe.Run([]string{"frobnicate"})
+	c.Check(status, Equals, 1)
 	c.Check(err, ErrorMatches, `unknown probe "frobnicate"`)
 }
 
 func (s *kernelProbeSuite) TestMissingProbeName(c *C) {
-	_, err := snapd_kernel_probe.Run(nil)
+	status, err := snapd_kernel_probe.Run(nil)
+	c.Check(status, Equals, 1)
 	c.Check(err, ErrorMatches, "usage: snapd-kernel-probe <probe> \\[profile\\]")
 }
 
 func (s *kernelProbeSuite) TestNetworkBugProbeRequiresProfile(c *C) {
-	_, err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug"})
+	status, err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug"})
+	c.Check(status, Equals, 1)
 	c.Check(err, ErrorMatches, `probe "apparmor-5-network-bug" requires an AppArmor profile name`)
 }
 
@@ -101,7 +104,8 @@ func (s *kernelProbeSuite) TestNetworkBugProbeAttrWriteFails(c *C) {
 	})
 	defer restore()
 
-	_, err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
+	status, err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
+	c.Check(status, Equals, 125)
 	c.Check(err, ErrorMatches, `cannot set AppArmor exec profile "some-profile": attr write denied`)
 }
 
@@ -144,7 +148,8 @@ func (s *kernelProbeSuite) TestNetworkBugProbeLoopbackFailureAborts(c *C) {
 	})
 	defer restore()
 
-	_, err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
+	status, err := snapd_kernel_probe.Run([]string{"apparmor-5-network-bug", "some-profile"})
+	c.Check(status, Equals, 125)
 	c.Check(err, ErrorMatches, "cannot bring up loopback: boom")
 }
 

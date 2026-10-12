@@ -185,9 +185,11 @@ func runConfined(w io.Writer) int {
 	return 0
 }
 
-// run executes snapd-kernel-probe with the given args. For the confined
-// probe it returns the exit status to use; for others a non-nil error means
-// exit status 1.
+// run executes snapd-kernel-probe with the given args and returns the exit
+// status to use together with an error to report. Usage errors and unknown
+// probes use status 1. Failures to set up the confined probe (loopback,
+// attr/exec, exec) use exitInternalError, like internal failures of the
+// confined probe itself, so that they stay distinguishable from usage errors.
 func run(args []string) (int, error) {
 	var probe, profileName string
 	switch len(args) {
@@ -204,7 +206,7 @@ func run(args []string) (int, error) {
 		if profileName == "" {
 			return 1, fmt.Errorf("probe %q requires an AppArmor profile name", probe)
 		}
-		return 1, runConfinedSelf(profileName)
+		return exitInternalError, runConfinedSelf(profileName)
 	case networkBugConfinedProbe:
 		return runConfined(os.Stderr), nil
 	default:
