@@ -154,7 +154,21 @@ func networkBugForcedAbi40() bool {
 	if err != nil {
 		return false
 	}
-	return strings.TrimSpace(string(content)) == "1"
+	buggy, ok := parseNetworkBugMarker(content)
+	return ok && buggy
+}
+
+// parseNetworkBugMarker interprets the contents of the marker file. Only "0"
+// (clean) and "1" (buggy) are verdicts; anything else, for example an empty
+// or corrupted file, is not and reports ok == false.
+func parseNetworkBugMarker(content []byte) (buggy, ok bool) {
+	switch strings.TrimSpace(string(content)) {
+	case "0":
+		return false, true
+	case "1":
+		return true, true
+	}
+	return false, false
 }
 
 // writeNetworkBugVerdict records the probe verdict in the marker file,
@@ -311,14 +325,17 @@ func ensureAppArmor5NetworkBugProbeLocked() error {
 	// probed this boot, adopt its verdict without re-probing.
 	content, err := osReadFile(networkBugMarkerPath())
 	if err == nil {
-		switch strings.TrimSpace(string(content)) {
-		case "1":
-			atomic.StoreUint32(&networkBugProbeDowngrade, 1)
+		if buggy, ok := parseNetworkBugMarker(content); ok {
+			if buggy {
+				atomic.StoreUint32(&networkBugProbeDowngrade, 1)
+			}
+			networkBugProbeDone = true
+			return nil
 		}
-		networkBugProbeDone = true
-		return nil
-	}
-	if !os.IsNotExist(err) {
+		// An empty or corrupted marker is not a verdict; probe and
+		// replace it.
+		logger.Noticef("ignoring malformed %s: %q", networkBugMarkerPath(), content)
+	} else if !os.IsNotExist(err) {
 		logger.Debugf("cannot read %s: %v", networkBugMarkerPath(), err)
 	}
 

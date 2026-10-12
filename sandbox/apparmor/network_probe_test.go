@@ -134,6 +134,46 @@ func (s *networkProbeSuite) TestMarkerPresentSkipsProbe(c *C) {
 	c.Check(apparmor.NetworkBugForcedAbi40(), Equals, false)
 }
 
+func (s *networkProbeSuite) TestMalformedMarkerIsInconclusive(c *C) {
+	for _, content := range []string{"", "garbage\n", "2\n", "10"} {
+		c.Logf("marker content %q", content)
+		apparmor.ResetNetworkBugProbe()
+		s.mockParserWithAbi50(c)
+		s.writeMarker(c, content)
+
+		ran := 0
+		restore := apparmor.MockNetworkBugProbeRunner(func(parser *exec.Cmd) (bool, error) {
+			ran++
+			return true, nil
+		})
+
+		c.Assert(apparmor.EnsureAppArmor5NetworkBugProbe(), IsNil)
+		restore()
+		// the malformed marker did not suppress the probe ...
+		c.Check(ran, Equals, 1)
+		c.Check(apparmor.NetworkBugForcedAbi40(), Equals, true)
+		// ... and was replaced with the real verdict
+		data, err := os.ReadFile(apparmor.NetworkBugMarkerPath())
+		c.Assert(err, IsNil)
+		c.Check(string(data), Equals, "1\n")
+	}
+}
+
+func (s *networkProbeSuite) TestMarkerWithWhitespaceIsAVerdict(c *C) {
+	s.mockParserWithAbi50(c)
+	ran := 0
+	restore := apparmor.MockNetworkBugProbeRunner(func(parser *exec.Cmd) (bool, error) {
+		ran++
+		return false, nil
+	})
+	defer restore()
+
+	s.writeMarker(c, " 1 \n")
+	c.Assert(apparmor.EnsureAppArmor5NetworkBugProbe(), IsNil)
+	c.Check(ran, Equals, 0)
+	c.Check(apparmor.NetworkBugForcedAbi40(), Equals, true)
+}
+
 func (s *networkProbeSuite) TestProbeOncePerProcess(c *C) {
 	s.mockParserWithAbi50(c)
 	ran := 0
