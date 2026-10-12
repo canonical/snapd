@@ -925,6 +925,20 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			fi50, err50 := os.Lstat(snapdAbi50File)
 			fi40, err40 := os.Lstat(snapdAbi40File)
 			fi30, err30 := os.Lstat(snapdAbi30File)
+			// When the kernel is affected by the AppArmor 5.0 "file_perm
+			// class=net" bug (LP: #2169038), compile profiles with abi/4.0
+			// instead of abi/5.0.
+			if networkBugForcedAbi40() && err50 == nil && !fi50.IsDir() {
+				if err40 == nil && !fi40.IsDir() {
+					logger.Debugf("apparmor 5.0 ABI downgraded to 4.0 due to kernel network mediation bug")
+					fi50, err50 = fi40, err40
+					snapdAbi50File = snapdAbi40File
+				} else {
+					// Downgrade requested but there is no 4.0 ABI
+					// to fall back to.
+					logger.Noticef("apparmor 5.0 ABI required downgrade but abi/4.0 is unavailable, using abi/5.0")
+				}
+			}
 			switch {
 			case err50 == nil && !fi50.IsDir():
 				abiFile = snapdAbi50File
@@ -954,7 +968,21 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 
 			// Detect apparmor 5.0 ABI support from the host distribution and use it if available.
 			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
-				logger.Debugf("apparmor 5.0 ABI detected")
+				if networkBugForcedAbi40() {
+					// The kernel is affected by the AppArmor 5.0
+					// "file_perm class=net" bug (LP: #2169038);
+					// compile profiles with abi/4.0 instead. Note
+					// this deliberately overrides the mqueue-driven
+					// pinning to 3.0 described below: on affected
+					// kernels staying on 5.0 breaks socket I/O.
+					if fi, err := os.Lstat(hostAbi40File); err == nil && !fi.IsDir() {
+						logger.Debugf("apparmor 5.0 ABI downgraded to 4.0 due to kernel network mediation bug")
+						return exec.Command(path, "--policy-features", hostAbi40File), false, nil
+					}
+					logger.Noticef("apparmor 5.0 ABI required downgrade but abi/4.0 is unavailable, using abi/5.0")
+				} else {
+					logger.Debugf("apparmor 5.0 ABI detected")
+				}
 				return exec.Command(path, "--policy-features", hostAbi50File), false, nil
 			}
 
