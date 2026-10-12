@@ -203,8 +203,6 @@ slots:
   content: mycont
 `
 	for _, rw := range []string{
-		"read: [$SNAP_DATA/assets/$SNAP_INSTANCE_NAME]",
-		"write: [$SNAP_COMMON/assets/$SNAP_INSTANCE_NAME]",
 		"source: {read: [$SNAP_COMMON/assets/$SNAP_INSTANCE_NAME]}",
 		"source: {write: [$SNAP_DATA/$SNAP_INSTANCE_NAME]}",
 	} {
@@ -226,10 +224,11 @@ slots:
 		attr   string
 		errMsg string
 	}{
-		{"read: [$SNAP_INSTANCE_NAME/assets]", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
-		{"write: [$SNAP_INSTANCE_NAME/assets]", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
 		{"source: {read: [$SNAP_INSTANCE_NAME/assets]}", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
-		{"read: [$SNAP/assets/$SNAP_INSTANCE_NAME]", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
+		{"source: {read: [$SNAP/assets/$SNAP_INSTANCE_NAME]}", `variable "\$SNAP_INSTANCE_NAME" can only be used in a path starting with \$SNAP_DATA or \$SNAP_COMMON`},
+		{"read: [$SNAP_INSTANCE_NAME/assets]", `reference to unknown variable "\$SNAP_INSTANCE_NAME"`},
+		{"write: [$SNAP_INSTANCE_NAME/assets]", `reference to unknown variable "\$SNAP_INSTANCE_NAME"`},
+		{"read: [$SNAP_DATA/assets/$SNAP_INSTANCE_NAME]", `reference to unknown variable "\$SNAP_INSTANCE_NAME"`},
 		{"read: [$SNAP_DATA/$FOO]", `reference to unknown variable "\$FOO"`},
 		{"write: [$FOO/assets]", `reference to unknown variable "\$FOO"`},
 	} {
@@ -591,8 +590,9 @@ version: 0
 slots:
   content:
     interface: content
-    write:
-      - $SNAP_COMMON/export/$SNAP_INSTANCE_NAME
+    source:
+      write:
+        - $SNAP_COMMON/export/$SNAP_INSTANCE_NAME
 `
 	const plugYaml = `name: consumer
 version: 0
@@ -612,7 +612,7 @@ apps:
 	c.Assert(mountSpec.AddConnectedPlug(s.iface, plug, slot), IsNil)
 	c.Assert(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
 		Name:    "/var/snap/producer_s1/common/export/producer_s1",
-		Dir:     "/var/snap/consumer/common/import",
+		Dir:     "/var/snap/consumer/common/import/producer_s1",
 		Options: []string{"bind"},
 	}})
 }

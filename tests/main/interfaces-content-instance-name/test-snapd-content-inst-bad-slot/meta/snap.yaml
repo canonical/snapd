@@ -9,6 +9,9 @@ slots:
         interface: content
         source:
             read: [$SNAP_INSTANCE_NAME/assets]
+    legacy-assets:
+        interface: content
+        read: [$SNAP_DATA/legacy/$SNAP_INSTANCE_NAME]
     component-assets:
         interface: content
         content: assets

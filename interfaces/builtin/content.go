@@ -81,12 +81,10 @@ func cleanSubPath(path string) bool {
 	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
 }
 
-// slotPathOpts and plugPathOpts are the PathVariablesOptions.
-// slot-side paths allow $SNAP_INSTANCE_NAME, plug-side paths do not.
-var (
-	slotPathOpts = &snap.PathVariablesOptions{AllowSnapInstanceName: true}
-	plugPathOpts = &snap.PathVariablesOptions{AllowSnapInstanceName: false}
-)
+// slotSourcePathOpts allows $SNAP_INSTANCE_NAME for slot paths declared
+// under the "source" section. Legacy direct "read"/"write" attributes and
+// the plug's "target" never allow it, so nil is passed for those instead.
+var slotSourcePathOpts = &snap.PathVariablesOptions{AllowSnapInstanceName: true}
 
 func validatePath(path string) error {
 	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(path); err != nil {
@@ -198,7 +196,8 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 	}
 
 	// Error if "read" or "write" are present alongside "source".
-	if _, found := slot.Lookup("source"); found {
+	_, hasSource := slot.Lookup("source")
+	if hasSource {
 		if _, found := slot.Lookup("read"); found {
 			return fmt.Errorf(`move the "read" attribute into the "source" section`)
 		}
@@ -214,13 +213,18 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 		return fmt.Errorf("read or write path must be set")
 	}
 
+	var pathOpts *snap.PathVariablesOptions
+	if hasSource {
+		pathOpts = slotSourcePathOpts
+	}
+
 	for _, p := range wpath {
 		if _, _, isComp, _ := parseComponentPath(p); isComp {
 			// $SNAP_COMPONENT(...) are not allowed for write.
 			return fmt.Errorf("component paths can only be used with read, not write: %q", p)
 		}
 
-		if err := validateNonCompPath(p, slotPathOpts); err != nil {
+		if err := validateNonCompPath(p, pathOpts); err != nil {
 			return err
 		}
 	}
@@ -237,7 +241,7 @@ func (iface *contentInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {
 			continue
 		}
 
-		if err := validateNonCompPath(p, slotPathOpts); err != nil {
+		if err := validateNonCompPath(p, pathOpts); err != nil {
 			return err
 		}
 	}
@@ -256,7 +260,7 @@ func (iface *contentInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if err := validateNonCompPath(target, plugPathOpts); err != nil {
+	if err := validateNonCompPath(target, nil); err != nil {
 		return err
 	}
 
@@ -347,10 +351,10 @@ func resolveComponentSource(snapInfo *snap.Info, compInfo *snap.ComponentInfo, s
 	return source, sourceName
 }
 
-// exportUnderPlugTarget returns true when the content exposed by the slot
-// should be placed under the target location named by the plug. This is
-// indicated by presence of the 'source' attribute on the slot side.
-func exportUnderPlugTarget(slot *interfaces.ConnectedSlot) bool {
+// hasSourceAttribute returns true when the slot declares its read/write
+// paths under the "source" section, rather than the legacy top-level
+// "read"/"write" attributes.
+func hasSourceAttribute(slot *interfaces.ConnectedSlot) bool {
 	var unused map[string]any
 	return slot.Attr("source", &unused) == nil
 }
@@ -371,6 +375,8 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 	// the plug attributes.
 	var sourceNameOverride string
 
+	hasSource := hasSourceAttribute(slot)
+
 	if compName, subPath, isComp, err := parseComponentPath(relSrc); isComp && err == nil {
 		ci := slot.AppSet().Component(compName)
 		if ci == nil {
@@ -381,14 +387,18 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 		source, sourceNameOverride = resolveComponentSource(slot.Snap(), ci, subPath)
 	} else {
 		// Regular (non-component) $SNAP/$SNAP_DATA/$SNAP_COMMON path.
-		source = resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther, slotPathOpts)
+		var pathOpts *snap.PathVariablesOptions
+		if hasSource {
+			pathOpts = slotSourcePathOpts
+		}
+		source = resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther, pathOpts)
 	}
 	// Target uses PerspectiveSelf as the consumer sees its own snap name.
-	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf, plugPathOpts)
+	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf, nil)
 
 	// Figure out the target path if the source is supposed to be exported on a
 	// path beneath the target prescribed in the plug.
-	if exportUnderPlugTarget(slot) {
+	if hasSource {
 		// unless there's an override, as it is in the case of components, we
 		// use the basename by default, e.g.
 		// source:
@@ -432,6 +442,12 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	contentSnippet := bytes.NewBuffer(nil)
 	writePaths := iface.path(slot, "write")
 	emit := spec.AddUpdateNSf
+
+	var pathOpts *snap.PathVariablesOptions
+	if hasSourceAttribute(slot) {
+		pathOpts = slotSourcePathOpts
+	}
+
 	if len(writePaths) > 0 {
 		fmt.Fprintf(contentSnippet, `
 # In addition to the bind mount, add any AppArmor rules so that
@@ -444,7 +460,7 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
 				// Use PerspectiveOther: resolve to provider's precise instance
 				// name
-				resolveSpecialVariable(w, slot.Snap(), snap.PerspectiveOther, slotPathOpts))
+				resolveSpecialVariable(w, slot.Snap(), snap.PerspectiveOther, pathOpts))
 			// Write paths can never reference components (rejected in
 			// BeforePrepareSlot), so ok is always true here.
 			source, target, _ := sourceTarget(plug, slot, w)
