@@ -44,7 +44,7 @@ type jsonWarning struct {
 }
 
 type Warning struct {
-	// The notice which backs this warning. Notice-specific fields will be
+	// The notice which backs this warning. Warning-specific fields will be
 	// extracted and parsed as needed from the lastData map.
 	notice *Notice
 }
@@ -297,15 +297,30 @@ func (s *State) OkayWarnings(t time.Time) int {
 	n := 0
 	for _, w := range warnings {
 		if w.ShowAfter(t) {
-			if w.notice.lastData == nil {
-				w.notice.lastData = make(map[string]string)
+			// Update the "last-shown" value, but notices cannot be mutated,
+			// so replace the existing one via replaceWarningNoticeData.
+			newData := make(map[string]string, len(w.notice.lastData))
+			for k, v := range w.notice.lastData {
+				newData[k] = v
 			}
-			w.notice.lastData["last-shown"] = t.Format(time.RFC3339Nano)
+			newData["last-shown"] = t.Format(time.RFC3339Nano)
+			s.replaceWarningNoticeData(w, newData)
 			n++
 		}
 	}
 
 	return n
+}
+
+// replaceWarningNoticeData creates a deep copy of the given warning, replaces
+// its lastData with the given data, and replaces the original notice with the
+// new one in the snapd state. The caller must hold both noticesMu and state
+// lock.
+func (s *State) replaceWarningNoticeData(w *Warning, newData map[string]string) {
+	newNotice := w.notice.DeepCopy()
+	newNotice.lastData = newData
+	uniqueKey := warningNoticeKey(w.String())
+	s.notices[uniqueKey] = newNotice
 }
 
 // PendingWarnings returns the list of warnings to show the user, sorted by
@@ -357,6 +372,13 @@ func (s *State) UnshowAllWarnings() {
 	defer s.noticesMu.Unlock()
 	all, _ := s.allWarningsNow()
 	for _, w := range all {
-		delete(w.notice.lastData, "last-shown")
+		// Remove "last-shown" value, but notices cannot be mutated,
+		// so replace the existing one via replaceWarningNoticeData.
+		newData := make(map[string]string, len(w.notice.lastData))
+		for k, v := range w.notice.lastData {
+			newData[k] = v
+		}
+		delete(newData, "last-shown")
+		s.replaceWarningNoticeData(w, newData)
 	}
 }
