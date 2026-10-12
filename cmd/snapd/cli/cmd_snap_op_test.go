@@ -1712,7 +1712,7 @@ func (s *SnapOpSuite) TestInstallPathManyChannel(c *check.C) {
 func (s *SnapOpSuite) TestInstallManyIgnoreUnsupportedInstanceInterfaces(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-unsupported-instance-interfaces", "one_foo", "two_bar"})
-	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring parallel instance errors`)
+	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring unsupported parallel instances`)
 }
 
 func (s *SnapOpSuite) TestInstallPathManyPrefer(c *check.C) {
@@ -2857,7 +2857,7 @@ func (s *SnapOpSuite) TestRefreshOneIgnoreUnsupportedInstanceInterfaces(c *check
 func (s *SnapOpSuite) TestRefreshAllIgnoreUnsupportedInstanceInterfaces(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--ignore-unsupported-instance-interfaces"})
-	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring parallel instance errors`)
+	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring unsupported parallel instances`)
 }
 
 func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {

@@ -664,7 +664,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if !flags.IgnoreUnsupportedInstanceInterfaces && !snapst.IgnoreUnsupportedInstanceInterfaces {
 		if err := checkParallelInstancesSupport(st, info); err != nil {
 			if snapst.IsInstalled() {
-				st.Warnf("refresh of snap %q is blocked as it uses interfaces not supported for parallel instances: %v; use --ignore-unsupported-instance-interfaces to refresh anyway", info.InstanceName(), err)
+				st.Warnf("refresh of snap %q is blocked as it is not supported for parallel instances: %v; use --ignore-unsupported-instance-interfaces to refresh anyway", info.InstanceName(), err)
 			}
 			return flags, err
 		}

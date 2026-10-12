@@ -318,6 +318,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterfaces(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("link-snap", "test")
+
+	// the IgnoreUnsupportedInstanceInterfaces flag is set on install
+	// and persisted in snapstate after completion
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
@@ -345,6 +348,9 @@ func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOn
 		RealName: "foo",
 		Revision: snap.R(11),
 	}
+
+	// IgnoreUnsupportedInstanceInterfaces is already set in snapstate,
+	// the handler persists it after completion
 	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
 		Current:     si11.Revision,

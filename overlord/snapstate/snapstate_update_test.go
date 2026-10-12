@@ -1793,7 +1793,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRefreshToUnsupportedInterfaceNeed
 
 	warns := s.state.AllWarnings()
 	c.Assert(warns, HasLen, 1)
-	c.Check(warns[0].String(), Equals, `refresh of snap "some-snap_instance" is blocked as it uses interfaces not supported for parallel instances: cannot install snap "some-snap_instance" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected; use --ignore-unsupported-instance-interfaces to refresh anyway`)
+	c.Check(warns[0].String(), Equals, `refresh of snap "some-snap_instance" is blocked as it is not supported for parallel instances: cannot install snap "some-snap_instance" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances: plug rejected; use --ignore-unsupported-instance-interfaces to refresh anyway`)
 
 	ts, err = snapstate.Update(s.state, "some-snap_instance", &snapstate.RevisionOptions{Channel: "latest/stable"}, s.user.ID, snapstate.Flags{IgnoreUnsupportedInstanceInterfaces: true})
 	c.Assert(err, IsNil)

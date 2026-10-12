@@ -65,7 +65,7 @@ conflicting aliases of other snaps whose automatic aliases will be disabled and
 manual aliases will be removed.
 
 Use --ignore-unsupported-instance-interfaces to install parallel instances even when their
-plugs or slots do not support parallel instances.
+plugs, slots, or apps do not support parallel instances.
 
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement. All available channels of a snap are listed in
@@ -105,6 +105,9 @@ channels of a snap are listed in its 'snap info' output.
 
 When --revision is used, a later refresh will typically undo the revision
 override.
+
+Use --ignore-unsupported-instance-interfaces to refresh blocked parallel instances even when their
+plugs, slots, or apps do not support parallel instances.
 
 Hold (--hold) is used to postpone snap refresh updates for all snaps when no
 snaps are specified, or for the specified snaps.
@@ -969,7 +972,7 @@ func (x *cmdInstall) Execute([]string) error {
 		return errors.New(i18n.G("a single snap name is needed to specify the prefer flag"))
 	}
 	if x.IgnoreUnsupportedInstanceInterfaces {
-		return errors.New(i18n.G("a single snap name must be specified when ignoring parallel instance errors"))
+		return errors.New(i18n.G("a single snap name must be specified when ignoring unsupported parallel instances"))
 	}
 
 	if x.Name != "" {
@@ -1230,7 +1233,7 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	if x.IgnoreUnsupportedInstanceInterfaces {
-		return errors.New(i18n.G("a single snap name must be specified when ignoring parallel instance errors"))
+		return errors.New(i18n.G("a single snap name must be specified when ignoring unsupported parallel instances"))
 	}
 
 	return x.refreshMany(names, opts)
@@ -1657,7 +1660,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"ignore-unsupported-instance-interfaces": i18n.G("Ignore parallel instance plug and slot compatibility errors for parallel instances"),
+			"ignore-unsupported-instance-interfaces": i18n.G("Ignore errors for unsupported parallel instances"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -1682,7 +1685,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"ignore-unsupported-instance-interfaces": i18n.G("Ignore parallel instance plug and slot compatibility errors for parallel instances"),
+			"ignore-unsupported-instance-interfaces": i18n.G("Ignore errors for unsupported parallel instances"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the refresh"),
 			// TRANSLATORS: This should not start with a lowercase letter.

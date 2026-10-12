@@ -49,7 +49,7 @@ type Flags struct {
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
 
 	// IgnoreUnsupportedInstanceInterfaces is set when the user requested to install
-	// snap parallel instances with unsupported interfaces.It is
+	// snap parallel instances with unsupported interfaces or apps. It is
 	// persisted in SnapState and honored on subsequent refreshes.
 	IgnoreUnsupportedInstanceInterfaces bool `json:"ignore-unsupported-instance-interfaces,omitempty"`
 
