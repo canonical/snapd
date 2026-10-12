@@ -340,6 +340,9 @@ func (s *linkSnapSuite) TestDoLinkSnapPersistsIgnoreUnsupportedInstanceInterface
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
+	var oldValue bool
+	c.Assert(t.Get("old-ignore-unsupported-instance-interfaces", &oldValue), IsNil)
+	c.Check(oldValue, Equals, false)
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOnRefresh(c *C) {
@@ -377,6 +380,9 @@ func (s *linkSnapSuite) TestDoLinkSnapKeepsIgnoreUnsupportedInstanceInterfacesOn
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, true)
+	var oldValue bool
+	c.Assert(t.Get("old-ignore-unsupported-instance-interfaces", &oldValue), IsNil)
+	c.Check(oldValue, Equals, true)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresIgnoreUnsupportedInstanceInterfaces(c *C) {
