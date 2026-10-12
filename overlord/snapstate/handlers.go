@@ -2227,6 +2227,7 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
 	if m.preseed {
+		t.SetStatus(status)
 		return nil
 	}
 
@@ -2250,6 +2251,7 @@ func (m *SnapManager) finishTaskWithMaybeRestart(t *state.Task, status state.Sta
 	restartReason := daemonRestartReason(st, typ)
 	if restartReason == "" {
 		// no message -> no restart
+		t.SetStatus(status)
 		return nil
 	}
 

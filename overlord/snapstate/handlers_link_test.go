@@ -353,6 +353,49 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
 
+// a crash between committing state and the runner setting Done must not rerun the handler
+func (s *linkSnapSuite) testDoLinkSnapSetsDoneStatusBeforeReturn(c *C, snapName string) {
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+			Revision: snap.R(33),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	t.SetStatus(state.DoingStatus)
+	s.state.Unlock()
+
+	err := s.snapmgr.DoLinkSnap(t, nil)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, snapName, &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(s.restartRequested, HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSetsDoneStatusBeforeReturn(c *C) {
+	s.testDoLinkSnapSetsDoneStatusBeforeReturn(c, "foo")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSetsDoneStatusBeforeReturnPreseeding(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	snapstate.SetPreseed(s.snapmgr, true)
+
+	// core on classic would otherwise request a daemon restart
+	s.testDoLinkSnapSetsDoneStatusBeforeReturn(c, "core")
+}
+
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
