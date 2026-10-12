@@ -5041,14 +5041,18 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// A same-revision refresh either explicit, or a kernel-modules component
-	// refresh) may modify the live, mounted drivers tree, not a fresh scratch
-	// dir: ask the backend to regenerate instead of install, passing all active
-	// components.
 	var currentComps []*snap.ComponentSideInfo
 	reason := backend.SetupKernelForInstall
 	if snapSt.Current == snapsup.Revision() {
-		currentComps = snapSt.Sequence.ComponentsWithTypeForRev(snapSt.Current, snap.KernelModulesComponent)
+		// On a component-only refresh, some old components may already have
+		// been unlinked from SnapState, but the live tree must retain them until
+		// prepare-kernel-modules-components switches it to the new set. If
+		// the change fails before then, undo relinks the old components but
+		// does not regenerate the tree.
+		if snapsup.PreUpdateKernelModuleComponents == nil {
+			return fmt.Errorf("internal error: missing pre-update kernel-modules components for %q", snapsup.InstanceName())
+		}
+		currentComps = snapsup.PreUpdateKernelModuleComponents
 		reason = backend.SetupKernelRegenerate
 	}
 
