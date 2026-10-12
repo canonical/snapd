@@ -724,7 +724,7 @@ func (s *noticesSuite) TestDoNoticesSorting(c *C) {
 	// Create n5 with initial timestamp before other notices, then repeat so it
 	// has the latest lastRepeated timestamp.
 	n5 := state.NewNotice("5", nil, state.WarningNotice, "foo", t0, nil, 0, 0)
-	n5.Reoccur(t5, nil, 0)
+	n5, _ = n5.Reoccur(t5, nil, 0)
 
 	// For good measure, re-record n2 with a newer timestamp, but less than its
 	// RepeatAfter duration. Then we can test that lastRepeated is used.
