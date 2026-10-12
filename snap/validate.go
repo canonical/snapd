@@ -1054,14 +1054,6 @@ func ValidateApp(app *AppInfo) error {
 	return validateAppTimer(app)
 }
 
-// PathVariablesOptions controls validation and expansion of snap path
-// variables.
-type PathVariablesOptions struct {
-	// AllowSnapInstanceName permits validation and expansion of
-	// $SNAP_INSTANCE_NAME.
-	AllowSnapInstanceName bool
-}
-
 // ValidatePathVariables ensures that given path contains only $SNAP, $SNAP_DATA or $SNAP_COMMON.
 func ValidatePathVariables(path string) error {
 	return ValidatePathVariablesWithOptions(path, nil)

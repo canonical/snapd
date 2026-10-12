@@ -770,6 +770,14 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	return s.ExpandSnapVariablesWithOptions(path, nil)
 }
 
+// PathVariablesOptions controls validation and expansion of snap path
+// variables.
+type PathVariablesOptions struct {
+	// AllowSnapInstanceName permits validation and expansion of
+	// $SNAP_INSTANCE_NAME.
+	AllowSnapInstanceName bool
+}
+
 // ExpandSnapVariablesWithOptions resolves $SNAP, $SNAP_DATA and $SNAP_COMMON
 // for this snap. It also resolves $SNAP_INSTANCE_NAME to the instance name,
 // irrespective of perspective, when enabled by opts.
