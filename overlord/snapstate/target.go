@@ -1700,7 +1700,7 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		return target{}, err
 	}
 
-	// TODO: support integrity data for local snaps
+	// TODO: support integrity data for local asserted snaps
 	return target{
 		setup: SnapSetup{
 			SnapPath:  update.Path,
