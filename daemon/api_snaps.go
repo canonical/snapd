@@ -393,6 +393,15 @@ func (inst *snapInstruction) validateSnapshotOptions() error {
 }
 
 func (inst *snapInstruction) validate() error {
+	if inst.IgnoreUnsupportedInstanceInterfaces {
+		for _, snapName := range inst.Snaps {
+			_, instanceKey := snap.SplitInstanceName(snapName)
+			if instanceKey == "" {
+				return fmt.Errorf("ignore-unsupported-instance-interfaces can only be used with parallel instances")
+			}
+		}
+	}
+
 	if inst.CohortKey != "" {
 		if inst.Action != installCmdAction && inst.Action != refreshCmdAction && inst.Action != switchCmdAction {
 			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
