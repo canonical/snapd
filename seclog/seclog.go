@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -239,6 +240,66 @@ func LogSystemStartupSnapd(snapdVersion, bootID string) {
 		"Snapd startup",
 		Attr{Key: "snapd_version", Value: snapdVersion},
 		Attr{Key: "boot_id", Value: bootID},
+	)
+}
+
+// LogSystemRestart logs a requested OS reboot using the global security
+// logger. snapdVersion is the version of the exiting snapd process. rst
+// is recorded as restart_type. retry is recorded as retry and is true
+// when snapd requests the reboot again because the expected reboot did
+// not happen. delay is the wait before the reboot; it is included in the
+// description only when positive and is not an attribute.
+func LogSystemRestart(snapdVersion string, rst restart.RestartType, retry bool, delay time.Duration) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	typeStr := rst.String()
+
+	description := fmt.Sprintf("System restart of type %s", typeStr)
+	if retry {
+		description = fmt.Sprintf("System restart retry of type %s", typeStr)
+	}
+	if delay > 0 {
+		description = fmt.Sprintf("%s in %s", description, delay)
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_restart", Level: LevelInfo},
+		description,
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "restart_type", Value: typeStr},
+		Attr{Key: "retry", Value: retry},
+	)
+}
+
+// LogSystemShutdown logs a requested OS halt or poweroff using the global
+// security logger. snapdVersion is the version of the exiting snapd
+// process. rst is recorded as restart_type. delay is the wait before the
+// shutdown; it is included in the description only when positive and is
+// not an attribute. A previously scheduled restart can make that wait
+// non-zero even for an immediate halt or poweroff.
+func LogSystemShutdown(snapdVersion string, rst restart.RestartType, delay time.Duration) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	typeStr := rst.String()
+
+	description := fmt.Sprintf("System shutdown of type %s", typeStr)
+	if delay > 0 {
+		description = fmt.Sprintf("%s in %s", description, delay)
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_shutdown", Level: LevelInfo},
+		description,
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "restart_type", Value: typeStr},
 	)
 }
 

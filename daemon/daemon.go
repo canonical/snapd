@@ -875,6 +875,12 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 	if err := reboot(action, rebootDelay, rbi); err != nil {
 		return err
 	}
+	switch rst {
+	case restart.RestartSystem, restart.RestartSystemNow:
+		seclog.LogSystemRestart(d.Version, rst, d.expectedRebootDidNotHappen, rebootDelay)
+	case restart.RestartSystemHaltNow, restart.RestartSystemPoweroffNow:
+		seclog.LogSystemShutdown(d.Version, rst, rebootDelay)
+	}
 	// wait for reboot to happen
 	logger.Noticef("Waiting for %s", action)
 	if sigCh != nil {
