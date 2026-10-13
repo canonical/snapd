@@ -85,7 +85,6 @@ func (s *HdmiCecInterfaceSuite) TestAppArmorSpec(c *C) {
 		"/dev/aocec rw,",
 		"/dev/mxc_hdmi_cec rw,",
 		"/dev/tegra_cec rw,",
-		"/dev/vchiq rw,",
 		"/sys/bus/cec/devices/** r,",
 		"/sys/devices/**/cec[0-9]*/{,**} r,",
 		"/sys/devices/platform/**/{subsystem,uevent} r,",

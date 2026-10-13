@@ -37,7 +37,6 @@ const hdmiCecConnectedPlugAppArmor = `
 /dev/aocec rw,
 /dev/mxc_hdmi_cec rw,
 /dev/tegra_cec rw,
-/dev/vchiq rw,
 
 # CEC adapter enumeration and metadata
 /sys/bus/cec/devices/ r,
