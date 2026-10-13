@@ -636,7 +636,7 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 		}
 		if unsupported != "" {
 			return fmt.Errorf("cannot install snap %q as parallel instance: "+
-				"app %q uses %s which is not supported for parallel instances",
+				"app %q uses %s which is not supported for such installation",
 				info.InstanceName(), appName, unsupported)
 		}
 	}
