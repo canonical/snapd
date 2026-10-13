@@ -282,7 +282,7 @@ def request_builds(snap, build_archive, dry_run=False):
         archive=build_archive,
         pocket=DEFAULT_BUILD_POCKET,
     )
-    print(f"  requested: {request.web_link}")
+    print(f"  requested: {snap.web_link.rstrip('/')}/")
     return request
 
 
