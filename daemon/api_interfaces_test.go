@@ -136,7 +136,6 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &client.InterfaceAction{
 		Action: "connect",
@@ -269,7 +268,6 @@ func (s *interfacesSuite) TestConnectAlreadyConnected(c *check.C) {
 	}
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	_, err := repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, check.IsNil)
@@ -460,7 +458,6 @@ func (s *interfacesSuite) TestConnectCoreSystemAlias(c *check.C) {
 	s.mockSnap(c, coreProducerYaml)
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &client.InterfaceAction{
 		Action: "connect",
@@ -901,7 +898,6 @@ func (s *interfacesSuite) TestDisconnectCoreSystemAlias(c *check.C) {
 	st.Unlock()
 
 	d.Overlord().Loop()
-	defer d.Overlord().Stop()
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
