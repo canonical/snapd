@@ -1380,10 +1380,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	_, err := snapstate.Install(context.Background(), s.state, "core_foo", nil, 0, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `cannot install snap of type os as "core_foo"`)
 
@@ -1441,10 +1437,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c 
 
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	// register a test interface that rejects parallel instances on the plug side
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -1481,10 +1473,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c 
 
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	// register a test interface that rejects parallel instances on the slot side
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -1519,10 +1507,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySuppo
 
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 
@@ -1555,10 +1539,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithExplicitlySuppo
 
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 
@@ -1586,10 +1566,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithExplicitlySuppo
 func (s *snapmgrTestSuite) TestNonParallelInstanceInstallUnaffectedByUnsupportedInterface(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -2062,10 +2038,6 @@ func (s *snapmgrTestSuite) TestInstallRunThroughInCloudNoIcons(c *C) {
 func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlags, expectedFlags snapstate.Flags) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -7331,12 +7303,6 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	// sort these so that we can predict the order of the ops
 	sort.Strings(opts.components)
 
-	if opts.instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
-
 	snapID := opts.snapName + "-id"
 	snapRevision := snap.R(11)
 	const channel = "channel-for-components"
@@ -7772,12 +7738,6 @@ func (s *snapmgrTestSuite) testSeedingGoalWithComponentsRunThrough(c *C, opts te
 
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
-
-	if opts.instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
 
 	snapID := "test-snap-id"
 	snapRevision := snap.R(11)
@@ -8446,10 +8406,6 @@ func (s *validationSetsSuite) TestUpdateComponentsValidationSetsWithRequired(c *
 func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts testUpdateComponentsValidationSetsOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	const (
 		snapName    = "test-snap"
