@@ -306,20 +306,6 @@ def main():
         ),
     )
 
-    existing_recipe_group = parser.add_mutually_exclusive_group()
-
-    existing_recipe_group.add_argument(
-        "--ensure",
-        action="store_true",
-        help="Create missing recipes and reuse existing recipes unchanged",
-    )
-
-    existing_recipe_group.add_argument(
-        "--update-existing",
-        action="store_true",
-        help="Update existing Launchpad recipes",
-    )
-
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -329,7 +315,7 @@ def main():
     parser.add_argument(
         "--request-build",
         action="store_true",
-        help="Request builds after creating, ensuring, or updating the recipe",
+        help="Request builds after creating or updating the recipe",
     )
 
     parser.add_argument(
@@ -442,20 +428,17 @@ def main():
         else:
             print(f"  exists: {snap.web_link}")
 
-            if args.update_existing:
-                if update_snap(
-                    snap,
-                    relative_path,
-                    branch,
-                    channels,
-                    processors,
-                    args.dry_run,
-                ):
-                    print("  would update" if args.dry_run else "  updated")
-                else:
-                    print("  already configured")
-            elif args.ensure:
-                print("  using existing recipe")
+            if update_snap(
+                snap,
+                relative_path,
+                branch,
+                channels,
+                processors,
+                args.dry_run,
+            ):
+                print("  would update" if args.dry_run else "  updated")
+            else:
+                print("  already configured")
 
         if args.request_build:
             request_builds(snap, build_archive, args.dry_run)

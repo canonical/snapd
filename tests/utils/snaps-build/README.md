@@ -80,25 +80,15 @@ python3 tests/utils/snaps-build/build-snap.py \
 
 ## Updating a Test Snap
 
-After modifying a snap under `tests/lib/snaps/store`, push the branch, update
-the existing recipe, and request fresh builds:
+After modifying a snap under `tests/lib/snaps/store`, push the branch and
+request fresh builds. The recipe is created if missing or updated if it
+already exists:
 
 ```bash
 python3 tests/utils/snaps-build/build-snap.py \
     --snap test-snapd-curl \
     --branch master \
-    --update-existing \
     --request-build
-```
-
-Use `--ensure` when the recipe should be created if missing but left unchanged
-if it already exists:
-
-```bash
-python3 tests/utils/snaps-build/build-snap.py \
-    --snap test-snapd-curl \
-    --branch master \
-    --ensure
 ```
 
 ## Architectures
@@ -111,7 +101,6 @@ python3 tests/utils/snaps-build/build-snap.py \
     --snap test-snapd-curl \
     --branch master \
     --architecture amd64 \
-    --update-existing \
     --request-build
 ```
 
@@ -122,7 +111,6 @@ python3 tests/utils/snaps-build/build-snap.py \
     --snap test-snapd-curl \
     --branch master \
     --architectures amd64,arm64 \
-    --update-existing \
     --request-build
 ```
 
@@ -135,7 +123,6 @@ python3 tests/utils/snaps-build/build-snap.py \
     --architecture amd64 \
     --architecture arm64 \
     --architecture armhf \
-    --update-existing \
     --request-build
 ```
 
@@ -149,7 +136,6 @@ python3 tests/utils/snaps-build/build-snap.py \
     --snap test-snapd-curl \
     --branch master \
     --channel edge,beta \
-    --update-existing \
     --request-build
 ```
 
