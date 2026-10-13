@@ -34,7 +34,7 @@ execute: |
             echo "parallel install should have been rejected"
             exit 1
         fi
-        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "app \"cmd\" uses ${setting} which is not supported for parallel instances"
+        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "app \"cmd\" uses ${setting} which is not supported for such installation"
 
         echo "Regular install of $snap_name still works"
         snap install --dangerous "/tmp/${snap_name}.snap"

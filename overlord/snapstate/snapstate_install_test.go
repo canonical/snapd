@@ -1419,7 +1419,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByAppSettings(c *C
 		}
 
 		_, err := snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
-		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot install snap "some-snap_foo" as parallel instance: app "app" uses %s which is not supported for parallel instances`, t.setting), Commentf("%s", t.setting))
+		c.Check(err, ErrorMatches, fmt.Sprintf(`cannot install snap "some-snap_foo" as parallel instance: app "app" uses %s which is not supported for such installation`, t.setting), Commentf("%s", t.setting))
 
 		// the same snap is allowed as a non-instance install
 		_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
