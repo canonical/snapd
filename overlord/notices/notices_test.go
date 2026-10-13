@@ -728,7 +728,7 @@ func (s *noticesSuite) TestDoNoticesSorting(c *C) {
 
 	// For good measure, re-record n2 with a newer timestamp, but less than its
 	// RepeatAfter duration. Then we can test that lastRepeated is used.
-	n2.Reoccur(t6, nil, time.Hour)
+	n2, _ = n2.Reoccur(t6, nil, time.Hour)
 
 	bknd1.noticesChan <- []*state.Notice{n2, n3, n5}
 	bknd2.noticesChan <- []*state.Notice{n1, n4}
