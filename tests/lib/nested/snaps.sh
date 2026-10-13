@@ -220,8 +220,8 @@ nested_prepare_gadget() {
         nested_repack_core_gadget
         nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap"
     else
-        # Preserve the pre-refactor Core 18 behavior: sign the existing snap
-        # with an empty snap ID before replacing it with the repacked snap.
+        # Preserve pre-refactor behavior: sign with an empty snap ID before
+        # any Core 18 tag-features repack replaces the existing snap.
         nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap" ""
     fi
 
