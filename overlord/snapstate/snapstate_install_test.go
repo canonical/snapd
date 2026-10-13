@@ -4453,16 +4453,18 @@ func (s *snapmgrTestSuite) TestParallelInstallInstallPathExperimentalSwitch(c *C
 version: 1.0
 `)
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
-	_, err := snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{}, nil)
-	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap_foo": experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 
-	// enable parallel instances
+	// parallel instances are enabled by default
+	_, err := snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	// explicitly disable parallel instances
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Set("core", "experimental.parallel-instances", false)
 	tr.Commit()
 
 	_, err = snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{}, nil)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap_foo": experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstallInstallPathClassicRequiresMounts(c *C) {
@@ -4762,6 +4764,11 @@ func (s *snapmgrTestSuite) TestInstallManyChecksPreconditions(c *C) {
 	_, _, err := snapstate.InstallMany(s.state, []naming.InstanceName{"some-snap-now-classic"}, nil, 0, nil)
 	c.Assert(err, NotNil)
 	c.Check(err, DeepEquals, &snapstate.SnapNeedsClassicError{Snap: "some-snap-now-classic"})
+
+	// explicitly disable parallel instances
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", false)
+	tr.Commit()
 
 	_, _, err = snapstate.InstallMany(s.state, []naming.InstanceName{"some-snap_foo"}, nil, 0, nil)
 	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap_foo": experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
