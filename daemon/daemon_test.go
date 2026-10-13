@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/fdstore"
@@ -875,6 +876,7 @@ func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
 	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
 	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), seclog.SnapdRestartIdleAborted)
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -1544,6 +1546,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	defer restore()
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1579,7 +1582,87 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	// when the daemon got a pending change it just restarts
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
-	c.Check(seclogBuf.String(), check.Equals, "")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+seclog.SnapdRestartIdleAborted)
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+seclog.SnapdRestartIdleAborted+`"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+}
+
+func (s *daemonSuite) TestStopNoOverlordLogsRestart(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := &Daemon{Version: "2.78"}
+	err := d.Stop(nil)
+	c.Check(err, check.ErrorMatches, "internal error: no Overlord")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+seclog.SnapdRestartStopFailed)
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+seclog.SnapdRestartStopFailed+`"]`)
+}
+
+func (s *daemonSuite) TestStopTombWaitLogsRestart(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+	makeDaemonListeners(c, d)
+	s.markSeeded(d)
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	// A tracked goroutine returning this error is what tomb.Wait reports.
+	// It is not a deadline and not net.ErrClosed, so Stop logs and returns it.
+	stopErr := errors.New("cannot stop snapd")
+	d.tomb.Go(func() error {
+		return stopErr
+	})
+	for i := 0; i < 1000 && d.tomb.Err() != stopErr; i++ {
+		time.Sleep(time.Millisecond)
+	}
+	c.Assert(d.tomb.Err(), check.Equals, stopErr)
+
+	err := d.Stop(nil)
+	c.Check(err, check.Equals, stopErr)
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+seclog.SnapdRestartStopFailed)
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+seclog.SnapdRestartStopFailed+`"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+}
+
+func (s *daemonSuite) TestStopTombWaitPreseedDoesNotLogRestart(c *check.C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+	makeDaemonListeners(c, d)
+	s.markSeeded(d)
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	// A tracked goroutine returning this error is what tomb.Wait reports.
+	// Preseed stops on the build host, so Stop returns it without a restart event.
+	stopErr := errors.New("cannot stop snapd")
+	d.tomb.Go(func() error {
+		return stopErr
+	})
+	for i := 0; i < 1000 && d.tomb.Err() != stopErr; i++ {
+		time.Sleep(time.Millisecond)
+	}
+	c.Assert(d.tomb.Err(), check.Equals, stopErr)
+
+	err := d.Stop(nil)
+	c.Check(err, check.Equals, stopErr)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
 }
 
 func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
