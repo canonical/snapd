@@ -222,6 +222,10 @@ purge() {
             continue
         fi
 
+        if mountpoint "$snap_mount_dir"; then
+            umount -l "$snap_mount_dir"
+        fi
+
         if [ -d "$snap_mount_dir" ]; then
             rm -rf "$snap_mount_dir"
         fi
