@@ -54,6 +54,11 @@ The supplied file must already exist. It contains authentication credentials,
 so do not commit it and restrict access to your user, for example with
 `chmod 600 ~/.config/launchpad/credentials`.
 
+This file authorizes the script to use the Launchpad API; it does not contain
+Snap Store credentials. Authorize Store uploads once with `--authorize-store`.
+Launchpad stores that authorization on the recipe, so later
+`--credentials-file ... --request-build` runs can be non-interactive.
+
 ## Basic Usage
 
 Run the script from the snapd repository root. `--snap` is the directory name
@@ -88,6 +93,22 @@ Existing Bazaar-backed recipes are migrated to the selected Git branch while
 preserving the recipe and its build history. Explicit build series on legacy
 recipes are cleared so Launchpad can infer the correct series from the snap's
 base.
+
+When `--request-build` is used, the script opens the Store authorization page
+and waits for confirmation before requesting builds. Dry runs remain
+non-interactive.
+
+Use `--authorize-store` to open Launchpad's interactive Store authorization
+page before requesting builds. This is required for new recipes and when
+existing Store credentials have expired:
+
+```bash
+./tests/utils/snaps-build/build-snap \
+    --snap test-snapd-curl \
+    --branch master \
+    --authorize-store \
+    --request-build
+```
 
 ```bash
 ./tests/utils/snaps-build/build-snap \
