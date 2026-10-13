@@ -163,10 +163,10 @@ nested_sign_gadget_snap() {
 }
 
 nested_repack_core_gadget() {
-    local key_name snakeoil_key snakeoil_cert gadget_extra_cmdline
-    key_name="$(nested_get_snakeoil_key)"
-    snakeoil_key="$PWD/$key_name.key"
-    snakeoil_cert="$PWD/$key_name.pem"
+    local snakeoil_key snakeoil_cert gadget_extra_cmdline
+    nested_ensure_ovmf >/dev/null
+    snakeoil_key="$NESTED_ASSETS_DIR/ovmf/secboot/DB.key"
+    snakeoil_cert="$NESTED_ASSETS_DIR/ovmf/secboot/DB.crt"
     gadget_extra_cmdline="$(nested_get_gadget_extra_cmdline)"
 
     local -a repack_gadget_args=(
@@ -200,7 +200,6 @@ nested_repack_core_gadget() {
 
     "$TESTSTOOLS"/repack-gadget "${repack_gadget_args[@]}"
     cp "$NESTED_ASSETS_DIR/pc_repacked.snap" "$(nested_get_extra_snaps_path)/pc.snap"
-    rm -f "$snakeoil_key" "$snakeoil_cert"
 }
 
 nested_prepare_gadget() {
