@@ -52,6 +52,13 @@ execute: |
   snap set system experimental.check-disk-space-remove=true
   snap set system experimental.check-disk-space-refresh=true
 
+  # test-snapd-sh has an implicit "core" base; make sure core is installed
+  # while there is enough disk space, as it is not preseeded on all systems
+  # (e.g. Debian), otherwise the low disk space checks below would fail on
+  # the core prerequisite instead of the snap under test.
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+  snap remove --purge test-snapd-sh
+
   echo "Snap install fails with little disk space"
   NEWSIZE=$(($(get_disk_usage) + 1))
   resize "${NEWSIZE}M"
