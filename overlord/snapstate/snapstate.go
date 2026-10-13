@@ -4553,7 +4553,7 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 const allowUnsupportedInstancesMigratedKey = "allow-unsupported-instances-migrated"
 
 // allowUnsupportedInstancesMigrationPendingKey marks that an individual link-snap task will
-// need to be evaluated if AllowUnsupportedInterfaces needs to be grandfathered in.
+// need to be evaluated if AllowUnsupportedInterfaces needs to be added.
 const allowUnsupportedInstancesMigrationPendingKey = "allow-unsupported-instances-migration-pending"
 
 // MigrateAllowUnsupportedInstances sets IgnoreInstanceErrors on

@@ -12975,7 +12975,7 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesRunsOnce(c *C) {
 
 	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
 
-	// instance installed after the migration ran is not grandfathered
+	// instance installed after the migration ran is not migrated
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap_nok", &snapst), IsNil)
 	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
