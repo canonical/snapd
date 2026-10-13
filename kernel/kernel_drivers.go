@@ -655,6 +655,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	}
 	if mode == KernelInstallMode {
 		targetDir = destDir
+		// TODO check the marker file presence
 		exists, isDir, _ := osutil.DirExists(targetDir)
 		if exists && isDir {
 			logger.Debugf("device tree %q already created on installation, not re-creating",
