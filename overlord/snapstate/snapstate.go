@@ -4548,18 +4548,20 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 	return append(tss, pde)
 }
 
-// parallelInstancesMigratedKey marks that existing parallel instances were
+// allowUnsupportedInstancesMigratedKey marks that existing parallel instances were
 // evaluated once support checks on refresh were introduced
-const parallelInstancesMigratedKey = "parallel-instances-ignore-errors-migrated"
+const allowUnsupportedInstancesMigratedKey = "allow-unsupported-instances-migrated"
 
-const parallelInstanceMigrationPendingKey = "parallel-instance-migration-pending"
+// allowUnsupportedInstancesMigrationPendingKey marks that an individual link-snap task will
+// need to be evaluated if AllowUnsupportedInterfaces needs to be grandfathered in.
+const allowUnsupportedInstancesMigrationPendingKey = "allow-unsupported-instances-migration-pending"
 
-// MigrateParallelInstancesIgnoreInstanceErrors sets IgnoreInstanceErrors on
+// MigrateAllowUnsupportedInstances sets IgnoreInstanceErrors on
 // parallel instances installed before the feature was graduated. It must be
 // called with the state locked and after the interface repository has been set up.
-func MigrateParallelInstancesIgnoreInstanceErrors(st *state.State) error {
+func MigrateAllowUnsupportedInstances(st *state.State) error {
 	var done bool
-	if err := st.Get(parallelInstancesMigratedKey, &done); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := st.Get(allowUnsupportedInstancesMigratedKey, &done); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if done {
@@ -4571,7 +4573,7 @@ func MigrateParallelInstancesIgnoreInstanceErrors(st *state.State) error {
 		return err
 	}
 	for name, snapst := range all {
-		if snapst.InstanceKey == "" || snapst.IgnoreUnsupportedInstanceInterfaces {
+		if snapst.InstanceKey == "" || snapst.AllowUnsupportedInstances {
 			continue
 		}
 		info, err := snapst.CurrentInfo()
@@ -4582,7 +4584,7 @@ func MigrateParallelInstancesIgnoreInstanceErrors(st *state.State) error {
 		if err := checkParallelInstancesSupport(st, info); err == nil {
 			continue
 		}
-		snapst.IgnoreUnsupportedInstanceInterfaces = true
+		snapst.AllowUnsupportedInstances = true
 		Set(st, name, snapst)
 	}
 
@@ -4599,11 +4601,11 @@ func MigrateParallelInstancesIgnoreInstanceErrors(st *state.State) error {
 				return fmt.Errorf("cannot get snap setup for pending link-snap task: %w", err)
 			}
 			if snapsup.InstanceKey != "" {
-				task.Set(parallelInstanceMigrationPendingKey, true)
+				task.Set(allowUnsupportedInstancesMigrationPendingKey, true)
 			}
 		}
 	}
 
-	st.Set(parallelInstancesMigratedKey, true)
+	st.Set(allowUnsupportedInstancesMigratedKey, true)
 	return nil
 }

@@ -12946,9 +12946,9 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces
 	})
 	s.state.NewChange("install", "Install parallel instance").AddTask(link)
 
-	c.Assert(snapstate.MigrateParallelInstancesIgnoreInstanceErrors(s.state), IsNil)
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
 	var migrationPending bool
-	c.Assert(link.Get("parallel-instance-migration-pending", &migrationPending), IsNil)
+	c.Assert(link.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
 	c.Check(migrationPending, Equals, true)
 
 	for name, expected := range map[string]bool{
@@ -12958,11 +12958,11 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces
 	} {
 		var snapst snapstate.SnapState
 		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
-		c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, expected, Commentf(name))
+		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name))
 	}
 
 	var done bool
-	c.Assert(s.state.Get("parallel-instances-ignore-errors-migrated", &done), IsNil)
+	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), IsNil)
 	c.Check(done, Equals, true)
 }
 
@@ -12970,15 +12970,15 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesRunsOnce(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("parallel-instances-ignore-errors-migrated", true)
+	s.state.Set("allow-unsupported-instances-migrated", true)
 	s.mockParallelInstancesForMigration(c)
 
-	c.Assert(snapstate.MigrateParallelInstancesIgnoreInstanceErrors(s.state), IsNil)
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
 
 	// instance installed after the migration ran is not grandfathered
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "some-snap_nok", &snapst), IsNil)
-	c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, false)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestResealingTasksAreRegistered(c *C) {

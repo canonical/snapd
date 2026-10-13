@@ -8117,7 +8117,7 @@ plugs:
 	} {
 		var snapst snapstate.SnapState
 		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
-		c.Check(snapst.IgnoreUnsupportedInstanceInterfaces, Equals, expected, Commentf(name))
+		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name))
 	}
 }
 

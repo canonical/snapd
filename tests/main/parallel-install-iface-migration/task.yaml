@@ -1,13 +1,13 @@
-summary: Check migration of ignore-instance-errors for existing parallel instances
+summary: Check migration of allow-unsupported-instances for existing parallel instances
 
 details: |
     Parallel instances installed before snapd checked interface support for
     parallel instances on refresh may use interfaces which do not support
-    them. On startup snapd marks such instances with ignore-instance-errors
+    them. On startup snapd marks such instances with allow-unsupported-instances
     once, so that their refreshes are not blocked, while instances using
     only supported interfaces are left untouched. Flagged instances can then
     refresh to revisions using unsupported interfaces, while other instances
-    need --ignore-unsupported-instance-interfaces to do so.
+    need --allow-unsupported-instances to do so.
 
 prepare: |
     snap set system experimental.parallel-instances=true
@@ -41,31 +41,31 @@ execute: |
 
     echo "Install a parallel instance using an unsupported interface"
     make_test_snap unsupported-plug 1.0 acrn-support
-    snap install --dangerous --ignore-unsupported-instance-interfaces --name unsupported-plug_foo /tmp/unsupported-plug_1.0.snap
+    snap install --dangerous --allow-unsupported-instances --name unsupported-plug_foo /tmp/unsupported-plug_1.0.snap
 
     echo "Install a parallel instance using a supported interface"
     make_test_snap supported-plug 1.0 audio-playback
     snap install --dangerous --name supported-plug_foo /tmp/supported-plug_1.0.snap
 
-    gojq '.data.snaps["unsupported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^true$'
-    gojq '.data.snaps["supported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^null$'
+    gojq '.data.snaps["unsupported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^true$'
+    gojq '.data.snaps["supported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^null$'
 
     echo "Simulate state from before the migration was introduced"
     systemctl stop snapd.service snapd.socket
     # the migration already ran when snapd first started, so drop its marker too
-    gojq 'del(.data.snaps["unsupported-plug_foo"]["ignore-instance-errors"]) | del(.data["parallel-instances-ignore-errors-migrated"])' \
+    gojq 'del(.data.snaps["unsupported-plug_foo"]["allow-unsupported-instances"]) | del(.data["allow-unsupported-instances-migrated"])' \
         /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
-    gojq '.data.snaps["unsupported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^null$'
-    gojq '.data["parallel-instances-ignore-errors-migrated"]' /var/lib/snapd/state.json | MATCH '^null$'
+    gojq '.data.snaps["unsupported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^null$'
+    gojq '.data["allow-unsupported-instances-migrated"]' /var/lib/snapd/state.json | MATCH '^null$'
 
     systemctl start snapd.service snapd.socket
     snap wait system seed.loaded
 
     echo "The migration ran and only flagged the unsupported instance"
-    gojq '.data["parallel-instances-ignore-errors-migrated"]' /var/lib/snapd/state.json | MATCH '^true$'
-    gojq '.data.snaps["unsupported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^true$'
-    gojq '.data.snaps["supported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^null$'
+    gojq '.data["allow-unsupported-instances-migrated"]' /var/lib/snapd/state.json | MATCH '^true$'
+    gojq '.data.snaps["unsupported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^true$'
+    gojq '.data.snaps["supported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^null$'
 
     echo "Install another parallel instance using an unsupported interface"
     make_test_snap other-unsupported-plug 1.0 docker-support
@@ -75,8 +75,8 @@ execute: |
     fi
     tr '\n' ' ' < install.err | tr -s ' ' | MATCH 'cannot install snap "other-unsupported-plug_foo" as parallel instance: plug "docker-support-plug" with interface "docker-support"'
     not snap list other-unsupported-plug_foo
-    snap install --dangerous --ignore-unsupported-instance-interfaces --name other-unsupported-plug_foo /tmp/other-unsupported-plug_1.0.snap
-    gojq '.data.snaps["other-unsupported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^true$'
+    snap install --dangerous --allow-unsupported-instances --name other-unsupported-plug_foo /tmp/other-unsupported-plug_1.0.snap
+    gojq '.data.snaps["other-unsupported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^true$'
 
     echo "Build new revisions which all use unsupported interfaces"
     make_test_snap unsupported-plug 2.0 acrn-support
@@ -98,7 +98,7 @@ execute: |
     snap list supported-plug_foo | MATCH '^supported-plug_foo +1\.0 +x1 '
     snap warnings | tr '\n' ' ' | tr -s ' ' | MATCH 'supported-plug_foo.*parallel instance'
 
-    echo "The refresh succeeds with --ignore-unsupported-instance-interfaces"
-    snap install --dangerous --ignore-unsupported-instance-interfaces --name supported-plug_foo /tmp/supported-plug_2.0.snap
+    echo "The refresh succeeds with --allow-unsupported-instances"
+    snap install --dangerous --allow-unsupported-instances --name supported-plug_foo /tmp/supported-plug_2.0.snap
     snap list supported-plug_foo | MATCH '^supported-plug_foo +2\.0 +x2 '
-    gojq '.data.snaps["supported-plug_foo"]["ignore-instance-errors"]' /var/lib/snapd/state.json | MATCH '^true$'
+    gojq '.data.snaps["supported-plug_foo"]["allow-unsupported-instances"]' /var/lib/snapd/state.json | MATCH '^true$'
