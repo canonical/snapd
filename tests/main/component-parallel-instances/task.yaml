@@ -197,8 +197,7 @@ execute: |
     check_comp_installed test-snap-components-snapctl "$comp"
   done
 
-  # ephemeral context, using the instance name
-  echo "Ephemeral snapctl context accepts explicit and relative component names"
+  echo "snapctl context accepts explicit and relative component names"
   # shellcheck disable=SC2016
   snap run --shell test-snap-components-snapctl_key -c 'snapctl install "$SNAP_INSTANCE_NAME+one"'
   snap components test-snap-components-snapctl_key | MATCH "test-snap-components-snapctl_key\+one\s+installed\s+test"
