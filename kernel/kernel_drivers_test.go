@@ -845,51 +845,47 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernelInstall(
 	c.Assert(osutil.FileExists(treeRoot), Equals, false)
 }
 
-func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {
-	mockCmd := testutil.MockCommand(c, "depmod", "")
-	defer mockCmd.Restore()
-
+func (s *kernelDriversTestSuite) TestComponentChangeModeRequiresKernelTree(c *C) {
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
-	kversion := "5.15.0-78-generic"
-	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
-
-	compMntDir1 := filepath.Join(dirs.RunDir, "mnt/kernel-snaps/comp1")
-	compMntDir2 := filepath.Join(dirs.RunDir, "mnt/kernel-snaps/comp2")
-	createKernelModulesCompFiles(c, kversion, compMntDir1, "comp1")
-	createKernelModulesCompFiles(c, kversion, compMntDir2, "comp2")
-	kmodsConts := []snap.ContainerPlaceInfo{
-		snap.MinimalComponentContainerPlaceInfo("comp1", snap.R(11), "pc-kernel"),
-		snap.MinimalComponentContainerPlaceInfo("comp2", snap.R(22), "pc-kernel"),
-	}
-	compsMntPts := []kernel.ModulesCompMountPoints{
-		{"comp1", kernel.MountPoints{kmodsConts[0].MountDir(), kmodsConts[0].MountDir()}},
-		{"comp2", kernel.MountPoints{kmodsConts[1].MountDir(), kmodsConts[1].MountDir()}},
-	}
-
-	// Component-only call against a kernel never installed before (destDir
-	// missing entirely). Not a real-world scenario, but SwapDirs's
-	// missing-live-directory fallback (see EnsureKernelDriversTree) makes it
-	// build from scratch instead of failing.
+	createKernelSnapFiles(c, "5.15.0-78-generic", mountDir, createKernelSnapFilesOpts{})
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(
-		kernel.MountPoints{
-			Current: mountDir,
-			Target:  mountDir},
-		compsMntPts, destDir, kernel.ComponentChangeMode)
-	c.Assert(err, IsNil)
 
-	// Components are wired into the modules subtree via symlink.
-	modsUpdatesDir := filepath.Join(destDir, "lib", "modules", kversion, "updates")
-	_, err = os.Readlink(filepath.Join(modsUpdatesDir, "comp1"))
-	c.Check(err, IsNil)
+	// A component-only update must not create a partial kernel tree.
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.ComponentChangeMode)
+	c.Assert(err, ErrorMatches, `cannot update kernel drivers tree ".*": directory does not exist`)
+	_, err = os.Stat(destDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+	_, err = os.Stat(destDir + "_tmp")
+	c.Check(os.IsNotExist(err), Equals, true)
 
-	// The firmware "updates" directory is always created too.
+	// A file at the tree root is not an installed drivers tree either.
+	c.Assert(os.MkdirAll(filepath.Dir(destDir), 0755), IsNil)
+	c.Assert(os.WriteFile(destDir, nil, 0644), IsNil)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.ComponentChangeMode)
+	c.Assert(err, ErrorMatches, `cannot update kernel drivers tree ".*": not a directory`)
+}
+
+func (s *kernelDriversTestSuite) TestComponentChangeModeRepairsMissingChildren(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.KernelInstallMode), IsNil)
+
 	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
-	c.Check(osutil.IsDirectory(fwUpdatesDir), Equals, true)
+	modsDir := filepath.Join(destDir, "lib", "modules", kversion)
+	c.Assert(os.RemoveAll(fwUpdatesDir), IsNil)
+	c.Assert(os.RemoveAll(modsDir), IsNil)
 
-	// Top-level firmware symlinks are only created when opts.KernelInstall
-	// is true, so they are correctly absent here.
-	c.Check(osutil.FileExists(filepath.Join(destDir, "lib", "firmware", "blob1")), Equals, false)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.ComponentChangeMode), IsNil)
+	c.Check(osutil.IsDirectory(fwUpdatesDir), Equals, true)
+	c.Check(osutil.IsDirectory(modsDir), Equals, true)
+	// Component mode leaves existing top-level kernel firmware in place.
+	target, err := os.Readlink(filepath.Join(destDir, "lib", "firmware", "blob1"))
+	c.Assert(err, IsNil)
+	c.Check(target, Equals, filepath.Join(mountDir, "firmware", "blob1"))
 }
 
 func testBuildKernelDriversTreeWithComps(c *C, mode kernel.KernelDriversTreeMode) {

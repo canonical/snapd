@@ -639,6 +639,20 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// filesystem as the final one so we can atomically switch the folders.
 	destDir = strings.TrimSuffix(destDir, "/")
 	targetDir := destDir + "_tmp"
+	if mode == ComponentChangeMode {
+		// Component changes update an installed kernel tree, which we expect to
+		// exist.
+		exists, isDir, err := osutil.DirExists(destDir)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("cannot update kernel drivers tree %q: directory does not exist", destDir)
+		}
+		if !isDir {
+			return fmt.Errorf("cannot update kernel drivers tree %q: not a directory", destDir)
+		}
+	}
 	if mode == RegenerateMode {
 		// If the drivers tree does not exist at all, treat it like an
 		// install.
