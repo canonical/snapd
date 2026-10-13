@@ -252,10 +252,11 @@ nested_restore_core_image() {
         return 1
     fi
 
-    cp -v "$IMAGE_PATH.pristine" "$IMAGE_PATH"
+    cp -v "$IMAGE_PATH.pristine" "$IMAGE_PATH" || return 1
     if [ ! "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-        nested_create_assertions_disk
+        nested_create_assertions_disk || return 1
     fi
+    return 0
 }
 
 nested_generate_core_image() {

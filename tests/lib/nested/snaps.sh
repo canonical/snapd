@@ -155,7 +155,7 @@ nested_get_gadget_extra_cmdline() {
 
 nested_sign_gadget_snap() {
     local gadget_snap="$1"
-    local snap_id="UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+    local snap_id="${2-UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH}"
 
     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
         "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$gadget_snap" "$snap_id"
@@ -219,13 +219,16 @@ nested_prepare_gadget() {
         echo "Repacking pc snap"
         nested_repack_core_gadget
         nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap"
+    else
+        # Preserve the pre-refactor Core 18 behavior: sign the existing snap
+        # with an empty snap ID before replacing it with the repacked snap.
+        nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap" ""
     fi
 
     if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
         local gadget_snap="$NESTED_ASSETS_DIR/pc_repacked.snap"
         "$TESTSTOOLS"/repack-gadget --gadget-branch 18 --gadget-channel "$(nested_get_gadget_channel)" --output-snap "$gadget_snap" --persistent-journal --tag-features-grub
         cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
-        nested_sign_gadget_snap "$(nested_get_extra_snaps_path)/pc.snap"
     fi
 }
 
