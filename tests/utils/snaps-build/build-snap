@@ -187,7 +187,9 @@ def create_snap(
         "store_channels": channels,
     }
     if processors is not None:
-        recipe["processors"] = processors
+        recipe["processors"] = [
+            processor.self_link for processor in processors
+        ]
 
     snap = lp.snaps.new(
         **recipe,
@@ -198,25 +200,39 @@ def create_snap(
 
 
 def update_snap(
-    snap, build_path, branch, channels, processors=None, dry_run=False
+    snap, build_path, git_ref, channels, processors=None, dry_run=False
 ):
     """Apply changed recipe settings and report whether any differ."""
     changed = False
 
     desired = {
-        "git_path": git_ref_path(branch),
+        # Let Launchpad infer the build series from snapcraft.yaml's base.
+        "distro_series": None,
         "build_path": build_path,
         "auto_build": True,
         "store_upload": True,
         "store_name": snap.name,
         "store_channels": channels,
     }
-    if processors is not None:
-        desired["processors"] = processors
 
-    # git_repository_url is read-only after creation, so we don't
-    # attempt to modify it here.
+    # Source changes must use git_ref because git_repository_url is read-only.
+    # Clearing branch also migrates legacy Bazaar recipes to Git.
+    current_git_ref = snap.git_ref
+    current_git_ref_link = (
+        current_git_ref.self_link if current_git_ref is not None else None
+    )
+    if current_git_ref_link != git_ref.self_link:
+        prefix = "WOULD UPDATE " if dry_run else ""
+        print(
+            f"  {prefix}git_ref: {current_git_ref_link!r} -> "
+            f"{git_ref.self_link!r}"
+        )
+        if not dry_run:
+            snap.branch = None
+            snap.git_ref = git_ref
+        changed = True
 
+    # Regular writable fields can be saved together in a single PATCH.
     for key, value in desired.items():
         try:
             current = getattr(snap, key)
@@ -232,6 +248,25 @@ def update_snap(
 
     if changed and not dry_run:
         snap.lp_save()
+
+    # Launchpad rejects processors in PATCH requests; update the collection
+    # through its dedicated operation and ignore server-defined ordering.
+    if processors is not None:
+        current_processors = [
+            processor.self_link for processor in snap.processors
+        ]
+        desired_processors = [
+            processor.self_link for processor in processors
+        ]
+        if set(current_processors) != set(desired_processors):
+            prefix = "WOULD UPDATE " if dry_run else ""
+            print(
+                f"  {prefix}processors: {current_processors!r} -> "
+                f"{desired_processors!r}"
+            )
+            if not dry_run:
+                snap.setProcessors(processors=desired_processors)
+            changed = True
 
     return changed
 
@@ -431,7 +466,7 @@ def main():
             if update_snap(
                 snap,
                 relative_path,
-                branch,
+                git_ref,
                 channels,
                 processors,
                 args.dry_run,

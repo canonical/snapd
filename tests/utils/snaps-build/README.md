@@ -1,6 +1,6 @@
 # Build Test Snaps on Launchpad
 
-`build-snap.py` creates and updates Launchpad recipes for snaps in
+`build-snap` creates and updates Launchpad recipes for snaps in
 `tests/lib/snaps/store`. Use it when a test snap in that directory needs to be
 updated in the Snap Store after changing its source or `snapcraft.yaml`.
 
@@ -44,7 +44,7 @@ To reuse an existing credentials file created by `launchpadlib`, pass it with
 `--credentials-file`:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --credentials-file ~/.config/launchpad/credentials
@@ -60,7 +60,7 @@ Run the script from the snapd repository root. `--snap` is the directory name
 under `tests/lib/snaps/store`:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master
 ```
@@ -72,7 +72,7 @@ to push it before creating or updating the recipe.
 Use `--dry-run` to inspect the intended operation without changing Launchpad:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --dry-run
@@ -84,8 +84,13 @@ After modifying a snap under `tests/lib/snaps/store`, push the branch and
 request fresh builds. The recipe is created if missing or updated if it
 already exists:
 
+Existing Bazaar-backed recipes are migrated to the selected Git branch while
+preserving the recipe and its build history. Explicit build series on legacy
+recipes are cleared so Launchpad can infer the correct series from the snap's
+base.
+
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --request-build
@@ -97,7 +102,7 @@ Without `--architecture`, Launchpad uses the recipe defaults. To build only one
 architecture:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --architecture amd64 \
@@ -107,7 +112,7 @@ python3 tests/utils/snaps-build/build-snap.py \
 Multiple architectures can be comma-separated:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --architectures amd64,arm64 \
@@ -117,7 +122,7 @@ python3 tests/utils/snaps-build/build-snap.py \
 They can also be repeated:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --architecture amd64 \
@@ -132,11 +137,11 @@ The default Store channel is `edge`. Supply one or more channels with
 `--channel`; as with architectures, values may be comma-separated or repeated:
 
 ```bash
-python3 tests/utils/snaps-build/build-snap.py \
+./tests/utils/snaps-build/build-snap \
     --snap test-snapd-curl \
     --branch master \
     --channel edge,beta \
     --request-build
 ```
 
-Run `python3 tests/utils/snaps-build/build-snap.py --help` for all options.
+Run `./tests/utils/snaps-build/build-snap --help` for all options.
