@@ -270,15 +270,15 @@ func init() {
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
 }
 
-// MockRegistryConfiguration resets the one-shot registry configuration state
+// MockExternalTypesInitialization resets the external assertion type initialization state
 // for a test and restores the active registry and state afterwards.
-func MockRegistryConfiguration() (restore func()) {
+func MockExternalTypesInitialization() (restore func()) {
 	previousRegistry := typeRegistry
-	previousConfigured := registryConfigured
-	registryConfigured = false
+	previousInitialized := externalTypesInitialized
+	externalTypesInitialized = false
 	return func() {
 		typeRegistry = previousRegistry
-		registryConfigured = previousConfigured
+		externalTypesInitialized = previousInitialized
 	}
 }
 

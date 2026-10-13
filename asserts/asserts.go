@@ -44,8 +44,8 @@ const (
 	jsonBody
 )
 
-// TypeDefinition contains the information needed to define an assertion type.
-// External types require a definite authority and support only format 0.
+// TypeDefinition contains the information needed to define an external assertion type.
+// External assertion types require a definite authority and support only format 0.
 type TypeDefinition struct {
 	// Name is the process-wide unique assertion type name.
 	Name string
@@ -137,7 +137,7 @@ func (at *AssertionType) validate() error {
 	return nil
 }
 
-// NewAssertionType creates an assertion type from def. The returned type must
+// NewAssertionType creates an external assertion type from def. The returned type must
 // not be mutated.
 func NewAssertionType(def TypeDefinition) (*AssertionType, error) {
 	at := &AssertionType{
@@ -268,8 +268,8 @@ func TypeNames() []string {
 }
 
 var (
-	registryConfigured bool
-	maxSupportedFormat = map[string]int{}
+	externalTypesInitialized bool
+	maxSupportedFormat       = map[string]int{}
 )
 
 func init() {
@@ -308,8 +308,8 @@ func InitExternalTypes(assertionTypes ...*AssertionType) error {
 	if len(assertionTypes) == 0 {
 		return fmt.Errorf("cannot initialize external assertion types: at least one assertion type is required")
 	}
-	if registryConfigured {
-		return fmt.Errorf("assertion types are already configured")
+	if externalTypesInitialized {
+		return fmt.Errorf("external assertion types are already initialized")
 	}
 
 	types := make(map[string]*AssertionType, len(typeRegistry)+len(assertionTypes))
@@ -318,21 +318,21 @@ func InitExternalTypes(assertionTypes ...*AssertionType) error {
 	}
 	for _, assertionType := range assertionTypes {
 		if assertionType == nil {
-			return fmt.Errorf("cannot configure assertion types: assertion type cannot be nil")
+			return fmt.Errorf("cannot initialize external assertion types: assertion type cannot be nil")
 		}
 		if err := assertionType.validate(); err != nil {
-			return fmt.Errorf("cannot configure assertion types: %v", err)
+			return fmt.Errorf("cannot initialize external assertion types: %v", err)
 		}
 		if len(assertionType.PrimaryKey) == 0 {
-			return fmt.Errorf("cannot configure assertion types: assertion type %q must have at least one primary key header", assertionType.Name)
+			return fmt.Errorf("cannot initialize external assertion types: assertion type %q must have at least one primary key header", assertionType.Name)
 		}
 		if _, ok := types[assertionType.Name]; ok {
-			return fmt.Errorf("cannot configure assertion types: assertion type %q is already registered", assertionType.Name)
+			return fmt.Errorf("cannot initialize external assertion types: assertion type %q is already registered", assertionType.Name)
 		}
 		types[assertionType.Name] = assertionType
 	}
 	typeRegistry = types
-	registryConfigured = true
+	externalTypesInitialized = true
 	return nil
 }
 

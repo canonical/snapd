@@ -107,7 +107,7 @@ func (s *registrySuite) TestNewAssertionTypeValidation(c *C) {
 }
 
 func (s *registrySuite) TestInitExternalTypesIsAtomicAndRetryable(c *C) {
-	restore := asserts.MockRegistryConfiguration()
+	restore := asserts.MockExternalTypesInitialization()
 	defer restore()
 	c.Check(asserts.Type("account"), Equals, asserts.AccountType)
 
@@ -117,41 +117,41 @@ func (s *registrySuite) TestInitExternalTypesIsAtomicAndRetryable(c *C) {
 	c.Check(err, ErrorMatches, "cannot initialize external assertion types: at least one assertion type is required")
 	c.Check(asserts.Type("external-atomic"), IsNil)
 	err = asserts.InitExternalTypes(nil)
-	c.Check(err, ErrorMatches, "cannot configure assertion types: assertion type cannot be nil")
+	c.Check(err, ErrorMatches, "cannot initialize external assertion types: assertion type cannot be nil")
 
 	externalType.Name = "../renamed"
 	err = asserts.InitExternalTypes(externalType)
-	c.Check(err, ErrorMatches, `cannot configure assertion types: invalid assertion type name: "\.\./renamed"`)
+	c.Check(err, ErrorMatches, `cannot initialize external assertion types: invalid assertion type name: "\.\./renamed"`)
 	externalType.Name = "external-atomic"
 
 	keylessType := newExternalType(c, "external-keyless")
 	keylessType.PrimaryKey = nil
 	err = asserts.InitExternalTypes(externalType, keylessType)
-	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-keyless" must have at least one primary key header`)
+	c.Check(err, ErrorMatches, `cannot initialize external assertion types: assertion type "external-keyless" must have at least one primary key header`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
 	c.Check(asserts.Type("external-keyless"), IsNil)
 
 	keylessNoAuthorityType := *asserts.SerialRequestType
 	keylessNoAuthorityType.Name = "external-keyless-request"
 	err = asserts.InitExternalTypes(&keylessNoAuthorityType)
-	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-keyless-request" must have at least one primary key header`)
+	c.Check(err, ErrorMatches, `cannot initialize external assertion types: assertion type "external-keyless-request" must have at least one primary key header`)
 	c.Check(asserts.Type("external-keyless-request"), IsNil)
 
 	externalType.OptionalPrimaryKeyDefaults = map[string]string{"unknown-id": "default"}
 	err = asserts.InitExternalTypes(externalType)
-	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-atomic" has defaults values for unknown primary key headers`)
+	c.Check(err, ErrorMatches, `cannot initialize external assertion types: assertion type "external-atomic" has defaults values for unknown primary key headers`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
 
 	externalType.PrimaryKey = []string{"external-id", "another-id"}
 	externalType.OptionalPrimaryKeyDefaults = map[string]string{"external-id": "default"}
 	err = asserts.InitExternalTypes(externalType)
-	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "external-atomic" primary key header "another-id" has no default, optional primary keys must be a proper suffix of the primary key`)
+	c.Check(err, ErrorMatches, `cannot initialize external assertion types: assertion type "external-atomic" primary key header "another-id" has no default, optional primary keys must be a proper suffix of the primary key`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
 	externalType.PrimaryKey = []string{"external-id"}
 	externalType.OptionalPrimaryKeyDefaults = nil
 
 	err = asserts.InitExternalTypes(externalType, asserts.AccountType)
-	c.Check(err, ErrorMatches, `cannot configure assertion types: assertion type "account" is already registered`)
+	c.Check(err, ErrorMatches, `cannot initialize external assertion types: assertion type "account" is already registered`)
 	c.Check(asserts.Type("external-atomic"), IsNil)
 
 	err = asserts.InitExternalTypes(externalType)
@@ -160,15 +160,15 @@ func (s *registrySuite) TestInitExternalTypesIsAtomicAndRetryable(c *C) {
 	c.Check(asserts.Type("account"), Equals, asserts.AccountType)
 
 	err = asserts.InitExternalTypes(newExternalType(c, "another-external"))
-	c.Check(err, ErrorMatches, "assertion types are already configured")
+	c.Check(err, ErrorMatches, "external assertion types are already initialized")
 	c.Check(asserts.Type("another-external"), IsNil)
 	c.Check(asserts.Type("external-atomic"), Equals, externalType)
 	err = asserts.InitExternalTypes()
 	c.Check(err, ErrorMatches, "cannot initialize external assertion types: at least one assertion type is required")
 }
 
-func (s *registrySuite) TestConfiguredTypeUsesExistingPaths(c *C) {
-	restore := asserts.MockRegistryConfiguration()
+func (s *registrySuite) TestExternalTypeUsesExistingPaths(c *C) {
+	restore := asserts.MockExternalTypesInitialization()
 	defer restore()
 
 	externalType := newExternalType(c, "external-end-to-end")
