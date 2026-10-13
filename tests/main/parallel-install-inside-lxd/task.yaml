@@ -75,9 +75,6 @@ prepare: |
         done
     fi
 
-    echo "Enable parallel instances feature"
-    lxc exec my-ubuntu -- snap set system experimental.parallel-instances=true
-
     echo "Push test snaps into the container"
     lxc file push --quiet test-snapd-sh.snap "my-ubuntu/root/"
     lxc file push --quiet test-snapd-service.snap "my-ubuntu/root/"

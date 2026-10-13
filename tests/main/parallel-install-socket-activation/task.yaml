@@ -103,8 +103,6 @@ execute: |
         verify_unit_status snap.socket-activation_foo.sleep-daemon.sock-abstract.socket "$UNIT_FILE_STATE" "$ACTIVE_STATE"
     }
 
-    snap set system experimental.parallel-instances=true
-
     if [ "$CONFINEMENT" = classic ]; then
         "$TESTSTOOLS"/snaps-state install-local-as socket-activation-classic socket-activation_foo --classic
     else

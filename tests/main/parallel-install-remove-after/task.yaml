@@ -47,7 +47,6 @@ restore: |
                 snap remove --purge "$snap_name"
             fi
         done
-        snap unset system experimental.parallel-instances
         while read -r u enabled active; do
             if [ "$active" != active ]; then
                 systemctl stop "$u"
@@ -62,8 +61,6 @@ restore: |
                 systemctl start "$u"
             fi
         done < mount-units.state
-    else
-        snap unset system experimental.parallel-instances
     fi
 
 execute: |
@@ -72,8 +69,6 @@ execute: |
     if [ "$CONFINEMENT" = classic ]; then
         "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
     fi
-
-    snap set system experimental.parallel-instances=true
 
     # regular instances work
     # shellcheck disable=SC2016

@@ -57,8 +57,6 @@ prepare: |
     systemctl enable --now var-snap.mount
     systemctl start "$SNAP_MOUNT_UNIT"
 
-    snap set system experimental.parallel-instances=true
-
 restore: |
     # Remove child content mounts before stopping an opt-in parent mount.
     for snap_name in test-snapd-classic-confinement_foo test-snapd-classic-confinement; do
@@ -66,7 +64,6 @@ restore: |
             snap remove --purge "$snap_name"
         fi
     done
-    snap unset system experimental.parallel-instances
     if [ -f mount-units.state ]; then
         while read -r u enabled active; do
             if [ "$active" != active ]; then

@@ -10,10 +10,6 @@ details: |
 # it's enough to run it on one system
 systems: [ubuntu-20.04-64]
 
-prepare: |
-    echo "Ensure feature flags are enabled"
-    snap set system experimental.parallel-instances=true
-
 execute: |
     echo "Install snaps"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-complex-layout
