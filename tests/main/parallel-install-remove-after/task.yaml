@@ -13,17 +13,12 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-restore: |
-    snap unset system experimental.parallel-instances
-
 execute: |
     # install confined and classic snaps
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     if os.query is-classic ; then
         "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
     fi
-
-    snap set system experimental.parallel-instances=true
 
     # regular instances work
     # shellcheck disable=SC2016
