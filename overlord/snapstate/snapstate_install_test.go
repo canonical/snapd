@@ -7770,7 +7770,7 @@ version: 1.0
 	var snapPath string
 	switch opts.snapType {
 	case snap.TypeKernel:
-		snapPath = makeTestSnap(c, `name: some-kernel
+		snapPath = snaptest.MakeTestSnapWithFiles(c, `name: some-kernel
 version: 1.0
 type: kernel
 components:
@@ -7778,7 +7778,9 @@ components:
     type: standard
   kernel-modules-component:
     type: kernel-modules
-`)
+`, [][]string{
+			{"modules/1.0.0/", ""},
+		})
 	case snap.TypeApp:
 		snapPath = makeTestSnap(c, `name: test-snap
 version: 1.0

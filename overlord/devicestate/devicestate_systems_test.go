@@ -3637,7 +3637,8 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, labe
 		gadgetFiles, snap.R(1), "my-brand", s.storeSigning.Database)
 
 	compsSnapPath := snaptest.MakeTestSnapWithFiles(c,
-		"name: pc-kernel\nversion: 1\ntype: kernel\ncomponents:\n  comp1:\n    type: kernel-modules\n", nil)
+		"name: pc-kernel\nversion: 1\ntype: kernel\ncomponents:\n  comp1:\n    type: kernel-modules\n",
+		kfilesForComponents(nil))
 	compPath := snaptest.MakeTestComponent(c,
 		"component: pc-kernel+comp1\ntype: kernel-modules\nversion: 1.0.2")
 
@@ -4557,7 +4558,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		var path string
 		var files [][]string
 		switch snapsup.Type {
-		case snap.TypeBase:
+		case snap.TypeGadget:
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+		case snap.TypeKernel:
+			files = kfilesForComponents(nil)
+		}
+
+		if snapsup.Type == snap.TypeBase {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				fmt.Sprintf("name: %s\nversion: 1.0\ntype: %s",
@@ -4566,12 +4575,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				),
 				nil,
 			)
-		case snap.TypeGadget:
-			files = [][]string{
-				{"meta/gadget.yaml", uc20gadgetYaml},
-			}
-			fallthrough
-		default:
+		} else {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				fmt.Sprintf("name: %s\nversion: 1.0\nbase: %s\ntype: %s",
@@ -4611,6 +4615,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			Type:     snapTypes[name],
 		})
 
+		fmt.Printf("== fake download\n")
 		_, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamls[name], snapFiles[name], si)
 
 		opts.PrereqTracker.Add(info)
@@ -5057,7 +5062,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		var path string
 		var files [][]string
 		switch snapsup.Type {
-		case snap.TypeBase:
+		case snap.TypeGadget:
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+		case snap.TypeKernel:
+			files = kfilesForComponents(nil)
+		}
+
+		if snapsup.Type == snap.TypeBase {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				withComponents(
@@ -5069,12 +5082,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				),
 				nil,
 			)
-		case snap.TypeGadget:
-			files = [][]string{
-				{"meta/gadget.yaml", uc20gadgetYaml},
-			}
-			fallthrough
-		default:
+		} else {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				withComponents(
@@ -6238,18 +6246,14 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		var base string
 		switch snapTypes[name] {
 		case snap.TypeGadget:
+			base = "core20"
 			files = [][]string{
 				{"meta/gadget.yaml", uc20gadgetYaml},
 			}
-			fallthrough
 		case snap.TypeApp:
 			base = "core20"
-		}
-		if snapTypes[name] == snap.TypeGadget {
-			base = "core20"
-			files = [][]string{
-				{"meta/gadget.yaml", uc20gadgetYaml},
-			}
+		case snap.TypeKernel:
+			files = kfilesForComponents(nil)
 		}
 
 		rev := snapRevisions[name]

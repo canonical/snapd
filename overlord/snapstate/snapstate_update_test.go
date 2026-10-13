@@ -18579,7 +18579,7 @@ version: 1.0
 	var snapPath string
 	switch snapType {
 	case snap.TypeKernel:
-		snapPath = makeTestSnap(c, `name: kernel
+		snapPath = snaptest.MakeTestSnapWithFiles(c, `name: kernel
 version: some-snapVer
 type: kernel
 epoch: 1*
@@ -18588,7 +18588,7 @@ components:
     type: standard
   kernel-modules-component:
     type: kernel-modules
-`)
+`, [][]string{{"modules/1.0.0/", ""}})
 	case snap.TypeApp:
 		snapPath = makeTestSnap(c, `name: some-snap
 version: some-snapVer
@@ -18601,7 +18601,6 @@ components:
     type: standard
 `)
 	}
-
 	newSI := si
 	newSI.Revision = newSnapRev
 
@@ -18972,12 +18971,15 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstatetest.InstallSnap(c, s.state, oldYAML, nil, &oldSI, snapstatetest.InstallSnapOptions{
-		Required: true,
-		Components: []*sequence.ComponentState{
-			sequence.NewComponentState(&oldComponentSI, snap.KernelModulesComponent),
-		},
-	})
+	snapstatetest.InstallSnap(c, s.state, oldYAML,
+		[][]string{
+			{"modules/1.0.0/", ""},
+		}, &oldSI, snapstatetest.InstallSnapOptions{
+			Required: true,
+			Components: []*sequence.ComponentState{
+				sequence.NewComponentState(&oldComponentSI, snap.KernelModulesComponent),
+			},
+		})
 
 	snapstatetest.InstallSnap(c, s.state, currentYAML, nil, &currentSI, snapstatetest.InstallSnapOptions{
 		Required:         true,

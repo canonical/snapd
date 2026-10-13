@@ -261,7 +261,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snapRevision,
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -315,7 +317,9 @@ version: 1.0
 		RealName: snapName,
 		Revision: snapRevision,
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -366,7 +370,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snapRevision,
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -1145,7 +1151,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -1288,7 +1296,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -1365,7 +1375,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	badName := "Bad-component"
 	csi := snap.ComponentSideInfo{
@@ -1435,7 +1447,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),

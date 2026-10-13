@@ -6956,6 +6956,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 					compType: snap.KernelModulesComponent,
 				},
 			},
+			snapFiles: kfilesForComponents(nil),
 		},
 		"some-snap": {
 			name:     "some-snap",
@@ -7315,6 +7316,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(
 					compType: snap.KernelModulesComponent,
 				},
 			},
+			snapFiles: kfilesForComponents(nil),
 		},
 	}
 
@@ -7366,12 +7368,15 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(
 		"kmod": snap.KernelModulesComponent,
 	}
 
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state,
+		withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
@@ -7511,12 +7516,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsToAlreadyInstalledKerne
 	kmodComps := map[string]snap.ComponentType{
 		"kmod": snap.KernelModulesComponent,
 	}
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: iot-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("iot-kernel"),
-		Revision: snap.R(2),
-		RealName: "iot-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state, withComponents("name: iot-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			SnapID:   fakeSnapID("iot-kernel"),
+			Revision: snap.R(2),
+			RealName: "iot-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "iot-kernel", &snapst)
@@ -7862,12 +7869,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsAddComponentsToSnap(c *
 		"other-kmod": snap.KernelModulesComponent,
 	}
 
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
@@ -8015,12 +8024,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsSkipOptionalComponent(c
 		"kmod": snap.KernelModulesComponent,
 	}
 
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
@@ -8163,12 +8174,14 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 		"kmod": snap.KernelModulesComponent,
 	}
 
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state,
+		withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+		kfilesForComponents(nil), &snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "pc-kernel", &snapst)
@@ -8322,6 +8335,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 					compType: snap.KernelModulesComponent,
 				},
 			},
+			snapFiles: kfilesForComponents(nil),
 		},
 		"some-snap": {
 			name:     "some-snap",
@@ -8403,12 +8417,15 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 	}
 
 	// install other-snap so that we can test adding a component to it
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: other-snap\nversion: 1\ntype: app\nbase: core24", otherSnapComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("other-snap"),
-		Revision: snap.R(5),
-		RealName: "other-snap",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{})
+	snapstatetest.InstallSnap(c, s.state,
+		withComponents("name: other-snap\nversion: 1\ntype: app\nbase: core24", otherSnapComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			SnapID:   fakeSnapID("other-snap"),
+			Revision: snap.R(5),
+			RealName: "other-snap",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{})
 
 	newModel := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
@@ -8477,11 +8494,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 	kernelComps := map[string]snap.ComponentType{
 		"kmod": snap.KernelModulesComponent,
 	}
-	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, withComponents("name: pc-kernel\nversion: 1\ntype: kernel", kernelComps), nil, &snap.SideInfo{
-		RealName: "pc-kernel",
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(2),
-	})
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c,
+		withComponents("name: pc-kernel\nversion: 1\ntype: kernel", kernelComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			RealName: "pc-kernel",
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(2),
+		})
 
 	someSnapComps := map[string]snap.ComponentType{
 		"comp-1": snap.StandardComponent,
@@ -8684,11 +8704,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOfflineMissingComponent
 	kernelComps := map[string]snap.ComponentType{
 		"kmod": snap.KernelModulesComponent,
 	}
-	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c, withComponents("name: pc-kernel\nversion: 1\ntype: kernel", kernelComps), nil, &snap.SideInfo{
-		RealName: "pc-kernel",
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(2),
-	})
+	kernelPath, kernelInfo := snaptest.MakeTestSnapInfoWithFiles(c,
+		withComponents("name: pc-kernel\nversion: 1\ntype: kernel", kernelComps),
+		kfilesForComponents(nil),
+		&snap.SideInfo{
+			RealName: "pc-kernel",
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(2),
+		})
 
 	_, err = devicestate.RemodelTasks(
 		context.Background(),
@@ -9878,12 +9901,14 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 	kmodComps := map[string]snap.ComponentType{
 		"kmod": snap.KernelModulesComponent,
 	}
-	snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state,
+		withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+		kfilesForComponents(nil), &snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, snapstatetest.InstallSnapOptions{Required: true})
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "pc-kernel", &snapst)
@@ -9918,6 +9943,7 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 					compType: snap.KernelModulesComponent,
 				},
 			},
+			snapFiles: kfilesForComponents(nil),
 		},
 	}
 
@@ -10061,12 +10087,14 @@ func (s *deviceMgrRemodelSuite) testOfflineRemodelPreinstalledUseOldRevisionMiss
 		kmodComps := map[string]snap.ComponentType{
 			"kmod": snap.KernelModulesComponent,
 		}
-		snapstatetest.InstallSnap(c, s.state, withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps), nil, &snap.SideInfo{
-			SnapID:   fakeSnapID("pc-kernel"),
-			Revision: snap.R(1),
-			RealName: "pc-kernel",
-			Channel:  "latest/stable",
-		}, snapstatetest.InstallSnapOptions{Required: true})
+		snapstatetest.InstallSnap(c, s.state,
+			withComponents("name: pc-kernel\nversion: 1\ntype: kernel\n", kmodComps),
+			kfilesForComponents(nil), &snap.SideInfo{
+				SnapID:   fakeSnapID("pc-kernel"),
+				Revision: snap.R(1),
+				RealName: "pc-kernel",
+				Channel:  "latest/stable",
+			}, snapstatetest.InstallSnapOptions{Required: true})
 
 		var snapst snapstate.SnapState
 		err := snapstate.Get(s.state, "pc-kernel", &snapst)

@@ -69,6 +69,12 @@ func withComponents(yaml string, comps map[string]snap.ComponentType) string {
 	return b.String()
 }
 
+func kfilesForComponents(f [][]string) [][]string {
+	return append(f, []string{
+		"modules/1.0.0/", "",
+	})
+}
+
 var (
 	genericSnapYaml = "name: %s\nversion: 1.0\n%s"
 	snapYamls       = map[string]string{
@@ -102,6 +108,15 @@ var (
 		"pc": {
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from gadget"},
+		},
+		"pc-kernel-with-kmods+kmod": {
+			{"modules/1.0.0/", ""},
+		},
+		"pc-kernel+kmod": {
+			{"modules/1.0.0/", ""},
+		},
+		"pc-kernel-with-kmods": {
+			{"modules/1.0.0/", ""},
 		},
 	}
 )
