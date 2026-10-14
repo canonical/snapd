@@ -52,6 +52,9 @@ var atomicWriteFile = osutil.AtomicWriteFile
 // atomicSymlink is a mockable wrapper around osutil.AtomicSymlink for tests.
 var atomicSymlink = osutil.AtomicSymlink
 
+// driversTreeCheckpoint lets tests interrupt a build at durability boundaries.
+var driversTreeCheckpoint = func(string) error { return nil }
+
 // kernelDriversTreeGeneratorVersion identifies the logic that produced a
 // kernel drivers tree (the on-disk symlinks/files under
 // <destDir>/lib/{modules,firmware}).
@@ -490,6 +493,9 @@ func syncFirmwareTopLevelSymlinks(kMntPts MountPoints, liveFwDir string, ownedFw
 			}
 			continue
 		}
+		if err := driversTreeCheckpoint("after-firmware-link"); err != nil {
+			return err
+		}
 	}
 
 	// Remove stale entries left by an older generator version. Same
@@ -529,6 +535,9 @@ func syncFirmwareTopLevelSymlinks(kMntPts MountPoints, liveFwDir string, ownedFw
 				firstErr = err
 			}
 			continue
+		}
+		if err := driversTreeCheckpoint("after-firmware-unlink"); err != nil {
+			return err
 		}
 	}
 
@@ -606,6 +615,14 @@ func dirSwapOrRename(temp, target string) (existed bool, retErr error) {
 // Existing root and lib/{modules,firmware} inodes remain stable for bind mounts.
 func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string) (retErr error) {
 	destDir = filepath.Clean(destDir)
+	rootInfo, err := os.Lstat(destDir)
+	exists := err == nil
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if exists && !rootInfo.IsDir() {
+		return fmt.Errorf("cannot update kernel drivers tree %q: not a directory", destDir)
+	}
 	meta := driversTreeMeta{
 		GeneratorVersion: kernelDriversTreeGeneratorVersion,
 		Kernel:           &kMntPts, Components: compsMntPts, Destination: destDir,
@@ -684,14 +701,6 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 	}()
 
-	rootInfo, err := os.Lstat(destDir)
-	exists := err == nil
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	if exists && !rootInfo.IsDir() {
-		return fmt.Errorf("cannot update kernel drivers tree %q: not a directory", destDir)
-	}
 	markerRoot := candidate
 	if exists {
 		markerRoot = destDir
@@ -702,10 +711,19 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		return err
 	}
 	// On an existing tree, persist intent before touching any live child.
+	if err := driversTreeCheckpoint("before-in"); err != nil {
+		return err
+	}
 	if err := writeDriversTreeMeta(in, meta); err != nil {
 		return err
 	}
 	doSync()
+	if err := driversTreeCheckpoint("after-in"); err != nil {
+		return err
+	}
+	if err := driversTreeCheckpoint("before-build"); err != nil {
+		return err
+	}
 
 	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
 	if err != nil {
@@ -729,6 +747,9 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 			return err
 		}
 	}
+	if err := driversTreeCheckpoint("after-build"); err != nil {
+		return err
+	}
 	// Preflight all firmware conflicts before mutating any live subtree.
 	if exists {
 		if err := checkFirmwareCollisions(kMntPts, filepath.Join(destDir, "lib", "firmware"), ownedFwDirs); err != nil {
@@ -736,18 +757,30 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 	}
 	doSync()
+	if err := driversTreeCheckpoint("before-built"); err != nil {
+		return err
+	}
 	if err := os.Rename(in, built); err != nil {
 		return err
 	}
 	doSync()
+	if err := driversTreeCheckpoint("after-built"); err != nil {
+		return err
+	}
 
 	if !exists {
+		if err := driversTreeCheckpoint("before-install-rename"); err != nil {
+			return err
+		}
 		if err := os.Rename(candidate, destDir); err != nil {
 			return err
 		}
 		// The marker moved together with the candidate.
 		built = driversTreeMetaPath(destDir) + ".built"
 		doSync()
+		if err := driversTreeCheckpoint("after-install-rename"); err != nil {
+			return err
+		}
 	} else {
 		liveLib := filepath.Join(destDir, "lib")
 		liveMods := filepath.Join(liveLib, "modules")
@@ -764,11 +797,23 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 		// The versioned modules directory and firmware updates directory are
 		// safe swap units. Never swap a bind-mounted parent directory.
+		if err := driversTreeCheckpoint("before-firmware-swap"); err != nil {
+			return err
+		}
 		if err := replaceManagedDir(updateFwDir, filepath.Join(liveFw, "updates")); err != nil {
 			return err
 		}
+		if err := driversTreeCheckpoint("after-firmware-swap"); err != nil {
+			return err
+		}
 		if kversion != "" {
+			if err := driversTreeCheckpoint("before-modules-swap"); err != nil {
+				return err
+			}
 			if err := replaceManagedDir(filepath.Join(candidate, "lib", "modules", kversion), filepath.Join(liveMods, kversion)); err != nil {
+				return err
+			}
+			if err := driversTreeCheckpoint("after-modules-swap"); err != nil {
 				return err
 			}
 		}
@@ -783,15 +828,33 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 				}
 			}
 		}
+		if err := driversTreeCheckpoint("before-firmware-links"); err != nil {
+			return err
+		}
 		if err := syncFirmwareTopLevelSymlinks(kMntPts, liveFw, ownedFwDirs); err != nil {
 			return err
 		}
+		if err := driversTreeCheckpoint("after-firmware-links"); err != nil {
+			return err
+		}
+		if err := driversTreeCheckpoint("before-live-sync"); err != nil {
+			return err
+		}
 		doSync()
+		if err := driversTreeCheckpoint("after-live-sync"); err != nil {
+			return err
+		}
+	}
+	if err := driversTreeCheckpoint("before-final"); err != nil {
+		return err
 	}
 	if err := os.Rename(built, driversTreeMetaPath(destDir)); err != nil {
 		return err
 	}
 	doSync()
+	if err := driversTreeCheckpoint("after-final"); err != nil {
+		return err
+	}
 	return nil
 }
 

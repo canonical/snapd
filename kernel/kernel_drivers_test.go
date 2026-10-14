@@ -21,7 +21,6 @@ package kernel_test
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -1476,11 +1474,8 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesNonEmptyLocalFirmwareDirAlo
 	userContent := filepath.Join(blob2, "user_placed_file")
 	c.Assert(os.WriteFile(userContent, []byte("do not touch me"), 0644), IsNil)
 
-	logBuf, restore := logger.MockLogger()
-	defer restore()
-
 	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot replace unowned firmware entry .*blob2.*`)
 
 	// The directory and its content must be left completely untouched.
 	c.Check(osutil.FileExists(userContent), Equals, true)
@@ -1491,10 +1486,8 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesNonEmptyLocalFirmwareDirAlo
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
 
-	c.Check(logBuf.String(), Matches, fmt.Sprintf(`(?s).*skipping a non-symlink entry %q in firmware directory.*\n`, blob2))
-
-	// "blob1" must still be created/updated: one blocked entry must not
-	// abort processing of the rest.
+	// The collision prevents a false completion marker. Existing firmware
+	// remains intact.
 	target, err := os.Readlink(filepath.Join(fwParent, "blob1"))
 	c.Assert(err, IsNil)
 	c.Check(target, Equals, filepath.Join(mountDir, "firmware", "blob1"))
@@ -1520,11 +1513,8 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesEmptyLocalFirmwareDirAlone(
 	c.Assert(os.Remove(blob2), IsNil)
 	c.Assert(os.Mkdir(blob2, 0755), IsNil)
 
-	logBuf, restore := logger.MockLogger()
-	defer restore()
-
 	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `cannot replace unowned firmware entry .*blob2.*`)
 
 	// The empty directory must be left completely untouched (not removed,
 	// not replaced with a symlink).
@@ -1535,10 +1525,7 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesEmptyLocalFirmwareDirAlone(
 	c.Assert(err, IsNil)
 	c.Check(entries, HasLen, 0)
 
-	c.Check(logBuf.String(), Matches, fmt.Sprintf(`(?s).*skipping a non-symlink entry %q in firmware directory.*\n`, blob2))
-
-	// The unrelated "blob1" entry must still be created/updated correctly:
-	// this one blocked entry must not abort processing of the rest.
+	// The unrelated already-generated entry remains unchanged.
 	target, err := os.Readlink(filepath.Join(fwParent, "blob1"))
 	c.Assert(err, IsNil)
 	c.Check(target, Equals, filepath.Join(mountDir, "firmware", "blob1"))
@@ -1765,9 +1752,9 @@ func (s *kernelDriversTestSuite) TestRegenerateSyncsAfterFirmwareFixBeforeMarker
 	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
-	// Sync after the candidate build, after the modules swap, and after
-	// the live firmware fix - before the marker is written.
-	c.Assert(fwFixedAtSync, DeepEquals, []bool{false, false, true})
+	// Intent and built markers are synced before live changes, then the
+	// reconciled children are synced before and after the final rename.
+	c.Assert(fwFixedAtSync, DeepEquals, []bool{false, false, false, true, true})
 }
 
 func (s *kernelDriversTestSuite) TestKernelInstallMarkerWriteFailureDiscardsTree(c *C) {
@@ -1819,22 +1806,20 @@ func (s *kernelDriversTestSuite) TestRegenerateMarkerWriteFailureKeepsLiveTree(c
 	})
 	defer restore()
 
-	// A marker-write failure only discards the _tmp scratch copy; the
-	// already-live, already-correct tree is untouched (see
-	// EnsureKernelDriversTree).
+	// A pending marker write failure leaves the live tree untouched.
 	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, Equals, boom)
 
-	// The live tree survives, with the firmware fix already applied.
+	// Neither the prior final marker nor live children have changed.
 	c.Check(osutil.FileExists(destDir), Equals, true)
-	target, err := os.Readlink(blob2)
-	c.Assert(err, IsNil)
-	c.Check(target, Equals, filepath.Join(mountDir, "firmware", "blob2"))
-	_, err = os.Stat(staleFw)
+	_, err = os.Readlink(blob2)
 	c.Check(os.IsNotExist(err), Equals, true)
-	content, err := os.ReadFile(modsFile)
+	content, err := os.ReadFile(staleFw)
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "")
+	c.Check(string(content), Equals, "stale")
+	content, err = os.ReadFile(modsFile)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, "stale")
 
 	// The _tmp scratch copy must not linger around.
 	c.Check(osutil.FileExists(destDir+"_tmp"), Equals, false)

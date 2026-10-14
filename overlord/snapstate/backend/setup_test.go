@@ -836,6 +836,30 @@ func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) [
 	return comps
 }
 
+func (s *setupSuite) TestKernelSetupMissingComponentSourceDoesNotCertify(c *C) {
+	ksnap := "kernel"
+	rev := snap.R(33)
+	fwDir := filepath.Join(dirs.SnapMountDir, ksnap, rev.String(), "firmware")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwDir, "kernel.bin"), nil, 0644), IsNil)
+	c.Assert(s.be.SetupKernelSnap(ksnap, rev, nil, progress.Null), IsNil)
+	marker := filepath.Join(kernel.DriversTreeDir(dirs.GlobalRootDir, ksnap, rev), "kernel.json")
+	before, err := os.ReadFile(marker)
+	c.Assert(err, IsNil)
+
+	comps := createKModsComps(c, 1, 1, ksnap, rev)
+	compDir := snap.MinimalComponentContainerPlaceInfo(comps[0].Component.ComponentName,
+		comps[0].Revision, naming.InstanceName(ksnap)).MountDir()
+	// The directory exists after unmount; its metadata does not. It must
+	// not silently count as a driverless component.
+	c.Assert(os.Remove(filepath.Join(compDir, "meta", "component.yaml")), IsNil)
+	err = s.be.SetupKernelSnap(ksnap, rev, comps, progress.Null)
+	c.Assert(err, ErrorMatches, `cannot read kernel component source .*component.yaml.*`)
+	after, err := os.ReadFile(marker)
+	c.Assert(err, IsNil)
+	c.Check(string(after), Equals, string(before))
+}
+
 func (s *setupSuite) TestSetupAndRemoveKernelModulesComponents(c *C) {
 	ksnap := "kernel"
 	kernRev := snap.R(33)
