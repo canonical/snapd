@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 const checkboxSupportSummary = `allows checkbox to execute arbitrary system tests`
 
 const checkboxSupportBaseDeclarationPlugs = `
@@ -92,7 +90,7 @@ func init() {
 		connectedPlugAppArmor:    checkboxSupportConnectedPlugAppArmor,
 		baseDeclarationSlots:     checkboxSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     checkboxSupportBaseDeclarationPlugs,
-		parallelInstancesPlugErr: errors.New("conflicting operations on system-wide transient units"),
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

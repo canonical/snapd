@@ -210,7 +210,7 @@ func (s *SecLogSuite) TestLogLoggerDisabledNopSkipsNoticef(c *C) {
 }
 
 func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
-	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUpdate)
+	seclog.LogSystemRestartSnapd("2.78", string(restart.RestartSnapdUpdate))
 
 	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
 	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
@@ -219,7 +219,7 @@ func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
 }
 
 func (s *SecLogSuite) TestLogSystemRestartSnapdUndo(c *C) {
-	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUndo)
+	seclog.LogSystemRestartSnapd("2.78", string(restart.RestartSnapdUndo))
 
 	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
 	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-undo")
@@ -236,8 +236,26 @@ func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
 }
 
+func (s *SecLogSuite) TestLogSystemRestartSnapdStopFailed(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", seclog.SnapdRestartStopFailed)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-stop-failed")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-stop-failed"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdIdleAborted(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", seclog.SnapdRestartIdleAborted)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-idle-aborted")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-idle-aborted"]`)
+}
+
 func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {
-	seclog.LogSystemStandbySnapd("2.78", restart.RestartSnapdIdle)
+	seclog.LogSystemStandbySnapd("2.78", string(restart.RestartSnapdIdle))
 
 	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
 	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason snapd-idle")

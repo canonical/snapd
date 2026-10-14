@@ -326,6 +326,14 @@ const (
 	RemoveReasonEnsureExpired SystemUserRemoveReason = "ensure-remove-expired-user"
 )
 
+// Snapd restart reasons that Stop chooses after the fact.
+// They are not restart.RestartReason values and are not passed to
+// restart.Request.
+const (
+	SnapdRestartStopFailed  string = "snapd-stop-failed"
+	SnapdRestartIdleAborted string = "snapd-idle-aborted"
+)
+
 // AssertionRef identifies an assertion by type and primary key. It mirrors
 // asserts.Ref but uses plain strings so the audit payload stays self-contained.
 type AssertionRef struct {

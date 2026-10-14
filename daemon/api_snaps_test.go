@@ -478,13 +478,14 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
 		for weird, v := range map[string]string{
-			"channel":      `"beta"`,
-			"revision":     `"1"`,
-			"devmode":      "true",
-			"jailmode":     "true",
-			"cohort-key":   `"what"`,
-			"leave-cohort": "true",
-			"prefer":       "true",
+			"channel":                     `"beta"`,
+			"revision":                    `"1"`,
+			"devmode":                     "true",
+			"jailmode":                    "true",
+			"cohort-key":                  `"what"`,
+			"leave-cohort":                "true",
+			"prefer":                      "true",
+			"allow-unsupported-instances": "true",
 		} {
 			buf := strings.NewReader(fmt.Sprintf(`{"action": "%s","snaps":["foo","bar"], "%s": %s}`, action, weird, v))
 			req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -2301,6 +2302,34 @@ func (s *snapsSuite) TestPostSnapOptionsUnsupportedAction(c *check.C) {
 	}
 }
 
+func (s *snapsSuite) TestPostSnapAllowUnsupportedInstancesRequiresParallelInstance(c *check.C) {
+	s.daemon(c)
+	buf := strings.NewReader(`{"action": "install", "allow-unsupported-instances": true}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rs := s.errorReq(c, req, nil, true)
+	c.Check(rs.Status, check.Equals, 400)
+	c.Check(rs.Message, check.Equals, "allow-unsupported-instances can only be used with parallel instances")
+}
+
+func (s *snapsSuite) TestPostSnapAllowUnsupportedInstancesUnsupportedAction(c *check.C) {
+	s.daemon(c)
+	const expectedErr = "allow-unsupported-instances can only be specified for install or refresh"
+
+	for _, action := range []string{"remove", "revert", "enable", "disable", "switch"} {
+		buf := strings.NewReader(fmt.Sprintf(`{"action": %q, "allow-unsupported-instances": true}`, action))
+		req, err := http.NewRequest("POST", "/v2/snaps/some-snap_instance", buf)
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rs := s.errorReq(c, req, nil, true)
+		c.Check(rs.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rs.Message, check.Equals, expectedErr, check.Commentf("%q", action))
+	}
+}
+
 func (s *snapsSuite) TestInstall(c *check.C) {
 	var calledName string
 
@@ -2515,6 +2544,25 @@ func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(res.Summary, check.Equals, `Install "some-snap" snap`)
+}
+
+func (s *snapsSuite) TestInstallAllowUnsupportedInstances(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		c.Check(opts.Flags.AllowUnsupportedInstances, check.Equals, true)
+		task := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(st *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{Action: "install", Snaps: []string{"some-snap"}, AllowUnsupportedInstances: true}
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
@@ -2985,6 +3033,35 @@ func (s *snapsSuite) TestRefreshIgnoreRunning(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(res.Summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *snapsSuite) TestRefreshAllowUnsupportedInstances(c *check.C) {
+	var calledFlags snapstate.Flags
+	defer daemon.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		calledFlags = opts.Flags
+		t := st.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapAssertions(func(s *state.State, userID int, opts *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:                    "refresh",
+		AllowUnsupportedInstances: true,
+		Snaps:                     []string{"some-snap_foo"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Assert(err, check.IsNil)
+	c.Check(calledFlags, check.DeepEquals, snapstate.Flags{
+		AllowUnsupportedInstances: true,
+		Transaction:               client.TransactionPerSnap,
+	})
 }
 
 func (s *snapsSuite) TestRefreshCohort(c *check.C) {

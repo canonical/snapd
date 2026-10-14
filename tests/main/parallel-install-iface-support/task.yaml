@@ -1,10 +1,11 @@
-summary: Check that parallel install is blocked for interfaces that do not support parallel instances
+summary: Check parallel installs with unsupported interfaces
 
 details: |
     Some interfaces declare that they do not support parallel instances.
     Installing a snap as a parallel instance when it has a plug or slot using
     such an interface must be rejected, while a regular (non-instanced) install
-    of the same snap must still succeed.
+    of the same snap must still succeed. The --allow-unsupported-instances flag
+    allows an unsupported parallel instance to be installed explicitly.
 
 prepare: |
     snap set system experimental.parallel-instances=true
@@ -313,3 +314,17 @@ execute: |
 
     check_parallel_install_slot_rejected fwupd
     check_parallel_install_plug_allowed fwupd
+
+    ####################################################################
+    #           ALLOW UNSUPPORTED PARALLEL INSTANCES                   #
+    ####################################################################
+
+    # Only plugs of acrn-support reject parallel instances.
+    make_test_snap allow-acrn-support-plug acrn-support plug
+    snap install --dangerous --allow-unsupported-instances --name allow-acrn-support-plug_foo /tmp/allow-acrn-support-plug.snap
+    snap list | MATCH '^allow-acrn-support-plug_foo '
+
+    # Only slots of audio-playback reject parallel instances.
+    make_test_snap allow-audio-playback-slot audio-playback slot
+    snap install --dangerous --allow-unsupported-instances --name allow-audio-playback-slot_foo /tmp/allow-audio-playback-slot.snap
+    snap list | MATCH '^allow-audio-playback-slot_foo '
