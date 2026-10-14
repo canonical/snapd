@@ -715,6 +715,7 @@ jobs:
 
       - name: Send results to test-predictor
         if: ${{ hashFiles('results.json') != '' }}
+        continue-on-error: true
         run: |
           source .github/scripts/common.sh
           send_results_to_test_predictor \
