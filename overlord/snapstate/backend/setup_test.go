@@ -61,6 +61,12 @@ func (s *setupSuite) SetUpTest(c *C) {
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	dirs.SetRootDir(c.MkDir())
+	// These are synthetic mounted kernel sources for SetupKernelSnap tests.
+	for _, name := range []string{"kernel", "mykernel"} {
+		metaDir := filepath.Join(dirs.SnapMountDir, name, "33", "meta")
+		c.Assert(os.MkdirAll(metaDir, 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(metaDir, "snap.yaml"), []byte("name: "+name+"\nversion: 1\ntype: kernel\n"), 0644), IsNil)
+	}
 
 	// needed for system key generation
 	restore := osutil.MockMountInfo("")
@@ -834,6 +840,28 @@ func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) [
 			naming.NewComponentRef(naming.SnapName(ksnap), compName), compRev)
 	}
 	return comps
+}
+
+func (s *setupSuite) TestKernelSetupMissingKernelMountDoesNotCertify(c *C) {
+	ksnap := "kernel"
+	rev := snap.R(33)
+	mountDir := filepath.Join(dirs.SnapMountDir, ksnap, rev.String())
+	fwDir := filepath.Join(mountDir, "firmware")
+	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fwDir, "kernel.bin"), nil, 0644), IsNil)
+	c.Assert(s.be.SetupKernelSnap(ksnap, rev, nil, progress.Null), IsNil)
+	marker := filepath.Join(kernel.DriversTreeDir(dirs.GlobalRootDir, ksnap, rev), "kernel.json")
+	before, err := os.ReadFile(marker)
+	c.Assert(err, IsNil)
+
+	// An unmounted kernel directory may retain a stale firmware directory.
+	// Without snap metadata the backend must not claim it is a valid source.
+	c.Assert(os.Remove(filepath.Join(mountDir, "meta", "snap.yaml")), IsNil)
+	err = s.be.SetupKernelSnap(ksnap, rev, nil, progress.Null)
+	c.Assert(err, ErrorMatches, `cannot read kernel snap source .*snap.yaml.*`)
+	after, err := os.ReadFile(marker)
+	c.Assert(err, IsNil)
+	c.Check(string(after), Equals, string(before))
 }
 
 func (s *setupSuite) TestKernelSetupMissingComponentSourceDoesNotCertify(c *C) {

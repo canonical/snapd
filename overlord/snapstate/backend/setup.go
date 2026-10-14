@@ -141,6 +141,12 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, current
 		Target:  cpi.MountDir(),
 	}
 
+	// The mount directory may exist even after the kernel squashfs has been
+	// unmounted. Kernel metadata distinguishes it from a firmware-only snap
+	// and must be present before we can certify the drivers tree.
+	if _, err := os.Stat(kMntPts.UnderCurrentPath("meta", "snap.yaml")); err != nil {
+		return fmt.Errorf("cannot read kernel snap source %q: %w", kMntPts.Current, err)
+	}
 	kinfo, err := kernel.ReadInfo(kMntPts.Current)
 	if err != nil {
 		return err
@@ -382,6 +388,9 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 		Target:  cpi.MountDir(),
 	}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
+	if _, err := os.Stat(kMntPts.UnderCurrentPath("meta", "snap.yaml")); err != nil {
+		return fmt.Errorf("cannot read kernel snap source %q: %w", kMntPts.Current, err)
+	}
 	kinfo, err := kernel.ReadInfo(kMntPts.Current)
 	if err != nil {
 		return err
