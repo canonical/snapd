@@ -43,6 +43,55 @@ type jsonWarning struct {
 	RepeatAfter string     `json:"repeat-after,omitempty"`
 }
 
+// migrateWarnings migrates the old warning structs found when unmarshalling
+// state to warnings backed by notices.
+func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+
+	now := timeNow()
+	for _, w := range oldWarnings {
+		if w.FirstAdded.IsZero() {
+			continue
+		}
+		expireAfter, err := time.ParseDuration(w.ExpireAfter)
+		if err != nil {
+			expireAfter = defaultWarningExpireAfter
+		}
+
+		if w.LastAdded.Add(expireAfter).Before(now) {
+			continue
+		}
+
+		addNoticeOptions := &AddNoticeOptions{
+			Data:        map[string]string{},
+			RepeatAfter: 0,
+			ExpireAfter: expireAfter,
+			Time:        w.LastAdded,
+		}
+		showAfter, err := time.ParseDuration(w.RepeatAfter)
+		if err != nil {
+			showAfter = defaultWarningShowAfter
+		}
+		if showAfter != 0 {
+			addNoticeOptions.Data["show-after"] = showAfter.String()
+		}
+
+		if w.LastShown != nil {
+			addNoticeOptions.Data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
+		}
+
+		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
+		if err != nil {
+			continue
+		}
+		// doAddNotice sets firstOccurred to addNoticeOptions.Time for new notices
+		// and leaves it unchanged for reoccuring notices. firstOccurred should be
+		// set to the warning's FirstAdded value. This assignment has no side effects.
+		notice.firstOccurred = w.FirstAdded
+	}
+}
+
 type Warning struct {
 	// The notice which backs this warning. Warning-specific fields will be
 	// extracted and parsed as needed from the lastData map.
