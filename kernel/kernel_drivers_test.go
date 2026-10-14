@@ -687,6 +687,8 @@ func (s *kernelDriversTestSuite) TestRegenerateKernelDriversTreeWhenMissing(c *C
 }
 
 func (s *kernelDriversTestSuite) TestRegenerateKernelDriversOnlyFw(c *C) {
+	// A firmware-only kernel has no modules directory, but can still be
+	// regenerated and have its version marker advanced.
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	createKernelSnapFilesOnlyFw(c, mountDir)
 
@@ -708,6 +710,9 @@ func (s *kernelDriversTestSuite) TestRegenerateKernelDriversOnlyFw(c *C) {
 	c.Check(err, IsNil)
 	_, err = os.Stat(destDir + "_tmp")
 	c.Check(os.IsNotExist(err), Equals, true)
+	v, err := kernel.ReadDriversTreeMeta(destDir)
+	c.Assert(err, IsNil)
+	c.Check(v.GeneratorVersion, Equals, kernel.KernelDriversTreeGeneratorVersion())
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFwWithTargetDir(c *C) {
@@ -1246,6 +1251,10 @@ func (s *kernelDriversTestSuite) TestRegenerateAlreadyCorrectStillSwaps(c *C) {
 	fwParent := filepath.Join(destDir, "lib", "firmware")
 	modsParentInode := inodeOf(c, modsParent)
 	fwParentInode := inodeOf(c, fwParent)
+	modsDir := filepath.Join(modsParent, kversion)
+	fwUpdatesDir := filepath.Join(fwParent, "updates")
+	modsInode := inodeOf(c, modsDir)
+	fwUpdatesInode := inodeOf(c, fwUpdatesDir)
 
 	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
 		kernel.RegenerateMode)
@@ -1261,6 +1270,10 @@ func (s *kernelDriversTestSuite) TestRegenerateAlreadyCorrectStillSwaps(c *C) {
 	// swapped/replaced.
 	c.Check(inodeOf(c, modsParent), Equals, modsParentInode)
 	c.Check(inodeOf(c, fwParent), Equals, fwParentInode)
+	// The live child directories were actually swapped, even though their
+	// bind-mounted parents must keep the same inodes.
+	c.Check(inodeOf(c, modsDir), Not(Equals), modsInode)
+	c.Check(inodeOf(c, fwUpdatesDir), Not(Equals), fwUpdatesInode)
 }
 
 func (s *kernelDriversTestSuite) TestRegenerateMissingLiveModulesKversionDir(c *C) {
@@ -1597,31 +1610,6 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesEmptyLocalFirmwareDirAlone(
 	target, err := os.Readlink(filepath.Join(fwParent, "blob1"))
 	c.Assert(err, IsNil)
 	c.Check(target, Equals, filepath.Join(mountDir, "firmware", "blob1"))
-}
-
-func (s *kernelDriversTestSuite) TestRegenerateNoModulesDir(c *C) {
-	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
-	createKernelSnapFilesOnlyFw(c, mountDir)
-
-	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
-
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
-	c.Assert(err, IsNil)
-
-	// No modules/ directory is valid; firmware is still processed and the
-	// marker still written.
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
-	c.Assert(err, IsNil)
-
-	fwPath := filepath.Join(destDir, "lib", "firmware", "wifi_fw.bin")
-	c.Assert(osutil.IsSymlink(fwPath), Equals, true)
-
-	v, err := kernel.ReadDriversTreeMeta(destDir)
-	c.Assert(err, IsNil)
-	c.Check(v.GeneratorVersion, Equals, kernel.KernelDriversTreeGeneratorVersion())
 }
 
 func (s *kernelDriversTestSuite) TestRegenerateModulesReadErrorDoesNotAdvanceMarker(c *C) {
