@@ -225,14 +225,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeAlreadyInstalledNoCha
 	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
 
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	opts := kernel.KernelInstallMode
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, opts)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Second call finds the tree already present and does nothing.
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, opts)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 }
 
@@ -244,34 +243,16 @@ func (s *kernelDriversTestSuite) TestKernelInstallKeepsExistingMarkerlessTree(c 
 	c.Assert(os.MkdirAll(filepath.Dir(liveFile), 0755), IsNil)
 	c.Assert(os.WriteFile(liveFile, []byte("keep"), 0644), IsNil)
 
-	// Install mode alone cannot know whether the tree is already mounted.
+	// A preexisting markerless tree is reconciled while preserving user data.
 	err := kernel.EnsureKernelDriversTree(kernel.MountPoints{Current: mountDir, Target: mountDir}, nil,
-		destDir, kernel.KernelInstallMode)
+		destDir)
 	c.Assert(err, IsNil)
 	content, err := os.ReadFile(liveFile)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, "keep")
 	outdated, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
-	c.Check(outdated, Equals, true)
-}
-
-func (s *kernelDriversTestSuite) TestEnsureKernelDriversTreeRejectsInvalidMode(c *C) {
-	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
-	kversion := "5.15.0-78-generic"
-	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
-
-	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
-
-	for _, mode := range []kernel.KernelDriversTreeMode{
-		0,                                // the reserved zero value
-		kernel.KernelDriversTreeMode(99), // an out-of-range value
-	} {
-		err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, mode)
-		c.Assert(err, ErrorMatches, `internal error: unsupported kernel drivers tree mode \d+`)
-		c.Check(osutil.FileExists(destDir), Equals, false)
-	}
+	c.Check(outdated, Equals, false)
 }
 
 type expectInode struct {
@@ -311,8 +292,7 @@ func testBuildKernelDriversTree(c *C, opts createKernelSnapFilesOpts) {
 		kernel.MountPoints{
 			Current: mountDir,
 			Target:  mountDir},
-		nil, destDir,
-		kernel.KernelInstallMode)
+		nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Check content is as expected
@@ -372,8 +352,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check kernel dep file is still copied
@@ -404,8 +383,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check created files
@@ -436,8 +414,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversModinfoSymlink(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	modsRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)
@@ -472,8 +449,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsWithModules(c *C
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check created files
@@ -510,8 +486,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsConflict(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check created files, no symlink to 'updates', or 'build'
@@ -541,8 +516,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyModsWithTargetDir(c *
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  kTargetDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  kTargetDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check created files
@@ -574,8 +548,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsWithModulesTarge
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  kTargetDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  kTargetDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check created files
@@ -613,8 +586,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversExtraDirsConflictTargetDi
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  kTargetDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  kTargetDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check created files, no symlink to 'updates', or 'build'
@@ -646,8 +618,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check link
@@ -675,8 +646,8 @@ func (s *kernelDriversTestSuite) TestRegenerateKernelDriversTreeWhenMissing(c *C
 	// A same-revision refresh can regenerate a kernel whose drivers tree is
 	// missing; build it with the active component instead of trying to swap.
 	c.Assert(destDir, testutil.FileAbsent)
-	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, comps, destDir, kernel.RegenerateMode), IsNil)
-	c.Check(mockCmd.Calls(), DeepEquals, [][]string{{"depmod", "-b", destDir, kversion}})
+	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, comps, destDir), IsNil)
+	c.Check(mockCmd.Calls(), DeepEquals, [][]string{{"depmod", "-b", destDir + "_tmp", kversion}})
 	c.Check(filepath.Join(destDir, "lib", "modules", kversion, "updates", "comp1"), testutil.SymlinkTargetEquals, filepath.Join(compDir, "modules", kversion))
 	c.Check(filepath.Join(destDir, "lib", "firmware", "updates", "comp1.bin"), testutil.SymlinkTargetEquals, filepath.Join(compDir, "firmware", "comp1.bin"))
 	c.Check(filepath.Join(destDir, "lib", "firmware", "blob1"), testutil.SymlinkTargetEquals, filepath.Join(mountDir, "firmware", "blob1"))
@@ -694,12 +665,12 @@ func (s *kernelDriversTestSuite) TestRegenerateKernelDriversOnlyFw(c *C) {
 
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	mountPoints := kernel.MountPoints{Current: mountDir, Target: mountDir}
-	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, nil, destDir, kernel.KernelInstallMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, nil, destDir), IsNil)
 
 	fwDir := filepath.Join(destDir, "lib", "firmware")
 	staleFw := filepath.Join(fwDir, "updates", "stale.bin")
 	c.Assert(os.WriteFile(staleFw, nil, 0644), IsNil)
-	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, nil, destDir, kernel.RegenerateMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(mountPoints, nil, destDir), IsNil)
 
 	fwLink := filepath.Join(fwDir, "wifi_fw.bin")
 	linkTarget, err := os.Readlink(fwLink)
@@ -725,8 +696,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFwWithTargetDir(c *C)
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  kTargetDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  kTargetDir}, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// check link
@@ -750,8 +720,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversAbsFwSymlink(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, ErrorMatches, `symlink \".*lib/firmware/ln_to_abs\" points to absolute path \"/absdir/blob3\"`)
 
 	// Make sure the tree has been deleted
@@ -774,8 +743,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCleanup(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, ErrorMatches, "mocked symlink error")
 
 	// Make sure the tree has been deleted
@@ -797,8 +765,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversBadFileType(c *C) {
 	err := kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
 			Current: mountDir,
-			Target:  mountDir}, nil, destDir,
-		kernel.KernelInstallMode)
+			Target:  mountDir}, nil, destDir)
 	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
 
 	// Make sure the tree has been deleted
@@ -822,9 +789,8 @@ func createKernelModulesCompFiles(c *C, kversion, compdir, filePrefix string) {
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeWithKernelAndComps(c *C) {
 	// Build twice to make sure the function is idempotent
-	mode := kernel.KernelInstallMode
-	testBuildKernelDriversTreeWithComps(c, mode)
-	testBuildKernelDriversTreeWithComps(c, mode)
+	testBuildKernelDriversTreeWithComps(c)
+	testBuildKernelDriversTreeWithComps(c)
 
 	// Now remove and check
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
@@ -836,9 +802,8 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernelInstall(
 	// Kernel needs to have been installed first
 	testBuildKernelDriversTree(c, createKernelSnapFilesOpts{})
 	// Build twice to make sure the function is idempotent
-	mode := kernel.ComponentChangeMode
-	testBuildKernelDriversTreeWithComps(c, mode)
-	testBuildKernelDriversTreeWithComps(c, mode)
+	testBuildKernelDriversTreeWithComps(c)
+	testBuildKernelDriversTreeWithComps(c)
 
 	// Now remove and check
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1")
@@ -850,41 +815,41 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernelInstall(
 	c.Assert(osutil.FileExists(treeRoot), Equals, false)
 }
 
-func (s *kernelDriversTestSuite) TestComponentChangeModeRequiresKernelTree(c *C) {
+func (s *kernelDriversTestSuite) TestEnsureCreatesMissingTree(c *C) {
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	createKernelSnapFiles(c, "5.15.0-78-generic", mountDir, createKernelSnapFilesOpts{})
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 
-	// A component-only update must not create a partial kernel tree.
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.ComponentChangeMode)
-	c.Assert(err, ErrorMatches, `cannot update kernel drivers tree ".*": directory does not exist`)
+	// A missing tree is built from the same desired inputs.
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
+	c.Assert(err, IsNil)
 	_, err = os.Stat(destDir)
-	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(err, IsNil)
 	_, err = os.Stat(destDir + "_tmp")
 	c.Check(os.IsNotExist(err), Equals, true)
 
-	// A file at the tree root is not an installed drivers tree either.
-	c.Assert(os.MkdirAll(filepath.Dir(destDir), 0755), IsNil)
+	// A file at the tree root is not an installed drivers tree.
+	c.Assert(os.RemoveAll(destDir), IsNil)
 	c.Assert(os.WriteFile(destDir, nil, 0644), IsNil)
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.ComponentChangeMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, ErrorMatches, `cannot update kernel drivers tree ".*": not a directory`)
 }
 
-func (s *kernelDriversTestSuite) TestComponentChangeModeRepairsMissingChildren(c *C) {
+func (s *kernelDriversTestSuite) TestEnsureRepairsMissingChildren(c *C) {
 	kversion := "5.15.0-78-generic"
 	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
 	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.KernelInstallMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 
 	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
 	modsDir := filepath.Join(destDir, "lib", "modules", kversion)
 	c.Assert(os.RemoveAll(fwUpdatesDir), IsNil)
 	c.Assert(os.RemoveAll(modsDir), IsNil)
 
-	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.ComponentChangeMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 	c.Check(osutil.IsDirectory(fwUpdatesDir), Equals, true)
 	c.Check(osutil.IsDirectory(modsDir), Equals, true)
 	// Component mode leaves existing top-level kernel firmware in place.
@@ -893,7 +858,7 @@ func (s *kernelDriversTestSuite) TestComponentChangeModeRepairsMissingChildren(c
 	c.Check(target, Equals, filepath.Join(mountDir, "firmware", "blob1"))
 }
 
-func testBuildKernelDriversTreeWithComps(c *C, mode kernel.KernelDriversTreeMode) {
+func testBuildKernelDriversTreeWithComps(c *C) {
 	mockCmd := testutil.MockCommand(c, "depmod", "")
 	defer mockCmd.Restore()
 
@@ -915,9 +880,6 @@ func testBuildKernelDriversTreeWithComps(c *C, mode kernel.KernelDriversTreeMode
 	}
 
 	workSubdir := "1_tmp"
-	if mode == kernel.KernelInstallMode {
-		workSubdir = "1"
-	}
 	treeRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", workSubdir)
 	// Find out if the directory already exists, as in that case
 	// there are no calls to depmod
@@ -930,17 +892,14 @@ func testBuildKernelDriversTreeWithComps(c *C, mode kernel.KernelDriversTreeMode
 		kernel.MountPoints{
 			Current: mountDir,
 			Target:  mountDir},
-		compsMntPts, destDir, mode)
+		compsMntPts, destDir)
 	c.Assert(err, IsNil)
 
-	if exists {
-		c.Assert(isDir, Equals, true)
-		c.Assert(mockCmd.Calls(), IsNil)
-	} else {
-		c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
-			{"depmod", "-b", treeRoot, kversion},
-		})
-	}
+	_ = exists
+	_ = isDir
+	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
+		{"depmod", "-b", treeRoot, kversion},
+	})
 
 	// Check modules root dir is as expected
 	modsRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)
@@ -1002,12 +961,8 @@ func testBuildKernelDriversTreeWithComps(c *C, mode kernel.KernelDriversTreeMode
 		c.Check(isReg, Equals, true)
 	}
 
-	if mode != kernel.KernelInstallMode {
-		// Check that there is no tmp folder left behind
-		tmpDir := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1_tmp")
-		exists, _, _ = osutil.RegularFileExists(tmpDir)
-		c.Check(exists, Equals, false)
-	}
+	// No temporary candidate survives a successful pass.
+	c.Check(osutil.FileExists(destDir+"_tmp"), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsWithTargetDir(c *C) {
@@ -1037,7 +992,7 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsWithTargetDir(c 
 		kernel.MountPoints{
 			Current: mountDir,
 			Target:  mountDir},
-		compsMntPts, destDir, kernel.ComponentChangeMode)
+		compsMntPts, destDir)
 	c.Assert(err, IsNil)
 
 	// Check firmware entries from components
@@ -1183,9 +1138,8 @@ func (s *kernelDriversTestSuite) TestDriversTreeOutdatedCorruptMarker(c *C) {
 }
 
 func (s *kernelDriversTestSuite) TestComponentOnlyChangeDoesNotAdvanceMarker(c *C) {
-	// Regression test: a component-only change (KernelInstall: false,
-	// Regenerate: false) never fixes top-level firmware symlinks, so it
-	// must not advance the generator-version marker either.
+	// Even a component-only desired-set change reconciles all managed
+	// output and records completion, including legacy marker migration.
 	kversion := "5.15.0-78-generic"
 	mountDir := filepath.Join(dirs.SnapMountDir, "pc-kernel/1")
 	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
@@ -1193,8 +1147,7 @@ func (s *kernelDriversTestSuite) TestComponentOnlyChangeDoesNotAdvanceMarker(c *
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Simulate a tree from before this mechanism existed: remove the
@@ -1211,15 +1164,14 @@ func (s *kernelDriversTestSuite) TestComponentOnlyChangeDoesNotAdvanceMarker(c *
 	mockCmd := testutil.MockCommand(c, "depmod", "")
 	defer mockCmd.Restore()
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir,
-		kernel.ComponentChangeMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(markerPath), Equals, false)
+	c.Check(osutil.FileExists(markerPath), Equals, true)
 
 	outdated, err := kernel.DriversTreeOutdated(destDir)
 	c.Assert(err, IsNil)
-	c.Check(outdated, Equals, true)
+	c.Check(outdated, Equals, false)
 }
 
 func inodeOf(c *C, path string) uint64 {
@@ -1243,8 +1195,7 @@ func (s *kernelDriversTestSuite) TestRegenerateAlreadyCorrectStillSwaps(c *C) {
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	modsParent := filepath.Join(destDir, "lib", "modules")
@@ -1256,8 +1207,7 @@ func (s *kernelDriversTestSuite) TestRegenerateAlreadyCorrectStillSwaps(c *C) {
 	modsInode := inodeOf(c, modsDir)
 	fwUpdatesInode := inodeOf(c, fwUpdatesDir)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Marker gets (re)written.
@@ -1287,16 +1237,14 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingLiveModulesKversionDir(c *
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Remove only the <kversion> child; lib/modules itself still exists.
 	modsKversionDir := filepath.Join(destDir, "lib", "modules", kversion)
 	c.Assert(os.RemoveAll(modsKversionDir), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// The directory is recreated with content matching a fresh build.
@@ -1320,16 +1268,14 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingLiveModulesParentDir(c *C)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Remove lib/modules itself, not just the <kversion> child.
 	modsParent := filepath.Join(destDir, "lib", "modules")
 	c.Assert(os.RemoveAll(modsParent), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	modsKversionDir := filepath.Join(modsParent, kversion)
@@ -1352,8 +1298,7 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingModulesVendorDirSymlink(c 
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	modsParent := filepath.Join(destDir, "lib", "modules")
@@ -1364,8 +1309,7 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingModulesVendorDirSymlink(c 
 	newVendorDir := filepath.Join(mountDir, "modules", kversion, "newvendor")
 	c.Assert(os.MkdirAll(newVendorDir, 0755), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	newLink := filepath.Join(modsParent, kversion, "newvendor")
@@ -1386,8 +1330,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRestoresModinfoFile(c *C) {
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	modsParent := filepath.Join(destDir, "lib", "modules")
@@ -1399,8 +1342,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRestoresModinfoFile(c *C) {
 	modinfoPath := filepath.Join(modsParent, kversion, "modules.symbols")
 	c.Assert(os.Remove(modinfoPath), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	restored, err := os.ReadFile(modinfoPath)
@@ -1422,8 +1364,7 @@ func (s *kernelDriversTestSuite) TestRegenerateCorruptedModinfoFile(c *C) {
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Corrupt (rather than delete) a modprobe data file in the live
@@ -1433,8 +1374,7 @@ func (s *kernelDriversTestSuite) TestRegenerateCorruptedModinfoFile(c *C) {
 	modinfoPath := filepath.Join(destDir, "lib", "modules", kversion, "modules.symbols")
 	c.Assert(os.WriteFile(modinfoPath, []byte("corrupted"), 0644), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	restored, err := os.ReadFile(modinfoPath)
@@ -1452,8 +1392,7 @@ func (s *kernelDriversTestSuite) TestRegenerateFirmwareBestEffortContinuesPastEr
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	fwParent := filepath.Join(destDir, "lib", "firmware")
@@ -1473,8 +1412,7 @@ func (s *kernelDriversTestSuite) TestRegenerateFirmwareBestEffortContinuesPastEr
 	})
 	defer restore()
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	// The failure must still surface to the caller.
 	c.Assert(err, ErrorMatches, ".*boom: no space left on device.*")
 	// "blob1" must still have been fixed - the loop did not stop early.
@@ -1494,8 +1432,7 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingTopLevelFirmwareSymlink(c 
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	fwParent := filepath.Join(destDir, "lib", "firmware")
@@ -1505,8 +1442,7 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingTopLevelFirmwareSymlink(c 
 	// pre-fix tree, or corruption): remove the "blob2" top-level symlink.
 	c.Assert(os.Remove(filepath.Join(fwParent, "blob2")), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	target, err := os.Readlink(filepath.Join(fwParent, "blob2"))
@@ -1526,8 +1462,7 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesNonEmptyLocalFirmwareDirAlo
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	fwParent := filepath.Join(destDir, "lib", "firmware")
@@ -1544,8 +1479,7 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesNonEmptyLocalFirmwareDirAlo
 	logBuf, restore := logger.MockLogger()
 	defer restore()
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// The directory and its content must be left completely untouched.
@@ -1574,8 +1508,7 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesEmptyLocalFirmwareDirAlone(
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	fwParent := filepath.Join(destDir, "lib", "firmware")
@@ -1590,8 +1523,7 @@ func (s *kernelDriversTestSuite) TestRegenerateLeavesEmptyLocalFirmwareDirAlone(
 	logBuf, restore := logger.MockLogger()
 	defer restore()
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// The empty directory must be left completely untouched (not removed,
@@ -1617,7 +1549,7 @@ func (s *kernelDriversTestSuite) TestRegenerateModulesReadErrorDoesNotAdvanceMar
 	createKernelSnapFiles(c, "5.15.0-78-generic", mountDir, createKernelSnapFilesOpts{})
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
-	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.KernelInstallMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 
 	// Replace the directory with a regular file, so ReadDir fails with
 	// ENOTDIR rather than reporting a legitimately absent modules directory.
@@ -1627,7 +1559,7 @@ func (s *kernelDriversTestSuite) TestRegenerateModulesReadErrorDoesNotAdvanceMar
 	restore := kernel.MockKernelDriversTreeGeneratorVersion(2)
 	defer restore()
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.RegenerateMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, NotNil)
 	c.Check(errors.Is(err, syscall.ENOTDIR), Equals, true)
 	outdated, err := kernel.DriversTreeOutdated(destDir)
@@ -1644,8 +1576,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRemovesStaleTopLevelFirmwareSymli
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	fwParent := filepath.Join(destDir, "lib", "firmware")
@@ -1655,8 +1586,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRemovesStaleTopLevelFirmwareSymli
 	staleLink := filepath.Join(fwParent, "stale_vendor")
 	c.Assert(os.Symlink(filepath.Join(mountDir, "firmware", "gone"), staleLink), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// os.Stat follows symlinks, so use os.Lstat to actually prove the
@@ -1670,7 +1600,7 @@ func (s *kernelDriversTestSuite) TestRegeneratePreservesNonKernelFirmwareEntries
 	createKernelSnapFiles(c, "5.15.0-78-generic", mountDir, createKernelSnapFilesOpts{})
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
-	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.KernelInstallMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 
 	fwDir := filepath.Join(destDir, "lib", "firmware")
 	// A user link with the name of a kernel entry must not be replaced.
@@ -1687,9 +1617,15 @@ func (s *kernelDriversTestSuite) TestRegeneratePreservesNonKernelFirmwareEntries
 	c.Assert(os.Remove(kernelLink), IsNil)
 	c.Assert(os.Symlink(filepath.Join(mountDir, "firmware", "old-blob"), kernelLink), IsNil)
 
-	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.RegenerateMode), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), ErrorMatches, `cannot replace unowned firmware symlink .*blob2.*`)
+	got, err := os.Readlink(blob)
+	c.Assert(err, IsNil)
+	c.Check(got, Equals, "../custom-blob")
+	// Remove the collision and retry; unowned non-conflicting entries stay.
+	c.Assert(os.Remove(blob), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 	for path, want := range map[string]string{
-		blob:       "../custom-blob",
+		blob:       filepath.Join(mountDir, "firmware", "blob2"),
 		staleLink:  "/var/lib/firmware/vendor.bin",
 		kernelLink: filepath.Join(mountDir, "firmware", "blob1"),
 	} {
@@ -1702,44 +1638,25 @@ func (s *kernelDriversTestSuite) TestRegeneratePreservesNonKernelFirmwareEntries
 	c.Check(string(content), Equals, "keep")
 }
 
-func (s *kernelDriversTestSuite) TestRegenerateModulesMoveFailureRestoresFirmwareUpdates(c *C) {
-	for _, fwExisted := range []bool{false, true} {
-		kversion := "5.15.0-78-generic"
-		mountDir := filepath.Join(c.MkDir(), "mounted-kernel")
-		createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
-		destDir := filepath.Join(c.MkDir(), "drivers-tree")
-		kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
-		c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.KernelInstallMode), IsNil)
+func (s *kernelDriversTestSuite) TestEnsureReplacesWrongTypeManagedChildren(c *C) {
+	kversion := "5.15.0-78-generic"
+	mountDir := filepath.Join(c.MkDir(), "mounted-kernel")
+	createKernelSnapFiles(c, kversion, mountDir, createKernelSnapFilesOpts{})
+	destDir := filepath.Join(c.MkDir(), "drivers-tree")
+	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 
-		fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
-		if fwExisted {
-			c.Assert(os.WriteFile(filepath.Join(fwUpdatesDir, "old"), []byte("keep"), 0644), IsNil)
-		} else {
-			c.Assert(os.Remove(fwUpdatesDir), IsNil)
-		}
-
-		// A non-directory at the live modules path makes the modules move
-		// fail, after firmware updates have already been swapped or moved.
-		oldMods := filepath.Join(destDir, "lib", "modules", kversion)
-		c.Assert(os.RemoveAll(oldMods), IsNil)
-		c.Assert(os.WriteFile(oldMods, []byte("keep"), 0644), IsNil)
-		err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir, kernel.RegenerateMode)
-		c.Assert(err, ErrorMatches, `while moving .*`)
-
-		content, err := os.ReadFile(oldMods)
-		c.Assert(err, IsNil)
-		c.Check(string(content), Equals, "keep")
-		if fwExisted {
-			content, err := os.ReadFile(filepath.Join(fwUpdatesDir, "old"))
-			c.Assert(err, IsNil)
-			c.Check(string(content), Equals, "keep")
-		} else {
-			_, err := os.Stat(fwUpdatesDir)
-			c.Check(os.IsNotExist(err), Equals, true)
-		}
-		_, err = os.Stat(destDir + "_tmp")
-		c.Check(os.IsNotExist(err), Equals, true)
+	for _, path := range []string{
+		filepath.Join(destDir, "lib", "modules", kversion),
+		filepath.Join(destDir, "lib", "firmware", "updates"),
+	} {
+		c.Assert(os.RemoveAll(path), IsNil)
+		c.Assert(os.WriteFile(path, []byte("stale"), 0644), IsNil)
 	}
+	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
+	c.Check(osutil.IsDirectory(filepath.Join(destDir, "lib", "modules", kversion)), Equals, true)
+	c.Check(osutil.IsDirectory(filepath.Join(destDir, "lib", "firmware", "updates")), Equals, true)
+	c.Check(osutil.FileExists(destDir+"_tmp"), Equals, false)
 }
 
 func (s *kernelDriversTestSuite) TestRegenerateMissingLiveFirmwareUpdatesDir(c *C) {
@@ -1753,16 +1670,14 @@ func (s *kernelDriversTestSuite) TestRegenerateMissingLiveFirmwareUpdatesDir(c *
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Remove the live lib/firmware/updates directory entirely.
 	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
 	c.Assert(os.RemoveAll(fwUpdatesDir), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// The directory is recreated (empty here, but present so future
@@ -1794,8 +1709,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRebuildsBothModulesAndFirmwareUpd
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir)
 	c.Assert(err, IsNil)
 
 	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
@@ -1806,8 +1720,7 @@ func (s *kernelDriversTestSuite) TestRegenerateRebuildsBothModulesAndFirmwareUpd
 	staleMarker := filepath.Join(fwUpdatesDir, "stale_marker")
 	c.Assert(os.WriteFile(staleMarker, []byte("x"), 0644), IsNil)
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, compsMntPts, destDir)
 	c.Assert(err, IsNil)
 
 	// Both "updates" subtrees are unconditionally rebuilt in Regenerate
@@ -1832,8 +1745,7 @@ func (s *kernelDriversTestSuite) TestRegenerateSyncsAfterFirmwareFixBeforeMarker
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Force the live firmware fix path to actually do something.
@@ -1850,8 +1762,7 @@ func (s *kernelDriversTestSuite) TestRegenerateSyncsAfterFirmwareFixBeforeMarker
 	})
 	defer restore()
 
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Sync after the candidate build, after the modules swap, and after
@@ -1873,8 +1784,7 @@ func (s *kernelDriversTestSuite) TestKernelInstallMarkerWriteFailureDiscardsTree
 	})
 	defer restore()
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, Equals, boom)
 
 	c.Check(osutil.FileExists(destDir), Equals, false)
@@ -1888,8 +1798,7 @@ func (s *kernelDriversTestSuite) TestRegenerateMarkerWriteFailureKeepsLiveTree(c
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
 	kMntPts := kernel.MountPoints{Current: mountDir, Target: mountDir}
 
-	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.KernelInstallMode)
+	err := kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, IsNil)
 
 	// Force the Regenerate path to find something to fix, so the live
@@ -1913,8 +1822,7 @@ func (s *kernelDriversTestSuite) TestRegenerateMarkerWriteFailureKeepsLiveTree(c
 	// A marker-write failure only discards the _tmp scratch copy; the
 	// already-live, already-correct tree is untouched (see
 	// EnsureKernelDriversTree).
-	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir,
-		kernel.RegenerateMode)
+	err = kernel.EnsureKernelDriversTree(kMntPts, nil, destDir)
 	c.Assert(err, Equals, boom)
 
 	// The live tree survives, with the firmware fix already applied.

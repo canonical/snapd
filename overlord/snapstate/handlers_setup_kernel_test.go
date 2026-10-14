@@ -23,9 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -312,12 +314,18 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 
 	s.state.Lock()
 
+	oldComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "old"), snap.R(1))
+	newComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "new"), snap.R(2))
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "mykernel", Revision: snap.R(30)},
+		{RealName: "mykernel", Revision: snap.R(33)},
+	})
+	seq.Revisions[0].Components = []*sequence.ComponentState{sequence.NewComponentState(oldComp, snap.KernelModulesComponent)}
+	seq.Revisions[1].Components = []*sequence.ComponentState{sequence.NewComponentState(newComp, snap.KernelModulesComponent)}
 	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "mykernel", Revision: snap.R(33)},
-		}),
-		Current: snap.R(33),
-		UserID:  1,
+		Sequence: seq,
+		Current:  snap.R(33),
+		UserID:   1,
 	})
 	t := s.state.NewTask("discard-old-kernel-snap-setup", "test discard setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -347,13 +355,40 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 	s.state.Unlock()
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
-		{
-			op: "remove-kernel-snap-setup",
-		},
-		{
-			op: "prepare-kernel-snap",
-		},
+		{op: "remove-kernel-snap-setup"},
+		{op: "prepare-kernel-snap"},
 	})
+	c.Check(s.fakeBackend.kernelSetupRevs, DeepEquals, []snap.Revision{snap.R(30)})
+	c.Check(s.fakeBackend.kernelSetupComps, DeepEquals, [][]*snap.ComponentSideInfo{{oldComp}})
+}
+
+func (s *setupKernelSnapSuite) TestUndoOldKernelSetupMissingRevisionFailsClosed(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+	})
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "discard old tree")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "mykernel", Revision: snap.R(33)}})
+	t.Set("previous-kernel-rev", snap.R(30))
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+	fail := s.state.NewTask("error-trigger", "trigger undo")
+	fail.WaitFor(t)
+	chg.AddTask(fail)
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*previous revision 30 is unavailable.*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	s.state.Unlock()
+	c.Check(s.fakeBackend.kernelSetupRevs, HasLen, 0)
 }
 
 func (s *setupKernelSnapSuite) TestDiscardOldKernelSnapSetupSameRevisionDoesNotRemove(c *C) {

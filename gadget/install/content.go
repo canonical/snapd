@@ -194,8 +194,7 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 				Target:  cpi.MountDir(),
 			},
 			compsMntPts,
-			destDir,
-			kernel.KernelInstallMode); err != nil {
+			destDir); err != nil {
 			return err
 		}
 	}

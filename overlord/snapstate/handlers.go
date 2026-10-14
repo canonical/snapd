@@ -5054,18 +5054,44 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// At this point the new component mounts are available, but link-snap
+	// has not yet recorded the target revision in the sequence. For a
+	// same-revision refresh retain its current set until component prepare.
+	comps := snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
+	if snapsup.Revision() != snapSt.Current {
+		setups, err := TaskComponentSetups(t)
+		if err != nil {
+			return err
+		}
+		for _, setup := range setups {
+			if setup.CompType != snap.KernelModulesComponent {
+				continue
+			}
+			if setup.CompSideInfo == nil {
+				return fmt.Errorf("internal error: missing kernel component side info")
+			}
+			// A target revision may already be in the sequence. Its new
+			// mounted component replaces the old entry with the same name.
+			found := false
+			for i, comp := range comps {
+				if comp.Component == setup.CompSideInfo.Component {
+					comps[i] = setup.CompSideInfo
+					found = true
+					break
+				}
+			}
+			if !found {
+				comps = append(comps, setup.CompSideInfo)
+			}
+		}
+	}
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	timings.Run(perfTimings, "prepare-kernel-snap",
 		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
-			// TODO pass information on components if running for an
-			// already installed kernel
-
-			// TODO explicitly indicate when we could be regenerating the
-			// drivers tree as a result of a refresh to the same revision.
 			err = m.backend.SetupKernelSnap(
-				snapsup.InstanceName().String(), snapsup.Revision(), nil, backend.SetupKernelForInstall, pm)
+				snapsup.InstanceName().String(), snapsup.Revision(), comps, pm)
 		})
 	st.Lock()
 	if err != nil {
@@ -5218,13 +5244,19 @@ func (m *SnapManager) undoDiscardOldKernelSnapSetup(t *state.Task, _ *tomb.Tomb)
 	// We only re-do the previous kernel if its revision is actually different,
 	// to keep the symmetry with the 'do' path.
 	if !prevKernelRev.Unset() && prevKernelRev != currInfo.Revision {
+		// TODO: if later cleanup removed old kernel or component sources,
+		// undo needs a design to retain or reconstruct those old sources.
+		if snapst.Sequence.LastIndex(prevKernelRev) < 0 {
+			return fmt.Errorf("cannot undo old kernel tree discard: previous revision %s is unavailable", prevKernelRev)
+		}
+		oldComps := snapst.Sequence.ComponentsWithTypeForRev(prevKernelRev, snap.KernelModulesComponent)
 		st.Unlock()
 		pm := NewTaskProgressAdapterUnlocked(t)
 		timings.Run(perfTimings, "undo-remove-old-kernel-snap-setup",
 			fmt.Sprintf("undo cleanup of previous kernel snap %q", currInfo.InstanceName()),
 			func(timings.Measurer) {
 				err = m.backend.SetupKernelSnap(
-					currInfo.InstanceName().String(), prevKernelRev, nil, backend.SetupKernelForInstall, pm)
+					currInfo.InstanceName().String(), prevKernelRev, oldComps, pm)
 			})
 		st.Lock()
 		if err != nil {
