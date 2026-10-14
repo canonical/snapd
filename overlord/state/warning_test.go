@@ -31,6 +31,23 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func (stateSuite) TestWarningFilterCutoffTime(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	fixedTime := time.Now()
+	restore := state.MockTime(fixedTime)
+	defer restore()
+	st.Warnf("one")
+	st.Warnf("two")
+	n, _ := st.WarningsSummary()
+	// this is 1 when using only the wall clock without
+	// accounting for possible lastNoticeTimestamps later than
+	// the wall clock
+	c.Check(n, check.Equals, 2)
+}
+
 func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	st := state.New(nil)
 	st.Lock()
