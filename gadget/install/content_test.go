@@ -540,6 +540,58 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeIdempotent(c *C)
 	}
 }
 
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeRealImagePreparation(c *C) {
+	restore := osutil.MockMountInfo("")
+	defer restore()
+	restore = squashfs.MockNeedsFuse(false)
+	defer restore()
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
+
+	currentKernel := filepath.Join(c.MkDir(), "temporary-kernel-mount")
+	currentComp := filepath.Join(c.MkDir(), "temporary-component-mount")
+	version := "6.8.0-31-generic"
+	mods := filepath.Join(currentKernel, "modules", version)
+	c.Assert(os.MkdirAll(mods, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(mods, "modules.dep"), nil, 0644), IsNil)
+	fw := filepath.Join(currentKernel, "firmware")
+	c.Assert(os.MkdirAll(fw, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fw, "kernel.bin"), nil, 0644), IsNil)
+	compMods := filepath.Join(currentComp, "modules", version)
+	c.Assert(os.MkdirAll(compMods, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(compMods, "driver.ko"), nil, 0644), IsNil)
+	compFw := filepath.Join(currentComp, "firmware")
+	c.Assert(os.MkdirAll(compFw, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(compFw, "comp.bin"), nil, 0644), IsNil)
+
+	info := &install.KernelSnapInfo{
+		Name: "pc-kernel", Revision: snap.R(111), MountPoint: currentKernel,
+		NeedsDriversTree: true,
+		ModulesComps:     []install.KernelModulesComponentInfo{{Name: "kmod1", Revision: snap.R(3), MountPoint: currentComp}},
+	}
+	m := mockOnDiskStructureSystemData()
+	obs := &mockWriteObserver{c: c, expectedRole: m.Role()}
+	dest := kernel.DriversTreeDir(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"), info.Name, info.Revision)
+	for i := 0; i < 2; i++ {
+		c.Assert(install.WriteFilesystemContent(m, info, "/dev/node2", obs), IsNil)
+	}
+	futureKernel := snap.MinimalSnapContainerPlaceInfo("pc-kernel", snap.R(111)).MountDir()
+	futureComp := snap.MinimalComponentContainerPlaceInfo("kmod1", snap.R(3), "pc-kernel").MountDir()
+	c.Check(filepath.Join(dest, "lib", "firmware", "kernel.bin"), testutil.SymlinkTargetEquals, filepath.Join(futureKernel, "firmware", "kernel.bin"))
+	c.Check(filepath.Join(dest, "lib", "firmware", "updates", "comp.bin"), testutil.SymlinkTargetEquals, filepath.Join(futureComp, "firmware", "comp.bin"))
+	c.Check(filepath.Join(dest, "lib", "modules", version, "updates", "kmod1"), testutil.SymlinkTargetEquals, filepath.Join(futureComp, "modules", version))
+	c.Check(filepath.Join(dest, "kernel.json"), testutil.FilePresent)
+	c.Check(dest+"_tmp", testutil.FileAbsent)
+
+	// Repeating image preparation with a different complete desired list
+	// removes only managed component entries, even though target mounts
+	// are not available in this process.
+	info.ModulesComps = nil
+	c.Assert(install.WriteFilesystemContent(m, info, "/dev/node2", obs), IsNil)
+	c.Check(filepath.Join(dest, "lib", "firmware", "updates", "comp.bin"), testutil.FileAbsent)
+	c.Check(filepath.Join(dest, "lib", "modules", version, "updates", "kmod1"), testutil.FileAbsent)
+}
+
 func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir(dirs.GlobalRootDir)
