@@ -4,13 +4,20 @@ details: |
     Verify that parallel instances work correctly when snapd runs inside an
     LXD container.
 
-systems: 
+systems:
     - ubuntu-2*
+
+environment:
+    CONFINEMENT/strict: strict
+    CONFINEMENT/classic: classic
 
 skip:
     - reason: No need to test when the snapd pkg is from the repository and reexec is disabled
       if: |
-       [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
+        [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
+    - reason: the container's native package lacks the mount units when only the snapd snap is updated
+      if: |
+        [ "$CONFINEMENT" = classic ] && [ "$SNAP_REEXEC" != "0" ]
 
 prepare: |
     echo "Pack test snaps for use inside the LXD container"
@@ -18,9 +25,11 @@ prepare: |
     snap pack "$TESTSLIB/snaps/test-snapd-service" --filename test-snapd-service.snap
     tests.cleanup defer rm -f test-snapd-sh.snap test-snapd-service.snap
 
-    snap pack "$TESTSLIB/snaps/test-snapd-classic-confinement" \
-        --filename test-snapd-classic-confinement.snap
-    tests.cleanup defer rm -f test-snapd-classic-confinement.snap
+    if [ "$CONFINEMENT" = classic ]; then
+        snap pack "$TESTSLIB/snaps/test-snapd-classic-confinement" \
+            --filename test-snapd-classic-confinement.snap
+        tests.cleanup defer rm -f test-snapd-classic-confinement.snap
+    fi
 
     snap pack "$TESTSLIB/snaps/aliases" --filename aliases.snap
     snap pack "$TESTSLIB/snaps/test-snapd-content-plug" --filename test-snapd-content-plug.snap
@@ -50,13 +59,22 @@ prepare: |
     echo "Wait for snapd to finish seeding"
     retry --wait 1 -n 30 sh -c "lxc exec my-ubuntu -- snap wait system seed.loaded"
 
+    if [ "$CONFINEMENT" = classic ]; then
+        # Only the native package can supply these units inside the container.
+        lxc exec my-ubuntu -- systemctl cat snap.mount var-snap.mount > /dev/null
+        lxc exec my-ubuntu -- systemctl enable --now var-snap.mount
+        lxc exec my-ubuntu -- systemctl start snap.mount
+    fi
+
     echo "Enable parallel instances feature"
     lxc exec my-ubuntu -- snap set system experimental.parallel-instances=true
 
     echo "Push test snaps into the container"
     lxc file push --quiet test-snapd-sh.snap "my-ubuntu/root/"
     lxc file push --quiet test-snapd-service.snap "my-ubuntu/root/"
-    lxc file push --quiet test-snapd-classic-confinement.snap "my-ubuntu/root/"
+    if [ "$CONFINEMENT" = classic ]; then
+        lxc file push --quiet test-snapd-classic-confinement.snap "my-ubuntu/root/"
+    fi
     lxc file push --quiet aliases.snap "my-ubuntu/root/"
     lxc file push --quiet test-snapd-content-plug.snap "my-ubuntu/root/"
     lxc file push --quiet test-snapd-content-slot.snap "my-ubuntu/root/"
@@ -80,6 +98,7 @@ restore: |
     rm -f -- *.txt
 
 execute: |
+    if [ "$CONFINEMENT" = strict ]; then
     # -------------------------------------------------------------------
     # Basic parallel instance install, run, and isolation
     # -------------------------------------------------------------------
@@ -178,7 +197,9 @@ execute: |
     echo "Verify the mount namespace mask works: instance sees non-instance paths"
     lxc exec my-ubuntu -- su -l ubuntu -c \
         "test-snapd-sh_foo.sh -c 'ls \$SNAP'" | MATCH bin
+    fi
 
+    if [ "$CONFINEMENT" = classic ]; then
     # -------------------------------------------------------------------
     # Classic confinement parallel instances
     # -------------------------------------------------------------------
@@ -228,7 +249,9 @@ execute: |
     lxc exec my-ubuntu -- snap remove --purge test-snapd-classic-confinement
     lxc exec my-ubuntu -- snap remove --purge test-snapd-classic-confinement_bar
     rm -f classic_bar_env.txt
+    fi
 
+    if [ "$CONFINEMENT" = strict ]; then
     # -------------------------------------------------------------------
     # Mount unit generation verification
     # -------------------------------------------------------------------
@@ -298,3 +321,4 @@ execute: |
 
     echo "Remove remaining instance"
     lxc exec my-ubuntu -- snap remove --purge test-snapd-sh_baz
+    fi
