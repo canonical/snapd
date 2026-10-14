@@ -4572,6 +4572,7 @@ func MigrateAllowUnsupportedInstances(st *state.State) error {
 	if err != nil {
 		return err
 	}
+	var incomplete bool
 	for name, snapst := range all {
 		if snapst.InstanceKey == "" || snapst.AllowUnsupportedInstances {
 			continue
@@ -4579,6 +4580,7 @@ func MigrateAllowUnsupportedInstances(st *state.State) error {
 		info, err := snapst.CurrentInfo()
 		if err != nil {
 			logger.Noticef("cannot check parallel instance support of snap %q: %v", name, err)
+			incomplete = true
 			continue
 		}
 		if err := checkParallelInstancesSupport(st, info); err == nil {
@@ -4606,6 +4608,8 @@ func MigrateAllowUnsupportedInstances(st *state.State) error {
 		}
 	}
 
-	st.Set(allowUnsupportedInstancesMigratedKey, true)
+	if !incomplete {
+		st.Set(allowUnsupportedInstancesMigratedKey, true)
+	}
 	return nil
 }
