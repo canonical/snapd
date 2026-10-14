@@ -451,7 +451,7 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
 	}
 
-	if newOrRepeated {
+	if newOrRepeated && s.noticeCond != nil {
 		s.noticeCond.Broadcast()
 	}
 
