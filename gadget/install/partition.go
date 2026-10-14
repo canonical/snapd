@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
@@ -414,7 +415,7 @@ func ensureNodesExistImpl(nodes []string, timeout time.Duration) error {
 // specific device in the form of executing the equivalent of:
 // bash -c "echo 1 > /sys/block/sd?/device/rescan"
 func reloadPartitionTableWithDeviceRescan(device string) error {
-	disk, err := disks.DiskFromDeviceName(device)
+	disk, err := disks.DiskFromDeviceNameUnderRoot(dirs.GlobalRootDir, device)
 	if err != nil {
 		return err
 	}

@@ -25,14 +25,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
 // IsEnabled returns true when the OS reports that FIPS mode is enabled.
-// Otherwise returns false.
-func IsEnabled() (bool, error) {
-	p := filepath.Join(dirs.GlobalRootDir, "/proc/sys/crypto/fips_enabled")
+// Otherwise returns false. The FIPS status file is looked up relative to
+// rootDir.
+func IsEnabled(rootDir string) (bool, error) {
+	p := filepath.Join(rootDir, "/proc/sys/crypto/fips_enabled")
 
 	f, err := os.Open(p)
 	if err != nil {

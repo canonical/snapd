@@ -25,6 +25,6 @@ var isHomeUsingRemoteFS = func() (bool, error) {
 }
 
 // snapDirsUnderNFSMounts is not implemented on darwin
-var snapDirsUnderNFSMounts = func() (bool, error) {
+var snapDirsUnderNFSMounts = func(dataHomeGlobs []string) (bool, error) {
 	return false, ErrDarwin
 }

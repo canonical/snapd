@@ -572,6 +572,7 @@ func loggerWithJournalMaybe() {
 
 	journalWriter, err := systemd.NewJournalStreamFile(
 		systemd.JournalStreamFileParams{
+			RunDir:     dirs.SnapSystemdRunDir,
 			Identifier: "snap",
 			Priority:   syslog.LOG_DEBUG,
 		})

@@ -83,7 +83,7 @@ func MaybeCompleteFIPSSetup() {
 // DispatchWithFIPS checks whether system-wide FIPS mode is enabled,
 // sets up the environment for FIPS compliance, and execs into targetExe.
 func DispatchWithFIPS(targetExe string) error {
-	enabled, err := fips.IsEnabled()
+	enabled, err := fips.IsEnabled(dirs.GlobalRootDir)
 	if err != nil {
 		return fmt.Errorf("cannot obtain FIPS status: %w", err)
 	}

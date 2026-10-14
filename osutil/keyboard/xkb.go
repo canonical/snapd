@@ -28,7 +28,6 @@ import (
 	"github.com/godbus/dbus/v5"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/inotify"
 	"github.com/snapcore/snapd/strutil"
@@ -151,6 +150,8 @@ func CurrentXKBConfig() (*XKBConfig, error) {
 type XKBConfigListener struct {
 	iw *inotify.Watcher
 
+	rootDir string
+
 	ctx  context.Context
 	done context.CancelFunc
 
@@ -168,6 +169,13 @@ func (w *XKBConfigListener) Close() {
 // for XKB configuration changes and calls cb(XKBConfig) if a
 // potential configuration change is detected.
 func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKBConfigListener, error) {
+	return newXKBConfigListenerUnderRoot(ctx, "/", cb)
+}
+
+// newXKBConfigListenerUnderRoot is like NewXKBConfigListener, but watches
+// the configuration files relative to rootDir. It is exposed for testing
+// via export_test.go.
+func newXKBConfigListenerUnderRoot(ctx context.Context, rootDir string, cb func(config *XKBConfig)) (*XKBConfigListener, error) {
 	iw, err := inotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -175,21 +183,22 @@ func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKB
 
 	// We care about IN_MOVED_TO as well to detect configuration updates that
 	// happen atomically through replacement i.e. rename, renameat, renameat2.
-	etcDir := filepath.Join(dirs.GlobalRootDir, "/etc")
+	etcDir := filepath.Join(rootDir, "/etc")
 	if err := iw.AddWatch(etcDir, inotify.InCloseWrite|inotify.InMovedTo); err != nil {
 		return nil, err
 	}
-	etcDefaultDir := filepath.Join(dirs.GlobalRootDir, "/etc/default")
+	etcDefaultDir := filepath.Join(rootDir, "/etc/default")
 	if err := iw.AddWatch(etcDefaultDir, inotify.InCloseWrite|inotify.InMovedTo); err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	watcher := &XKBConfigListener{
-		iw:   iw,
-		ctx:  ctx,
-		done: cancel,
-		cb:   cb,
+		iw:      iw,
+		rootDir: rootDir,
+		ctx:     ctx,
+		done:    cancel,
+		cb:      cb,
 	}
 	go watcher.loop()
 	return watcher, nil
@@ -197,8 +206,8 @@ func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKB
 
 func (w *XKBConfigListener) loop() {
 	var kbConfigFiles = []string{
-		filepath.Join(dirs.GlobalRootDir, "/etc/default/keyboard"),
-		filepath.Join(dirs.GlobalRootDir, "/etc/vconsole.conf"),
+		filepath.Join(w.rootDir, "/etc/default/keyboard"),
+		filepath.Join(w.rootDir, "/etc/vconsole.conf"),
 	}
 	for {
 		select {
