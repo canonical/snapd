@@ -27,6 +27,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
@@ -61,7 +62,7 @@ var (
 func (m *InterfaceManager) selectInterfaceMapper(appSets []*interfaces.SnapAppSet) {
 	for _, set := range appSets {
 		if set.Info().Type() == snap.TypeSnapd {
-			mapper = &CoreSnapdSystemMapper{}
+			setSnapMapper(&CoreSnapdSystemMapper{})
 			break
 		}
 	}
@@ -1417,7 +1418,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 func resolveSnapIDToName(st *state.State, snapID string) (name string, err error) {
 	if snapID == "system" {
 		// Resolve the system nickname to a concrete snap.
-		return mapper.RemapSnapFromRequest(snapID), nil
+		return snapMapper().RemapSnapFromRequest(snapID), nil
 	}
 	decl, err := assertstate.SnapDeclaration(st, snapID)
 	if errors.Is(err, &asserts.NotFoundError{}) {
@@ -1540,34 +1541,49 @@ func (m *CoreSnapdSystemMapper) SystemSnapName() naming.InstanceName {
 	return naming.Snapd
 }
 
-// mapper contains the currently active snap mapper.
-var mapper SnapMapper = &CoreCoreSystemMapper{}
+var (
+	// tests can restore the mapper concurrently with reads from the ensure loop
+	mapperMu sync.RWMutex
+	mapper   SnapMapper = &CoreCoreSystemMapper{}
+)
+
+func snapMapper() SnapMapper {
+	mapperMu.RLock()
+	defer mapperMu.RUnlock()
+	return mapper
+}
+
+func setSnapMapper(new SnapMapper) (old SnapMapper) {
+	mapperMu.Lock()
+	defer mapperMu.Unlock()
+	old, mapper = mapper, new
+	return old
+}
 
 // MockSnapMapper mocks the currently used snap mapper.
 func MockSnapMapper(new SnapMapper) (restore func()) {
-	old := mapper
-	mapper = new
-	return func() { mapper = old }
+	old := setSnapMapper(new)
+	return func() { setSnapMapper(old) }
 }
 
 // RemapSnapFromState renames a snap when loaded from state according to the current mapper.
 func RemapSnapFromState(snapName string) string {
-	return mapper.RemapSnapFromState(snapName)
+	return snapMapper().RemapSnapFromState(snapName)
 }
 
 // RemapSnapToState renames a snap when saving to state according to the current mapper.
 func RemapSnapToState(snapName string) string {
-	return mapper.RemapSnapToState(snapName)
+	return snapMapper().RemapSnapToState(snapName)
 }
 
 // RemapSnapFromRequest renames a snap as received from an API request according to the current mapper.
 func RemapSnapFromRequest(snapName string) string {
-	return mapper.RemapSnapFromRequest(snapName)
+	return snapMapper().RemapSnapFromRequest(snapName)
 }
 
 // SystemSnapName returns actual name of the system snap.
 func SystemSnapName() naming.InstanceName {
-	return mapper.SystemSnapName()
+	return snapMapper().SystemSnapName()
 }
 
 // systemSnapInfo returns current info for system snap.

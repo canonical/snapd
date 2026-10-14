@@ -51,7 +51,7 @@ func addImplicitInterfaces(st *state.State, snapInfo *snap.Info) error {
 
 	// If the manager has chosen to put implicit slots/plugs on the "snapd"
 	// snap then stop adding them to any other core snaps.
-	if shouldSnapdHostImplicitSlots(mapper) && snapInfo.Type() != snap.TypeSnapd {
+	if shouldSnapdHostImplicitSlots(snapMapper()) && snapInfo.Type() != snap.TypeSnapd {
 		return nil
 	}
 
