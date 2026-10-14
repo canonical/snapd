@@ -226,7 +226,7 @@ jobs:
           max_complexity=10
           shellmetrics --no-color --csv \
             tests/lib/nested/*.sh \
-            tests/lib/tools/repack-* | tee shellmetrics.csv
+            tests/lib/tools/repack-* > shellmetrics.csv
           failed=0
           while IFS=, read -r file function_name line logical_lines complexity rest; do
             if [[ "$complexity" == "ccn" || "$complexity" -le "$max_complexity" ]]; then
