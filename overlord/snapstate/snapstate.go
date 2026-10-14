@@ -2643,9 +2643,11 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 
 	var tss []*state.TaskSet
 	for _, name := range snaps {
-		si := allSnaps[name].CurrentSideInfo()
+		snapst := allSnaps[name]
+		si := snapst.CurrentSideInfo()
 		snapsup := &SnapSetup{
-			SideInfo: si,
+			SideInfo:    si,
+			InstanceKey: snapst.InstanceKey,
 		}
 
 		var tasks []*state.Task
