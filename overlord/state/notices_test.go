@@ -1134,6 +1134,23 @@ func (s *noticesSuite) TestAddNoticeCopiesInput(c *C) {
 	c.Assert(userID, Equals, uint32(1000))
 	n := noticeToMap(c, notices[0])
 	c.Assert(n["last-data"], DeepEquals, map[string]any{"key": "value"})
+
+	// Re-recording existing notice also copies inputs
+	uid = 1000
+	_, err = st.AddNotice(&uid, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{Data: data})
+	c.Assert(err, IsNil)
+
+	uid = 3000
+	data["key"] = "different"
+	data["other-key"] = "other-value"
+
+	notices = st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	userID, isSet = notices[0].UserID()
+	c.Assert(isSet, Equals, true)
+	c.Assert(userID, Equals, uint32(1000))
+	n = noticeToMap(c, notices[0])
+	c.Assert(n["last-data"], DeepEquals, map[string]any{"key": "changed", "new-key": "new-value"})
 }
 
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.

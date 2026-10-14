@@ -96,6 +96,19 @@ type Notice struct {
 
 // NewNotice returns a new notice with the given details.
 func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestamp time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) *Notice {
+	if userID != nil {
+		// TODO:GOVERSION:1.26: simplify to `userID = new(*userID)`
+		copiedUserID := *userID
+		userID = &copiedUserID
+	}
+	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
+	var newData map[string]string
+	if data != nil {
+		newData = make(map[string]string, len(data))
+		for k, v := range data {
+			newData[k] = v
+		}
+	}
 	return &Notice{
 		id:            id,
 		userID:        userID,
@@ -105,7 +118,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 		lastOccurred:  timestamp,
 		lastRepeated:  timestamp,
 		occurrences:   1,
-		lastData:      data,
+		lastData:      newData,
 		repeatAfter:   repeatAfter,
 		expireAfter:   expireAfter,
 	}
@@ -117,6 +130,14 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // caller's responsibility to replace the receiver with the new notice in the
 // notice backend from whence it came.
 func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
+	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
+	var newData map[string]string
+	if data != nil {
+		newData = make(map[string]string, len(data))
+		for k, v := range data {
+			newData[k] = v
+		}
+	}
 	newNotice = n.DeepCopy()
 	newNotice.occurrences++
 	repeated = false
@@ -134,7 +155,7 @@ func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time
 		repeated = true
 	}
 	newNotice.lastOccurred = now
-	newNotice.lastData = data
+	newNotice.lastData = newData
 	newNotice.repeatAfter = repeatAfter
 	return newNotice, repeated
 }
@@ -406,14 +427,6 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
 	}
-	var data map[string]string
-	if options.Data != nil {
-		// TODO:GOVERSION:1.21: simplify to `maps.Clone()`
-		data = make(map[string]string, len(options.Data))
-		for k, v := range options.Data {
-			data[k] = v
-		}
-	}
 	now = now.UTC()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
@@ -422,17 +435,12 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		if userID != nil {
-			// TODO:GOVERSION:1.26: simplify to `userID = new(*userID)`
-			copiedUserID := *userID
-			userID = &copiedUserID
-		}
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, data, options.RepeatAfter, defaultNoticeExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
 		s.notices[uniqueKey] = notice
 	}
 
