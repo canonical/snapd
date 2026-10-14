@@ -179,3 +179,7 @@ func (s *uioInterfaceSuite) TestAutoConnect(c *C) {
 func (s *uioInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *uioInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}

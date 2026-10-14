@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -337,8 +338,8 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapApps(c *C
 	c.Assert(os.WriteFile(cgKillFile, []byte{}, 0644), IsNil)
 
 	// Mock error in snapst.CurrentInfo
-	restore = snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, snapName)
+	restore = snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, snapName)
 		return nil, fmt.Errorf("mock SnapReadInfo error")
 	})
 	defer restore()

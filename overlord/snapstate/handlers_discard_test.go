@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -241,9 +242,9 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 
 func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
 	var removeLateCalledFor [][]string
-	restore := snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+	restore := snapstate.MockSecurityProfilesDiscardLate(func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error {
 		removeLateCalledFor = append(removeLateCalledFor, []string{
-			snapName, rev.String(), string(typ),
+			instanceName.String(), rev.String(), string(typ),
 		})
 		return nil
 	})

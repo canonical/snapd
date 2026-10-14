@@ -88,11 +88,12 @@ func (iface *sdControlInterface) UDevConnectedPlug(spec *udev.Specification, plu
 
 func init() {
 	registerIface(&sdControlInterface{commonInterface{
-		name:                 "sd-control",
-		summary:              sdControlSummary,
-		baseDeclarationSlots: sdControlBaseDeclarationSlots,
-		baseDeclarationPlugs: sdControlBaseDeclarationPlugs,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
+		name:                     "sd-control",
+		summary:                  sdControlSummary,
+		baseDeclarationSlots:     sdControlBaseDeclarationSlots,
+		baseDeclarationPlugs:     sdControlBaseDeclarationPlugs,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

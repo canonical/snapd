@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 	"gopkg.in/tomb.v2"
 )
@@ -615,7 +616,7 @@ func hasAllContentAttrs(st *state.State, snapName string, requiredContentAttrs [
 	providedContentAttrs := make(map[string]bool)
 	repo := ifacerepo.Get(st)
 
-	for _, slot := range repo.Slots(snapName) {
+	for _, slot := range repo.Slots(naming.InstanceName(snapName)) {
 		if slot.Interface != "content" {
 			continue
 		}

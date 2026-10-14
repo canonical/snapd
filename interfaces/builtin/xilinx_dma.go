@@ -69,13 +69,15 @@ var xilinxDmaConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "xilinx-dma",
-		summary:               xilinxDmaSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  xilinxDmaBaseDeclarationPlugs,
-		baseDeclarationSlots:  xilinxDmaBaseDeclarationSlots,
-		connectedPlugAppArmor: xilinxDmaConnectedPlugAppArmor,
-		connectedPlugUDev:     xilinxDmaConnectedPlugUDev,
+		name:                     "xilinx-dma",
+		summary:                  xilinxDmaSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     xilinxDmaBaseDeclarationPlugs,
+		baseDeclarationSlots:     xilinxDmaBaseDeclarationSlots,
+		connectedPlugAppArmor:    xilinxDmaConnectedPlugAppArmor,
+		connectedPlugUDev:        xilinxDmaConnectedPlugUDev,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

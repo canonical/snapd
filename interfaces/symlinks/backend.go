@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -80,7 +81,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 // Remove removes modules symlinks files specific to a given snap.
 // This method should be called after removing a snap.
-func (b *Backend) Remove(snapName string) error {
+func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	// If called for the system (snapd) snap, that is possible only in a
 	// classic scenario when all other snaps in the system must have been
 	// removed already to allow the removal of the snapd snap. In that

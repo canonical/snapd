@@ -21,28 +21,29 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // plugJSON aids in marshaling snap.PlugInfo into JSON.
 type plugJSON struct {
-	Snap      string         `json:"snap"`
-	Name      string         `json:"plug"`
-	Interface string         `json:"interface,omitempty"`
-	Attrs     map[string]any `json:"attrs,omitempty"`
-	Apps      []string       `json:"apps,omitempty"`
-	Label     string         `json:"label,omitempty"`
+	Snap      naming.InstanceName `json:"snap"`
+	Name      string              `json:"plug"`
+	Interface string              `json:"interface,omitempty"`
+	Attrs     map[string]any      `json:"attrs,omitempty"`
+	Apps      []string            `json:"apps,omitempty"`
+	Label     string              `json:"label,omitempty"`
 	// Connections are synthesized, they are not on the original type.
 	Connections []interfaces.SlotRef `json:"connections,omitempty"`
 }
 
 // slotJSON aids in marshaling snap.SlotInfo into JSON.
 type slotJSON struct {
-	Snap      string         `json:"snap"`
-	Name      string         `json:"slot"`
-	Interface string         `json:"interface,omitempty"`
-	Attrs     map[string]any `json:"attrs,omitempty"`
-	Apps      []string       `json:"apps,omitempty"`
-	Label     string         `json:"label,omitempty"`
+	Snap      naming.InstanceName `json:"snap"`
+	Name      string              `json:"slot"`
+	Interface string              `json:"interface,omitempty"`
+	Attrs     map[string]any      `json:"attrs,omitempty"`
+	Apps      []string            `json:"apps,omitempty"`
+	Label     string              `json:"label,omitempty"`
 	// Connections are synthesized, they are not on the original type.
 	Connections []interfaces.PlugRef `json:"connections,omitempty"`
 }

@@ -152,6 +152,12 @@ func (iface *mirInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
+func (iface *mirInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// mir server owns the well-known socket /run/mir_socket (or
+	// /run/user/*/mir_socket); only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&mirInterface{})
 }

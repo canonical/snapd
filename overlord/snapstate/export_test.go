@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -69,7 +70,7 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
 
-func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+func MockSnapReadInfo(mock func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	old := snapReadInfo
 	snapReadInfo = mock
 	return func() { snapReadInfo = old }
@@ -200,6 +201,31 @@ var (
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
 
+func (r *refreshHints) Ensure() error {
+	r.state.Lock()
+	deviceCtx, err := DeviceCtx(r.state, nil, nil)
+	r.state.Unlock()
+	if err != nil {
+		return err
+	}
+	return r.EnsureAfterSeed(deviceCtx)
+}
+
+func (r *catalogRefresh) Ensure() error {
+	r.state.Lock()
+	seeded, err := SystemSeeded(r.state)
+	if err != nil || !seeded {
+		r.state.Unlock()
+		return err
+	}
+	deviceCtx, err := DeviceCtx(r.state, nil, nil)
+	r.state.Unlock()
+	if err != nil {
+		return err
+	}
+	return r.EnsureAfterSeed(deviceCtx)
+}
+
 // cleanup
 var (
 	CleanSnapDownloads = cleanSnapDownloads
@@ -251,6 +277,16 @@ func MockCatalogRefreshNextRefresh(cr *catalogRefresh, when time.Time) {
 
 func NextCatalogRefresh(cr *catalogRefresh) time.Time {
 	return cr.nextCatalogRefresh
+}
+
+func WaitCatalogRefresh(cr *catalogRefresh) {
+	if cr.catalogC != nil {
+		<-cr.catalogC
+	}
+}
+
+func StopCatalogRefresh(m *SnapManager) {
+	m.catalogRefresh.Stop()
 }
 
 func MockRefreshRetryDelay(d time.Duration) func() {
@@ -431,7 +467,7 @@ func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
 	return m.ensureRefreshHoldAtLeast(d)
 }
 
-func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision, typ snap.Type) error) (restore func()) {
+func MockSecurityProfilesDiscardLate(fn func(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error) (restore func()) {
 	old := SecurityProfilesRemoveLate
 	SecurityProfilesRemoveLate = fn
 	return func() {

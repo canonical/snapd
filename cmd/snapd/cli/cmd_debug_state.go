@@ -350,7 +350,7 @@ func (c *cmdDebugState) showConnectionDetails(st *state.State, connArg string) e
 
 		refMatch := func(x SnapAndName, y interface{ String() string }) bool {
 			parts := strings.Split(y.String(), ":")
-			return len(parts) == 2 && x.Snap == parts[0] && x.Name == parts[1]
+			return len(parts) == 2 && x.Snap.String() == parts[0] && x.Name == parts[1]
 		}
 		plug, slot := connRef.PlugRef, connRef.SlotRef
 

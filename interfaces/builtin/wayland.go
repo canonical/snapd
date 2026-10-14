@@ -187,6 +187,12 @@ func (iface *waylandInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool 
 	return true
 }
 
+func (iface *waylandInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the compositor owns the well-known /run/user/*/wayland-0 socket; only
+	// one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&waylandInterface{})
 }

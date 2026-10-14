@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	fdestatebackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
@@ -54,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -86,6 +89,24 @@ func fakePruneTicker() (w *ticker, restore func()) {
 	return w, restore
 }
 
+type mockFdstore struct{}
+
+func (m *mockFdstore) Add(name fdstore.FdName, f *os.File) error {
+	return nil
+}
+
+func (m *mockFdstore) Get(name fdstore.FdName) (*os.File, error) {
+	return nil, fdstore.ErrNotFound
+}
+
+func (m *mockFdstore) Remove(name fdstore.FdName) error {
+	return errors.New("mockFdstore.Remove() not implemented")
+}
+
+func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
+	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
+}
+
 func (ovs *overlordSuite) SetUpTest(c *C) {
 	// TODO: temporary: skip due to timeouts on riscv64
 	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
@@ -101,6 +122,9 @@ func (ovs *overlordSuite) SetUpTest(c *C) {
 	dirs.SnapStateFile = filepath.Join(tmpdir, "test.json")
 	snapstate.CanAutoRefresh = nil
 	ovs.AddCleanup(func() { ifacestate.MockSecurityBackends(nil) })
+
+	// mock fdstore so that FDEManager initialization doesn't fail
+	ovs.AddCleanup(fdestatebackend.MockFdstoreNew(func() fdstore.Store { return &mockFdstore{} }))
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {

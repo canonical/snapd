@@ -57,11 +57,12 @@ owner @{HOME}/.gnupg/random_seed wk,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "gpg-keys",
-		summary:               gpgKeysSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  gpgKeysBaseDeclarationSlots,
-		connectedPlugAppArmor: gpgKeysConnectedPlugAppArmor,
+		name:                     "gpg-keys",
+		summary:                  gpgKeysSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     gpgKeysBaseDeclarationSlots,
+		connectedPlugAppArmor:    gpgKeysConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

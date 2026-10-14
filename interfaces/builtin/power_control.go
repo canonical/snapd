@@ -69,11 +69,12 @@ const powerControlConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "power-control",
-		summary:               powerControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  powerControlBaseDeclarationSlots,
-		connectedPlugAppArmor: powerControlConnectedPlugAppArmor,
+		name:                     "power-control",
+		summary:                  powerControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     powerControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    powerControlConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

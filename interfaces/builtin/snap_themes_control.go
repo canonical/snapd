@@ -37,11 +37,12 @@ const snapThemesControlBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "snap-themes-control",
-		summary:              snapThemesControlSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: snapThemesControlBaseDeclarationPlugs,
-		baseDeclarationSlots: snapThemesControlBaseDeclarationSlots,
+		name:                     "snap-themes-control",
+		summary:                  snapThemesControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     snapThemesControlBaseDeclarationPlugs,
+		baseDeclarationSlots:     snapThemesControlBaseDeclarationSlots,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

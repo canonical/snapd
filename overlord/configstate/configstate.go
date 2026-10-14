@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -55,21 +56,21 @@ func ConfigureHookTimeout() time.Duration {
 	return timeout
 }
 
-func canConfigure(st *state.State, snapName string) error {
+func canConfigure(st *state.State, instanceName naming.InstanceName) error {
 	// the "core" snap/pseudonym can always be configured as it
 	// is handled internally
-	if snapName == "core" {
+	if instanceName == naming.Core {
 		return nil
 	}
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, snapName, &snapst)
+	err := snapstate.Get(st, instanceName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	if !snapst.IsInstalled() {
-		return &snap.NotInstalledError{Snap: snapName}
+		return &snap.NotInstalledError{Snap: instanceName.String()}
 	}
 
 	// the "snapd" snap cannot be configured yet
@@ -87,21 +88,21 @@ func canConfigure(st *state.State, snapName string) error {
 		return err
 	}
 	if typ == snap.TypeBase {
-		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", snapName)
+		return fmt.Errorf("cannot configure snap %q because it is of type 'base'", instanceName)
 	}
 
-	return snapstate.CheckChangeConflict(st, snapName, nil)
+	return snapstate.CheckChangeConflict(st, instanceName, nil)
 }
 
 // ConfigureInstalled returns a taskset to apply the given
 // configuration patch for an installed snap. It returns
 // snap.NotInstalledError if the snap is not installed.
-func ConfigureInstalled(st *state.State, snapName string, patch map[string]any, flags int) (*state.TaskSet, error) {
-	if err := canConfigure(st, snapName); err != nil {
+func ConfigureInstalled(st *state.State, instanceName naming.InstanceName, patch map[string]any, flags int) (*state.TaskSet, error) {
+	if err := canConfigure(st, instanceName); err != nil {
 		return nil, err
 	}
 
-	taskset := Configure(st, snapName, patch, flags)
+	taskset := Configure(st, instanceName.String(), patch, flags)
 	return taskset, nil
 }
 

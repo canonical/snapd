@@ -168,6 +168,12 @@ func (iface *maliitInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
+func (iface *maliitInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// maliit server owns the well-known bus name org.maliit.server on the
+	// session bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&maliitInterface{})
 }

@@ -185,3 +185,7 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 func (s *GpioInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *GpioInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}

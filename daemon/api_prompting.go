@@ -459,7 +459,7 @@ func validateSnapHasInterfaceConnection(d *Daemon, snapName, iface string) Respo
 			// here should be impossible
 			return InternalError("internal error: invalid connection state string %q in interface state: %v", refStr, err)
 		}
-		if connRef.PlugRef.Snap == snapName {
+		if connRef.PlugRef.Snap.String() == snapName {
 			return nil
 		}
 	}

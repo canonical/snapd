@@ -45,12 +45,14 @@ var physicalMemoryControlConnectedPlugUDev = []string{`KERNEL=="mem"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "physical-memory-control",
-		summary:               physicalMemoryControlSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  physicalMemoryControlBaseDeclarationSlots,
-		connectedPlugAppArmor: physicalMemoryControlConnectedPlugAppArmor,
-		connectedPlugUDev:     physicalMemoryControlConnectedPlugUDev,
+		name:                     "physical-memory-control",
+		summary:                  physicalMemoryControlSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     physicalMemoryControlBaseDeclarationSlots,
+		connectedPlugAppArmor:    physicalMemoryControlConnectedPlugAppArmor,
+		connectedPlugUDev:        physicalMemoryControlConnectedPlugUDev,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

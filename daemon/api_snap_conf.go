@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -160,7 +161,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	taskset, err := configstate.ConfigureInstalled(st, snapName, patchValues, 0)
+	taskset, err := configstate.ConfigureInstalled(st, naming.InstanceName(snapName), patchValues, 0)
 	if err != nil {
 		// TODO: just return snap-not-installed instead ?
 		if _, ok := err.(*snap.NotInstalledError); ok {

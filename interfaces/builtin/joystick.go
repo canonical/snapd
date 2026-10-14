@@ -98,12 +98,13 @@ func (iface *joystickInterface) UDevConnectedPlug(spec *udev.Specification, plug
 
 func init() {
 	registerIface(&joystickInterface{commonInterface{
-		name:                  "joystick",
-		summary:               joystickSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  joystickBaseDeclarationSlots,
-		connectedPlugAppArmor: joystickConnectedPlugAppArmor,
-		connectedPlugUDev:     joystickConnectedPlugUDev,
+		name:                     "joystick",
+		summary:                  joystickSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     joystickBaseDeclarationSlots,
+		connectedPlugAppArmor:    joystickConnectedPlugAppArmor,
+		connectedPlugUDev:        joystickConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

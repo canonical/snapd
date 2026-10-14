@@ -47,12 +47,13 @@ const remoteprocConnectedPlugAppArmor = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "remoteproc",
-		summary:               remoteprocSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  remoteprocBaseDeclarationPlugs,
-		baseDeclarationSlots:  remoteprocBaseDeclarationSlots,
-		connectedPlugAppArmor: remoteprocConnectedPlugAppArmor,
+		name:                     "remoteproc",
+		summary:                  remoteprocSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     remoteprocBaseDeclarationPlugs,
+		baseDeclarationSlots:     remoteprocBaseDeclarationSlots,
+		connectedPlugAppArmor:    remoteprocConnectedPlugAppArmor,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

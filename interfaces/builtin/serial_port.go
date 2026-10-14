@@ -288,6 +288,10 @@ func (iface *serialPortInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	return false
 }
 
+func (iface *serialPortInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return parallelInstancesSystemOrGadgetSlotErr(slot)
+}
+
 func init() {
 	registerIface(&serialPortInterface{})
 }

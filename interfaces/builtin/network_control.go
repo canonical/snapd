@@ -537,6 +537,8 @@ func init() {
 
 			// affects the plug snap because of mount backend
 			affectsPlugOnRefresh: true,
+
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

@@ -151,11 +151,12 @@ func (iface *mediatekAccelInterface) UDevConnectedPlug(spec *udev.Specification,
 
 func init() {
 	registerIface(&mediatekAccelInterface{commonInterface{
-		name:                 "mediatek-accel",
-		summary:              mediatekAccelSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: mediatekAccelBaseDeclarationSlots,
-		baseDeclarationPlugs: mediatekAccelBaseDeclarationPlugs,
+		name:                     "mediatek-accel",
+		summary:                  mediatekAccelSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     mediatekAccelBaseDeclarationSlots,
+		baseDeclarationPlugs:     mediatekAccelBaseDeclarationPlugs,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

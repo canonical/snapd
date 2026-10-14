@@ -69,13 +69,14 @@ type uinputInterface struct {
 
 func init() {
 	registerIface(&uinputInterface{commonInterface{
-		name:                  "uinput",
-		summary:               uinputSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  uinputBaseDeclarationPlugs,
-		baseDeclarationSlots:  uinputBaseDeclarationSlots,
-		connectedPlugAppArmor: uinputConnectedPlugAppArmor,
-		connectedPlugUDev:     uinputConnectedPlugUDev,
+		name:                     "uinput",
+		summary:                  uinputSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     uinputBaseDeclarationPlugs,
+		baseDeclarationSlots:     uinputBaseDeclarationSlots,
+		connectedPlugAppArmor:    uinputConnectedPlugAppArmor,
+		connectedPlugUDev:        uinputConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

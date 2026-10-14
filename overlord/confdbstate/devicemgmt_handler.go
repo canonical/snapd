@@ -116,7 +116,7 @@ type confdbMessageHandler struct {
 
 // Validate checks that the confdb request message is well-formed and that
 // the sending operator has been granted access to the requested view.
-func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) error {
+func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg devicemgmthandlers.RequestMessage) error {
 	err := checkConfdbFeatureFlag(st)
 	if err != nil {
 		return fmt.Errorf("cannot validate message: %v", err)
@@ -161,7 +161,7 @@ func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, ms
 }
 
 // Apply schedules the confdb action described in the message and returns the change ID.
-func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg *devicemgmthandlers.RequestMessage) (string, error) {
+func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg devicemgmthandlers.RequestMessage) (string, error) {
 	action, err := decodeConfdbAction(msg.Body)
 	if err != nil {
 		return "", err

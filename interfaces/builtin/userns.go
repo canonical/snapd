@@ -95,12 +95,13 @@ func (iface *userNSInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 
 func init() {
 	registerIface(&userNSInterface{commonInterface: commonInterface{
-		name:                 "userns",
-		summary:              userNSSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: userNSBaseDeclarationPlugs,
-		baseDeclarationSlots: userNSBaseDeclarationSlots,
-		connectedPlugSecComp: userNSConnectedPlugSeccomp,
+		name:                     "userns",
+		summary:                  userNSSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     userNSBaseDeclarationPlugs,
+		baseDeclarationSlots:     userNSBaseDeclarationSlots,
+		connectedPlugSecComp:     userNSConnectedPlugSeccomp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

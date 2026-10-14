@@ -191,12 +191,13 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "network-observe",
-		summary:               networkObserveSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  networkObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: networkObserveConnectedPlugAppArmor,
-		connectedPlugSecComp:  networkObserveConnectedPlugSecComp,
+		name:                     "network-observe",
+		summary:                  networkObserveSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     networkObserveBaseDeclarationSlots,
+		connectedPlugAppArmor:    networkObserveConnectedPlugAppArmor,
+		connectedPlugSecComp:     networkObserveConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

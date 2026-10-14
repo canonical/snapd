@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
@@ -411,11 +412,11 @@ func antialias(snapApp string, args []string) (string, []string) {
 	return actualApp, argsOut
 }
 
-func getSnapInfo(snapName string, revision snap.Revision) (info *snap.Info, err error) {
+func getSnapInfo(instanceName naming.InstanceName, revision snap.Revision) (info *snap.Info, err error) {
 	if revision.Unset() {
-		info, err = snap.ReadCurrentInfo(snapName)
+		info, err = snap.ReadCurrentInfo(instanceName)
 	} else {
-		info, err = snap.ReadInfo(snapName, &snap.SideInfo{
+		info, err = snap.ReadInfo(instanceName, &snap.SideInfo{
 			Revision: revision,
 		})
 	}
@@ -590,7 +591,7 @@ func (x *cmdRun) straceOpts() (opts []string, raw bool, err error) {
 func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 	// Remove hint check takes precedence because we want to exit early
 	instanceName := app.Snap.InstanceName()
-	hint, _, err := runinhibit.IsLocked(instanceName.String(), nil)
+	hint, _, err := runinhibit.IsLocked(instanceName, nil)
 	if err != nil {
 		return err
 	}
@@ -624,7 +625,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		os.Setenv("SNAPD_DEBUG", "1")
 		logger.Debugf("enabled debug logging of early snap startup")
 	}
-	snapName, appName := snap.SplitSnapApp(snapApp)
+	instanceName, appName := snap.SplitSnapApp(snapApp)
 
 	var retryCnt int
 	for {
@@ -634,7 +635,7 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 			return fmt.Errorf("race condition detected, snap-run can only retry once")
 		}
 
-		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
+		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, naming.InstanceName(instanceName), appName)
 		if errors.Is(err, errInhibitedForRemove) {
 			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapApp)
 		}

@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapenv"
 
 	// sets up the snap.NewContainerFromDir hook from snapdir
@@ -182,17 +183,17 @@ func execApp(snapTarget, revision, command string, args []string) error {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
 	}
 
-	snapName, appName := snap.SplitSnapApp(snapTarget)
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+	instanceName, appName := snap.SplitSnapApp(snapTarget)
+	info, err := snap.ReadInfo(naming.InstanceName(instanceName), &snap.SideInfo{
 		Revision: rev,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot read info for %q: %s", snapName, err)
+		return fmt.Errorf("cannot read info for %q: %s", instanceName, err)
 	}
 
 	app := info.Apps[appName]
 	if app == nil {
-		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
+		return fmt.Errorf("cannot find app %q in %q", appName, instanceName)
 	}
 
 	cmdAndArgs, err := findCommand(app, command)
@@ -272,14 +273,14 @@ func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, er
 
 // execHook executes a snap hook.
 func execHook(snapTarget string, revision, hookName string) error {
-	snapName, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
+	instanceName, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
 
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return err
 	}
 
-	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+	info, err := snap.ReadInfo(instanceName, &snap.SideInfo{
 		Revision: rev,
 	})
 	if err != nil {
@@ -300,11 +301,11 @@ func execHook(snapTarget string, revision, hookName string) error {
 			return err
 		}
 		hook = component.Hooks[hookName]
-		mountDir = snap.ComponentMountDir(component.Component.ComponentName, component.Revision, info.InstanceName().String())
+		mountDir = snap.ComponentMountDir(component.Component.ComponentName, component.Revision, info.InstanceName())
 	}
 
 	if hook == nil {
-		return fmt.Errorf("cannot find hook %q in %q", hookName, snapName)
+		return fmt.Errorf("cannot find hook %q in %q", hookName, instanceName)
 	}
 
 	// build the environment

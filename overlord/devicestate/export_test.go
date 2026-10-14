@@ -214,7 +214,11 @@ func EnsureClassicModelAfterSeed(m *DeviceManager) error {
 }
 
 func EnsureCloudInitRestricted(m *DeviceManager) error {
-	return m.ensureCloudInitRestricted()
+	deviceCtx, err := ensureDeviceCtxForTest(m)
+	if err != nil {
+		return err
+	}
+	return m.ensureCloudInitRestrictedAfterSeed(deviceCtx)
 }
 
 func ensureDeviceCtxForTest(m *DeviceManager) (snapstate.DeviceContext, error) {
@@ -386,6 +390,7 @@ var (
 
 	RenderExtraSnapdKernelCommandLineFragments = renderExtraSnapdKernelCommandLineFragments
 	KernelCommandLineAppendArgsFromSnapd       = kernelCommandLineAppendArgsFromSnapd
+	InstalledComponentRevision                 = installedComponentRevision
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {

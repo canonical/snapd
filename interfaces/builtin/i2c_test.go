@@ -284,3 +284,7 @@ func (s *I2cInterfaceSuite) TestAutoConnect(c *C) {
 func (s *I2cInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *I2cInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}

@@ -24,11 +24,12 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SnapAndName holds a snap name and a plug or slot name.
 type SnapAndName struct {
-	Snap string
+	Snap naming.InstanceName
 	Name string
 }
 
@@ -44,9 +45,9 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	sn.Name = ""
 	switch len(parts) {
 	case 1:
-		sn.Snap = parts[0]
+		sn.Snap = naming.InstanceName(parts[0])
 	case 2:
-		sn.Snap = parts[0]
+		sn.Snap = naming.InstanceName(parts[0])
 		sn.Name = parts[1]
 		// Reject "snap:" (that should be spelled as "snap")
 		if sn.Name == "" {
@@ -81,6 +82,6 @@ func (sn *SnapAndNameStrict) UnmarshalFlag(value string) error {
 		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or :name)"), value)
 	}
 
-	sn.Snap, sn.Name = parts[0], parts[1]
+	sn.Snap, sn.Name = naming.InstanceName(parts[0]), parts[1]
 	return nil
 }

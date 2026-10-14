@@ -54,13 +54,14 @@ var teeConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "tee",
-		summary:               teeSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  teeBaseDeclarationSlots,
-		baseDeclarationPlugs:  teeBaseDeclarationPlugs,
-		connectedPlugAppArmor: teeConnectedPlugAppArmor,
-		connectedPlugUDev:     teeConnectedPlugUDev,
+		name:                     "tee",
+		summary:                  teeSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     teeBaseDeclarationSlots,
+		baseDeclarationPlugs:     teeBaseDeclarationPlugs,
+		connectedPlugAppArmor:    teeConnectedPlugAppArmor,
+		connectedPlugUDev:        teeConnectedPlugUDev,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

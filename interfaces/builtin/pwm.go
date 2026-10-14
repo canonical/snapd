@@ -140,3 +140,7 @@ func init() {
 		baseDeclarationSlots: pwmBaseDeclarationSlots,
 	}})
 }
+
+func (iface *pwmInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
+	return parallelInstancesSystemOrGadgetSlotErr(slot)
+}

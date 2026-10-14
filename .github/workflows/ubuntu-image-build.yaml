@@ -1,0 +1,32 @@
+name: Build ubuntu-image
+
+on:
+  workflow_call:
+
+jobs:
+  ubuntu-image-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout snapd
+        uses: actions/checkout@v6
+        with:
+          path: snapd
+
+      - name: Checkout ubuntu-image
+        uses: actions/checkout@v6
+        with:
+          repository: canonical/ubuntu-image
+          ref: main
+          path: ubuntu-image
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: ubuntu-image/go.mod
+          cache-dependency-path: ubuntu-image/go.sum
+
+      - name: Build ubuntu-image against local snapd
+        working-directory: ubuntu-image
+        run: |
+          go mod edit -replace="github.com/snapcore/snapd=$GITHUB_WORKSPACE/snapd"
+          go build -mod=mod -o "$RUNNER_TEMP/ubuntu-image" ./cmd/ubuntu-image

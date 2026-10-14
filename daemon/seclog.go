@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -50,4 +51,66 @@ func (un *ucrednet) seclogPeer() seclog.Peer {
 		peer.Runnable = seclog.RunnableFromSecurityTag(tag)
 	}
 	return peer
+}
+
+// authzRecorder accumulates one AUTHZ audit event during an access check.
+// User, peer, and endpoint are set at construction. The access level is set
+// at the start of the check and decides whether an outcome is audited.
+// Record the outcome via recordGranted or recordDenied, then call log.
+type authzRecorder struct {
+	user          seclog.SnapdUser
+	peer          seclog.Peer
+	endpoint      seclog.Endpoint
+	level         accessLevel
+	reasonGranted seclog.GrantReason
+	reasonDenied  seclog.DenialReason
+}
+
+// newAuthzRecorder returns a recorder for one authorization decision.
+func newAuthzRecorder(user seclog.SnapdUser, peer seclog.Peer, endpoint seclog.Endpoint) *authzRecorder {
+	return &authzRecorder{
+		user:     user,
+		peer:     peer,
+		endpoint: endpoint,
+	}
+}
+
+// recordGranted records access granted. reason is one of [seclog.GrantUserAuth],
+// [seclog.GrantRootAuth], or [seclog.GrantPolkitAuth]. When a snap interface
+// connection also contributed, pass iface and the side the calling snap is
+// on. The stored reason is reason.WithInterface(iface, side). A later record
+// replaces any earlier outcome.
+func (rec *authzRecorder) recordGranted(reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
+	rec.reasonDenied = ""
+	rec.reasonGranted = reason.WithInterface(iface, side)
+}
+
+// recordDenied records access denied. reason is one of the [seclog.DenialReason]
+// constants. A later record replaces any earlier outcome.
+func (rec *authzRecorder) recordDenied(reason seclog.DenialReason) {
+	rec.reasonGranted = ""
+	rec.reasonDenied = reason
+}
+
+// log writes the accumulated event. It is a no-op when no outcome was
+// recorded.
+func (rec *authzRecorder) log() {
+	switch {
+	case rec.reasonDenied != "":
+		seclog.LogUnauthorizedAccess(rec.user, rec.peer, rec.endpoint, rec.reasonDenied)
+	case rec.reasonGranted != "":
+		seclog.LogAdminActivity(rec.user, rec.peer, rec.endpoint, rec.reasonGranted)
+	}
+}
+
+func seclogSnapdUserFromAuth(user *auth.UserState) seclog.SnapdUser {
+	if user == nil {
+		return seclog.SnapdUser{}
+	}
+	return seclog.SnapdUser{
+		ID:             int64(user.ID),
+		StoreUserName:  user.Username,
+		StoreUserEmail: user.Email,
+		Expiration:     user.Expiration,
+	}
 }

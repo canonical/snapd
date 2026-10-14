@@ -248,7 +248,7 @@ func (plug *ConnectedPlug) SetAttr(key string, value any) error {
 
 // Ref returns the PlugRef for this plug.
 func (plug *ConnectedPlug) Ref() *PlugRef {
-	return &PlugRef{Snap: plug.Snap().InstanceName().String(), Name: plug.Name()}
+	return &PlugRef{Snap: plug.Snap().InstanceName(), Name: plug.Name()}
 }
 
 // Interface returns the name of the interface for this slot.
@@ -311,7 +311,7 @@ func (slot *ConnectedSlot) SetAttr(key string, value any) error {
 
 // Ref returns the SlotRef for this slot.
 func (slot *ConnectedSlot) Ref() *SlotRef {
-	return &SlotRef{Snap: slot.Snap().InstanceName().String(), Name: slot.Name()}
+	return &SlotRef{Snap: slot.Snap().InstanceName(), Name: slot.Name()}
 }
 
 // Interface returns the name of the interface for this connection.

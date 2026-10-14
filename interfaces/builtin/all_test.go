@@ -488,18 +488,22 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 	found := make(map[string][]string, len(expected))
 	for _, i := range builtin.Interfaces() {
 		if iface, ok := i.(conflictsWithOtherConnectedInterfacesDefiner); ok {
-			found[i.Name()] = iface.ConflictsWithOtherConnectedInterfaces()
+			// Interfaces embedding commonInterface return nil (no
+			// conflict); only record actual conflicting relations.
+			if conflicts := iface.ConflictsWithOtherConnectedInterfaces(); conflicts != nil {
+				found[i.Name()] = conflicts
+			}
 		}
 	}
 
-	c.Assert(found, DeepEquals, found)
+	c.Assert(found, DeepEquals, expected)
 }
 
-// TestParallelInstancesUnsupportedPlugAndSlotInterfaces checks interfaces that
+// TestParallelInstancesUnsupportedOnPlugAndSlotSides checks interfaces that
 // unconditionally block parallel instances for plugs and slots. Interfaces
 // where the decision depends on plug/slot attributes must be tested in their
 // own test file (e.g., see shared-memory).
-func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
+func (s *AllSuite) TestParallelInstancesUnsupportedOnPlugAndSlotSides(c *C) {
 	unsupportedInterfaces := []string{
 		"acrn-support",
 		"adb-support",
@@ -525,10 +529,13 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 		"nvidia-video-driver-libs",
 		"opengl-driver-libs",
 		"opengles-driver-libs",
+		"openvswitch-support",
+		"physical-memory-control",
 		"posix-mq",
 		"ros-snapd-support",
 		"steam-support",
 		"vulkan-driver-libs",
+		"xilinx-dma",
 	}
 	for _, name := range unsupportedInterfaces {
 		iface := builtin.Interface(name)
@@ -542,12 +549,12 @@ func (s *AllSuite) TestParallelInstancesUnsupportedPlugAndSlotInterfaces(c *C) {
 	}
 }
 
-// TestParallelInstancesUnsupportedSlotOnlyInterfaces checks interfaces that
+// TestParallelInstancesUnsupportedOnOnlySlotSide checks interfaces that
 // unconditionally block parallel instances for slots only, while still
 // supporting parallel instances on the plug side. Interfaces where the
 // decision depends on plug/slot attributes must be tested in their own test
 // file (e.g., see shared-memory).
-func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
+func (s *AllSuite) TestParallelInstancesUnsupportedOnOnlySlotSide(c *C) {
 	unsupportedInterfaces := []string{
 		"accel",
 		"account-control",
@@ -574,7 +581,7 @@ func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
 		"custom-device",
 		"daemon-notify",
 		"dcdbas-control",
-		"desktop",
+		"dbus",
 		"desktop-launch",
 		"desktop-legacy",
 		"device-buttons",
@@ -587,7 +594,128 @@ func (s *AllSuite) TestParallelInstancesUnsupportedSlotOnlyInterfaces(c *C) {
 		"framebuffer",
 		"fuse-support",
 		"fwupd",
+		"gconf",
+		"gpg-keys",
+		"gpg-public-keys",
+		"gpio-chardev",
+		"gpio-control",
+		"gpio-memory-control",
+		"gsettings",
+		"hardware-observe",
+		"hardware-random-control",
+		"hardware-random-observe",
+		"home",
+		"hostname-control",
+		"hugepages-control",
+		"intel-mei",
+		"intel-qat",
+		"io-ports-control",
+		"ion-memory-control",
 		"iscsi-initiator",
+		"jack1",
+		"joystick",
+		"juju-client-observe",
+		"kerberos-tickets",
+		"kernel-crypto-api",
+		"kernel-firmware-control",
+		"kernel-module-control",
+		"kernel-module-load",
+		"kernel-module-observe",
+		"kvm",
+		"libvirt",
+		"locale-control",
+		"location-control",
+		"location-observe",
+		"log-observe",
+		"login-session-control",
+		"login-session-observe",
+		"maliit",
+		"media-control",
+		"media-hub",
+		"mediatek-accel",
+		"mir",
+		"modem-manager",
+		"mount-control",
+		"mount-observe",
+		"netlink-audit",
+		"netlink-connector",
+		"network",
+		"network-bind",
+		"network-control",
+		"network-manager",
+		"network-observe",
+		"network-setup-control",
+		"network-setup-observe",
+		"network-status",
+		"nfs-mount",
+		"nvme-control",
+		"ofono",
+		"online-accounts-service",
+		"opengl",
+		"openvswitch",
+		"optical-drive",
+		"packagekit-control",
+		"password-manager-service",
+		"pcscd",
+		"personal-files",
+		"physical-memory-observe",
+		"pipewire",
+		"pkcs11",
+		"podman",
+		"polkit",
+		"polkit-agent",
+		"power-control",
+		"ppp",
+		"process-control",
+		"ptp",
+		"pulseaudio",
+		"raw-input",
+		"raw-usb",
+		"remoteproc",
+		"removable-media",
+		"ros-opt-data",
+		"screencast-legacy",
+		"scsi-generic",
+		"sd-control",
+		"shutdown",
+		"snap-fde-control",
+		"snap-interfaces-requests-control",
+		"snap-refresh-control",
+		"snap-refresh-observe",
+		"snap-themes-control",
+		"snapd-control",
+		"ssh-keys",
+		"ssh-public-keys",
+		"storage-framework-service",
+		"system-backup",
+		"system-files",
+		"system-observe",
+		"system-packages-doc",
+		"system-source-code",
+		"system-trace",
+		"tee",
+		"thumbnailer-service",
+		"time-control",
+		"timeserver-control",
+		"timezone-control",
+		"tpm",
+		"u2f-devices",
+		"ubuntu-download-manager",
+		"ubuntu-pro-control",
+		"udisks2",
+		"uhid",
+		"uinput",
+		"unity7",
+		"unity8",
+		"unity8-calendar",
+		"unity8-contacts",
+		"upower-observe",
+		"usb-gadget",
+		"userns",
+		"vcio",
+		"wayland",
+		"x11",
+		"xdg-portal-permission-store",
 	}
 	for _, name := range unsupportedInterfaces {
 		iface := builtin.Interface(name)

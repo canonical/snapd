@@ -187,6 +187,7 @@ func sideloadOrTrySnap(ctx context.Context, c *Command, body io.ReadCloser, boun
 	flags.RemoveSnapPath = true
 	flags.Unaliased = isTrue(form, "unaliased")
 	flags.IgnoreRunning = isTrue(form, "ignore-running")
+	flags.AllowUnsupportedInstances = isTrue(form, "allow-unsupported-instances")
 	trasactionVals := form.Values["transaction"]
 	flags.Transaction = client.TransactionPerSnap
 	if len(trasactionVals) > 0 {
@@ -341,7 +342,7 @@ func sideloadInfo(st *state.State, uploads []*uploadedContainer, flags sideloadF
 
 	onlyComponents := make([]sideloadComponentInfo, 0)
 	for _, ci := range components {
-		snapName := ci.sideInfo.Component.SnapName
+		snapName := ci.sideInfo.Component.SnapName.String()
 
 		ssi, ok := snapByName(snapName)
 		if !ok {
@@ -440,7 +441,7 @@ func sideloadManySnaps(ctx context.Context, st *state.State, uploads []*uploaded
 	}
 
 	for _, ci := range slInfo.components {
-		snapToComps[ci.sideInfo.Component.SnapName] = append(snapToComps[ci.sideInfo.Component.SnapName], ci.sideInfo.Component.ComponentName)
+		snapToComps[ci.sideInfo.Component.SnapName.String()] = append(snapToComps[ci.sideInfo.Component.SnapName.String()], ci.sideInfo.Component.ComponentName)
 	}
 
 	msg := multiPathInstallMessage(slInfo)
@@ -705,10 +706,10 @@ func readComponentInfoAndDeriveSideInfo(
 			return nil, nil, BadRequest("cannot infer component name from filename: %v", upload.filename, err)
 		}
 		cref = ref
-		instanceName = ref.SnapName
+		instanceName = ref.SnapName.String()
 	} else {
 		snapName, _ := snap.SplitInstanceName(upload.instanceName)
-		cref = naming.NewComponentRef(snapName, upload.componentName)
+		cref = naming.NewComponentRef(naming.SnapName(snapName), upload.componentName)
 	}
 
 	// we should still override the potentially derived snap name with the given
@@ -786,7 +787,7 @@ func readComponentInfoDangerous(
 	// the component
 	instanceName := upload.instanceName
 	if instanceName == "" {
-		instanceName = compInfo.Component.SnapName
+		instanceName = compInfo.Component.SnapName.String()
 	}
 
 	info, apiErr := matchingSnap(instanceName, compInfo.Component)

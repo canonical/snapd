@@ -1,7 +1,7 @@
 Source: ubuntu-core-initramfs
 Section: utils
 Priority: optional
-Maintainer: Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>
+Maintainer: Philip Meulengracht <philip.meulengracht@canonical.com>
 Build-Depends: debhelper-compat (= 13), dh-python,
                fakeroot,
                fonts-ubuntu,

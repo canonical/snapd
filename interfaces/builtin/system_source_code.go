@@ -45,12 +45,13 @@ type systemSourceCodeInterface struct {
 func init() {
 	registerIface(&systemSourceCodeInterface{
 		commonInterface: commonInterface{
-			name:                  "system-source-code",
-			summary:               systemSourceCodeSummary,
-			implicitOnCore:        true,
-			implicitOnClassic:     true,
-			baseDeclarationSlots:  systemSourceCodeBaseDeclarationSlots,
-			connectedPlugAppArmor: systemSourceCodeConnectedPlugAppArmor,
+			name:                     "system-source-code",
+			summary:                  systemSourceCodeSummary,
+			implicitOnCore:           true,
+			implicitOnClassic:        true,
+			baseDeclarationSlots:     systemSourceCodeBaseDeclarationSlots,
+			connectedPlugAppArmor:    systemSourceCodeConnectedPlugAppArmor,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

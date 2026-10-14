@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/tooling"
 	"github.com/snapcore/snapd/testutil"
@@ -442,7 +443,7 @@ func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
 	}
 }
 
-func MockWaitWhileInhibited(f func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error)) (restore func()) {
+func MockWaitWhileInhibited(f func(ctx context.Context, instanceName naming.InstanceName, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error)) (restore func()) {
 	restore = testutil.Backup(&runinhibitWaitWhileInhibited)
 	runinhibitWaitWhileInhibited = f
 	return restore
@@ -450,7 +451,7 @@ func MockWaitWhileInhibited(f func(ctx context.Context, snapName string, notInhi
 
 func MockInhibitionFlow(flow inhibitionFlow) (restore func()) {
 	old := newInhibitionFlow
-	newInhibitionFlow = func(cli *client.Client, name string) inhibitionFlow {
+	newInhibitionFlow = func(cli *client.Client, name naming.InstanceName) inhibitionFlow {
 		return flow
 	}
 	return func() {

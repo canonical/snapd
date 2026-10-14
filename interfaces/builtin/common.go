@@ -60,6 +60,11 @@ var (
 	// two parallel instances of the providing snap would conflict with each
 	// other for ownership of it.
 	errParallelInstancesUniqueResourceOwner = errors.New("owning a unique global resource cannot have parallel instances")
+	// errParallelInstancesSupportInterfacePlug is used for the plug side of
+	// *-support interfaces. These are very application-specific interfaces
+	// that usually evolve with their own development. Unless specifically
+	// requested, these are currently marked unsupported.
+	errParallelInstancesSupportInterfacePlug = errors.New("*-support interfaces are currently unsupported")
 )
 
 type commonInterface struct {

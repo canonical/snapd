@@ -157,7 +157,7 @@ func (s *createSystemSuite) makeSnapWithComponents(
 			c.Assert(rev.Store(), Equals, true, Commentf("component revision must be from the store if snap's revision is: %q", comp))
 		}
 
-		compPath := snaptest.MakeTestComponent(c, componentYamls[naming.NewComponentRef(name, comp).String()])
+		compPath := snaptest.MakeTestComponent(c, componentYamls[naming.NewComponentRef(naming.SnapName(name), comp).String()])
 
 		cpi := snap.MinimalComponentContainerPlaceInfo(
 			comp,
@@ -176,7 +176,7 @@ func (s *createSystemSuite) makeSnapWithComponents(
 		c.Assert(err, IsNil)
 
 		csi := &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(name, comp),
+			Component: naming.NewComponentRef(naming.SnapName(name), comp),
 			Revision:  compRev,
 		}
 

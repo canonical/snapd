@@ -298,7 +298,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return fmt.Errorf("there was a snapd rollback across the restart")
 		}
 
-		snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName().String())
+		snapdInfo, err := snap.ReadCurrentInfo(snapsup.InstanceName())
 		if err != nil {
 			return fmt.Errorf("cannot get current snapd snap info: %v", err)
 		}
@@ -383,7 +383,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 		if snapsup.InstanceName() != current.InstanceName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
-			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
+			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName().String())
 		}
 	}
 
@@ -661,8 +661,13 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
 	}
-	if err := checkParallelInstancesSupport(st, info); err != nil {
-		return flags, err
+	if !flags.AllowUnsupportedInstances && !snapst.AllowUnsupportedInstances {
+		if err := checkParallelInstancesSupport(st, info); err != nil {
+			if snapst.IsInstalled() {
+				st.Warnf("refresh of snap %q is blocked as it is not supported for parallel instances: %v; use --allow-unsupported-instances to refresh anyway", info.InstanceName(), err)
+			}
+			return flags, err
+		}
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
@@ -1137,7 +1142,7 @@ func ResolveValidationSetsEnforcementError(ctx context.Context, st *state.State,
 	var invComps []string
 	for snapName, cerr := range valErr.ComponentErrors {
 		for compName := range cerr.InvalidComponents {
-			invComps = append(invComps, naming.NewComponentRef(snapName, compName).String())
+			invComps = append(invComps, naming.NewComponentRef(naming.SnapName(snapName), compName).String())
 		}
 	}
 	if len(invComps) != 0 {
@@ -1737,13 +1742,14 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 	// we only toggle validation set enforcement if we are refreshing exactly
 	// one snap
 	toggleIgnoreValidation := (snapst.IgnoreValidation != snapsup.IgnoreValidation) && opts.ExpectOneSnap
+	setAllowUnsupportedInstances := snapsup.AllowUnsupportedInstances && !snapst.AllowUnsupportedInstances && opts.ExpectOneSnap
 
 	// nothing to do, we can leave early
-	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation {
+	if !switchChannel && !switchCohortKey && !toggleIgnoreValidation && !setAllowUnsupportedInstances {
 		return nil, nil
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName().String(), nil, opts.ConflictOptions); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName(), nil, opts.ConflictOptions); err != nil {
 		return nil, err
 	}
 
@@ -1759,7 +1765,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		tasks = append(tasks, switchSnap)
 	}
 
-	if toggleIgnoreValidation {
+	if toggleIgnoreValidation || setAllowUnsupportedInstances {
 		toggle := st.NewTask("toggle-snap-flags", fmt.Sprintf(i18n.G("Toggle snap %q flags"), snapsup.InstanceName()))
 		if snapsupTask == nil {
 			toggle.Set("snap-setup", &snapsup)
@@ -1861,7 +1867,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
 	for instanceName, aliases := range delta {
-		if err := checkChangeConflictIgnoringOneChange(st, instanceName, nil, copts); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, naming.InstanceName(instanceName), nil, copts); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
@@ -2098,7 +2104,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 		return nil, &snap.NotInstalledError{Snap: name}
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
 		return nil, err
 	}
 
@@ -2388,7 +2394,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			continue
 		}
 
-		if err := checkChangeConflictIgnoringOneChange(st, name.String(), &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", name, err)
 		} else {
 			updates = append(updates, name.String())
@@ -2715,7 +2721,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string, device
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, name, nil, ConflictOptions{FromChange: fromChange}); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, naming.InstanceName(name), nil, ConflictOptions{FromChange: fromChange}); err != nil {
 		return nil, err
 	}
 
@@ -2813,7 +2819,7 @@ func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.Ta
 
 	// Switching to a new model base may require regenerating the managed
 	// certificate database.
-	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName().String(), info.Type(), deviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName(), info.Type(), deviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		add(updateCertDB)
 	}
@@ -2900,7 +2906,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, name, nil, ConflictOptions{FromChange: fromChange}); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, naming.InstanceName(name), nil, ConflictOptions{FromChange: fromChange}); err != nil {
 		return nil, err
 	}
 
@@ -2992,7 +2998,7 @@ func Enable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
 		return nil, err
 	}
 
@@ -3055,7 +3061,7 @@ func Disable(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q cannot be disabled", name)
 	}
 
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	if err := CheckChangeConflict(st, naming.InstanceName(name), nil); err != nil {
 		return nil, err
 	}
 
@@ -3119,7 +3125,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName().String()}
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
 		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
@@ -3212,7 +3218,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	instanceName := snapst.InstanceName()
-	if err := CheckChangeConflict(st, instanceName.String(), nil); err != nil {
+	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 		return nil, 0, err
 	}
 
@@ -3531,7 +3537,7 @@ func basesInUseForSequence(st *state.State, snapst *SnapState) ([]string, error)
 	bases := make([]string, 0, len(sis))
 	instanceName := snapst.InstanceName()
 	for _, si := range sis {
-		snapInfo, err := snap.ReadInfo(instanceName.String(), si)
+		snapInfo, err := snap.ReadInfo(instanceName, si)
 		if err == nil {
 			if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
 				continue
@@ -3919,7 +3925,7 @@ func Info(st *state.State, name string, revision snap.Revision) (*snap.Info, err
 	sis := snapst.Sequence.SideInfos()
 	for i := len(sis) - 1; i >= 0; i-- {
 		if si := sis[i]; si.Revision == revision {
-			return readInfo(name, si, 0)
+			return readInfo(naming.InstanceName(name), si, 0)
 		}
 	}
 
@@ -4308,7 +4314,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 	// keep revisions in snap's sequence
 	for instanceName, snapst := range snapStates {
 		for _, rss := range snapst.Sequence.Revisions {
-			keepBlob(snap.MountFile(instanceName, rss.Snap.Revision))
+			keepBlob(snap.MountFile(naming.InstanceName(instanceName), rss.Snap.Revision))
 			for _, comp := range rss.Components {
 				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
 					comp.SideInfo.Revision, naming.InstanceName(instanceName))
@@ -4319,7 +4325,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 
 	// keep revisions in refresh hints
 	for snapName, hint := range refreshHints {
-		keepBlob(snap.MountFile(snapName, hint.Revision()))
+		keepBlob(snap.MountFile(naming.InstanceName(snapName), hint.Revision()))
 	}
 
 	// keep revisions pointed to by a download task in an ongoing change
@@ -4512,7 +4518,7 @@ func unmountSnap(snapst *SnapState) error {
 			}
 		}
 
-		mountDir := snap.MountDir(snapst.InstanceName().String(), rev.Snap.Revision)
+		mountDir := snap.MountDir(snapst.InstanceName(), rev.Snap.Revision)
 		logger.Debugf("unmounting snap %s at %s", snapst.InstanceName(), mountDir)
 		if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
 			return err

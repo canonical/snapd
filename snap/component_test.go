@@ -421,14 +421,14 @@ plugs:
 	c.Assert(err, IsNil)
 
 	c.Check(ci.Component.ComponentName, Equals, "component")
-	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Type, Equals, ctype)
 	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
 	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
-	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.ComponentSideInfo.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Revision, Equals, snap.R(1))
 
 	c.Check(ci.Hooks, HasLen, 3)
@@ -496,14 +496,14 @@ plugs:
 	c.Assert(err, IsNil)
 
 	c.Check(ci.Component.ComponentName, Equals, "component")
-	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Type, Equals, snap.StandardComponent)
 	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
 	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
-	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.ComponentSideInfo.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Revision, Equals, snap.R(1))
 
 	c.Check(ci.Hooks, HasLen, 2)

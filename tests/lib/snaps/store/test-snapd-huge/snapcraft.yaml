@@ -1,0 +1,19 @@
+name: test-snapd-huge
+version: 1.0
+summary: Basic snap that is a huge download
+description: A basic snap that is very big
+base: bare
+build-base: core24
+grade: stable
+confinement: strict
+
+platforms:
+  all:
+    build-on: [amd64]
+    build-for: [all]
+
+parts:
+  payload:
+    plugin: nil
+    override-build: |
+      dd if=/dev/urandom of="$CRAFT_PART_INSTALL/data.bin" bs=1M count=512 status=none

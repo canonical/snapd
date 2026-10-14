@@ -49,16 +49,16 @@ apps:
   plugs: [microceph]
 `
 
-const microcephCoreYaml = `name: core
+const microcephProviderYaml = `name: microceph
 version: 0
-type: os
-slots:
-  microceph:
+apps:
+ app:
+  slots: [microceph]
 `
 
 func (s *MicroCephInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, microcephConsumerYaml, nil, "microceph")
-	s.slot, s.slotInfo = MockConnectedSlot(c, microcephCoreYaml, nil, "microceph")
+	s.slot, s.slotInfo = MockConnectedSlot(c, microcephProviderYaml, nil, "microceph")
 }
 
 func (s *MicroCephInterfaceSuite) TestName(c *C) {
@@ -68,7 +68,7 @@ func (s *MicroCephInterfaceSuite) TestName(c *C) {
 func (s *MicroCephInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 	slot := &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
+		Snap:      &snap.Info{SuggestedName: "microceph"},
 		Name:      "microceph",
 		Interface: "microceph",
 	}
@@ -87,6 +87,19 @@ func (s *MicroCephInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/microceph/common/state/control.socket rw,\n")
+}
+
+func (s *MicroCephInterfaceSuite) TestAppArmorSpecParallelInstance(c *C) {
+	// a parallel installed microceph snap must grant access to its own
+	// socket, not the one of the non-instanced microceph snap
+	s.slotInfo.Snap.InstanceKey = "foo"
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/microceph_foo/common/state/control.socket rw,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "/var/snap/microceph/common/state/control.socket rw,\n")
 }
 
 func (s *MicroCephInterfaceSuite) TestSecCompSpec(c *C) {

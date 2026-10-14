@@ -44,11 +44,12 @@ accept4
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "libvirt",
-		summary:               libvirtSummary,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  libvirtBaseDeclarationSlots,
-		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
-		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
+		name:                     "libvirt",
+		summary:                  libvirtSummary,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     libvirtBaseDeclarationSlots,
+		connectedPlugAppArmor:    libvirtConnectedPlugAppArmor,
+		connectedPlugSecComp:     libvirtConnectedPlugSecComp,
+		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

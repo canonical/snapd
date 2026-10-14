@@ -335,12 +335,13 @@ func (iface *openglInterface) MountConnectedPlug(spec *mount.Specification, plug
 func init() {
 	registerIface(&openglInterface{
 		commonInterface: commonInterface{
-			name:                 "opengl",
-			summary:              openglSummary,
-			implicitOnCore:       true,
-			implicitOnClassic:    true,
-			baseDeclarationSlots: openglBaseDeclarationSlots,
-			connectedPlugUDev:    openglConnectedPlugUDev,
+			name:                     "opengl",
+			summary:                  openglSummary,
+			implicitOnCore:           true,
+			implicitOnClassic:        true,
+			baseDeclarationSlots:     openglBaseDeclarationSlots,
+			connectedPlugUDev:        openglConnectedPlugUDev,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

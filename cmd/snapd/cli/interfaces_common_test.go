@@ -34,12 +34,12 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 	// Typical
 	err := sn.UnmarshalFlag("snap:name")
 	c.Assert(err, IsNil)
-	c.Check(sn.Snap, Equals, "snap")
+	c.Check(sn.Snap.String(), Equals, "snap")
 	c.Check(sn.Name, Equals, "name")
 	// Abbreviated
 	err = sn.UnmarshalFlag("snap")
 	c.Assert(err, IsNil)
-	c.Check(sn.Snap, Equals, "snap")
+	c.Check(sn.Snap.String(), Equals, "snap")
 	c.Check(sn.Name, Equals, "")
 	// Invalid
 	for _, input := range []string{
@@ -50,7 +50,7 @@ func (s *SnapAndNameSuite) TestUnmarshalFlag(c *C) {
 	} {
 		err = sn.UnmarshalFlag(input)
 		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or snap\)`)
-		c.Check(sn.Snap, Equals, "")
+		c.Check(sn.Snap.String(), Equals, "")
 		c.Check(sn.Name, Equals, "")
 	}
 }
@@ -61,13 +61,13 @@ func (s *SnapAndNameSuite) TestUnmarshalFlagStrict(c *C) {
 	// Typical
 	err := sn.UnmarshalFlag("snap:name")
 	c.Assert(err, IsNil)
-	c.Check(sn.Snap, Equals, "snap")
+	c.Check(sn.Snap.String(), Equals, "snap")
 	c.Check(sn.Name, Equals, "name")
 
 	// Core snap
 	err = sn.UnmarshalFlag(":name")
 	c.Assert(err, IsNil)
-	c.Check(sn.Snap, Equals, "")
+	c.Check(sn.Snap.String(), Equals, "")
 	c.Check(sn.Name, Equals, "name")
 
 	// Invalid
@@ -80,7 +80,7 @@ func (s *SnapAndNameSuite) TestUnmarshalFlagStrict(c *C) {
 	} {
 		err = sn.UnmarshalFlag(input)
 		c.Assert(err, ErrorMatches, `invalid value: ".*" \(want snap:name or :name\)`)
-		c.Check(sn.Snap, Equals, "")
+		c.Check(sn.Snap.String(), Equals, "")
 		c.Check(sn.Name, Equals, "")
 	}
 }

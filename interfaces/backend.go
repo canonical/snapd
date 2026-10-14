@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -185,7 +186,7 @@ type SecurityBackend interface {
 	// Remove removes and unloads security artefacts of a given snap.
 	//
 	// This method should be called during the process of removing a snap.
-	Remove(snapName string) error
+	Remove(instanceName naming.InstanceName) error
 
 	// NewSpecification returns a new specification associated with this backend.
 	NewSpecification(*SnapAppSet, ConfinementOptions) Specification
@@ -206,7 +207,7 @@ type ReinitializableSecurityBackend interface {
 type SecurityBackendSetupMany interface {
 	// SetupMany creates and loads apparmor profiles of multiple snaps. It tries to process all snaps and doesn't interrupt processing
 	// on errors of individual snaps.
-	SetupMany(appSets []*SnapAppSet, confinement func(snapName string) ConfinementOptions, sctx func(snapName string) SetupContext, repo *Repository, tm timings.Measurer) []error
+	SetupMany(appSets []*SnapAppSet, confinement func(instanceName naming.InstanceName) ConfinementOptions, sctx func(instanceName naming.InstanceName) SetupContext, repo *Repository, tm timings.Measurer) []error
 }
 
 // SecurityBackendDiscardingLate interface may be implemented by backends that
@@ -216,7 +217,7 @@ type SecurityBackendSetupMany interface {
 type SecurityBackendDiscardingLate interface {
 	// RemoveLate removes the security profiles of a snap at the very last
 	// step of the remove change.
-	RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error
+	RemoveLate(instanceName naming.InstanceName, rev snap.Revision, typ snap.Type) error
 }
 
 // DelayedEffect wraps a delayed side effect ID.

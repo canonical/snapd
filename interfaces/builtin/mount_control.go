@@ -697,13 +697,14 @@ func (iface *mountControlInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) 
 func init() {
 	registerIface(&mountControlInterface{
 		commonInterface: commonInterface{
-			name:                 "mount-control",
-			summary:              mountControlSummary,
-			baseDeclarationPlugs: mountControlBaseDeclarationPlugs,
-			baseDeclarationSlots: mountControlBaseDeclarationSlots,
-			implicitOnCore:       true,
-			implicitOnClassic:    true,
-			connectedPlugSecComp: mountControlConnectedPlugSecComp,
+			name:                     "mount-control",
+			summary:                  mountControlSummary,
+			baseDeclarationPlugs:     mountControlBaseDeclarationPlugs,
+			baseDeclarationSlots:     mountControlBaseDeclarationSlots,
+			implicitOnCore:           true,
+			implicitOnClassic:        true,
+			connectedPlugSecComp:     mountControlConnectedPlugSecComp,
+			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		},
 	})
 }

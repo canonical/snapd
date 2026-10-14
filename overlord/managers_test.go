@@ -79,6 +79,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
+	fdestatebackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -106,6 +107,7 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
@@ -3420,7 +3422,7 @@ apps:
 
 	ts, snapName, err := snapstate.RemoveManualAlias(st, "foo_")
 	c.Assert(err, IsNil)
-	c.Check(snapName, Equals, "foo")
+	c.Check(snapName.String(), Equals, "foo")
 	chg = st.NewChange("unalias", "...")
 	chg.AddAll(ts)
 
@@ -4187,23 +4189,23 @@ assumes: [something-that-is-not-provided]
 }
 
 type storeCtxSetupSuite struct {
+	testutil.BaseTest
+
 	o  *overlord.Overlord
 	sc store.DeviceAndAuthContext
 
-	storeSigning   *assertstest.StoreStack
-	restoreTrusted func()
+	storeSigning *assertstest.StoreStack
 
 	brands *assertstest.SigningAccounts
 
 	model  *asserts.Model
 	serial *asserts.Serial
-
-	restoreBackends func()
 }
 
 func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	c.Assert(err, IsNil)
 
@@ -4215,7 +4217,7 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	defer r()
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
+	s.AddCleanup(sysdb.InjectTrusted(s.storeSigning.Trusted))
 
 	s.brands = assertstest.NewSigningAccounts(s.storeSigning)
 	s.brands.Register("my-brand", brandPrivKey, map[string]any{
@@ -4239,7 +4241,10 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.serial = serial.(*asserts.Serial)
 
-	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
+
+	// mock fdstore so that FDEManager initialization doesn't fail
+	s.AddCleanup(fdestatebackend.MockFdstoreNew(func() fdstore.Store { return &mockFdstore{} }))
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
@@ -4252,12 +4257,6 @@ func (s *storeCtxSetupSuite) SetUpTest(c *C) {
 
 	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
-}
-
-func (s *storeCtxSetupSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
-	s.restoreBackends()
-	s.restoreTrusted()
 }
 
 func (s *storeCtxSetupSuite) TestStoreID(c *C) {
@@ -4443,9 +4442,9 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	var slotRef interfaces.SlotRef
 	c.Assert(connectTask.Get("plug", &plugRef), IsNil)
 	c.Assert(connectTask.Get("slot", &slotRef), IsNil)
-	c.Assert(plugRef.Snap, Equals, "snap1")
+	c.Assert(plugRef.Snap.String(), Equals, "snap1")
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
-	c.Assert(slotRef.Snap, Equals, "snap2")
+	c.Assert(slotRef.Snap.String(), Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
 	// setup-profiles is expected to run after connect tasks
 	waits := setupProfilesTask.WaitTasks()
@@ -14760,11 +14759,11 @@ func makeMockRepoWithConnectedSnaps(c *C, repo *interfaces.Repository, info11, c
 	c.Assert(err, IsNil)
 
 	_, err = repo.Connect(&interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName().String(), Name: ifname},
-		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName().String(), Name: ifname},
+		PlugRef: interfaces.PlugRef{Snap: info11.InstanceName(), Name: ifname},
+		SlotRef: interfaces.SlotRef{Snap: core11.InstanceName(), Name: ifname},
 	}, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
-	conns, err := repo.Connected(info11.RealName, ifname)
+	conns, err := repo.Connected(naming.InstanceName(info11.RealName), ifname)
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 }

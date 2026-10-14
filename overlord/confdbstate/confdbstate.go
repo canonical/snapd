@@ -594,7 +594,7 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map
 	var custodians []string
 	custodianPlugs := make(map[string]*snap.PlugInfo)
 	for _, plug := range plugs {
-		conns, err := repo.Connected(plug.Snap.InstanceName().String(), plug.Name)
+		conns, err := repo.Connected(plug.Snap.InstanceName(), plug.Name)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -644,7 +644,7 @@ func getPlugsAffectedByPaths(st *state.State, dbSchema *confdb.Schema, storagePa
 
 	affectedPlugs := make(map[string][]*snap.PlugInfo)
 	for _, plug := range plugs {
-		conns, err := repo.Connected(plug.Snap.InstanceName().String(), plug.Name)
+		conns, err := repo.Connected(plug.Snap.InstanceName(), plug.Name)
 		if err != nil {
 			return nil, err
 		}

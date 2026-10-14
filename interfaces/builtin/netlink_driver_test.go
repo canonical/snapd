@@ -277,3 +277,7 @@ func (s *NetlinkDriverInterfaceSuite) TestSecCompConnectedPlug(c *C) {
 	c.Assert(spec2.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
 	c.Assert(spec2.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `socket AF_NETLINK - 100`)
 }
+
+func (s *NetlinkDriverInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
+}

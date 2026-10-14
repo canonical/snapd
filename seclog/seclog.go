@@ -21,10 +21,12 @@ package seclog
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
+	"syscall"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/restart"
 )
 
 // Level is the importance or severity of a log event.
@@ -129,49 +131,113 @@ func LogLoggerDisabled() {
 	)
 }
 
-// LogSystemRestartSnapd logs a controlled snapd daemon restart using the
-// global security logger. snapdVersion is the version of the exiting snapd
-// process. reason is a [restart.RestartReason].
-func LogSystemRestartSnapd(snapdVersion string, reason restart.RestartReason) {
+// LogSystemRestartSnapd logs a snapd daemon restart using the global
+// security logger. snapdVersion is the version of the exiting snapd
+// process. reason is the sys_restart_snapd reason attribute. An empty
+// reason is recorded as "<unknown>".
+func LogSystemRestartSnapd(snapdVersion, reason string) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	if snapdVersion == "" {
 		snapdVersion = unknown
 	}
-	reasonStr := string(reason)
-	if reasonStr == "" {
-		reasonStr = unknown
+	if reason == "" {
+		reason = unknown
 	}
 
 	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_restart_snapd", Level: LevelInfo},
-		fmt.Sprintf("Snapd restart with reason %s", reasonStr),
+		fmt.Sprintf("Snapd restart with reason %s", reason),
 		Attr{Key: "snapd_version", Value: snapdVersion},
-		Attr{Key: "reason", Value: reasonStr},
+		Attr{Key: "reason", Value: reason},
 	)
 }
 
 // LogSystemStandbySnapd logs a completed socket-activation standby using
 // the global security logger. snapdVersion is the version of the exiting
-// snapd process. reason is a [restart.RestartReason].
-func LogSystemStandbySnapd(snapdVersion string, reason restart.RestartReason) {
+// snapd process. reason is the sys_standby_snapd reason attribute. An
+// empty reason is recorded as "<unknown>".
+func LogSystemStandbySnapd(snapdVersion, reason string) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	if snapdVersion == "" {
 		snapdVersion = unknown
 	}
-	reasonStr := string(reason)
-	if reasonStr == "" {
-		reasonStr = unknown
+	if reason == "" {
+		reason = unknown
 	}
 
 	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_standby_snapd", Level: LevelInfo},
-		fmt.Sprintf("Snapd standby with reason %s", reasonStr),
+		fmt.Sprintf("Snapd standby with reason %s", reason),
 		Attr{Key: "snapd_version", Value: snapdVersion},
-		Attr{Key: "reason", Value: reasonStr},
+		Attr{Key: "reason", Value: reason},
+	)
+}
+
+// LogSystemExitSignalSnapd logs the SIGINT or SIGTERM that initiated the snapd
+// exit. Logging this event does not exclude a snapd restart, standby, or a
+// system reboot, halt, or poweroff.
+func LogSystemExitSignalSnapd(snapdVersion string, sig os.Signal) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	// SIGINT and SIGTERM are recorded by name, with the number in brackets in
+	// the description. Any other signal is its number.
+	var exitSignal string
+	var signalNumber string
+	if s, ok := sig.(syscall.Signal); ok {
+		signalNumber = strconv.Itoa(int(s))
+	}
+	switch sig {
+	case syscall.SIGTERM:
+		exitSignal = "SIGTERM"
+	case syscall.SIGINT:
+		exitSignal = "SIGINT"
+	default:
+		if signalNumber != "" {
+			exitSignal = signalNumber
+		} else {
+			exitSignal = unknown
+		}
+	}
+	description := fmt.Sprintf("Snapd received exit signal %s", exitSignal)
+	if signalNumber != "" && exitSignal != signalNumber {
+		description = fmt.Sprintf("%s (%s)", description, signalNumber)
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_exit_signal_snapd", Level: LevelInfo},
+		description,
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "exit_signal", Value: exitSignal},
+	)
+}
+
+// LogSystemStartupSnapd logs a snapd daemon startup using the global
+// security logger. snapdVersion is the version of this snapd process.
+// bootID is the kernel boot id for this boot.
+func LogSystemStartupSnapd(snapdVersion, bootID string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if snapdVersion == "" {
+		snapdVersion = unknown
+	}
+	if bootID == "" {
+		bootID = unknown
+	}
+
+	globalLogger.LogEvent(
+		Event{Category: "SYS", Name: "sys_startup_snapd", Level: LevelInfo},
+		"Snapd startup",
+		Attr{Key: "snapd_version", Value: snapdVersion},
+		Attr{Key: "boot_id", Value: bootID},
 	)
 }
 
