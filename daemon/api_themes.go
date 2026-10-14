@@ -110,14 +110,14 @@ func installedThemes(overlord *overlord.Overlord) (gtkThemes, iconThemes, soundT
 
 var badPkgCharRegexp = regexp.MustCompile(`[^a-z0-9]+`)
 
-func themePackageCandidates(prefix, themeName string) []string {
+func themePackageCandidates(prefix, themeName string) []naming.InstanceName {
 	themeName = strings.ToLower(themeName)
 	themeName = badPkgCharRegexp.ReplaceAllString(themeName, "-")
 	themeName = strings.Trim(themeName, "-")
 
-	var packages []string
+	var packages []naming.InstanceName
 	for themeName != "" {
-		packages = append(packages, prefix+themeName)
+		packages = append(packages, naming.InstanceName(prefix+themeName))
 		pos := strings.LastIndexByte(themeName, '-')
 		if pos < 0 {
 			break
@@ -141,7 +141,7 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 		for _, name := range themePackageCandidates(prefix, theme) {
 			var ch *channel.Channel
 			var err error
-			if _, ch, err = theStore.SnapExists(ctx, store.SnapSpec{Name: name}, user); err == store.ErrSnapNotFound {
+			if _, ch, err = theStore.SnapExists(ctx, store.SnapSpec{Name: name.String()}, user); err == store.ErrSnapNotFound {
 				continue
 			} else if err != nil {
 				return err
@@ -151,7 +151,7 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 			// (latest or default track).
 			if ch.Risk == "stable" {
 				status[theme] = themeAvailable
-				candidateSnaps[naming.InstanceName(name)] = true
+				candidateSnaps[name] = true
 				break
 			}
 		}

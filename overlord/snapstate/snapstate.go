@@ -1940,19 +1940,19 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 	}
 
 	// snaps with updates
-	updating := make(map[string]bool, len(updates))
+	updating := make(map[naming.InstanceName]bool, len(updates))
 	for _, up := range updates {
 		ok, err := up.satisfied()
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
-		updating[up.Setup.InstanceName().String()] = !ok
+		updating[up.Setup.InstanceName()] = !ok
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
 	for instanceName := range changed {
-		if updating[instanceName.String()] {
+		if updating[instanceName] {
 			delete(changed, instanceName)
 		}
 	}
@@ -1965,13 +1965,13 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 	}
 	if refreshAll {
 		for instanceName, aliases := range dropped {
-			if !updating[instanceName.String()] {
+			if !updating[instanceName] {
 				mustPrune[instanceName] = aliases
 			}
 		}
 	} else {
 		for _, name := range requested {
-			if !updating[name.String()] && dropped[name] != nil {
+			if !updating[name] && dropped[name] != nil {
 				mustPrune[name] = dropped[name]
 			}
 		}

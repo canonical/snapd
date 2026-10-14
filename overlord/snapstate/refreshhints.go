@@ -250,7 +250,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...naming.InstanceName) error
 		}
 	}
 
-	var candidates map[string]*refreshCandidate
+	var candidates map[naming.InstanceName]*refreshCandidate
 
 	err = st.Get("refresh-candidates", &candidates)
 	if err != nil {
@@ -261,7 +261,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...naming.InstanceName) error
 	}
 
 	for _, snapName := range snaps {
-		delete(candidates, snapName.String())
+		delete(candidates, snapName)
 		abortMonitoring(st, snapName.String())
 	}
 
