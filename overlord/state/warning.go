@@ -325,6 +325,9 @@ func (s *State) allWarningsNow() ([]*Warning, time.Time) {
 	// we return, and it's impossible to add a new notice to the state with a
 	// timestamp before now.
 	now := timeNow().UTC()
+	if last := s.getLastNoticeTimestamp(); last.After(now) {
+		now = last
+	}
 	noticeFilter := &NoticeFilter{Types: []NoticeType{WarningNotice}}
 	allWarningNotices := s.doNotices(noticeFilter)
 
