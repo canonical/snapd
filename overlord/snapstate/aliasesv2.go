@@ -320,7 +320,7 @@ func addAliasConflicts(st *state.State, skipSnap naming.InstanceName, testAliase
 // conflicting snaps and aliases for alias conflicts.
 // changing can specify about to be set states for some snaps that will
 // then be considered.
-func checkAliasesConflicts(st *state.State, snapName naming.InstanceName, candAutoDisabled bool, candAliases map[string]*AliasTarget, changing map[string]*SnapState) (conflicts map[string][]string, err error) {
+func checkAliasesConflicts(st *state.State, instanceName naming.InstanceName, candAutoDisabled bool, candAliases map[string]*AliasTarget, changing map[string]*SnapState) (conflicts map[string][]string, err error) {
 	var snapNames map[string]*json.RawMessage
 	err = st.Get("snaps", &snapNames)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -342,7 +342,7 @@ func checkAliasesConflicts(st *state.State, snapName naming.InstanceName, candAu
 		if snapNames[namespace] != nil {
 			return nil, &AliasConflictError{
 				Alias:  alias,
-				Snap:   snapName.String(),
+				Snap:   instanceName.String(),
 				Reason: fmt.Sprintf("it conflicts with the command namespace of installed snap %q", namespace),
 			}
 		}
@@ -350,11 +350,11 @@ func checkAliasesConflicts(st *state.State, snapName naming.InstanceName, candAu
 
 	// check against enabled aliases
 	conflicts = make(map[string][]string)
-	if err := addAliasConflicts(st, snapName, enabled, conflicts, changing); err != nil {
+	if err := addAliasConflicts(st, instanceName, enabled, conflicts, changing); err != nil {
 		return nil, err
 	}
 	if len(conflicts) != 0 {
-		return conflicts, &AliasConflictError{Snap: snapName.String(), Conflicts: conflicts}
+		return conflicts, &AliasConflictError{Snap: instanceName.String(), Conflicts: conflicts}
 	}
 	return nil, nil
 }

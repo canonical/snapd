@@ -1584,9 +1584,9 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 
 	if len(mustPruneAutoAliases) != 0 {
 		var err error
-		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, opts.ConflictOptions, func(snapName naming.InstanceName, _ *state.TaskSet) {
-			if nameSet[snapName.String()] {
-				reportUpdated[snapName] = true
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, opts.ConflictOptions, func(instanceName naming.InstanceName, _ *state.TaskSet) {
+			if nameSet[instanceName.String()] {
+				reportUpdated[instanceName] = true
 			}
 		})
 		if err != nil {
@@ -1596,11 +1596,11 @@ func doUpdate(st *state.State, requested []naming.InstanceName, updates []update
 	}
 
 	// wait for the auto-alias prune tasks as needed
-	scheduleUpdate := func(snapName naming.InstanceName, ts *state.TaskSet) {
-		if pruningAutoAliasesTs != nil && (mustPruneAutoAliases[snapName] != nil || transferTargets[snapName]) {
+	scheduleUpdate := func(instanceName naming.InstanceName, ts *state.TaskSet) {
+		if pruningAutoAliasesTs != nil && (mustPruneAutoAliases[instanceName] != nil || transferTargets[instanceName]) {
 			ts.WaitAll(pruningAutoAliasesTs)
 		}
-		reportUpdated[snapName] = true
+		reportUpdated[instanceName] = true
 	}
 
 	// first snapd, core, kernel, bases, then rest
@@ -1983,7 +1983,7 @@ func autoAliasesUpdate(st *state.State, requested []naming.InstanceName, updates
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(snapName naming.InstanceName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
+func resolveChannel(instanceName naming.InstanceName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return oldChannel, nil
 	}
@@ -1992,10 +1992,10 @@ func resolveChannel(snapName naming.InstanceName, oldChannel, newChannel string,
 	model := deviceCtx.Model()
 
 	var pinnedTrack, which string
-	if snapName.String() == model.Kernel() && model.KernelTrack() != "" {
+	if instanceName.String() == model.Kernel() && model.KernelTrack() != "" {
 		pinnedTrack, which = model.KernelTrack(), "kernel"
 	}
-	if snapName.String() == model.Gadget() && model.GadgetTrack() != "" {
+	if instanceName.String() == model.Gadget() && model.GadgetTrack() != "" {
 		pinnedTrack, which = model.GadgetTrack(), "gadget"
 	}
 

@@ -260,9 +260,9 @@ func pruneRefreshCandidates(st *state.State, snaps ...naming.InstanceName) error
 		return err
 	}
 
-	for _, snapName := range snaps {
-		delete(candidates, snapName)
-		abortMonitoring(st, snapName.String())
+	for _, instanceName := range snaps {
+		delete(candidates, instanceName)
+		abortMonitoring(st, instanceName.String())
 	}
 
 	if len(candidates) == 0 {

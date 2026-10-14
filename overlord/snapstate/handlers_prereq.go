@@ -574,9 +574,9 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 	return ts, nil
 }
 
-func maybeUpdateContentProvider(t *state.Task, snapName naming.InstanceName, contentAttrs []string, opts Options) (*state.TaskSet, error) {
+func maybeUpdateContentProvider(t *state.Task, instanceName naming.InstanceName, contentAttrs []string, opts Options) (*state.TaskSet, error) {
 	st := t.State()
-	provided, err := hasAllContentAttrs(st, snapName.String(), contentAttrs)
+	provided, err := hasAllContentAttrs(st, instanceName.String(), contentAttrs)
 	if err != nil {
 		return nil, err
 	}
@@ -585,7 +585,7 @@ func maybeUpdateContentProvider(t *state.Task, snapName naming.InstanceName, con
 	}
 
 	ts, err := UpdateOne(context.TODO(), st, StoreUpdateGoal(StoreUpdate{
-		InstanceName: snapName,
+		InstanceName: instanceName,
 	}), nil, opts)
 	if err != nil {
 		var cerr *ChangeConflictError
@@ -594,7 +594,7 @@ func maybeUpdateContentProvider(t *state.Task, snapName naming.InstanceName, con
 			// cannot handle this during seeding, so expect the
 			// ChangeConflictError in this scenario.
 			if cerr.ChangeKind == "seed" {
-				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), cerr)
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", instanceName, strings.Join(contentAttrs, ", "), cerr)
 				return nil, nil
 			}
 
@@ -603,7 +603,7 @@ func maybeUpdateContentProvider(t *state.Task, snapName naming.InstanceName, con
 
 		// don't propagate error to avoid failing the main install since the
 		// content provider is (for now) a soft dependency
-		t.Logf("cannot update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
+		t.Logf("cannot update %q, will not have required content %q: %s", instanceName, strings.Join(contentAttrs, ", "), err)
 		return nil, nil
 	}
 

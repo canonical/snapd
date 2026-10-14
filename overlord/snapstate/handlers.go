@@ -4397,7 +4397,7 @@ func changeReadyUpToTask(task *state.Task, considerTasks map[string]bool) bool {
 // finds, ignoring tasks in considerTasks (e.g., unrelated tasks in split refresh).
 // It stops when finding the given task, and resetting things when finding a different
 // re-refresh task (that indicates the end of a batch that isn't the given one).
-func refreshedSnaps(reTask *state.Task, considerTasks map[string]bool) (snapNames []naming.InstanceName, failed bool, err error) {
+func refreshedSnaps(reTask *state.Task, considerTasks map[string]bool) (instanceNames []naming.InstanceName, failed bool, err error) {
 	// NOTE nothing requires reTask to be a check-rerefresh task, nor even to be in
 	// a refresh-ish change, but it doesn't make much sense to call this otherwise.
 	tid := reTask.ID()
@@ -4456,7 +4456,7 @@ func refreshedSnaps(reTask *state.Task, considerTasks map[string]bool) (snapName
 		}
 	}
 
-	snapNames = make([]naming.InstanceName, 0, len(laneSnaps))
+	instanceNames = make([]naming.InstanceName, 0, len(laneSnaps))
 	for lane, snaps := range laneSnaps {
 		// Is it one of the failed lanes?
 		if failedLanes[lane] {
@@ -4464,10 +4464,10 @@ func refreshedSnaps(reTask *state.Task, considerTasks map[string]bool) (snapName
 			continue
 		}
 		for name := range snaps {
-			snapNames = append(snapNames, naming.InstanceName(name))
+			instanceNames = append(instanceNames, naming.InstanceName(name))
 		}
 	}
-	return snapNames, failed, nil
+	return instanceNames, failed, nil
 }
 
 // reRefreshSetup holds the necessary details to re-refresh snaps that need it

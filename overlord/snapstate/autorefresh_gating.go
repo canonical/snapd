@@ -694,12 +694,12 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		affectedInfo.AffectingSnaps[affectedBy] = true
 	}
 
-	for _, snapName := range updates {
-		snapSt := allSnaps[naming.InstanceName(snapName)]
+	for _, instanceName := range updates {
+		snapSt := allSnaps[naming.InstanceName(instanceName)]
 		if snapSt == nil {
 			// this could happen if an update for inactive snap was requested (those
 			// are filtered out above).
-			return nil, fmt.Errorf("internal error: no state for snap %q", snapName)
+			return nil, fmt.Errorf("internal error: no state for snap %q", instanceName)
 		}
 		up, err := snapSt.CurrentInfo()
 		if err != nil {
