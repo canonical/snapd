@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/restart"
 )
 
 // Level is the importance or severity of a log event.
