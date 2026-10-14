@@ -406,6 +406,14 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
 	}
+	var data map[string]string
+	if options.Data != nil {
+		// TODO:GOVERSION:1.21: simplify to `maps.Clone()`
+		data = make(map[string]string, len(options.Data))
+		for k, v := range options.Data {
+			data[k] = v
+		}
+	}
 	now = now.UTC()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
@@ -414,12 +422,17 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
+		if userID != nil {
+			// TODO:GOVERSION:1.26: simplify to `userID = new(*userID)`
+			copiedUserID := *userID
+			userID = &copiedUserID
+		}
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, data, options.RepeatAfter, defaultNoticeExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(now, data, options.RepeatAfter)
 		s.notices[uniqueKey] = notice
 	}
 

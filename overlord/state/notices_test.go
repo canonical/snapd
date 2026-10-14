@@ -1112,6 +1112,30 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(lastOccurred4.After(lastOccurred3), Equals, true)
 }
 
+
+func (s *noticesSuite) TestAddNoticeCopiesInput(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	uid := uint32(1000)
+	data := map[string]string{"key": "value"}
+	_, err := st.AddNotice(&uid, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{Data: data})
+	c.Assert(err, IsNil)
+
+	uid = 2000
+	data["key"] = "changed"
+	data["new-key"] = "new-value"
+
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	userID, isSet := notices[0].UserID()
+	c.Assert(isSet, Equals, true)
+	c.Assert(userID, Equals, uint32(1000))
+	n := noticeToMap(c, notices[0])
+	c.Assert(n["last-data"], DeepEquals, map[string]any{"key": "value"})
+}
+
 // noticeToMap converts a Notice to a map using a JSON marshal-unmarshal round trip.
 func noticeToMap(c *C, notice *state.Notice) map[string]any {
 	buf, err := json.Marshal(notice)
