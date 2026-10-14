@@ -30,10 +30,13 @@ environment:
     OVERRIDES_FILE: /etc/systemd/system/snapd.service.d/local.conf
 
 prepare: |
-    python3 "$PWD/enable-audit.py"
+    python3 "$TESTSLIB/enable-audit.py"
 
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
+        # systemd refuses to listen on this socket while journald is already
+        # running, so journald has to be stopped first. That closes snapd's
+        # stdout/stderr. The snapd restart below replaces that process.
         systemctl stop systemd-journald.service
         systemctl start systemd-journald-audit.socket
         systemctl restart systemd-journald.service
