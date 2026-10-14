@@ -698,7 +698,7 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 			continue
 		}
 		localSnaps = append(localSnaps, &tooling.CurrentSnap{
-			InstanceName: sn.Info.InstanceName(),
+			InstanceName: sn.Info.SnapName().AsInstanceName(),
 			SnapID:       sn.Info.ID(),
 			Revision:     sn.Info.Revision,
 			Epoch:        sn.Info.Epoch,
