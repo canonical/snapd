@@ -1918,12 +1918,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	if err != nil {
 		return err
 	}
-	var parallelInstanceMigrationPending bool
-	if err := t.Get(allowUnsupportedInstancesMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, newInfo) != nil {
-		snapst.AllowUnsupportedInstances = true
+	if snapst.InstanceKey != "" && !snapst.AllowUnsupportedInstances {
+		var parallelInstanceMigrationPending bool
+		if err := t.Get(allowUnsupportedInstancesMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, newInfo) != nil {
+			snapst.AllowUnsupportedInstances = true
+		}
 	}
 
 	// record type
@@ -2609,12 +2611,14 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		snapst.Base = oldInfo.Base
-		var parallelInstanceMigrationPending bool
-		if err := t.Get(allowUnsupportedInstancesMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, oldInfo) != nil {
-			snapst.AllowUnsupportedInstances = true
+		if snapst.InstanceKey != "" && !snapst.AllowUnsupportedInstances {
+			var parallelInstanceMigrationPending bool
+			if err := t.Get(allowUnsupportedInstancesMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, oldInfo) != nil {
+				snapst.AllowUnsupportedInstances = true
+			}
 		}
 	}
 
