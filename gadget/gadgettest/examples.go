@@ -1423,6 +1423,20 @@ volume-assignments:
       my-emmc:
         device: /dev/disk/by-path/pci-43:0
 `
+const MultiVolumeUFSUC20GadgetYaml = SingleVolumeUC20GadgetYaml + `
+  my-ufs:
+    schema: ufs
+    structure:
+      - name: boot-lu-a
+      - name: boot-lu-b
+volume-assignments:
+  - assignment-name: my-ufs-device
+    assignment:
+      pc:
+        device: /dev/disk/by-path/pci-42:0
+      my-ufs:
+        device: /dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2
+`
 const SingleVolumeClassicwithModesNoEncryptGadgetYaml = `
 volumes:
   pc:
@@ -1657,6 +1671,53 @@ var VMEmmcVolumeDiskMapping = &disks.MockDiskMapping{
 	},
 }
 
+const (
+	ufsTargetSysPath = "/sys/devices/platform/soc/11270000.ufshci/host0/target0:0:0"
+	// UFSDataLUSysPath is the sysfs path of the partitioned logical unit of
+	// the mocked UFS device, which UFS volumes are assigned to
+	UFSDataLUSysPath = ufsTargetSysPath + "/0:0:0:2/block/sdc"
+)
+
+// MockUFSLogicalUnits are the logical units of the mocked UFS device, as
+// found on a MediaTek Genio 1200 EVK.
+var MockUFSLogicalUnits = []disks.UFSLogicalUnit{
+	{
+		HCTL:             "0:0:0:0",
+		LUN:              0,
+		KernelDevicePath: ufsTargetSysPath + "/0:0:0:0/block/sda",
+		KernelDeviceNode: "/dev/sda",
+		BootLUNID:        1,
+		SizeInBytes:      4 * oneMeg,
+	},
+	{
+		HCTL:             "0:0:0:1",
+		LUN:              1,
+		KernelDevicePath: ufsTargetSysPath + "/0:0:0:1/block/sdb",
+		KernelDeviceNode: "/dev/sdb",
+		BootLUNID:        2,
+		SizeInBytes:      4 * oneMeg,
+	},
+	{
+		HCTL:             "0:0:0:2",
+		LUN:              2,
+		KernelDevicePath: UFSDataLUSysPath,
+		KernelDeviceNode: "/dev/sdc",
+		HasPartitions:    true,
+		SizeInBytes:      5120 * oneMeg,
+	},
+}
+
+var VMUFSVolumeDiskMapping = &disks.MockDiskMapping{
+	DevNode:             "/dev/sdc",
+	DevPath:             UFSDataLUSysPath,
+	DevNum:              "8:32",
+	DiskUsableSectorEnd: 5120*oneMeg/512 - 34,
+	DiskSizeInBytes:     5120 * oneMeg,
+	SectorSizeBytes:     512,
+	DiskSchema:          "gpt",
+	ID:                  "0a1b8bc3-5b55-4b0b-a6c4-2e4f0e3a9a6d",
+}
+
 var VMSystemVolumeDiskMappingSeedFsLabelCaps = &disks.MockDiskMapping{
 	DevNode: "/dev/vda",
 	DevPath: "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda",
@@ -1858,6 +1919,29 @@ var VMEmmcVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
 			OriginalKernelPath: "/dev/mmcblk0boot1",
 			Offset:             0,
 			Size:               quantity.SizeMiB,
+		},
+	},
+}
+
+var VMUFSVolumeDeviceTraits = gadget.DiskVolumeDeviceTraits{
+	OriginalDevicePath: UFSDataLUSysPath,
+	OriginalKernelPath: "/dev/sdc",
+	DiskID:             "0a1b8bc3-5b55-4b0b-a6c4-2e4f0e3a9a6d",
+	Size:               5120 * quantity.SizeMiB,
+	SectorSize:         quantity.Size(512),
+	Schema:             "gpt",
+	Structure: []gadget.DiskStructureDeviceTraits{
+		{
+			OriginalDevicePath: ufsTargetSysPath + "/0:0:0:0/block/sda",
+			OriginalKernelPath: "/dev/sda",
+			Offset:             0,
+			Size:               4 * quantity.SizeMiB,
+		},
+		{
+			OriginalDevicePath: ufsTargetSysPath + "/0:0:0:1/block/sdb",
+			OriginalKernelPath: "/dev/sdb",
+			Offset:             0,
+			Size:               4 * quantity.SizeMiB,
 		},
 	},
 }

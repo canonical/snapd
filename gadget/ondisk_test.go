@@ -487,6 +487,26 @@ func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVolWithAssignedDevice(c *C) 
 	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetEMMCOnDiskVolume)
 }
 
+func (s *ondiskTestSuite) TestOnDiskVolumeFromGadgetVolWithAssignedDeviceUFS(c *C) {
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.MultiVolumeUFSUC20GadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	defer restore()
+
+	// Initially without setting devices
+	diskVol, err := gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["my-ufs"])
+	c.Check(err.Error(), Equals, `volume "my-ufs" has no device assigned`)
+	c.Check(diskVol, IsNil)
+
+	// Assign the partitioned logical unit of the UFS device as we would do
+	// through device-assignments
+	ginfo.Volumes["my-ufs"].AssignedDevice = "/dev/sdc"
+
+	diskVol, err = gadget.OnDiskVolumeFromGadgetVol(ginfo.Volumes["my-ufs"])
+	c.Check(err, IsNil)
+	c.Check(diskVol, DeepEquals, &gadgettest.MockGadgetUFSOnDiskVolume)
+}
+
 func (s *ondiskTestSuite) TestOnDiskStructsFromGadget(c *C) {
 	gadgetYaml := `
 volumes:
