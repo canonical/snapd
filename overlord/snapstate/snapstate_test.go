@@ -9562,7 +9562,7 @@ func (s *snapmgrTestSuite) TestMigrateHomeInstanceSetsInstanceKey(c *C) {
 		InstanceKey: "foo",
 	})
 
-	tss, err := snapstate.MigrateHome(s.state, []string{"some-snap_foo"})
+	tss, err := snapstate.MigrateHome(s.state, []naming.InstanceName{"some-snap_foo"})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 1)
 
