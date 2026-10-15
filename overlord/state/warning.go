@@ -264,10 +264,6 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 
 // RemoveWarning removes a warning given its message.
 //
-// This method is only used for removing autorefresh warnings. It
-// will be removed when the new "details" field is added to AddNoticeOptions
-// to start allowing for some mutability of notices.
-//
 // Returns state.ErrNoState if no warning exists with given message.
 func (s *State) RemoveWarning(message string) error {
 	s.writing()
