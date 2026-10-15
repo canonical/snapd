@@ -422,6 +422,99 @@ func (s *installSuite) TestInstallWithParallelInstalledSnap(c *C) {
 	c.Check(string(stderr), Matches, `(?sm).*snapctl: component "one" is already installed`)
 }
 
+func (s *installSuite) setupParallelInstanceContext(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	info := snaptest.MockSnapInstanceCurrent(c, "test-snap_foo", snapWithCompsYaml, &snap.SideInfo{
+		Revision: snap.R(1),
+	})
+	snapstate.Set(s.st, "test-snap_foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{
+				RealName: info.SnapName().String(),
+				Revision: info.Revision,
+				SnapID:   "test-snap-id",
+			},
+		}),
+		Current:     info.Revision,
+		InstanceKey: "foo",
+	})
+
+	s.chg = s.st.NewChange("install change", "install change")
+	task := s.st.NewTask("test-task", "my test task")
+	s.chg.AddTask(task)
+	setup := &hookstate.HookSetup{Snap: "test-snap_foo", Revision: snap.R(1), Hook: "test-hook"}
+
+	var err error
+	s.mockContext, err = hookstate.NewContext(task, task.State(), setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+}
+
+func (s *installSuite) testMngmtCommandParallelInstance(c *C, cmd string) {
+	s.setupParallelInstanceContext(c)
+
+	s.st.Lock()
+	task := s.st.NewTask("queued", "queued task")
+	s.st.Unlock()
+
+	var called bool
+	switch cmd {
+	case "install":
+		restore := ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
+			called = true
+			c.Check(info.InstanceName().String(), Equals, "test-snap_foo")
+			c.Check(names, DeepEquals, []string{"comp1", "comp2"})
+			return []*state.TaskSet{state.NewTaskSet(task)}, nil
+		})
+		defer restore()
+	case "remove":
+		restore := ctlcmd.MockSnapstateRemoveComponentsFunc(func(st *state.State, instanceName naming.InstanceName, compNames []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error) {
+			called = true
+			c.Check(instanceName.String(), Equals, "test-snap_foo")
+			c.Check(compNames, DeepEquals, []string{"comp1", "comp2"})
+			return []*state.TaskSet{state.NewTaskSet(task)}, nil
+		})
+		defer restore()
+	}
+
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "test-snap_foo+comp1", "+comp2"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *installSuite) TestInstallCommandParallelInstance(c *C) {
+	s.testMngmtCommandParallelInstance(c, "install")
+}
+
+func (s *installSuite) TestRemoveCommandParallelInstance(c *C) {
+	s.testMngmtCommandParallelInstance(c, "remove")
+}
+
+func (s *installSuite) testMngmtCommandParallelInstanceSnapNameRejected(c *C, cmd string) {
+	s.setupParallelInstanceContext(c)
+
+	// The plain snap name (SNAP_NAME inside the instance) is rejected
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "test-snap+comp1"}, 0, nil)
+	c.Assert(err, ErrorMatches, "cannot install snaps using snapctl")
+}
+
+func (s *installSuite) TestInstallCommandParallelInstanceSnapNameRejected(c *C) {
+	s.testMngmtCommandParallelInstanceSnapNameRejected(c, "install")
+}
+
+func (s *installSuite) TestRemoveCommandParallelInstanceSnapNameRejected(c *C) {
+	s.testMngmtCommandParallelInstanceSnapNameRejected(c, "remove")
+}
+
+func (s *installSuite) TestMngmtCommandNonInstanceRejectsInstanceName(c *C) {
+	for _, cmd := range []string{"install", "remove"} {
+		_, _, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "test-snap_foo+comp1"}, 0, nil)
+		c.Assert(err, ErrorMatches, "cannot install snaps using snapctl", Commentf("cmd: %s", cmd))
+	}
+}
+
 func (s *installSuite) TestInstallAllAlreadyInstalled(c *C) {
 	rev := snap.R(1)
 	si := &snap.SideInfo{
