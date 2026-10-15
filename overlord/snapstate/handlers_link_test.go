@@ -581,12 +581,15 @@ func (s *linkSnapSuite) testUndoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c 
 	c.Assert(snapst.AllowUnsupportedInstances, Equals, false)
 
 	// Now we simulate upgrading to the new snapd before undo is called
+	// The migration only adds its undo marker to link-snap tasks in DoStatus.
+	t.SetStatus(state.DoStatus)
 	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
 	var migrationPending bool
 	c.Assert(t.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
 	c.Check(migrationPending, Equals, true)
 	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
 	c.Check(snapst.AllowUnsupportedInstances, Equals, hasUnsupportedParallelInterface)
+	t.SetStatus(state.DoneStatus)
 	s.state.Unlock()
 
 	for i := 0; i < 6; i++ {

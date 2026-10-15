@@ -12966,6 +12966,48 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces
 	c.Check(done, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestMigrateParallelInstancesWaitsForStartedLinkSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	startedLink := s.state.NewTask("link-snap", "install parallel instance")
+	startedLink.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)},
+		InstanceKey: "started",
+	})
+	startedLink.SetStatus(state.DoingStatus)
+
+	pendingLink := s.state.NewTask("link-snap", "install parallel instance")
+	pendingLink.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "some-snap", Revision: snap.R(9)},
+		InstanceKey: "pending",
+	})
+	otherTask := s.state.NewTask("configure-snap", "configure snap")
+	otherTask.SetStatus(state.DoingStatus)
+	chg := s.state.NewChange("install", "Install parallel instances")
+	chg.AddTask(startedLink)
+	chg.AddTask(pendingLink)
+	chg.AddTask(otherTask)
+
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+
+	var done bool
+	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), testutil.ErrorIs, state.ErrNoState)
+	var migrationPending bool
+	c.Assert(startedLink.Get("allow-unsupported-instances-migration-pending", &migrationPending), testutil.ErrorIs, state.ErrNoState)
+	c.Assert(pendingLink.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+
+	startedLink.SetStatus(state.DoStatus)
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+
+	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), IsNil)
+	c.Check(done, Equals, true)
+	c.Check(otherTask.Status(), Equals, state.DoingStatus)
+	c.Assert(startedLink.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestMigrateParallelInstancesRunsOnce(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
