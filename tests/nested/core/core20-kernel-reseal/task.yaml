@@ -2,13 +2,10 @@ summary: Check that a kernel refresh reseals
 
 details: |
   Verifies that after installing a new (unasserted) kernel, we are using the new
-  kernel, ubuntu-data.sealed-key mtime is newer and we have boot chains.
+  kernel and boot chains record a reseal. When ubuntu-data.sealed-key exists,
+  its mtime is newer too.
 
 systems: [ubuntu-2*]
-
-environment:
-  # FIXME: make the test not stat sealed key files
-  NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
 
 prepare: |
   # we cannot use the kernel from store as it may have a version of
@@ -44,7 +41,11 @@ prepare: |
   remote.push new-pc-kernel.snap
 
 execute: |
-  SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  # Core 26 stores the key in a LUKS token, so the sealed-key file is absent.
+  # Older cores still write it, and its mtime changes only when the key is rewritten.
+  if remote.exec sudo test -e /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key; then
+    SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+  fi
   RESEAL_COUNT_1="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
 
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
@@ -63,9 +64,11 @@ execute: |
     remote.exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
   fi
 
-  echo "Check ubuntu-data.sealed-key mtime is newer"
-  SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-  test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+  if [ -n "${SEALED_KEY_MTIME_1:-}" ]; then
+    echo "Check ubuntu-data.sealed-key mtime is newer"
+    SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
+  fi
 
   echo "Check that we have boot chains"
   remote.exec sudo test -e /var/lib/snapd/device/fde/boot-chains
