@@ -15,4 +15,5 @@ Where=/var/snap
 Options=rbind,private,shared
 
 [Install]
+# When enabled, establish the mount early, before any snaps can run.
 WantedBy=local-fs.target
