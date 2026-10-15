@@ -450,18 +450,14 @@ prepare_project() {
 
             # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
-            # On ubuntu-26.04+ the snapd deb uses dh_installsystemd and
-            # dh_installsystemduser to enable units. The underlying
-            # deb-systemd-helper tool skips re-creating enable symlinks when
-            # its state files already exist from a prior install, even if the
-            # actual symlinks were removed. Clear the state so that the CI deb
-            # install behaves as a clean first installation and all snapd units
-            # (including snapd.apparmor.service and snapd.session-agent.socket)
-            # are properly enabled.
+            # On ubuntu-26.04+ dh_installsystemd enables system units through
+            # deb-systemd-helper. That helper skips re-creating enable symlinks
+            # when its state files already exist, even if the symlinks were
+            # removed. Clear the system state so the CI deb install enables
+            # snapd.apparmor.service as a first installation. The session-agent
+            # socket is a packaged symlink and does not use this state.
             if os.query is-ubuntu-ge 26.04; then
                 find /var/lib/systemd/deb-systemd-helper-enabled \
-                    -name 'snapd*' -delete || true
-                find /var/lib/systemd/deb-systemd-user-helper-enabled \
                     -name 'snapd*' -delete || true
             fi
             # XXX: the original package's purge may have left socket units behind
@@ -907,8 +903,6 @@ restore_suite() {
         distro_purge_package snapd
         if os.query is-ubuntu-ge 26.04; then
             find /var/lib/systemd/deb-systemd-helper-enabled \
-                -name 'snapd*' -delete || true
-            find /var/lib/systemd/deb-systemd-user-helper-enabled \
                 -name 'snapd*' -delete || true
         fi
 	if tests.pkgs is-installed snap-confine; then
