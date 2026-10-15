@@ -581,3 +581,49 @@ volumes:
 		},
 	})
 }
+
+func (s *ondiskTestSuite) TestOnDiskStructsFromGadgetWithUFS(c *C) {
+	gadgetYaml := `
+volumes:
+  disk:
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        filesystem: vfat
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+  my-ufs:
+    schema: ufs
+    structure:
+      - name: boot-lu-a
+        content:
+          - image: boot-lu-a-filename
+      - name: boot-lu-b
+        content:
+          - image: boot-lu-b-filename
+volume-assignments:
+  - assignment-name: ufs-device
+    assignment:
+      disk:
+        device: /dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2
+      my-ufs:
+        device: /dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2
+`
+
+	vol := mustParseVolume(c, gadgetYaml, "my-ufs")
+	c.Assert(vol.Structure, HasLen, 2)
+
+	onDisk := gadget.OnDiskStructsFromGadget(vol)
+	c.Assert(onDisk, DeepEquals, map[int]*gadget.OnDiskStructure{
+		0: {
+			Name: "boot-lu-a",
+		},
+		1: {
+			Name: "boot-lu-b",
+		},
+	})
+}
