@@ -1009,3 +1009,105 @@ func (r *rawTestSuite) TestRawUpdaterInternalErrors(c *C) {
 	c.Assert(err, ErrorMatches, "internal error: device lookup helper must be provided")
 	c.Assert(rw, IsNil)
 }
+
+func (r *rawTestSuite) mockUFSLogicalUnitSysfs(c *C, name, ro, writeProtect string) {
+	dirs.SetRootDir(r.dir)
+
+	luDir := filepath.Join(r.dir, "sys", "block", name)
+	c.Assert(os.MkdirAll(filepath.Join(luDir, "device", "unit_descriptor"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(luDir, "ro"), []byte(ro+"\n"), 0644), IsNil)
+	if writeProtect != "" {
+		c.Assert(os.WriteFile(filepath.Join(luDir, "device", "unit_descriptor", "lu_write_protect"), []byte(writeProtect+"\n"), 0644), IsNil)
+	}
+}
+
+func (r *rawTestSuite) testRawUpdaterBackupUpdateRestoreDifferentUFS(c *C, updateErr string) {
+	diskPath := filepath.Join(r.dir, "sda")
+	mutateFile(c, diskPath, 4096, []mutateWrite{
+		{[]byte("foo foo foo"), 0},
+	})
+
+	pristinePath := filepath.Join(r.dir, "pristine.img")
+	err := osutil.CopyFile(diskPath, pristinePath, 0)
+	c.Assert(err, IsNil)
+
+	expectedPath := filepath.Join(r.dir, "expected.img")
+	mutateFile(c, expectedPath, 4096, []mutateWrite{
+		{[]byte("zzz zzz zzz zzz"), 0},
+	})
+
+	makeSizedFile(c, filepath.Join(r.dir, "foo.img"), 4096, []byte("zzz zzz zzz zzz"))
+	ps := &gadget.LaidOutStructure{
+		OnDiskStructure: gadget.OnDiskStructure{},
+		VolumeStructure: &gadget.VolumeStructure{
+			Name:   "boot-lu-a",
+			Device: "/dev/sda",
+			Size:   4096,
+			EnclosingVolume: &gadget.Volume{
+				Schema: "ufs",
+			},
+		},
+		LaidOutContent: []gadget.LaidOutContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					Image: "foo.img",
+				},
+				Size: 4096,
+			},
+		},
+	}
+	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, quantity.Offset, error) {
+		c.Check(to, DeepEquals, ps)
+		// boot logical units are whole devices, thus they start at 0 offset
+		return diskPath, 0, nil
+	})
+	c.Assert(err, IsNil)
+	c.Assert(ru, NotNil)
+
+	err = ru.Backup()
+	c.Assert(err, IsNil)
+
+	err = ru.Update()
+	if updateErr != "" {
+		c.Assert(err, ErrorMatches, updateErr)
+
+		// the file should not have updated
+		c.Check(osutil.FilesAreEqual(diskPath, expectedPath), Equals, false)
+		c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
+	} else {
+		c.Assert(err, IsNil)
+
+		// after update, files should be identical
+		c.Check(osutil.FilesAreEqual(diskPath, expectedPath), Equals, true)
+
+		// rollback restores the original contents
+		err = ru.Rollback()
+		c.Assert(err, IsNil)
+
+		// which should match the pristine copy now
+		c.Check(osutil.FilesAreEqual(diskPath, pristinePath), Equals, true)
+	}
+}
+
+func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreDifferentUFS(c *C) {
+	// lu_write_protect is not exposed by all kernels
+	for _, writeProtect := range []string{"", "0x00"} {
+		r.SetUpTest(c)
+		r.mockUFSLogicalUnitSysfs(c, "sda", "0", writeProtect)
+		r.testRawUpdaterBackupUpdateRestoreDifferentUFS(c, "")
+	}
+}
+
+func (r *rawTestSuite) TestRawUpdaterUpdateUFSWriteProtected(c *C) {
+	for _, tc := range []struct {
+		ro, writeProtect, err string
+	}{
+		{"1", "", `cannot open device for writing: UFS logical unit .*/sda is read-only`},
+		{"0", "0x01", `cannot open device for writing: UFS logical unit .*/sda is power on write-protected`},
+		{"0", "0x02", `cannot open device for writing: UFS logical unit .*/sda is permanently write-protected`},
+	} {
+		r.SetUpTest(c)
+		r.mockUFSLogicalUnitSysfs(c, "sda", tc.ro, tc.writeProtect)
+		r.testRawUpdaterBackupUpdateRestoreDifferentUFS(c, tc.err)
+	}
+}
