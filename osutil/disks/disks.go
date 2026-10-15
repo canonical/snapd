@@ -269,3 +269,30 @@ func (e errMountPointNotFoundImpl) Error() string {
 func (e errMountPointNotFoundImpl) Unwrap() error {
 	return ErrMountPointNotFound
 }
+
+// UFSLogicalUnit describes a logical unit of a UFS device, as exposed by the
+// kernel in sysfs.
+type UFSLogicalUnit struct {
+	// HCTL is the SCSI address of the logical unit, eg. "0:0:0:1".
+	HCTL string
+	// LUN is the logical unit number.
+	LUN uint64
+	// KernelDevicePath is the sysfs path of the block device of the
+	// logical unit, eg. /sys/devices/.../0:0:0:1/block/sdb.
+	KernelDevicePath string
+	// KernelDeviceNode is the device node of the logical unit, eg. /dev/sdb.
+	KernelDeviceNode string
+	// BootLUNID is the bBootLunID of the logical unit: 0 when the unit is
+	// not bootable, 1 for boot logical unit A and 2 for boot logical unit B.
+	BootLUNID uint8
+	// WriteProtect is the bLUWriteProtect value of the logical unit, or nil
+	// when the kernel does not expose it.
+	WriteProtect *uint8
+	// ReadOnly is true when the block device is read-only for the kernel.
+	ReadOnly bool
+	// HasPartitions is true when the kernel found a partition table on the
+	// logical unit.
+	HasPartitions bool
+	// SizeInBytes is the size of the logical unit.
+	SizeInBytes uint64
+}
