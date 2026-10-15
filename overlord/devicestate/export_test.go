@@ -912,3 +912,7 @@ func MockHookKeyProtectorFactory(f func(*DeviceManager, *snap.Info) (secboot.Key
 func MockKeysSaveProtectorKey(f func(key keys.ProtectorKey, path string) error) (restore func()) {
 	return testutil.Mock(&keysSaveProtectorKey, f)
 }
+
+func MockSecbootIsKeyUsedByKeyring(f func(devicePath string, name string) (bool, error)) (restore func()) {
+	return testutil.Mock(&secbootIsKeyUsedByKeyring, f)
+}
