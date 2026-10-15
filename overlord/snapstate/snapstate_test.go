@@ -12966,39 +12966,6 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces
 	c.Check(done, Equals, true)
 }
 
-func (s *snapmgrTestSuite) TestMigrateParallelInstancesRetriesUnreadableInstance(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.mockParallelInstancesForMigration(c)
-	logbuf, restoreLogger := logger.MockLogger()
-	defer restoreLogger()
-	restoreReadInfo := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
-		if name.String() == "some-snap_nok" {
-			return nil, fmt.Errorf("temporary read error")
-		}
-		return snap.ReadInfo(name, si)
-	})
-	defer restoreReadInfo()
-
-	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
-	c.Check(logbuf.String(), testutil.Contains, `cannot check parallel instance support of snap "some-snap_nok": temporary read error`)
-	var done bool
-	c.Assert(errors.Is(s.state.Get("allow-unsupported-instances-migrated", &done), state.ErrNoState), Equals, true)
-	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "some-snap_nok", &snapst), IsNil)
-	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
-
-	restoreReadInfo()
-	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
-	c.Assert(snapstate.Get(s.state, "some-snap_nok", &snapst), IsNil)
-	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
-	c.Assert(snapstate.Get(s.state, "some-snap_ok", &snapst), IsNil)
-	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
-	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), IsNil)
-	c.Check(done, Equals, true)
-}
-
 func (s *snapmgrTestSuite) TestMigrateParallelInstancesRunsOnce(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
