@@ -23,6 +23,8 @@ import (
 	"context"
 	"time"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -377,6 +379,10 @@ func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequest
 		return true, restartPoss.RebootRequired, nil
 	}
 	return false, false, err
+}
+
+func (m *SnapManager) DoLinkSnap(t *state.Task, tb *tomb.Tomb) error {
+	return m.doLinkSnap(t, tb)
 }
 
 func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {
