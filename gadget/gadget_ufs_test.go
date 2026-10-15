@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -379,4 +380,71 @@ volume-assignments:
 			c.Check(err, ErrorMatches, tc.err)
 		}
 	}
+}
+
+func (s *gadgetYamlUFSSuite) TestUpdateApplyHappy(c *C) {
+	err := os.WriteFile(s.gadgetYamlPath, mockUFSGadgetYaml, 0644)
+	c.Assert(err, IsNil)
+	// the assigned device must exist for the volume-assignment to match
+	byPathDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path")
+	c.Assert(os.MkdirAll(byPathDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(byPathDir, "platform-ufshci-scsi-0:0:0:2"), nil, 0644), IsNil)
+
+	oldInfo, err := gadget.ReadInfo(s.dir, coreMod)
+	c.Assert(err, IsNil)
+	oldRootDir := c.MkDir()
+	makeSizedFile(c, filepath.Join(oldRootDir, "bootlu-a-filename"), 1*quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldRootDir, "bootlu-b-filename"), 1*quantity.SizeMiB, nil)
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir}
+
+	newInfo, err := gadget.ReadInfo(s.dir, coreMod)
+	c.Assert(err, IsNil)
+	// pretend we have an update
+	newInfo.Volumes["my-ufs"].Structure[1].Update.Edition = 1
+
+	newRootDir := c.MkDir()
+	makeSizedFile(c, filepath.Join(newRootDir, "bootlu-a-filename"), 1*quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(newRootDir, "bootlu-b-filename"), 2*quantity.SizeMiB, nil)
+	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
+
+	rollbackDir := c.MkDir()
+
+	restore := gadget.MockVolumeStructureToLocationMap(func(_ gadget.Model, _, newVolumes map[string]*gadget.Volume) (map[string]map[int]gadget.StructureLocation, map[string]map[int]*gadget.OnDiskStructure, error) {
+		return map[string]map[int]gadget.StructureLocation{
+				"volumename": {
+					0: {
+						Device:         "/dev/sdc",
+						Offset:         quantity.OffsetMiB,
+						RootMountPoint: "/run/mnt/ubuntu-boot",
+					},
+				},
+				"my-ufs": {
+					0: {
+						Device: "/dev/sda",
+					},
+					1: {
+						Device: "/dev/sdb",
+					},
+				},
+			}, map[string]map[int]*gadget.OnDiskStructure{
+				"volumename": gadget.OnDiskStructsFromGadget(newVolumes["volumename"]),
+				"my-ufs":     gadget.OnDiskStructsFromGadget(newVolumes["my-ufs"]),
+			}, nil
+	})
+	defer restore()
+
+	muo := &mockUpdateProcessObserver{}
+	updaterForStructureCalls := 0
+	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		updaterForStructureCalls++
+		mu := &mockUpdater{}
+
+		return mu, nil
+	})
+	defer restore()
+
+	// go go go
+	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
+	c.Assert(err, IsNil)
+	c.Assert(updaterForStructureCalls, Equals, 1)
 }

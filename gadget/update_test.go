@@ -4751,6 +4751,207 @@ fi
 	})
 }
 
+func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateUFS(c *C) {
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sdc": gadgettest.VMUFSVolumeDiskMapping,
+	})
+	defer restore()
+
+	testRoot := c.MkDir()
+	gadgetRoot := filepath.Join(testRoot, "gadget")
+
+	// write test content images
+	c.Assert(os.MkdirAll(gadgetRoot, 0755), IsNil)
+	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot-lu-a-filename"), []byte(``), 0644), IsNil)
+	c.Assert(os.WriteFile(path.Join(gadgetRoot, "boot-lu-b-filename"), []byte(``), 0644), IsNil)
+
+	const yaml = `
+volumes:
+  foo:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: foo
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+  ufs:
+    schema: ufs
+    structure:
+      - name: boot-lu-a
+        content:
+          - image: boot-lu-a-filename
+      - name: boot-lu-b
+        content:
+          - image: boot-lu-b-filename
+volume-assignments:
+  - assignment-name: ufs-device
+    assignment:
+      foo:
+        device: /dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2
+      ufs:
+        device: /dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2
+`
+	lvol, err := gadgettest.LayoutMultiVolumeFromYaml(testRoot, "", yaml, nil)
+	c.Assert(err, IsNil)
+
+	bootLUs := gadgettest.UFSBootLUSysPaths
+	restore = gadget.MockUFSBootLUDevicePath(func(diskDevPath string, bootLUNID uint8) (string, error) {
+		c.Check(diskDevPath, Equals, gadgettest.UFSDataLUSysPath)
+		devPath, ok := bootLUs[bootLUNID]
+		if !ok {
+			return "", fmt.Errorf("no logical unit has boot LUN ID %d", bootLUNID)
+		}
+		return devPath, nil
+	})
+	defer restore()
+
+	// expect blockdev to be called to get sizes of boot logical units
+	blockDevCmd := testutil.MockCommand(c, "blockdev", `
+if [ "$1" = "--getsize64" ]; then
+	echo 4194304
+else
+	echo "fail, test broken"
+	exit 1
+fi
+`)
+	defer blockDevCmd.Restore()
+
+	// verify expected traits based on the ones we gave
+	traits, err := gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadgettest.VMUFSVolumeDeviceTraits)
+	c.Check(blockDevCmd.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getsize64", "/dev/sda"},
+		{"blockdev", "--getsize64", "/dev/sdb"},
+	})
+
+	// no logical unit for boot-lu-b
+	bootLUs = map[uint8]string{1: gadgettest.UFSBootLUSysPaths[1]}
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
+	c.Assert(err, ErrorMatches, `volume ufs is not compatible with disk /dev/sdc: cannot find UFS boot logical unit for boot-lu-b: no logical unit has boot LUN ID 2`)
+	bootLUs = gadgettest.UFSBootLUSysPaths
+
+	// with two UFS devices, the saved /dev/sdc can be renumbered to a logical
+	// unit of the device the volume is not assigned to
+	const assignedDevice = "/dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2"
+	lvol["ufs"].Volume.AssignedDevice = assignedDevice
+	assignedDisk := *gadgettest.VMUFSVolumeDiskMapping
+	assignedDisk.DevNode = "/dev/sdf"
+	assignedDisk.DevNum = "8:80"
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sdc":     gadgettest.VMUFSVolumeDiskMapping,
+		assignedDevice: &assignedDisk,
+	})
+	defer restore()
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
+	c.Assert(err, ErrorMatches, `volume ufs is not compatible with disk /dev/sdc: device /dev/sdc does not match assigned device `+assignedDevice)
+
+	// the disk is the assigned device
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sdc":     gadgettest.VMUFSVolumeDiskMapping,
+		assignedDevice: gadgettest.VMUFSVolumeDiskMapping,
+	})
+	defer restore()
+	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadgettest.VMUFSVolumeDeviceTraits)
+}
+
+type ufsLU struct {
+	hctl, blockDev, bootLunID string
+}
+
+// genio1200UFSLUs is the layout of the UFS device of a MediaTek Genio 1200
+// EVK: the two boot logical units, the partitioned logical unit holding the
+// system GPT, and the RPMB well known logical unit, which has a unit
+// descriptor but no block device.
+var genio1200UFSLUs = []ufsLU{
+	{"0:0:0:0", "sda", "0x01"},
+	{"0:0:0:1", "sdb", "0x02"},
+	{"0:0:0:2", "sdc", "0x00"},
+	{"0:0:0:49476", "", "0x00"},
+}
+
+func mockUFSSysfs(c *C, lus []ufsLU) (targetDir string) {
+	targetDir = filepath.Join(dirs.SysfsDir, "devices/platform/soc/11270000.ufshci/host0/target0:0:0")
+	for _, lu := range lus {
+		luDir := filepath.Join(targetDir, lu.hctl)
+		unitDescDir := filepath.Join(luDir, "unit_descriptor")
+		c.Assert(os.MkdirAll(unitDescDir, 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(unitDescDir, "boot_lun_id"), []byte(lu.bootLunID+"\n"), 0644), IsNil)
+		if lu.blockDev != "" {
+			c.Assert(os.MkdirAll(filepath.Join(luDir, "block", lu.blockDev), 0755), IsNil)
+		}
+	}
+	return targetDir
+}
+
+func (u *updateTestSuite) TestUFSBootLUDevicePath(c *C) {
+	targetDir := mockUFSSysfs(c, genio1200UFSLUs)
+	// the boot logical units are found from any logical unit of the device
+	for _, diskLU := range []string{"0:0:0:2/block/sdc", "0:0:0:0/block/sda"} {
+		diskDevPath := filepath.Join(targetDir, diskLU)
+
+		path, err := gadget.UFSBootLUDevicePathImpl(diskDevPath, 1)
+		c.Assert(err, IsNil)
+		c.Check(path, Equals, filepath.Join(targetDir, "0:0:0:0/block/sda"))
+
+		path, err = gadget.UFSBootLUDevicePathImpl(diskDevPath, 2)
+		c.Assert(err, IsNil)
+		c.Check(path, Equals, filepath.Join(targetDir, "0:0:0:1/block/sdb"))
+	}
+}
+
+func (u *updateTestSuite) TestUFSBootLUDevicePathSkipsWellKnownLUs(c *C) {
+	// the boot well known logical unit (0xb0, which Linux maps to 0xc130)
+	// reports the boot LUN ID of the boot logical unit it aliases
+	targetDir := mockUFSSysfs(c, append(genio1200UFSLUs, ufsLU{"0:0:0:49456", "sdd", "0x01"}))
+
+	path, err := gadget.UFSBootLUDevicePathImpl(filepath.Join(targetDir, "0:0:0:2/block/sdc"), 1)
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, filepath.Join(targetDir, "0:0:0:0/block/sda"))
+}
+
+func (u *updateTestSuite) TestUFSBootLUDevicePathNotFound(c *C) {
+	targetDir := mockUFSSysfs(c, []ufsLU{
+		{"0:0:0:0", "sda", "0x01"},
+		{"0:0:0:2", "sdc", "0x00"},
+	})
+
+	_, err := gadget.UFSBootLUDevicePathImpl(filepath.Join(targetDir, "0:0:0:2/block/sdc"), 2)
+	c.Assert(err, ErrorMatches, `no logical unit has boot LUN ID 2`)
+}
+
+func (u *updateTestSuite) TestUFSBootLUDevicePathDuplicate(c *C) {
+	targetDir := mockUFSSysfs(c, []ufsLU{
+		{"0:0:0:0", "sda", "0x01"},
+		{"0:0:0:1", "sdb", "0x01"},
+		{"0:0:0:2", "sdc", "0x00"},
+	})
+
+	_, err := gadget.UFSBootLUDevicePathImpl(filepath.Join(targetDir, "0:0:0:2/block/sdc"), 1)
+	c.Assert(err, ErrorMatches, `both 0:0:0:0 and 0:0:0:1 have boot LUN ID 1`)
+}
+
+func (u *updateTestSuite) TestUFSBootLUDevicePathBadBootLUNID(c *C) {
+	targetDir := mockUFSSysfs(c, []ufsLU{
+		{"0:0:0:0", "sda", "garbage"},
+		{"0:0:0:2", "sdc", "0x00"},
+	})
+
+	_, err := gadget.UFSBootLUDevicePathImpl(filepath.Join(targetDir, "0:0:0:2/block/sdc"), 1)
+	c.Assert(err, ErrorMatches, `cannot parse boot LUN ID of logical unit 0:0:0:0: .*`)
+}
+
+func (u *updateTestSuite) TestUFSBootLUDevicePathNotUFS(c *C) {
+	mmcDevPath := filepath.Join(dirs.SysfsDir, "devices/platform/emmc2bus/fe340000.emmc2/mmc_host/mmc0/mmc0:0001/block/mmcblk0")
+	c.Assert(os.MkdirAll(mmcDevPath, 0755), IsNil)
+
+	_, err := gadget.UFSBootLUDevicePathImpl(mmcDevPath, 1)
+	c.Assert(err, ErrorMatches, `disk .*/mmcblk0 is not a UFS logical unit`)
+}
+
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C) {
 	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
 		"/dev/vda": gadgettest.VMSystemVolumeDiskMapping,
@@ -5934,6 +6135,116 @@ func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20EMMCUnsupportedN
 	c.Assert(err, ErrorMatches, `structure rpmb on volume my-emmc is not a valid eMMC partition`)
 }
 
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20UFS(c *C) {
+	// the device nodes of the logical units are not stable and differ from
+	// the ones recorded in the traits, they are found again from the UFS
+	// device
+	bootLUs := map[uint8]string{
+		1: filepath.Join(filepath.Dir(gadgettest.UFSBootLUSysPaths[1]), "sdd"),
+		2: filepath.Join(filepath.Dir(gadgettest.UFSBootLUSysPaths[2]), "sde"),
+	}
+	restore := gadget.MockUFSBootLUDevicePath(func(diskDevPath string, bootLUNID uint8) (string, error) {
+		c.Check(diskDevPath, Equals, gadgettest.UFSDataLUSysPath)
+		return bootLUs[bootLUNID], nil
+	})
+	defer restore()
+
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"pc":     gadgettest.VMSystemVolumeDeviceTraits,
+		"my-ufs": gadgettest.VMUFSVolumeDeviceTraits,
+	}
+
+	volMappings := map[string]*disks.MockDiskMapping{
+		"pc":     gadgettest.VMSystemVolumeDiskMapping,
+		"my-ufs": gadgettest.VMUFSVolumeDiskMapping,
+	}
+
+	expMap := map[string]map[int]gadget.StructureLocation{
+		"pc": {
+			// keys are the YamlIndex in the gadget.yaml
+
+			// raw devices have Device + Offset set
+			0: {Device: "/dev/vda", Offset: 0},                  // for mbr
+			1: {Device: "/dev/vda", Offset: quantity.OffsetMiB}, // for bios-boot
+
+			// partition devices have RootMountPoint set
+			2: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed")},
+			3: {RootMountPoint: ""}, // ubuntu-boot is not mounted for some reason
+			4: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-save")},
+			5: {RootMountPoint: filepath.Join(dirs.GlobalRootDir, "/run/mnt/data")},
+		},
+		"my-ufs": {
+			0: {Device: "/dev/sdd"},
+			1: {Device: "/dev/sde"},
+		},
+	}
+
+	mockLogBuf, restore := logger.MockLogger()
+	defer restore()
+
+	// setup mountinfo for root mount points of the partitions with some of the filesystems mounted
+	restore = osutil.MockMountInfo(
+		fmt.Sprintf(
+			`
+27 27 600:3 / %[1]s/run/mnt/ubuntu-seed rw,relatime shared:7 - vfat %[1]s/dev/vda2 rw
+29 27 600:5 / %[1]s/run/mnt/ubuntu-save rw,relatime shared:7 - vfat %[1]s/dev/vda4 rw
+30 27 600:6 / %[1]s/run/mnt/data rw,relatime shared:7 - vfat %[1]s/dev/vda5 rw`[1:],
+			dirs.GlobalRootDir,
+		),
+	)
+	defer restore()
+
+	s.testBuildVolumeStructureToLocation(c,
+		uc20Model,
+		gadgettest.MultiVolumeUFSUC20GadgetYaml,
+		traits,
+		volMappings,
+		expMap,
+	)
+
+	c.Check(mockLogBuf.String(), testutil.Contains, "structure 3 on volume pc (/dev/vda3) is not mounted read/write anywhere to be able to update it")
+}
+
+func (s *updateTestSuite) TestBuildVolumeStructureToLocationUC20UFSUnsupportedName(c *C) {
+	restore := gadget.MockUFSBootLUDevicePath(func(diskDevPath string, bootLUNID uint8) (string, error) {
+		return gadgettest.UFSBootLUSysPaths[bootLUNID], nil
+	})
+	defer restore()
+
+	traits := map[string]gadget.DiskVolumeDeviceTraits{
+		"my-ufs": gadgettest.VMUFSVolumeDeviceTraits,
+	}
+
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sdc": gadgettest.VMUFSVolumeDiskMapping,
+	})
+	defer restore()
+	restore = disks.MockDevicePathToDiskMapping(map[string]*disks.MockDiskMapping{
+		gadgettest.UFSDataLUSysPath: gadgettest.VMUFSVolumeDiskMapping,
+	})
+	defer restore()
+
+	vols := map[string]*gadget.Volume{
+		"my-ufs": {
+			Name:   "my-ufs",
+			Schema: "ufs",
+			Structure: []gadget.VolumeStructure{
+				{
+					Name: "rpmb",
+					Size: quantity.SizeMiB,
+				},
+			},
+		},
+	}
+	vols["my-ufs"].Structure[0].EnclosingVolume = vols["my-ufs"]
+
+	missingInitialMappingNo := false
+	_, _, err := gadget.BuildVolumeStructureToLocation(uc20Model, vols, vols, traits, missingInitialMappingNo)
+	// unlike eMMC, the name is already refused when matching the disk, as
+	// the boot logical unit cannot be resolved
+	c.Assert(err, ErrorMatches, `could not map volume my-ufs from gadget.yaml to any physical disk: cannot find physical disk laid out to map with volume my-ufs`)
+}
+
 func (s *updateTestSuite) testBuildVolumeStructureToLocation(c *C,
 	model gadget.Model,
 	yaml string,
@@ -6022,6 +6333,13 @@ func (s *updateTestSuite) setupForVolumeStructureToLocation(c *C,
 			partlabel = p.PartitionLabel
 			fslabel = p.FilesystemLabel
 			break
+		}
+
+		// UFS boot logical units are not partitions of the disk the volume is
+		// assigned to, they are found through the mocked UFS logical units
+		if allLaidOutVolumes[volName].Schema == "ufs" {
+			diskDeviceNodeMappings[traits[volName].OriginalKernelPath] = volMappings[volName]
+			continue
 		}
 
 		switch traits[volName].Schema {
