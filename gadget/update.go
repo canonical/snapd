@@ -257,6 +257,17 @@ func isVolumeEMMC(vol *Volume) bool {
 	return vol.Schema == schemaEMMC
 }
 
+func isVolumeUFS(vol *Volume) bool {
+	return vol.Schema == schemaUFS
+}
+
+// isHardwareBootAreaVolume returns true if the structures of the volume are
+// pre-existing hardware areas (eMMC boot partitions, UFS boot logical units)
+// rather than partitions.
+func isHardwareBootAreaVolume(vol *Volume) bool {
+	return isVolumeEMMC(vol) || isVolumeUFS(vol)
+}
+
 func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume *Volume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
 	// in uc16/uc18 we used to allow system-data to be implicit / missing from
 	// the gadget.yaml in which case we won't have system-data in the laidOutVol
