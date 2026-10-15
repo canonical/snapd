@@ -837,9 +837,6 @@ func (s *snapmgrTestSuite) TestInstallComponentNoConflictWithOtherInstance(c *C)
 	// The in-progress change for the non-instance snap does not block the instance snap
 	instanceInfo := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
 	instanceInfo.InstanceKey = "key"
-	_, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, instanceInfo, nil, snapstate.Options{})
-	c.Assert(err, IsNil)
-
 	chg = s.state.NewChange("install-component", "install a component")
 	tss, err = snapstate.InstallComponents(context.TODO(), s.state, []string{compName}, instanceInfo, nil, snapstate.Options{})
 	c.Assert(err, IsNil)
