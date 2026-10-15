@@ -170,6 +170,13 @@ execute: |
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_3}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change_3}\s+Done"
 
+  # In some cases we needed to backup the active key from keyring. But
+  # once the reprovision is complete and keyring is up to date, that should be cleaned up.
+  remote.exec "sudo cryptsetup luksDump --dump-json-metadata /dev/disk/by-label/ubuntu-data-enc" >data.json
+  remote.exec "sudo cryptsetup luksDump --dump-json-metadata /dev/disk/by-label/ubuntu-save-enc" >save.json
+  test "$(gojq -r '.tokens|map(select(.ubuntu_fde_name=="snapd-active-key-backup"))|length' data.json)" = 0
+  test "$(gojq -r '.tokens|map(select(.ubuntu_fde_name=="snapd-active-key-backup"))|length' save.json)" = 0
+
   tests.nested vm set-recovery-key ""
 
   boot_id="$(tests.nested boot-id)"
