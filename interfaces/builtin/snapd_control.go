@@ -63,13 +63,12 @@ func (iface *snapControlInterface) BeforePreparePlug(plug *snap.PlugInfo) error 
 
 func init() {
 	registerIface(&snapControlInterface{commonInterface{
-		name:                     "snapd-control",
-		summary:                  snapdControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     snapdControlBaseDeclarationPlugs,
-		baseDeclarationSlots:     snapdControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    snapdControlConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "snapd-control",
+		summary:               snapdControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  snapdControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  snapdControlBaseDeclarationSlots,
+		connectedPlugAppArmor: snapdControlConnectedPlugAppArmor,
 	}})
 }

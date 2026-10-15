@@ -111,13 +111,12 @@ func (iface *kvmInterface) KModConnectedPlug(spec *kmod.Specification, plug *int
 
 func init() {
 	registerIface(&kvmInterface{commonInterface{
-		name:                     "kvm",
-		summary:                  kvmSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     kvmBaseDeclarationSlots,
-		connectedPlugAppArmor:    kvmConnectedPlugAppArmor,
-		connectedPlugUDev:        kvmConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "kvm",
+		summary:               kvmSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  kvmBaseDeclarationSlots,
+		connectedPlugAppArmor: kvmConnectedPlugAppArmor,
+		connectedPlugUDev:     kvmConnectedPlugUDev,
 	}})
 }

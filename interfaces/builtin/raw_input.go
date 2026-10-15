@@ -74,14 +74,13 @@ func (iface *rawInputInterface) UDevConnectedPlug(spec *udev.Specification, plug
 
 func init() {
 	registerIface(&rawInputInterface{commonInterface{
-		name:                     "raw-input",
-		summary:                  rawInputSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     rawInputBaseDeclarationSlots,
-		connectedPlugSecComp:     rawInputConnectedPlugSecComp,
-		connectedPlugAppArmor:    rawInputConnectedPlugAppArmor,
-		connectedPlugUDev:        rawInputConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "raw-input",
+		summary:               rawInputSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  rawInputBaseDeclarationSlots,
+		connectedPlugSecComp:  rawInputConnectedPlugSecComp,
+		connectedPlugAppArmor: rawInputConnectedPlugAppArmor,
+		connectedPlugUDev:     rawInputConnectedPlugUDev,
 	}})
 }

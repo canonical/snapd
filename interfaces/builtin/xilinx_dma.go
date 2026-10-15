@@ -79,6 +79,5 @@ func init() {
 		connectedPlugAppArmor:    xilinxDmaConnectedPlugAppArmor,
 		connectedPlugUDev:        xilinxDmaConnectedPlugUDev,
 		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

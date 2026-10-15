@@ -62,13 +62,12 @@ var vcioConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "vcio",
-		summary:                  vcioSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     vcioBaseDeclarationSlots,
-		connectedPlugAppArmor:    vcioConnectedPlugAppArmor,
-		connectedPlugUDev:        vcioConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "vcio",
+		summary:               vcioSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  vcioBaseDeclarationSlots,
+		connectedPlugAppArmor: vcioConnectedPlugAppArmor,
+		connectedPlugUDev:     vcioConnectedPlugUDev,
 	})
 }

@@ -401,6 +401,5 @@ func init() {
 		baseDeclarationPlugs:     kubernetesSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     kubernetesSupportBaseDeclarationSlots,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

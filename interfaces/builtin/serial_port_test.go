@@ -801,7 +801,3 @@ func (s *SerialPortInterfaceSuite) TestHotplugHandledByGadget(c *C) {
 func (s *SerialPortInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
-
-func (s *SerialPortInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
-}

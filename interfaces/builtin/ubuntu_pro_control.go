@@ -123,12 +123,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "ubuntu-pro-control",
-		summary:                  ubuntuProControlSummary,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     ubuntuProControlBaseDeclarationPlugs,
-		baseDeclarationSlots:     ubuntuProControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    ubuntuProControlConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "ubuntu-pro-control",
+		summary:               ubuntuProControlSummary,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  ubuntuProControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  ubuntuProControlBaseDeclarationSlots,
+		connectedPlugAppArmor: ubuntuProControlConnectedPlugAppArmor,
 	})
 }
