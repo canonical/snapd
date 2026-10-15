@@ -654,13 +654,16 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)
 	s.Lock()
 	defer s.unlock()
+	// Incase a migrated warning is a repeat of an existing notice, noticeCond
+	// is required to broadcast on.
+	s.noticeCond = sync.NewCond(s.noticesMu.RLocker())
+
 	d := json.NewDecoder(r)
 	err := d.Decode(&s)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read state: %s", err)
 	}
 	s.backend = backend
-	s.noticeCond = sync.NewCond(s.noticesMu.RLocker())
 	s.modified = false
 	s.cache = make(map[any]any)
 	s.pendingChangeByAttr = make(map[string]func(*Change) bool)
