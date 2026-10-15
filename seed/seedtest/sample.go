@@ -287,6 +287,16 @@ version: 1.0
 `,
 }
 
+var kfilesWithCompsRequired = [][]string{
+	{"modules/1.0.0/", ""},
+}
+
+var SampleSnapFiles = map[string][][]string{
+	"pc-kernel=22+kmods": kfilesWithCompsRequired,
+	"pc-kernel=24+kmods": kfilesWithCompsRequired,
+	"pc-kernel=26+kmods": kfilesWithCompsRequired,
+}
+
 func MergeSampleSnapYaml(snapYaml ...map[string]string) map[string]string {
 	if len(snapYaml) == 0 {
 		return nil
