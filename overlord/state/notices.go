@@ -394,6 +394,9 @@ type AddNoticeOptions struct {
 // AddNotice records an occurrence of a notice with the specified type and key
 // and options.
 func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
+	if noticeType == WarningNotice {
+		return "", fmt.Errorf("cannot create warning notices with AddNotice")
+	}
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
