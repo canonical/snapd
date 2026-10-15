@@ -102,7 +102,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	userID := uint32(1000)
 
 	s.st.Lock()
-	id1, err := s.st.AddNotice(&userID, state.WarningNotice, "foo", nil)
+	id1, err := s.st.AddNotice(&userID, state.InterfacesRequestsPromptNotice, "foo", nil)
 	c.Assert(err, IsNil)
 	id2, err := s.st.AddNotice(&userID, state.ChangeUpdateNotice, "bar", nil)
 	c.Assert(err, IsNil)
@@ -113,7 +113,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	// were not held, querying state notices would panic.
 	notices := nm.Notices(nil)
 	c.Check(notices, HasLen, 2)
-	c.Check(notices[0].Type(), Equals, state.WarningNotice)
+	c.Check(notices[0].Type(), Equals, state.InterfacesRequestsPromptNotice)
 	c.Check(notices[1].Type(), Equals, state.ChangeUpdateNotice)
 
 	filtered := nm.Notices(&state.NoticeFilter{Keys: []string{"bar"}})
@@ -121,7 +121,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	c.Check(filtered[0].Type(), Equals, state.ChangeUpdateNotice)
 
 	notice := nm.Notice(id1)
-	c.Check(notice.Type(), Equals, state.WarningNotice)
+	c.Check(notice.Type(), Equals, state.InterfacesRequestsPromptNotice)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -129,7 +129,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	waited, err := nm.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"foo"}})
 	c.Assert(err, IsNil)
 	c.Check(waited, HasLen, 1)
-	c.Check(waited[0].Type(), Equals, state.WarningNotice)
+	c.Check(waited[0].Type(), Equals, state.InterfacesRequestsPromptNotice)
 
 	waitChan := make(chan []*state.Notice)
 	go func() {
@@ -321,7 +321,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 
 	// Create some notices before creating the manager
 	s.st.Lock()
-	id1, err := s.st.AddNotice(&uid, state.WarningNotice, "foo", nil)
+	id1, err := s.st.AddNotice(&uid, state.InterfacesRequestsPromptNotice, "foo", nil)
 	c.Assert(err, IsNil)
 	id2, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "bar", nil)
 	c.Assert(err, IsNil)
@@ -333,7 +333,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	s.st.Lock()
 	id3, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "baz", nil)
 	c.Assert(err, IsNil)
-	id4, err := s.st.AddNotice(&uid, state.WarningNotice, "qux", nil)
+	id4, err := s.st.AddNotice(&uid, state.InterfacesRequestsPromptNotice, "qux", nil)
 	c.Assert(err, IsNil)
 	s.st.Unlock()
 
@@ -353,7 +353,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	// Send empty notices over noticesChan so registration doesn't block
 	// trying to get notices to update last notice timestamp
 	bknd1.noticesChan <- nil
-	_, drained, err := nm.RegisterBackend(bknd1, state.WarningNotice, "something", false)
+	_, drained, err := nm.RegisterBackend(bknd1, state.InterfacesRequestsPromptNotice, "something", false)
 	c.Check(err, IsNil)
 	c.Check(drained, HasLen, 0)
 
@@ -370,7 +370,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	// Register a backend and do drain notices
 	bknd2 := newTestNoticeBackend()
 	bknd2.noticesChan <- nil
-	_, drained, err = nm.RegisterBackend(bknd2, state.WarningNotice, "another", true)
+	_, drained, err = nm.RegisterBackend(bknd2, state.InterfacesRequestsPromptNotice, "another", true)
 	c.Assert(err, IsNil)
 	c.Assert(drained, HasLen, 2)
 	c.Check(drained[0].ID(), Equals, id1)
@@ -398,7 +398,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	// already been drained, so drained is empty.
 	bknd3 := newTestNoticeBackend()
 	bknd3.noticesChan <- nil
-	_, drained, err = nm.RegisterBackend(bknd3, state.WarningNotice, "different", true)
+	_, drained, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "different", true)
 	c.Check(err, IsNil)
 	c.Check(drained, HasLen, 0)
 
