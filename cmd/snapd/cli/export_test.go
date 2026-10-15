@@ -48,17 +48,18 @@ var (
 
 	FirstNonOptionIsRun = firstNonOptionIsRun
 
-	CreateUserDataDirs  = createUserDataDirs
-	ResolveApp          = resolveApp
-	SnapdHelperPath     = snapdHelperPath
-	SortByPath          = sortByPath
-	AdviseCommand       = adviseCommand
-	Antialias           = antialias
-	FormatChannel       = fmtChannel
-	PrintDescr          = printDescr
-	TrueishJSON         = trueishJSON
-	CompletionHandler   = completionHandler
-	MarkForNoCompletion = markForNoCompletion
+	CreateUserDataDirs    = createUserDataDirs
+	ExposeKerberosTickets = exposeKerberosTickets
+	ResolveApp            = resolveApp
+	SnapdHelperPath       = snapdHelperPath
+	SortByPath            = sortByPath
+	AdviseCommand         = adviseCommand
+	Antialias             = antialias
+	FormatChannel         = fmtChannel
+	PrintDescr            = printDescr
+	TrueishJSON           = trueishJSON
+	CompletionHandler     = completionHandler
+	MarkForNoCompletion   = markForNoCompletion
 
 	CanUnicode           = canUnicode
 	ColorTable           = colorTable
