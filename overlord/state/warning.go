@@ -375,18 +375,12 @@ func (s *State) replaceWarningNoticeData(w *Warning, newData map[string]string) 
 	s.notices[uniqueKey] = newNotice
 }
 
-// PendingWarnings returns the list of warnings to show the user, sorted by
-// lastAdded, and a timestamp than can be used to refer to these warnings.
+// pendingWarnings is a helper function that returns the list of warnings
+// to show the user, sorted by lastAdded, and a timestamp that can be used
+// to refer to these warnings.
 //
-// Warnings to show to the user are those that have not been shown before,
-// or that have been shown earlier than repeatAfter ago.
-//
-// State lock does not need to be held, as the notices mutex ensures
-// warnings can be safely read.
-func (s *State) PendingWarnings() ([]*Warning, time.Time) {
-	s.noticesMu.RLock()
-	defer s.noticesMu.RUnlock()
-
+// The caller must ensure that the notices mutex is locked for reading.
+func (s *State) pendingWarnings() ([]*Warning, time.Time) {
 	all, now := s.allWarningsNow()
 
 	var toShow []*Warning
@@ -396,8 +390,21 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 		}
 		toShow = append(toShow, w)
 	}
-
 	return toShow, now
+}
+
+// PendingWarnings returns the list of warnings to show the user, sorted by
+// lastAdded, and a timestamp that can be used to refer to these warnings.
+//
+// Warnings to show to the user are those that have not been shown before,
+// or that have been shown earlier than repeatAfter ago.
+//
+// State lock does not need to be held, as the notices mutex ensures
+// warnings can be safely read.
+func (s *State) PendingWarnings() ([]*Warning, time.Time) {
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	return s.pendingWarnings()
 }
 
 // WarningsSummary returns the number of warnings that are ready to be
@@ -409,7 +416,9 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 // warnings can be safely read.
 func (s *State) WarningsSummary() (int, time.Time) {
 	var last time.Time
-	pending, _ := s.PendingWarnings()
+	s.noticesMu.RLock()
+	defer s.noticesMu.RUnlock()
+	pending, _ := s.pendingWarnings()
 	if len(pending) > 0 {
 		last = pending[len(pending)-1].lastAdded()
 	}
