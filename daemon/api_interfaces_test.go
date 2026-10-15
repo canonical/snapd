@@ -136,6 +136,7 @@ func (s *interfacesSuite) TestConnectPlugSuccess(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	d.Overlord().Loop()
+	defer d.Overlord().Stop()
 
 	action := &client.InterfaceAction{
 		Action: "connect",
