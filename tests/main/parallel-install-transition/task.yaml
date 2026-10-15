@@ -269,6 +269,7 @@ execute: |
         snap remove --purge test-snapd-classic-confinement_foo
 
         echo "Stop the mount units, leave the system in a clean state"
+        systemctl stop snapd.service snapd.socket
         systemctl stop "$SNAP_MOUNT_UNIT"
         systemctl stop var-snap.mount
         systemctl disable var-snap.mount
@@ -276,4 +277,5 @@ execute: |
         systemctl daemon-reload
         not findmnt -M "$SNAP_MOUNT_DIR"
         not findmnt -M /var/snap
+        systemctl start snapd.service snapd.socket
     fi
