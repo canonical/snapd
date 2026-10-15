@@ -1807,6 +1807,44 @@ func (s *infoSuite) TestExpandSnapVariables(c *C) {
 	c.Assert(info.ExpandSnapVariables("$GARBAGE/rocks"), Equals, "/rocks")
 }
 
+func (s *infoSuite) TestExpandSnapVariablesWithInstanceName(c *C) {
+	dirs.SetRootDir("")
+	info := &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(42),
+		},
+		InstanceKey: "instance",
+	}
+	opts := &snap.PathVariablesOptions{AllowSnapInstanceName: true}
+	path := "$SNAP_DATA/stuff/$SNAP_INSTANCE_NAME"
+
+	// Existing expansion callers do not opt into the new variable.
+	c.Check(info.ExpandSnapVariables(path), Equals, "/var/snap/foo/42/stuff/")
+	c.Check(info.ExpandSnapVariablesWithOptions(path, opts), Equals, "/var/snap/foo/42/stuff/foo_instance")
+	c.Check(info.ExpandSnapVariablesSetSnapMountDirWithOptions(path, "/snap", snap.PerspectiveSelf, opts),
+		Equals, "/var/snap/foo/42/stuff/foo_instance")
+	c.Check(info.ExpandSnapVariablesSetSnapMountDirWithOptions(path, "/snap", snap.PerspectiveOther, opts),
+		Equals, "/var/snap/foo_instance/42/stuff/foo_instance")
+}
+
+func (s *infoSuite) TestExpandSnapVariablesInstanceNameMultipleOccurrences(c *C) {
+	dirs.SetRootDir("")
+	info := &snap.Info{
+		SuggestedName: "foo",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(42),
+		},
+		InstanceKey: "key",
+	}
+	opts := &snap.PathVariablesOptions{AllowSnapInstanceName: true}
+	path := "$SNAP_DATA/$SNAP_INSTANCE_NAME/$SNAP_INSTANCE_NAME"
+
+	// All occurrences of $SNAP_INSTANCE_NAME are expanded.
+	c.Check(info.ExpandSnapVariablesWithOptions(path, opts),
+		Equals, "/var/snap/foo/42/foo_key/foo_key")
+}
+
 func (s *infoSuite) TestStopModeTypeKillMode(c *C) {
 	for _, t := range []struct {
 		stopMode string
