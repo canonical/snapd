@@ -1112,7 +1112,6 @@ func (s *noticesSuite) TestAvoidTwoNoticesWithSameDateTime(c *C) {
 	c.Assert(lastOccurred4.After(lastOccurred3), Equals, true)
 }
 
-
 func (s *noticesSuite) TestAddNoticeCopiesInput(c *C) {
 	st := state.New(nil)
 	st.Lock()
