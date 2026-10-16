@@ -469,6 +469,12 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 # Create the private tmp directory for snap-confine
 install -d -m 0700 /tmp/snap-private-tmp
 
+# Defer self-binds over live child mounts before %%service_add_post reloads units.
+if ! %{_libexecdir}/snapd/snap-mgmt --check-post-upgrade-mount-activation; then
+    install -d -m 0755 /run/snapd/packaging || exit 1
+    touch /run/snapd/packaging/prevent-mount-dir-activation || exit 1
+fi
+
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}

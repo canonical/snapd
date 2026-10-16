@@ -3,6 +3,8 @@ Description=snap data directory mount
 # Only set up the self bind mount with shared propagation when there is no
 # preserved snap mount namespace yet.
 ConditionPathExistsGlob=!/run/snapd/ns/*.mnt
+# Defer self-binds over live child mounts on an in-place package upgrade.
+ConditionPathExists=!/run/snapd/packaging/prevent-mount-dir-activation
 Before=snapd.mounts-pre.target
 Before=snap.mount
 
