@@ -236,7 +236,7 @@ jobs:
             file="${file%\"}"
             function_name="${function_name#\"}"
             function_name="${function_name%\"}"
-            echo "::error file=$file,line=$line,title=Shell complexity::$function_name has CCN $complexity (maximum $max_complexity)"
+            echo "::error file=$file,line=$line,title=Shell complexity::$file:$line: $function_name has CCN $complexity (maximum $max_complexity)"
             failed=1
           done < shellmetrics.csv
           exit "$failed"
