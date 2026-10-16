@@ -1037,10 +1037,10 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			ucred:   daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket),
 			notJSON: true,
 			expectedErr: map[string]*daemon.APIError{
-				"action-1": daemon.BadRequest("cannot parse content type: mime: no media type"),
-				"action-2": daemon.BadRequest("cannot parse content type: mime: no media type"),
-				"action-3": daemon.BadRequest("cannot parse content type: mime: no media type"),
-				"default":  daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"action-1": errForbidden,
+				"action-2": errForbidden,
+				"action-3": errForbidden,
+				"default":  errForbidden,
 			},
 		},
 		{
@@ -1062,12 +1062,6 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			ucred:   daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket),
 			notJSON: true,
 			noAuth:  true,
-			expectedErr: map[string]*daemon.APIError{
-				"action-1": daemon.BadRequest("cannot parse content type: mime: no media type"),
-				"action-2": daemon.BadRequest("cannot parse content type: mime: no media type"),
-				"action-3": daemon.BadRequest("cannot parse content type: mime: no media type"),
-				"default":  daemon.BadRequest("cannot parse content type: mime: no media type"),
-			},
 		},
 		{
 			ucred:  daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket),
@@ -1092,20 +1086,14 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 		for action := range byAction {
 			cmt := Commentf("sub-test tcs[%d] failed for action %q", idx, action)
 			err := ac.CheckAccess(nil, reqWithAction(c, action, !tc.notJSON, tc.malformed), tc.ucred, user, newAuthzRecorder())
-			if expectedErr := tc.expectedErr[action]; err != nil {
-				c.Check(err, DeepEquals, expectedErr, cmt)
-			} else {
-				c.Check(err, IsNil, cmt)
-			}
+			expectedErr := tc.expectedErr[action]
+			c.Check(err, DeepEquals, expectedErr, cmt)
 		}
 
 		cmt := Commentf("sub-test tcs[%d] failed for default action", idx)
 		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), tc.ucred, user, newAuthzRecorder())
-		if expectedErr := tc.expectedErr["default"]; err != nil {
-			c.Check(err, DeepEquals, expectedErr, cmt)
-		} else {
-			c.Check(err, IsNil, cmt)
-		}
+		expectedErr := tc.expectedErr["default"]
+		c.Check(err, DeepEquals, expectedErr, cmt)
 	}
 }
 
@@ -1118,36 +1106,41 @@ func (s *accessSuite) TestByActionAccessContentType(c *C) {
 
 	for _, tc := range []struct {
 		contentType string
-		expectedErr *daemon.APIError
+		data        string
 	}{
-		{contentType: "application/json"},
-		{contentType: "application/json; charset=utf-8"},
-		{contentType: "Application/JSON; charset=UTF-8"},
+		{
+			contentType: "application/json",
+			data:        `{"action": "action-1"}`,
+		},
+		{
+			contentType: "application/json; charset=utf-8",
+			data:        `{"action": "action-1"}`,
+		},
+		{
+			contentType: "Application/JSON; charset=UTF-8",
+			data:        `{"action": "action-1"}`,
+		},
 		{
 			contentType: "text/plain; charset=utf-8",
-			expectedErr: daemon.BadRequest(`unexpected content type: "text/plain; charset=utf-8"`),
+			data:        `{"action": "action-1"}`,
 		},
 		{
 			contentType: "application/jsonx",
-			expectedErr: daemon.BadRequest(`unexpected content type: "application/jsonx"`),
+			data:        `{"action": "action-1"}`,
 		},
 		{
 			contentType: "application/json; charset",
-			expectedErr: daemon.BadRequest("cannot parse content type: mime: invalid media parameter"),
+			data:        `{"action": "action-1"}`,
 		},
 	} {
 		cmt := Commentf("content type %q", tc.contentType)
-		req, err := http.NewRequest("POST", "/v2/system-volumes", strings.NewReader(`{"action": "action-1"}`))
+		req, err := http.NewRequest("POST", "/v2/system-volumes", strings.NewReader(tc.data))
 		c.Assert(err, IsNil)
 		req.Header.Add("Content-Type", tc.contentType)
 		req = withCachedAction(c, req)
 
 		err = ac.CheckAccess(nil, req, ucred, nil, newAuthzRecorder())
-		if tc.expectedErr != nil {
-			c.Check(err, DeepEquals, tc.expectedErr, cmt)
-		} else {
-			c.Check(err, IsNil, cmt)
-		}
+		c.Check(err, IsNil, cmt)
 	}
 }
 
