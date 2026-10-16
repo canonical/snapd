@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
 
@@ -243,7 +244,11 @@ func postSystemVolumesAction(c *Command, r *http.Request, user *auth.UserState) 
 	}
 
 	contentType := r.Header.Get("Content-Type")
-	switch contentType {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
+	switch mediaType {
 	case "application/json":
 		return postSystemVolumesActionJSON(c, r)
 	default:

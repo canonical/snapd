@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -50,8 +51,12 @@ var systemSecurebootCmd = &Command{
 
 func postSystemSecurebootAction(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return BadRequest("cannot parse content type: %v", err)
+	}
 
-	switch contentType {
+	switch mediaType {
 	case "application/json":
 		return postSystemSecurebootActionJSON(c, r)
 	default:

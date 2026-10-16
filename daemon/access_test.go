@@ -1037,10 +1037,10 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			ucred:   daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket),
 			notJSON: true,
 			expectedErr: map[string]*daemon.APIError{
-				"action-1": daemon.BadRequest(`unexpected content type: ""`),
-				"action-2": daemon.BadRequest(`unexpected content type: ""`),
-				"action-3": daemon.BadRequest(`unexpected content type: ""`),
-				"default":  daemon.BadRequest(`unexpected content type: ""`),
+				"action-1": daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"action-2": daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"action-3": daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"default":  daemon.BadRequest("cannot parse content type: mime: no media type"),
 			},
 		},
 		{
@@ -1063,10 +1063,10 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 			notJSON: true,
 			noAuth:  true,
 			expectedErr: map[string]*daemon.APIError{
-				"action-1": daemon.BadRequest(`unexpected content type: ""`),
-				"action-2": daemon.BadRequest(`unexpected content type: ""`),
-				"action-3": daemon.BadRequest(`unexpected content type: ""`),
-				"default":  daemon.BadRequest(`unexpected content type: ""`),
+				"action-1": daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"action-2": daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"action-3": daemon.BadRequest("cannot parse content type: mime: no media type"),
+				"default":  daemon.BadRequest("cannot parse content type: mime: no media type"),
 			},
 		},
 		{
@@ -1103,6 +1103,48 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), tc.ucred, user, newAuthzRecorder())
 		if expectedErr := tc.expectedErr["default"]; err != nil {
 			c.Check(err, DeepEquals, expectedErr, cmt)
+		} else {
+			c.Check(err, IsNil, cmt)
+		}
+	}
+}
+
+func (s *accessSuite) TestByActionAccessContentType(c *C) {
+	var ac daemon.AccessChecker = daemon.ByActionAccess{
+		ByAction: map[string]daemon.AccessChecker{"action-1": daemon.OpenAccess{}},
+		Default:  daemon.RootAccess{},
+	}
+	ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+
+	for _, tc := range []struct {
+		contentType string
+		expectedErr *daemon.APIError
+	}{
+		{contentType: "application/json"},
+		{contentType: "application/json; charset=utf-8"},
+		{contentType: "Application/JSON; charset=UTF-8"},
+		{
+			contentType: "text/plain; charset=utf-8",
+			expectedErr: daemon.BadRequest(`unexpected content type: "text/plain; charset=utf-8"`),
+		},
+		{
+			contentType: "application/jsonx",
+			expectedErr: daemon.BadRequest(`unexpected content type: "application/jsonx"`),
+		},
+		{
+			contentType: "application/json; charset",
+			expectedErr: daemon.BadRequest("cannot parse content type: mime: invalid media parameter"),
+		},
+	} {
+		cmt := Commentf("content type %q", tc.contentType)
+		req, err := http.NewRequest("POST", "/v2/system-volumes", strings.NewReader(`{"action": "action-1"}`))
+		c.Assert(err, IsNil)
+		req.Header.Add("Content-Type", tc.contentType)
+		req = withCachedAction(c, req)
+
+		err = ac.CheckAccess(nil, req, ucred, nil, newAuthzRecorder())
+		if tc.expectedErr != nil {
+			c.Check(err, DeepEquals, tc.expectedErr, cmt)
 		} else {
 			c.Check(err, IsNil, cmt)
 		}
