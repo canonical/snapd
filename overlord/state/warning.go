@@ -89,6 +89,7 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 		// and leaves it unchanged for reoccuring notices. firstOccurred should be
 		// set to the warning's FirstAdded value. This assignment has no side effects.
 		notice.firstOccurred = w.FirstAdded
+		s.HandleReportedLastNoticeTimestamp(notice.lastRepeated)
 	}
 }
 
