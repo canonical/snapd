@@ -109,9 +109,11 @@ func (w *Warning) firstAdded() time.Time {
 
 func (w *Warning) lastAdded() time.Time {
 	// Since repeatAfter is always 0 for warnings, the value for
-	// lastOccurred and lastRepeated are equal. It is less confusing
-	// to set lastAdded to lastOccurred since firstAdded is firstOccurred.
-	return w.notice.lastOccurred
+	// lastOccurred and lastRepeated are equal. Notices are
+	// guaranteed to be sorted by their lastRepeated and
+	// lastAdded is used as the time stramp for warnings in
+	// WarningSummary, Therefore, lastAdded is set to lastRepeated.
+	return w.notice.lastRepeated
 }
 
 func (w *Warning) lastShown() (time.Time, error) {
@@ -233,7 +235,7 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 
 	addNoticeOptions := &AddNoticeOptions{
 		Data: map[string]string{},
-		// Always repeat warning notices. The RepeatAfter field in the warning
+		// Always repeat warning notices. The ShowAfter field in the warning
 		// options is really about when a warning should be re-shown to a user,
 		// and is unrelated to notice RepeatAfter. We always want to repeat the
 		// notice so that the warning data is up to date.
@@ -281,12 +283,11 @@ func (s *State) RemoveWarning(message string) error {
 	return nil
 }
 
-const (
-	warningNoticeHasUserID = false
-	warningNoticeUserID    = uint32(0)
-)
-
 func warningNoticeKey(message string) noticeKey {
+	const (
+		warningNoticeHasUserID = false
+		warningNoticeUserID    = uint32(0)
+	)
 	return noticeKey{warningNoticeHasUserID, warningNoticeUserID, WarningNotice, message}
 }
 
