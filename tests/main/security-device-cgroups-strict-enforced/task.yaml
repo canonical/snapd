@@ -89,6 +89,8 @@ execute: |
     wait || true
     # nothing was logged, i.e. /dev/zero access was successful
     if [ -n "$TAG_FEATURES" ]; then
+      # When feature tagging is active, it emits extra json-formatted
+      # logs; filter those out
       grep -v '"level":' run.log | MATCH "^$"
     else
       MATCH "^$" < run.log
