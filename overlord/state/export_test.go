@@ -77,26 +77,26 @@ func (s *State) NumNotices() int {
 	return len(s.notices)
 }
 
-func (s *State) GetLastNoticeTimestamp() time.Time {
+func (s *State) LastNoticeTimestamp() time.Time {
 	return s.getLastNoticeTimestamp()
 }
 
-func (s *State) GetLastNoticeId() int {
+func (s *State) LastNoticeId() int {
 	return s.lastNoticeId
 }
 
-func (n *Notice) GetExpireAfter() time.Duration {
+func (n *Notice) ExpireAfter() time.Duration {
 	return n.expireAfter
 }
 
-func (n *Notice) GetNoticeFirstOccurred() time.Time {
+func (n *Notice) NoticeFirstOccurred() time.Time {
 	return n.firstOccurred
 }
 
-func (n *Notice) GetNoticeLastOccurred() time.Time {
+func (n *Notice) NoticeLastOccurred() time.Time {
 	return n.lastOccurred
 }
 
-func (w *Warning) GetBackingNotice() *Notice {
+func (w *Warning) BackingNotice() *Notice {
 	return w.notice
 }
