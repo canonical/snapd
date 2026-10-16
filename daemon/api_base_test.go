@@ -451,7 +451,7 @@ type storeUpdateGoalRecorder struct {
 func (s *storeUpdateGoalRecorder) names() []string {
 	names := make([]string, 0, len(s.snaps))
 	for _, snap := range s.snaps {
-		names = append(names, snap.InstanceName)
+		names = append(names, snap.InstanceName.String())
 	}
 	return names
 }

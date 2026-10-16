@@ -785,7 +785,7 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
 	c.Check(hints["bar"].Monitored, Equals, true)
 
 	// like re-refresh code path would eventually call it
-	err = snapstate.UpdateRefreshCandidates(s.state, nil, []string{"foo"})
+	err = snapstate.UpdateRefreshCandidates(s.state, nil, []naming.InstanceName{"foo"})
 	c.Assert(err, IsNil)
 
 	hints = nil

@@ -780,7 +780,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
-		curByInstanceName[cur.InstanceName] = cur
+		curByInstanceName[cur.InstanceName.String()] = cur
 		curSnaps[i] = *cur
 	}
 	sort.Sort(curSnaps)
@@ -910,7 +910,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		})
 
 		if err == store.ErrNoUpdateAvailable {
-			refreshErrors[cur.InstanceName] = err
+			refreshErrors[cur.InstanceName.String()] = err
 			continue
 		}
 		if err != nil {

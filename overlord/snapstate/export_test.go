@@ -351,7 +351,7 @@ var (
 
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []naming.InstanceName, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
 	old := reRefreshUpdateMany
 	reRefreshUpdateMany = f
 	return func() {
@@ -561,7 +561,7 @@ func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func
 	}
 }
 
-func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []naming.InstanceName, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
 	old := maybeRestoreValidationSetsAndRevertSnaps
 	maybeRestoreValidationSetsAndRevertSnaps = f
 	return func() {

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -176,7 +177,7 @@ func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, ho
 	}
 
 	for _, holdSnap := range holdSnaps {
-		if _, ok := snaps[holdSnap]; !ok {
+		if _, ok := snaps[naming.InstanceName(holdSnap)]; !ok {
 			return snap.NotInstalledError{Snap: holdSnap}
 		}
 	}
@@ -663,7 +664,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		if inf.Hooks[gateAutoRefreshHookName] == nil {
 			continue
 		}
-		snapsWithHook[name] = snapSt
+		snapsWithHook[name.String()] = snapSt
 
 		base := inf.Base
 		if base == "none" {
@@ -693,12 +694,12 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		affectedInfo.AffectingSnaps[affectedBy] = true
 	}
 
-	for _, snapName := range updates {
-		snapSt := allSnaps[snapName]
+	for _, instanceName := range updates {
+		snapSt := allSnaps[naming.InstanceName(instanceName)]
 		if snapSt == nil {
 			// this could happen if an update for inactive snap was requested (those
 			// are filtered out above).
-			return nil, fmt.Errorf("internal error: no state for snap %q", snapName)
+			return nil, fmt.Errorf("internal error: no state for snap %q", instanceName)
 		}
 		up, err := snapSt.CurrentInfo()
 		if err != nil {

@@ -344,7 +344,7 @@ type storeInstallGoal struct {
 	snaps []StoreSnap
 }
 
-func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
+func (s *storeInstallGoal) snap(name naming.InstanceName) (StoreSnap, bool) {
 	for _, sn := range s.snaps {
 		if sn.InstanceName == name {
 			return sn, true
@@ -356,7 +356,7 @@ func (s *storeInstallGoal) snap(name string) (StoreSnap, bool) {
 // StoreSnap represents a snap that is to be installed from the store.
 type StoreSnap struct {
 	// InstanceName is the name of snap to install.
-	InstanceName string
+	InstanceName naming.InstanceName
 	// Components is the list of components to install with this snap.
 	Components []string
 	// RevOpts contains options that apply to the installation of this snap.
@@ -369,7 +369,7 @@ type StoreSnap struct {
 // If a snap is provided more than once in the list, the first instance of it
 // will be used to provide the installation options.
 func StoreInstallGoal(snaps ...StoreSnap) InstallGoal {
-	seen := make(map[string]bool, len(snaps))
+	seen := make(map[naming.InstanceName]bool, len(snaps))
 	unique := make([]StoreSnap, 0, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := seen[sn.InstanceName]; ok {
@@ -423,12 +423,12 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 
 	installs := make([]target, 0, len(results))
 	for _, r := range results {
-		sn, ok := s.snap(r.InstanceName().String())
+		sn, ok := s.snap(r.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("store returned unsolicited snap action: %s", r.InstanceName())
 		}
 
-		snapst, ok := allSnaps[r.InstanceName().String()]
+		snapst, ok := allSnaps[r.InstanceName()]
 		if !ok {
 			snapst = &SnapState{}
 		}
@@ -442,7 +442,7 @@ func (s *storeInstallGoal) toInstall(ctx context.Context, st *state.State, opts 
 	}
 
 	for _, t := range installs {
-		sn, ok := s.snap(t.info.InstanceName().String())
+		sn, ok := s.snap(t.info.InstanceName())
 		if !ok {
 			return nil, fmt.Errorf("internal error: snap to install was not requested: %s", t.info.InstanceName())
 		}
@@ -755,12 +755,12 @@ func invalidComponentRevisionError(action string, snapName naming.SnapName, comp
 	)
 }
 
-func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[string]*SnapState, opts Options) error {
+func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[naming.InstanceName]*SnapState, opts Options) error {
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 	uninstalled := s.snaps[:0]
 	var alreadyInstalled []string
 	for _, sn := range s.snaps {
-		if err := snap.ValidateInstanceName(sn.InstanceName); err != nil {
+		if err := snap.ValidateInstanceName(sn.InstanceName.String()); err != nil {
 			return fmt.Errorf("invalid instance name: %v", err)
 		}
 
@@ -771,7 +771,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 		snapst, ok := installedSnaps[sn.InstanceName]
 		if ok && snapst.IsInstalled() {
 			if !sn.SkipIfPresent {
-				alreadyInstalled = append(alreadyInstalled, sn.InstanceName)
+				alreadyInstalled = append(alreadyInstalled, sn.InstanceName.String())
 			}
 			continue
 		}
@@ -1051,7 +1051,7 @@ func validatedComponentInfo(path string, si *snap.Info, csi *snap.ComponentSideI
 type updatePlan struct {
 	// requested is the list of snaps that were requested to be updated. If
 	// RefreshAll is true, then this list should be empty.
-	requested []string
+	requested []naming.InstanceName
 	// targets is the list of snaps that are to be updated. Note that this list
 	// does not necessarily match the list of snaps in requested.
 	targets []target
@@ -1415,13 +1415,13 @@ func updateFromPlan(st *state.State, plan updatePlan, opts Options) ([]string, *
 // of snaps that are to be updated from the store.
 type storeUpdateGoal struct {
 	// snaps is a mapping of snap names to StoreUpdate structs.
-	snaps map[string]StoreUpdate
+	snaps map[naming.InstanceName]StoreUpdate
 }
 
 // StoreUpdate represents a snap that is to be updated from the store.
 type StoreUpdate struct {
 	// InstanceName is the instance name of the snap to update.
-	InstanceName string
+	InstanceName naming.InstanceName
 	// RevOpts contains options that apply to the update of this snap.
 	RevOpts RevisionOptions
 	// AdditionalComponents is a list of additional components to install during
@@ -1434,7 +1434,7 @@ type StoreUpdate struct {
 
 // StoreUpdateGoal creates a new UpdateGoal to update snaps from the store.
 func StoreUpdateGoal(snaps ...StoreUpdate) UpdateGoal {
-	mapping := make(map[string]StoreUpdate, len(snaps))
+	mapping := make(map[naming.InstanceName]StoreUpdate, len(snaps))
 	for _, sn := range snaps {
 		if _, ok := mapping[sn.InstanceName]; ok {
 			continue
@@ -1483,13 +1483,13 @@ func (*storeUpdateGoal) filterGatedSnaps(st *state.State, plan *updatePlan, opts
 	return plan.validateAndFilterTargets(st, opts)
 }
 
-func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState, updates map[string]StoreUpdate, opts Options) error {
+func validateAndInitStoreUpdates(st *state.State, allSnaps map[naming.InstanceName]*SnapState, updates map[naming.InstanceName]StoreUpdate, opts Options) error {
 	enforcedSetsFunc := cachedEnforcedValidationSets(st)
 	for _, sn := range updates {
 		snapst, ok := allSnaps[sn.InstanceName]
 		if !ok {
 			if !sn.InstallIfMissing {
-				return snap.NotInstalledError{Snap: sn.InstanceName}
+				return snap.NotInstalledError{Snap: sn.InstanceName.String()}
 			}
 			snapst = &SnapState{}
 		}
@@ -1508,10 +1508,8 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 
 		additional := make([]string, 0, len(sn.AdditionalComponents))
 
-		// filter out additional components that are already installed
-		snapName, _ := snap.SplitInstanceName(sn.InstanceName)
 		for _, add := range sn.AdditionalComponents {
-			if snapst.CurrentComponentState(naming.NewComponentRef(naming.SnapName(snapName), add)) == nil {
+			if snapst.CurrentComponentState(naming.NewComponentRef(sn.InstanceName.SnapName(), add)) == nil {
 				additional = append(additional, add)
 			}
 		}
@@ -1536,7 +1534,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 	return nil
 }
 
-func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[string]*SnapState) (map[string]StoreUpdate, error) {
+func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[naming.InstanceName]*SnapState) (map[naming.InstanceName]StoreUpdate, error) {
 	var vsets *snapasserts.ValidationSets
 	if !opts.Flags.IgnoreValidation {
 		enforced, err := EnforcedValidationSets(st)
@@ -1548,10 +1546,10 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 		vsets = snapasserts.NewValidationSets()
 	}
 
-	updates := make(map[string]StoreUpdate, len(allSnaps))
+	updates := make(map[naming.InstanceName]StoreUpdate, len(allSnaps))
 	for _, snapst := range allSnaps {
-		updates[snapst.InstanceName().String()] = StoreUpdate{
-			InstanceName: snapst.InstanceName().String(),
+		updates[snapst.InstanceName()] = StoreUpdate{
+			InstanceName: snapst.InstanceName(),
 
 			// default the channel and cohort key to the existing values,
 			RevOpts: RevisionOptions{
@@ -1620,7 +1618,7 @@ func PathUpdateGoal(snaps ...PathSnap) UpdateGoal {
 
 func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Options) (updatePlan, error) {
 	targets := make([]target, 0, len(p.updates))
-	names := make([]string, 0, len(p.updates))
+	names := make([]naming.InstanceName, 0, len(p.updates))
 
 	for _, sn := range p.updates {
 		var snapst SnapState
@@ -1634,7 +1632,7 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 		}
 
 		targets = append(targets, t)
-		names = append(names, sn.InstanceName)
+		names = append(names, naming.InstanceName(sn.InstanceName))
 	}
 
 	return updatePlan{
@@ -1691,7 +1689,7 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		update.RevOpts.Channel = update.SideInfo.Channel
 	}
 
-	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx); err != nil {
+	if err := update.RevOpts.resolveChannel(naming.InstanceName(update.InstanceName), trackingChannel, opts.DeviceCtx); err != nil {
 		return target{}, err
 	}
 

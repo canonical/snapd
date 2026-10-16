@@ -217,7 +217,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 
 		// NOTE: ubuntu-core is not installed in developer mode
 		c.Check(opts.Flags, check.Equals, snapstate.Flags{})
-		installQueue = append(installQueue, goal.snaps[0].InstanceName)
+		installQueue = append(installQueue, goal.snaps[0].InstanceName.String())
 
 		t := st.NewTask("fake-install-snap", "Doing a fake install")
 		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
