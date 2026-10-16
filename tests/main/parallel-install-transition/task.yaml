@@ -170,6 +170,20 @@ execute: |
         not findmnt -M "$SNAP_MOUNT_DIR"
         not findmnt -M /var/snap
 
+        echo "Install a new snap and remove a pre-upgrade snap while the namespace guard is active"
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+        snap remove --purge test-snapd-sh-core24_foo
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            not systemctl is-active "$u"
+        done
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        test -e /run/snapd/ns/test-snapd-sh-core24.mnt
+        count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-sh/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
+        test "$count" -eq 1
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh-core24 test-snapd-sh-core24_foo
+        not findmnt -M "$SNAP_MOUNT_DIR"
+
         echo "Running an unrelated classic snap must not trigger the binds"
         test-snapd-classic-confinement.sh -c true
         not findmnt -M "$SNAP_MOUNT_DIR"
@@ -214,7 +228,7 @@ execute: |
         done
 
         echo "No duplicated content mounts"
-        for snap_name in core core24 snapd test-snapd-sh-core24 test-snapd-sh-core24_foo \
+        for snap_name in core core24 snapd test-snapd-sh test-snapd-sh-core24 test-snapd-sh-core24_foo \
             test-snapd-classic-confinement; do
             count="$(awk -v p="$SNAP_MOUNT_DIR/$snap_name/" 'index($5, p) == 1' /proc/self/mountinfo | wc -l)"
             test "$count" -eq 1
@@ -250,7 +264,7 @@ execute: |
         done
 
         echo "No duplicated content mounts after the second reboot"
-        for snap_name in core core24 snapd test-snapd-sh-core24 test-snapd-sh-core24_foo \
+        for snap_name in core core24 snapd test-snapd-sh test-snapd-sh-core24 test-snapd-sh-core24_foo \
             test-snapd-classic-confinement test-snapd-classic-confinement_foo; do
             count="$(awk -v p="$SNAP_MOUNT_DIR/$snap_name/" 'index($5, p) == 1' /proc/self/mountinfo | wc -l)"
             test "$count" -eq 1
@@ -263,6 +277,7 @@ execute: |
         test-snapd-classic-confinement_foo.sh -c true
 
         echo "Purge all the snaps used by this test"
+        snap remove --purge test-snapd-sh
         snap remove --purge test-snapd-sh-core24
         snap remove --purge test-snapd-sh-core24_foo
         snap remove --purge test-snapd-classic-confinement
