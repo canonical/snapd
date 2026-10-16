@@ -4,9 +4,6 @@ details: |
     Check it is allowed to install parallel instances through
     parallel-instances config using local snaps.
 
-restore: |
-    snap set system experimental.parallel-instances=null
-
 execute: |
     echo "Install the regular snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
