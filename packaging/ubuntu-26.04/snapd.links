@@ -1,8 +1,4 @@
 /usr/lib/snapd/snap-device-helper  /usr/lib/udev/snappy-app-dev
-# Ship the enable symlink in the package. deb-systemd-helper will not recreate
-# it when its state file exists and the link is already gone, so remove followed
-# by install would leave the session agent socket disabled.
-/usr/lib/systemd/user/snapd.session-agent.socket /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
 usr/lib/snapd/snapctl usr/bin/snapctl
 usr/lib/snapd/snapctl usr/lib/snapd/snap-exec
 usr/lib/snapd/snapd usr/bin/snap
