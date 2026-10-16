@@ -180,6 +180,7 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/chai2010/gettext-go)
 BuildRequires: golang(github.com/cilium/ebpf)
+BuildRequires: golang(github.com/coreos/go-systemd/unit)
 BuildRequires: golang(github.com/godbus/dbus/v5)
 BuildRequires: golang(github.com/godbus/dbus/v5/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
