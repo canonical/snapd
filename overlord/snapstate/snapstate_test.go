@@ -13195,6 +13195,136 @@ func (s *snapmgrTestSuite) TestStartUpCleansUpGateAutoRefreshLeftovers(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) mockParallelInstancesForMigration(c *C) {
+	s.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	repo := ifacerepo.Get(s.state)
+	c.Assert(repo.AddInterface(&testParallelInstancesSupportedInterface{}), IsNil)
+	c.Assert(repo.AddInterface(&testParallelInstancesPlugRejectingInterface{}), IsNil)
+
+	const okYaml = `name: some-snap
+version: 1
+plugs:
+  pi-ok-plug:
+    interface: pi-ok-iface
+`
+	const nokYaml = `name: some-snap
+version: 1
+plugs:
+  pi-ok-plug:
+    interface: pi-ok-iface
+  pi-nok-plug:
+    interface: pi-nok-plug-iface
+`
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}
+	for _, tc := range []struct {
+		instanceKey string
+		yaml        string
+	}{
+		{"", nokYaml},
+		{"ok", okYaml},
+		{"nok", nokYaml},
+	} {
+		instanceName := snap.InstanceName("some-snap", tc.instanceKey).String()
+		snaptest.MockSnapInstance(c, instanceName, tc.yaml, si)
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+			Active:      true,
+			Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+			Current:     si.Revision,
+			SnapType:    "app",
+			InstanceKey: tc.instanceKey,
+		})
+	}
+}
+
+func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.mockParallelInstancesForMigration(c)
+	link := s.state.NewTask("link-snap", "install parallel instance")
+	link.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)},
+		InstanceKey: "in-flight",
+	})
+	s.state.NewChange("install", "Install parallel instance").AddTask(link)
+
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+	var migrationPending bool
+	c.Assert(link.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+
+	for name, expected := range map[string]bool{
+		"some-snap":     false,
+		"some-snap_ok":  false,
+		"some-snap_nok": true,
+	} {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
+		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name))
+	}
+
+	var done bool
+	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), IsNil)
+	c.Check(done, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestMigrateParallelInstancesWaitsForStartedLinkSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	startedLink := s.state.NewTask("link-snap", "install parallel instance")
+	startedLink.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "some-snap", Revision: snap.R(8)},
+		InstanceKey: "started",
+	})
+	startedLink.SetStatus(state.DoingStatus)
+
+	pendingLink := s.state.NewTask("link-snap", "install parallel instance")
+	pendingLink.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    &snap.SideInfo{RealName: "some-snap", Revision: snap.R(9)},
+		InstanceKey: "pending",
+	})
+	otherTask := s.state.NewTask("configure-snap", "configure snap")
+	otherTask.SetStatus(state.DoingStatus)
+	chg := s.state.NewChange("install", "Install parallel instances")
+	chg.AddTask(startedLink)
+	chg.AddTask(pendingLink)
+	chg.AddTask(otherTask)
+
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+
+	var done bool
+	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), testutil.ErrorIs, state.ErrNoState)
+	var migrationPending bool
+	c.Assert(startedLink.Get("allow-unsupported-instances-migration-pending", &migrationPending), testutil.ErrorIs, state.ErrNoState)
+	c.Assert(pendingLink.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+
+	startedLink.SetStatus(state.DoStatus)
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+
+	c.Assert(s.state.Get("allow-unsupported-instances-migrated", &done), IsNil)
+	c.Check(done, Equals, true)
+	c.Check(otherTask.Status(), Equals, state.DoingStatus)
+	c.Assert(startedLink.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestMigrateParallelInstancesRunsOnce(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("allow-unsupported-instances-migrated", true)
+	s.mockParallelInstancesForMigration(c)
+
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+
+	// instance installed after the migration ran is not migrated
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap_nok", &snapst), IsNil)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestResealingTasksAreRegistered(c *C) {
 	expectedTaskKinds := []string{
 		//snapmgr
