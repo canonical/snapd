@@ -3111,7 +3111,7 @@ func (*viewSuite) TestSetValidateValue(c *C) {
 			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
-			value: []any{nil, map[string]any{"bar-": 2}},
+			value: []any{"ok", map[string]any{"bar-": 2}},
 			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
 		},
 		{
@@ -3133,6 +3133,22 @@ func (*viewSuite) TestSetValidateValue(c *C) {
 		{
 			value: map[string]any{"foo": []any{map[string]any{"bar": nil}}, "bar": map[string]any{"baz": []any{}}},
 			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set empty container: must contain at least one scalar`,
+		},
+		{
+			value: []any{nil},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set null value in list`,
+		},
+		{
+			value: []any{"value", nil},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set null value in list`,
+		},
+		{
+			value: map[string]any{"foo": []any{nil}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set null value in list`,
+		},
+		{
+			value: []any{[]any{nil}},
+			error: `cannot set "foo" through confdb view acc/foo/bar: cannot set null value in list`,
 		},
 		{
 			// having a nil value counts because it may be used to unset that path
@@ -3620,70 +3636,32 @@ func (*viewSuite) TestCheckWriteEphemeralAccess(c *C) {
 	}
 }
 
-func (*viewSuite) TestViewRequestPathCannotHaveIndexLiteral(c *C) {
-	_, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "a[0]", "storage": "a[0]"},
-			},
+func (*viewSuite) TestViewPathsCannotHaveIndexLiteral(c *C) {
+	tcs := []struct {
+		rule  map[string]any
+		error string
+	}{
+		{
+			rule:  map[string]any{"request": "a[0]", "storage": "foo"},
+			error: `cannot define view "foo": invalid request "a[0]": invalid subkey "[0]": view paths cannot have literal indexes (only index placeholders)`,
 		},
-	}, confdb.NewJSONSchema())
-	c.Assert(err, NotNil)
-	c.Assert(err.Error(), Equals, "cannot define view \"foo\": invalid request \"a[0]\": invalid subkey \"[0]\": view paths cannot have literal indexes (only index placeholders)")
-
-	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "a[{n}]", "storage": "a[{n}]"},
-				map[string]any{"request": "b", "storage": "a[0]"},
-			},
+		{
+			rule:  map[string]any{"request": "foo", "storage": "a[0]"},
+			error: `cannot define view "foo": invalid storage "a[0]": invalid subkey "[0]": view paths cannot have literal indexes (only index placeholders)`,
 		},
-	}, confdb.NewJSONSchema())
-	c.Assert(err, IsNil)
-	c.Assert(schema, NotNil)
+	}
 
-}
+	for i, tc := range tcs {
+		cmt := Commentf("sub-test %d/%d failed", i+1, len(tcs))
 
-func (*viewSuite) TestGetListLiteral(c *C) {
-	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
-		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "a[{n}].bar", "storage": "a[{n}].bar"},
-				map[string]any{"request": "a[{n}].baz", "storage": "a[{n}][0].baz"},
-				map[string]any{"request": "top", "storage": "a"},
-				map[string]any{"request": "nested", "storage": "a[1]"},
+		_, err := confdb.NewSchema("acc", "confdb", map[string]any{
+			"foo": map[string]any{
+				"rules": []any{tc.rule},
 			},
-		},
-	}, confdb.NewJSONSchema())
-	c.Assert(err, IsNil)
-
-	bag := confdb.NewJSONDatabag()
-	err = bag.Set(parsePath(c, "a"), []any{
-		map[string]any{"bar": 1337},
-		[]any{map[string]any{"baz": 999}},
-	})
-	c.Assert(err, IsNil)
-
-	view := schema.View("foo")
-	val, err := view.Get(bag, "a[0].bar", nil, confdb.AdminAccess)
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, float64(1337))
-
-	val, err = view.Get(bag, "a[1].baz", nil, confdb.AdminAccess)
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, float64(999))
-
-	val, err = view.Get(bag, "top", nil, confdb.AdminAccess)
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, []any{
-		map[string]any{"bar": float64(1337)},
-		[]any{map[string]any{"baz": float64(999)}},
-	})
-
-	// path with literal index ending at list
-	val, err = view.Get(bag, "nested", nil, confdb.AdminAccess)
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, []any{map[string]any{"baz": float64(999)}})
+		}, confdb.NewJSONSchema())
+		c.Assert(err, NotNil, cmt)
+		c.Assert(err.Error(), Equals, tc.error, cmt)
+	}
 }
 
 func (*viewSuite) TestGetListPlaceholder(c *C) {
@@ -4446,20 +4424,12 @@ func (*viewSuite) TestFieldFilterConstraints(c *C) {
 			err: `storage paths "foo.{key}.{key}[.kind={kind}]" and "foo.{other}.{other}" access overlapping data with different field filters`,
 		},
 		{
-			name: "storage index placeholder overlaps literal index",
+			name: "storage index placeholders overlap with different filters",
 			rules: []any{
 				map[string]any{"request": "filtered[{n}]", "storage": "foo[{n}][.kind={kind}]"},
-				map[string]any{"request": "filtered", "storage": "foo[0]"},
+				map[string]any{"request": "filtered[{n}].bar", "storage": "foo[{n}].bar"},
 			},
-			err: `storage paths "foo[{n}][.kind={kind}]" and "foo[0]" access overlapping data with different field filters`,
-		},
-		{
-			name: "equivalent literal storage indexes overlap",
-			rules: []any{
-				map[string]any{"request": "filtered.value", "storage": "foo[0][.kind={kind}]"},
-				map[string]any{"request": "filtered", "storage": "foo[00]"},
-			},
-			err: `storage paths "foo[0][.kind={kind}]" and "foo[00]" access overlapping data with different field filters`,
+			err: `storage paths "foo[{n}][.kind={kind}]" and "foo[{n}].bar" access overlapping data with different field filters`,
 		},
 		{
 			name: "map and list storage paths do not overlap",
