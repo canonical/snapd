@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -911,4 +912,8 @@ func MockHookKeyProtectorFactory(f func(*DeviceManager, *snap.Info) (secboot.Key
 
 func MockKeysSaveProtectorKey(f func(key keys.ProtectorKey, path string) error) (restore func()) {
 	return testutil.Mock(&keysSaveProtectorKey, f)
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
+	return testutil.Mock(&snapstate.ValidatedIntegrityData, f)
 }
