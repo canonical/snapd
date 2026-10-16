@@ -22,11 +22,10 @@ Options:
   --force                          Force operation (relevant for mount directory migration)
 
 Actions:
-  --purge                          Purge all snaps and their data
-  --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
-  --check-mount-dir-migration      Check system state required to run mount directory migration
-  --check-post-upgrade-mount-activation
-                                  Succeed if starting mount directory units is safe
+  --purge                                Purge all snaps and their data
+  --migrate-mount-dir                    Migrate mount directory from /snap to /var/lib/snapd/snap
+  --check-mount-dir-migration            Check system state required to run mount directory migration
+  --check-post-upgrade-mount-activation  Succeed if starting mount directory units is safe
 EOF
 }
 
@@ -271,18 +270,20 @@ purge() {
     rm -f /run/snapd/packaging/prevent-mount-dir-activation
 }
 
-# A recursive self-bind over live child mounts duplicates and hides them. A
-# mount directory already mounted before the new units are loaded is safe:
-# systemd recognizes it rather than mounting it again. Check PID 1's mount
-# namespace, since that is where systemd starts the new units. Both possible
-# snap directories are checked (on some distributions /snap is a symlink).
-# Return 0 if safe, nonzero if activation must be deferred until reboot.
+# Check whether snap-mount-dir and var-snap mounts can be activated in a post
+# native-package upgrade scenarios.
 check_post_upgrade_mount_activation() {
+    # The mount units do a recursive self-bind. If those are started when snaps
+    # are already mount, the child mounts become duplicated and hidden. A mount
+    # directory already mounted before the new units are loaded is safe. Check
+    # inside pid 1 (systemd) mount namespace.
     if [ ! -r /proc/1/mountinfo ]; then
         echo "Cannot inspect system mount table; deferring mount activation" >&2
         return 1
     fi
 
+    # Check both possible mount directories regardless of what's used by current
+    # system, only the mounts matter.
     for dir in /snap /var/lib/snapd/snap /var/snap; do
         if ! awk -v dir="$dir" '
             $5 == dir { mounted = 1 }
