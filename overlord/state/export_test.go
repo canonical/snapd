@@ -46,7 +46,7 @@ func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 }
 
 func (w Warning) LastAdded() time.Time {
-	return w.lastAdded
+	return w.lastAdded()
 }
 
 func (t *Task) AccumulateDoingTime(duration time.Duration) {
@@ -59,13 +59,17 @@ func (t *Task) AccumulateUndoingTime(duration time.Duration) {
 
 var (
 	DefaultWarningExpireAfter = defaultWarningExpireAfter
-	DefaultWarningRepeatAfter = defaultWarningRepeatAfter
-
-	ErrNoWarningMessage     = errNoWarningMessage
-	ErrBadWarningMessage    = errBadWarningMessage
-	ErrNoWarningFirstAdded  = errNoWarningFirstAdded
-	ErrNoWarningExpireAfter = errNoWarningExpireAfter
+	DefaultWarningShowAfter   = defaultWarningShowAfter
 )
+
+// MockDefaultWarningExpireAfter changes defaultWarningExpireAfter for testing.
+func MockDefaultWarningExpireAfter(d time.Duration) (restore func()) {
+	old := defaultWarningExpireAfter
+	defaultWarningExpireAfter = d
+	return func() {
+		defaultWarningExpireAfter = old
+	}
+}
 
 // NumNotices returns the total bumber of notices, including expired ones that
 // haven't yet been pruned.
@@ -73,6 +77,26 @@ func (s *State) NumNotices() int {
 	return len(s.notices)
 }
 
-func (s *State) GetLastNoticeTimestamp() time.Time {
+func (s *State) LastNoticeTimestamp() time.Time {
 	return s.getLastNoticeTimestamp()
+}
+
+func (s *State) LastNoticeId() int {
+	return s.lastNoticeId
+}
+
+func (n *Notice) ExpireAfter() time.Duration {
+	return n.expireAfter
+}
+
+func (n *Notice) NoticeFirstOccurred() time.Time {
+	return n.firstOccurred
+}
+
+func (n *Notice) NoticeLastOccurred() time.Time {
+	return n.lastOccurred
+}
+
+func (w *Warning) BackingNotice() *Notice {
+	return w.notice
 }
