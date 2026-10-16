@@ -223,10 +223,14 @@ EOF
 repack_gadget() {
     local download_dir
     local unpack_dir
+    local cleanup_command
 
     download_dir="$(mktemp -d "${TMPDIR:-/tmp}/gadget-download.XXXXXXXX")"
     unpack_dir="$(mktemp -d "${TMPDIR:-/tmp}/gadget-unpack.XXXXXXXX")"
-    trap 'rm -rf "$download_dir" "$unpack_dir"' EXIT
+    printf -v cleanup_command 'rm -rf %q %q' "$download_dir" "$unpack_dir"
+    # Expand now so the trap does not depend on function-local variables.
+    # shellcheck disable=SC2064
+    trap "$cleanup_command" EXIT
 
     (cd "$download_dir" && snap download --basename=pc --channel="${GADGET_BRANCH}/${GADGET_CHANNEL}" pc)
     if [ -n "$OUTPUT_ASSERTION" ]; then
