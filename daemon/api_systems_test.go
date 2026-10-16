@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -62,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&systemsSuite{})
@@ -72,10 +74,35 @@ type systemsSuite struct {
 	seedModelForLabel20191119 *asserts.Model
 }
 
+func (s *systemsSuite) expectUnlabeledAccess() {
+	s.expectedReadAccess = daemon.SystemsReadAccess{}
+	s.expectedWriteAccess = daemon.ByActionAccess{
+		ByAction: map[string]daemon.AccessChecker{
+			"fix-encryption-support": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+			"generate-recovery-key": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+			"reprovision": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+		},
+		Default: daemon.RootAccess{},
+	}
+}
+
+func (s *systemsSuite) expectLabeledAccess() {
+	s.expectRootAccess()
+}
+
 func (s *systemsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 }
 
 var pcGadgetUCYaml = `
@@ -227,7 +254,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	})
 	st.Unlock()
 
-	s.expectAuthenticatedAccess()
+	s.expectUnlabeledAccess()
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
@@ -300,7 +327,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
-	s.expectAuthenticatedAccess()
+	s.expectUnlabeledAccess()
 
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
@@ -315,7 +342,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 
 func (s *systemsSuite) TestSystemsGetRunning(c *check.C) {
 	s.daemon(c)
-	s.expectAuthenticatedAccess()
+	s.expectUnlabeledAccess()
 
 	mockGadgetInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
@@ -366,6 +393,93 @@ func (s *systemsSuite) TestSystemsGetRunning(c *check.C) {
 		},
 		Volumes: mockGadgetInfo.Volumes,
 	})
+}
+
+func (s *systemsSuite) TestSystemsGetRunningAsUser(c *check.C) {
+	s.daemon(c)
+	s.expectUnlabeledAccess()
+
+	mockGadgetInfo := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{
+						VolumeName: "foo",
+					},
+				},
+			},
+		},
+	}
+
+	mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
+		Available: true,
+	}
+
+	defer daemon.MockDeviceManagerRunningSystemAndGadgetAndEncryptionInfo(func(m *devicestate.DeviceManager) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		sys := &devicestate.System{
+			Model: s.seedModelForLabel20191119,
+			Label: "20191119",
+			Brand: s.Brands.Account("my-brand"),
+		}
+		return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
+
+	})()
+
+	req, err := http.NewRequest("GET", "/v2/systems?running=true", nil)
+	c.Assert(err, check.IsNil)
+	s.asUserAuth(c, req)
+	polkitChecked := 0
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		polkitChecked += 1
+		c.Check(action, check.Equals, "io.snapcraft.snapd.manage-fde")
+		return nil
+	})()
+
+	rec := httptest.NewRecorder()
+	s.serveHTTP(c, rec, req)
+	c.Assert(rec.Code, check.Equals, 200)
+}
+
+func (s *systemsSuite) TestSystemsGetRunningAsUserFobiddenPolkit(c *check.C) {
+	s.daemon(c)
+	s.expectUnlabeledAccess()
+
+	defer daemon.MockDeviceManagerRunningSystemAndGadgetAndEncryptionInfo(func(m *devicestate.DeviceManager) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Errorf("unexpected call")
+		return nil, nil, nil, fmt.Errorf("unexpected call")
+
+	})()
+
+	req, err := http.NewRequest("GET", "/v2/systems?running=true", nil)
+	c.Assert(err, check.IsNil)
+	s.asUserAuth(c, req)
+	polkitChecked := 0
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		polkitChecked += 1
+		c.Check(action, check.Equals, "io.snapcraft.snapd.manage-fde")
+		return daemon.Forbidden("access denied")
+	})()
+
+	rec := httptest.NewRecorder()
+	s.serveHTTP(c, rec, req)
+	c.Assert(rec.Code, check.Equals, 403)
+
+	var rspBody map[string]any
+	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
+	c.Check(err, check.IsNil)
+	c.Check(rspBody, check.DeepEquals, map[string]any{
+		"result": map[string]any{
+			"message": "access denied",
+			"kind":    "login-required",
+		},
+		"status":      "Forbidden",
+		"status-code": 403.0,
+		"type":        "error",
+	})
+
+	c.Check(polkitChecked, check.Equals, 1)
 }
 
 func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
@@ -450,6 +564,12 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 		}
 		st.Unlock()
 		c.Logf("tc: %#v", tc)
+		if tc.label != "" {
+			s.expectLabeledAccess()
+		} else {
+			s.expectUnlabeledAccess()
+		}
+
 		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
 		rspe := s.errorReq(c, req, nil, actionExpectedBool(
@@ -760,6 +880,7 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 
 func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	s.daemon(c)
+	s.expectUnlabeledAccess()
 
 	restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 		c.Fatalf("request reboot should not get called")
@@ -771,6 +892,7 @@ func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	url := "/v2/systems"
 	req, err := http.NewRequest("POST", url, strings.NewReader(body))
 	c.Assert(err, check.IsNil)
+	req.Header.Add("Content-Type", "application/json")
 	// non root
 	s.asUserAuth(c, req)
 
@@ -811,6 +933,7 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		}
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
+		req.Header.Add("Content-Type", "application/json")
 		s.asRootAuth(req)
 
 		rec := httptest.NewRecorder()
@@ -822,6 +945,7 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 
 func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 	s.daemon(c)
+	s.expectUnlabeledAccess()
 
 	for _, tc := range []struct {
 		rebootErr        error
@@ -843,6 +967,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
+		req.Header.Add("Content-Type", "application/json")
 		s.asRootAuth(req)
 
 		rec := httptest.NewRecorder()
@@ -896,7 +1021,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 	s.mockSystemSeeds(c)
 
 	s.daemon(c)
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 
 	mockGadgetInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
@@ -1093,7 +1218,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 	s.daemon(c)
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 
 	r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
 		mgr *devicestate.DeviceManager,
@@ -1114,7 +1239,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelError(c *check.C) {
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C) {
 	s.daemon(c)
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 
 	req, err := http.NewRequest("GET", "/v2/systems/does-not-exist", nil)
 	c.Assert(err, check.IsNil)
@@ -1125,7 +1250,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C
 
 func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	d := s.daemon(c)
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 	deviceMgr := d.Overlord().DeviceManager()
 
 	restore := s.mockSystemSeeds(c)
@@ -1916,6 +2041,7 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseQualityDeprecated(c *check
 
 func (s *systemsSuite) TestSystemNoLabelInstallActionError(c *check.C) {
 	s.daemon(c)
+	s.expectUnlabeledAccess()
 
 	body := map[string]string{
 		"action": "install",
@@ -1985,7 +2111,10 @@ func (s *systemsSuite) TestSystemActionCheckPassphraseQualityError(c *check.C) {
 
 		route := "/v2/systems/20250122"
 		if tc.noLabel {
+			s.expectUnlabeledAccess()
 			route = "/v2/systems"
+		} else {
+			s.expectLabeledAccess()
 		}
 
 		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
@@ -2142,6 +2271,9 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 		route := "/v2/systems/20250122"
 		if tc.noLabel {
 			route = "/v2/systems"
+			s.expectUnlabeledAccess()
+		} else {
+			s.expectLabeledAccess()
 		}
 
 		restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
@@ -2184,7 +2316,6 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 func (s *systemsSuite) testSystemActionFixEncryptionSupport(c *check.C, runningSystem bool) {
 	s.mockSystemSeeds(c)
 	s.daemon(c)
-	s.expectRootAccess()
 
 	mockGadgetInfo := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
@@ -2332,7 +2463,10 @@ func (s *systemsSuite) testSystemActionFixEncryptionSupport(c *check.C, runningS
 		buf := bytes.NewBuffer(b)
 		path := "/v2/systems/20191119"
 		if runningSystem {
+			s.expectUnlabeledAccess()
 			path = "/v2/systems"
+		} else {
+			s.expectLabeledAccess()
 		}
 		req, err := http.NewRequest("POST", path, buf)
 		c.Assert(err, check.IsNil)
@@ -2447,7 +2581,7 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 
 func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegrationErrors(c *check.C) {
 	d := s.daemon(c)
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
@@ -2489,7 +2623,7 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegrationErrors(c *
 
 func (s *systemsSuite) TestSystemActionFixEncryptionSupportIntegration(c *check.C) {
 	d := s.daemon(c)
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 	deviceMgr := d.Overlord().DeviceManager()
 
 	restore := s.mockSystemSeeds(c)
@@ -2737,11 +2871,36 @@ func mockStoreAssertion(
 	return vs
 }
 
+func (s *systemsCreateSuite) expectUnlabeledAccess() {
+	s.expectedReadAccess = daemon.SystemsReadAccess{}
+	s.expectedWriteAccess = daemon.ByActionAccess{
+		ByAction: map[string]daemon.AccessChecker{
+			"fix-encryption-support": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+			"generate-recovery-key": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+			"reprovision": daemon.InterfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     "io.snapcraft.snapd.manage-fde",
+			},
+		},
+		Default: daemon.RootAccess{},
+	}
+}
+
+func (s *systemsCreateSuite) expectLabeledAccess() {
+	s.expectRootAccess()
+}
+
 func (s *systemsCreateSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	d := s.daemon(c)
 
-	s.expectRootAccess()
+	s.expectLabeledAccess()
 
 	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 1)
 	s.AddCleanup(restore)
@@ -2835,7 +2994,10 @@ func (s *systemsCreateSuite) TestCreateSystemActionBadRequests(c *check.C) {
 
 		url := "/v2/systems"
 		if tc.routeLabel != "" {
+			s.expectLabeledAccess()
 			url += "/" + tc.routeLabel
+		} else {
+			s.expectUnlabeledAccess()
 		}
 
 		req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
@@ -2942,6 +3104,8 @@ func (s *systemsCreateSuite) testCreateSystemAction(c *check.C, requestedValSetS
 		"mark-default":    markDefault,
 		"test-system":     testSystem,
 	}
+
+	s.expectUnlabeledAccess()
 
 	b, err := json.Marshal(body)
 	c.Assert(err, check.IsNil)
@@ -3106,6 +3270,8 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineBadRequests(c *check.C
 	for _, tc := range tests {
 		form, boundary := createFormData(c, tc.fields, snaps)
 
+		s.expectUnlabeledAccess()
+
 		req, err := http.NewRequest("POST", "/v2/systems", &form)
 		c.Assert(err, check.IsNil)
 		req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
@@ -3217,6 +3383,8 @@ func (s *systemsCreateSuite) TestCreateSystemActionOffline(c *check.C) {
 
 		return st.NewChange("change", "..."), nil
 	})
+
+	s.expectUnlabeledAccess()
 
 	req, err := http.NewRequest("POST", "/v2/systems", &form)
 	c.Assert(err, check.IsNil)
@@ -3371,6 +3539,8 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 		return st.NewChange("change", "..."), nil
 	})
 
+	s.expectUnlabeledAccess()
+
 	req, err := http.NewRequest("POST", "/v2/systems", &form)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
@@ -3444,6 +3614,8 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledJSON(c *ch
 		"offline": true,
 	}
 
+	s.expectUnlabeledAccess()
+
 	b, err := json.Marshal(body)
 	c.Assert(err, check.IsNil)
 
@@ -3479,6 +3651,8 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflinePreinstalledForm(c *ch
 
 		return st.NewChange("change", "..."), nil
 	})
+
+	s.expectUnlabeledAccess()
 
 	req, err := http.NewRequest("POST", "/v2/systems", &form)
 	c.Assert(err, check.IsNil)
@@ -3553,6 +3727,8 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *
 		return st.NewChange("change", "..."), nil
 	})
 
+	s.expectUnlabeledAccess()
+
 	req, err := http.NewRequest("POST", "/v2/systems", &form)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
@@ -3596,7 +3772,7 @@ func (s *systemsSuite) TestSystemGenerateRecoveryKeyOnSystem(c *check.C) {
 func (s *systemsSuite) TestSystemActionReprovision(c *check.C) {
 	s.mockSystemSeeds(c)
 	s.daemon(c)
-	s.expectRootAccess()
+	s.expectUnlabeledAccess()
 
 	defer daemon.MockDevicestateReprovision(func(st *state.State) (*state.Change, error) {
 		return st.NewChange("reprovision", "..."), nil
@@ -3626,7 +3802,7 @@ func (s *systemsSuite) TestSystemActionReprovision(c *check.C) {
 func (s *systemsSuite) TestSystemActionReprovisionError(c *check.C) {
 	s.mockSystemSeeds(c)
 	s.daemon(c)
-	s.expectRootAccess()
+	s.expectUnlabeledAccess()
 
 	defer daemon.MockDevicestateReprovision(func(st *state.State) (*state.Change, error) {
 		return nil, fmt.Errorf("foo")
@@ -3656,7 +3832,7 @@ func (s *systemsSuite) TestSystemActionReprovisionError(c *check.C) {
 func (s *systemsSuite) TestSystemActionReprovisionConflictError(c *check.C) {
 	s.mockSystemSeeds(c)
 	s.daemon(c)
-	s.expectRootAccess()
+	s.expectUnlabeledAccess()
 
 	defer daemon.MockDevicestateReprovision(func(st *state.State) (*state.Change, error) {
 		return nil, &snapstate.ChangeConflictError{
@@ -3692,6 +3868,7 @@ func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKey(c *check.C) {
 	}
 
 	s.daemon(c)
+	s.expectUnlabeledAccess()
 
 	defer daemon.MockDevicestateGenerateReprovisionRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, err error) {
 		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, nil
@@ -3717,6 +3894,7 @@ func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKey(c *check.C) {
 
 func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKeyError(c *check.C) {
 	s.daemon(c)
+	s.expectUnlabeledAccess()
 
 	defer daemon.MockDevicestateGenerateReprovisionRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, err error) {
 		return keys.RecoveryKey{}, errors.New("boom!")
@@ -3734,4 +3912,327 @@ func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKeyError(c *check.
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Message, check.Equals, `cannot generate recovery key: boom!`)
+}
+
+var _ = check.Suite(&systemsAccessSuite{})
+
+type systemsAccessSuite struct {
+	testutil.BaseTest
+}
+
+func (s *systemsAccessSuite) TestSystemsActionsRootAccessNoContentType(c *check.C) {
+	o := overlord.Mock()
+	d := daemon.NewWithOverlord(o)
+
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Errorf("unexpected call")
+		return daemon.Forbidden("access denied")
+	})()
+
+	defer daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		c.Errorf("unexpected call")
+		return daemon.InterfaceAccessMatch{}, daemon.Forbidden("access denied")
+	})()
+
+	for _, action := range []string{"reboot", "create", "install"} {
+		body := map[string]any{
+			"action": action,
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+
+		req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+		c.Assert(err, check.IsNil)
+
+		action, err := daemon.ExtractRequestAction(req)
+		c.Assert(daemon.IsBodyUnusable(err), check.Equals, false)
+		req = req.WithContext(daemon.WithActionResult(req.Context(), action, err))
+
+		cmd, _ := handlerCommand(c, d, req)
+
+		ac := cmd.WriteAccess
+
+		user := &auth.UserState{}
+
+		c.Check(ac.CheckAccess(d, req, nil, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, nil, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+
+	}
+}
+
+func (s *systemsAccessSuite) TestSystemsActionsRootAccess(c *check.C) {
+	o := overlord.Mock()
+	d := daemon.NewWithOverlord(o)
+
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Errorf("unexpected call")
+		return daemon.Forbidden("access denied")
+	})()
+
+	defer daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		c.Errorf("unexpected call")
+		return daemon.InterfaceAccessMatch{}, daemon.Forbidden("access denied")
+	})()
+
+	for _, action := range []string{"reboot", "create", "install"} {
+		body := map[string]any{
+			"action": action,
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+
+		req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		action, err := daemon.ExtractRequestAction(req)
+		c.Assert(daemon.IsBodyUnusable(err), check.Equals, false)
+		req = req.WithContext(daemon.WithActionResult(req.Context(), action, err))
+
+		cmd, _ := handlerCommand(c, d, req)
+
+		ac := cmd.WriteAccess
+
+		user := &auth.UserState{}
+
+		c.Check(ac.CheckAccess(d, req, nil, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, nil, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+
+	}
+}
+
+func (s *systemsAccessSuite) TestSystemsActionsRootAccessNonJson(c *check.C) {
+	o := overlord.Mock()
+	d := daemon.NewWithOverlord(o)
+
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Errorf("unexpected call")
+		return daemon.Forbidden("access denied")
+	})()
+
+	defer daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		c.Errorf("unexpected call")
+		return daemon.InterfaceAccessMatch{}, daemon.Forbidden("access denied")
+	})()
+
+	req, err := http.NewRequest("POST", "/v2/systems", strings.NewReader(`blah blah`))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data")
+
+	action, err := daemon.ExtractRequestAction(req)
+	c.Assert(daemon.IsBodyUnusable(err), check.Equals, false)
+	req = req.WithContext(daemon.WithActionResult(req.Context(), action, err))
+
+	cmd, _ := handlerCommand(c, d, req)
+
+	ac := cmd.WriteAccess
+
+	user := &auth.UserState{}
+
+	c.Check(ac.CheckAccess(d, req, nil, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, req, nil, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+	ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
+	c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+	ucred = daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket)
+	c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+	ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+	c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+}
+
+func (s *systemsAccessSuite) TestSystemsActionsReprovisionAccess(c *check.C) {
+	o := overlord.Mock()
+	d := daemon.NewWithOverlord(o)
+
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Check(action, check.Equals, "io.snapcraft.snapd.manage-fde")
+		return nil
+	})()
+
+	defer daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		c.Assert(req.Interfaces, check.HasLen, 1)
+		c.Check(req.Interfaces[0], check.Equals, "snap-fde-control")
+		return daemon.InterfaceAccessMatch{}, nil
+	})()
+
+	for _, action := range []string{"reprovision", "fix-encryption-support", "generate-recovery-key"} {
+		body := map[string]any{
+			"action": action,
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+
+		req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		action, err := daemon.ExtractRequestAction(req)
+		c.Assert(daemon.IsBodyUnusable(err), check.Equals, false)
+		req = req.WithContext(daemon.WithActionResult(req.Context(), action, err))
+
+		cmd, _ := handlerCommand(c, d, req)
+
+		ac := cmd.WriteAccess
+
+		user := &auth.UserState{}
+
+		c.Check(ac.CheckAccess(d, req, nil, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, nil, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.IsNil)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.IsNil)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+
+	}
+}
+
+func (s *systemsAccessSuite) TestSystemsActionsReprovisionAccessBadPolkit(c *check.C) {
+	o := overlord.Mock()
+	d := daemon.NewWithOverlord(o)
+
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Check(action, check.Equals, "io.snapcraft.snapd.manage-fde")
+		return daemon.Forbidden("access denied")
+	})()
+
+	defer daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		c.Assert(req.Interfaces, check.HasLen, 1)
+		c.Check(req.Interfaces[0], check.Equals, "snap-fde-control")
+		return daemon.InterfaceAccessMatch{}, nil
+	})()
+
+	for _, action := range []string{"reprovision", "fix-encryption-support", "generate-recovery-key"} {
+		body := map[string]any{
+			"action": action,
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+
+		req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		action, err := daemon.ExtractRequestAction(req)
+		c.Assert(daemon.IsBodyUnusable(err), check.Equals, false)
+		req = req.WithContext(daemon.WithActionResult(req.Context(), action, err))
+
+		cmd, _ := handlerCommand(c, d, req)
+
+		ac := cmd.WriteAccess
+
+		user := &auth.UserState{}
+
+		c.Check(ac.CheckAccess(d, req, nil, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, nil, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.IsNil)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.IsNil)
+
+	}
+}
+
+func (s *systemsAccessSuite) TestSystemsActionsReprovisionAccessBadInterface(c *check.C) {
+	o := overlord.Mock()
+	d := daemon.NewWithOverlord(o)
+
+	defer daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Check(action, check.Equals, "io.snapcraft.snapd.manage-fde")
+		return nil
+	})()
+
+	defer daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ *daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessMatch, *daemon.APIError) {
+		c.Assert(req.Interfaces, check.HasLen, 1)
+		c.Check(req.Interfaces[0], check.Equals, "snap-fde-control")
+		return daemon.InterfaceAccessMatch{}, daemon.Forbidden("access denied")
+	})()
+
+	for _, action := range []string{"reprovision", "fix-encryption-support", "generate-recovery-key"} {
+		body := map[string]any{
+			"action": action,
+		}
+		b, err := json.Marshal(body)
+		c.Assert(err, check.IsNil)
+
+		req, err := http.NewRequest("POST", "/v2/systems", bytes.NewBuffer(b))
+		c.Assert(err, check.IsNil)
+		req.Header.Set("Content-Type", "application/json")
+
+		action, err := daemon.ExtractRequestAction(req)
+		c.Assert(daemon.IsBodyUnusable(err), check.Equals, false)
+		req = req.WithContext(daemon.WithActionResult(req.Context(), action, err))
+
+		cmd, _ := handlerCommand(c, d, req)
+
+		ac := cmd.WriteAccess
+
+		user := &auth.UserState{}
+
+		c.Check(ac.CheckAccess(d, req, nil, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, nil, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred := daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 42, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+		c.Check(ac.CheckAccess(d, req, ucred, user, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+		ucred = daemon.NewUcrednet("snap.some-snap.app", "", 0, dirs.SnapdSocket)
+		c.Check(ac.CheckAccess(d, req, ucred, nil, newAuthzRecorder()), check.DeepEquals, errForbidden)
+
+	}
 }
