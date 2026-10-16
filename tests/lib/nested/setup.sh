@@ -116,51 +116,46 @@ remote.exec_as() {
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
+nested_create_tools_archive() {
+    local archive_path="$NESTED_ASSETS_DIR/test-tools.tar"
+    if [ -f "$archive_path" ]; then
+        echo "$archive_path"
+        return
+    fi
+
+    local staging_dir
+    staging_dir="$(mktemp -d)"
+    cp "$TESTSTOOLS/retry" "$TESTSTOOLS/not" "$staging_dir"
+
+    # shellcheck source=tests/lib/spread-funcs.sh
+    . "$TESTSLIB"/spread-funcs.sh
+    local tool
+    for tool in MATCH NOMATCH; do
+        {
+            echo '#!/bin/bash'
+            type "$tool" | tail -n +2
+            echo "$tool \"\$@\""
+        } > "$staging_dir/$tool"
+        chmod +x "$staging_dir/$tool"
+    done
+
+    mkdir -p "$NESTED_ASSETS_DIR"
+    tar -C "$staging_dir" -cf "$archive_path" .
+    rm -rf "$staging_dir"
+    echo "$archive_path"
+}
+
 nested_prepare_tools() {
     echo "Preparing test tools in nested vm"
 
     TOOLS_PATH=/writable/test-tools
+    # The first time the nested VM is prepared, we need to copy the test tools over
     if ! remote.exec "test -d $TOOLS_PATH" &>/dev/null; then
-        remote.exec "sudo mkdir -p $TOOLS_PATH"
-        remote.exec "sudo chown $NESTED_REMOTE_USER_NAME:$NESTED_REMOTE_USER_NAME $TOOLS_PATH"
-    fi
-
-    if ! remote.exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
-        remote.push "$TESTSTOOLS/retry"
-        remote.exec "mv retry $TOOLS_PATH/retry"
-        echo "retry tool copied to nested vm"
-    fi
-
-    if ! remote.exec "test -e $TOOLS_PATH/not" &>/dev/null; then
-        remote.push "$TESTSTOOLS/not"
-        remote.exec "mv not $TOOLS_PATH/not"
-        echo "not tool copied to nested vm"
-    fi
-
-    if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
-        # shellcheck source=tests/lib/spread-funcs.sh
-        . "$TESTSLIB"/spread-funcs.sh
-        echo '#!/bin/bash' > MATCH_FILE
-        type MATCH | tail -n +2 >> MATCH_FILE
-        echo 'MATCH "$@"' >> MATCH_FILE
-        chmod +x MATCH_FILE
-        remote.push "MATCH_FILE"
-        remote.exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
-        rm -f MATCH_FILE
-        echo "MATCH tool copied to nested vm"
-    fi
-
-    if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
-        # shellcheck source=tests/lib/spread-funcs.sh
-        . "$TESTSLIB"/spread-funcs.sh
-        echo '#!/bin/bash' > NOMATCH_FILE
-        type NOMATCH | tail -n +2 >> NOMATCH_FILE
-        echo 'NOMATCH "$@"' >> NOMATCH_FILE
-        chmod +x NOMATCH_FILE
-        remote.push "NOMATCH_FILE"
-        remote.exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
-        rm -f NOMATCH_FILE
-        echo "NOMATCH tool copied to nested vm"
+        local tools_archive
+        tools_archive="$(nested_create_tools_archive)"
+        remote.push "$tools_archive"
+        remote.exec "sudo mkdir -p $TOOLS_PATH && sudo tar -C $TOOLS_PATH -xf $(basename "$tools_archive") && sudo chown -R $NESTED_REMOTE_USER_NAME:$NESTED_REMOTE_USER_NAME $TOOLS_PATH && rm -f $(basename "$tools_archive")"
+        echo "Test tools copied to nested vm"
     fi
 
     if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
