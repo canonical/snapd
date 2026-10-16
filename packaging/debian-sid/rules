@@ -36,7 +36,7 @@ SYSTEMD_UNITS_DESTDIR_UNQUOTED := $(subst ",,$(SYSTEMD_UNITS_DESTDIR))
 
 # Whichever of snap.mount/var-lib-snapd-snap.mount actually got shipped,
 # plus var-snap.mount; see override_dh_installsystemd below.
-MOUNT_UNITS = $(filter snap.mount var-lib-snapd-snap.mount var-snap.mount, \
+SPECIAL_SNAP_MOUNT_UNITS = $(filter snap.mount var-lib-snapd-snap.mount var-snap.mount, \
 $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR_UNQUOTED)/*)))
 
 # The go tool does not fully support vendoring with gccgo, but we can
@@ -118,9 +118,9 @@ override_dh_installdeb:
 override_dh_installsystemd:
 	# Ship the parent mounts as opt-in units, without starting or restarting
 	# them on install/upgrade.
-	dh_installsystemd -psnapd --no-enable --no-start --no-stop-on-upgrade $(MOUNT_UNITS)
+	dh_installsystemd -psnapd --no-enable --no-start --no-stop-on-upgrade $(SPECIAL_SNAP_MOUNT_UNITS)
 	dh_installsystemd -psnapd \
-	$(filter-out $(MOUNT_UNITS), $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR_UNQUOTED)/*)))
+	    $(filter-out $(SPECIAL_SNAP_MOUNT_UNITS), $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR_UNQUOTED)/*)))
 	dh_installsystemduser -psnapd
 
 override_dh_clean:
