@@ -26,11 +26,53 @@ _get_pass() {
     fi
 }
 
-_get_cert() {
+_get_key() {
     if [ -n "$TESTS_REMOTE_PASS" ]; then
         return
-    elif [ -n "$TESTS_REMOTE_CERT" ]; then
-        echo "-i $TESTS_REMOTE_CERT"
+    elif [ -n "$TESTS_REMOTE_KEY" ]; then
+        echo "-i $TESTS_REMOTE_KEY"
+    fi
+}
+
+_get_auth_id() {
+    local control_dir="$1"
+    local salt_file="$control_dir/auth-salt"
+
+    if [ ! -f "$salt_file" ]; then
+        (umask 077 && head -c 32 /dev/urandom > "$salt_file")
+    fi
+
+    if [ -n "$TESTS_REMOTE_PASS" ]; then
+        { cat "$salt_file"; printf '\0password\0%s' "$TESTS_REMOTE_PASS"; } | sha256sum | cut -c 1-16
+    elif [ -n "$TESTS_REMOTE_KEY" ]; then
+        { cat "$salt_file"; printf '\0key\0'; cat "$TESTS_REMOTE_KEY"; } | sha256sum | cut -c 1-16
+    else
+        { cat "$salt_file"; printf '\0default\0%s' "${SSH_AUTH_SOCK:-}"; } | sha256sum | cut -c 1-16
+    fi
+}
+
+_get_control_path() {
+    local auth_id control_dir endpoint_id
+    control_dir="${TESTS_REMOTE_CONTROL_DIR:-/tmp/remote-exec-$UID}"
+    mkdir -p "$control_dir"
+    chmod 700 "$control_dir"
+    auth_id="$(_get_auth_id "$control_dir")"
+    # shellcheck disable=SC2153
+    endpoint_id="$(printf '%s\0%s\0%s' "$TESTS_REMOTE_HOST" "$TESTS_REMOTE_PORT" "$TESTS_REMOTE_USER" | sha256sum | cut -c 1-16)"
+    echo "$control_dir/remote-exec-$endpoint_id-$auth_id"
+}
+
+_ssh_exec() {
+    local timeout="$1"
+    shift
+
+    # shellcheck disable=SC2153,SC2086
+    $SSH_PASS ssh $SSH_KEY -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o ControlMaster=auto -o ControlPersist=10m -o ControlPath="$SSH_CONTROL_PATH" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" "$@"
+}
+
+_remove_stale_control_socket() {
+    if [ -S "$SSH_CONTROL_PATH" ] && ! ssh -S "$SSH_CONTROL_PATH" -O check "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" >/dev/null 2>&1; then
+        rm -f "$SSH_CONTROL_PATH"
     fi
 }
 
@@ -73,12 +115,13 @@ remote_exec() {
         TESTS_REMOTE_PASS="$pass"
     fi
 
-    local SSH_PASS SSH_CERT
+    local SSH_PASS SSH_KEY SSH_CONTROL_PATH
     SSH_PASS="$(_get_pass)"
-    SSH_CERT="$(_get_cert)"
+    SSH_KEY="$(_get_key)"
+    SSH_CONTROL_PATH="$(_get_control_path)"
 
-    # shellcheck disable=SC2153,SC2086
-    $SSH_PASS ssh $SSH_CERT -p "$TESTS_REMOTE_PORT" -o LogLevel=ERROR -o ServerAliveInterval=10 -o ConnectTimeout="$timeout" -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" "$@"
+    _remove_stale_control_socket
+    _ssh_exec "$timeout" "$@"
 }
 
 main() {    
