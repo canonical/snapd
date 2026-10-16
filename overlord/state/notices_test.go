@@ -1042,6 +1042,27 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	// Warning with no options
 	err = state.ValidateNotice(state.WarningNotice, "danger", nil)
 	c.Check(err, ErrorMatches, "cannot add warning notice without specifying options")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data: map[string]string{"show-after": "16d"},
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with invalid show-after duration: .*")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data: map[string]string{"last-shown": "2000"},
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with invalid last-shown time: .* cannot parse .*")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		ExpireAfter: 0,
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with no expire-after duration")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data:        map[string]string{"last-shown": "2000-01-01T15:00:00Z", "show-after": "1h"},
+		ExpireAfter: time.Hour,
+	})
+	c.Check(err, IsNil)
 }
 
 func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
