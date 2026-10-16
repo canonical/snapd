@@ -195,6 +195,13 @@ def classify(name, definitions, repo_root):
         return CLASSIFICATIONS[1]
     if any(path.startswith("tests/lib/snaps/store/") for path in paths):
         return CLASSIFICATIONS[2]
+
+    fixture_dir = repo_root / "tests/lib/snaps" / name
+    if fixture_dir.is_dir() and any(
+        path.is_file() and is_snap_manifest(path)
+        for path in fixture_dir.rglob("*")
+    ):
+        return CLASSIFICATIONS[1]
     return CLASSIFICATIONS[3]
 
 

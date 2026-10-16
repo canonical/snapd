@@ -54,6 +54,7 @@ jobs:
         run: |
           import json
           from pathlib import Path
+          import sys
 
           canonical_publishers = {"canonical", "test-snaps-canonical"}
           store_classification = "Defined in tests/lib/snaps/store"
@@ -74,15 +75,24 @@ jobs:
                   and publisher.lower() in canonical_publishers
               )
 
+              # Store snaps must remain under an approved Canonical publisher.
               if snap["classification"] == store_classification and not belongs_to_canonical:
-                  errors.append(f"{name}: store fixture is published by {publisher!r}")
+                  errors.append(f"{name}: Store snap is published by {publisher!r}")
 
-              if name.startswith("test-snapd-") and snap["classification"] == external_classification:
-                  errors.append(f"{name}: has no definition under tests/lib/snaps/store")
+              # Snaps owned by the test account must follow the test-* naming policy.
+              if publisher.lower() == "test-snaps-canonical" and not name.startswith("test-"):
+                  errors.append(f"{name}: is published by 'test-snaps-canonical' but does not start with 'test-'")
+
+              # External test-* snaps need a tracked source URL and approved owner.
+              if name.startswith("test-") and snap["classification"] == external_classification:
+                  if not snap.get("external-url"):
+                    errors.append(f"{name}: has no definition under tests/lib/snaps/store or external URL")
                   if not belongs_to_canonical:
                       errors.append(f"{name}: is published by {publisher!r}")
 
           if errors:
-              raise SystemExit("\n".join(f"ERROR: {error}" for error in errors))
+              for error in errors:
+                print(f"ERROR: {error}", file=sys.stderr)
+              raise SystemExit(1)
 
-          print("No new test snaps violate Store fixture or ownership policy.")
+          print("No new test snaps violate Store snap or ownership policy.")
