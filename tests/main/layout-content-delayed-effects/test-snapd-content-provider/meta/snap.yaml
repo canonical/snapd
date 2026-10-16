@@ -1,9 +1,0 @@
-name: test-snapd-content-provider-%SUFF%
-version: 1.0.0
-base: core24
-
-slots:
-    special-content:
-        interface: content
-        read:
-            - /

@@ -1,8 +1,0 @@
-name: test-snapd-with-configure-nc
-version: 1.0
-summary: Basic snap with a configure hook with network control
-description: A basic snap with a configure hook with network-control
-
-hooks:
-  configure:
-    plugs: [network-control]

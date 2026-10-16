@@ -1,7 +1,0 @@
-#!/bin/bash
-
-while [ ! -f /tmp/comp-removed ]; do
-    sleep 1
-done
-
-echo "comp has been deleted."

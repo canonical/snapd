@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "tmp"
-ls -l /tmp

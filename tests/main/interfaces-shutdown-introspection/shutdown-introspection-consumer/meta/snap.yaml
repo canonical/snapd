@@ -1,9 +1,0 @@
-name: shutdown-introspection-consumer
-version: 1.0
-summary: Basic shutdown consumer snap for introspecting org.freedesktop.login1
-description: A basic snap declaring a plug on shutdown for DBus introspection
-
-apps:
-    shutdown-introspection-consumer:
-        command: bin/consumer
-        plugs: [shutdown, unity7]

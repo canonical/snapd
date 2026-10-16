@@ -1,8 +1,0 @@
-# 55-dm.rules will disable in the main boot, all device mapper block
-# devices that are cold plugged. This rule file states that to keep a
-# dm device that was initialized in initrd, we are required to keep
-# its database. To prevent initrd-udevadm-cleanup-db.service from
-# removing the device from the database, we have to make all device
-# mapper block device as "db_persist".
-
-SUBSYSTEM=="block", KERNEL=="dm-[0-9]*", ACTION=="add|change", OPTIONS+="db_persist"

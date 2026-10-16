@@ -1,6 +1,0 @@
-name: test-snap
-version: 2
-summary: Basic test snap
-
-plugs:
-  home:

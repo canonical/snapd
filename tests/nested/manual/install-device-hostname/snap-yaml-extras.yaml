@@ -1,4 +1,0 @@
-hooks:
-  install-device:
-    plugs:
-      - hostname-control

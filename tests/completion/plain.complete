@@ -1,4 +1,0 @@
-# -*- sh -*-
-
-complete -W 'won too tree' test-snapd-complexion
-complete -W 'won too tree' test-snapd-complexion.two

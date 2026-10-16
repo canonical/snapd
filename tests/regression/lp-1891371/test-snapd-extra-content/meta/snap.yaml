@@ -1,9 +1,0 @@
-name: test-snapd-extra-content
-version: 1
-
-base: none
-
-slots:
-    extra-content:
-        interface: content
-        read: [$SNAP]

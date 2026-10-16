@@ -1,3 +1,0 @@
-# This is the layout entry. Snapd orders layouts before any content entries.
-/snap/test-snapd-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
-# The content entry is now gone.

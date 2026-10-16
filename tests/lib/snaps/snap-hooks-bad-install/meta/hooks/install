@@ -1,9 +1,0 @@
-#!/bin/sh
-set -x
-echo "start of noisy output"
-for _ in $(seq 2000)
-do
-    echo "noisy output....................................."
-done
-echo "end of noisy output"
-exit 1

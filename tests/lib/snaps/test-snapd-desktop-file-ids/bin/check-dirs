@@ -1,5 +1,0 @@
-#!/bin/sh -e
-
-for dir in "$@"; do
-    ls "$dir"
-done

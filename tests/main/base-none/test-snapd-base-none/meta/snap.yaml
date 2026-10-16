@@ -1,4 +1,0 @@
-name: test-snapd-base-none
-base: none
-version: 1.0
-summary: A test snap that uses base "none"

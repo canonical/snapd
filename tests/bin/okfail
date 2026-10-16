@@ -1,6 +1,0 @@
-#!/bin/sh
-"$@"
-exit_code="$?"
-if [ "$exit_code" -ne 0 ]; then
-  echo "okfail: $* failed with exit code $exit_code (ignored)"
-fi

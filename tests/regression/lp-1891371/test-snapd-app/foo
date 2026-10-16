@@ -1,2 +1,0 @@
-This file is bind mounted to /opt/foo and opened from there by the service
-defined in this snap.

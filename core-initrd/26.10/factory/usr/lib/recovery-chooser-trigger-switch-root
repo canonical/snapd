@@ -1,5 +1,0 @@
-#!/bin/sh
-
-set -eux
-
-kill -USR1 "$(systemctl show --property MainPID --value snapd.recovery-chooser-trigger.service)"

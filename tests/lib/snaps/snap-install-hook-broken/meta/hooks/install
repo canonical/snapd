@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "This hook simulates a failure"
-exit 1

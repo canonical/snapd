@@ -1,9 +1,0 @@
-name: mount-observe-consumer
-version: 1.0
-summary: Basic mount-observe consumer snap
-description: A basic snap declaring a plug on mount-observe
-
-apps:
-    mount-observe-consumer:
-        command: bin/consumer
-        plugs: [mount-observe]

@@ -1,6 +1,0 @@
-#!/bin/sh
-
-while true; do
-    echo "running: ${CHAIN_1_RAN:-0} ${CHAIN_2_RAN:-0} ${CHAIN_3_RAN:-0} ${CHAIN_4_RAN:-0}"
-    sleep 10
-done

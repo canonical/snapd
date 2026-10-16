@@ -1,9 +1,0 @@
-name: test-snapd-multi-service
-version: 1.0
-apps:
-  ok:
-    command: bin/start
-    daemon: simple
-  nok:
-    command: /usr/bin/false
-    daemon: notify

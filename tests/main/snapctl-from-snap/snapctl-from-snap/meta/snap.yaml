@@ -1,7 +1,0 @@
-name: snapctl-from-snap
-version: 1.0
-apps:
-    snapctl-get:
-        command: bin/snapctl-get
-    snapctl-set:
-        command: bin/snapctl-set

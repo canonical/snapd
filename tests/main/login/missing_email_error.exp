@@ -1,9 +1,0 @@
-spawn snap login
-
-expect {
-    "Email address:" {
-        exit 0
-    } default {
-        exit 1
-    }
-}

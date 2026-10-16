@@ -1,9 +1,0 @@
-name: gl-core16
-version: 1.0
-summary: Test snap that plugs opengl and uses the core base snap
-confinement: strict
-
-apps:
-  gl-core16:
-    command: bin/run
-    plugs: [ opengl ]

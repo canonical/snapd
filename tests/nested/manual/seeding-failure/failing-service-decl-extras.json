@@ -1,9 +1,0 @@
-{
-    "plugs": {
-        "system-files": {
-            "allow-installation": "true",
-            "allow-auto-connection": "true"
-        }
-    },
-    "format": "1"
-}

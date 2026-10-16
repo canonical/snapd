@@ -1,7 +1,0 @@
-name: test-snapd-adb-support
-summary: A non-functional test snap for testing aspects of adb-support interface
-version: 1.0
-apps:
-    sh:
-        command: bin/sh
-        plugs: [adb-support]
