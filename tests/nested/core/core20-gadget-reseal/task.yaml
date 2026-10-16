@@ -7,9 +7,10 @@ details: |
 systems: [ubuntu-2*]
 
 execute: |
-    # Core 26 stores the key in a LUKS token, so the sealed-key file is absent.
-    # Older cores still write it, and its mtime changes only when the key is rewritten.
-    if remote.exec sudo test -e /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key; then
+    # Core 24 and earlier must have ubuntu-data.sealed-key. A missing file is a
+    # failure. Core 26 stores the key in a LUKS token, so the file is absent.
+    VERSION="$(tests.nested show version)"
+    if [ "$VERSION" -le 24 ]; then
         SEALED_KEY_MTIME_1="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     fi
     RESEAL_COUNT_1="$(remote.exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
@@ -21,7 +22,7 @@ execute: |
     remote.exec sudo snap watch "${REMOTE_CHG_ID}"
   
     echo "Check nothing in the gadget has changed so no reseal was needed"
-    if [ -n "${SEALED_KEY_MTIME_1:-}" ]; then
+    if [ "$VERSION" -le 24 ]; then
         SEALED_KEY_MTIME_2="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
         test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
     fi
@@ -61,7 +62,7 @@ execute: |
     remote.exec sudo grep -q -a "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
 
     echo "The gadget has changed, we should see resealing"
-    if [ -n "${SEALED_KEY_MTIME_1:-}" ]; then
+    if [ "$VERSION" -le 24 ]; then
         SEALED_KEY_MTIME_3="$(remote.exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
         test "$SEALED_KEY_MTIME_3" -gt "$SEALED_KEY_MTIME_2"
     fi
