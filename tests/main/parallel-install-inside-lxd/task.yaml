@@ -62,8 +62,17 @@ prepare: |
     if [ "$CONFINEMENT" = classic ]; then
         # Only the native package can supply these units inside the container.
         lxc exec my-ubuntu -- systemctl cat snap.mount var-snap.mount > /dev/null
-        lxc exec my-ubuntu -- systemctl enable --now var-snap.mount
+        lxc exec my-ubuntu -- systemctl enable var-snap.mount
+        # LXD may already mount /var/snap from its storage pool into the container.
+        # Starting it again would require the host's device, which is unavailable there.
+        if ! lxc exec my-ubuntu -- mountpoint -q /var/snap; then
+            lxc exec my-ubuntu -- systemctl start var-snap.mount
+        fi
         lxc exec my-ubuntu -- systemctl start snap.mount
+        for mp in /var/snap /snap; do
+            lxc exec my-ubuntu -- mountpoint -q "$mp"
+            lxc exec my-ubuntu -- findmnt -no PROPAGATION -M "$mp" | MATCH '^shared$'
+        done
     fi
 
     echo "Enable parallel instances feature"
