@@ -654,6 +654,58 @@ func sortedAppNames(info *snap.Info) []string {
 	return names
 }
 
+// snapMountDirUnitName returns the name of the systemd unit that bind mounts
+// SNAP_MOUNT_DIR, matching what the current directory layout requires.
+func snapMountDirUnitName() string {
+	if dirs.SnapMountDir == filepath.Join(dirs.GlobalRootDir, dirs.DefaultSnapMountDir) {
+		return "snap.mount"
+	}
+	return "var-lib-snapd-snap.mount"
+}
+
+// mountUnitFileExists reports whether the named systemd unit file is shipped
+// on disk, regardless of whether it is currently enabled or active; used to
+// tell "needs enabling" apart from "needs a package update" in the error
+// below.
+func mountUnitFileExists(unit string) bool {
+	for _, dir := range []string{"/usr/lib/systemd/system", "/lib/systemd/system"} {
+		if osutil.FileExists(filepath.Join(dirs.GlobalRootDir, dir, unit)) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkSnapMountDirForParallelClassicInstall requires SNAP_MOUNT_DIR and
+// /var/snap to already be mount points before installing a classic snap
+// under a non-empty instance key. Only applies to fresh installs, not
+// refreshes.
+func checkSnapMountDirForParallelClassicInstall(info *snap.Info, snapst *SnapState) error {
+	if snapst.IsInstalled() || info.InstanceKey == "" || !info.NeedsClassic() {
+		return nil
+	}
+
+	mountDirMounted, err := osutil.IsMounted(dirs.SnapMountDir)
+	if err != nil {
+		return err
+	}
+	varSnapMounted, err := osutil.IsMounted(dirs.SnapDataDir)
+	if err != nil {
+		return err
+	}
+	if mountDirMounted && varSnapMounted {
+		return nil
+	}
+
+	snapMountUnit := snapMountDirUnitName()
+	if mountUnitFileExists(snapMountUnit) && mountUnitFileExists("var-snap.mount") {
+		return fmt.Errorf("cannot install classic snap %q as parallel instance: "+
+			"%s needs to be started, and var-snap.mount needs to be enabled and started", info.InstanceName(), snapMountUnit)
+	}
+	return fmt.Errorf("cannot install classic snap %q as parallel instance: the snapd native package needs "+
+		"updating to support parallel installed classic snaps", info.InstanceName())
+}
+
 func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
 	// if snap is allowed to be devmode via the dangerous model and it's
 	// confinement is indeed devmode, promote the flags.DevMode to true
@@ -694,6 +746,9 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 			}
 			return flags, err
 		}
+	}
+	if err := checkSnapMountDirForParallelClassicInstall(info, snapst); err != nil {
+		return flags, err
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
