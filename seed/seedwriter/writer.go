@@ -1575,10 +1575,15 @@ func (w *Writer) validationSets() (*snapasserts.ValidationSets, error) {
 
 func (w *Writer) installedSnaps() []*snapasserts.InstalledSnap {
 	installedSnap := func(snap *SeedSnap) *snapasserts.InstalledSnap {
-		return snapasserts.NewInstalledSnap(snap.SnapName().String(), snap.ID(), snap.Info.Revision, nil)
+		var comps []snapasserts.InstalledComponent
+		for _, comp := range snap.Components {
+			comps = append(comps, snapasserts.InstalledComponent{
+				ComponentRef: comp.ComponentRef,
+				Revision:     comp.Info.Revision,
+			})
+		}
+		return snapasserts.NewInstalledSnap(snap.SnapName().String(), snap.ID(), snap.Info.Revision, comps)
 	}
-
-	// TODO:COMPS: add components
 
 	var installedSnaps []*snapasserts.InstalledSnap
 	for _, sn := range w.snapsFromModel {
