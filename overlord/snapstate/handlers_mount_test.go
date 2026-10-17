@@ -21,12 +21,15 @@ package snapstate_test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -35,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type mountSnapSuite struct {
@@ -176,24 +180,47 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 }
 
 type doMountSnapWithIntegrityDataOpts struct {
+	model *asserts.Model
+	// sysrootState is the content of sysroot.json, not written if empty
+	sysrootState       string
 	integrityLookupErr error
 	expectedErr        string
+	expectNoIntegrity  bool
+}
+
+const sysrootStateWithDmVerity = `{"integrity":{"type":"dm-verity"}}`
+
+func writeSysrootState(c *C, content string) {
+	c.Assert(os.MkdirAll(dirs.SnapBootstrapRunDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBootstrapRunDir, "sysroot.json"), []byte(content), 0644), IsNil)
 }
 
 func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnapWithIntegrityDataOpts) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
+	model := opts.model
+	if model == nil {
+		model = ModelWithBase("core24")
+	}
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+	if opts.sysrootState != "" {
+		writeSysrootState(c, opts.sysrootState)
+	}
+
 	idp := integrity.IntegrityDataParams{
 		Type:   "dm-verity",
 		Digest: "some-digest",
 	}
 	var expectedIdp integrity.IntegrityDataParams
-	if opts.integrityLookupErr == nil {
+	if opts.integrityLookupErr == nil && !opts.expectNoIntegrity {
 		expectedIdp = idp
 	}
 
 	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		if opts.expectNoIntegrity {
+			c.Fatalf("unexpected call to ValidatedIntegrityData")
+		}
 		c.Assert(snapID, Equals, "snap-id")
 		c.Assert(rev, Equals, snap.R(33))
 		// make sure the state is locked
@@ -266,25 +293,86 @@ func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnap
 }
 
 func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
-	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{})
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		sysrootState: sysrootStateWithDmVerity,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataUC20(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		model:        MakeModel20("brand-gadget", nil),
+		sysrootState: sysrootStateWithDmVerity,
+	})
 }
 
 func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataNotExist(c *C) {
 	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		sysrootState:       sysrootStateWithDmVerity,
 		integrityLookupErr: fmt.Errorf("%w: missing", integrity.ErrDmVerityDataNotFound),
 	})
 }
 
 func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataInvalid(c *C) {
 	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		sysrootState:       sysrootStateWithDmVerity,
 		integrityLookupErr: fmt.Errorf("unexpected dm-verity hash"),
-		expectedErr:        `(?s).*cannot validate integrity data for snap "foo": unexpected dm-verity hash.*`,
+		expectedErr:        `(?s).*cannot validate integrity data for snap-id "snap-id" \(revision 33\): unexpected dm-verity hash.*`,
 	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataClassic(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		model:             ClassicModel(),
+		sysrootState:      sysrootStateWithDmVerity,
+		expectNoIntegrity: true,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataUC16(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		model:             DefaultModel(),
+		sysrootState:      sysrootStateWithDmVerity,
+		expectNoIntegrity: true,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataNoSysrootState(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		expectNoIntegrity: true,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataSysrootNoIntegrity(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		sysrootState:      `{}`,
+		expectNoIntegrity: true,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataSysrootUnknownIntegrityType(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		sysrootState:      `{"integrity":{"type":"foo"}}`,
+		expectNoIntegrity: true,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataSysrootMalformed(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		sysrootState:      `{`,
+		expectNoIntegrity: true,
+	})
+	c.Check(logbuf.String(), testutil.Contains, "cannot load sysroot state, not mounting snaps with integrity data: unexpected end of JSON input")
 }
 
 func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataError(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core24")))
+	writeSysrootState(c, sysrootStateWithDmVerity)
 
 	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
 		return nil, fmt.Errorf("boom")
