@@ -82,6 +82,7 @@ func (s *TpmInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability dac_override,")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/tpm[0-9]*")
 }
 

@@ -35,6 +35,10 @@ const tpmConnectedPlugAppArmor = `
 
 /dev/tpm[0-9]* rw,
 /dev/tpmrm[0-9]* rw,
+
+# TPM device nodes can be owned by tss:tss with mode 0660, so we need
+# dac_override to allow root daemons to access them.
+capability dac_override,
 `
 
 var tpmConnectedPlugUDev = []string{
