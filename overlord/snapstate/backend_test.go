@@ -484,7 +484,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.dmverity_digest1",
+				DownloadURL: "foo_1_digest1.dmverity",
 			},
 		}
 	}
