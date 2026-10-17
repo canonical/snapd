@@ -29,6 +29,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -285,8 +287,55 @@ var setEMMCPartitionReadWrite = func(device string, rw bool) error {
 	return nil
 }
 
+// checkUFSLogicalUnitWritable returns an error if the UFS logical unit with
+// the given device node is read-only. Unlike eMMC boot partitions, the write
+// protection of UFS logical units is never changed. Documentation for
+// lu_write_protect here:
+// https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-driver-ufs
+func checkUFSLogicalUnitWritable(device string) error {
+	sysBlockDir := filepath.Join(dirs.GlobalRootDir, "/sys/block", filepath.Base(device))
+
+	ro, err := os.ReadFile(filepath.Join(sysBlockDir, "ro"))
+	if err != nil {
+		return fmt.Errorf("cannot check if %s is read-only: %v", device, err)
+	}
+	if strings.TrimSpace(string(ro)) != "0" {
+		return fmt.Errorf("UFS logical unit %s is read-only", device)
+	}
+
+	// lu_write_protect is not exposed by all kernels, in which case a write
+	// protected logical unit will fail on the first write
+	wp, err := os.ReadFile(filepath.Join(sysBlockDir, "device/unit_descriptor/lu_write_protect"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot check if %s is write-protected: %v", device, err)
+	}
+	wpValue, err := strconv.ParseUint(strings.TrimSpace(string(wp)), 0, 8)
+	if err != nil {
+		return fmt.Errorf("cannot parse write protection of %s: %v", device, err)
+	}
+	switch wpValue {
+	case 0:
+		return nil
+	case 1:
+		return fmt.Errorf("UFS logical unit %s is power on write-protected", device)
+	case 2:
+		return fmt.Errorf("UFS logical unit %s is permanently write-protected", device)
+	default:
+		return fmt.Errorf("UFS logical unit %s is write-protected (%#x)", device, wpValue)
+	}
+}
+
 func openDiskForWrite(device string, laidOutStruct *LaidOutStructure) (*os.File, func() error, error) {
 	isEMMC := laidOutStruct.VolumeStructure.EnclosingVolume.Schema == schemaEMMC
+
+	if laidOutStruct.VolumeStructure.EnclosingVolume.Schema == schemaUFS {
+		if err := checkUFSLogicalUnitWritable(device); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	var mmcDevice string
 	if isEMMC {
