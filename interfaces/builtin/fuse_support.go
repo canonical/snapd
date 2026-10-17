@@ -95,14 +95,13 @@ var fuseSupportConnectedPlugUDev = []string{`KERNEL=="fuse"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "fuse-support",
-		summary:                  fuseSupportSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
-		baseDeclarationSlots:     fuseSupportBaseDeclarationSlots,
-		connectedPlugAppArmor:    fuseSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:     fuseSupportConnectedPlugSecComp,
-		connectedPlugUDev:        fuseSupportConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "fuse-support",
+		summary:               fuseSupportSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     !(release.ReleaseInfo.ID == "ubuntu" && release.ReleaseInfo.VersionID == "14.04"),
+		baseDeclarationSlots:  fuseSupportBaseDeclarationSlots,
+		connectedPlugAppArmor: fuseSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:  fuseSupportConnectedPlugSecComp,
+		connectedPlugUDev:     fuseSupportConnectedPlugUDev,
 	})
 }

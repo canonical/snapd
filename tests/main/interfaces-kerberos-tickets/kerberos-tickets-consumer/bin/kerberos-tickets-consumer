@@ -1,6 +1,14 @@
 #!/bin/sh
-ticket=${KRB5CCNAME#FILE:}
+cache=${KRB5CCNAME#*:}
+ticket=$cache
+if [ "${KRB5CCNAME#DIR:}" != "$KRB5CCNAME" ]; then
+    ticket="$cache/tkt_foo"
+fi
 echo "KRB5CCNAME:$KRB5CCNAME"
 cat "$ticket" 2>/dev/null || echo "cannot read ticket $ticket"
-# Try to write anything random to the ticket file.
+# Try to write anything random to the ticket file/dir.
 echo "appended contents" 2>/dev/null >>"$ticket" || echo "cannot write to ticket $ticket"
+if [ "${KRB5CCNAME#DIR:}" != "$KRB5CCNAME" ]; then
+	cat "$cache/primary" 2>/dev/null || echo "cannot read cache primary $cache/primary"
+    echo "created contents" 2>/dev/null >"$cache/tkt_bar" || echo "cannot create ticket in $cache"
+fi

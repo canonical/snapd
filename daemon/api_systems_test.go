@@ -2767,7 +2767,6 @@ func (s *systemsCreateSuite) SetUpTest(c *check.C) {
 	c.Assert(s.storeSigning.Add(s.acct1Key), check.IsNil)
 
 	d.Overlord().Loop()
-	s.AddCleanup(func() { d.Overlord().Stop() })
 }
 
 func (s *systemsCreateSuite) Assertion(at *asserts.AssertionType, headers []string, user *auth.UserState) (asserts.Assertion, error) {

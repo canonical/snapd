@@ -1,0 +1,83 @@
+name: test-snapd-swtpm
+base: core24
+version: 0.1.0
+summary: Libtpms-based TPM emulator
+description: |
+  Libtpms-based TPM emulator with socket, character device, and Linux
+  CUSE interface.
+platforms:
+  amd64:
+
+grade: stable
+confinement: strict
+
+apps:
+  swtpm:
+    command: usr/bin/swtpm
+    environment:
+      LD_LIBRARY_PATH: $SNAP/usr/lib/swtpm/:$SNAP/usr/local/lib/
+    plugs:
+      - network-bind
+  swtpm-sock:
+    command: usr/bin/swtpm socket --tpmstate $TPMDIR --tpm2 --ctrl $CTRL
+    daemon: simple
+    restart-condition: always
+    plugs:
+      - network-bind
+      - home
+    environment:
+      LD_LIBRARY_PATH: $SNAP/usr/lib/swtpm/:$SNAP/usr/local/lib/
+      TPMDIR: dir=$SNAP_DATA
+      CTRL: type=unixio,path=$SNAP_DATA/swtpm-sock
+
+parts:
+  python:
+    plugin: python
+    source: .
+    python-packages:
+      - cryptography
+  libtpms:
+    source: https://github.com/stefanberger/libtpms.git
+    source-commit: bd42b67edb977c5b2d042a72f272bd8c029af2b0
+    plugin: autotools
+    autotools-configure-parameters:
+      - --with-openssl
+      - --with-tpm2
+    build-packages:
+      - libnss3-dev
+      - libssl-dev
+      - gawk
+      - libtasn1-dev
+      - pkg-config
+  swtpm:
+    after:
+      - libtpms
+      - python
+    source: https://github.com/stefanberger/swtpm.git
+    source-commit: 646cf413b174f8efe2c28562aa4a2163a85528e1
+    plugin: autotools
+    autotools-configure-parameters:
+      - --prefix=/usr
+      - --with-openssl
+    build-packages:
+      - libfuse-dev
+      - libglib2.0-dev
+      - libjson-glib-dev
+      - libgmp-dev
+      - expect
+      - libtasn1-dev
+      - tpm-tools
+      - gnutls-dev
+      - gnutls-bin
+      - net-tools
+      - socat
+      - libseccomp-dev
+    stage-packages:
+      - libfuse2
+    build-environment:
+      - CFLAGS: -I$SNAPCRAFT_STAGE/usr/local/include
+      - LDFLAGS: -L$SNAPCRAFT_STAGE/usr/local/lib
+      - PKG_CONFIG_PATH: $SNAPCRAFT_STAGE/usr/local/lib/pkgconfig/
+    stage:
+      - -lib64
+

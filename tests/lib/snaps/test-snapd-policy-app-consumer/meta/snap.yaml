@@ -80,6 +80,9 @@ apps:
   gsettings:
     command: bin/run
     plugs: [ gsettings ]
+  hdmi-cec:
+    command: bin/run
+    plugs: [ hdmi-cec ]
   hugepages-control:
     command: bin/run
     plugs: [ hugepages-control ]

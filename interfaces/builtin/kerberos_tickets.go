@@ -31,16 +31,18 @@ const krbBaseDeclarationSlots = `
 
 const krbConnectedPlugAppArmor = `
 owner /var/lib/snapd/hostfs/tmp/krb5cc* rkw,
+owner /var/lib/snapd/hostfs/tmp/krb5cc*/ rw,
+owner /var/lib/snapd/hostfs/tmp/krb5cc*/primary rkw,
+owner /var/lib/snapd/hostfs/tmp/krb5cc*/tkt* rkw,
 `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "kerberos-tickets",
-		summary:                  krbSummary,
-		implicitOnClassic:        true,
-		implicitOnCore:           true,
-		baseDeclarationSlots:     krbBaseDeclarationSlots,
-		connectedPlugAppArmor:    krbConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "kerberos-tickets",
+		summary:               krbSummary,
+		implicitOnClassic:     true,
+		implicitOnCore:        true,
+		baseDeclarationSlots:  krbBaseDeclarationSlots,
+		connectedPlugAppArmor: krbConnectedPlugAppArmor,
 	})
 }

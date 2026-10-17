@@ -38,9 +38,6 @@ var (
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
 
-	ErrParallelInstancesSystemPlug      = errParallelInstancesSystemPlug
-	ErrParallelInstancesSystemSlot      = errParallelInstancesSystemSlot
-	ErrParallelInstancesGadgetSlot      = errParallelInstancesGadgetSlot
 	ErrParallelInstancesSharedResources = errParallelInstancesSharedResources
 )
 

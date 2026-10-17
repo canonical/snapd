@@ -130,7 +130,7 @@ func checkValidationSetSnap(snap map[string]any) (*ValidationSetSnap, error) {
 		return nil, fmt.Errorf(`cannot specify revision %s at the same time as stating its presence is invalid`, what)
 	}
 
-	components, err := checkValidationSetComponents(snapName, snap, snapRevision)
+	components, err := checkValidationSetComponents(naming.SnapName(snapName), snap, snapRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func checkValidationSetSnap(snap map[string]any) (*ValidationSetSnap, error) {
 	}, nil
 }
 
-func checkValidationSetComponents(snapName string, snap map[string]any, snapRevision int) (map[string]ValidationSetComponent, error) {
+func checkValidationSetComponents(snapName naming.SnapName, snap map[string]any, snapRevision int) (map[string]ValidationSetComponent, error) {
 	mapping, err := checkMapWhat(snap, "components", fmt.Sprintf("of snap %q", snapName))
 	if err != nil {
 		return nil, errors.New(`"components" field in "snaps" header must be a map`)
@@ -176,7 +176,7 @@ func checkValidationSetComponents(snapName string, snap map[string]any, snapRevi
 	return components, nil
 }
 
-func checkValidationSetComponent(compName string, comp map[string]any, snapName string, snapRevision int) (ValidationSetComponent, error) {
+func checkValidationSetComponent(compName string, comp map[string]any, snapName naming.SnapName, snapRevision int) (ValidationSetComponent, error) {
 	if err := naming.ValidateSnap(compName); err != nil {
 		return ValidationSetComponent{}, fmt.Errorf("invalid component name %q", compName)
 	}

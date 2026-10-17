@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
@@ -162,6 +163,181 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, false)
 
 	c.Assert(osutil.FileExists(minInfo.MountFile()), Equals, false)
+}
+
+func makeTestSnapAndIntegrityData(c *C, snapYamlContent, rootHash string) string {
+	snapPath := makeTestSnap(c, snapYamlContent)
+	integrityFileName := strings.TrimSuffix(snapPath, ".snap") + ".dmverity_" + rootHash
+	c.Assert(os.WriteFile(integrityFileName, nil, 0644), IsNil)
+	return snapPath
+}
+
+func (s *setupSuite) testSetupWithIntegrityData(c *C, variant string) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+	c.Assert(installRecord, NotNil)
+	c.Check(snapType, Equals, snap.TypeApp)
+
+	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+
+	// after setup the snap and integrity files are copied to the right dir
+	c.Assert(snapFilePath, testutil.FilePresent)
+	c.Assert(integrityFilePath, testutil.FilePresent)
+
+	// ensure the right unit is created
+	mup := systemd.MountUnitPath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14"))
+	c.Assert(mup, testutil.FileMatches, fmt.Sprintf("(?ms).*^Where=%s", filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "hello/14")))
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^What=/var/lib/snapd/snaps/hello_14.snap")
+	c.Assert(mup, testutil.FileMatches, "(?ms).*^Options=.*verity.roothash=aaa,verity.hashdevice=/var/lib/snapd/snaps/hello_14.dmverity_aaa")
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	// mount dir was created
+	c.Assert(minInfo.MountDir(), testutil.FilePresent)
+
+	// now the undo/remove path
+	switch variant {
+	case "with-undo":
+		err = s.be.UndoSetupSnap(minInfo, "app", nil, mockDev, progress.Null)
+	case "with-remove":
+		err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	default:
+		c.Errorf("unexpected variant %q", variant)
+		return
+	}
+	c.Assert(err, IsNil)
+
+	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
+	c.Assert(l, HasLen, 0)
+	c.Assert(minInfo.MountDir(), testutil.FileAbsent)
+
+	c.Assert(snapFilePath, testutil.FileAbsent)
+	c.Assert(integrityFilePath, testutil.FileAbsent)
+}
+
+func (s *setupSuite) TestSetupDoUndoWithIntegrityData(c *C) {
+	const variant = "with-undo"
+	s.testSetupWithIntegrityData(c, variant)
+}
+
+func (s *setupSuite) TestRemoveSnapFilesWithIntegrityData(c *C) {
+	const variant = "with-remove"
+	s.testSetupWithIntegrityData(c, variant)
+}
+
+func (s *setupSuite) TestRemoveSnapFilesRemovesIntegrityDataBeforeSnap(c *C) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+	_, _, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+
+	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+
+	// the presence of the snap file is what triggers integrity data cleanup,
+	// so it must outlive the integrity files to be robust against restarts
+	var removed []string
+	restore := backend.MockOsRemoveAll(func(path string) error {
+		if path == integrityFilePath {
+			c.Check(snapFilePath, testutil.FilePresent)
+		}
+		removed = append(removed, path)
+		return os.RemoveAll(path)
+	})
+	defer restore()
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Check(removed, DeepEquals, []string{integrityFilePath, snapFilePath})
+	c.Check(snapFilePath, testutil.FileAbsent)
+	c.Check(integrityFilePath, testutil.FileAbsent)
+}
+
+func (s *setupSuite) TestRemoveSnapFilesKeepsSnapOnIntegrityDataRemovalError(c *C) {
+	snapPath := makeTestSnapAndIntegrityData(c, helloYaml1, "aaa")
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+	setupOpts := backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+	_, _, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, &setupOpts, progress.Null)
+	c.Assert(err, IsNil)
+
+	snapFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.snap")
+	integrityFilePath := filepath.Join(dirs.SnapBlobDir, "hello_14.dmverity_aaa")
+
+	restore := backend.MockOsRemoveAll(func(path string) error {
+		if path == integrityFilePath {
+			return errors.New("boom")
+		}
+		return os.RemoveAll(path)
+	})
+	defer restore()
+
+	minInfo := snap.MinimalPlaceInfo("hello", snap.R(14))
+	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, ErrorMatches, "boom")
+
+	// the snap is kept so that a retry will find and clean up the integrity data
+	c.Check(snapFilePath, testutil.FilePresent)
+	c.Check(integrityFilePath, testutil.FilePresent)
+
+	restore()
+	err = s.be.RemoveSnapFiles(minInfo, "app", nil, mockDev, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(snapFilePath, testutil.FileAbsent)
+	c.Check(integrityFilePath, testutil.FileAbsent)
+}
+
+func (s *setupSuite) TestSetupSnapWithIntegrityDataFileMissing(c *C) {
+	snapPath := makeTestSnap(c, helloYaml1)
+
+	si := snap.SideInfo{
+		RealName: "hello",
+		Revision: snap.R(14),
+	}
+
+	setupOpts := &backend.SetupSnapOptions{
+		IntegrityDataParams: &integrity.IntegrityDataParams{
+			Type:   "dm-verity",
+			Digest: "aaa",
+		},
+	}
+
+	_, _, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, setupOpts, progress.Null)
+	c.Check(err, ErrorMatches, "link .*/hello_1.0_all.dmverity_aaa .*/var/lib/snapd/snaps/hello_instance_14.dmverity_aaa: no such file or directory")
 }
 
 func (s *setupSuite) TestSetupDoUndoKernel(c *C) {
@@ -520,14 +696,21 @@ func (s *setupSuite) testSetupComponentDoUndo(c *C, compName, snapName string, i
 }
 
 func (s *setupSuite) TestSetupComponentCleanupAfterFail(c *C) {
-	instanceName := naming.NewInstanceName("mysnap", "")
+	s.testSetupComponentCleanupAfterFail(c, naming.NewInstanceName("mysnap", ""))
+}
+
+func (s *setupSuite) TestSetupComponentCleanupAfterFailParallelInstance(c *C) {
+	s.testSetupComponentCleanupAfterFail(c, naming.NewInstanceName("mysnap", "inst"))
+}
+
+func (s *setupSuite) testSetupComponentCleanupAfterFail(c *C, instanceName naming.InstanceName) {
 	compName := "mycomp"
 	compRev := snap.R(33)
 
 	componentYaml := fmt.Sprintf(`component: %s+%s
 type: standard
 version: 1.0
-`, instanceName, compName)
+`, instanceName.SnapName(), compName)
 
 	compPath := snaptest.MakeTestComponent(c, componentYaml)
 
@@ -709,7 +892,7 @@ func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(fwdir, "bar.bin"), []byte{}, 0644), IsNil)
 
 	// Run set-up
-	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
+	err := s.be.SetupKernelSnap("kernel", snap.R(33), nil, backend.SetupKernelForInstall, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Kernel files are created
@@ -719,6 +902,105 @@ func (s *setupSuite) TestSetupAndRemoveKernelSnapSetup(c *C) {
 	// Now test cleaning-up
 	s.be.RemoveKernelSnapSetup("kernel", snap.R(33), progress.Null)
 	c.Assert(osutil.FileExists(filepath.Join(treedir, "lib/firmware/bar.bin")), Equals, false)
+}
+
+func (s *setupSuite) TestSetupKernelSnapPlumbsComponentsAndRegenerate(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+	currentComps := createKModsComps(c, 1, 2, ksnap, kernRev)
+
+	var gotMode kernel.KernelDriversTreeMode
+	var gotCompsMntPts []kernel.ModulesCompMountPoints
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) error {
+		gotMode = mode
+		gotCompsMntPts = compsMntPts
+		return nil
+	})
+	defer r()
+
+	err := s.be.SetupKernelSnap(ksnap, kernRev, currentComps,
+		backend.SetupKernelRegenerate, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotMode, Equals, kernel.RegenerateMode)
+	c.Assert(gotCompsMntPts, HasLen, len(currentComps))
+	gotNames := make([]string, len(gotCompsMntPts))
+	for i, cmp := range gotCompsMntPts {
+		gotNames[i] = cmp.LinkName
+	}
+	c.Check(gotNames, DeepEquals, []string{"comp1", "comp2"})
+}
+
+func (s *setupSuite) TestSetupKernelSnapPlumbsDynamicModulesWithNoComponents(c *C) {
+	// Regression test: SetupKernelSnap must derive compsMntPts (which is
+	// also what picks up the kernel's dynamic-modules mount point, unrelated
+	// to kernel-modules components) unconditionally, not only when
+	// currentComps is non-empty - otherwise a kernel using dynamic-modules
+	// with zero installed components would have that content silently
+	// dropped from a Regenerate-mode candidate tree.
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	metadir := filepath.Join(dirs.SnapMountDir, "kernel/33/meta")
+	c.Assert(os.MkdirAll(metadir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(metadir, "kernel.yaml"),
+		[]byte("dynamic-modules: $SNAP_DATA"), 0644), IsNil)
+
+	modsDir := filepath.Join(snap.DataDir(ksnap, kernRev), "modules", "6.5.4-3-generic")
+	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(modsDir, "dynamic.ko"), []byte{}, 0644), IsNil)
+
+	var gotCompsMntPts []kernel.ModulesCompMountPoints
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) error {
+		gotCompsMntPts = compsMntPts
+		return nil
+	})
+	defer r()
+
+	// No kernel-modules components at all - currentComps is nil.
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil,
+		backend.SetupKernelRegenerate, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(gotCompsMntPts, HasLen, 1)
+	c.Check(gotCompsMntPts[0].LinkName, Equals, ksnap+"_dyn")
+}
+
+func (s *setupSuite) TestSetupKernelSnapRejectsComponentsWithoutRegenerate(c *C) {
+	// currentComps is only meaningful for SetupKernelRegenerate; for a plain
+	// install it must be rejected rather than silently wired into the
+	// candidate tree (see the TODO in SetupKernelSnap about jointly
+	// installing components, which is not supported yet).
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+	currentComps := createKModsComps(c, 1, 2, ksnap, kernRev)
+
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) error {
+		c.Fatal("EnsureKernelDriversTree must not be called")
+		return nil
+	})
+	defer r()
+
+	err := s.be.SetupKernelSnap(ksnap, kernRev, currentComps, backend.SetupKernelForInstall, progress.Null)
+	c.Assert(err, ErrorMatches, "internal error: currentComps must be nil unless regenerating the kernel drivers tree")
+}
+
+func (s *setupSuite) TestSetupKernelSnapRejectsUnsupportedReason(c *C) {
+	ksnap := "kernel"
+	kernRev := snap.R(33)
+
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) error {
+		c.Fatal("EnsureKernelDriversTree must not be called")
+		return nil
+	})
+	defer r()
+
+	// Neither the reserved zero value nor any other out-of-range value is a
+	// valid reason.
+	for _, reason := range []backend.SetupKernelReason{0, backend.SetupKernelReason(99)} {
+		err := s.be.SetupKernelSnap(ksnap, kernRev, nil, reason, progress.Null)
+		c.Assert(err, ErrorMatches, "internal error: unsupported kernel snap setup reason .*")
+	}
 }
 
 func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
@@ -736,7 +1018,7 @@ func (s *setupSuite) TestSetupKernelSnapFailed(c *C) {
 	// Force failure via unexpected file type
 	c.Assert(syscall.Mkfifo(filepath.Join(fwdir, "fifo"), 0666), IsNil)
 
-	err := s.be.SetupKernelSnap("kernel", snap.R(33), progress.Null)
+	err := s.be.SetupKernelSnap("kernel", snap.R(33), nil, backend.SetupKernelForInstall, progress.Null)
 	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
 
 	// All has been cleaned-up
@@ -772,7 +1054,7 @@ func createKModsComps(c *C, idx, num int, ksnap string, kernRev snap.Revision) [
 		c.Assert(os.Symlink(compDir, linkPath), IsNil)
 
 		comps[i] = snap.NewComponentSideInfo(
-			naming.NewComponentRef(ksnap, compName), compRev)
+			naming.NewComponentRef(naming.SnapName(ksnap), compName), compRev)
 	}
 	return comps
 }
@@ -814,7 +1096,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsNoComps(c *C) {
 	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
 
 	// Run kernel set-up
-	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil, backend.SetupKernelForInstall, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Run modules set-up
@@ -943,7 +1225,7 @@ func (s *setupSuite) testSetupKernelModulesComponents(c *C, toInstall, installed
 	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
 
 	// Run kernel set-up
-	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil, backend.SetupKernelForInstall, progress.Null)
 	c.Assert(err, IsNil)
 
 	// Run modules set-up
@@ -977,12 +1259,12 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 	c.Assert(os.MkdirAll(modsdir, 0755), IsNil)
 
 	// Run kernel set-up
-	err := s.be.SetupKernelSnap(ksnap, kernRev, progress.Null)
+	err := s.be.SetupKernelSnap(ksnap, kernRev, nil, backend.SetupKernelForInstall, progress.Null)
 	c.Assert(err, IsNil)
 
 	// First call to EnsureKernelDriversTree will fail
 	n := 0
-	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+	r := backend.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, mode kernel.KernelDriversTreeMode) (err error) {
 		n++
 		driversTree := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir),
 			"kernel", ksnap, kernRev.String())
@@ -992,7 +1274,7 @@ func (s *setupSuite) TestSetupKernelModulesComponentsRevert(c *C) {
 			Current: kernSnapDir,
 			Target:  kernSnapDir,
 		})
-		c.Check(opts, DeepEquals, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+		c.Check(mode, Equals, kernel.ComponentChangeMode)
 		compsMnt := filepath.Join(dirs.SnapMountDir, ksnap, "components/mnt")
 		switch n {
 		case 1, 3:

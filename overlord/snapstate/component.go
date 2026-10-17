@@ -70,7 +70,7 @@ func InstallComponents(
 		// new components at the same time when resolving validation sets
 		var alreadyInstalled []string
 		for _, comp := range names {
-			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(info.SnapName().String(), comp)) != nil {
+			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(info.SnapName(), comp)) != nil {
 				alreadyInstalled = append(alreadyInstalled, comp)
 			}
 		}
@@ -105,7 +105,7 @@ func InstallComponents(
 		comps[comp.ComponentName()] = comp.Revision()
 	}
 
-	if err := checkComponentsPresenceAndRevision(info.SnapName().String(), comps, pres, "install"); err != nil {
+	if err := checkComponentsPresenceAndRevision(info.SnapName(), comps, pres, "install"); err != nil {
 		return nil, err
 	}
 
@@ -745,15 +745,15 @@ type RemoveComponentsOpts struct {
 }
 
 // RemoveComponents returns a taskset that removes the components in compName
-// that belog to snapName.
-func RemoveComponents(st *state.State, snapName string, compName []string, opts RemoveComponentsOpts) ([]*state.TaskSet, error) {
+// that belong to instanceName.
+func RemoveComponents(st *state.State, instanceName naming.InstanceName, compName []string, opts RemoveComponentsOpts) ([]*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, snapName, &snapst)
+	err := Get(st, instanceName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 	if !snapst.IsInstalled() {
-		return nil, &snap.NotInstalledError{Snap: snapName, Rev: snap.R(0)}
+		return nil, &snap.NotInstalledError{Snap: instanceName.String(), Rev: snap.R(0)}
 	}
 
 	info, err := snapst.CurrentInfo()
@@ -765,12 +765,12 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 	if opts.RefreshProfile {
 		revisionStr := fmt.Sprintf(" (%s)", info.Revision)
 		setupSecurity = st.NewTask("setup-profiles",
-			fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), snapName, revisionStr))
+			fmt.Sprintf(i18n.G("Setup snap %q%s security profiles"), instanceName, revisionStr))
 	}
 
 	var tss []*state.TaskSet
 	for _, comp := range compName {
-		cref := naming.NewComponentRef(snapName, comp)
+		cref := naming.NewComponentRef(instanceName.SnapName(), comp)
 		compst := snapst.CurrentComponentState(cref)
 		if compst == nil {
 			return nil, &snap.ComponentNotInstalledError{

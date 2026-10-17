@@ -1243,6 +1243,27 @@ Icon=foo.png
 	c.Check(n.Icon, Equals, "foo.png")
 }
 
+func (s *restSuite) TestPostCloseRefreshNotificationWithoutDesktopFile(c *C) {
+	snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	mockYaml := `
+name: snap-name
+apps:
+  app:
+    command: bin/app
+`
+	snaptest.MockSnapInstanceCurrent(c, "snap-name_devel", mockYaml[1:], &snap.SideInfo{
+		RealName: "snap-name",
+		Revision: snap.R("42"),
+	})
+
+	refreshInfo := &client.FinishedSnapRefreshInfo{InstanceName: "snap-name_devel"}
+	s.testPostFinishRefreshNotificationBody(c, refreshInfo)
+
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	c.Check(notifications[0].Summary, Equals, `snap-name (devel) was updated.`)
+}
+
 func (s *restSuite) TestLocalizedDesktopNameNoLocale(c *C) {
 	restore := agent.MockCurrentLocale("")
 	s.AddCleanup(restore)
