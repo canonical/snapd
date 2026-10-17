@@ -4579,3 +4579,73 @@ func setupDelayedSecurityBackendEffects(st *state.State, tss []*state.TaskSet, m
 
 	return append(tss, pde)
 }
+
+// allowUnsupportedInstancesMigratedKey marks that existing parallel instances were
+// evaluated once support checks on refresh were introduced
+const allowUnsupportedInstancesMigratedKey = "allow-unsupported-instances-migrated"
+
+// allowUnsupportedInstancesMigrationPendingKey marks that an individual link-snap task will
+// need to evaluate if AllowUnsupportedInstances needs to be added.
+const allowUnsupportedInstancesMigrationPendingKey = "allow-unsupported-instances-migration-pending"
+
+// MigrateAllowUnsupportedInstances sets AllowUnsupportedInstances on unsupported
+// parallel instances installed or with pending installations before the support
+// checks were added. It must be called with the state locked and after the
+// interface repository has been set up.
+func MigrateAllowUnsupportedInstances(st *state.State) error {
+	var done bool
+	if err := st.Get(allowUnsupportedInstancesMigratedKey, &done); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if done {
+		return nil
+	}
+
+	all, err := All(st)
+	if err != nil {
+		return err
+	}
+	for name, snapst := range all {
+		if snapst.InstanceKey == "" || snapst.AllowUnsupportedInstances {
+			continue
+		}
+		info, err := snapst.CurrentInfo()
+		if err != nil {
+			logger.Noticef("cannot check parallel instance support of snap %q: %v", name, err)
+			continue
+		}
+		if err := checkParallelInstancesSupport(st, info); err == nil {
+			continue
+		}
+		snapst.AllowUnsupportedInstances = true
+		Set(st, name, snapst)
+	}
+
+	migrationMarkable := true
+	for _, chg := range st.Changes() {
+		if chg.IsReady() {
+			continue
+		}
+		for _, task := range chg.Tasks() {
+			if task.Kind() != "link-snap" {
+				continue
+			} else if task.Status() != state.DoStatus {
+				migrationMarkable = false
+				continue
+			}
+			snapsup, err := TaskSnapSetup(task)
+			if err != nil {
+				logger.Noticef("cannot get snap setup for pending link-snap task: %v", err)
+				continue
+			}
+			if snapsup.InstanceKey != "" {
+				task.Set(allowUnsupportedInstancesMigrationPendingKey, true)
+			}
+		}
+	}
+
+	if migrationMarkable {
+		st.Set(allowUnsupportedInstancesMigratedKey, true)
+	}
+	return nil
+}

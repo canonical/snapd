@@ -1960,6 +1960,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	if err != nil {
 		return err
 	}
+	if snapst.InstanceKey != "" && !snapst.AllowUnsupportedInstances {
+		var parallelInstanceMigrationPending bool
+		if err := t.Get(allowUnsupportedInstancesMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, newInfo) != nil {
+			snapst.AllowUnsupportedInstances = true
+		}
+	}
 
 	// record type
 	snapst.SetType(newInfo.Type())
@@ -2646,6 +2655,15 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		snapst.Base = oldInfo.Base
+		if snapst.InstanceKey != "" && !snapst.AllowUnsupportedInstances {
+			var parallelInstanceMigrationPending bool
+			if err := t.Get(allowUnsupportedInstancesMigrationPendingKey, &parallelInstanceMigrationPending); err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			if parallelInstanceMigrationPending && checkParallelInstancesSupport(st, oldInfo) != nil {
+				snapst.AllowUnsupportedInstances = true
+			}
+		}
 	}
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
@@ -3107,7 +3125,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		rmSvcs = make(map[string]*snap.AppInfo)
 		for _, svc := range svcs {
 			app, ok := newInfo.Apps[svc.Name]
-			if !ok || !app.IsService() {
+			if !ok || !app.IsService() || app.DaemonScope != svc.DaemonScope {
 				rmSvcs[svc.Name] = svc
 			}
 		}
