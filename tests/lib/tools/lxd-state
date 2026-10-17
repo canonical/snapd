@@ -52,6 +52,20 @@ prepare_snap(){
     lxd.lxc profile set default user.user-data "$(cat lxd_default_proxy.yaml)"
 }
 
+wait_for_exec() {
+    local name=$1
+    # 30 * 5s is about 2.5 minutes. A guest on OpenStack was still down at the
+    # old limit of 10 tries, which is about 45 seconds. A ready agent returns
+    # on the first success.
+    if ! retry -n 30 --wait 5 lxc exec "$name" -- true; then
+        echo "lxd-state: serial console for ${name}:" >&2
+        # --show-log prints the saved console and returns. Bound it so a stuck client
+        # cannot hold the already-failed test open.
+        timeout 30 lxc console "$name" --show-log >&2 || echo "lxd-state: could not read the serial console for ${name}" >&2
+        return 1
+    fi
+}
+
 launch() {
     local name params remote image
     while [ $# -gt 0 ]; do
@@ -95,7 +109,7 @@ launch() {
     lxc launch --quiet "${remote}:${image}" "$name" $params
 
     # wait for the machine to become available
-    retry -n 10 --wait 5 lxc exec "$name" -- true
+    wait_for_exec "$name"
     # wait for cloud-init to finish before doing any apt operations
     local ret=0
     lxc exec "$name" -- sh -c "cloud-init status --wait" || ret=$?
