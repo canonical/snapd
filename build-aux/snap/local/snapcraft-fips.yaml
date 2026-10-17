@@ -106,6 +106,10 @@ parts:
       - libudev1
       - libzstd1
       - xdelta3
+      # xz is what the snap-2-1-hdiffz delta format recompresses the blocks
+      # it rebuilds with, and it has to be the same xz the image was built
+      # with or the blocks come out different.
+      - xz-utils
       - zlib1g
       - on armhf:
         - libteec1
@@ -609,3 +613,45 @@ parts:
       - liblzo2-dev
       - libzstd-dev
       - zlib1g-dev
+
+# hpatchz applies the patches in a snap-2-1-hdiffz delta, and is the one tool
+  # that format needs on the device. Its counterpart hdiffz is deliberately not
+  # shipped: patches are made where snaps are published, never here.
+  #
+  # There is no hpatchz deb, so this pulls the upstream release build for the
+  # target architecture. Architectures upstream does not publish a build for get
+  # no hpatchz, and a delta in this format is then refused and the download falls
+  # back to the whole snap.
+  hdiff:
+    plugin: nil
+    after:
+      - dynamic-linker
+    <<:
+      - *dynamic-linker
+    source: https://api.github.com/repos/sisong/HDiffPatch/releases/latest
+    source-type: zip
+    override-pull: |
+      release="362876167" # v5.1.3
+      if [ "armhf" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux_arm32"
+      elif [ "arm64" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux_arm64"
+      elif [ "amd64" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux64"
+      elif [ "riscv64" = "${CRAFT_ARCH_BUILD_FOR}" ]; then
+        linux_flavour="linux_riscv64"
+      fi
+      if [ -n "${linux_flavour}" ]; then
+        url=$(curl -sL "https://api.github.com/repos/sisong/HDiffPatch/releases/${release}" | jq -r '.assets[].browser_download_url' | grep "${linux_flavour}")
+        wget --quiet -O "${CRAFT_PART_SRC}/hdiffpatch_linux.zip" "${url}"
+        unzip -j "${CRAFT_PART_SRC}/hdiffpatch_linux.zip"
+        install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/bin" hpatchz
+      fi
+    override-prime: |
+      craftctl default
+      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
+    build-packages:
+      - curl
+      - jq
+      - unzip
+      - wget
