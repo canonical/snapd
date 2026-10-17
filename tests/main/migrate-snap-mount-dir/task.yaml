@@ -39,9 +39,6 @@ prepare: |
     tests.cleanup defer snap remove --purge test-snapd-user-service
 
     if [ "$PARALLEL_INSTANCES" = "true" ]; then
-        snap set system experimental.parallel-instances=true
-        tests.cleanup defer snap unset system experimental.parallel-instances
-
         "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service test-snapd-service_foo
         tests.cleanup defer snap remove --purge test-snapd-service_foo
     fi

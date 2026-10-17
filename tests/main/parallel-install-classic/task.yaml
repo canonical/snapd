@@ -39,11 +39,6 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    snap set system experimental.parallel-instances=true
-
-restore: |
-    snap unset system experimental.parallel-instances
-
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic

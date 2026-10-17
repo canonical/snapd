@@ -35,10 +35,6 @@ prepare: |
         flags=--classic
     fi
 
-    if [[ "$SPREAD_VARIANT" =~ parallel ]]; then
-        snap set system experimental.parallel-instances=true
-    fi
-
     echo "Given a snap is installed"
     snap install $flags "$SNAP_NAME"
 
@@ -51,10 +47,6 @@ prepare: |
 
 restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-
-    if [[ "$SPREAD_VARIANT" =~ parallel ]]; then
-        snap set system experimental.parallel-instances=null
-    fi
 
 execute: |
     # FIXME: currently the --list from channel doesn't work
