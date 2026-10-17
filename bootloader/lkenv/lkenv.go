@@ -424,6 +424,74 @@ func (l *Env) RemoveKernelFromBootPartition(kernel string) error {
 	return matr.dropBootPartValue(kernel)
 }
 
+// DuplicateKernelBootPartitions returns, for every kernel revision that is
+// referenced by more than one boot image partition, the labels of all the boot
+// image partitions referencing it, in boot image matrix order. An empty result
+// means the boot image matrix is consistent.
+//
+// A kernel revision occupying more than one boot image partition is always
+// corruption - it wastes the slot that the next kernel refresh needs, and once
+// every slot is taken by the currently installed kernel no free boot image
+// partition can be found at all and kernel refreshes fail permanently. It is
+// left to the caller to decide whether the redundant references can safely be
+// cleared, which requires checking that the boot image partitions really do
+// hold the same content - see ClearKernelBootPartition.
+func (l *Env) DuplicateKernelBootPartitions() (map[string][]string, error) {
+	matr, err := l.variant.bootImgKernelMatrix()
+	if err != nil {
+		return nil, err
+	}
+
+	return matr.duplicateBootPartValues(), nil
+}
+
+// ClearKernelBootPartition removes the kernel revision reference from the
+// named boot image partition, leaving the boot image partition label itself
+// intact. Unlike RemoveKernelFromBootPartition, which looks the partition up by
+// the kernel revision it holds and clears the first match, this clears exactly
+// the boot image partition named, which is what is needed to resolve a kernel
+// revision that is referenced by more than one boot image partition. It returns
+// a non-nil error if the boot image partition label was not found.
+func (l *Env) ClearKernelBootPartition(bootpart string) error {
+	matr, err := l.variant.bootImgKernelMatrix()
+	if err != nil {
+		return err
+	}
+
+	return matr.clearBootPart(bootpart)
+}
+
+// kernelVariables are the environment variables through which the bootloader is
+// directed at a kernel revision in the boot image matrix. A kernel revision
+// named by one of them is referenced for booting, any other kernel revision in
+// the matrix is not.
+var kernelVariables = []string{
+	"snap_kernel",
+	"snap_try_kernel",
+}
+
+// IsKernelReferenced returns whether the given kernel revision is named by
+// snap_kernel or snap_try_kernel, i.e. whether it is referenced for booting the
+// device.
+//
+// A kernel revision named by neither is not used to boot: the bootloader never
+// searches the boot image matrix for it, so the boot image partition it points
+// at cannot be selected and its reference can be dropped without affecting how
+// the device boots.
+func (l *Env) IsKernelReferenced(kernel string) bool {
+	if kernel == "" {
+		return false
+	}
+
+	for _, key := range kernelVariables {
+		if l.variant.get(key) == kernel {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FindFreeRecoverySystemBootPartition finds a free recovery system boot image
 // partition to be used for the recovery kernel from the recovery system. It
 // only considers boot image partitions that are currently not set to a recovery
@@ -535,6 +603,49 @@ func (matr bootimgMatrixGeneric) dropBootPartValue(bootPartValue string) error {
 	}
 
 	return fmt.Errorf("cannot find %q in boot image partitions", bootPartValue)
+}
+
+// clearBootPart removes the value from the named boot image partition, leaving
+// the boot image partition label itself intact. Unlike dropBootPartValue, the
+// boot image partition is identified by its label rather than by the value it
+// holds, so it can address one specific partition out of several holding the
+// same value.
+func (matr bootimgMatrixGeneric) clearBootPart(bootpart string) error {
+	for x := range matr {
+		if bootpart == cToGoString(matr[x][MATRIX_ROW_PARTITION][:]) {
+			// clear the string by setting the first element to 0 or NUL
+			matr[x][MATRIX_ROW_VALUE][0] = 0
+			return nil
+		}
+	}
+
+	return fmt.Errorf("cannot find boot image partition %s", bootpart)
+}
+
+// duplicateBootPartValues returns every value that is referenced by more than
+// one boot image partition, mapped to the labels of all the boot image
+// partitions referencing it, in boot image matrix order.
+func (matr bootimgMatrixGeneric) duplicateBootPartValues() map[string][]string {
+	bootPartsForValue := make(map[string][]string)
+	for x := range matr {
+		bootPartLabel := cToGoString(matr[x][MATRIX_ROW_PARTITION][:])
+		if bootPartLabel == "" {
+			continue
+		}
+		bootPartValue := cToGoString(matr[x][MATRIX_ROW_VALUE][:])
+		if bootPartValue == "" {
+			continue
+		}
+		bootPartsForValue[bootPartValue] = append(bootPartsForValue[bootPartValue], bootPartLabel)
+	}
+
+	for bootPartValue, bootPartLabels := range bootPartsForValue {
+		if len(bootPartLabels) < 2 {
+			delete(bootPartsForValue, bootPartValue)
+		}
+	}
+
+	return bootPartsForValue
 }
 
 // setBootPart associates the specified boot image partition label to the
