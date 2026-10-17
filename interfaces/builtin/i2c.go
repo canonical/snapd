@@ -150,10 +150,6 @@ func (iface *i2cInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
-func (iface *i2cInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
-	return parallelInstancesSystemOrGadgetSlotErr(slot)
-}
-
 func init() {
 	registerIface(&i2cInterface{})
 }

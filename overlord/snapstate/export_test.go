@@ -23,11 +23,14 @@ import (
 	"context"
 	"time"
 
+	"gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -54,23 +57,23 @@ type (
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
 var DiskSpaceReservation = diskSpaceReservation
+var CheckForAvailableSpace = checkForAvailableSpace
 
 const (
-	None                        = none
-	Full                        = full
-	Hidden                      = hidden
-	Home                        = home
-	RevertHidden                = revertHidden
-	DisableHome                 = disableHome
-	RevertFull                  = revertFull
-	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
+	None         = none
+	Full         = full
+	Hidden       = hidden
+	Home         = home
+	RevertHidden = revertHidden
+	DisableHome  = disableHome
+	RevertFull   = revertFull
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
 
-func MockSnapReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+func MockSnapReadInfo(mock func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
 	old := snapReadInfo
 	snapReadInfo = mock
 	return func() { snapReadInfo = old }
@@ -279,6 +282,16 @@ func NextCatalogRefresh(cr *catalogRefresh) time.Time {
 	return cr.nextCatalogRefresh
 }
 
+func WaitCatalogRefresh(cr *catalogRefresh) {
+	if cr.catalogC != nil {
+		<-cr.catalogC
+	}
+}
+
+func StopCatalogRefresh(m *SnapManager) {
+	m.catalogRefresh.Stop()
+}
+
 func MockRefreshRetryDelay(d time.Duration) func() {
 	origRefreshRetryDelay := refreshRetryDelay
 	refreshRetryDelay = d
@@ -338,7 +351,7 @@ var (
 
 type UpdateFilter = updateFilter
 
-func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
+func MockReRefreshUpdateMany(f func(context.Context, *state.State, []naming.InstanceName, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
 	old := reRefreshUpdateMany
 	reRefreshUpdateMany = f
 	return func() {
@@ -367,6 +380,10 @@ func (m *SnapManager) MaybeUndoRemodelBootChanges(t *state.Task) (restartRequest
 		return true, restartPoss.RebootRequired, nil
 	}
 	return false, false, err
+}
+
+func (m *SnapManager) DoLinkSnap(t *state.Task, tb *tomb.Tomb) error {
+	return m.doLinkSnap(t, tb)
 }
 
 func MockEnsuredDesktopFilesUpdated(m *SnapManager, ensured bool) (restore func()) {
@@ -544,7 +561,7 @@ func MockRestoreValidationSetsTracking(f func(*state.State) error) (restore func
 	}
 }
 
-func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []string, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
+func MockMaybeRestoreValidationSetsAndRevertSnaps(f func(st *state.State, refreshedSnaps []naming.InstanceName, fromChange string) ([]*state.TaskSet, error)) (restore func()) {
 	old := maybeRestoreValidationSetsAndRevertSnaps
 	maybeRestoreValidationSetsAndRevertSnaps = f
 	return func() {
@@ -673,4 +690,12 @@ func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []in
 
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 	return s.catalogRefreshDelayWithDelta
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
+	return testutil.Mock(&ValidatedIntegrityData, f)
+}
+
+func MockIntegrityLookupDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
+	return testutil.Mock(&integrityLookupDataAndCrossCheck, f)
 }

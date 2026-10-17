@@ -4,16 +4,21 @@ show_help() {
     echo "usage: lxd-state undo-mount-changes"
     echo "       lxd-state prepare-snap"
     echo "       lxd-state setup-proxy <INSTANCE-NAME>"
+    echo "       lxd-state default-channel"
+}
+
+default_channel() {
+    local channel="${LXD_SNAP_CHANNEL}"
+    if os.query is-ubuntu && os.query is-ubuntu-le 20.04; then
+        # LXD 6 is not supported on older systems. Use 5.21 instead.
+        channel="5.21/${channel#*/}"
+    fi
+    echo "$channel"
 }
 
 prepare_snap(){
     echo "lxd-state: installing lxd snap"
-    channel="${LXD_SNAP_CHANNEL}"
-    if os.query is_ubuntu_le 20.04; then
-        # LXD 6 is not supported on older systems. Use 5.21 instead.
-        channel="5.21/${channel#*/}"
-    fi
-    snap install lxd --channel="$channel"
+    snap install lxd --channel="$(default_channel)"
 
     if tests.pkgs is-installed lxd; then
         echo "lxd-state: remove the lxd pkg (some images carry them) to ensure we use the snap"
@@ -193,6 +198,10 @@ main() {
         default-image)
                 shift
                 default_image
+            ;;
+        default-channel)
+                shift
+                default_channel
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2

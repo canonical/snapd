@@ -261,7 +261,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snapRevision,
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -315,7 +317,9 @@ version: 1.0
 		RealName: snapName,
 		Revision: snapRevision,
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -366,7 +370,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snapRevision,
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -464,7 +470,7 @@ func (s *targetTestSuite) TestUpdateSnapInstallIfMissingChannelCases(c *C) {
 
 		op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
 		c.Check(op.action.Action, Equals, "install", Commentf(tc.name))
-		c.Check(op.action.InstanceName, Equals, tc.update.InstanceName, Commentf(tc.name))
+		c.Check(op.action.InstanceName, Equals, tc.update.InstanceName.String(), Commentf(tc.name))
 		c.Check(op.action.Channel, Equals, tc.expectedActionChan, Commentf(tc.name))
 
 		if tc.update.RevOpts.Revision.Unset() {
@@ -476,7 +482,7 @@ func (s *targetTestSuite) TestUpdateSnapInstallIfMissingChannelCases(c *C) {
 		var snapsup *snapstate.SnapSetup
 		for _, task := range ts.Tasks() {
 			cand, setupErr := snapstate.TaskSnapSetup(task)
-			if setupErr == nil && cand.InstanceName().String() == tc.update.InstanceName {
+			if setupErr == nil && cand.InstanceName() == tc.update.InstanceName {
 				snapsup = cand
 				break
 			}
@@ -977,7 +983,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
 	) (*snap.ComponentInfo, error) {
 		return &snap.ComponentInfo{
-			Component:         naming.NewComponentRef(info.SnapName().String(), compName),
+			Component:         naming.NewComponentRef(info.SnapName(), compName),
 			Type:              snap.StandardComponent,
 			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
@@ -1048,7 +1054,7 @@ func (s *targetTestSuite) TestUpdateComponentsSameComponentRevision(c *C) {
 		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
 	) (*snap.ComponentInfo, error) {
 		return &snap.ComponentInfo{
-			Component:         naming.NewComponentRef(info.SnapName().String(), compName),
+			Component:         naming.NewComponentRef(info.SnapName(), compName),
 			Type:              snap.StandardComponent,
 			CompVersion:       "1.0",
 			ComponentSideInfo: *csi,
@@ -1145,7 +1151,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -1288,7 +1296,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -1365,7 +1375,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	badName := "Bad-component"
 	csi := snap.ComponentSideInfo{
@@ -1435,7 +1447,9 @@ version: 1.0
 		SnapID:   snapID,
 		Revision: snap.R(9),
 	}
-	snapPath := makeTestSnap(c, snapYaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, snapYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 
 	csi := snap.ComponentSideInfo{
 		Component: naming.NewComponentRef(snapName, compName),
@@ -1464,7 +1478,7 @@ func (s *targetTestSuite) TestInstallWithIntegrityDataEssentialSnap(c *C) {
 	defer s.state.Unlock()
 
 	tests := []struct {
-		instanceName string
+		instanceName naming.InstanceName
 		Comment      string
 	}{
 		{"some-base", "integrity data should be used for base snaps"},
@@ -1532,7 +1546,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataEssentialSnap(c *C) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.snap.dmverity_digest1",
+				DownloadURL: "foo_1.dmverity_digest1",
 			},
 		}
 
@@ -1591,7 +1605,7 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.snap.dmverity_digest1",
+				DownloadURL: "foo_1.dmverity_digest1",
 			},
 		}
 

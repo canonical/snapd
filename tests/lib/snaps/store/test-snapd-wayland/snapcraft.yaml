@@ -1,0 +1,26 @@
+name: test-snapd-wayland
+version: 0
+summary: Basic wayland test snap
+description: |
+ Basic wayland test snap
+base: core24
+grade: devel
+confinement: strict
+
+apps:
+  test-snapd-wayland:
+    command: bin/winfo
+    plugs: [ wayland ]
+  sh:
+    command: bin/sh
+    plugs: [ wayland ]
+
+parts:
+  wrapper:
+    plugin: dump
+    source: files/
+
+  mypackages:
+    plugin: nil
+    stage-packages:
+    - wayland-utils

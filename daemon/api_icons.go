@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -61,7 +62,7 @@ func iconGet(st *state.State, name string) Response {
 		return NotFound("snap has no current revision")
 	}
 
-	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision), sideInfo.SnapID)
+	icon := snapIcon(snap.MinimalPlaceInfo(naming.InstanceName(name), sideInfo.Revision), sideInfo.SnapID)
 
 	if icon == "" {
 		return NotFound("local snap has no icon")

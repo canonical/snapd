@@ -117,6 +117,9 @@ use `DeviceCtxFromState` or another context-specific helper. See
 - Most code under `overlord` is daemon-only and must not be imported into other
   snapd tools. The controlled `nomanagers` subset of
   `overlord/configstate/configcore` is an exception.
+- Agent skill scripts under `.agents/skills/<skill>/scripts` are Python 3
+  using only the standard library, with `unittest` tests in
+  `scripts/test_*.py`. `./run-checks --unit` discovers and runs them.
 
 ## Validation
 
@@ -130,6 +133,7 @@ on risk and the touched surface.
 | C code under `cmd` | Run the relevant target, commonly `make -C cmd check` |
 | Spread task definition | Run the focused shell and format checks below |
 | Spread test or system behavior | Follow the `run-spread-test` skill and target a specific test path |
+| Agent skill script | Run `python3 -m unittest discover -s .agents/skills/<skill>/scripts` |
 | Documentation only | Run the applicable linter and `git diff --check` |
 
 For one spread task, run:

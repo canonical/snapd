@@ -37,10 +37,12 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -315,6 +317,293 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessUserLoggedOut(c *C) {
 	c.Check(snapst.UserID, Equals, 2)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapPersistsAllowUnsupportedInstances(c *C) {
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+
+	// the AllowUnsupportedInstances flag is set on install
+	// and persisted in snapstate after completion
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+		Flags:       snapstate.Flags{AllowUnsupportedInstances: true},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
+	var oldValue bool
+	c.Assert(t.Get("old-allow-unsupported-instances", &oldValue), IsNil)
+	c.Check(oldValue, Equals, false)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapKeepsAllowUnsupportedInstancesOnRefresh(c *C) {
+	s.state.Lock()
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+
+	// AllowUnsupportedInstances is already set in snapstate,
+	// the handler persists it after completion
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		InstanceKey: "bar",
+		Flags:       snapstate.Flags{AllowUnsupportedInstances: true},
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
+	var oldValue bool
+	c.Assert(t.Get("old-allow-unsupported-instances", &oldValue), IsNil)
+	c.Check(oldValue, Equals, true)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresAllowUnsupportedInstances(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		Active:      true,
+		InstanceKey: "bar",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+		Flags:       snapstate.Flags{AllowUnsupportedInstances: true},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.AllowUnsupportedInstances, Equals, false)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSetsAllowUnsupportedInstancesFromOldSnapd(c *C) {
+	const hasUnsupportedParallelInterface = true
+	s.testDoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c, hasUnsupportedParallelInterface)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapKeepsAllowUnsupportedInstancesUnsetFromOldSnapd(c *C) {
+	const hasUnsupportedParallelInterface = false
+	s.testDoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c, hasUnsupportedParallelInterface)
+}
+
+func (s *linkSnapSuite) testDoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c *C, hasUnsupportedParallelInterface bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+	c.Assert(repo.AddInterface(&testParallelInstancesSupportedInterface{}), IsNil)
+	c.Assert(repo.AddInterface(&testParallelInstancesPlugRejectingInterface{}), IsNil)
+	s.AddCleanup(snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{
+			SuggestedName: name.SnapName().String(),
+			SideInfo:      *si,
+			SnapType:      snap.TypeApp,
+			InstanceKey:   name.InstanceKey(),
+		}
+		if si.Revision == snap.R(33) && hasUnsupportedParallelInterface {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-nok-plug": {Snap: info, Name: "pi-nok-plug", Interface: "pi-nok-plug-iface"},
+			}
+		}
+		return info, nil
+	}))
+
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		InstanceKey: "bar",
+	})
+	link := s.state.NewTask("link-snap", "test")
+	link.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		InstanceKey: "bar",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(link)
+
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+	c.Assert(link.Status(), Equals, state.DoStatus)
+	var migrationPending bool
+	c.Assert(link.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Assert(snapst.AllowUnsupportedInstances, Equals, false)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(link.Status(), Equals, state.DoneStatus)
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, hasUnsupportedParallelInterface)
+}
+
+func (s *linkSnapSuite) TestUndoLinkSnapKeepsAllowUnsupportedInstancesFromOldSnapd(c *C) {
+	const hasUnsupportedParallelInterface = true
+	s.testUndoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c, hasUnsupportedParallelInterface)
+}
+
+func (s *linkSnapSuite) TestUndoLinkSnapKeepsAllowUnsupportedInstancesUnsetFromOldSnapd(c *C) {
+	const hasUnsupportedParallelInterface = false
+	s.testUndoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c, hasUnsupportedParallelInterface)
+}
+
+func (s *linkSnapSuite) testUndoLinkSnapAllowUnsupportedInstancesFromOldSnapd(c *C, hasUnsupportedParallelInterface bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+	c.Assert(repo.AddInterface(&testParallelInstancesSupportedInterface{}), IsNil)
+	c.Assert(repo.AddInterface(&testParallelInstancesPlugRejectingInterface{}), IsNil)
+	s.AddCleanup(snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{
+			SuggestedName: name.SnapName().String(),
+			SideInfo:      *si,
+			SnapType:      snap.TypeApp,
+			InstanceKey:   name.InstanceKey(),
+		}
+		if hasUnsupportedParallelInterface {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-nok-plug": {Snap: info, Name: "pi-nok-plug", Interface: "pi-nok-plug-iface"},
+			}
+		}
+		return info, nil
+	}))
+
+	si11 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(11),
+	}
+	si33 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(33),
+	}
+	snapstate.Set(s.state, "foo_bar", &snapstate.SnapState{
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si11}),
+		Current:     si11.Revision,
+		Active:      true,
+		InstanceKey: "bar",
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo:    si33,
+		InstanceKey: "bar",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+	s.state.Unlock()
+
+	// only link-snap runs, error-trigger is still waiting
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	c.Assert(terr.Status(), Equals, state.DoStatus)
+	c.Assert(t.Has("old-allow-unsupported-instances"), Equals, true)
+
+	// simulate a task from older snapd which did not record the old value
+	t.Set("old-allow-unsupported-instances", nil)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Assert(snapst.AllowUnsupportedInstances, Equals, false)
+
+	// Now we simulate upgrading to the new snapd before undo is called
+	// The migration only adds its undo marker to link-snap tasks in DoStatus.
+	t.SetStatus(state.DoStatus)
+	c.Assert(snapstate.MigrateAllowUnsupportedInstances(s.state), IsNil)
+	var migrationPending bool
+	c.Assert(t.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
+	c.Check(migrationPending, Equals, true)
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, hasUnsupportedParallelInterface)
+	t.SetStatus(state.DoneStatus)
+	s.state.Unlock()
+
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	c.Assert(snapstate.Get(s.state, "foo_bar", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.AllowUnsupportedInstances, Equals, hasUnsupportedParallelInterface)
+}
+
 func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	s.state.Lock()
 	// pretend we have an installed snap
@@ -351,6 +640,49 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
+}
+
+// a crash between committing state and the runner setting Done must not rerun the handler
+func (s *linkSnapSuite) testDoLinkSnapSetsDoneStatusBeforeReturn(c *C, snapName string) {
+	s.state.Lock()
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+			Revision: snap.R(33),
+		},
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+	t.SetStatus(state.DoingStatus)
+	s.state.Unlock()
+
+	err := s.snapmgr.DoLinkSnap(t, nil)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, snapName, &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(s.restartRequested, HasLen, 0)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSetsDoneStatusBeforeReturn(c *C) {
+	s.testDoLinkSnapSetsDoneStatusBeforeReturn(c, "foo")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSetsDoneStatusBeforeReturnPreseeding(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	snapstate.SetPreseed(s.snapmgr, true)
+
+	// core on classic would otherwise request a daemon restart
+	s.testDoLinkSnapSetsDoneStatusBeforeReturn(c, "core")
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
@@ -442,9 +774,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	})
 
 	// With an app belonging to the snap that is apparently running.
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "pkg")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "pkg")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -516,10 +848,10 @@ func (s *linkSnapSuite) testDoUnlinkCurrentSnapWithAppsOrServices(c *C, opts tes
 	})
 
 	// With an app belonging to the snap that is apparently running.
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "pkg")
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "pkg")
 		info := &snap.Info{
-			SuggestedName: name, SideInfo: *si,
+			SuggestedName: name.SnapName().String(), SideInfo: *si,
 			SnapType: snap.TypeApp,
 			Apps:     map[string]*snap.AppInfo{},
 		}
@@ -677,9 +1009,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 		Active:   true,
 	})
 
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "pkg")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "pkg")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -1075,7 +1407,7 @@ func (s *linkSnapSuite) TestDoUnlinkSnapCleansUpRunInhibitionOnError(c *C) {
 		if op.op == "unlink-snap" {
 			// first mock the creation of snap inhibition in backend.UnlinkSnap
 			inhibitInfo := runinhibit.InhibitInfo{Previous: si.Revision}
-			err := runinhibit.LockWithHint(si.RealName, runinhibit.HintInhibitedForDisable, inhibitInfo, s.state.Unlocker())
+			err := runinhibit.LockWithHint(naming.InstanceName(si.RealName), runinhibit.HintInhibitedForDisable, inhibitInfo, s.state.Unlocker())
 			c.Assert(err, IsNil)
 			// then actually return an error to test the cleanup of the inhibition
 			return fmt.Errorf("error")
@@ -1137,9 +1469,9 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapRelinksOnFailure(c *C) {
 	})
 
 	// With an app belonging to the snap that is apparently running.
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "foo")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "foo")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"app": {Snap: info, Name: "app"},
 		}
@@ -1475,9 +1807,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessRebootForKernelClassicWithModes(c *
 	r := snapstatetest.MockDeviceModel(MakeModelClassicWithModes("pc", nil))
 	defer r()
 
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "kernel")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeKernel}
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "kernel")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeKernel}
 		return info, nil
 	})
 
@@ -1908,8 +2240,8 @@ func (s *linkSnapSuite) TestDoLinkSnapdDiscardsNsOnDowngrade(c *C) {
 	defer restore()
 
 	// pretend we have an installed snapd
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Check(name, Equals, "snapd")
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name.String(), Equals, "snapd")
 		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
 		return info, nil
 	})
@@ -1987,8 +2319,8 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 	defer restore()
 	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
 	defer restore()
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Check(name, Equals, "snapd")
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Check(name.String(), Equals, "snapd")
 		info := &snap.Info{Version: "2.56", SideInfo: *si, SnapType: snap.TypeSnapd}
 		return info, nil
 	})
@@ -2930,8 +3262,8 @@ func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		info.Apps = map[string]*snap.AppInfo{
 			"some-app": {Snap: info, Name: "some-app"},
 		}
@@ -3173,9 +3505,9 @@ func (s *linkSnapSuite) testDoKillSnapApps(c *C, svc bool) {
 		Active:   true,
 	})
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "some-snap")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		if svc {
 			info.Apps = map[string]*snap.AppInfo{
 				"svc1": {Snap: info, Name: "svc1", Daemon: "simple"},
@@ -3253,9 +3585,9 @@ func (s *linkSnapSuite) TestDoKillSnapAppsErrorsIfHintNotUpdatedBasedOnReason(c 
 		Active:   true,
 	})
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "some-snap")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		return info, nil
 	})
 	defer restore()
@@ -3295,7 +3627,7 @@ func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {
 		Active:   true,
 	})
 
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		return nil, fmt.Errorf("boom!")
 	})
 
@@ -3390,9 +3722,9 @@ func (s *linkSnapSuite) testDoUndoKillSnapApps(c *C, svc bool) {
 		Active:   true,
 	})
 
-	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name, Equals, "some-snap")
-		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+	restore := snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name.String(), Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name.SnapName().String(), SideInfo: *si, SnapType: snap.TypeApp}
 		if svc {
 			info.Apps = map[string]*snap.AppInfo{
 				"svc1": {Snap: info, Name: "svc1", Daemon: "simple"},

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func init() {
@@ -47,7 +48,7 @@ type patch1SideInfo struct {
 }
 
 var patch1ReadType = func(name string, rev snap.Revision) (snap.Type, error) {
-	snapYamlFn := filepath.Join(snap.MountDir(name, rev), "meta", "snap.yaml")
+	snapYamlFn := filepath.Join(snap.MountDir(naming.InstanceName(name), rev), "meta", "snap.yaml")
 	meta, err := os.ReadFile(snapYamlFn)
 	if err != nil {
 		return snap.TypeApp, err

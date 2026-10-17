@@ -515,7 +515,7 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(localCompsPaths []string, f seedwr
 		// Assign components now that we know the snap name
 		seedComps := map[string]*seedwriter.SeedComponent{}
 		for path, ci := range cinfos {
-			if ci.Component.SnapName != info.SnapName().String() {
+			if ci.Component.SnapName != info.SnapName() {
 				continue
 			}
 
@@ -531,7 +531,7 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(localCompsPaths []string, f seedwr
 				aRefs = append(aRefs, crefs...)
 			}
 			seedComps[ci.Component.ComponentName] = &seedwriter.SeedComponent{
-				ComponentRef: naming.NewComponentRef(info.SnapName().String(),
+				ComponentRef: naming.NewComponentRef(info.SnapName(),
 					ci.Component.ComponentName),
 				Path: path,
 				Info: ci,
@@ -678,7 +678,7 @@ func (s *imageSeeder) downloadSnaps(snapsToDownload []*seedwriter.SeedSnap, curS
 
 	// sort the curSnaps slice for test consistency
 	sort.Slice(curSnaps, func(i, j int) bool {
-		return curSnaps[i].SnapName < curSnaps[j].SnapName
+		return curSnaps[i].InstanceName < curSnaps[j].InstanceName
 	})
 	downloadedSnaps, err = s.tsto.DownloadMany(snapToDownloadOptions, curSnaps, tooling.DownloadManyOptions{
 		BeforeDownloadFunc: beforeDownload,
@@ -698,10 +698,10 @@ func localSnapsWithID(snaps localSnapRefs) []*tooling.CurrentSnap {
 			continue
 		}
 		localSnaps = append(localSnaps, &tooling.CurrentSnap{
-			SnapName: sn.Info.SnapName().String(),
-			SnapID:   sn.Info.ID(),
-			Revision: sn.Info.Revision,
-			Epoch:    sn.Info.Epoch,
+			InstanceName: sn.Info.SnapName().AsInstanceName(),
+			SnapID:       sn.Info.ID(),
+			Revision:     sn.Info.Revision,
+			Epoch:        sn.Info.Epoch,
 		})
 	}
 	return localSnaps
@@ -727,11 +727,11 @@ func (s *imageSeeder) downloadAllSnaps(localSnaps localSnapRefs, fetchAsserts se
 			}
 
 			curSnaps = append(curSnaps, &tooling.CurrentSnap{
-				SnapName: sn.Info.SnapName().String(),
-				SnapID:   sn.Info.ID(),
-				Revision: sn.Info.Revision,
-				Epoch:    sn.Info.Epoch,
-				Channel:  sn.Channel,
+				InstanceName: sn.Info.InstanceName(),
+				SnapID:       sn.Info.ID(),
+				Revision:     sn.Info.Revision,
+				Epoch:        sn.Info.Epoch,
+				Channel:      sn.Channel,
 			})
 		}
 
@@ -963,7 +963,7 @@ func optionSnaps(opts *Options) ([]*seedwriter.OptionsSnap, []string, error) {
 			// --comp <snap>+<comp> implicitly pulls also the snap)
 			snapFound := false
 			for _, optSn := range optSnaps {
-				if optSn.Name == snapName {
+				if optSn.Name == snapName.String() {
 					optSn.Components = append(optSn.Components, optComp)
 					snapFound = true
 					break
@@ -971,7 +971,7 @@ func optionSnaps(opts *Options) ([]*seedwriter.OptionsSnap, []string, error) {
 			}
 			if !snapFound {
 				optSnaps = append(optSnaps, &seedwriter.OptionsSnap{
-					Name:       snapName,
+					Name:       snapName.String(),
 					Components: []seedwriter.OptionsComponent{optComp},
 				})
 			}

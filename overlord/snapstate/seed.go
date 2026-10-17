@@ -140,8 +140,8 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 	return candidate, nil
 }
 
-// seedRefreshEnabled reports whether the experimental seed-refresh feature is
-// enabled.
+// seedRefreshEnabled reports whether the work-in-progress seed-refresh feature
+// is enabled.
 func seedRefreshEnabled(st *state.State) (bool, error) {
 	tr := config.NewTransaction(st)
 	seedRefresh, err := features.Flag(tr, features.SeedRefresh)

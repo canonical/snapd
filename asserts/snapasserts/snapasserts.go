@@ -123,7 +123,7 @@ func CrossCheck(instanceName, snapSHA3_384, provenance string, snapSize uint64, 
 		return nil, err
 	}
 
-	if snapDecl.SnapName() != snap.InstanceSnap(instanceName) {
+	if snapDecl.SnapName().String() != snap.InstanceSnap(instanceName) {
 		return nil, fmt.Errorf("cannot install %q, snap %q is undergoing a rename to %q", instanceName, snap.InstanceSnap(instanceName), snapDecl.SnapName())
 	}
 
@@ -337,7 +337,7 @@ func DeriveComponentSideInfo(name, path string, info *snap.Info, model *asserts.
 		return nil, err
 	}
 
-	csi, err := DeriveComponentSideInfoFromDigestAndSize(name, info.SnapName().String(), info.ID(), path, digest, size, model, db)
+	csi, err := DeriveComponentSideInfoFromDigestAndSize(name, info.SnapName(), info.ID(), path, digest, size, model, db)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapS
 		return nil, err
 	}
 
-	if _, err = CrossCheckProvenance(snapDecl.SnapName(), snapRev, snapDecl, model, db); err != nil {
+	if _, err = CrossCheckProvenance(snapDecl.SnapName().String(), snapRev, snapDecl, model, db); err != nil {
 		return nil, err
 	}
 
@@ -399,7 +399,7 @@ func DeriveSideInfoFromDigestAndSize(snapPath string, snapSHA3_384 string, snapS
 // SideInfoFromSnapAssertions returns a *snap.SideInfo reflecting the given snap assertions.
 func SideInfoFromSnapAssertions(snapDecl *asserts.SnapDeclaration, snapRev *asserts.SnapRevision) *snap.SideInfo {
 	return &snap.SideInfo{
-		RealName: snapDecl.SnapName(),
+		RealName: snapDecl.SnapName().String(),
 		SnapID:   snapDecl.SnapID(),
 		Revision: snap.R(snapRev.SnapRevision()),
 	}
@@ -409,7 +409,7 @@ func SideInfoFromSnapAssertions(snapDecl *asserts.SnapDeclaration, snapRev *asse
 // ComponentSideInfo using digest and size for a component and ID/name for the
 // snap to find the relevant assertions with the information in the given
 // database. It will fail with an asserts.NotFoundError if it cannot find them.
-func DeriveComponentSideInfoFromDigestAndSize(resName, snapName, snapID string, compPath, snapSHA3_384 string, resSize uint64, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
+func DeriveComponentSideInfoFromDigestAndSize(resName string, snapName naming.SnapName, snapID string, compPath, snapSHA3_384 string, resSize uint64, model *asserts.Model, db Finder) (*snap.ComponentSideInfo, error) {
 	// get relevant assertions and reconstruct metadata
 	headers := map[string]string{
 		"snap-id":           snapID,
@@ -438,7 +438,7 @@ func DeriveComponentSideInfoFromDigestAndSize(resName, snapName, snapID string, 
 		return nil, fmt.Errorf("resource %q does not have the expected size according to signatures (broken or tampered): %d != %d", resName, resSize, resRev.ResourceSize())
 	}
 
-	snapDecl, err := findSnapDeclaration(snapID, snapName, db)
+	snapDecl, err := findSnapDeclaration(snapID, snapName.String(), db)
 	if err != nil {
 		return nil, err
 	}

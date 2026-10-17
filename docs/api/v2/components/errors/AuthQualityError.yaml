@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+oneOf:
+  - type: object
+    required:
+      - kind
+      - message
+      - value
+    properties:
+      kind:
+        type: string
+        enum:
+          - invalid-pin
+          - invalid-passphrase
+        description: The supplied PIN or passphrase did not pass all quality checks.
+      message:
+        type: string
+        description: A human-readable error message explaining why the PIN or passphrase did not pass quality checks.
+      value:
+        description: Machine-readable details about the failure.
+        allOf:
+          - $ref: '../schemas/AuthQualityEntropyMetrics.yaml'
+          - type: object
+            required:
+              - reasons
+            properties:
+              reasons:
+                type: array
+                description: A list of reasons indicating which quality checks failed.
+                items:
+                  type: string
+                  enum:
+                    - low-entropy
+  - type: object
+    additionalProperties: false
+    required:
+      - kind
+      - message
+    properties:
+      kind:
+        type: string
+        enum:
+          - unsupported
+        description: The target system does not support the authentication mode.
+      message:
+        type: string
+        description: A human-readable error message explaining that the target system does not support the authentication mode.

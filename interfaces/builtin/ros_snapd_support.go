@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 const rosSnapdSupportSummary = `allows ros-snapd the use of snapd's apps control API`
 
 const rosSnapdSupportBaseDeclarationPlugs = `
@@ -45,7 +43,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationPlugs:     rosSnapdSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     rosSnapdSupportBaseDeclarationSlots,
-		parallelInstancesPlugErr: errors.New("conflicting operations on snap apps"),
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	})
 }

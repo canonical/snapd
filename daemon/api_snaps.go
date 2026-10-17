@@ -268,26 +268,27 @@ type snapInstruction struct {
 	Action string `json:"action"`
 	Amend  bool   `json:"amend"`
 	snapRevisionOptions
-	CompsRaw               json.RawMessage                  `json:"components"`
-	CompsForSnaps          map[string][]string              `json:"-"`
-	DevMode                bool                             `json:"devmode"`
-	JailMode               bool                             `json:"jailmode"`
-	Classic                bool                             `json:"classic"`
-	IgnoreValidation       bool                             `json:"ignore-validation"`
-	IgnoreRunning          bool                             `json:"ignore-running"`
-	Unaliased              bool                             `json:"unaliased"`
-	Prefer                 bool                             `json:"prefer"`
-	Purge                  bool                             `json:"purge,omitempty"`
-	Terminate              bool                             `json:"terminate"`
-	SystemRestartImmediate bool                             `json:"system-restart-immediate"`
-	Transaction            client.TransactionType           `json:"transaction"`
-	Snaps                  []string                         `json:"snaps"`
-	Users                  []string                         `json:"users"`
-	SnapshotOptions        map[string]*snap.SnapshotOptions `json:"snapshot-options"`
-	ValidationSets         []string                         `json:"validation-sets"`
-	QuotaGroupName         string                           `json:"quota-group"`
-	Time                   string                           `json:"time"`
-	HoldLevel              string                           `json:"hold-level"`
+	CompsRaw                  json.RawMessage                  `json:"components"`
+	CompsForSnaps             map[string][]string              `json:"-"`
+	DevMode                   bool                             `json:"devmode"`
+	JailMode                  bool                             `json:"jailmode"`
+	Classic                   bool                             `json:"classic"`
+	IgnoreValidation          bool                             `json:"ignore-validation"`
+	AllowUnsupportedInstances bool                             `json:"allow-unsupported-instances"`
+	IgnoreRunning             bool                             `json:"ignore-running"`
+	Unaliased                 bool                             `json:"unaliased"`
+	Prefer                    bool                             `json:"prefer"`
+	Purge                     bool                             `json:"purge,omitempty"`
+	Terminate                 bool                             `json:"terminate"`
+	SystemRestartImmediate    bool                             `json:"system-restart-immediate"`
+	Transaction               client.TransactionType           `json:"transaction"`
+	Snaps                     []string                         `json:"snaps"`
+	Users                     []string                         `json:"users"`
+	SnapshotOptions           map[string]*snap.SnapshotOptions `json:"snapshot-options"`
+	ValidationSets            []string                         `json:"validation-sets"`
+	QuotaGroupName            string                           `json:"quota-group"`
+	Time                      string                           `json:"time"`
+	HoldLevel                 string                           `json:"hold-level"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	userID int
@@ -334,6 +335,7 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.IgnoreValidation {
 		flags.IgnoreValidation = true
 	}
+	flags.AllowUnsupportedInstances = inst.AllowUnsupportedInstances
 	if inst.Prefer {
 		flags.Prefer = true
 	}
@@ -391,6 +393,18 @@ func (inst *snapInstruction) validateSnapshotOptions() error {
 }
 
 func (inst *snapInstruction) validate() error {
+	if inst.AllowUnsupportedInstances {
+		if inst.Action != installCmdAction && inst.Action != refreshCmdAction {
+			return fmt.Errorf("allow-unsupported-instances can only be specified for install or refresh")
+		}
+		for _, instanceName := range inst.Snaps {
+			_, instanceKey := snap.SplitInstanceName(instanceName)
+			if instanceKey == "" {
+				return fmt.Errorf("allow-unsupported-instances can only be used with parallel instances")
+			}
+		}
+	}
+
 	if inst.CohortKey != "" {
 		if inst.Action != installCmdAction && inst.Action != refreshCmdAction && inst.Action != switchCmdAction {
 			return fmt.Errorf("cohort-key can only be specified for install, refresh, or switch")
@@ -607,6 +621,7 @@ func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*s
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
 	}
+	flags.AllowUnsupportedInstances = inst.AllowUnsupportedInstances
 	if inst.Amend {
 		flags.Amend = true
 	}
@@ -623,7 +638,7 @@ func snapUpdate(ctx context.Context, inst *snapInstruction, st *state.State) (*s
 	}
 
 	goal := snapstateStoreUpdateGoal(snapstate.StoreUpdate{
-		InstanceName:         inst.Snaps[0],
+		InstanceName:         naming.InstanceName(inst.Snaps[0]),
 		RevOpts:              *inst.revnoOpts(),
 		AdditionalComponents: inst.CompsForSnaps[inst.Snaps[0]],
 	})
@@ -679,7 +694,7 @@ func removeSnapComponents(inst *snapInstruction, st *state.State) (msg string, a
 	for snap, comps := range inst.CompsForSnaps {
 		// We call from here only when we remove components, not the
 		// full snap, so we need to refresh the security profiles.
-		tss, err := snapstateRemoveComponents(st, snap, comps,
+		tss, err := snapstateRemoveComponents(st, naming.InstanceName(snap), comps,
 			snapstate.RemoveComponentsOpts{RefreshProfile: true})
 		if err != nil {
 			return "", nil, err
@@ -755,7 +770,7 @@ func snapSwitch(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 	if !inst.Revision.Unset() {
 		return nil, errors.New("switch takes no revision")
 	}
-	ts, err := snapstateSwitch(st, inst.Snaps[0], inst.revnoOpts(), nil)
+	ts, err := snapstateSwitch(st, naming.InstanceName(inst.Snaps[0]), inst.revnoOpts(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -840,7 +855,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	// TODO: inst.Amend, etc?
-	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Prefer {
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode || inst.CohortKey != "" || inst.LeaveCohort || inst.Prefer || inst.AllowUnsupportedInstances {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 	if len(inst.CompsRaw) > 0 {
@@ -967,7 +982,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		if !snapst.IsInstalled() {
 			installedSnaps = append(installedSnaps, name)
 			snaps = append(snaps, snapstate.StoreSnap{
-				InstanceName: name,
+				InstanceName: naming.InstanceName(name),
 				Components:   comps,
 				RevOpts:      revOpts,
 			})
@@ -983,7 +998,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 			var compsToInstall []string
 			var alreadyInstalled []string
 			for _, comp := range comps {
-				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(name, comp)) == nil {
+				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(naming.InstanceName(name).SnapName(), comp)) == nil {
 					compsToInstall = append(compsToInstall, comp)
 				} else {
 					alreadyInstalled = append(alreadyInstalled, comp)
@@ -1070,7 +1085,7 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 	updates := make([]snapstate.StoreUpdate, 0, len(inst.Snaps))
 	for _, name := range inst.Snaps {
 		updates = append(updates, snapstate.StoreUpdate{
-			InstanceName:         name,
+			InstanceName:         naming.InstanceName(name),
 			AdditionalComponents: inst.CompsForSnaps[name],
 		})
 	}

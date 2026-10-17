@@ -421,14 +421,14 @@ plugs:
 	c.Assert(err, IsNil)
 
 	c.Check(ci.Component.ComponentName, Equals, "component")
-	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Type, Equals, ctype)
 	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
 	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
-	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.ComponentSideInfo.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Revision, Equals, snap.R(1))
 
 	c.Check(ci.Hooks, HasLen, 3)
@@ -496,14 +496,14 @@ plugs:
 	c.Assert(err, IsNil)
 
 	c.Check(ci.Component.ComponentName, Equals, "component")
-	c.Check(ci.Component.SnapName, Equals, "snap")
+	c.Check(ci.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Type, Equals, snap.StandardComponent)
 	c.Check(ci.Version(""), Equals, "1.0")
 	c.Check(ci.Summary, Equals, "short description")
 	c.Check(ci.Description, Equals, "long description")
 	c.Check(ci.FullName(), Equals, compName)
 	c.Check(ci.ComponentSideInfo.Component.ComponentName, Equals, "component")
-	c.Check(ci.ComponentSideInfo.Component.SnapName, Equals, "snap")
+	c.Check(ci.ComponentSideInfo.Component.SnapName.String(), Equals, "snap")
 	c.Check(ci.Revision, Equals, snap.R(1))
 
 	c.Check(ci.Hooks, HasLen, 2)
@@ -722,20 +722,4 @@ func (s *infoSuite) TestComponentSize(c *C) {
 	compSz, err = snap.ComponentSize(cpi)
 	c.Check(compSz, Equals, int64(0))
 	c.Check(err, ErrorMatches, `unexpected file type for component file .*snap\+comp_1\.comp"`)
-}
-
-func (s *infoSuite) TestComponentDmVerityFileError(c *C) {
-	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
-
-	dmverity_file, err := cpi.DmVerityFile()
-	c.Assert(dmverity_file, Equals, "")
-	c.Check(err, ErrorMatches, "dm-verity for components not supported.")
-}
-
-func (s *infoSuite) TestComponentDmVerityDigestError(c *C) {
-	cpi := snap.MinimalComponentContainerPlaceInfo("comp", snap.R(1), "snap")
-
-	digest, err := cpi.DmVerityDigest()
-	c.Assert(digest, Equals, "")
-	c.Check(err, ErrorMatches, "dm-verity for components not supported.")
 }
