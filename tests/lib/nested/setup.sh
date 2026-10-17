@@ -178,6 +178,8 @@ nested_prepare_tools() {
         remote.exec "sudo systemctl restart snapd"
         remote.exec "sudo snap set system journal.persistent=true"
     fi
+
+    remote.exec --reconnect "command -v retry not MATCH NOMATCH >/dev/null"
 }
 
 nested_enable_wip_features() {

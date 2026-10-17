@@ -19,8 +19,8 @@ restore: |
 execute: |
     export TESTS_REMOTE_CONTROL_DIR=/tmp/remote-exec-test
 
-    remote.exec --help | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'
-    remote.exec -h | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'    
+    remote.exec --help | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] \[--reconnect\] <CMD>'
+    remote.exec -h | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] \[--reconnect\] <CMD>'
 
     remote.exec "touch testfile"
     test -f /home/tools-user-1/testfile
@@ -31,6 +31,10 @@ execute: |
     control_socket_inode="$(stat -c %i "$control_socket")"
     remote.exec "true"
     test "$(stat -c %i "$control_socket")" = "$control_socket_inode"
+    control_master_pid="$(ssh -S "$control_socket" -O check tools-user-1@localhost 2>&1 | sed -n 's/.*pid=\([0-9]*\).*/\1/p')"
+    remote.exec --reconnect "true"
+    new_control_master_pid="$(ssh -S "$control_socket" -O check tools-user-1@localhost 2>&1 | sed -n 's/.*pid=\([0-9]*\).*/\1/p')"
+    test "$new_control_master_pid" != "$control_master_pid"
 
     control_socket_count="$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*' | wc -l)"
     remote.setup config --host 127.0.0.1 --port 22 --user tools-user-1 --pass tools-user-1

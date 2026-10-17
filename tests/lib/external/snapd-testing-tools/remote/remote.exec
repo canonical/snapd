@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 show_help() {
-    echo "usage: remote.exec [--user <USER>] [--pass <PASS>] <CMD>"
+    echo "usage: remote.exec [--user <USER>] [--pass <PASS>] [--reconnect] <CMD>"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -76,8 +76,16 @@ _remove_stale_control_socket() {
     fi
 }
 
+_close_control_socket() {
+    if [ -S "$SSH_CONTROL_PATH" ]; then
+        ssh -S "$SSH_CONTROL_PATH" -O exit "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST" >/dev/null 2>&1 || true
+        rm -f "$SSH_CONTROL_PATH"
+    fi
+}
+
 remote_exec() {
     local user pass
+    local reconnect=false
     local timeout=10
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -96,6 +104,10 @@ remote_exec() {
             --timeout)
                 timeout="$2"
                 shift 2
+                ;;
+            --reconnect)
+                reconnect=true
+                shift
                 ;;
             -*)
                 echo "remote.exec: unknown option $1" >&2
@@ -121,6 +133,9 @@ remote_exec() {
     SSH_CONTROL_PATH="$(_get_control_path)"
 
     _remove_stale_control_socket
+    if [ "$reconnect" = true ]; then
+        _close_control_socket
+    fi
     _ssh_exec "$timeout" "$@"
 }
 
