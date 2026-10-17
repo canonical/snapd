@@ -1274,6 +1274,44 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	c.Assert(called, Equals, 2)
 }
 
+func (ts *taskRunnerSuite) TestCleanupForPermanentlyBlockedChange(c *C) {
+	st := state.New(nil)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	r.AddHandler("clean-it", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+	r.AddHandler("error", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+
+	cleaned := make(chan *state.Task, 1)
+	r.AddCleanup("clean-it", func(t *state.Task, tb *tomb.Tomb) error {
+		cleaned <- t
+		return nil
+	})
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	errorTask := st.NewTask("error", "...")
+	blockedTask := st.NewTask("clean-it", "...")
+	blockedTask.WaitFor(errorTask)
+	chg.AddTask(errorTask)
+	chg.AddTask(blockedTask)
+	errorTask.SetStatus(state.ErrorStatus)
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.IsReady(), Equals, true)
+	st.Unlock()
+
+	c.Assert(r.Ensure(), IsNil)
+	r.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(<-cleaned, Equals, blockedTask)
+	c.Check(blockedTask.Status(), Equals, state.DoStatus)
+	c.Check(blockedTask.IsClean(), Equals, true)
+	c.Check(errorTask.IsClean(), Equals, true)
+	c.Check(chg.IsClean(), Equals, true)
+}
+
 func (ts *taskRunnerSuite) TestErrorCallbackCalledOnError(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
