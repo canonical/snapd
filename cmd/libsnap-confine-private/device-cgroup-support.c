@@ -63,10 +63,17 @@ struct sc_device_cgroup {
             char *tag;
             char pretty_name[BPF_OBJ_NAME_LEN]; /* only for presentation */
             struct rlimit old_limit;
+            /* keys found in a pre-existing map, not yet re-allowed */
+            struct sc_cgroup_v2_device_key *stale_keys;
+            size_t stale_count;
         } v2;
 #endif
     };
 };
+
+#ifdef ENABLE_BPF
+struct sc_cgroup_v2_device_key;
+#endif
 
 __attribute__((format(printf, 2, 3))) static void sc_dprintf(int fd, const char *format, ...);
 
@@ -103,7 +110,11 @@ static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
          * Write 'a' to devices.deny to remove all existing devices that were added
          * in previous launcher invocations, then add the static and assigned
          * devices. This ensures that at application launch the cgroup only has
-         * what is currently assigned. */
+         * what is currently assigned.
+         *
+         * XXX: the group is shared with running processes of the same app, so
+         * denying all here briefly revokes access to e.g. /dev/null for them
+         * (LP: #2170603). This is fixed for cgroup v2 only; not fixed for v1. */
         sc_dprintf(self->v1.fds.devices_deny_fd, "a");
     }
     return 0;
@@ -481,25 +492,13 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             existing_count++;
         }
         debug("found %zu existing entries in devices map", existing_count);
-        if (existing_count > 0) {
-#if 0
-            /* XXX: we should be doing a batch delete of elements, however:
-             * - on Arch with 5.13 kernel I'm getting EINVAL
-             * - the linux/bpf.h header present during build on 16.04 does not
-             *     support batch operations
-             */
-            if (bpf_map_delete_batch(devmap_fd, existing_keys, existing_count) < 0) {
-                 die("cannot dump all elements from devices map");
-            }
-#endif
-            for (size_t i = 0; i < existing_count; i++) {
-                sc_cgroup_v2_device_key key = existing_keys[i];
-                debug("delete key for %c %d:%d", key.type, key.major, key.minor);
-                if (bpf_map_delete_elem(devmap_fd, &key) < 0) {
-                    die("cannot delete device map entry for %c %d:%d", key.type, key.major, key.minor);
-                }
-            }
-        }
+        /* The map is shared with programs attached to cgroups of already
+         * running processes of the same app, so it must never be observed
+         * empty. Keep the entries, remember them, and prune those that are
+         * not allowed again once the new set has been populated. */
+        self->v2.stale_keys = existing_keys;
+        self->v2.stale_count = existing_count;
+        existing_keys = NULL;
     }
 
     if (!from_existing) {
@@ -519,6 +518,8 @@ static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
     _sc_cgroup_v2_set_memlock_limit(self->v2.old_limit);
 
     sc_cleanup_string(&self->v2.tag);
+    free(self->v2.stale_keys);
+    self->v2.stale_keys = NULL;
     /* the map is pinned to a per-snap-application file and referenced by the
      * program */
     sc_cleanup_close(&self->v2.devmap_fd);
@@ -535,6 +536,13 @@ static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major,
     debug("v2 allow %c %u:%u", (char)key.type, key.major, key.minor);
     if (bpf_update_map(self->v2.devmap_fd, &key, &value) < 0) {
         die("cannot update device map for key %c %u:%u", key.type, key.major, key.minor);
+    }
+    for (size_t i = 0; i < self->v2.stale_count; i++) {
+        const sc_cgroup_v2_device_key *s = &self->v2.stale_keys[i];
+        if (s->type == key.type && s->major == key.major && s->minor == key.minor) {
+            self->v2.stale_keys[i] = self->v2.stale_keys[--self->v2.stale_count];
+            break;
+        }
     }
 }
 
@@ -589,6 +597,16 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     if (attach < 0) {
         die("cannot attach cgroup program");
     }
+
+    /* the map is fully populated, drop entries that are no longer allowed */
+    for (size_t i = 0; i < self->v2.stale_count; i++) {
+        sc_cgroup_v2_device_key key = self->v2.stale_keys[i];
+        debug("delete key for %c %d:%d", key.type, key.major, key.minor);
+        if (bpf_map_delete_elem(self->v2.devmap_fd, &key) < 0 && errno != ENOENT) {
+            die("cannot delete device map entry for %c %d:%d", key.type, key.major, key.minor);
+        }
+    }
+    self->v2.stale_count = 0;
 }
 #endif /* ENABLE_BPF */
 
