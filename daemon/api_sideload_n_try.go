@@ -368,6 +368,10 @@ func sideloadTaskSets(ctx context.Context, st *state.State, sideload *sideloaded
 
 	// handle all of the components whose snaps are not present in the set of
 	// files that are being sideloaded
+	//
+	// TODO: check disk space for all of these components together. each
+	// InstallComponentPath call checks one component independently. all checks
+	// can pass even when the combined size does not fit.
 	for _, comp := range sideload.components {
 		snapName := comp.sideInfo.Component.SnapName
 		ts, err := snapstateInstallComponentPath(st, comp.sideInfo, comp.snapInfo, comp.tmpPath, snapstate.Options{

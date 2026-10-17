@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
@@ -1643,4 +1644,252 @@ func (s *targetTestSuite) TestUpdateWithIntegrityDataNonEssentialSnap(c *C) {
 
 	c.Assert(setup, NotNil)
 	c.Check(setup.IntegrityDataInfo, IsNil)
+}
+
+func (s *targetTestSuite) TestInstallWithComponentsDiskSpaceCountsComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		compName = "standard-component"
+		channel  = "channel-for-components"
+	)
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: fmt.Sprintf("http://example.com/%s", snapName),
+				Size:        100,
+			},
+			Name:      compName,
+			Revision:  1,
+			Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
+			Version:   "1.0",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	var compsups []snapstate.ComponentSetup
+	restore := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
+		c.Assert(snaps, HasLen, 1)
+		compsups = snaps[0].ComponentSetups()
+		return 123, nil
+	})
+	defer restore()
+
+	var requiredSizes []uint64
+	restore = snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: snapName,
+		Components:   []string{compName},
+		RevOpts: snapstate.RevisionOptions{
+			Channel: channel,
+		},
+	})
+
+	_, _, err := snapstate.InstallOne(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	c.Assert(compsups, HasLen, 1)
+	c.Check(compsups[0].CompSideInfo.Component, Equals, naming.NewComponentRef(snapName, compName))
+	c.Check(compsups[0].DownloadInfo.Size, Equals, int64(100))
+	c.Check(requiredSizes, DeepEquals, []uint64{1123})
+}
+
+func (s *targetTestSuite) TestUpdateWithComponentsDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName      = "some-snap"
+		snapID        = "some-snap-id"
+		compName      = "standard-component"
+		extraCompName = "standard-component-extra"
+		channel       = "channel-for-components"
+	)
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: snap.R(7),
+	}})
+
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, compName),
+			Revision:  snap.R(1),
+		},
+		CompType: snap.StandardComponent,
+	})
+	seq.AddComponentForRevision(snap.R(7), &sequence.ComponentState{
+		SideInfo: &snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, extraCompName),
+			Revision:  snap.R(3),
+		},
+		CompType: snap.StandardComponent,
+	})
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              snap.StandardComponent,
+			CompVersion:       "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: channel,
+		Sequence:        seq,
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	// the refresh brings a new revision of compName, and the same revision of
+	// extraCompName
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		return []store.SnapResourceResult{{
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: fmt.Sprintf("http://example.com/%s", compName),
+				Size:        100,
+			},
+			Name:      compName,
+			Revision:  2,
+			Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
+			Version:   "1.0",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		}, {
+			DownloadInfo: snap.DownloadInfo{
+				DownloadURL: fmt.Sprintf("http://example.com/%s", extraCompName),
+				Size:        200,
+			},
+			Name:      extraCompName,
+			Revision:  3,
+			Type:      fmt.Sprintf("component/%s", snap.StandardComponent),
+			Version:   "1.0",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		}}
+	}
+
+	// the fake store does not set a size for refreshed snaps
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Size = 10
+		return nil
+	}
+
+	// use the real size calculation, the base suite mocks it
+	restore := snapstate.MockInstallSize(snapstate.InstallSize)
+	defer restore()
+
+	var requiredSizes []uint64
+	restore = snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: snapName,
+	})
+
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	// extraCompName is not counted, since its revision is already on the
+	// system
+	c.Check(requiredSizes, DeepEquals, []uint64{10 + 100 + 1000})
+}
+
+func (s *targetTestSuite) TestPathUpdateWithComponentsDiskSpace(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+		compName = "standard-component"
+		snapYaml = `name: some-snap
+type: kernel
+version: 1.0
+components:
+  standard-component:
+    type: standard
+epoch: 1
+`
+		componentYaml = `component: some-snap+standard-component
+type: standard
+version: 1.0
+`
+	)
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: snapName,
+			SnapID:   snapID,
+			Revision: snap.R(7),
+		}}),
+		Current:  snap.R(7),
+		SnapType: "kernel",
+	})
+
+	snapPath := makeTestSnap(c, snapYaml)
+	compPath := snaptest.MakeTestComponent(c, componentYaml)
+
+	snapFi, err := os.Stat(snapPath)
+	c.Assert(err, IsNil)
+	compFi, err := os.Stat(compPath)
+	c.Assert(err, IsNil)
+
+	// use the real size calculation, the base suite mocks it
+	restore := snapstate.MockInstallSize(snapstate.InstallSize)
+	defer restore()
+
+	var requiredSizes []uint64
+	restore = snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+			SnapID:   snapID,
+			Revision: snap.R(9),
+		},
+		Components: []snapstate.PathComponent{{
+			SideInfo: &snap.ComponentSideInfo{
+				Component: naming.NewComponentRef(snapName, compName),
+				Revision:  snap.R(2),
+			},
+			Path: compPath,
+		}},
+	})
+
+	_, err = snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Check(requiredSizes, DeepEquals, []uint64{uint64(snapFi.Size()+compFi.Size()) + 1000})
 }
