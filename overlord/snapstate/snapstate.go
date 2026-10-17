@@ -4618,7 +4618,7 @@ func MigrateAllowUnsupportedInstances(st *state.State) error {
 			continue
 		}
 		snapst.AllowUnsupportedInstances = true
-		Set(st, name, snapst)
+		Set(st, name.String(), snapst)
 	}
 
 	migrationMarkable := true
