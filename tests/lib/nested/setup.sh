@@ -145,6 +145,15 @@ nested_create_tools_archive() {
     echo "$archive_path"
 }
 
+nested_wait_for_tools() {
+    local tools_path="$1"
+    local tool
+
+    # Check that the essential tools are available in the nested VM
+    remote.retry -n 10 --wait 1 "test -x $tools_path/retry"
+    retry -n 10 --wait 1 remote.exec --reconnect "command -v retry not MATCH NOMATCH >/dev/null"
+}
+
 nested_prepare_tools() {
     echo "Preparing test tools in nested vm"
 
@@ -179,7 +188,7 @@ nested_prepare_tools() {
         remote.exec "sudo snap set system journal.persistent=true"
     fi
 
-    remote.exec --reconnect "command -v retry not MATCH NOMATCH >/dev/null"
+    nested_wait_for_tools "$TOOLS_PATH"
 }
 
 nested_enable_wip_features() {
