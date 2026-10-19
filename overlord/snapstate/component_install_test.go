@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1575,4 +1577,188 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 		c.Assert(snapsupTask.Has("component-setup-tasks"), Equals, true)
 	}
 
+}
+
+func (s *snapmgrTestSuite) mockComponentResources(sizes map[string]int64) {
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		results := make([]store.SnapResourceResult, 0, len(sizes))
+		for name, size := range sizes {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + name,
+					Size:        size,
+				},
+				Name:      name,
+				Revision:  3,
+				Type:      "component/standard",
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		info.Components = make(map[string]*snap.Component, len(sizes))
+		for name := range sizes {
+			info.Components[name] = &snap.Component{
+				Type: snap.StandardComponent,
+				Name: name,
+			}
+		}
+		return nil
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsDiskSpace(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, map[string]string{
+		"comp-1": "standard",
+		"comp-2": "standard",
+	})
+
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+	s.mockComponentResources(map[string]int64{"comp-1": 100, "comp-2": 200})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"comp-1", "comp-2"}, info, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Check(requiredSizes, DeepEquals, []uint64{1300})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsDiskSpaceError(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, map[string]string{
+		"comp-1": "standard",
+	})
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+	s.mockComponentResources(map[string]int64{"comp-1": 100})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
+	tr.Commit()
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"comp-1"}, info, nil, snapstate.Options{})
+	diskSpaceErr, ok := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(ok, Equals, true, Commentf("unexpected error: %v", err))
+	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{"some-snap"})
+	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
+
+	// no tasks are created
+	c.Check(s.state.TaskCount(), Equals, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsDiskSpaceCheckSkippedIfReservationUnset(c *C) {
+	const snapName = "some-snap"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponents(c, snapName, snapRev, map[string]string{
+		"comp-1": "standard",
+	})
+
+	var checkFreeSpaceCalls int
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		checkFreeSpaceCalls++
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+	s.mockComponentResources(map[string]int64{"comp-1": 100})
+
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"comp-1"}, info, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Check(checkFreeSpaceCalls, Equals, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathDiskSpace(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
+
+	fi, err := os.Stat(compPath)
+	c.Assert(err, IsNil)
+
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(33))
+	_, err = snapstate.InstallComponentPath(s.state, csi, info, compPath, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Check(requiredSizes, DeepEquals, []uint64{uint64(fi.Size()) + 1000})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentPathDiskSpaceError(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	_, compPath := createTestComponent(c, snapName, compName, info)
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error {
+		return &osutil.NotEnoughDiskSpaceError{}
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", snapstate.FallbackDiskSpaceReservation)
+	tr.Commit()
+
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(33))
+	_, err := snapstate.InstallComponentPath(s.state, csi, info, compPath, snapstate.Options{})
+	diskSpaceErr, ok := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(ok, Equals, true, Commentf("unexpected error: %v", err))
+	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: mysnap`)
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []naming.InstanceName{"mysnap"})
+	c.Check(s.state.TaskCount(), Equals, 0)
 }

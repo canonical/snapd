@@ -1,0 +1,16 @@
+name: test-snap-disk-comps
+version: '1.0'
+summary: A snap with a component used to test disk space checks
+description: |
+  A snap with a component used to test that the disk space checks
+  consider the size of components.
+architectures:
+- all
+base: none
+confinement: strict
+grade: stable
+components:
+  big:
+    summary: big test component
+    description: big test component
+    type: standard

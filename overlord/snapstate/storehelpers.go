@@ -169,12 +169,14 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 
 	snapSizes := map[naming.InstanceName]uint64{}
 	targetRevisions := make(map[string]snap.Revision, len(snaps))
+	targetComponents := make(map[string][]ComponentSetup, len(snaps))
 	for _, inst := range snaps {
 		if inst.DownloadSize() == 0 {
 			return 0, fmt.Errorf("internal error: download info missing for %q", inst.InstanceName())
 		}
 		snapSizes[inst.InstanceName()] = uint64(inst.DownloadSize())
 		targetRevisions[inst.InstanceName().String()] = inst.Revision()
+		targetComponents[inst.InstanceName().String()] = inst.ComponentSetups()
 		resolveBaseAndContentProviders(inst)
 	}
 
@@ -210,7 +212,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 		for _, res := range results {
 			snapSizes[res.InstanceName()] = uint64(res.Size)
 			// results may have new base or content providers
-			resolveBaseAndContentProviders(installSnapInfo{res.Info})
+			resolveBaseAndContentProviders(installSnapInfo{Info: res.Info})
 		}
 	}
 
@@ -245,6 +247,19 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int, 
 
 	var total uint64
 	for _, sz := range snapSizes {
+		total += sz
+	}
+
+	// components are counted separately from their snaps. new components can
+	// be installed for a snap revision that is already on the system. also,
+	// component revisions that are already on the system take no new space,
+	// even if the snap revision changes.
+	for instanceName, compsups := range targetComponents {
+		// snapStates has no entry for snaps that are not installed
+		sz, err := componentsInstallSize(snapStates[naming.InstanceName(instanceName)], compsups)
+		if err != nil {
+			return 0, err
+		}
 		total += sz
 	}
 
