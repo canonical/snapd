@@ -195,6 +195,13 @@ def classify(name, definitions, repo_root):
         return CLASSIFICATIONS[1]
     if any(path.startswith("tests/lib/snaps/store/") for path in paths):
         return CLASSIFICATIONS[2]
+
+    fixture_dir = repo_root / "tests/lib/snaps" / name
+    if fixture_dir.is_dir() and any(
+        path.is_file() and is_snap_manifest(path)
+        for path in fixture_dir.rglob("*")
+    ):
+        return CLASSIFICATIONS[1]
     return CLASSIFICATIONS[3]
 
 
@@ -230,14 +237,14 @@ def load_owner_cache(path):
     return json.loads(path.read_text())
 
 
-def discover_owners(names, cache_path, refresh=False):
+def discover_owners(names, cache_path):
     """Resolve owners concurrently and persist newly fetched records.
 
-    Cached records are reused unless refresh is true. The returned mapping is
-    restricted to the requested names even if the cache contains other snaps.
+    The returned mapping is restricted to the requested names even if the cache
+    contains other snaps.
     """
     owners = load_owner_cache(cache_path)
-    pending = sorted(names if refresh else names - owners.keys())
+    pending = sorted(names - owners.keys())
 
     if pending:
         with ThreadPoolExecutor(max_workers=12) as executor:
@@ -430,6 +437,23 @@ def render_yaml(groups, usage, owners, external_urls, include_used_by=True):
     return "\n".join(lines) + "\n"
 
 
+def render_json(groups, usage, owners, external_urls, include_used_by=True):
+    """Render classified snaps, usage references, owners, and URLs as JSON."""
+    snaps = []
+    for classification in CLASSIFICATIONS:
+        for name in groups[classification]:
+            snap = {"name": name, "classification": classification}
+            if include_used_by:
+                snap["used-by"] = sorted(usage[name])
+            if classification in OWNER_CLASSIFICATIONS:
+                snap["owner"] = owners[name]
+            if name in external_urls:
+                snap["external-url"] = external_urls[name]
+            snaps.append(snap)
+
+    return json.dumps({"snaps": snaps}, indent=2, sort_keys=True) + "\n"
+
+
 def discover_inventory(repo_root, include_used_by=True):
     """Discover and classify snap names and their spread test usage."""
     tests_dir = repo_root / "tests"
@@ -448,9 +472,8 @@ def discover_inventory(repo_root, include_used_by=True):
 
 def generate(
     repo_root,
-    owner_cache,
-    refresh_owners=False,
     yaml_output=False,
+    json_output=False,
     include_used_by=True,
 ):
     """Generate the complete inventory, resolving required owners."""
@@ -461,8 +484,9 @@ def generate(
         for classification in OWNER_CLASSIFICATIONS
         for name in groups[classification]
     }
-    owners = discover_owners(owner_names, owner_cache, refresh=refresh_owners)
-    renderer = render_yaml if yaml_output else render
+    owner_cache = Path(__file__).with_name("test-snap-owners.json")
+    owners = discover_owners(owner_names, owner_cache)
+    renderer = render_json if json_output else render_yaml if yaml_output else render
     return renderer(
         groups,
         usage,
@@ -487,6 +511,11 @@ def main():
         help="generate YAML instead of Markdown",
     )
     parser.add_argument(
+        "--json",
+        action="store_true",
+        help="generate JSON instead of Markdown",
+    )
+    parser.add_argument(
         "--exclude-used-by",
         action="store_true",
         help="omit test usage references from the output",
@@ -496,32 +525,24 @@ def main():
         action="store_true",
         help="print external snap names and owners as TSV; do not write Markdown",
     )
-    parser.add_argument(
-        "--owner-cache",
-        type=Path,
-        default=Path(__file__).with_name("test-snap-owners.json"),
-        help="Snap Store owner cache",
-    )
-    parser.add_argument(
-        "--refresh-owners",
-        action="store_true",
-        help="refresh all Snap Store owners instead of using cached values",
-    )
     args = parser.parse_args()
+    if args.yaml and args.json:
+        parser.error("--yaml and --json are mutually exclusive")
     if args.external_only:
         groups, _ = discover_inventory(repo_root, include_used_by=False)
         names = set(groups[CLASSIFICATIONS[3]])
-        owners = discover_owners(names, args.owner_cache, refresh=args.refresh_owners)
+        owner_cache = Path(__file__).with_name("test-snap-owners.json")
+        owners = discover_owners(names, owner_cache)
         for name in sorted(names):
             print(f"{name}\t{format_owner(owners[name])}")
         return
-    output = args.output or repo_root / ("test-snaps.yaml" if args.yaml else "test-snaps.md")
+    default_name = "test-snaps.json" if args.json else "test-snaps.yaml" if args.yaml else "test-snaps.md"
+    output = args.output or repo_root / default_name
     output.write_text(
         generate(
             repo_root,
-            args.owner_cache,
-            refresh_owners=args.refresh_owners,
             yaml_output=args.yaml,
+            json_output=args.json,
             include_used_by=not args.exclude_used_by,
         )
     )
