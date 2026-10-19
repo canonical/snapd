@@ -210,14 +210,38 @@ save_installed_core_snap() {
 add_to_grub_kernel_cmdline() {
     local params=$1
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        if [ -f "/etc/default/grub.d/99-spread-kcmdline.cfg" ]; then
-            echo "/etc/default/grub.d/99-spread-kcmdline.cfg already exists" >&2
-            exit 1
-        fi
-        cat <<EOF | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
+        case "$SPREAD_SYSTEM" in
+            amazon-*|centos-*|fedora-*)
+                # Use grubby to update boot entries, including BLS entries on
+                # systems where regenerating grub.cfg would not update them.
+                grubby --update-kernel=ALL --args="$params"
+                ;;
+            arch-*|opensuse-*)
+                # These distributions do not source /etc/default/grub.d.
+                cat <<EOF | sudo tee -a /etc/default/grub
+
 GRUB_CMDLINE_LINUX_DEFAULT="\${GRUB_CMDLINE_LINUX_DEFAULT} $params"
 EOF
-        update-grub
+                case "$SPREAD_SYSTEM" in
+                    arch-*)
+                        grub-mkconfig -o /boot/grub/grub.cfg
+                        ;;
+                    opensuse-*)
+                        grub2-mkconfig -o /boot/grub2/grub.cfg
+                        ;;
+                esac
+                ;;
+            *)
+                if [ -f "/etc/default/grub.d/99-spread-kcmdline.cfg" ]; then
+                    echo "/etc/default/grub.d/99-spread-kcmdline.cfg already exists" >&2
+                    exit 1
+                fi
+                cat <<EOF | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
+GRUB_CMDLINE_LINUX_DEFAULT="\${GRUB_CMDLINE_LINUX_DEFAULT} $params"
+EOF
+                update-grub
+                ;;
+        esac
         REBOOT
     fi
 }
