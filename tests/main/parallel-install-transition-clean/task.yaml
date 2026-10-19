@@ -75,6 +75,13 @@ execute: |
 
     systemctl start snapd.service snapd.socket
     snap wait system seed.loaded
+
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        # Provide /snap for classic snaps with an alternate mount directory.
+        ln -sfn "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
     snap set system experimental.parallel-instances=true
     # The mount unit is still inactive
     not systemctl is-active "$SNAP_MOUNT_UNIT"
