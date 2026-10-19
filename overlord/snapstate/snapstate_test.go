@@ -7484,9 +7484,7 @@ func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstall(c *C) 
 func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstallFirstSnap(c *C) {
 	unitDir := filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system")
 	c.Assert(os.MkdirAll(unitDir, 0755), IsNil)
-	for _, unit := range []string{"snap.mount", "var-snap.mount"} {
-		c.Assert(os.WriteFile(filepath.Join(unitDir, unit), nil, 0644), IsNil)
-	}
+	c.Assert(os.WriteFile(filepath.Join(unitDir, "var-snap.mount"), nil, 0644), IsNil)
 
 	mountInfo := fmt.Sprintf("660 30 8:1 / %s rw,relatime shared:1 - ext4 /dev/sda1 rw", dirs.SnapDataDir)
 	restore := osutil.MockMountInfo(mountInfo)
@@ -7498,6 +7496,10 @@ func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstallFirstSn
 
 	info := &snap.Info{SuggestedName: "some-snap", InstanceKey: "foo", Confinement: snap.ClassicConfinement}
 	err := snapstate.CheckSnapMountDirForParallelClassicInstall(st, info, &snapstate.SnapState{})
+	c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cannot install classic snap "some-snap_foo" as parallel instance: the snapd native package needs updating to support parallel installed classic snaps`))
+
+	c.Assert(os.WriteFile(filepath.Join(unitDir, "snap.mount"), nil, 0644), IsNil)
+	err = snapstate.CheckSnapMountDirForParallelClassicInstall(st, info, &snapstate.SnapState{})
 	c.Assert(err, IsNil)
 
 	// An existing snap means that an unmounted parent cannot be assumed safe

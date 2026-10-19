@@ -703,7 +703,7 @@ func checkSnapMountDirForParallelClassicInstall(st *state.State, info *snap.Info
 	}
 
 	snapMountUnit := snapMountDirUnitName()
-	if varSnapMounted && !mountDirMounted && snapsCount == 0 {
+	if varSnapMounted && !mountDirMounted && mountUnitFileExists(snapMountUnit) && snapsCount == 0 {
 		// This is a first snap being installed in the system. The
 		// var-snap.mount is already mounted, but snap-mount-dir mount is not,
 		// because no snaps exited in the system before. However, once our snap
