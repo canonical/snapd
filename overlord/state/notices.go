@@ -17,11 +17,14 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -30,6 +33,48 @@ const (
 	// maxNoticeKeyLength is the max size in bytes for a notice key.
 	maxNoticeKeyLength = 256
 )
+
+type NoticeCustomData map[string]*json.RawMessage
+
+func (data NoticeCustomData) Get(key string, value any) error {
+	entryJSON := data[key]
+	if entryJSON == nil {
+		return &NoStateError{Key: key}
+	}
+	err := json.Unmarshal(*entryJSON, value)
+	if err != nil {
+		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
+	}
+	return nil
+}
+
+func (data NoticeCustomData) Has(key string) bool {
+	return data[key] != nil
+}
+
+func (data NoticeCustomData) Set(key string, value any) {
+	if value == nil {
+		delete(data, key)
+		return
+	}
+	serialized, err := json.Marshal(value)
+	if err != nil {
+		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
+	}
+	entryJSON := json.RawMessage(serialized)
+	data[key] = &entryJSON
+}
+
+func (data NoticeCustomData) Copy() NoticeCustomData {
+	var copy NoticeCustomData
+	if len(data) > 0 {
+		copy = make(NoticeCustomData, len(data))
+		for k, v := range data {
+			copy[k] = v
+		}
+	}
+	return copy
+}
 
 // Notice represents an aggregated notice. The combination of type and key is unique.
 type Notice struct {
@@ -75,7 +120,7 @@ type Notice struct {
 	occurrences int
 
 	// Additional data captured from the last occurrence of one of these notices.
-	lastData map[string]string
+	lastData NoticeCustomData
 
 	// How long after one of these was last repeated should we allow it to repeat.
 	repeatAfter time.Duration
@@ -88,7 +133,7 @@ type Notice struct {
 }
 
 // NewNotice returns a new notice with the given details.
-func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestamp time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) *Notice {
+func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestamp time.Time, data NoticeCustomData, repeatAfter time.Duration, expireAfter time.Duration) *Notice {
 	return &Notice{
 		id:            id,
 		userID:        userID,
@@ -107,7 +152,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // Reoccur updates the receiving notice to re-occur with the given timestamp
 // and data. Depending on its repeat after duration, the lastRepeated timestamp
 // may be updated. Returns whether the notice was repeated.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (repeated bool) {
+func (n *Notice) Reoccur(now time.Time, data NoticeCustomData, repeatAfter time.Duration) (repeated bool) {
 	n.occurrences++
 	repeated = false
 	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
@@ -137,13 +182,7 @@ func (n *Notice) DeepCopy() *Notice {
 		userIDVal := *n.userID
 		userID = &userIDVal
 	}
-	var lastData map[string]string
-	if len(n.lastData) > 0 {
-		lastData = make(map[string]string, len(n.lastData))
-		for k, v := range n.lastData {
-			lastData[k] = v
-		}
-	}
+	lastData := n.lastData.Copy()
 
 	return &Notice{
 		id:            n.id,
@@ -198,7 +237,7 @@ func (n *Notice) LastRepeated() time.Time {
 }
 
 // LastData returns the last data associated with this notice.
-func (n *Notice) LastData() map[string]string {
+func (n *Notice) LastData() NoticeCustomData {
 	return n.lastData
 }
 
@@ -218,17 +257,17 @@ func (n *Notice) Expired(now time.Time) bool {
 // needs to live in this package (rather than the API) because we save state
 // to disk as JSON.
 type jsonNotice struct {
-	ID            string            `json:"id"`
-	UserID        *uint32           `json:"user-id"`
-	Type          string            `json:"type"`
-	Key           string            `json:"key"`
-	FirstOccurred time.Time         `json:"first-occurred"`
-	LastOccurred  time.Time         `json:"last-occurred"`
-	LastRepeated  time.Time         `json:"last-repeated"`
-	Occurrences   int               `json:"occurrences"`
-	LastData      map[string]string `json:"last-data,omitempty"`
-	RepeatAfter   string            `json:"repeat-after,omitempty"`
-	ExpireAfter   string            `json:"expire-after,omitempty"`
+	ID            string                      `json:"id"`
+	UserID        *uint32                     `json:"user-id"`
+	Type          string                      `json:"type"`
+	Key           string                      `json:"key"`
+	FirstOccurred time.Time                   `json:"first-occurred"`
+	LastOccurred  time.Time                   `json:"last-occurred"`
+	LastRepeated  time.Time                   `json:"last-repeated"`
+	Occurrences   int                         `json:"occurrences"`
+	LastData      map[string]*json.RawMessage `json:"last-data,omitempty"`
+	RepeatAfter   string                      `json:"repeat-after,omitempty"`
+	ExpireAfter   string                      `json:"expire-after,omitempty"`
 }
 
 func (n *Notice) MarshalJSON() ([]byte, error) {
@@ -377,7 +416,7 @@ func (s *State) HandleReportedLastNoticeTimestamp(t time.Time) {
 // AddNoticeOptions holds optional parameters for an AddNotice call.
 type AddNoticeOptions struct {
 	// Data is the optional key-value data for this occurrence.
-	Data map[string]string
+	Data NoticeCustomData
 
 	// RepeatAfter defines how long after this notice was last repeated we
 	// should allow it to repeat. Zero means always repeat.
@@ -389,6 +428,13 @@ type AddNoticeOptions struct {
 
 	// Time, if set, overrides time.Now() as the notice occurrence time.
 	Time time.Time
+}
+
+func (opts *AddNoticeOptions) Set(key string, val any) {
+	if opts.Data == nil {
+		opts.Data = NoticeCustomData{}
+	}
+	opts.Data.Set(key, val)
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -480,16 +526,17 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 		if options == nil {
 			return fmt.Errorf("cannot add %s notice without specifying options", noticeType)
 		}
-		if showAfter, ok := options.Data["show-after"]; ok {
-			if _, err := time.ParseDuration(showAfter); err != nil {
-				return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
-			}
+
+		var showAfter time.Duration
+		if err := options.Data.Get("show-after", &showAfter); err != nil && !errors.Is(err, ErrNoState) {
+			return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
 		}
-		if lastShown, ok := options.Data["last-shown"]; ok {
-			if _, err := time.Parse(time.RFC3339Nano, lastShown); err != nil {
-				return fmt.Errorf("cannot add %s notice with invalid last-shown time: %w", noticeType, err)
-			}
+
+		var lastShown time.Time
+		if err := options.Data.Get("last-shown", &lastShown); err != nil && !errors.Is(err, ErrNoState) {
+			return fmt.Errorf("cannot add %s notice with invalid last-shown time: %w", noticeType, err)
 		}
+
 		if options.ExpireAfter == 0 {
 			return fmt.Errorf("cannot add %s notice with no expire-after duration", noticeType)
 		}

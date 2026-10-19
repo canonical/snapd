@@ -21,6 +21,7 @@ package state
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -64,7 +65,6 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 		}
 
 		addNoticeOptions := &AddNoticeOptions{
-			Data:        map[string]string{},
 			RepeatAfter: 0,
 			ExpireAfter: expireAfter,
 			Time:        w.LastAdded,
@@ -74,11 +74,11 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 			showAfter = defaultWarningShowAfter
 		}
 		if showAfter != 0 {
-			addNoticeOptions.Data["show-after"] = showAfter.String()
+			addNoticeOptions.Set("show-after", showAfter)
 		}
 
 		if w.LastShown != nil {
-			addNoticeOptions.Data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
+			addNoticeOptions.Set("last-shown", w.LastShown)
 		}
 
 		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
@@ -118,14 +118,9 @@ func (w *Warning) lastAdded() time.Time {
 
 func (w *Warning) lastShown() (time.Time, error) {
 	var t time.Time
-	lastShownStr, ok := w.notice.lastData["last-shown"]
-	if !ok || lastShownStr == "" {
-		// no "last-shown"
-		return t, nil
-	}
-	t, err := time.Parse(time.RFC3339Nano, lastShownStr)
-	if err != nil {
-		return t, fmt.Errorf("cannot parse last-shown timestamp from string: %w", err)
+	err := w.notice.lastData.Get("last-shown", &t)
+	if err != nil && !errors.Is(err, ErrNoState) {
+		return t, err
 	}
 	return t, nil
 }
@@ -137,14 +132,13 @@ func (w *Warning) expireAfter() time.Duration {
 func (w *Warning) showAfter() (time.Duration, error) {
 	// use "show-after" instead of "repeat-after" to make it clear that this is
 	// about "show" in the warnings sense, unrelated to notices repeatAfter.
-	showAfterStr, ok := w.notice.lastData["show-after"]
-	if !ok || showAfterStr == "" {
-		// no "show-after"
+	var showAfter time.Duration
+	if !w.notice.lastData.Has("show-after") {
 		return 0, nil
 	}
-	showAfter, err := time.ParseDuration(showAfterStr)
-	if err != nil {
-		return 0, fmt.Errorf("cannot parse show-after duration from string: %w", err)
+	err := w.notice.lastData.Get("show-after", &showAfter)
+	if err != nil && !errors.Is(err, ErrNoState) {
+		return showAfter, err
 	}
 	return showAfter, nil
 }
@@ -234,8 +228,8 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	defer s.noticesMu.Unlock()
 
 	addNoticeOptions := &AddNoticeOptions{
-		Data: map[string]string{},
-		// Always repeat warning notices. The ShowAfter field in the warning
+		Data: NoticeCustomData{},
+		// Always repeat warning notices. The RepeatAfter field in the warning
 		// options is really about when a warning should be re-shown to a user,
 		// and is unrelated to notice RepeatAfter. We always want to repeat the
 		// notice so that the warning data is up to date.
@@ -245,13 +239,15 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	if options.ShowAfter != 0 {
-		addNoticeOptions.Data["show-after"] = options.ShowAfter.String()
+		addNoticeOptions.Set("show-after", options.ShowAfter)
 	}
 
 	// Get the existing notice data, if present, to persist the "last-shown" value
 	if existing := s.noticeBackingWarning(message); existing != nil {
-		if lastShown, ok := existing.lastData["last-shown"]; ok {
-			addNoticeOptions.Data["last-shown"] = lastShown
+		if existing.lastData.Has("last-shown") {
+			var lastShown time.Time
+			existing.lastData.Get("last-shown", &lastShown)
+			addNoticeOptions.Set("last-shown", lastShown)
 		}
 	}
 
@@ -353,11 +349,11 @@ func (s *State) OkayWarnings(t time.Time) int {
 		if w.ShowAfter(t) {
 			// Update the "last-shown" value, but notices cannot be mutated,
 			// so replace the existing one via replaceWarningNoticeData.
-			newData := make(map[string]string, len(w.notice.lastData))
-			for k, v := range w.notice.lastData {
-				newData[k] = v
+			newData := w.notice.lastData.Copy()
+			if len(newData) == 0 {
+				newData = NoticeCustomData{}
 			}
-			newData["last-shown"] = t.Format(time.RFC3339Nano)
+			newData.Set("last-shown", t)
 			s.replaceWarningNoticeData(w, newData)
 			n++
 		}
@@ -370,7 +366,7 @@ func (s *State) OkayWarnings(t time.Time) int {
 // its lastData with the given data, and replaces the original notice with the
 // new one in the snapd state. The caller must hold both noticesMu and state
 // lock.
-func (s *State) replaceWarningNoticeData(w *Warning, newData map[string]string) {
+func (s *State) replaceWarningNoticeData(w *Warning, newData NoticeCustomData) {
 	newNotice := w.notice.DeepCopy()
 	newNotice.lastData = newData
 	uniqueKey := warningNoticeKey(w.String())
@@ -437,10 +433,7 @@ func (s *State) UnshowAllWarnings() {
 	for _, w := range all {
 		// Remove "last-shown" value, but notices cannot be mutated,
 		// so replace the existing one via replaceWarningNoticeData.
-		newData := make(map[string]string, len(w.notice.lastData))
-		for k, v := range w.notice.lastData {
-			newData[k] = v
-		}
+		newData := w.notice.lastData.Copy()
 		delete(newData, "last-shown")
 		s.replaceWarningNoticeData(w, newData)
 	}

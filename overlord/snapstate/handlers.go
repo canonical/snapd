@@ -1026,9 +1026,8 @@ var onRefreshInhibitionTimeout = func(chg *state.Change, snapName string) error 
 	chg.Set("api-data", data)
 
 	// record a change-update notice on forced snap refresh
-	opts := &state.AddNoticeOptions{
-		Data: map[string]string{"kind": chg.Kind()},
-	}
+	opts := &state.AddNoticeOptions{}
+	opts.Set("kind", chg.Kind())
 	_, err = chg.State().AddNotice(nil, state.ChangeUpdateNotice, chg.ID(), opts)
 	if err != nil {
 		return err

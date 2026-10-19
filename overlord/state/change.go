@@ -433,9 +433,8 @@ func (c *Change) Status() Status {
 // addNotice records an occurrence of a change-update notice for this change.
 // The notice key is set to the change ID.
 func (c *Change) addNotice() error {
-	opts := &AddNoticeOptions{
-		Data: map[string]string{"kind": c.Kind()},
-	}
+	opts := &AddNoticeOptions{}
+	opts.Set("kind", c.Kind())
 	_, err := c.state.AddNotice(nil, ChangeUpdateNotice, c.id, opts)
 	return err
 }

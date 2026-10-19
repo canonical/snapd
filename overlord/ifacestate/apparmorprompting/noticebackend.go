@@ -199,7 +199,7 @@ func (ntb *noticeTypeBackend) noticeKeyToID(key string) string {
 // addNotice records an occurrence of a notice with the specified user ID, a
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
-func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data map[string]string) error {
+func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data state.NoticeCustomData) error {
 	ntb.rwmu.Lock()
 	defer ntb.rwmu.Unlock()
 	key := id.String()

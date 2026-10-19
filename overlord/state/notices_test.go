@@ -40,7 +40,8 @@ func (s *noticesSuite) TestNewNotice(c *C) {
 	nType := state.NoticeType("bar")
 	key := "baz"
 	timestamp := time.Now()
-	data := map[string]string{"fizz": "buzz"}
+	var data state.NoticeCustomData
+	data.Set("fizz", "buzz")
 	repeatAfter := 10 * time.Second
 	expireAfter := 30 * time.Second
 
@@ -77,7 +78,8 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	nType := state.NoticeType("bar")
 	key := "baz"
 	timestamp := time.Now()
-	data := map[string]string{"fizz": "buzz"}
+	var data state.NoticeCustomData
+	data.Set("fizz", "buzz")
 	repeatAfter := 10 * time.Second
 	expireAfter := 30 * time.Second
 
@@ -151,7 +153,8 @@ func (s *noticesSuite) TestDeepCopy(c *C) {
 	nType := state.NoticeType("bar")
 	key := "baz"
 	timestamp := time.Now()
-	data := map[string]string{"fizz": "buzz"}
+	var data state.NoticeCustomData
+	data.Set("fizz", "buzz")
 	repeatAfter := 10 * time.Second
 	expireAfter := 30 * time.Second
 
@@ -174,11 +177,14 @@ func (s *noticesSuite) TestDeepCopy(c *C) {
 	delete(notice.LastData(), "fizz")
 	c.Check(duplicate, Not(DeepEquals), notice)
 	// and "fizz" still exists in the duplicate map
-	c.Check(duplicate.LastData()["fizz"], Equals, "buzz")
+	var val string
+	err = duplicate.LastData().Get("fizz", &val)
+	c.Check(err, IsNil)
+	c.Check(val, Equals, "buzz")
 
 	// Check that we can copy a notice with nil fields
 	var nilUserID *uint32
-	var nilData map[string]string
+	var nilData state.NoticeCustomData
 	notice = state.NewNotice(id, nilUserID, nType, key, timestamp, nilData, repeatAfter, expireAfter)
 
 	duplicate = notice.DeepCopy()
@@ -195,9 +201,9 @@ func (s *noticesSuite) TestMarshal(c *C) {
 	uid := uint32(1000)
 	addNotice(c, st, &uid, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond) // ensure there's time between the occurrences
-	addNotice(c, st, &uid, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		Data: map[string]string{"k": "v"},
-	})
+	opts := &state.AddNoticeOptions{}
+	opts.Set("k", "v")
+	addNotice(c, st, &uid, state.ChangeUpdateNotice, "123", opts)
 	st.Unlock()
 
 	notices := st.Notices(nil)
