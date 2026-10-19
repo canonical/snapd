@@ -67,11 +67,33 @@ execute: |
     # Exits with non-0 if activation would be unsafe
     snapd.tool exec snap-mgmt --check-post-upgrade-mount-activation
     systemctl enable var-snap.mount
-    systemctl start "$SNAP_MOUNT_UNIT" var-snap.mount
-    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
-        systemctl is-active "$u"
-        test "$(systemctl show "$u" -p ConditionResult)" = ConditionResult=yes
-    done
+    # The snap-mount-dir unit is expected to be automatically activated on first
+    # snap install
+    systemctl start var-snap.mount
+    systemctl is-active var-snap.mount
+    not systemctl is-active "$SNAP_MOUNT_UNIT"
+
+    systemctl start snapd.service snapd.socket
+    snap wait system seed.loaded
+    snap set system experimental.parallel-instances=true
+    # The mount unit is still inactive
+    not systemctl is-active "$SNAP_MOUNT_UNIT"
+
+    # This is expected to work right away
+    snap install test-snapd-classic-confinement_foo --classic
+    # Both mount units are now active
+    systemctl is-active var-snap.mount
+    systemctl is-active "$SNAP_MOUNT_UNIT"
+    # The app works
+    test-snapd-classic-confinement_foo
+    # And a regular snap
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    # Both mount units are now active
+    systemctl is-active var-snap.mount
+    systemctl is-active "$SNAP_MOUNT_UNIT"
+
+    test-snapd-sh-core24.sh -c true
+
     for mp in "$SNAP_MOUNT_DIR" /var/snap; do
         findmnt -M "$mp"
         findmnt -no PROPAGATION -M "$mp" | MATCH '^shared$'
@@ -79,12 +101,5 @@ execute: |
         test "$count" -eq 1
     done
 
-    systemctl start snapd.service snapd.socket
-    snap wait system seed.loaded
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
-    count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-sh-core24/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
-    test "$count" -eq 1
     snap remove --purge test-snapd-sh-core24
-    count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-sh-core24/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
-    test "$count" -eq 0
-    not test -e "$marker"
+    snap remove --purge test-snapd-classic-confinement_foo
