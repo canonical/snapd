@@ -196,8 +196,10 @@ pivot_root,
 # signal/tracing rules too
 signal (send) peer=docker-default,
 signal (send, receive) peer="docker-default//&@{profile_name}",
+signal (send, receive) peer="@{profile_name}//&docker-default",
 ptrace (read, trace) peer=docker-default,
 ptrace (read, readby, trace, tracedby) peer="docker-default//&@{profile_name}",
+ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&docker-default",
 
 # defaults for containerd
 # TODO: When we drop support for executing other snaps from devmode snaps (or 
@@ -210,8 +212,10 @@ ptrace (read, readby, trace, tracedby) peer="docker-default//&@{profile_name}",
 # signal/tracing rules too
 signal (send) peer=cri-containerd.apparmor.d,
 signal (send, receive) peer="cri-containerd.apparmor.d//&@{profile_name}",
+signal (send, receive) peer="@{profile_name}//&cri-containerd.apparmor.d",
 ptrace (read, trace) peer=cri-containerd.apparmor.d,
 ptrace (read, readby, trace, tracedby) peer="cri-containerd.apparmor.d//&@{profile_name}",
+ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&cri-containerd.apparmor.d",
 
 # Graph (storage) driver bits
 /{dev,run}/shm/aufs.xino mrw,

@@ -249,10 +249,14 @@ func (s *DockerSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.docker.app"), Not(testutil.Contains), "userns,\n")
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /[^s]** -> {,&}docker-default,`)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `signal (send, receive) peer="docker-default//&@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `signal (send, receive) peer="@{profile_name}//&docker-default",`)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `ptrace (read, readby, trace, tracedby) peer="docker-default//&@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&docker-default",`)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `change_profile unsafe /[^s]** -> {,&}cri-containerd.apparmor.d,`)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `signal (send, receive) peer="cri-containerd.apparmor.d//&@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `signal (send, receive) peer="@{profile_name}//&cri-containerd.apparmor.d",`)
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `ptrace (read, readby, trace, tracedby) peer="cri-containerd.apparmor.d//&@{profile_name}",`)
+	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, `ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&cri-containerd.apparmor.d",`)
 
 	// test with apparmor userns support too
 	restore = apparmor_sandbox.MockFeatures(nil, nil, []string{"userns"}, nil)
@@ -562,8 +566,10 @@ change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** -> docker-de
 # signal/tracing rules too
 signal (send) peer=docker-default,
 signal (send, receive) peer="docker-default//&@{profile_name}",
+signal (send, receive) peer="@{profile_name}//&docker-default",
 ptrace (read, trace) peer=docker-default,
 ptrace (read, readby, trace, tracedby) peer="docker-default//&@{profile_name}",
+ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&docker-default",
 
 
 # defaults for containerd
@@ -644,8 +650,10 @@ change_profile unsafe /snap/snapd/*/usr/lib/snapd/snap-confin[^e]** -> cri-conta
 # signal/tracing rules too
 signal (send) peer=cri-containerd.apparmor.d,
 signal (send, receive) peer="cri-containerd.apparmor.d//&@{profile_name}",
+signal (send, receive) peer="@{profile_name}//&cri-containerd.apparmor.d",
 ptrace (read, trace) peer=cri-containerd.apparmor.d,
 ptrace (read, readby, trace, tracedby) peer="cri-containerd.apparmor.d//&@{profile_name}",
+ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&cri-containerd.apparmor.d",
 
 # Graph (storage) driver bits
 /{dev,run}/shm/aufs.xino mrw,

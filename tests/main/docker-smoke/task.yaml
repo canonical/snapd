@@ -51,7 +51,7 @@ execute: |
     retry -n 30 --wait 1 docker run hello-world | MATCH "installation appears to be working correctly"
 
     # the docker-support interface allows stacking the "docker-default" profile
-    # instead of transitioning to it when  launching a container, and the docker
+    # instead of transitioning to it when launching a container, and the docker
     # snap uses this when the NoNewPrivs option is set
     # TODO: once the docker snap is updated to stack profiles, update this check
     #docker run --security-opt no-new-privileges hello-world | MATCH "installation appears to be working correctly"
