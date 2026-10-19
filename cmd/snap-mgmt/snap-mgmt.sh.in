@@ -22,9 +22,10 @@ Options:
   --force                          Force operation (relevant for mount directory migration)
 
 Actions:
-  --purge                          Purge all snaps and their data
-  --migrate-mount-dir              Migrate mount directory from /snap to /var/lib/snapd/snap
-  --check-mount-dir-migration      Check system state required to run mount directory migration
+  --purge                                Purge all snaps and their data
+  --migrate-mount-dir                    Migrate mount directory from /snap to /var/lib/snapd/snap
+  --check-mount-dir-migration            Check system state required to run mount directory migration
+  --check-post-upgrade-mount-activation  Succeed if starting mount directory units is safe
 EOF
 }
 
@@ -222,6 +223,10 @@ purge() {
             continue
         fi
 
+        if mountpoint "$snap_mount_dir"; then
+            umount -l "$snap_mount_dir"
+        fi
+
         if [ -d "$snap_mount_dir" ]; then
             rm -rf "$snap_mount_dir"
         fi
@@ -259,6 +264,36 @@ purge() {
             rm -f /etc/apparmor.d/$(echo "$snap_unit_prefix" | tr '-' '.').core.*.usr.lib.snapd.snap-confine
         done
     fi
+
+    # A full purge removes the live child mounts; do not defer a same-boot
+    # reinstall of the native package until the next reboot.
+    rm -f /run/snapd/packaging/prevent-mount-dir-activation
+}
+
+# Check whether snap-mount-dir and var-snap mounts can be activated in a post
+# native-package upgrade scenarios.
+check_post_upgrade_mount_activation() {
+    # The mount units do a recursive self-bind. If those are started when snaps
+    # are already mount, the child mounts become duplicated and hidden. A mount
+    # directory already mounted before the new units are loaded is safe. Check
+    # inside pid 1 (systemd) mount namespace.
+    if [ ! -r /proc/1/mountinfo ]; then
+        echo "Cannot inspect system mount table; deferring mount activation" >&2
+        return 1
+    fi
+
+    # Check both possible mount directories regardless of what's used by current
+    # system, only the mounts matter.
+    for dir in /snap /var/lib/snapd/snap /var/snap; do
+        if ! awk -v dir="$dir" '
+            $5 == dir { mounted = 1 }
+            index($5, dir "/") == 1 { child = 1 }
+            END { exit ((mounted || !child) ? 0 : 1) }
+        ' /proc/1/mountinfo; then
+            echo "Found live mounts below unmounted $dir; deferring mount activation" >&2
+            return 1
+        fi
+    done
 }
 
 ensure_snap_apps_stopped() {
@@ -599,6 +634,14 @@ while [ -n "$1" ]; do
             action=check-mount-dir-migration
             shift
             ;;
+        --check-post-upgrade-mount-activation)
+            if [ -n "$action" ]; then
+                echo "Cannot request mount activation check when already doing '$action'" >&2
+                exit 1
+            fi
+            action=check-post-upgrade-mount-activation
+            shift
+            ;;
         --force)
             force=yes
             shift
@@ -619,6 +662,9 @@ case "$action" in
         ;;
     check-mount-dir-migration)
         mount_dir_migrate_check
+        ;;
+    check-post-upgrade-mount-activation)
+        check_post_upgrade_mount_activation
         ;;
     *)
         if [ -z "$action" ]; then

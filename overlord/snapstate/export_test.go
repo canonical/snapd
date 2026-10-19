@@ -136,6 +136,8 @@ var (
 	ValidateFeatureFlags   = validateFeatureFlags
 	ResolveChannel         = resolveChannel
 
+	CheckSnapMountDirForParallelClassicInstall = checkSnapMountDirForParallelClassicInstall
+
 	CurrentSnaps = currentSnaps
 
 	HasOtherInstances = hasOtherInstances

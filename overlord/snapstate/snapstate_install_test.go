@@ -4465,6 +4465,35 @@ version: 1.0
 	c.Assert(err, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestParallelInstallInstallPathClassicRequiresMounts(c *C) {
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+	restoreMountInfo := osutil.MockMountInfo("")
+	defer restoreMountInfo()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	unitDir := filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system")
+	c.Assert(os.MkdirAll(unitDir, 0755), IsNil)
+	for _, unit := range []string{"snap.mount", "var-snap.mount"} {
+		c.Assert(os.WriteFile(filepath.Join(unitDir, unit), nil, 0644), IsNil)
+	}
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+confinement: classic
+`)
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}
+	ts, err := snapstate.InstallPath(s.state, si, mockSnap, "some-snap_foo", "", snapstate.Flags{Classic: true}, nil)
+	c.Assert(err, ErrorMatches, `cannot install classic snap "some-snap_foo" as parallel instance: snap\.mount needs to be started, and var-snap\.mount needs to be enabled and started`)
+	c.Assert(ts, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

@@ -330,6 +330,13 @@ static void test_maybe_bind_mount_managed_ca_certs_dir__missing_destination(void
     g_free(tmpdir);
 }
 
+static void test_sc_is_mount_point(void) {
+    // "/" is always a mount point.
+    g_assert_true(sc_is_mount_point("/"));
+    // Non-mount-point path, need not even exist.
+    g_assert_false(sc_is_mount_point("/non-existent-path-used-by-mount-support-test"));
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/get_nextpath/typical", test_get_nextpath__typical);
     g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
@@ -347,4 +354,5 @@ static void __attribute__((constructor)) init(void) {
                     test_maybe_bind_mount_managed_ca_certs_dir__returns_mounted_generation);
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/missing_destination",
                     test_maybe_bind_mount_managed_ca_certs_dir__missing_destination);
+    g_test_add_func("/mount/sc_is_mount_point", test_sc_is_mount_point);
 }
