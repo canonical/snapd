@@ -193,6 +193,15 @@ pivot_root,
 # below are auto-generated rules using GenerateAAREExclusionPatterns
 ###EXCL{change_profile unsafe <> -> {,&}docker-default,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
+# We support profile stacking so that Docker can opt to stack the docker-default
+# profile on top of @{profile_name} rather than transitioning profiles. This
+# allows Docker to work with the NoNewPrivs option set, because stacking a
+# profile by definition does not add any new privileges, just restrict them to
+# the intersection of both profiles. The name of a stacked profile is the
+# profile names sorted lexicographically and joined by "//&". For completeness,
+# we specify both orders of the profile names throughout the rules below, rather
+# than hard-code assumptions about the name of @{profile_name}.
+
 # signal/tracing rules too
 signal (send) peer=docker-default,
 signal (send, receive) peer="docker-default//&@{profile_name}",
