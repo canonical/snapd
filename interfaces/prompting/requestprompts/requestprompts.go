@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -468,7 +469,8 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 
 	// Unlock now so we can record notices without holding the prompt DB lock
 	pdb.mutex.Unlock()
-	data := map[string]string{"resolved": "expired"}
+	data := state.NoticeCustomData{}
+	data.Set("resolved", "expired")
 	expiredPromptIDs := make([]string, 0, len(expiredPrompts))
 	for _, p := range expiredPrompts {
 		expiredPromptIDs = append(expiredPromptIDs, p.ID.String())
@@ -508,7 +510,7 @@ type PromptDB struct {
 	perUser map[uint32]*userPromptDB
 	// notifyPrompt is a closure which will be called to record a notice when a
 	// prompt is added, merged, modified, or resolved.
-	notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
+	notifyPrompt func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error
 	// The filepath at which the request map is stored on disk.
 	requestMapFilepath string
 	// requestMap is the mapping from request key to prompt ID/user ID which
@@ -535,7 +537,7 @@ type PromptDB struct {
 // merged, modified, or resolved. In order to guarantee the order of notices,
 // notifyPrompt is called with the prompt DB lock held, so it should not block
 // for a substantial amount of time (such as to lock and modify snapd state).
-func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error) (*PromptDB, error) {
+func New(notifyPrompt func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error) (*PromptDB, error) {
 	legacyMaxIDFilepath := filepath.Join(dirs.SnapRunDir, "request-prompt-max-id")
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-prompt-max-id")
 	if err := os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755); err != nil {
@@ -749,7 +751,8 @@ func (pdb *PromptDB) HandleReadying(keyNamespace string) []string {
 
 	if len(nonexistentPrompts) > 0 {
 		logger.Debugf("prompts were dropped because requests were not re-received before readying with namespace %q: %q", keyNamespace, nonexistentPrompts)
-		data := map[string]string{"resolved": "expired"}
+		data := state.NoticeCustomData{}
+		data.Set("resolved", "expired")
 		for promptID, userID := range nonexistentPrompts {
 			pdb.notifyPrompt(userID, promptID, data)
 		}
@@ -1080,7 +1083,8 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 
 	userEntry.remove(id)
 
-	data := map[string]string{"resolved": "replied"}
+	data := state.NoticeCustomData{}
+	data.Set("resolved", "replied")
 	logger.Debugf("received reply for prompt: %q", id)
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
@@ -1184,7 +1188,8 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 
 		satisfiedPromptIDs = append(satisfiedPromptIDs, prompt.ID)
 		logger.Debugf("new rule satisfied prompt: %q", prompt.ID)
-		data := map[string]string{"resolved": "satisfied"}
+		data := state.NoticeCustomData{}
+		data.Set("resolved", "satisfied")
 		pdb.notifyPrompt(metadata.User, prompt.ID, data)
 	}
 	return satisfiedPromptIDs, nil

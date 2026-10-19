@@ -130,8 +130,12 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 		switch idx {
 		case 0:
 			c.Check(notice.Key(), check.Equals, "first test warning")
-			c.Check(notice.LastData()["show-after"], check.Equals, defaultShowAfter)
-			c.Check(notice.LastData()["last-shown"], check.Equals, lastShown.Format(time.RFC3339Nano))
+			var noticeShowAfter time.Duration
+			notice.LastData().Get("show-after", &noticeShowAfter)
+			c.Check(noticeShowAfter.String(), check.Equals, defaultShowAfter)
+			var noticeLastShown time.Time
+			notice.LastData().Get("last-shown", &noticeLastShown)
+			c.Check(noticeLastShown.Format(time.RFC3339Nano), check.Equals, lastShown.Format(time.RFC3339Nano))
 		case 1:
 			c.Check(notice.Key(), check.Equals, "second test warning")
 		case 2:

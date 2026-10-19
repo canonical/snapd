@@ -40,7 +40,7 @@ func (s *noticesSuite) TestNewNotice(c *C) {
 	nType := state.NoticeType("bar")
 	key := "baz"
 	timestamp := time.Now()
-	var data state.NoticeCustomData
+	data := state.NoticeCustomData{}
 	data.Set("fizz", "buzz")
 	repeatAfter := 10 * time.Second
 	expireAfter := 30 * time.Second
@@ -78,7 +78,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	nType := state.NoticeType("bar")
 	key := "baz"
 	timestamp := time.Now()
-	var data state.NoticeCustomData
+	data := state.NoticeCustomData{}
 	data.Set("fizz", "buzz")
 	repeatAfter := 10 * time.Second
 	expireAfter := 30 * time.Second
@@ -153,7 +153,7 @@ func (s *noticesSuite) TestDeepCopy(c *C) {
 	nType := state.NoticeType("bar")
 	key := "baz"
 	timestamp := time.Now()
-	var data state.NoticeCustomData
+	data := state.NoticeCustomData{}
 	data.Set("fizz", "buzz")
 	repeatAfter := 10 * time.Second
 	expireAfter := 30 * time.Second

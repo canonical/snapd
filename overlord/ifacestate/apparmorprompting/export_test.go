@@ -135,7 +135,7 @@ func (nb *noticeBackends) RuleBackend() *noticeTypeBackend {
 	return nb.ruleBackend
 }
 
-func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data map[string]string) error {
+func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data state.NoticeCustomData) error {
 	return ntb.addNotice(userID, id, data)
 }
 

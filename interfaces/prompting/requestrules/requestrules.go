@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -177,7 +178,7 @@ type RuleDB struct {
 	dbPath string
 	// notifyRule is a closure which will be called to record a notice when a
 	// rule is added, patched, or removed.
-	notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+	notifyRule func(userID uint32, ruleID prompting.IDType, data state.NoticeCustomData) error
 
 	// userSessionIDMu ensures that two threads cannot race to write a new user
 	// session ID.
@@ -194,7 +195,7 @@ type RuleDB struct {
 // expired, or removed. In order to guarantee the order of notices, notifyRule
 // is called with the prompt DB lock held, so it should not block for a
 // substantial amount of time (such as to lock and modify snapd state).
-func New(notifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error) (*RuleDB, error) {
+func New(notifyRule func(userID uint32, ruleID prompting.IDType, data state.NoticeCustomData) error) (*RuleDB, error) {
 	maxIDFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rule-max-id")
 	rulesFilepath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
 
@@ -307,7 +308,8 @@ func (rdb *RuleDB) load() (retErr error) {
 	if errInvalid != nil {
 		// The DB on disk was invalid, so drop every rule and start over
 		logger.Debug("WARNING: rule DB invalid, so dropping every rule")
-		data := map[string]string{"removed": "dropped"}
+		data := state.NoticeCustomData{}
+		data.Set("removed", "dropped")
 		for _, rule := range wrapped.Rules {
 			rdb.notifyRule(rule.User, rule.ID, data)
 		}
@@ -320,16 +322,16 @@ func (rdb *RuleDB) load() (retErr error) {
 		return strutil.JoinErrors(errInvalid, rdb.save())
 	}
 
-	expiredData := map[string]string{"removed": "expired"}
+	expiredData := state.NoticeCustomData{}
+	expiredData.Set("removed", "expired")
 	for _, rule := range wrapped.Rules {
-		var data map[string]string
+		var data state.NoticeCustomData
 		if expiredRules[rule.ID] {
 			data = expiredData
 		} else if newID, exists := mergedRules[rule.ID]; exists {
-			data = map[string]string{
-				"removed":     "merged",
-				"merged-into": newID.String(),
-			}
+			data = state.NoticeCustomData{}
+			data.Set("removed", "merged")
+			data.Set("merged-into", newID.String())
 		} else if partiallyExpiredRules[rule.ID] {
 			// no-op, want to record notice with empty data
 		} else {
@@ -742,7 +744,8 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 		return conflicts
 	}
 
-	expiredData := map[string]string{"removed": "expired"}
+	expiredData := state.NoticeCustomData{}
+	expiredData.Set("removed", "expired")
 	for ruleID := range partiallyExpiredRules {
 		maybeExpired, err := rdb.lookupRuleByIDForUser(rule.User, ruleID)
 		if err != nil {
@@ -1297,7 +1300,8 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// If error occurs, rule was still fully removed from tree, and no other
 	// rule was affected. We want the rule fully removed, so this is fine.
 
-	data := map[string]string{"removed": "removed"}
+	data := state.NoticeCustomData{}
+	data.Set("removed", "removed")
 	logger.Debugf("rule was removed: %q", id)
 	rdb.notifyRule(user, id, data)
 	return rule, nil
@@ -1352,7 +1356,8 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 
 	// Save successful, now remove rules' variants from tree
 	logger.Debugf("removed rules: %q", removedRuleIDs)
-	data := map[string]string{"removed": "removed"}
+	data := state.NoticeCustomData{}
+	data.Set("removed", "removed")
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
 		// If error occurs, rule was still fully removed from tree, and no other

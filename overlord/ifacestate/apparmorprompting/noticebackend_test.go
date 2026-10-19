@@ -64,8 +64,11 @@ func (s *noticebackendSuite) TestNewNoticeBackends(c *C) {
 func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 	uid1 := uint32(1000)
 	uid2 := uint32(1001)
-	data1 := map[string]string{"foo": "bar"}
-	data2 := map[string]string{"baz": "qux", "fizz": "buzz"}
+	data1 := state.NoticeCustomData{}
+	data2 := state.NoticeCustomData{}
+	data1.Set("foo", "bar")
+	data2.Set("baz", "qux")
+	data2.Set("fizz", "buzz")
 	// Add some notices to state so that they are drained and added to the
 	// prompting backends during registration. Notice keys are expected to be
 	// the result of IDType.String(), so make sure these are that.
@@ -261,8 +264,11 @@ func (s *noticebackendSuite) TestAddNoticeData(c *C) {
 
 	userID := uint32(1000)
 
-	data1 := map[string]string{"foo": "bar", "baz": "qux"}
-	data2 := map[string]string{"fizz": "buzz"}
+	data1 := state.NoticeCustomData{}
+	data2 := state.NoticeCustomData{}
+	data1.Set("foo", "bar")
+	data1.Set("baz", "qux")
+	data2.Set("fizz", "buzz")
 
 	// Add notice with no data
 	c.Check(promptBackend.AddNotice(userID, 0x123, nil), IsNil)
@@ -474,8 +480,11 @@ func (s *noticebackendSuite) TestLoad(c *C) {
 	noticeBackend, err := apparmorprompting.NewNoticeBackends(s.noticeMgr)
 	c.Assert(err, IsNil)
 
-	data1 := map[string]string{"foo": "bar"}
-	data2 := map[string]string{"baz": "qux", "fizz": "buzz"}
+	data1 := state.NoticeCustomData{}
+	data2 := state.NoticeCustomData{}
+	data1.Set("foo", "bar")
+	data2.Set("baz", "qux")
+	data2.Set("fizz", "buzz")
 
 	c.Check(noticeBackend.PromptBackend().AddNotice(123, 0x456, nil), IsNil)
 	c.Check(noticeBackend.PromptBackend().AddNotice(789, 0xabc, data1), IsNil)

@@ -100,9 +100,9 @@ func (s *noticesSuite) testNoticesFilter(c *C, makeQuery func(after time.Time) u
 	addNotice(c, st, &uid, state.InterfacesRequestsPromptNotice, "id", nil)
 	after := time.Now()
 	time.Sleep(time.Microsecond)
-	noticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		Data: map[string]string{"k": "v"},
-	})
+	opts := &state.AddNoticeOptions{}
+	opts.Set("k", "v")
+	noticeID, err := st.AddNotice(nil, state.ChangeUpdateNotice, "123", opts)
 	c.Assert(err, IsNil)
 	st.Unlock()
 

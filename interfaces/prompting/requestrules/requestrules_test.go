@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -52,7 +53,18 @@ func Test(t *testing.T) { TestingT(t) }
 type noticeInfo struct {
 	userID uint32
 	ruleID prompting.IDType
-	data   map[string]string
+	data   state.NoticeCustomData
+}
+
+func newNoticeData(data map[string]string) state.NoticeCustomData {
+	if data == nil {
+		return nil
+	}
+	noticeData := state.NoticeCustomData{}
+	for key, value := range data {
+		noticeData.Set(key, value)
+	}
+	return noticeData
 }
 
 func (ni *noticeInfo) String() string {
@@ -62,7 +74,7 @@ func (ni *noticeInfo) String() string {
 type requestrulesSuite struct {
 	testutil.BaseTest
 
-	defaultNotifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
+	defaultNotifyRule func(userID uint32, ruleID prompting.IDType, data state.NoticeCustomData) error
 	defaultUser       uint32
 	ruleNotices       []*noticeInfo
 	currSession       prompting.IDType
@@ -72,7 +84,7 @@ var _ = Suite(&requestrulesSuite{})
 
 func (s *requestrulesSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
-	s.defaultNotifyRule = func(userID uint32, ruleID prompting.IDType, data map[string]string) error {
+	s.defaultNotifyRule = func(userID uint32, ruleID prompting.IDType, data state.NoticeCustomData) error {
 		info := &noticeInfo{
 			userID: userID,
 			ruleID: ruleID,
@@ -250,7 +262,7 @@ func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, rules []*req
 	if checkWritten {
 		s.checkWrittenRuleDB(c, nil)
 	}
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "dropped"}, rules...)
+	s.checkNewNoticesSimple(c, newNoticeData(map[string]string{"removed": "dropped"}), rules...)
 }
 
 func filterOutDebugLogs(logbuf *bytes.Buffer) string {
@@ -278,7 +290,7 @@ func (s *requestrulesSuite) checkWrittenRuleDB(c *C, expectedRules []*requestrul
 	c.Check(string(writtenData), Equals, string(marshalled))
 }
 
-func (s *requestrulesSuite) checkNewNoticesSimple(c *C, data map[string]string, rules ...*requestrules.Rule) {
+func (s *requestrulesSuite) checkNewNoticesSimple(c *C, data state.NoticeCustomData, rules ...*requestrules.Rule) {
 	expectedNotices := make([]*noticeInfo, len(rules))
 	for i, rule := range rules {
 		info := &noticeInfo{
@@ -493,12 +505,12 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 		{
 			userID: expired1.User,
 			ruleID: expired1.ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 		{
 			userID: expired2.User,
 			ruleID: expired2.ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
@@ -702,26 +714,26 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 		{
 			userID: identical1.User,
 			ruleID: identical1.ID,
-			data: map[string]string{
+			data: newNoticeData(map[string]string{
 				"removed":     "merged",
 				"merged-into": good1.ID.String(),
-			},
+			}),
 		},
 		{
 			userID: nonOverlap2.User,
 			ruleID: nonOverlap2.ID,
-			data: map[string]string{
+			data: newNoticeData(map[string]string{
 				"removed":     "merged",
 				"merged-into": good2.ID.String(),
-			},
+			}),
 		},
 		{
 			userID: overlap3.User,
 			ruleID: overlap3.ID,
-			data: map[string]string{
+			data: newNoticeData(map[string]string{
 				"removed":     "merged",
 				"merged-into": good3.ID.String(),
-			},
+			}),
 		},
 		{
 			userID: good4.User,
@@ -731,10 +743,10 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 		{
 			userID: overlap4.User,
 			ruleID: overlap4.ID,
-			data: map[string]string{
+			data: newNoticeData(map[string]string{
 				"removed":     "merged",
 				"merged-into": good4.ID.String(),
-			},
+			}),
 		},
 	}
 	s.checkNewNotices(c, expectedNoticeInfo)
@@ -1728,7 +1740,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 		{
 			userID: initialSessionDeny.User,
 			ruleID: initialSessionDeny.ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 		{
 			userID: initialSessionAllow.User,
@@ -1757,7 +1769,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 		{
 			userID: initialSessionAllow.User,
 			ruleID: initialSessionAllow.ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 		{
 			userID: prev.User,
@@ -1784,7 +1796,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 			{
 				userID: prev.User,
 				ruleID: prev.ID,
-				data:   map[string]string{"removed": "expired"},
+				data:   newNoticeData(map[string]string{"removed": "expired"}),
 			},
 			{
 				userID: newRule.User,
@@ -1808,7 +1820,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 		{
 			userID: prev.User,
 			ruleID: prev.ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 		{
 			userID: final.User,
@@ -2608,7 +2620,7 @@ func (s *requestrulesSuite) testRemoveRule(c *C, rdb *requestrules.RuleDB, rule 
 	c.Check(removed, DeepEquals, rule)
 
 	// Notice should be recorded immediately
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed)
+	s.checkNewNoticesSimple(c, newNoticeData(map[string]string{"removed": "removed"}), removed)
 
 	// Post-check that rule no longer exists
 	missing, err := rdb.RuleWithID(rule.User, rule.ID)
@@ -2673,7 +2685,7 @@ func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 
 	// Since removal succeeded for all corrupted rules (despite internal errors),
 	// should get "removed" notices for each removed rule.
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, addedRules[1:4]...)
+	s.checkNewNoticesSimple(c, newNoticeData(map[string]string{"removed": "removed"}), addedRules[1:4]...)
 
 	// Removing a rule after the rule DB has been closed should return an error
 	// immediately.
@@ -2704,7 +2716,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnap(c *C) {
 	c.Check(removed, DeepEquals, rules[2:4])
 
 	s.checkWrittenRuleDB(c, append(rules[:2], rules[4]))
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
+	s.checkNewNoticesSimple(c, newNoticeData(map[string]string{"removed": "removed"}), removed...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForInterface(c *C) {
@@ -2720,7 +2732,7 @@ func (s *requestrulesSuite) TestRemoveRulesForInterface(c *C) {
 	c.Check(removed, DeepEquals, rules[:3])
 
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{rules[4], rules[3]}) // removal reorders
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
+	s.checkNewNoticesSimple(c, newNoticeData(map[string]string{"removed": "removed"}), removed...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
@@ -2736,7 +2748,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 	c.Check(removed, DeepEquals, []*requestrules.Rule{rules[3]})
 
 	s.checkWrittenRuleDB(c, append(rules[:3], rules[4]))
-	s.checkNewNoticesSimple(c, map[string]string{"removed": "removed"}, removed...)
+	s.checkNewNoticesSimple(c, newNoticeData(map[string]string{"removed": "removed"}), removed...)
 }
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
@@ -3235,12 +3247,12 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		{
 			userID: rules[0].User,
 			ruleID: rules[0].ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 		{
 			userID: rules[1].User,
 			ruleID: rules[1].ID,
-			data:   map[string]string{"removed": "expired"},
+			data:   newNoticeData(map[string]string{"removed": "expired"}),
 		},
 		{
 			userID: rules[2].User,

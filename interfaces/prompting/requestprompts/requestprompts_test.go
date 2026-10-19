@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testtime"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
@@ -49,11 +50,11 @@ func Test(t *testing.T) { TestingT(t) }
 
 type noticeInfo struct {
 	promptID prompting.IDType
-	data     map[string]string
+	data     state.NoticeCustomData
 }
 
 type requestpromptsSuite struct {
-	defaultNotifyPrompt func(userID uint32, promptID prompting.IDType, data map[string]string) error
+	defaultNotifyPrompt func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error
 	defaultUser         uint32
 	promptNotices       []*noticeInfo
 
@@ -79,7 +80,7 @@ func newRequestWithReplyChan(key string) (req *prompting.Request, replyChan chan
 
 func (s *requestpromptsSuite) SetUpTest(c *C) {
 	s.defaultUser = 1000
-	s.defaultNotifyPrompt = func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+	s.defaultNotifyPrompt = func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error {
 		c.Check(userID, Equals, s.defaultUser)
 		info := &noticeInfo{
 			promptID: promptID,
@@ -97,7 +98,7 @@ func (s *requestpromptsSuite) SetUpTest(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNew(c *C) {
-	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
 	}
@@ -113,7 +114,7 @@ func (s *requestpromptsSuite) TestNew(c *C) {
 func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
 
-	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
 	}
@@ -157,7 +158,7 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 }
 
 func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
-	notifyPrompt := func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+	notifyPrompt := func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error {
 		c.Fatalf("unexpected notice with userID %d and ID %016X", userID, promptID)
 		return nil
 	}
@@ -370,7 +371,8 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 		c.Fatalf("should now be ready")
 	}
 
-	noticeData := map[string]string{"resolved": "expired"}
+	noticeData := state.NoticeCustomData{}
+	noticeData.Set("resolved", "expired")
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
 
 	c.Check(timer.Active(), Equals, false)
@@ -447,7 +449,8 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 		c.Fatalf("should now be ready")
 	}
 
-	noticeData := map[string]string{"resolved": "expired"}
+	noticeData := state.NoticeCustomData{}
+	noticeData.Set("resolved", "expired")
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{1, 2}, noticeData)
 
 	<-callbackDone
@@ -1126,11 +1129,11 @@ func (s *requestpromptsSuite) TestAddOrMergeInvalidMapping(c *C) {
 	s.checkWrittenMaxID(c, expectedID)
 }
 
-func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData map[string]string) {
+func (s *requestpromptsSuite) checkNewNoticesSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData state.NoticeCustomData) {
 	s.checkNewNotices(c, applyNotices(expectedPromptIDs, expectedData))
 }
 
-func applyNotices(expectedPromptIDs []prompting.IDType, expectedData map[string]string) []*noticeInfo {
+func applyNotices(expectedPromptIDs []prompting.IDType, expectedData state.NoticeCustomData) []*noticeInfo {
 	expectedNotices := make([]*noticeInfo, len(expectedPromptIDs))
 	for i, id := range expectedPromptIDs {
 		info := &noticeInfo{
@@ -1159,7 +1162,7 @@ func (s *requestpromptsSuite) checkNewNotices(c *C, expectedNotices []*noticeInf
 	s.promptNotices = s.promptNotices[:0]
 }
 
-func (s *requestpromptsSuite) checkNewNoticesUnorderedSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData map[string]string) {
+func (s *requestpromptsSuite) checkNewNoticesUnorderedSimple(c *C, expectedPromptIDs []prompting.IDType, expectedData state.NoticeCustomData) {
 	s.checkNewNoticesUnordered(c, applyNotices(expectedPromptIDs, expectedData))
 }
 
@@ -1399,7 +1402,8 @@ func (s *requestpromptsSuite) TestReply(c *C) {
 			// all good
 		}
 
-		expectedData := map[string]string{"resolved": "replied"}
+		expectedData := state.NoticeCustomData{}
+		expectedData.Set("resolved", "replied")
 		s.checkNewNoticesSimple(c, []prompting.IDType{repliedPrompt.ID}, expectedData)
 		// Reply should have cleared mappings for request keys associated with replied prompt
 		expectedMap = map[string]requestprompts.RequestMapEntry{}
@@ -1573,9 +1577,11 @@ func (s *requestpromptsSuite) testHandleNewRule(c *C, requestedPath, replyPatter
 	// Read permissions of prompt2 satisfied, but it has one outstanding
 	// permission, so notice re-issued. prompt1 satisfied because at least
 	// one permission was denied, and prompt3 permissions fully satisfied.
-	e1 := &noticeInfo{promptID: prompt1.ID, data: map[string]string{"resolved": "satisfied"}}
+	data := state.NoticeCustomData{}
+	data.Set("resolved", "satisfied")
+	e1 := &noticeInfo{promptID: prompt1.ID, data: data}
 	e2 := &noticeInfo{promptID: prompt2.ID, data: nil}
-	e3 := &noticeInfo{promptID: prompt3.ID, data: map[string]string{"resolved": "satisfied"}}
+	e3 := &noticeInfo{promptID: prompt3.ID, data: data}
 	expectedNotices := []*noticeInfo{e1, e2, e3}
 	s.checkNewNoticesUnordered(c, expectedNotices)
 	// Check that mappings cleaned up for requests associated with resolved prompts
@@ -1613,7 +1619,8 @@ func (s *requestpromptsSuite) testHandleNewRule(c *C, requestedPath, replyPatter
 	c.Check(satisfied, HasLen, 1)
 	c.Check(satisfied[0], Equals, prompt2.ID)
 
-	expectedData := map[string]string{"resolved": "satisfied"}
+	expectedData := state.NoticeCustomData{}
+	expectedData.Set("resolved", "satisfied")
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt2.ID}, expectedData)
 	// Check that mappings cleaned up for request associated with resolved prompt
 	delete(expectedMap, "fake:34")
@@ -1777,7 +1784,8 @@ func (s *requestpromptsSuite) testHandleNewRuleNonMatches(c *C, requestedPath, m
 	c.Check(err, IsNil)
 	c.Assert(satisfied, HasLen, 1)
 
-	expectedData := map[string]string{"resolved": "satisfied"}
+	expectedData := state.NoticeCustomData{}
+	expectedData.Set("resolved", "satisfied")
 	s.checkNewNoticesSimple(c, []prompting.IDType{prompt.ID}, expectedData)
 
 	allowedPerms := waitForReply(c, replyChan)
@@ -2219,7 +2227,8 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	// Notice should be recorded for every prompt associated with a request
 	// with the "bar" namespace for which no request was re-received. That is,
 	// prompt ID 5.
-	noticeData := map[string]string{"resolved": "expired"}
+	noticeData := state.NoticeCustomData{}
+	noticeData.Set("resolved", "expired")
 	s.checkNewNoticesSimple(c, []prompting.IDType{5}, noticeData)
 	// Handling ready should prune all pending requests with namespace "bar"
 	// which have not been re-received.
@@ -2249,7 +2258,6 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 
 	// Notice should be recorded for every prompt for which no request was
 	// re-received. That is, prompt ID 3 and 6.
-	noticeData = map[string]string{"resolved": "expired"}
 	s.checkNewNoticesUnorderedSimple(c, []prompting.IDType{3, 6}, noticeData)
 	// Handling ready should prune all pending requests which have not been
 	// re-received.
@@ -2402,7 +2410,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	outstandingPermissions := []string{"write", "execute"}
 
 	noticeChan := make(chan noticeInfo, 1)
-	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error {
 		c.Assert(userID, Equals, s.defaultUser)
 		noticeChan <- noticeInfo{
 			promptID: promptID,
@@ -2441,7 +2449,9 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 
 	// Prompt should expire after initialTimeout, but half already elapsed
 	timer.Elapse(requestprompts.InitialTimeout - requestprompts.InitialTimeout/2)
-	checkCurrentNoticesMultiple(c, noticeChan, []prompting.IDType{prompt.ID, prompt2.ID}, map[string]string{"resolved": "expired"})
+	expiredData := state.NoticeCustomData{}
+	expiredData.Set("resolved", "expired")
+	checkCurrentNoticesMultiple(c, noticeChan, []prompting.IDType{prompt.ID, prompt2.ID}, expiredData)
 	// Expect two replies, one for each prompt
 	allowedPerms := waitForReply(c, replyChan1)
 	c.Check(allowedPerms, DeepEquals, []string{"read"})
@@ -2492,7 +2502,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 
 	// Prompt should expire after activityTimeout
 	timer.Elapse(requestprompts.ActivityTimeout - requestprompts.InitialTimeout)
-	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
+	checkCurrentNotices(c, noticeChan, prompt.ID, expiredData)
 	allowedPerms = waitForReply(c, replyChan3)
 	c.Check(allowedPerms, DeepEquals, []string{"read"})
 	c.Assert(timer.FireCount(), Equals, 2)
@@ -2525,7 +2535,7 @@ func (s *requestpromptsSuite) TestPromptExpiration(c *C) {
 	// activity timeout, so prompt should expire after initialTimeout (since we
 	// already elapsed initialTimeout-1ns, just wait 1ns more).
 	timer.Elapse(time.Nanosecond)
-	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
+	checkCurrentNotices(c, noticeChan, prompt.ID, expiredData)
 	allowedPerms = waitForReply(c, replyChan4)
 	c.Assert(allowedPerms, DeepEquals, []string{"read"})
 	c.Assert(timer.FireCount(), Equals, 3)
@@ -2564,7 +2574,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	outstandingPermissions := []string{"write", "execute"}
 
 	noticeChan := make(chan noticeInfo, 1)
-	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data map[string]string) error {
+	pdb, err := requestprompts.New(func(userID uint32, promptID prompting.IDType, data state.NoticeCustomData) error {
 		c.Assert(userID, Equals, s.defaultUser)
 		noticeChan <- noticeInfo{
 			promptID: promptID,
@@ -2638,7 +2648,9 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	// Wait for it to finish
 	<-callbackSignaller
 
-	checkCurrentNotices(c, noticeChan, prompt.ID, map[string]string{"resolved": "expired"})
+	expiredData := state.NoticeCustomData{}
+	expiredData.Set("resolved", "expired")
+	checkCurrentNotices(c, noticeChan, prompt.ID, expiredData)
 	allowedPerms := waitForReply(c, replyChan)
 	c.Check(allowedPerms, DeepEquals, []string{"read"})
 
@@ -2646,7 +2658,7 @@ func (s *requestpromptsSuite) TestPromptExpirationRace(c *C) {
 	c.Assert(err, Equals, prompting_errors.ErrPromptNotFound)
 }
 
-func checkCurrentNotices(c *C, noticeChan chan noticeInfo, expectedID prompting.IDType, expectedData map[string]string) {
+func checkCurrentNotices(c *C, noticeChan chan noticeInfo, expectedID prompting.IDType, expectedData state.NoticeCustomData) {
 	select {
 	case info := <-noticeChan:
 		c.Assert(info.promptID, Equals, expectedID)
@@ -2656,7 +2668,7 @@ func checkCurrentNotices(c *C, noticeChan chan noticeInfo, expectedID prompting.
 	}
 }
 
-func checkCurrentNoticesMultiple(c *C, noticeChan chan noticeInfo, expectedIDs []prompting.IDType, expectedData map[string]string) {
+func checkCurrentNoticesMultiple(c *C, noticeChan chan noticeInfo, expectedIDs []prompting.IDType, expectedData state.NoticeCustomData) {
 	expected := make(map[prompting.IDType]int)
 	for _, id := range expectedIDs {
 		expected[id] += 1
