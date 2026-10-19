@@ -680,7 +680,7 @@ func mountUnitFileExists(unit string) bool {
 // /var/snap to already be mount points before installing a classic snap
 // under a non-empty instance key. Only applies to fresh installs, not
 // refreshes.
-func checkSnapMountDirForParallelClassicInstall(info *snap.Info, snapst *SnapState) error {
+func checkSnapMountDirForParallelClassicInstall(st *state.State, info *snap.Info, snapst *SnapState) error {
 	if snapst.IsInstalled() || info.InstanceKey == "" || !info.NeedsClassic() {
 		return nil
 	}
@@ -697,7 +697,22 @@ func checkSnapMountDirForParallelClassicInstall(info *snap.Info, snapst *SnapSta
 		return nil
 	}
 
+	snapsCount, err := NumSnaps(st)
+	if err != nil {
+		return err
+	}
+
 	snapMountUnit := snapMountDirUnitName()
+	if varSnapMounted && !mountDirMounted && snapsCount == 0 {
+		// This is a first snap being installed in the system. The
+		// var-snap.mount is already mounted, but snap-mount-dir mount is not,
+		// because no snaps exited in the system before. However, once our snap
+		// gets mounted, the snap-mount-dir mount will be automatically
+		// activated as an implicit dependency, so it will be possible to run
+		// the snap.
+		return nil
+	}
+
 	if mountUnitFileExists(snapMountUnit) && mountUnitFileExists("var-snap.mount") {
 		return fmt.Errorf("cannot install classic snap %q as parallel instance: "+
 			"%s needs to be started, and var-snap.mount needs to be enabled and started", info.InstanceName(), snapMountUnit)
@@ -747,7 +762,7 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 			return flags, err
 		}
 	}
-	if err := checkSnapMountDirForParallelClassicInstall(info, snapst); err != nil {
+	if err := checkSnapMountDirForParallelClassicInstall(st, info, snapst); err != nil {
 		return flags, err
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the

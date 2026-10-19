@@ -7371,6 +7371,9 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstall(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	unrelatedMountInfo := "104 23 0:19 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=99840k,mode=755"
 	mountEntry := func(dir string) string {
 		return fmt.Sprintf("660 30 8:1 / %s rw,relatime shared:1 - ext4 /dev/sda1 rw", dir)
@@ -7467,7 +7470,7 @@ func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstall(c *C) 
 			snapst.Current = snap.R(1)
 		}
 
-		err := snapstate.CheckSnapMountDirForParallelClassicInstall(info, &snapst)
+		err := snapstate.CheckSnapMountDirForParallelClassicInstall(s.state, info, &snapst)
 		if t.errMatch != "" {
 			c.Assert(err, ErrorMatches, t.errMatch)
 		} else {
@@ -7478,7 +7481,42 @@ func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstall(c *C) 
 	}
 }
 
+func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstallFirstSnap(c *C) {
+	unitDir := filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system")
+	c.Assert(os.MkdirAll(unitDir, 0755), IsNil)
+	for _, unit := range []string{"snap.mount", "var-snap.mount"} {
+		c.Assert(os.WriteFile(filepath.Join(unitDir, unit), nil, 0644), IsNil)
+	}
+
+	mountInfo := fmt.Sprintf("660 30 8:1 / %s rw,relatime shared:1 - ext4 /dev/sda1 rw", dirs.SnapDataDir)
+	restore := osutil.MockMountInfo(mountInfo)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	info := &snap.Info{SuggestedName: "some-snap", InstanceKey: "foo", Confinement: snap.ClassicConfinement}
+	err := snapstate.CheckSnapMountDirForParallelClassicInstall(st, info, &snapstate.SnapState{})
+	c.Assert(err, IsNil)
+
+	// An existing snap means that an unmounted parent cannot be assumed safe
+	// to activate over its already mounted revisions.
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	})
+	err = snapstate.CheckSnapMountDirForParallelClassicInstall(st, info, &snapstate.SnapState{})
+	c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cannot install classic snap "some-snap_foo" as parallel instance: snap.mount needs to be started, and var-snap.mount needs to be enabled and started`))
+}
+
 func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstallAlternateMountDir(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	originalRoot := dirs.GlobalRootDir
 	altRoot := c.MkDir()
 	dirstest.MustMockAltSnapMountDir(altRoot)
@@ -7495,7 +7533,7 @@ func (s *snapmgrTestSuite) TestCheckSnapMountDirForParallelClassicInstallAlterna
 	defer restore()
 
 	info := &snap.Info{SuggestedName: "some-snap", InstanceKey: "foo", Confinement: snap.ClassicConfinement}
-	err := snapstate.CheckSnapMountDirForParallelClassicInstall(info, &snapstate.SnapState{})
+	err := snapstate.CheckSnapMountDirForParallelClassicInstall(s.state, info, &snapstate.SnapState{})
 	c.Assert(err, ErrorMatches, regexp.QuoteMeta(`cannot install classic snap "some-snap_foo" as parallel instance: var-lib-snapd-snap.mount needs to be started, and var-snap.mount needs to be enabled and started`))
 }
 
