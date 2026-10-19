@@ -680,6 +680,9 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-26.*)
             echo "
+                autoconf
+                autoconf-archive
+                automake
                 util-linux-extra
                 dbus-user-session
                 fwupd
@@ -696,6 +699,9 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-*)
             echo "
+                autoconf
+                autoconf-archive
+                automake
                 squashfs-tools
                 "
             ;;
