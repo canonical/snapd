@@ -196,6 +196,13 @@ func (ntb *noticeTypeBackend) noticeKeyToID(key string) string {
 	return fmt.Sprintf("%s-%s", ntb.namespace, key)
 }
 
+// Some things need to be mockable for testing so that we can create
+// pre-expired notices without them being immediately pruned.
+var (
+	timeNow                  = time.Now
+	skipExpirationForTesting = false
+)
+
 // addNotice records an occurrence of a notice with the specified user ID, a
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
@@ -216,11 +223,9 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 
 	// Check if any notices have expired relative to the new timestamp.
 	// Since they're sorted, as soon as we see a non-expired notice, bail out.
-	// Do this before potentially calling Reoccur on the existing notice, so we
-	// see its original timestamp in the sorted slice.
 	expiredCount := 0
 	for _, n := range userNotices {
-		if !n.Expired(timestamp) {
+		if !n.Expired(timestamp) || skipExpirationForTesting {
 			break
 		}
 		expiredCount++
@@ -228,8 +233,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 
 	var newNotice *state.Notice
 	if existingNotice != nil && !existingNotice.Expired(timestamp) {
-		newNotice = existingNotice.DeepCopy()
-		newNotice.Reoccur(timestamp, data, 0)
+		newNotice, _ = existingNotice.Reoccur(timestamp, data, 0)
 	} else {
 		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
 	}
@@ -457,7 +461,7 @@ func (ntb *noticeTypeBackend) BackendNotices(filter *state.NoticeFilter) []*stat
 	}
 	ntb.rwmu.RLock()
 	defer ntb.rwmu.RUnlock()
-	now := time.Now()
+	now := timeNow()
 	return ntb.doNotices(simplifiedFilter, now)
 }
 
