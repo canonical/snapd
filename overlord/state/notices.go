@@ -17,7 +17,6 @@ package state
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -525,16 +524,6 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	if noticeType == WarningNotice {
 		if options == nil {
 			return fmt.Errorf("cannot add %s notice without specifying options", noticeType)
-		}
-
-		var showAfter time.Duration
-		if err := options.Data.Get("show-after", &showAfter); err != nil && !errors.Is(err, ErrNoState) {
-			return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
-		}
-
-		var lastShown time.Time
-		if err := options.Data.Get("last-shown", &lastShown); err != nil && !errors.Is(err, ErrNoState) {
-			return fmt.Errorf("cannot add %s notice with invalid last-shown time: %w", noticeType, err)
 		}
 
 		if options.ExpireAfter == 0 {
