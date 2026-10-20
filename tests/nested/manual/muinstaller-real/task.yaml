@@ -157,7 +157,8 @@ execute: |
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
       remote.exec lsmod | MATCH ahci
       # Check that the kernel-modules component can be removed
-      remote.exec sudo snap remove pc-kernel+efi-pstore
+      # Reconnect so the persistent SSH session does not retain the component mount while it is removed.
+      remote.exec --reconnect sudo snap remove pc-kernel+efi-pstore
   fi
 
   api_get_v2_system_info_storage_encrypted() {
