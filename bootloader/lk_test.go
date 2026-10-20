@@ -1047,6 +1047,34 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairWhenBootPartitionCanno
 	}
 }
 
+func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairWhenPreparingImage(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	opts := &bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleSole,
+	}
+	r = bootloader.MockLkFiles(c, s.rootdir, opts)
+	defer r()
+	lk := bootloader.NewLk(s.rootdir, opts)
+	c.Assert(lk, NotNil)
+
+	// the env comes from the gadget, and a duplicate in it is not something
+	// left behind on a device to recover from
+	env := lkenv.NewEnv(filepath.Join(s.rootdir, "boot", "lk", "snapbootsel.bin"), "", lkenv.V1)
+	c.Assert(env.Load(), IsNil)
+	c.Assert(env.SetBootPartitionKernel("boot_a", "ubuntu-kernel_41.snap"), IsNil)
+	c.Assert(env.SetBootPartitionKernel("boot_b", "ubuntu-kernel_41.snap"), IsNil)
+	env.Set("snap_kernel", "ubuntu-kernel_41.snap")
+	c.Assert(env.Save(), IsNil)
+
+	info, snapf := makeKernelSnap(c, 42, "kernel 42 boot image")
+	err := lk.ExtractKernelAssets(info, snapf)
+	c.Assert(err, ErrorMatches, "cannot find free boot image partition")
+	c.Check(logbuf.String(), Equals, "")
+}
+
 func (s *lkTestSuite) TestExtractKernelAssetsNoRepairNeeded(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()

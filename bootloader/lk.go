@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
@@ -519,9 +520,16 @@ func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
 		return nil
 	}
 
+	// repair in a stable order so that what gets logged is predictable
+	kernels := make([]string, 0, len(duplicates))
+	for kernel := range duplicates {
+		kernels = append(kernels, kernel)
+	}
+	sort.Strings(kernels)
+
 	repaired := false
-	for kernel, bootPartitions := range duplicates {
-		ok, err := l.repairDuplicateKernel(env, kernel, bootPartitions)
+	for _, kernel := range kernels {
+		ok, err := l.repairDuplicateKernel(env, kernel, duplicates[kernel])
 		if err != nil {
 			return err
 		}
@@ -644,8 +652,13 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// boot image partition, which leaves no free boot image partition for this
 	// kernel and would make FindFreeKernelBootPartition() below fail forever.
 	// Repair the boot image matrix first so such a device can be updated again.
-	if err := l.repairDuplicateKernelBootPartitions(env); err != nil {
-		return err
+	// When preparing an image the env comes straight from the gadget, there
+	// is no device whose boot image partitions could be checked, and nothing
+	// to recover.
+	if !l.prepareImageTime {
+		if err := l.repairDuplicateKernelBootPartitions(env); err != nil {
+			return err
+		}
 	}
 
 	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
