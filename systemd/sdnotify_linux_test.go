@@ -185,6 +185,20 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 		systemd.InitSdNotifySocket()
 		systemd.ResetSdNotifyConnCache()
 
+		// a hung write or read must fail the test quickly and say where,
+		// instead of hitting the go test timeout
+		notifyTimeout := func(state string) error {
+			done := make(chan error, 1)
+			go func() { done <- notify(state) }()
+			select {
+			case err := <-done:
+				return err
+			case <-time.After(10 * time.Second):
+				c.Fatalf("notify(%q) on %q (withFds=%v) did not return within 10s", state, sockPath, withFds)
+				return nil
+			}
+		}
+
 		addr := &net.UnixAddr{
 			Name: sockPath,
 			Net:  "unixgram",
@@ -192,8 +206,9 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 
 		readOne := func(conn *net.UnixConn) string {
 			var buf [128]byte
+			c.Assert(conn.SetReadDeadline(time.Now().Add(10*time.Second)), IsNil)
 			n, err := conn.Read(buf[:])
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, Commentf("reading from %q", sockPath))
 			return string(buf[:n])
 		}
 
@@ -201,7 +216,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 		conn1, err := net.ListenUnixgram("unixgram", addr)
 		c.Assert(err, IsNil)
 
-		err = notify("first")
+		err = notifyTimeout("first")
 		c.Assert(err, IsNil)
 		c.Check(readOne(conn1), Equals, "first")
 		c.Check(systemd.SdNotifyCache().Closed(), Equals, false)
@@ -210,7 +225,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 		// should drop the cached connection
 		conn1.Close()
 
-		err = notify("second")
+		err = notifyTimeout("second")
 		c.Assert(err, ErrorMatches, ".*connection refused")
 		c.Check(systemd.SdNotifyCache().Closed(), Equals, true)
 
@@ -223,7 +238,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 		conn2, err := net.ListenUnixgram("unixgram", addr)
 		c.Assert(err, IsNil)
 
-		err = notify("third")
+		err = notifyTimeout("third")
 		c.Assert(err, IsNil)
 		c.Check(readOne(conn2), Equals, "third")
 		c.Check(systemd.SdNotifyCache().Closed(), Equals, false)
