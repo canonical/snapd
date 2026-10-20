@@ -314,7 +314,11 @@ jobs:
       - static-checks 
     name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
-      runs-on: ubuntu-latest
+      # On resolute, a kernel bug will periodically cause a lockup
+      # in systemd unit test package.
+      # Until a fix is released, use noble runners
+      # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
+      runs-on: ubuntu-24.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: false
       code: 'go'
@@ -350,7 +354,11 @@ jobs:
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
     with:
-      runs-on: ubuntu-latest
+      # On resolute, a kernel bug will periodically cause a lockup
+      # in systemd unit test package.
+      # Until a fix is released, use noble runners
+      # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
+      runs-on: ubuntu-24.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
@@ -377,7 +385,11 @@ jobs:
     uses: ./.github/workflows/unit-tests-cross-distro.yaml
     needs: [static-checks]
     with:
-      runs-on: ubuntu-latest
+      # On resolute, a kernel bug will periodically cause a lockup
+      # in systemd unit test package.
+      # Until a fix is released, use noble runners
+      # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
+      runs-on: ubuntu-24.04
       distro: ${{ matrix.distro }}
 
     strategy:
@@ -417,7 +429,11 @@ jobs:
       - static-checks
     name: "unit-tests-root (Go default ${{ matrix.gochannel }})"
     with:
-      runs-on: ubuntu-latest
+      # On resolute, a kernel bug will periodically cause a lockup
+      # in systemd unit test package.
+      # Until a fix is released, use noble runners
+      # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
+      runs-on: ubuntu-24.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: true
       code: 'go'
