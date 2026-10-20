@@ -95,8 +95,38 @@ jobs:
             cp /home/test/snapd-parent/*.deb /tmp/builds
           "
 
+    - name: Collect build inventory
+      if: ${{ inputs.os == 'ubuntu' }}
+      run: |
+        mkdir -p /tmp/build-inventory
+
+        buildinfo=(../snapd_*.buildinfo)
+        if [ "${#buildinfo[@]}" -ne 1 ] || [ ! -f "${buildinfo[0]}" ]; then
+          echo "expected exactly one snapd .buildinfo file" >&2
+          exit 1
+        fi
+        grep -q '^Installed-Build-Depends:' "${buildinfo[0]}"
+        cp "${buildinfo[0]}" /tmp/build-inventory/
+
+        test -s vendor/modules.txt
+        cp vendor/modules.txt /tmp/build-inventory/vendor-modules.txt
+
+        squashfuse_version=$(sed -n 's/^AC_INIT(\[squashfuse\], \[\([^]]*\)\].*/\1/p' c-vendor/squashfuse/configure.ac)
+        squashfuse_commit=$(sed -n 's/^SQUASHFUSE_REF=//p' c-vendor/vendor.sh)
+        test -n "$squashfuse_version"
+        test -n "$squashfuse_commit"
+        printf 'squashfuse %s %s\n' "$squashfuse_version" "$squashfuse_commit" \
+          > /tmp/build-inventory/vendored-c-dependencies.txt
+
     - name: upload packages
       uses: actions/upload-artifact@v7
       with:
         name: package-${{ inputs.system }}
         path: /tmp/builds/
+
+    - name: Upload build inventory
+      if: ${{ inputs.os == 'ubuntu' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: package-${{ inputs.system }}-inventory
+        path: /tmp/build-inventory/
