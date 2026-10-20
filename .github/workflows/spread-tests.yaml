@@ -186,10 +186,16 @@ jobs:
     - name: Get changed files
       id: changed-files
       uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
+      with:
+        json: true
+        escape_json: false
+        output_renamed_files_as_deleted_and_added: true
 
     - name: Save changes files
+      env:
+        ALL_MODIFIED_FILES_JSON: ${{ steps.changed-files.outputs.all_modified_files }}
       run: |
-          CHANGED_FILES="${{ steps.changed-files.outputs.all_modified_files }}"
+          CHANGED_FILES="$(jq -r 'join(" ")' <<<"$ALL_MODIFIED_FILES_JSON")"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
@@ -369,21 +375,21 @@ jobs:
       if: ${{ github.event_name == 'pull_request' && env.RUN_SPREAD_SUBSET_LABEL == 'true' && env.SKIP_SPREAD_LABEL != 'true' && env.RUN_ALL_LABEL != 'true' && env.RUN_TESTS == 'true' }}
       env:
         TESTS_SELECTOR_URL: http://test-selector.snapd.canonical.com:8181
-        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        MODIFIED_FILES_JSON: ${{ steps.changed-files.outputs.modified_files }}
+        TYPE_CHANGED_FILES_JSON: ${{ steps.changed-files.outputs.type_changed_files }}
+        ADDED_FILES_JSON: ${{ steps.changed-files.outputs.added_files }}
+        DELETED_FILES_JSON: ${{ steps.changed-files.outputs.deleted_files }}
       run: |
           ALL_TESTS_FILE="${{ github.workspace }}/all-tests.txt"
           tr -s ' ' '\n' < "$RUN_TESTS_FILE" | grep -v '^$' > "$ALL_TESTS_FILE"
 
-          # The files the PR changes, as modified, added and deleted lists; a
-          # renamed file is deleted at its old path and added at its new one
-          if ! CHANGES="$(git diff --name-status --no-renames "$BASE_SHA...HEAD")"; then
-              echo "::warning::Could not compute the changed files, running all tests"
-              exit 0
-          fi
-          CHANGED_FILES_JSON="$(jq -Rn '[inputs | split("\t")] as $changes
-              | {modified: [$changes[] | select(.[0] == "M" or .[0] == "T") | .[1]],
-                 added: [$changes[] | select(.[0] == "A") | .[1]],
-                 deleted: [$changes[] | select(.[0] == "D") | .[1]]}' <<<"$CHANGES")"
+          # Treat type changes as modifications and renames as deleted and added.
+          CHANGED_FILES_JSON="$(jq -n \
+              --argjson modified "$MODIFIED_FILES_JSON" \
+              --argjson type_changed "$TYPE_CHANGED_FILES_JSON" \
+              --argjson added "$ADDED_FILES_JSON" \
+              --argjson deleted "$DELETED_FILES_JSON" \
+              '{modified: ($modified + $type_changed), added: $added, deleted: $deleted}')"
 
           REQUEST_FILE="${{ github.workspace }}/tests-selector-request.json"
           jq -n \
