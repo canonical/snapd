@@ -316,9 +316,9 @@ jobs:
     with:
       # On resolute, a kernel bug will periodically cause a lockup
       # in systemd unit test package.
-      # Until a fix is released, use noble runners
+      # Until a fix is released, use jammy runners
       # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: false
       code: 'go'
@@ -356,9 +356,9 @@ jobs:
     with:
       # On resolute, a kernel bug will periodically cause a lockup
       # in systemd unit test package.
-      # Until a fix is released, use noble runners
+      # Until a fix is released, use jammy runners
       # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: ${{ matrix.gochannel == 'latest/stable' || matrix.test-case.skip-coverage }}
       go-build-tags: ${{ matrix.test-case.go-build-tags }}
@@ -387,9 +387,9 @@ jobs:
     with:
       # On resolute, a kernel bug will periodically cause a lockup
       # in systemd unit test package.
-      # Until a fix is released, use noble runners
+      # Until a fix is released, use jammy runners
       # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       distro: ${{ matrix.distro }}
 
     strategy:
@@ -431,9 +431,9 @@ jobs:
     with:
       # On resolute, a kernel bug will periodically cause a lockup
       # in systemd unit test package.
-      # Until a fix is released, use noble runners
+      # Until a fix is released, use jammy runners
       # https://bugs.launchpad.net/ubuntu/+source/linux/+bug/2170572
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       gochannel: ${{ matrix.gochannel }}
       skip-coverage: true
       code: 'go'
