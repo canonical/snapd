@@ -433,9 +433,9 @@ func (l *Env) RemoveKernelFromBootPartition(kernel string) error {
 // corruption - it wastes the slot that the next kernel refresh needs, and once
 // every slot is taken by the currently installed kernel no free boot image
 // partition can be found at all and kernel refreshes fail permanently. It is
-// left to the caller to decide whether the redundant references can safely be
-// cleared, which requires checking that the boot image partitions really do
-// hold the same content - see ClearKernelBootPartition.
+// left to the caller to decide which of the references can safely be cleared,
+// which requires checking which of the boot image partitions really hold the
+// boot image of the kernel revision - see ClearKernelBootPartition.
 func (l *Env) DuplicateKernelBootPartitions() (map[string][]string, error) {
 	matr, err := l.variant.bootImgKernelMatrix()
 	if err != nil {
