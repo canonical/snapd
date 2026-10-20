@@ -157,8 +157,12 @@ execute: |
       # Additionally, check that modules loaded by systemd right after switch root could be loaded
       remote.exec lsmod | MATCH ahci
       # Check that the kernel-modules component can be removed
-      # Reconnect so the persistent SSH session does not retain the component mount while it is removed.
-      remote.exec --reconnect sudo snap remove pc-kernel+efi-pstore
+      # With persistent SSH, snapd can race systemd after the propagated initramfs mount is removed.
+      # Unmount it first and wait until systemd observes the mount event before removing the component.
+      component_mount_unit="$(remote.exec systemd-escape --path --suffix=mount /snap/pc-kernel/components/mnt/efi-pstore/x1)"
+      remote.exec sudo umount --lazy /run/mnt/data/snap/pc-kernel/components/mnt/efi-pstore/x1
+      retry -n 10 --wait 1 not remote.exec systemctl is-active "$component_mount_unit"
+      remote.exec sudo snap remove pc-kernel+efi-pstore
   fi
 
   api_get_v2_system_info_storage_encrypted() {
