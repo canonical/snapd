@@ -140,6 +140,9 @@ jobs:
           if grep -q '^Run all$' <<<$labels; then
             echo "RUN_ALL_LABEL=true" >> $GITHUB_ENV
           fi
+          if grep -q '^Run spread subset$' <<<$labels; then
+            echo "RUN_SPREAD_SUBSET_LABEL=true" >> $GITHUB_ENV
+          fi
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
           fi
@@ -357,6 +360,57 @@ jobs:
         name: "skipped-tests-list-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "skipped_tests_list.txt"
         if-no-files-found: ignore
+
+    # For PRs with the "Run spread subset" label, narrow the tests to the ones
+    # the change can affect using coverage data from the test-selector service.
+    # The "Run all" label keeps the full list. If the service cannot be reached
+    # or fails, the full list runs.
+    - name: Select tests with the tests selector service
+      if: ${{ github.event_name == 'pull_request' && env.RUN_SPREAD_SUBSET_LABEL == 'true' && env.SKIP_SPREAD_LABEL != 'true' && env.RUN_ALL_LABEL != 'true' && env.RUN_TESTS == 'true' }}
+      env:
+        TESTS_SELECTOR_URL: http://test-selector.snapd.canonical.com:8181
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+          ALL_TESTS_FILE="${{ github.workspace }}/all-tests.txt"
+          tr -s ' ' '\n' < "$RUN_TESTS_FILE" | grep -v '^$' > "$ALL_TESTS_FILE"
+
+          # The files the PR changes, as modified, added and deleted lists; a
+          # renamed file is deleted at its old path and added at its new one
+          if ! CHANGES="$(git diff --name-status --no-renames "$BASE_SHA...HEAD")"; then
+              echo "::warning::Could not compute the changed files, running all tests"
+              exit 0
+          fi
+          CHANGED_FILES_JSON="$(jq -Rn '[inputs | split("\t")] as $changes
+              | {modified: [$changes[] | select(.[0] == "M" or .[0] == "T") | .[1]],
+                 added: [$changes[] | select(.[0] == "A") | .[1]],
+                 deleted: [$changes[] | select(.[0] == "D") | .[1]]}' <<<"$CHANGES")"
+
+          REQUEST_FILE="${{ github.workspace }}/tests-selector-request.json"
+          jq -n \
+              --argjson changed "$CHANGED_FILES_JSON" \
+              --rawfile tests "$ALL_TESTS_FILE" \
+              '($tests | split("\n") | map(select(. != ""))) as $list
+               | {changed_files: $changed,
+                  tests: $list,
+                  backend_systems: ($list | map(split(":")[0:2] | join(":")) | unique)}' \
+              > "$REQUEST_FILE"
+
+          if ! RESPONSE="$(curl --silent --show-error --fail --max-time 120 \
+                  -H 'Content-Type: application/json' \
+                  --data @"$REQUEST_FILE" \
+                  "$TESTS_SELECTOR_URL/calculate-tests")"; then
+              echo "::warning::Tests selector service at $TESTS_SELECTOR_URL failed, running all tests"
+              exit 0
+          fi
+
+          SELECTED="$(jq -r '.tests[]' <<<"$RESPONSE")"
+          echo "The tests selector chose $(jq -r '.tests | length' <<<"$RESPONSE") of $(wc -l < "$ALL_TESTS_FILE") tests"
+          if [ -n "$SELECTED" ]; then
+              echo "$SELECTED" | xargs > "$RUN_TESTS_FILE"
+          else
+              echo "RUN_TESTS=false" >> $GITHUB_ENV
+              printf "" > "$RUN_TESTS_FILE"
+          fi
 
     - name: Check if system is required
       if: always()
