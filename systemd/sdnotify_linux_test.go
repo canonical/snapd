@@ -164,6 +164,42 @@ func (sd *sdNotifyTestSuite) TestSdNotifyIntegration(c *C) {
 	}
 }
 
+// sdNotifyHangDiagnostics describes the process state relevant to a notify
+// write that does not return: every open fd with its target and blocking
+// mode, the unix sockets named "socket" and the kernel configuration.
+func sdNotifyHangDiagnostics() string {
+	var b strings.Builder
+	var uts unix.Utsname
+	if err := unix.Uname(&uts); err == nil {
+		fmt.Fprintf(&b, "kernel: %s\n", unix.ByteSliceToString(uts.Release[:]))
+	}
+	for _, name := range []string{
+		"/proc/sys/net/unix/max_dgram_qlen",
+		"/proc/sys/net/core/wmem_default",
+		"/proc/sys/net/core/rmem_default",
+	} {
+		data, err := os.ReadFile(name)
+		fmt.Fprintf(&b, "%s: %q (err: %v)\n", name, data, err)
+	}
+	entries, _ := os.ReadDir("/proc/self/fd")
+	for _, e := range entries {
+		target, _ := os.Readlink(filepath.Join("/proc/self/fd", e.Name()))
+		fd := 0
+		fmt.Sscanf(e.Name(), "%d", &fd)
+		flags, err := unix.FcntlInt(uintptr(fd), unix.F_GETFL, 0)
+		fmt.Fprintf(&b, "fd %s -> %s nonblock=%v (fcntl err: %v)\n",
+			e.Name(), target, flags&unix.O_NONBLOCK != 0, err)
+	}
+	if data, err := os.ReadFile("/proc/net/unix"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.Contains(line, "socket") || strings.HasPrefix(line, "Num") {
+				fmt.Fprintf(&b, "net/unix: %s\n", line)
+			}
+		}
+	}
+	return b.String()
+}
+
 func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds bool) {
 	notify := systemd.SdNotify
 	if withFds {
@@ -194,7 +230,8 @@ func (sd *sdNotifyTestSuite) testSdNotifyClearsConnCacheAfterError(c *C, withFds
 			case err := <-done:
 				return err
 			case <-time.After(10 * time.Second):
-				c.Fatalf("notify(%q) on %q (withFds=%v) did not return within 10s", state, sockPath, withFds)
+				c.Fatalf("notify(%q) on %q (withFds=%v) did not return within 10s\n%s",
+					state, sockPath, withFds, sdNotifyHangDiagnostics())
 				return nil
 			}
 		}
