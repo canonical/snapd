@@ -53,8 +53,8 @@ func MockTaskRetryInterval(d time.Duration) func() {
 	return testutil.Mock(&taskRetryInterval, d)
 }
 
-func MockTaskMaxRetryTentatives(n int) func() {
-	return testutil.Mock(&taskMaxRetryTentatives, n)
+func MockTaskMaxRetryAttempts(n int) func() {
+	return testutil.Mock(&taskMaxRetryAttempts, n)
 }
 
 type SequenceState = sequenceState

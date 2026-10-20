@@ -59,8 +59,8 @@ var (
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
 
-	taskRetryInterval      = 60 * time.Second
-	taskMaxRetryTentatives = 15
+	taskRetryInterval    = 60 * time.Second
+	taskMaxRetryAttempts = 15
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
@@ -452,20 +452,20 @@ func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 	return m.isRemoteDeviceManagementEnabled() || len(ms.ReadyResponses) > 0
 }
 
-// retryTaskTentative increments and persists a retry counter on t under key,
-// returning Retry until taskMaxRetryTentatives is exceeded, then nil.
-func retryTaskTentative(t *state.Task, key string) error {
-	var tentatives int
-	err := t.Get(key, &tentatives)
+// maybeRetryTask increments and persists an attempt counter on task t,
+// returning Retry until taskMaxRetryAttempts is exceeded, then nil.
+func maybeRetryTask(t *state.Task, key string) error {
+	var attempts int
+	err := t.Get(key, &attempts)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
-	tentatives++
-	if tentatives > taskMaxRetryTentatives {
+	attempts++
+	if attempts > taskMaxRetryAttempts {
 		return nil
 	}
-	t.Set(key, tentatives)
+	t.Set(key, attempts)
 
 	return &state.Retry{After: taskRetryInterval}
 }
@@ -747,7 +747,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		}
 	}
 	if fetchErr != nil {
-		retryErr := retryTaskTentative(t, "account-key-fetch-tentatives")
+		retryErr := maybeRetryTask(t, "account-key-fetch-attempts")
 		if retryErr != nil {
 			return retryErr
 		}
@@ -996,13 +996,14 @@ func (m *DeviceMgmtManager) responseFromChange(ctx context.Context, t *state.Tas
 		return "", nil, fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
 	}
 	if !chg.Status().Ready() {
-		err := retryTaskTentative(t, "subsystem-await-tentatives")
+		err := maybeRetryTask(t, "subsystem-await-attempts")
 		if err != nil {
 			return "", nil, err
 		}
 
+		chg.Abort()
 		return asserts.MessageStatusError,
-			map[string]any{"message": fmt.Sprintf("cannot process message: subsystem change %q did not complete after %d attempts", msg.ApplyChangeID, taskMaxRetryTentatives)},
+			map[string]any{"message": fmt.Sprintf("cannot process message: subsystem change %q did not complete after %d attempts", msg.ApplyChangeID, taskMaxRetryAttempts)},
 			nil
 	}
 	if chg.Status() != state.DoneStatus {

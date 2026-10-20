@@ -1457,7 +1457,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 		return fetchErr
 	}))
 	s.AddCleanup(devicemgmtstate.MockTaskRetryInterval(time.Millisecond))
-	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryTentatives(10))
+	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryAttempts(10))
 
 	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
@@ -2649,12 +2649,15 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNeverReady(c *C) 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryTentatives(2))
-
-	subsysChg := s.st.NewChange("subsys-op", "subsystem operation")
-	subsysChg.SetStatus(state.DoingStatus)
+	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryAttempts(2))
 
 	msg := s.makeRequestMessage("operator", "msg1", "test-kind")
+
+	subsysChg := s.st.NewChange("subsystem", "apply payload")
+	handlers.MarkChangeForMessage(subsysChg, *msg)
+	subsysTask := s.st.NewTask("subsys-task", "subsystem task")
+	subsysChg.AddTask(subsysTask)
+	subsysTask.SetStatus(state.DoingStatus) // never becomes ready
 	msg.ApplyChangeID = subsysChg.ID()
 
 	ms := &devicemgmtstate.DeviceMgmtState{
@@ -2707,6 +2710,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNeverReady(c *C) 
 	c.Assert(err, IsNil)
 	c.Check(ms.Sequences, HasLen, 0)
 	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(subsysTask.Status(), Equals, state.AbortStatus)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
