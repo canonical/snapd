@@ -28,6 +28,27 @@
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
+nested_get_available_cpus() {
+    # Leave one CPU for the host and return the remaining CPU count for the VM.
+    local available_cpus
+    available_cpus=$(( $(nproc) - 1 ))
+    if [ "$available_cpus" -lt 1 ]; then
+        available_cpus=1
+    fi
+    echo "$available_cpus"
+}
+
+nested_get_available_memory_mb() {
+    # Leave 1 GiB for the host and return the remaining memory in MiB for the VM.
+    local available_memory_mb
+    available_memory_mb=$(awk '/^MemTotal:/ { print int($2 / 1024) - 1024 }' /proc/meminfo)
+    if [ "$available_memory_mb" -lt 1 ]; then
+        echo "not enough host memory to reserve 1 GiB for the host" >&2
+        return 1
+    fi
+    echo "$available_memory_mb"
+}
+
 
 # shellcheck source=tests/lib/nested/system.sh
 . "$TESTSLIB/nested/system.sh"
