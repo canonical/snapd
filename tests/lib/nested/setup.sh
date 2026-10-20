@@ -101,11 +101,12 @@ nested_setup_vm(){
     fi
 
     if [ "${modified}" != 0 ]; then
-      echo "Modifications have been made to the nested VM, syncing changes to disk"
-      # Some modification have happened, before return back to a test
-      # that might do a hard reset, we need to make sure the
-      # modification are saved to disk.
-      remote.exec "sudo sync"
+        echo "Modifications have been made to the nested VM, syncing changes to disk"
+        # Some modification have happened, before return back to a test
+        # that might do a hard reset, we need to make sure the
+        # modification are saved to disk.
+        remote.exec "sudo sync"
+        remote.exec --reconnect "true"
     fi
 }
 
