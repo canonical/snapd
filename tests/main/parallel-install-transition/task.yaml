@@ -16,6 +16,9 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
+    # disable parallel instances
+    snap unset system experimental.parallel-instances
+
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
         SNAP_MOUNT_UNIT="snap.mount"
@@ -95,7 +98,6 @@ prepare: |
     not findmnt -M /var/snap
 
     snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh-core24 test-snapd-sh-core24_foo
     tests.cleanup defer snap remove --purge test-snapd-sh-core24_foo
     not findmnt -M "$SNAP_MOUNT_DIR"

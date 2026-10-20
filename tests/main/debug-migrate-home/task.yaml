@@ -7,8 +7,6 @@ details: |
   variables and AppArmor rules are correct after the migration.
 
 prepare: |
-  snap set system experimental.parallel-instances=true
-  tests.cleanup defer snap set system experimental.parallel-instances=null
   "$TESTSTOOLS"/snaps-state install-local "test-snapd-tools"
   "$TESTSTOOLS"/snaps-state install-local-as test-snapd-tools test-snapd-tools_foo
   "$TESTSTOOLS"/snaps-state install-local basic

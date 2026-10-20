@@ -60,7 +60,6 @@ restore: |
             snap remove --purge "$name"
         fi
     done
-    snap unset system experimental.parallel-instances
     if [ "$CONFINEMENT" = classic ] && [ -f mount-units.state ]; then
         while read -r u enabled active; do
             if [ "$active" != active ]; then

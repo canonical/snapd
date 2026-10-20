@@ -13,6 +13,11 @@ skip:
         [ "$SNAP_REEXEC" != "0" ] || tests.info is-snapd-from-archive
 
 prepare: |
+    # disable parallel instances
+    snap unset system experimental.parallel-instances
+    # ensure that, if we fail in the execute phase before enabling parallel instances, that they get enabled during restore
+    tests.cleanup defer snap set system experimental.parallel-instances=true || true
+
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$SNAP_MOUNT_DIR" = /snap ]; then
         SNAP_MOUNT_UNIT=snap.mount

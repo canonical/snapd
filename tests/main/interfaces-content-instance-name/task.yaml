@@ -24,8 +24,6 @@ prepare: |
     # Clear any pre-existing warnings.
     snap warnings >/dev/null
     snap okay || true
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
 
 execute: |
     echo "Install the content provider under its own name and as an instance"
