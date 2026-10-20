@@ -102,6 +102,9 @@ type Warning struct {
 }
 
 func (w *Warning) String() string {
+	if details := w.notice.lastData["details"]; details != "" {
+		return details
+	}
 	return w.notice.key
 }
 
@@ -214,6 +217,11 @@ func (s *State) Warnf(template string, args ...any) {
 
 // AddWarningOptions holds optional parameters for an AddWarning call.
 type AddWarningOptions struct {
+	// Details gives a more detailed message which will be shown in place of the
+	// more generic warning message which can be common across warnings of a
+	// given type.
+	Details string
+
 	// ShowAfter defines how long after this warning was last shown we
 	// should allow it to repeat. Zero means always repeat.
 	ShowAfter time.Duration
@@ -243,6 +251,9 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 		RepeatAfter: 0,
 		ExpireAfter: defaultWarningExpireAfter,
 		Time:        options.Time,
+	}
+	if options.Details != "" {
+		addNoticeOptions.Data["details"] = options.Details
 	}
 
 	if options.ShowAfter != 0 {

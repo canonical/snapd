@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/httputil"
@@ -876,6 +875,8 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 	return nil
 }
 
+const refreshInhibitWarningKey string = "cannot refresh due to running apps"
+
 // maybeAddRefreshInhibitWarningFallback records a warning if the set of
 // inhibited snaps was changed since the last notice.
 //
@@ -888,7 +889,7 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[string]bool) error {
 	if len(inhibitedSnaps) == 0 {
 		// no more inhibited snaps, remove inhibition warning if it exists.
-		return removeRefreshInhibitWarning(st)
+		return st.RemoveWarning(refreshInhibitWarningKey)
 	}
 
 	markerExists, err := HasActiveConnection(st, "snap-refresh-observe")
@@ -903,11 +904,6 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 	// let's fallback to issuing warnings if no snap exists with the
 	// marker snap-refresh-observe interface connected.
 
-	// remove inhibition warning if it exists.
-	if err := removeRefreshInhibitWarning(st); err != nil {
-		return err
-	}
-
 	// building warning message
 	var snapsBuf bytes.Buffer
 	i := 0
@@ -918,26 +914,11 @@ func maybeAddRefreshInhibitWarningFallback(st *state.State, inhibitedSnaps map[s
 		snapsBuf.WriteString(snap)
 		i++
 	}
-	message := fmt.Sprintf("cannot refresh (%s) due running apps; close running apps to continue refresh.", snapsBuf.String())
+	details := fmt.Sprintf("cannot refresh (%s) due running apps; close running apps to continue refresh.", snapsBuf.String())
 
 	// wait some time before showing the same warning to the user again after okaying.
-	st.AddWarning(message, &state.AddWarningOptions{ShowAfter: 24 * time.Hour})
+	st.AddWarning(refreshInhibitWarningKey, &state.AddWarningOptions{Details: details, ShowAfter: 24 * time.Hour})
 
-	return nil
-}
-
-// removeRefreshInhibitWarning removes inhibition warning if it exists.
-func removeRefreshInhibitWarning(st *state.State) error {
-	// XXX: is it worth it to check for unexpected multiple matches?
-	for _, warning := range st.AllWarnings() {
-		if !strings.HasSuffix(warning.String(), "close running apps to continue refresh.") {
-			continue
-		}
-		if err := st.RemoveWarning(warning.String()); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		return nil
-	}
 	return nil
 }
 

@@ -231,6 +231,28 @@ func (s stateSuite) TestAddWarningWithBadMessages(c *check.C) {
 	)
 }
 
+func (s stateSuite) TestAddWarningWithDetail(c *check.C) {
+	key := "warning-with-detail"
+	detail := "this warning contains details"
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	opts := &state.AddWarningOptions{Details: detail}
+	st.AddWarning(key, opts)
+
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, check.HasLen, 1)
+	n := noticeToMap(c, notices[0])
+	c.Check(n["key"], check.Equals, key)
+	c.Check(n["last-data"], check.DeepEquals, map[string]any{"details": detail})
+
+	ws := st.AllWarnings()
+	c.Check(ws, check.HasLen, 1)
+	c.Check(ws[0].String(), check.Equals, detail)
+}
+
 func (stateSuite) TestEmptyStateWarnings(c *check.C) {
 	st := state.New(nil)
 	st.Lock()
