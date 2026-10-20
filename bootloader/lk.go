@@ -20,6 +20,7 @@
 package bootloader
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -438,6 +439,10 @@ func (l *lk) openKernelBootImage(env *lkenv.Env, kernel string) (interface {
 // io.Copy() when extracting it does not clear what lies beyond its end, so the
 // rest of the partition holds whatever was left behind by earlier, larger boot
 // images and says nothing about which boot image the partition holds.
+//
+// A failure to read either the boot image or the boot image partition is
+// returned as an error rather than reported as a mismatch, as the result decides
+// which boot image partition references get dropped.
 func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.ReaderAt, size int64) (bool, error) {
 	path, err := l.bootPartitionPath(bootPartition)
 	if err != nil {
@@ -449,9 +454,32 @@ func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.Reader
 	}
 	defer f.Close()
 
-	// a partition shorter than the boot image yields fewer bytes than the
-	// boot image and so never compares equal
-	return osutil.StreamsEqual(io.NewSectionReader(bootImg, 0, size), io.LimitReader(f, size)), nil
+	const chunkSize = 64 * 1024
+	imgBuf := make([]byte, chunkSize)
+	partBuf := make([]byte, chunkSize)
+	for off := int64(0); off < size; off += chunkSize {
+		n := int64(chunkSize)
+		if size-off < n {
+			n = size - off
+		}
+		// ReaderAt returns a non-nil error whenever it reads fewer bytes
+		// than asked for
+		if read, err := bootImg.ReadAt(imgBuf[:n], off); int64(read) != n {
+			return false, fmt.Errorf("cannot read boot image: %v", err)
+		}
+		if _, err := io.ReadFull(f, partBuf[:n]); err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				// a partition shorter than the boot image cannot hold it
+				return false, nil
+			}
+			return false, fmt.Errorf("cannot read boot image partition %s: %v", bootPartition, err)
+		}
+		if !bytes.Equal(imgBuf[:n], partBuf[:n]) {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // repairDuplicateKernelBootPartitions repairs a boot image matrix in which the
@@ -478,6 +506,10 @@ func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.Reader
 // boot image are redundant, and those that do not hold it are wrong. When none
 // of them holds it, nothing is dropped, as there is no telling which of them
 // the kernel revision really boots from.
+//
+// The repair is best effort. Whenever the boot image or any of the boot image
+// partitions cannot be read, the references to that kernel revision are left
+// as they are, so the repair never makes a matrix any worse than it was found.
 func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
 	duplicates, err := env.DuplicateKernelBootPartitions()
 	if err != nil {
@@ -534,12 +566,18 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 		return false, nil
 	}
 	defer bootImg.Close()
+	// an empty boot image is trivially held by every boot image partition
+	if bootImg.Size() == 0 {
+		logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in more than one boot image partition but its boot image is empty", kernel)
+		return false, nil
+	}
 
 	var holding, notHolding []string
 	for _, bootPartition := range bootPartitions {
 		holds, err := l.bootPartitionHoldsBootImage(bootPartition, bootImg, bootImg.Size())
 		if err != nil {
-			return false, err
+			logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in more than one boot image partition but boot image partition %s cannot be checked: %v", kernel, bootPartition, err)
+			return false, nil
 		}
 		if holds {
 			holding = append(holding, bootPartition)
