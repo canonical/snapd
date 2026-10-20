@@ -150,7 +150,12 @@ jobs:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [set-inputs, read-systems, snap-builds, package-builds]
     name: "spread ${{ matrix.group }}"
-    if: needs.read-systems.outputs.systems != ''
+    if: >-
+      !cancelled() &&
+      needs.set-inputs.result == 'success' &&
+      needs.read-systems.result == 'success' &&
+      needs.snap-builds.result == 'success' &&
+      needs.read-systems.outputs.systems != ''
     secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
@@ -173,7 +178,10 @@ jobs:
       actions: write
     needs: [set-inputs, tag-features]
     # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
-    if: failure() && fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    if: >-
+      !cancelled() &&
+      needs.tag-features.result == 'failure' &&
+      fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
     runs-on: ubuntu-latest
     steps:
       - env:
