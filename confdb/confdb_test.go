@@ -552,6 +552,10 @@ func (s *witnessDatabag) Data() ([]byte, error) {
 	return s.bag.Data()
 }
 
+func (s *witnessDatabag) PruneEmpty() error {
+	return s.bag.PruneEmpty()
+}
+
 // getLastPaths returns the last paths passed into Get and Set and resets them.
 func (s *witnessDatabag) getLastPaths() (get, set string) {
 	get, set = s.getPath, s.setPath
@@ -2647,7 +2651,9 @@ func (s *viewSuite) TestGetValuesThroughPaths(c *C) {
 				"a": map[string]any{"notbaz": 1},
 				"b": map[string]any{"notbaz": 1},
 			},
-			err: `*no data`,
+			// no candidate has data for the remaining suffix so each one maps to
+			// a removal at the corresponding path
+			expected: map[string]any{"foo.a": nil, "foo.b": nil},
 		},
 	}
 
@@ -3196,9 +3202,11 @@ func (s *viewSuite) TestSetUsingMapWithNilValuesAtLeaves(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// the leaves are removed and the empty container left behind is removed
+	// after all the writes
 	value, err := view.Get(databag, "foo", nil, confdb.AdminAccess)
-	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]any{})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(value, IsNil)
 }
 
 func (s *viewSuite) TestSetWithMultiplePathsNestedAtLeaves(c *C) {
@@ -3233,12 +3241,11 @@ func (s *viewSuite) TestSetWithMultiplePathsNestedAtLeaves(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// a is emptied by the write and both it and the now empty foo are removed
+	// after all the writes
 	value, err := view.Get(databag, "foo", nil, confdb.AdminAccess)
-	c.Assert(err, IsNil)
-	c.Assert(value, DeepEquals, map[string]any{
-		// consistent with the previous configuration mechanism
-		"a": map[string]any{},
-	})
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+	c.Assert(value, IsNil)
 }
 
 func (s *viewSuite) TestSetWithNilAndNonNilLeaves(c *C) {
@@ -3950,6 +3957,83 @@ func (*viewSuite) TestSetListPlaceholder(c *C) {
 	c.Assert(val, DeepEquals, []any{
 		map[string]any{"a": "b"},
 		map[string]any{"c": "d"},
+	})
+}
+
+func (*viewSuite) TestSetPartialSetRemovesFirstItem(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "users[{n}].age", "storage": "users[{n}].age"},
+				map[string]any{"request": "users[{n}].name", "storage": "users[{n}].name"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "users"), []any{
+		map[string]any{"age": 30},
+		map[string]any{"age": 40, "name": "bob"},
+	})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+
+	// this tests that the missing age field doesn't cause the entire list item to
+	// be removed until the end, as that would shift would the following writes
+	err = view.Set(bag, "users", []any{map[string]any{"name": "carol"}, map[string]any{"name": "david", "age": 45}})
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(bag, "users", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		map[string]any{"name": "carol"},
+		map[string]any{"age": float64(45), "name": "david"},
+	})
+}
+
+func (*viewSuite) TestSplitListCase(c *C) {
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "users[{n}].age", "storage": "ages[{n}]"},
+				map[string]any{"request": "users[{n}].name", "storage": "names[{n}]"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "ages"), []any{30, 40})
+	c.Assert(err, IsNil)
+	err = bag.Set(parsePath(c, "names"), []any{"alice", "bob"})
+	c.Assert(err, IsNil)
+
+	// TODO: this testcase shows an issue with assembling lists from multiple
+	// sources. The way the schema is split means that the Set doesn't actually
+	// mean what we think it does and the result of a Get looks unexpected.
+	view := schema.View("foo")
+	err = view.Set(bag, "users", []any{
+		map[string]any{"age": 31},
+		map[string]any{"age": 41, "name": "david"},
+	})
+	c.Assert(err, IsNil)
+
+	ages, err := bag.Get(parsePath(c, "ages"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(ages, DeepEquals, []any{float64(31), float64(41)})
+
+	names, err := bag.Get(parsePath(c, "names"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(names, DeepEquals, []any{"bob", "david"})
+
+	users, err := view.Get(bag, "users", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []any{
+		// clearly not what the Set() intended but forced by the split list
+		map[string]any{"age": float64(31), "name": "bob"},
+		map[string]any{"name": "david", "age": float64(41)},
 	})
 }
 

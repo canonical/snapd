@@ -103,6 +103,48 @@ func (s *transactionTestSuite) TestCommit(c *C) {
 	c.Assert(s.writeCalled, Equals, 1)
 }
 
+func (s *transactionTestSuite) TestCommitPreservesPruningBoundaries(c *C) {
+	schema, err := confdb.NewSchema("my-account", "my-confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "users[{n}].name", "storage": "users[{n}].name"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	view := schema.View("foo")
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "users"), []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second"},
+	})
+	c.Assert(err, IsNil)
+	err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+	err = view.Unset(tx, "users[0].name")
+	c.Assert(err, IsNil)
+	err = view.Set(tx, "users[0].name", "updated")
+	c.Assert(err, IsNil)
+
+	users, err := tx.Get(parsePath(c, "users"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []any{map[string]any{"name": "updated"}})
+
+	// Commit and read back to make sure pruning was captured as an operation.
+	err = tx.Commit(s.state, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+	users, err = bag.Get(parsePath(c, "users"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []any{map[string]any{"name": "updated"}})
+}
+
 func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
@@ -373,7 +415,7 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	err = json.Unmarshal(jsonData, &tx)
 	c.Assert(err, IsNil)
 
-	// transaction deltas are preserved
+	// transaction operations are preserved
 	val, err := tx.Get(parsePath(c, "foo"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
@@ -392,6 +434,47 @@ func (s *transactionTestSuite) TestSerializable(c *C) {
 	value, err = bag.Get(parsePath(c, "other"), nil)
 	c.Assert(err, IsNil)
 	c.Assert(value, Equals, "value")
+}
+
+func (s *transactionTestSuite) TestMarshallingPreservesPruningOrder(c *C) {
+	bag := confdb.NewJSONDatabag()
+	err := bag.Set(parsePath(c, "users"), []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second"},
+	})
+	c.Assert(err, IsNil)
+	err = confdbstate.WriteDatabag(s.state, bag, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+	err = tx.Unset(parsePath(c, "users[0].name"))
+	c.Assert(err, IsNil)
+	err = tx.PruneEmpty()
+	c.Assert(err, IsNil)
+
+	jsonData, err := json.Marshal(tx)
+	c.Assert(err, IsNil)
+	c.Assert(string(jsonData), Matches, `.*"operations":\[\{"operation":"unset","path":"users\[0\]\.name"\},\{"operation":"prune-empty"\}\].*`)
+
+	tx = nil
+	err = json.Unmarshal(jsonData, &tx)
+	c.Assert(err, IsNil)
+	err = tx.Set(parsePath(c, "users[0].name"), "updated")
+	c.Assert(err, IsNil)
+
+	paths := tx.AlteredPaths()
+	c.Assert(paths, HasLen, 2)
+	c.Assert(confdb.JoinAccessors(paths[0]), Equals, "users[0].name")
+	c.Assert(confdb.JoinAccessors(paths[1]), Equals, "users[0].name")
+
+	err = tx.Commit(s.state, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	bag, err = confdbstate.ReadDatabag(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+	users, err := bag.Get(parsePath(c, "users"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(users, DeepEquals, []any{map[string]any{"name": "updated"}})
 }
 
 func (s *transactionTestSuite) TestSerializableUnsetDifferentPaths(c *C) {
@@ -442,7 +525,7 @@ func (s *transactionTestSuite) TestSerializableUnsetDifferentPaths(c *C) {
 		err = json.Unmarshal(jsonData, &tx)
 		c.Assert(err, IsNil, cmt)
 
-		// transaction deltas are preserved
+		// transaction operations are preserved
 		_, err = tx.Get(parsePath(c, tc.path), nil)
 		c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{}, cmt)
 
