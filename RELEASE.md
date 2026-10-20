@@ -123,11 +123,12 @@ For the snapd snap, all published snap builds are built on Launchpad under a par
 - Particular snapd releases are built from `release/2.XY` git branches, for example the [snapd 2.78 snap](https://launchpad.net/~snappy-dev/+snap/snapd-2.78)
 
 For each snap package in the list, there is "Latest builds" list which shows the snapd snap builds for each architecture.
-Each successful build has an associated `buildlog` file, and within that file one can see the `go version` used, along with the exact version of each dependency installed during the build.
+Each successful build has an associated `buildlog` file which records the `go version` used, along with the exact version of each dependency installed during the build.
 The Go dependencies are pulled in by the Go toolchain at build time and their versions can be found in the build log under "Obtaining dependencies".
 Similarly, the C dependency versions can be found under "Obtaining c-dependencies" in the build log.
 
-For the snapd .deb packages for Ubuntu, they are also built on Launchpad, this time under [snapd package in Ubuntu](https://launchpad.net/ubuntu/+source/snapd/), which lists each snapd release currently present in each release pocket ("release", "security", "updates") of each supported Ubuntu release.
+For the snapd .deb packages for Ubuntu, they are also built on Launchpad, under [snapd package in Ubuntu](https://launchpad.net/ubuntu/+source/snapd/).
+This page lists the snapd release currently available in each pocket (release, security, updates) for every supported Ubuntu release.
 Clicking on any of the listed snapd packages brings up that source package's page.
 For older snapd releases which have been superseded by newer snapd in a given release pocket, the particular source package page can be found directly at `https://launchpad.net/ubuntu/+source/snapd/<snapd-version>+ubuntu<release-version>`, for example https://launchpad.net/ubuntu/+source/snapd/2.72+ubuntu24.04.
 
