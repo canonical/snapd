@@ -430,3 +430,6 @@ execute: |
   for name in passwd shadow group gshadow; do
       remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
   done
+
+  remote.exec "findmnt" | NOMATCH "/run/mnt/data/usr/lib/firmware"
+  remote.exec "findmnt" | NOMATCH "/run/mnt/data/usr/lib/modules"
