@@ -75,9 +75,6 @@ var (
 		NoExec:    true,
 		NoDev:     true,
 	}
-	needsFsckNoPrivateDiskMountOpts = &main.SystemdMountOptions{
-		NeedsFsck: true,
-	}
 	needsFsckDiskMountOpts = &main.SystemdMountOptions{
 		NeedsFsck: true,
 		Private:   true,
@@ -741,7 +738,7 @@ func (s *baseInitramfsMountsSuite) nodeMount(label string, mode string) systemdM
 		}
 		if s.isClassic {
 			if mode == "run" {
-				mnt.opts = needsFsckNoPrivateDiskMountOpts
+				mnt.opts = needsFsckDiskMountOpts
 			} else {
 				mnt.opts = needsNoSuidDiskMountOpts
 			}

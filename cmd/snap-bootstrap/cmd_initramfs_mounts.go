@@ -2307,6 +2307,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// probably not?
 	dataMountOpts := systemdMountOptions{
 		NeedsFsck: true,
+		Private:   true,
 	}
 	if !isClassic {
 		dataMountOpts = setUbuntuCoreDataMountOptions(dataMountOpts)

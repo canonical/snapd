@@ -447,6 +447,9 @@ execute: |
   # model in the seed should match the one that was installed on the system
   remote.exec "diff <(snap model --assertion) /run/mnt/ubuntu-seed/systems/classic/model"
 
+  remote.exec "findmnt" | NOMATCH "/run/mnt/data/usr/lib/firmware"
+  remote.exec "findmnt" | NOMATCH "/run/mnt/data/usr/lib/modules"
+
   boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
   remote.exec "sudo snap reboot --recover classic" || true
   remote.wait-for reboot "${boot_id}"
