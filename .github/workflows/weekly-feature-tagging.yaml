@@ -45,6 +45,10 @@ jobs:
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
           echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
 
+  package-builds:
+    uses: ./.github/workflows/package-builds.yaml
+    secrets: inherit
+
   snap-builds:
     runs-on: ${{ fromJSON(matrix.runs-on) }}
     env:
@@ -144,9 +148,14 @@ jobs:
 
   tag-features:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [set-inputs, read-systems, snap-builds]
+    needs: [set-inputs, read-systems, snap-builds, package-builds]
     name: "spread ${{ matrix.group }}"
-    if: needs.read-systems.outputs.systems != ''
+    if: >-
+      !cancelled() &&
+      needs.set-inputs.result == 'success' &&
+      needs.read-systems.result == 'success' &&
+      needs.snap-builds.result == 'success' &&
+      needs.read-systems.outputs.systems != ''
     secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
@@ -169,7 +178,10 @@ jobs:
       actions: write
     needs: [set-inputs, tag-features]
     # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
-    if: failure() && fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    if: >-
+      !cancelled() &&
+      needs.tag-features.result == 'failure' &&
+      fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
     runs-on: ubuntu-latest
     steps:
       - env:
