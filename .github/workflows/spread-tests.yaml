@@ -140,6 +140,9 @@ jobs:
           if grep -q '^Run all$' <<<$labels; then
             echo "RUN_ALL_LABEL=true" >> $GITHUB_ENV
           fi
+          if grep -q '^Run spread subset$' <<<$labels; then
+            echo "RUN_SPREAD_SUBSET_LABEL=true" >> $GITHUB_ENV
+          fi
           if grep -q '^Run nested$' <<<$labels; then
             echo "RUN_NESTED_LABEL=true" >> $GITHUB_ENV
           fi
@@ -183,10 +186,16 @@ jobs:
     - name: Get changed files
       id: changed-files
       uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
+      with:
+        json: true
+        escape_json: false
+        output_renamed_files_as_deleted_and_added: true
 
     - name: Save changes files
+      env:
+        ALL_MODIFIED_FILES_JSON: ${{ steps.changed-files.outputs.all_modified_files }}
       run: |
-          CHANGED_FILES="${{ steps.changed-files.outputs.all_modified_files }}"
+          CHANGED_FILES="$(jq -r 'join(" ")' <<<"$ALL_MODIFIED_FILES_JSON")"
           echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
           echo "The changed files found are: $CHANGED_FILES"
 
@@ -305,7 +314,6 @@ jobs:
               for test in ${{ inputs.skip-tests }}; do
                   spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$test" | tr '\n' ' ')
               done
-              echo "$spread_list" > "$RUN_TESTS_FILE"
           fi
 
           shopt -s nullglob
@@ -336,13 +344,14 @@ jobs:
 
                   SNAPD_TESTS_SKIP="${SNAPD_TESTS_SKIP} $(echo "$spread_list" | tr ' ' '\n' | grep -E "$task(:.*)?$" | tr '\n' ' ')"
                   spread_list=$(echo "$spread_list" | tr ' ' '\n' | grep -vE "$task(:.*)?$" | tr '\n' ' ')
-                  echo "$spread_list" > "$RUN_TESTS_FILE"
               fi
           done
 
           if [ -z "${spread_list// /}" ]; then
               echo "RUN_TESTS=false" >> $GITHUB_ENV
               printf "" > "$RUN_TESTS_FILE"
+          else
+              tr '\n' ' ' <<<"$spread_list" > "$RUN_TESTS_FILE"
           fi
           echo "The following list of tests will run:"
           cat "$RUN_TESTS_FILE"
@@ -357,6 +366,63 @@ jobs:
         name: "skipped-tests-list-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.group }}"
         path: "skipped_tests_list.txt"
         if-no-files-found: ignore
+
+    # For PRs with the "Run spread subset" label, narrow the tests to the ones
+    # the change can affect using coverage data from the test-selector service.
+    # The "Run all" label keeps the full list. If the service cannot be reached
+    # or fails, the full list runs.
+    - name: Select tests with the tests selector service
+      if: ${{ github.event_name == 'pull_request' && env.RUN_SPREAD_SUBSET_LABEL == 'true' && env.SKIP_SPREAD_LABEL != 'true' && env.RUN_ALL_LABEL != 'true' && env.RUN_TESTS == 'true' }}
+      env:
+        TESTS_SELECTOR_URL: http://test-selector.snapd.canonical.com:8181
+        MODIFIED_FILES_JSON: ${{ steps.changed-files.outputs.modified_files }}
+        TYPE_CHANGED_FILES_JSON: ${{ steps.changed-files.outputs.type_changed_files }}
+        ADDED_FILES_JSON: ${{ steps.changed-files.outputs.added_files }}
+        DELETED_FILES_JSON: ${{ steps.changed-files.outputs.deleted_files }}
+      run: |
+          ALL_TESTS_FILE="${{ github.workspace }}/all-tests.txt"
+          tr -s ' ' '\n' < "$RUN_TESTS_FILE" | grep -v '^$' > "$ALL_TESTS_FILE"
+
+          # Treat type changes as modifications and renames as deleted and added.
+          CHANGED_FILES_JSON="$(jq -n \
+              --argjson modified "$MODIFIED_FILES_JSON" \
+              --argjson type_changed "$TYPE_CHANGED_FILES_JSON" \
+              --argjson added "$ADDED_FILES_JSON" \
+              --argjson deleted "$DELETED_FILES_JSON" \
+              '{modified: ($modified + $type_changed), added: $added, deleted: $deleted}')"
+
+          REQUEST_FILE="${{ github.workspace }}/tests-selector-request.json"
+          jq -n \
+              --argjson changed "$CHANGED_FILES_JSON" \
+              --rawfile tests "$ALL_TESTS_FILE" \
+              '($tests | split("\n") | map(select(. != ""))) as $list
+               | {changed_files: $changed,
+                  tests: $list,
+                  backend_systems: ($list | map(split(":")[0:2] | join(":")) | unique)}' \
+              > "$REQUEST_FILE"
+
+          if ! RESPONSE="$(curl --silent --show-error --fail --max-time 120 \
+                  -H 'Content-Type: application/json' \
+                  --data @"$REQUEST_FILE" \
+                  "$TESTS_SELECTOR_URL/calculate-tests")"; then
+              echo "::warning::Tests selector service at $TESTS_SELECTOR_URL failed, running all tests"
+              exit 0
+          fi
+
+          if ! jq -e '.tests | type == "array"' >/dev/null 2>&1 <<<"$RESPONSE"; then
+              echo "::warning::Tests selector service at $TESTS_SELECTOR_URL returned an invalid response; running all tests"
+              echo "Response was: $RESPONSE"
+              exit 0
+          fi
+
+          SELECTED="$(jq -r '.tests[]' <<<"$RESPONSE")"
+          echo "The tests selector chose $(jq -r '.tests | length' <<<"$RESPONSE") of $(wc -l < "$ALL_TESTS_FILE") tests"
+          if [ -n "$SELECTED" ]; then
+              echo "$SELECTED" | xargs > "$RUN_TESTS_FILE"
+          else
+              echo "RUN_TESTS=false" >> $GITHUB_ENV
+              printf "" > "$RUN_TESTS_FILE"
+          fi
 
     - name: Check if system is required
       if: always()
