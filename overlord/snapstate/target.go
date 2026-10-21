@@ -883,7 +883,7 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 
 	installInfos := make([]minimalInstallInfo, 0, len(targets))
 	for _, t := range targets {
-		installInfos = append(installInfos, installSnapInfo{Info: t.info, components: t.components})
+		installInfos = append(installInfos, installSnapInfo{t.info})
 	}
 
 	if err = checkDiskSpace(st, "install", installInfos, opts.UserID, opts.PrereqTracker); err != nil {
@@ -1155,7 +1155,7 @@ func checkUpdatePlanDiskSpace(st *state.State, plan updatePlan, opts Options) er
 	changeKind := "refresh"
 	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
 	for _, t := range plan.targets {
-		installInfos = append(installInfos, installSnapInfo{Info: t.info, components: t.components})
+		installInfos = append(installInfos, installSnapInfo{t.info})
 
 		// if any of the snaps are not installed, then we should use the
 		// "install" change as the kind

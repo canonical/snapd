@@ -108,20 +108,10 @@ type minimalInstallInfo interface {
 	SnapBase() string
 	DownloadSize() int64
 	Prereq(st *state.State, prqt PrereqTracker) []string
-	ComponentSetups() []ComponentSetup
 }
 
 type installSnapInfo struct {
 	*snap.Info
-	// components are the components that are installed together with the
-	// snap.
-	components []ComponentSetup
-}
-
-// ComponentSetups returns the components that are installed together with the
-// snap.
-func (ins installSnapInfo) ComponentSetups() []ComponentSetup {
-	return ins.components
 }
 
 func (ins installSnapInfo) DownloadSize() int64 {
@@ -1038,13 +1028,13 @@ func downloadTasks(
 		prev = t
 	}
 
-	// the snap and the components are downloaded to the same directory
-	toDownloadTo := filepath.Dir(snapsup.BlobPath())
-	if err := checkDiskSpaceDownload(st, installSnapInfo{Info: info, components: compsups}, skipSnapDownload, toDownloadTo); err != nil {
-		return nil, nil, err
-	}
-
 	if !skipSnapDownload {
+		// TODO:COMPS: support checking for available space for components
+		toDownloadTo := filepath.Dir(snapsup.BlobPath())
+		if err := checkDiskSpaceDownload(st, []minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
+			return nil, nil, err
+		}
+
 		revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
 		download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
@@ -2656,89 +2646,18 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 	return updateTss, nil
 }
 
-// checkDiskSpaceDownload checks if there is enough space in rootDir to
-// download the snap and its components. If skipSnap is true, then only the
-// components are considered.
-func checkDiskSpaceDownload(st *state.State, info minimalInstallInfo, skipSnap bool, rootDir string) error {
-	reservation, isSet := diskSpaceReservation(config.NewTransaction(st))
-	if !isSet {
-		return nil
-	}
-
+func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir string) error {
 	var totalSize uint64
-	if !skipSnap {
+	for _, info := range infos {
 		totalSize += uint64(info.DownloadSize())
 	}
 
-	// a download always creates new files, so we do not look at the
-	// components that are already installed
-	compsSize, err := componentsInstallSize(nil, info.ComponentSetups())
-	if err != nil {
-		return err
-	}
-	totalSize += compsSize
-
-	return checkForAvailableSpace(totalSize, reservation, []naming.InstanceName{info.InstanceName()}, "download", rootDir, "")
-}
-
-// checkComponentsDiskSpace checks if there is enough space to install the
-// given components of an installed snap. Components that are already present on
-// the system are not considered.
-func checkComponentsDiskSpace(st *state.State, changeKind string, snapst *SnapState, compsups []ComponentSetup) error {
 	reservation, isSet := diskSpaceReservation(config.NewTransaction(st))
-	if !isSet {
+	if isSet == false {
 		return nil
 	}
 
-	totalSize, err := componentsInstallSize(snapst, compsups)
-	if err != nil {
-		return err
-	}
-
-	return checkForAvailableSpace(totalSize, reservation, []naming.InstanceName{snapst.InstanceName()}, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir), "")
-}
-
-// componentsInstallSize returns the total size of the given components. If
-// snapst is not nil, then the components that are already present in the
-// sequence of the snap are not considered, since their files are already on
-// the system.
-func componentsInstallSize(snapst *SnapState, compsups []ComponentSetup) (uint64, error) {
-	var total uint64
-	for _, compsup := range compsups {
-		if snapst != nil && snapst.IsComponentRevPresent(compsup.CompSideInfo) {
-			continue
-		}
-
-		size, err := componentSize(compsup)
-		if err != nil {
-			return 0, err
-		}
-
-		if total > math.MaxUint64-size {
-			return 0, errors.New("cannot calculate required disk space: size overflow")
-		}
-		total += size
-	}
-	return total, nil
-}
-
-// componentSize returns the size of the given component. The size comes from
-// the download information for components from the store, and from the file
-// for local components.
-func componentSize(compsup ComponentSetup) (uint64, error) {
-	if compsup.DownloadInfo != nil && compsup.DownloadInfo.Size > 0 {
-		return uint64(compsup.DownloadInfo.Size), nil
-	}
-
-	if compsup.CompPath != "" {
-		fi, err := os.Stat(compsup.CompPath)
-		if err != nil {
-			return 0, fmt.Errorf("cannot get size of component %q: %w", compsup.CompSideInfo.Component, err)
-		}
-		return uint64(fi.Size()), nil
-	}
-
-	return 0, fmt.Errorf("internal error: size missing for component %q", compsup.CompSideInfo.Component)
+	return checkForAvailableSpace(totalSize, reservation, diskSpaceCheckNames(infos), "download", rootDir, "")
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites

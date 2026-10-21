@@ -1011,11 +1011,8 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 
 			if len(compsToInstall) > 0 {
 				installedComponents[name] = compsToInstall
-				// TODO: check disk space for the whole install request. each
-				// InstallComponents call checks one snap independently, and the
-				// later InstallWithGoal check excludes these components. all
-				// checks can pass even when the combined size does not fit.
 				ts, err := snapstateInstallComponents(ctx, st, compsToInstall, info, nil, opts)
+
 				if err != nil {
 					return nil, nil, nil, err
 				}

@@ -59,12 +59,6 @@ var RemoveComponentTasks = removeComponentTasks
 var DiskSpaceReservation = diskSpaceReservation
 var CheckForAvailableSpace = checkForAvailableSpace
 
-// NewInstallSnapInfoWithComponents returns a MinimalInstallInfo for the given
-// snap and the components that are installed together with it.
-func NewInstallSnapInfoWithComponents(info *snap.Info, comps []ComponentSetup) MinimalInstallInfo {
-	return installSnapInfo{Info: info, components: comps}
-}
-
 const (
 	None         = none
 	Full         = full
