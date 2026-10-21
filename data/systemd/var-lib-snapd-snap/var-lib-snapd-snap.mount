@@ -7,8 +7,8 @@ ConditionPathExistsGlob=!/run/snapd/ns/*.mnt
 ConditionPathExists=!/run/snapd/packaging/prevent-mount-dir-activation
 # Do not activate on hybrid setups, where the kernel snap is mounted early in
 # initramfs. If the unit is activated post pivot the system ends up with duplicate
-# mounts.
-ConditionPathExists=!/var/lib/snapd/device/disk-mapping.json
+# mounts. The /run/mnt/data is created early during boot by snap-bootstrap.
+ConditionPathIsMountPoint=!/run/mnt/data
 Before=snapd.mounts-pre.target
 
 [Mount]
