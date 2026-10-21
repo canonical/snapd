@@ -1702,10 +1702,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateUnsupportedPlug(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 	c.Assert(repo.AddInterface(&testParallelInstancesPlugRejectingInterface{}), IsNil)
@@ -1749,10 +1745,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateUnsupportedPlug(c *C) {
 func (s *snapmgrTestSuite) TestParallelInstanceRefreshToUnsupportedInterfaceNeedsFlag(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
@@ -1821,10 +1813,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	snapstate.Set(s.state, "services-snap_instance", &snapstate.SnapState{
 		Active:          true,
@@ -4035,10 +4023,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -6585,10 +6569,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
-
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -6647,10 +6627,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateMany(c *C) {
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateManyValidateRefreshes(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.parallel-instances", true)
-	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -8423,12 +8399,6 @@ func (s *validationSetsSuite) testUpdateToRevisionSnapRequiredByValidationWrongR
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	if instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
 
 	tr := assertstate.ValidationSetTracking{
 		AccountID: "foo",
@@ -15744,12 +15714,6 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	// store at all
 	snapstate.ReplaceStore(s.state, &storetest.Store{})
 
-	if instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
-
 	prevSI := snap.SideInfo{
 		RealName: snapName,
 		Revision: prevSnapRev,
@@ -17353,12 +17317,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	if opts.instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
-
 	currentSeq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si})
 
 	currentResources := make(map[string]snap.Revision, len(opts.components))
@@ -18707,12 +18665,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsFromPathRunThrough(c *C, inst
 	// make sure that the store is never hit
 	snapstate.ReplaceStore(s.state, &storetest.Store{})
 
-	if instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
-
 	currentSeq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si})
 
 	originalCompRevisions := make(map[string]snap.Revision)
@@ -19612,12 +19564,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	if opts.instanceKey != "" {
-		tr := config.NewTransaction(s.state)
-		tr.Set("core", "experimental.parallel-instances", true)
-		tr.Commit()
-	}
 
 	currentSeq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si})
 

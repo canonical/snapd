@@ -60,7 +60,6 @@ restore: |
             snap remove --purge "$name"
         fi
     done
-    snap unset system experimental.parallel-instances
     if [ "$CONFINEMENT" = classic ] && [ -f mount-units.state ]; then
         while read -r u enabled active; do
             if [ "$active" != active ]; then
@@ -102,8 +101,6 @@ execute: |
 
         verify_unit_status snap.socket-activation_foo.sleep-daemon.sock-abstract.socket "$UNIT_FILE_STATE" "$ACTIVE_STATE"
     }
-
-    snap set system experimental.parallel-instances=true
 
     if [ "$CONFINEMENT" = classic ]; then
         "$TESTSTOOLS"/snaps-state install-local-as socket-activation-classic socket-activation_foo --classic

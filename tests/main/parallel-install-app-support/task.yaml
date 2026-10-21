@@ -5,10 +5,6 @@ details: |
     instances, since these identifiers must be unique on the system. A regular
     (non-instanced) install of the same snap must still succeed.
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
-
 execute: |
     check_parallel_install_rejected() {
         local setting="$1"

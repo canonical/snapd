@@ -7329,8 +7329,9 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 		InstanceKey: "foo",
 	}
 
+	// parallel instances are enabled by default
 	err := snapstate.ValidateFeatureFlags(s.state, info)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+	c.Assert(err, IsNil)
 
 	// various forms of disabling
 	tr := config.NewTransaction(s.state)
@@ -7345,14 +7346,14 @@ func (s *snapmgrTestSuite) TestParallelInstallValidateFeatureFlag(c *C) {
 	tr.Commit()
 
 	err = snapstate.ValidateFeatureFlags(s.state, info)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+	c.Assert(err, IsNil)
 
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", nil)
 	tr.Commit()
 
 	err = snapstate.ValidateFeatureFlags(s.state, info)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+	c.Assert(err, IsNil)
 
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", "veryfalse")

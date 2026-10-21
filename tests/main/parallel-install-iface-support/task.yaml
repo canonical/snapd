@@ -7,10 +7,6 @@ details: |
     of the same snap must still succeed. The --allow-unsupported-instances flag
     allows an unsupported parallel instance to be installed explicitly.
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
-
 execute: |
     make_test_snap() {
         local snap_name="$1"

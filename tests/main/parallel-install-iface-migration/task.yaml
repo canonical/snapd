@@ -9,10 +9,6 @@ details: |
     refresh to revisions using unsupported interfaces, while other instances
     need --allow-unsupported-instances to do so.
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
-
 execute: |
     # make_test_snap <name> <version> <iface>... builds /tmp/<name>_<version>.snap
     make_test_snap() {

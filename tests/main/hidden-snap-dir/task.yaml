@@ -176,8 +176,6 @@ execute: |
     "$NAME".echo "$data" > "$HOME/snap/$NAME/common/file"
 
     echo "Check parallel instances use separate hidden snap data"
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap set system experimental.parallel-instances=null
     "$TESTSTOOLS"/snaps-state install-local-as "$NAME" "${NAME}_foo"
 
     #shellcheck disable=SC2016

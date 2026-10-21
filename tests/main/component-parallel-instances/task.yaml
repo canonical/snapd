@@ -12,8 +12,6 @@ details: |
 systems: [ubuntu-*, fedora-*]
 
 prepare: |
-  snap set system experimental.parallel-instances=true
-  tests.cleanup defer snap set system experimental.parallel-instances=null
   snap refresh --hold
   tests.cleanup defer snap refresh --unhold
 
