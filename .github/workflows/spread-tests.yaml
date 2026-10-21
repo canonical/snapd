@@ -409,6 +409,12 @@ jobs:
               exit 0
           fi
 
+          if ! jq -e '.tests | type == "array"' >/dev/null 2>&1 <<<"$RESPONSE"; then
+              echo "::warning::Tests selector service at $TESTS_SELECTOR_URL returned an invalid response; running all tests"
+              echo "Response was: $RESPONSE"
+              exit 0
+          fi
+
           SELECTED="$(jq -r '.tests[]' <<<"$RESPONSE")"
           echo "The tests selector chose $(jq -r '.tests | length' <<<"$RESPONSE") of $(wc -l < "$ALL_TESTS_FILE") tests"
           if [ -n "$SELECTED" ]; then
