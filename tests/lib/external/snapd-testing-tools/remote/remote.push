@@ -25,11 +25,11 @@ _get_pass() {
     fi
 }
 
-_get_key() {
+_get_cert() {
     if [ -n "$TESTS_REMOTE_PASS" ]; then
         return
-    elif [ -n "$TESTS_REMOTE_KEY" ]; then
-        echo "-i $TESTS_REMOTE_KEY"
+    elif [ -n "$TESTS_REMOTE_CERT" ]; then
+        echo "-i $TESTS_REMOTE_CERT"
     fi
 }
 
@@ -40,12 +40,12 @@ remote_push() {
         echo "remote.push: local path is required"
     fi
 
-    local SSH_PASS SSH_KEY
+    local SSH_PASS SSH_CERT
     SSH_PASS="$(_get_pass)"
-    SSH_KEY="$(_get_key)"
+    SSH_CERT="$(_get_cert)"
 
     # shellcheck disable=SC2153,SC2086
-    $SSH_PASS scp $SSH_KEY -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$LOCAL_PATH" "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH"
+    $SSH_PASS scp $SSH_CERT -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$LOCAL_PATH" "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH"
 }
 
 main() {
