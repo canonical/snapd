@@ -351,7 +351,7 @@ jobs:
               echo "RUN_TESTS=false" >> $GITHUB_ENV
               printf "" > "$RUN_TESTS_FILE"
           else
-              echo "$spread_list" > "$RUN_TESTS_FILE"
+              tr '\n' ' ' <<<"$spread_list" > "$RUN_TESTS_FILE"
           fi
           echo "The following list of tests will run:"
           cat "$RUN_TESTS_FILE"
