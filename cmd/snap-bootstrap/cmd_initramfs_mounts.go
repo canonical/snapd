@@ -2394,6 +2394,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 			if err := writeSysrootMountUnit(rootfsDir, "", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
 			}
+
+			if err := writeSnapMountDirMountUnit(rootfsDir); err != nil {
+				return fmt.Errorf("cannot write snap.mount: %w", err)
+			}
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]
 			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())

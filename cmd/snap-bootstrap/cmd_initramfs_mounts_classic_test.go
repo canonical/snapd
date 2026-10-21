@@ -755,6 +755,7 @@ Options=bind,shared
 	}
 
 	checkClassicSysrootMount(c)
+	checkClassicSnapMountDirMount(c)
 }
 
 func checkClassicSysrootMount(c *C) {
@@ -779,6 +780,32 @@ Options=bind
 	target, err := os.Readlink(symlinkPath)
 	c.Assert(err, IsNil)
 	c.Assert(target, Equals, "../sysroot.mount")
+}
+
+func checkClassicSnapMountDirMount(c *C) {
+	unitsPath := filepath.Join(dirs.GlobalRootDir, "run/systemd/system")
+	where := filepath.Join("/sysroot", dirs.StripRootDir(dirs.SnapMountDir))
+	unitName := systemd.EscapeUnitNamePath(where) + ".mount"
+	unitPath := filepath.Join(unitsPath, unitName)
+	c.Assert(unitPath, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Description=Mount of snap mount directory
+DefaultDependencies=no
+After=initrd-parse-etc.service
+After=sysroot.mount
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%s
+Where=%s
+Options=rbind,private,shared
+`, where, where))
+
+	symlinkPath := filepath.Join(unitsPath, "initrd-fs.target.wants", unitName)
+	target, err := os.Readlink(symlinkPath)
+	c.Assert(err, IsNil)
+	c.Assert(target, Equals, "../"+unitName)
 }
 
 func (s *initramfsClassicMountsSuite) TestInitramfsMountsRunModeWithDriversTreeHappyClassic(c *C) {
