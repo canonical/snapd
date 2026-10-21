@@ -33,11 +33,15 @@ def delete_timestamp(db, timestamp, dry_run=False):
 def delete_oldest(db, dry_run=False):
     '''
     Looks up all timestamps and deletes every document with the oldest one.
-    Returns the deleted timestamp and the counts from delete_timestamp.
+    Returns the deleted timestamp and the counts from delete_timestamp. The
+    only timestamp left is never deleted, so the latest data always remains.
     '''
     timestamps = get_sorted_timestamps(db)
     if not timestamps:
         raise RuntimeError("no timestamps found in the features collection")
+    if len(timestamps) == 1:
+        raise RuntimeError("only one timestamp ({}) found in the features collection, not deleting it".format(
+            timestamps[0].isoformat()))
     oldest = timestamps[0]
     return oldest, delete_timestamp(db, oldest, dry_run)
 
