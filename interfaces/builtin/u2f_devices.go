@@ -216,7 +216,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "OneSpan DIGIPASS FX Series",
 		VendorIDPattern:  "1a44",
-		ProductIDPattern: "1501|1502|1503|1506|1507|1508|1509|150a|150b",
+		ProductIDPattern: "1501|1502|1503|1504|1505|1506|1507|1508|1509|150a|150b|150c|150d",
 	},
 	{
 		Name:             "Arculus AuthentiKey",
