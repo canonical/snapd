@@ -195,7 +195,7 @@ func FormatDuration(dt float64) string {
 
 	if dt > math.MaxUint64 || uint64(dt) == 0 {
 		// TODO: figure out exactly what overflow causes the ==0
-		return "ages!"
+		return i18n.G("ages!")
 	}
 
 	return FormatAmount(uint64(dt), 4) + years
