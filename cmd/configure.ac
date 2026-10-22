@@ -84,11 +84,11 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
 
 # Check if apparmor userspace library is available.
 AS_IF([test "x$enable_apparmor" = "xyes"], [
-    # Expect AppArmor 5 when building as a snap under snapcraft
+    # Expect AppArmor 6 when building as a snap under snapcraft
     AS_IF([test "x$SNAPCRAFT_PROJECT_NAME" = "xsnapd"], [
-        PKG_CHECK_MODULES([APPARMOR], [libapparmor = 5.0.2], [
-            AC_DEFINE([HAVE_APPARMOR], [1], [Build with apparmor 5 support])], [
-            AC_MSG_ERROR([unable to find apparmor 5 for snap build of snapd])])], [
+        PKG_CHECK_MODULES([APPARMOR], [libapparmor = 6.0.0~alpha1], [
+            AC_DEFINE([HAVE_APPARMOR], [1], [Build with apparmor 6 support])], [
+            AC_MSG_ERROR([unable to find apparmor 6 for snap build of snapd])])], [
         PKG_CHECK_MODULES([APPARMOR], [libapparmor], [
       AC_DEFINE([HAVE_APPARMOR], [1], [Build with apparmor support])])])
 ], [
