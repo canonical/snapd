@@ -6,10 +6,10 @@ details: |
   The test assumes cloud image with a core and lxd snaps in its seeds/.
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

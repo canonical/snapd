@@ -10,13 +10,10 @@ details: |
     with an old save. This test covers that case.
 
 systems:
-  # FIXME: on 26 we get a boot loop. Error is:
-  # chroot: can't execute '/usr/lib/core/handle-writable-paths': No such file or directory
-  # Not unexpected as the base we start with should be core24-, as core26 does
-  # not have handle-writable-paths.
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   NESTED_CUSTOM_MODEL: $(pwd)/model-old.model
