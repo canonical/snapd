@@ -17645,9 +17645,14 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			inhibitHint:        "refresh",
 		}}...)
 	if opts.snapType == snap.TypeKernel {
-		expected = append(expected, fakeOp{
-			op: "prepare-kernel-snap",
-		}, fakeOp{
+		prepareKernelSnapOp := fakeOp{op: "prepare-kernel-snap"}
+		if opts.useSameSnapRev {
+			// same-revision refresh: SetupKernelRegenerate plus the active
+			// kernel-modules components.
+			prepareKernelSnapOp.currentComps = currentKmodComps
+			prepareKernelSnapOp.regenerate = true
+		}
+		expected = append(expected, prepareKernelSnapOp, fakeOp{
 			op:    "update-gadget-assets:Doing",
 			name:  instanceName.String(),
 			revno: newSnapRev,
@@ -19737,10 +19742,22 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		})
+	var currentKmodComps = []*snap.ComponentSideInfo{}
+	for _, cs := range currentComponentStates {
+		if cs.CompType == snap.KernelModulesComponent {
+			currentKmodComps = append(currentKmodComps, cs.SideInfo)
+		}
+	}
+
 	if opts.snapType == snap.TypeKernel {
 		expected = append(expected,
 			fakeOp{
-				op: "prepare-kernel-snap",
+				// Component-only refresh: regenerate the live tree with the
+				// pre-update components, even though they are already unlinked
+				// from SnapState at this point.
+				op:           "prepare-kernel-snap",
+				currentComps: currentKmodComps,
+				regenerate:   true,
 			},
 			fakeOp{
 				op:    "update-gadget-assets:Doing",
@@ -19781,13 +19798,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 			requireSnapdTooling: true,
 		},
 	}...)
-
-	var currentKmodComps = []*snap.ComponentSideInfo{}
-	for _, cs := range currentComponentStates {
-		if cs.CompType == snap.KernelModulesComponent {
-			currentKmodComps = append(currentKmodComps, cs.SideInfo)
-		}
-	}
 
 	var newKmodComps = []*snap.ComponentSideInfo{}
 	for _, cs := range expectedComponentStates {

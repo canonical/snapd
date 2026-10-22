@@ -451,7 +451,7 @@ type ModulesCompMountPoints struct {
 // from the initramfs). To consider all cases, we need to run depmod with links
 // to the currently available content, and then replace those links with the
 // expected mounts in the running system.
-func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, mode KernelDriversTreeMode) (err error) {
+func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, mode KernelDriversTreeMode) (retErr error) {
 	// TODO add support for regenerate
 
 	switch mode {
@@ -468,35 +468,68 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// filesystem as the final one so we can atomically switch the folders.
 	destDir = strings.TrimSuffix(destDir, "/")
 	targetDir := destDir + "_tmp"
-	if mode == KernelInstallMode {
-		targetDir = destDir
-		exists, isDir, _ := osutil.DirExists(targetDir)
-		if exists && isDir {
-			logger.Debugf("device tree %q already created on installation, not re-creating",
-				targetDir)
-			// Nothing was built here, so the existing marker (if any) is
-			// left untouched.
-			return nil
+
+	if mode == RegenerateMode {
+		// Let's make sure that the directory exists in the first place
+		exists, isDir, err := osutil.DirExists(destDir)
+		if err != nil {
+			return err
+		}
+		if exists && !isDir {
+			return fmt.Errorf("cannot regenerate kernel drivers tree %q: not a directory", destDir)
+		}
+		if !exists {
+			// The kernel revision directory does not exist at all, we'll treat
+			// it like a new install
+			mode = KernelInstallMode
 		}
 	}
-	// Initial clean-up to make the function idempotent
+	if mode == KernelInstallMode {
+		targetDir = destDir
+		exists, isDir, err := osutil.DirExists(targetDir)
+		if err != nil {
+			return err
+		}
+		if exists && isDir {
+			// Require a current marker which is written last when building the
+			// tree. Otherwise fall through and rebuild in place (safe: destDir
+			// is not yet live-mounted to /lib/modules or /lib/firmware yet).
+			needsUpdate, err := DriversTreeOutdated(targetDir)
+			if err != nil {
+				return err
+			}
+			if !needsUpdate {
+				logger.Debugf("device tree %q already created on installation, not re-creating",
+					targetDir)
+				return nil
+			}
+			logger.Debugf("device tree %q exists but is not up to date (missing or stale marker), rebuilding",
+				targetDir)
+		}
+	}
+	// Initial clean-up to make the function idempotent. Must not continue
+	// on failure: any stale content left behind here could survive into
+	// the freshly-built tree, which would then be marked current.
 	if rmErr := RemoveKernelDriversTree(targetDir); rmErr != nil &&
-		!errors.Is(err, fs.ErrNotExist) {
-		logger.Noticef("while removing old kernel tree: %v", rmErr)
+		!errors.Is(rmErr, fs.ErrNotExist) {
+		return rmErr
 	}
 
 	defer func() {
 		// Remove on return if error or if temporary tree
-		if err == nil && mode == KernelInstallMode {
+		if retErr == nil && mode == KernelInstallMode {
 			return
 		}
 		if rmErr := RemoveKernelDriversTree(targetDir); rmErr != nil &&
-			!errors.Is(err, fs.ErrNotExist) {
+			!errors.Is(rmErr, fs.ErrNotExist) {
 			logger.Noticef("while cleaning up kernel tree: %v", rmErr)
 		}
 	}()
 
-	// Create drivers tree
+	// Create drivers tree. Note, most of the time the kernel will have modules,
+	// but the odd case where it does not is still technically possible. In such
+	// scenario components with modules are unsupported.
+	hasModules := true
 	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
 	if err == nil {
 		if err := createModulesSubtree(kMntPts, targetDir,
@@ -505,6 +538,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 	} else {
 		logger.Debugf("no modules found in %q", kMntPts.Current)
+		hasModules = false
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")
@@ -548,14 +582,16 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 			return fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
 		}
 
-		newMods := filepath.Join(targetDir, "lib", "modules", kversion)
-		oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
-		if err := osutil.SwapDirs(oldMods, newMods); err != nil {
-			// Undo firmware swap
-			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-				logger.Noticef("while reverting modules swap: %v", err)
+		if hasModules {
+			newMods := filepath.Join(targetDir, "lib", "modules", kversion)
+			oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
+			if err := osutil.SwapDirs(oldMods, newMods); err != nil {
+				// Undo firmware swap
+				if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+					logger.Noticef("while reverting modules swap: %v", err)
+				}
+				return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
 			}
-			return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
 		}
 
 		// Make sure that changes are written
