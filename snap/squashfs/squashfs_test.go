@@ -1169,6 +1169,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 	commonTypeArgs := []string{".", filename, "-noappend", "-comp", "xz", "-no-fragments", "-no-progress"}
 	permissiveTypeArgs := append(commonTypeArgs, "-xattrs")
 	restrictedTypeArgs := append(commonTypeArgs, "-all-root", "-no-xattrs")
+	kernelTypeArgs := append(commonTypeArgs, "-action", "uncompressed @ name(kernel.efi) || name(kernel.img) || name(initrd.img) || name(*.zst) || name(*.xz)", "-all-root", "-no-xattrs")
 	tests := []struct {
 		snapType string
 		args     []string
@@ -1176,7 +1177,7 @@ func (s *SquashfsTestSuite) TestBuildVariesArgsByType(c *C) {
 		{"", restrictedTypeArgs},
 		{"app", restrictedTypeArgs},
 		{"gadget", restrictedTypeArgs},
-		{"kernel", restrictedTypeArgs},
+		{"kernel", kernelTypeArgs},
 		{"snapd", permissiveTypeArgs},
 		{"base", permissiveTypeArgs},
 		{"os", permissiveTypeArgs},
