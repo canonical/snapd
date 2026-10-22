@@ -1,0 +1,10 @@
+name: wayland-server
+version: 1.0
+summary: Fake wayland server
+description: Fake wayland server
+
+apps:
+  wayland-server:
+    command: bin/wserver.sh
+    plugs: [network]
+    slots: [wayland]
