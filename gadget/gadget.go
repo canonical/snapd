@@ -60,6 +60,9 @@ const (
 	schemaGPT = "gpt"
 	// schemaEMMC identifies a schema for eMMC
 	schemaEMMC = "emmc"
+	// schemaUFS identifies a schema for the boot logical units of a UFS
+	// device
+	schemaUFS = "ufs"
 
 	SystemBoot      = "system-boot"
 	SystemData      = "system-data"
@@ -1155,6 +1158,18 @@ func validateVolumeAssignments(volassigns []*VolumeAssignment, volumes map[strin
 		}
 	}
 
+	// UFS volumes are located through the UFS device they are assigned to,
+	// so they need volume-assignments. A variant that does not assign a UFS
+	// volume leaves it out of the volumes of the device, like any other
+	// volume.
+	if len(volassigns) == 0 {
+		for name, vol := range volumes {
+			if vol.Schema == schemaUFS {
+				return fmt.Errorf("volume %q with schema %q requires volume-assignments", name, vol.Schema)
+			}
+		}
+	}
+
 	// ensure no two variants are identical in terms of contents, as we
 	// can only do matching based on the first correct we find.
 	checker := make(map[string][]*VolumeAssignment, len(volassigns))
@@ -1398,9 +1413,10 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		// so roles are good). This is possible only if the previous structure had
 		// a well-defined end.
 		switch vol.Schema {
-		case schemaEMMC:
-			// For eMMC, we do not support partition offsets. The partitions
-			// are hardware partitions that act more like traditional disks.
+		case schemaEMMC, schemaUFS:
+			// For eMMC and UFS, we do not support partition offsets. The
+			// partitions are hardware partitions (or logical units) that
+			// act more like traditional disks.
 			vs.Offset = asOffsetPtr(0)
 		default:
 			previousEnd = setVolumeStructureOffset(vs, previousEnd)
@@ -1524,7 +1540,7 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-var validSchemaNames = []string{schemaMBR, schemaGPT, schemaEMMC}
+var validSchemaNames = []string{schemaMBR, schemaGPT, schemaEMMC, schemaUFS}
 
 func isValidSchema(schema string) bool {
 	return strutil.ListContains(validSchemaNames, schema)
@@ -1602,8 +1618,9 @@ func isMBR(vs *VolumeStructure) bool {
 
 func validateCrossVolumeStructure(vol *Volume) error {
 	// eMMC have no traditional volumes, instead eMMC has the concept
-	// of hardware partitions that act like separate disks.
-	if vol.Schema == schemaEMMC {
+	// of hardware partitions that act like separate disks. The same
+	// applies to the boot logical units of UFS.
+	if isHardwareBootAreaVolume(vol) {
 		return nil
 	}
 
@@ -1664,7 +1681,7 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 
 func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent) error {
 	switch {
-	case vol.Schema == schemaEMMC:
+	case isHardwareBootAreaVolume(vol):
 		return validateEMMCContent
 	case vs.HasFilesystem():
 		return validateFilesystemContent
@@ -1675,11 +1692,11 @@ func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent)
 	}
 }
 
-// For emmc volume structures, we do not allow anything but
+// For emmc and ufs volume structures, we do not allow anything but
 // content and name
-func validateEMMCVolumeStructure(vs *VolumeStructure) error {
+func validateEMMCVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	fielderr := func(field string) error {
-		return fmt.Errorf("%q not allowed for emmc volume structures", field)
+		return fmt.Errorf("%q not allowed for %s volume structures", field, vol.Schema)
 	}
 
 	if vs.Size != 0 {
@@ -1719,8 +1736,8 @@ func validateEMMCVolumeStructure(vs *VolumeStructure) error {
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if isVolumeEMMC(vol) {
-		return validateEMMCVolumeStructure(vs)
+	if isHardwareBootAreaVolume(vol) {
+		return validateEMMCVolumeStructure(vs, vol)
 	}
 	if !vs.hasPartialSize() {
 		if vs.Size == 0 {
@@ -1764,10 +1781,10 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	return nil
 }
 
-func validateStructureTypeEMMC(s string) error {
-	// for eMMC we don't support the type being set
+func validateStructureTypeEMMC(s string, vol *Volume) error {
+	// for eMMC and UFS we don't support the type being set
 	if s != "" {
-		return errors.New(`type is not supported for "emmc" schema`)
+		return fmt.Errorf("type is not supported for %q schema", vol.Schema)
 	}
 	return nil
 }
@@ -1783,9 +1800,9 @@ func validateStructureType(s string, vol *Volume) error {
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
 	// example: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 
-	// eMMC volumes we treat differently
-	if vol.Schema == schemaEMMC {
-		return validateStructureTypeEMMC(s)
+	// eMMC and UFS volumes we treat differently
+	if isHardwareBootAreaVolume(vol) {
+		return validateStructureTypeEMMC(s, vol)
 	}
 
 	if s == "" {

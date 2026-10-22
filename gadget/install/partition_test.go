@@ -347,6 +347,17 @@ func (s *partitionTestSuite) TestBuildPartitionListEMMCIsEmptyButNoError(c *C) {
 	c.Assert(create, IsNil)
 }
 
+func (s *partitionTestSuite) TestBuildPartitionListUFSIsEmptyButNoError(c *C) {
+	sfdiskInput, create, err := install.BuildPartitionList(&gadget.OnDiskVolume{
+		SectorSize: 512,
+	}, &gadget.Volume{
+		Schema: "ufs",
+	}, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(sfdiskInput, IsNil)
+	c.Assert(create, IsNil)
+}
+
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", "")
 	defer cmdSfdisk.Restore()

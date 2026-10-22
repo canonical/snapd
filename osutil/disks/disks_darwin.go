@@ -82,3 +82,7 @@ func filesystemTypeForPartition(devname string) (string, error) {
 func Devlinks(node string) ([]string, error) {
 	return []string{}, osutil.ErrDarwin
 }
+
+func UFSLogicalUnitsForDiskDevicePath(diskDevPath string) ([]UFSLogicalUnit, error) {
+	return nil, osutil.ErrDarwin
+}
