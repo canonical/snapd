@@ -11,6 +11,9 @@ apps:
   acrn-support:
     command: bin/run
     plugs: [ acrn-support ]
+  accessibility-legacy:
+    command: bin/run
+    plugs: [ accessibility-legacy ]
   allegro-vcu:
     command: bin/run
     plugs: [ allegro-vcu ]
