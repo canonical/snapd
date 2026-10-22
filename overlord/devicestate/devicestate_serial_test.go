@@ -2753,6 +2753,80 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationBlockedByNoRegister(c *
 	c.Assert(becomeOperational, IsNil)
 }
 
+func (s *deviceMgrSerialSuite) TestFullDeviceRegisterUnregisterClassicNoSnaps(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1", nil)
+	defer mockServer.Close()
+
+	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r2()
+
+	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// in this case is just marked seeded without snaps
+	s.state.Set("seeded", true)
+
+	// not started without some installation happening or happened
+	s.state.Unlock()
+	s.se.Ensure()
+	s.state.Lock()
+	c.Check(s.findBecomeOperationalChange(), IsNil)
+
+	// a pending backoff must not delay an explicit request
+	c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, time.Now()), Equals, false)
+	c.Assert(s.mgr.Register(), IsNil)
+
+	// runs the whole device registration process
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "9999")
+
+	c.Assert(s.mgr.Unregister(nil), IsNil)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// unregistering drops the request, so lazy registration waits again
+	c.Check(s.findBecomeOperationalChange(becomeOperational.ID()), IsNil)
+	device, err = devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "")
+}
+
+func (s *deviceMgrSerialSuite) TestRegisterAlreadyRegisteredNoop(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "generic",
+		Model:  "generic-classic",
+		Serial: "9999",
+	})
+	c.Check(devicestate.EnsureOperationalShouldBackoff(s.mgr, time.Now()), Equals, false)
+
+	c.Assert(s.mgr.Register(), IsNil)
+
+	// backoff untouched
+	c.Check(devicestate.BecomeOperationalBackoff(s.mgr), Equals, 5*time.Minute)
+}
+
 func (s *deviceMgrSerialSuite) TestDeviceSerialRestoreHappy(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
