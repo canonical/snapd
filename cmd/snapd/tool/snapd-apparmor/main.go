@@ -183,6 +183,14 @@ func run() error {
 		}
 	}
 
+	// Probe the running kernel for the AppArmor 5.0 network mediation bug
+	// before compiling any profiles; if detected, snapd compiles profiles
+	// with abi/4.0 instead of abi/5.0. A probe failure is not fatal: it
+	// just means no downgrade happens, as on systems without the probe.
+	if err := apparmor_sandbox.EnsureAppArmor5NetworkBugProbe(); err != nil {
+		logger.Debugf("cannot probe for AppArmor 5.0 network mediation bug: %v", err)
+	}
+
 	return loadAppArmorProfiles()
 }
 
