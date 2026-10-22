@@ -150,7 +150,17 @@ func syscallMode(i os.FileMode) (o uint32) {
 // returns the file descriptor to the leaf directory as well as the restricted
 // flag. This function is a base for secure variants of mkdir, touch and
 // symlink. None of the traversed directories can be symbolic links.
-func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) (int, error) {
+//
+// The perm argument is used as a fallback mode for any directory segment
+// that is created while walking the prefix. When as is non-nil, each
+// individual segment's mode is instead looked up via as.ModeForPath, so that
+// mode hints registered for specific path elements (e.g. to distinguish a
+// snap's private /tmp base directory, which must stay 0700, from a
+// subdirectory within it that must be world-writable, such as .../tmp or
+// .../tmp/.X11-unix) are honored per segment rather than having the mode
+// intended for one segment (typically the leaf) applied uniformly to every
+// directory created along the way.
+func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions, as *Assumptions) (int, error) {
 	iter, err := strutil.NewPathIterator(base)
 	if err != nil {
 		// TODO: Reword the error and adjust the tests.
@@ -175,7 +185,11 @@ func MkPrefix(base string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 		// Keep closing the previous descriptor as we go, so that we have the
 		// last one handy from the MkDir below.
 		defer sysClose(fd)
-		fd, err = MkDir(fd, iter.CurrentDir(), iter.CurrentBase(), perm, uid, gid, rs)
+		segPerm := perm
+		if as != nil {
+			segPerm = as.ModeForPath(iter.CurrentPath())
+		}
+		fd, err = MkDir(fd, iter.CurrentDir(), iter.CurrentBase(), segPerm, uid, gid, rs)
 		if err != nil {
 			return -1, err
 		}
@@ -466,7 +480,11 @@ func MkdirAllWithin(path, parent string, perm os.FileMode, uid sys.UserID, gid s
 // The uid and gid are used for the fchown(2) system call which is performed
 // after each segment is created and opened. The special value -1 may be used
 // to request that ownership is not changed.
-func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
+//
+// The as argument, when non-nil, is used by MkPrefix to resolve a mode hint
+// for each individual directory created along the path prefix (see
+// MkPrefix). The leaf itself always uses perm, unaffected by as.
+func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions, as *Assumptions) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -480,7 +498,7 @@ func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
+	dirFd, err := MkPrefix(base, perm, uid, gid, rs, as)
 	if err != nil {
 		return err
 	}
@@ -503,7 +521,9 @@ func MkdirAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs
 // This function is like MkdirAll but it creates an empty file instead of
 // a directory for the final path component. Each created directory component
 // is chowned to the desired user and group.
-func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions) error {
+//
+// See MkdirAll for a description of the as argument.
+func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, rs *Restrictions, as *Assumptions) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -521,7 +541,7 @@ func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, r
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
+	dirFd, err := MkPrefix(base, perm, uid, gid, rs, as)
 	if err != nil {
 		return err
 	}
@@ -535,7 +555,9 @@ func MkfileAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, r
 }
 
 // MksymlinkAll is a secure implementation of "ln -s".
-func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string, rs *Restrictions) error {
+//
+// See MkdirAll for a description of the as argument.
+func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID, oldname string, rs *Restrictions, as *Assumptions) error {
 	if path != filepath.Clean(path) {
 		// TODO: Reword the error and adjust the tests.
 		return fmt.Errorf("cannot split unclean path %q", path)
@@ -557,7 +579,7 @@ func MksymlinkAll(path string, perm os.FileMode, uid sys.UserID, gid sys.GroupID
 	base = filepath.Clean(base) // Needed to chomp the trailing slash.
 
 	// Create the prefix.
-	dirFd, err := MkPrefix(base, perm, uid, gid, rs)
+	dirFd, err := MkPrefix(base, perm, uid, gid, rs, as)
 	if err != nil {
 		return err
 	}
