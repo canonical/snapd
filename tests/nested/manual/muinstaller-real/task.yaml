@@ -431,6 +431,11 @@ execute: |
       remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
   done
 
+  # Go back to run mode
+  boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
+  remote.exec "sudo reboot" || true
+  remote.wait-for reboot "${boot_id}"
+
   # This is one of a few tests that set up hybrid system, given how the mount
   # namespace of the host is set up and peculiar requirements for parallel
   # installing classic snaps, let's make sure that they can be installed and
