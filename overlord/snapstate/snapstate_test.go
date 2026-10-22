@@ -11143,11 +11143,18 @@ WantedBy=multi-user.target
 
 type ensureSnapStateRewriteMountsCreatedOpts struct {
 	withIntegrityData  bool
+	noSysrootDmVerity  bool
 	integrityLookupErr error
 	expectedErr        string
 }
 
 func (s *snapmgrTestSuite) testEnsureSnapStateRewriteMountsCreated(c *C, opts ensureSnapStateRewriteMountsCreatedOpts) {
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core24")))
+	if !opts.noSysrootDmVerity {
+		writeSysrootState(c, sysrootStateWithDmVerity)
+	}
+	useIntegrity := opts.withIntegrityData && !opts.noSysrootDmVerity
+
 	idp := &integrity.IntegrityDataParams{
 		Type:   "dm-verity",
 		Digest: "deadbeef",
@@ -11208,7 +11215,7 @@ apps:
 
 	err := s.snapmgr.Ensure()
 
-	if opts.withIntegrityData {
+	if useIntegrity {
 		c.Check(lookupCalls, Equals, 1)
 	} else {
 		c.Check(lookupCalls, Equals, 0)
@@ -11226,7 +11233,7 @@ apps:
 	c.Assert(s.restarts[unitName], Equals, 1)
 
 	options := "nodev,ro,x-gdu.hide,x-gvfs-hide"
-	if opts.withIntegrityData && opts.integrityLookupErr == nil {
+	if useIntegrity && opts.integrityLookupErr == nil {
 		integrityMountOpts, err := idp.MountOptions(info.MountFile())
 		c.Assert(err, IsNil)
 		options = options + "," + strings.Join(integrityMountOpts, ",")
@@ -11263,6 +11270,13 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityData(c *
 	})
 }
 
+func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataNoSysrootDmVerity(c *C) {
+	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{
+		withIntegrityData: true,
+		noSysrootDmVerity: true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataNotExist(c *C) {
 	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{
 		withIntegrityData:  true,
@@ -11274,7 +11288,7 @@ func (s *snapmgrTestSuite) TestEnsureSnapStateRewriteMountsWithIntegrityDataInva
 	s.testEnsureSnapStateRewriteMountsCreated(c, ensureSnapStateRewriteMountsCreatedOpts{
 		withIntegrityData:  true,
 		integrityLookupErr: fmt.Errorf(`%w: expected "dm-verity" but found "foo"`, integrity.ErrUnexpectedIntegrityDataType),
-		expectedErr:        `cannot validate integrity data for snap "test-snap": unexpected integrity data type: expected "dm-verity" but found "foo"`,
+		expectedErr:        `cannot validate integrity data for snap-id "test-snap-id" \(revision 42\): unexpected integrity data type: expected "dm-verity" but found "foo"`,
 	})
 }
 
