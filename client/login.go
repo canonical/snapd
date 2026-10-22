@@ -59,8 +59,11 @@ func (client *Client) Login(email, password, otp string) (*User, error) {
 		return nil, err
 	}
 
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
 	var user User
-	if _, err := client.doSync("POST", "/v2/login", nil, nil, &body, &user); err != nil {
+	if _, err := client.doSync("POST", "/v2/login", nil, headers, &body, &user); err != nil {
 		return nil, err
 	}
 

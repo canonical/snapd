@@ -40,7 +40,10 @@ func (client *Client) performAliasAction(sa *aliasAction) (changeID string, err 
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("POST", "/v2/aliases", nil, nil, bytes.NewReader(b))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return client.doAsync("POST", "/v2/aliases", nil, headers, bytes.NewReader(b))
 }
 
 // Alias sets up a manual alias from alias to app in snapName.
