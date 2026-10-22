@@ -79,7 +79,39 @@ func getPrice(prices map[string]float64, currency string) (float64, string, erro
 	return val, currency, nil
 }
 
+const (
+	// sectionShowAllValue is used when the user specified --section
+	// without any argument.
+	sectionShowAllValue = "show-all-sections-please"
+	// sectionDefaultValue is used when "--section" was not specified on
+	// the commandline at all.
+	sectionDefaultValue = "no-section-specified"
+)
+
 type SectionName string
+
+// UnmarshalFlag accumulates repeated --section flags into a comma-separated
+// list instead of overwriting, since the store already matches against any
+// of them.
+func (s *SectionName) UnmarshalFlag(value string) error {
+	switch string(*s) {
+	case "", sectionDefaultValue:
+		*s = SectionName(value)
+	case sectionShowAllValue:
+		// a bare --section (show all sections) was already given; an
+		// explicit value after that doesn't combine sensibly with "show
+		// all", so let the explicit value take over instead of joining
+		*s = SectionName(value)
+	default:
+		if value == sectionShowAllValue {
+			// bare --section after one or more explicit values: keep
+			// filtering rather than switching to "show all sections"
+			return nil
+		}
+		*s += "," + SectionName(value)
+	}
+	return nil
+}
 
 func (s SectionName) Complete(match string) []flags.Completion {
 	if ret, err := completeFromSortedFile(dirs.SnapSectionsFile, match); err == nil {
@@ -98,6 +130,16 @@ func (s SectionName) Complete(match string) []flags.Completion {
 		}
 	}
 	return ret
+}
+
+func unknownSections(requested, known []string) []string {
+	var unknown []string
+	for _, r := range requested {
+		if !strutil.ListContains(known, r) {
+			unknown = append(unknown, r)
+		}
+	}
+	return unknown
 }
 
 func cachedSections() (sections []string, err error) {
@@ -188,15 +230,10 @@ func (x *cmdFind) Execute(args []string) error {
 		query = ""
 	}
 
-	// section will be:
-	// - "show-all-sections-please" if the user specified --section
-	//   without any argument
-	// - "no-section-specified" if "--section" was not specified on
-	//   the commandline at all
 	switch x.Section {
-	case "show-all-sections-please":
+	case sectionShowAllValue:
 		return showSections(x.client)
-	case "no-section-specified":
+	case sectionDefaultValue:
 		x.Section = ""
 	}
 
@@ -207,19 +244,22 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	if x.Section != "" && x.Section != "featured" {
+		requested := strutil.CommaSeparatedList(string(x.Section))
 		sections, err := cachedSections()
 		if err != nil {
 			return err
 		}
-		if !strutil.ListContains(sections, string(x.Section)) {
-			// try the store just in case it was added in the last 24 hours
+		unknown := unknownSections(requested, sections)
+		if len(unknown) > 0 {
+			// try the store just in case they were added in the last 24 hours
 			sections, err = x.client.Sections()
 			if err != nil {
 				return err
 			}
-			if !strutil.ListContains(sections, string(x.Section)) {
-				// TRANSLATORS: the %q is the (quoted) name of the section the user entered
-				return fmt.Errorf(i18n.G("No matching section %q, use --section to list existing sections"), x.Section)
+			unknown = unknownSections(requested, sections)
+			if len(unknown) > 0 {
+				// TRANSLATORS: %s is a comma-separated list of one or more (quoted) section names the user entered
+				return fmt.Errorf(i18n.G("No matching section(s) %s, use --section to list existing sections"), strutil.Quoted(unknown))
 			}
 		}
 	}
