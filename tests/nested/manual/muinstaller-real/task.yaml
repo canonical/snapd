@@ -430,3 +430,18 @@ execute: |
   for name in passwd shadow group gshadow; do
       remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
   done
+
+  # This is one of a few tests that set up hybrid system, given how the mount
+  # namespace of the host is set up and peculiar requirements for parallel
+  # installing classic snaps, let's make sure that they can be installed and
+  # work.
+  remote.exec "sudo snap install test-snapd-classic-confinement_foo --classic"
+  remote.exec "test-snapd-classic-confinement_foo"
+
+  # With snap-bootstrap generating the snap.mount unit early in the boot, there
+  # should be no duplicate mounts.
+  remote.exec "cat /proc/self/mountinfo" > vm-mountinfo
+  for snap_name in pc-kernel snapd test-snapd-classic-confinement_foo; do
+      count="$(awk -v p="/snap/$snap_name/" 'index($5, p) == 1' vm-mountinfo | wc -l)"
+      test "$count" -eq 1
+  done
