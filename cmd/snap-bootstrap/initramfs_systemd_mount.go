@@ -446,7 +446,6 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 const snapMountDirUnit = `[Unit]
 Description=Mount of snap mount directory
 DefaultDependencies=no
-After=initrd-parse-etc.service
 After=sysroot.mount
 Before=initrd-fs.target
 Before=umount.target

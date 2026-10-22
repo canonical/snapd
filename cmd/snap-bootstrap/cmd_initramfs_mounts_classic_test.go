@@ -790,7 +790,6 @@ func checkClassicSnapMountDirMount(c *C) {
 	c.Assert(unitPath, testutil.FileEquals, fmt.Sprintf(`[Unit]
 Description=Mount of snap mount directory
 DefaultDependencies=no
-After=initrd-parse-etc.service
 After=sysroot.mount
 Before=initrd-fs.target
 Before=umount.target
