@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -42,6 +43,8 @@ type cmdPrepareImage struct {
 	AppArmorKernelFeaturesDir string `long:"apparmor-features-dir"`
 	// optional sysfs overlay
 	SysfsOverlay string `long:"sysfs-overlay"`
+	// optional preseed hints file to derive the sysfs overlay from
+	Hints        string `long:"hints"`
 	Architecture string `long:"arch"`
 
 	Positional struct {
@@ -88,6 +91,8 @@ For preparing classic images it supports a --classic mode`),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"sysfs-overlay": i18n.G("Optional sysfs overlay to be used when running preseeding steps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
+			"hints": i18n.G("Optional preseed hints file, as written by 'snap preseed-hints' on the target device, to derive the sysfs overlay from"),
+			// TRANSLATORS: This should not start with a lowercase letter.
 			"apparmor-features-dir": i18n.G("Optional path to apparmor kernel features directory (UC20+ only)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
@@ -128,6 +133,7 @@ For preparing classic images it supports a --classic mode`),
 
 var imagePrepare = image.Prepare
 var seedwriterReadManifest = seedwriter.ReadManifest
+var preseedCreateSysfsOverlayFromHints = preseed.CreateSysfsOverlayFromHints
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	// plug/slot sanitization is disabled (no-op) by default at the package
@@ -200,10 +206,30 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		return fmt.Errorf("--sysfs-overlay cannot be used without --preseed")
 	}
 
+	if x.Hints != "" && !x.Preseed {
+		return fmt.Errorf("--hints cannot be used without --preseed")
+	}
+
+	if x.Hints != "" && x.SysfsOverlay != "" {
+		return fmt.Errorf("--hints cannot be used together with --sysfs-overlay")
+	}
+
 	opts.Preseed = x.Preseed
 	opts.PreseedSignKey = x.PreseedSignKey
 	opts.AppArmorKernelFeaturesDir = x.AppArmorKernelFeaturesDir
 	opts.SysfsOverlay = x.SysfsOverlay
+
+	if x.Hints != "" {
+		// the hints are materialized as a temporary sysfs overlay,
+		// which is then used exactly like the one --sysfs-overlay
+		// points at; its lifetime is bound to this synchronous call
+		overlayDir, cleanup, err := preseedCreateSysfsOverlayFromHints(x.Hints)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		opts.SysfsOverlay = overlayDir
+	}
 
 	return imagePrepare(opts)
 }
