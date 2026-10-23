@@ -279,6 +279,12 @@ func (iface *upowerObserveInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 	return true
 }
 
+func (iface *upowerObserveInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// UPower owns the well-known bus name org.freedesktop.UPower on the
+	// system bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&upowerObserveInterface{})
 }

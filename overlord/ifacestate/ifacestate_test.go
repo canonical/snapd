@@ -5143,7 +5143,7 @@ func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, comp
 
 	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapInfo.SnapName().String(), compName),
+			Component: naming.NewComponentRef(snapInfo.SnapName(), compName),
 			Revision:  snap.R(1),
 		},
 		CompType: snap.StandardComponent,
@@ -5292,7 +5292,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	// includes it
 	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapInfo.SnapName().String(), "comp2"),
+			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp2"),
 			Revision:  snap.R(1),
 		},
 		CompType: snap.StandardComponent,
@@ -5304,7 +5304,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	c.Assert(snapstate.Get(s.state, coreSnapInfo.InstanceName().String(), &coreSnapst), IsNil)
 	coreSnapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
-			Component: naming.NewComponentRef(snapInfo.SnapName().String(), "comp"),
+			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp"),
 			Revision:  snap.R(1),
 		},
 		CompType: snap.StandardComponent,
@@ -8080,6 +8080,45 @@ func (s *interfaceManagerSuite) TestRegenerateAllSecurityProfilesWritesSystemKey
 	stat2, err := os.Stat(dirs.SnapSystemKeyFile)
 	c.Assert(err, IsNil)
 	c.Check(stat.ModTime(), DeepEquals, stat2.ModTime())
+}
+
+type parallelInstancesRejectingInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *parallelInstancesRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	return errors.New("plug rejected")
+}
+
+func (s *interfaceManagerSuite) TestStartupMigratesParallelInstancesWithUnsupportedInterfaces(c *C) {
+	s.mockIface(&ifacetest.TestInterface{InterfaceName: "pi-ok"})
+	s.mockIface(&parallelInstancesRejectingInterface{ifacetest.TestInterface{InterfaceName: "pi-nok"}})
+	s.mockSnapInstance(c, "consumer_ok", `name: consumer
+version: 1
+plugs:
+  plug:
+    interface: pi-ok
+`)
+	s.mockSnapInstance(c, "consumer_nok", `name: consumer
+version: 1
+plugs:
+  plug:
+    interface: pi-nok
+`)
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for name, expected := range map[string]bool{
+		"consumer_ok":  false,
+		"consumer_nok": true,
+	} {
+		var snapst snapstate.SnapState
+		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
+		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name))
+	}
 }
 
 func (s *interfaceManagerSuite) TestStartupTimings(c *C) {

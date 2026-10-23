@@ -3,7 +3,12 @@
 
 type: object
 title: SystemActionCheckPinQuality
-description: Payload to check the quality of a given PIN.
+description: >-
+  Payload to check the quality of a given PIN.
+  The target system must support PIN authentication, indicated
+  by the 'pin-auth' entry in `storage-encryption.features`
+  returned by `GET /v2/systems/{label}`. Otherwise, snapd returns a
+  400 Bad Request error with result kind `unsupported`.
 required:
   - action
   - pin
@@ -13,6 +18,6 @@ properties:
     enum:
       - check-pin-quality
   pin:
-    type: string
-    format: password
+    allOf:
+      - $ref: 'PIN.yaml'
     description: The PIN to validate.

@@ -1,0 +1,21 @@
+[Unit]
+Description=snap mount directory mount
+# Only set up the self bind mount with shared propagation when there is no
+# preserved snap mount namespace yet.
+ConditionPathExistsGlob=!/run/snapd/ns/*.mnt
+# Defer self-binds over live child mounts on an in-place package upgrade.
+ConditionPathExists=!/run/snapd/packaging/prevent-mount-dir-activation
+# Do not activate on hybrid setups, where the kernel snap is mounted early in
+# initramfs. If the unit is activated post pivot the system ends up with duplicate
+# mounts. The /run/mnt/data is created early during boot by snap-bootstrap.
+ConditionPathIsMountPoint=!/run/mnt/data
+Before=snapd.mounts-pre.target
+
+[Mount]
+# Specific set of options to build the hierarchy we need:
+# rbind - recursively bind /snap on top of /snap, inherits shared
+# private - stop propagating to parent
+# shared - create a new shared peer group
+What=/snap
+Where=/snap
+Options=rbind,private,shared

@@ -69,12 +69,11 @@ mount options=ro /dev/hugepages,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "hugepages-control",
-		summary:                  hugepagesControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     hugepagesControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    hugepagesControlConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "hugepages-control",
+		summary:               hugepagesControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  hugepagesControlBaseDeclarationSlots,
+		connectedPlugAppArmor: hugepagesControlConnectedPlugAppArmor,
 	})
 }

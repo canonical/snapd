@@ -108,11 +108,10 @@ func (iface *daemoNotifyInterface) AppArmorConnectedPlug(spec *apparmor.Specific
 
 func init() {
 	registerIface(&daemoNotifyInterface{commonInterface: commonInterface{
-		name:                     "daemon-notify",
-		summary:                  daemonNotifySummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     daemonNotifyBaseDeclarationSlots,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                 "daemon-notify",
+		summary:              daemonNotifySummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: daemonNotifyBaseDeclarationSlots,
 	}})
 }

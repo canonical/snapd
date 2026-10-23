@@ -14,11 +14,9 @@ skip:
 
 prepare: |
   snap set system experimental.confdb=true
-  snap set system experimental.parallel-instances=true
 
 restore: |
   snap unset system experimental.confdb
-  snap unset system experimental.parallel-instances
 
 execute: |
   snap ack "$TESTSLIB/assertions/developer1-network.confdb"

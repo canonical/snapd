@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -214,7 +215,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 
 // pruneRefreshCandidates removes the given snaps from refresh-candidates map
 // in the state.
-func pruneRefreshCandidates(st *state.State, snaps ...string) error {
+func pruneRefreshCandidates(st *state.State, snaps ...naming.InstanceName) error {
 	tr := config.NewTransaction(st)
 	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
 	if err != nil && !config.IsNoOption(err) {
@@ -249,7 +250,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 		}
 	}
 
-	var candidates map[string]*refreshCandidate
+	var candidates map[naming.InstanceName]*refreshCandidate
 
 	err = st.Get("refresh-candidates", &candidates)
 	if err != nil {
@@ -259,9 +260,9 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 		return err
 	}
 
-	for _, snapName := range snaps {
-		delete(candidates, snapName)
-		abortMonitoring(st, snapName)
+	for _, instanceName := range snaps {
+		delete(candidates, instanceName)
+		abortMonitoring(st, instanceName.String())
 	}
 
 	if len(candidates) == 0 {
@@ -279,7 +280,7 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 // those entries mentioned in the list are dropped, other existing entries are
 // preserved. Whenever an existing entry is to be replaced, the caller must have
 // provided a hint which preserves the hint's state outside of snap-setup.
-func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate, canDropOldNames []string) error {
+func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate, canDropOldNames []naming.InstanceName) error {
 	var oldHints map[string]*refreshCandidate
 	if err := st.Get("refresh-candidates", &oldHints); err != nil {
 		if !errors.Is(err, &state.NoStateError{}) {
@@ -302,7 +303,7 @@ func updateRefreshCandidates(st *state.State, hints map[string]*refreshCandidate
 			// XXX we rely on the new hint preserving the state
 			oldHints[oldHintName] = newHint
 		} else {
-			if dropAllOld || strutil.ListContains(canDropOldNames, oldHintName) {
+			if dropAllOld || strutil.ListContains(canDropOldNames, naming.InstanceName(oldHintName)) {
 				// we have no new hint for this snap
 				deleted = append(deleted, oldHintName)
 				delete(oldHints, oldHintName)

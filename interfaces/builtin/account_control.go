@@ -160,7 +160,6 @@ func init() {
 		baseDeclarationSlots:  accountControlBaseDeclarationSlots,
 		connectedPlugAppArmor: accountControlConnectedPlugAppArmor,
 		// handled by SecCompConnectedPlug
-		connectedPlugSecComp:     "",
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		connectedPlugSecComp: "",
 	}})
 }

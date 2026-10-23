@@ -16,9 +16,6 @@ environment:
     CONTENT/common: common
     CONTENT/snap: snap
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-content-advanced-slot
 

@@ -7,14 +7,10 @@ details: |
 # takes >3min to run
 backends: [-autopkgtest]
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-
 restore: |
     snap remove --purge test-snapd-service || true
     snap remove --purge test-snapd-service_foo || true
     snap remove --purge test-snapd-service_longname || true
-    snap unset system experimental.parallel-instances
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service

@@ -165,6 +165,13 @@ func (iface *unity8PimCommonInterface) SecCompPermanentSlot(spec *seccomp.Specif
 	return nil
 }
 
+func (iface *unity8PimCommonInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the EDS service owns a well-known bus name on the session bus (e.g.
+	// org.gnome.evolution.dataserver.Sources5 plus a per-service name like
+	// Calendar7/AddressBook9); only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func (iface *unity8PimCommonInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true

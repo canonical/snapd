@@ -1,0 +1,5 @@
+component: test-snap-disk-comps+big
+type: standard
+version: '1.0'
+summary: big test component
+description: big test component

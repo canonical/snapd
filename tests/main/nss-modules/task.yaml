@@ -35,6 +35,24 @@ skip:
       reason: The nis and windbind variants are not supported on ubuntu 18.04 due to a lack of a support of LXD VMs
 
 prepare: |
+    if [[ "$MODULE" = "nis" || "$MODULE" = "winbind" ]]; then
+        modprobe_err="$(mktemp)"
+        if ! modprobe vhost_vsock 2>"$modprobe_err"; then
+            echo "vhost_vsock did not load"
+            echo "kernel: $(uname -r)"
+            echo "module file: $(modinfo -n vhost_vsock 2>&1 || true)"
+            if command -v apt-cache >/dev/null; then
+                echo "linux-modules package:"
+                apt-cache policy "linux-modules-$(uname -r)" || true
+            fi
+            echo "modprobe:"
+            cat "$modprobe_err"
+            rm -f "$modprobe_err"
+            exit 1
+        fi
+        rm -f "$modprobe_err"
+    fi
+
     backup_if_exists() {
         local item=$1
         if [ -f "$item" ]; then

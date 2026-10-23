@@ -3,7 +3,7 @@
 CFG_FILE="${REMOTE_CFG_FILE:-$(pwd)/remote.setup.cfg}"
 
 show_help() {
-    echo "usage: remote.setup config --host <host> --port <port> --user <USER> [--pass <PASS>] [--cert <CERT>]"
+    echo "usage: remote.setup config --host <host> --port <port> --user <USER> [--pass <PASS>] [--key <KEY>]"
     echo "       remote.setup get-config-path"
     echo ""
     echo "Available options:"
@@ -16,7 +16,7 @@ get_config_path() {
 }
 
 config() {
-    local host port user pass cert
+    local host port user pass key
     while [ $# -gt 0 ]; do
         case "$1" in
             -h|--help)
@@ -39,8 +39,8 @@ config() {
                 pass="$2"
                 shift 2
                 ;;
-            --cert)
-                cert="$2"
+            --key)
+                key="$2"
                 shift 2
                 ;;
             *)
@@ -57,8 +57,8 @@ config() {
     if [ -n "$pass" ] && [ -z "$(command -v sshpass)" ]; then
         echo "remote.setup: sshpass tool is required when password is configured"
     fi
-    if [ -n "$cert" ] && ! [ -f "$cert" ]; then
-        echo "remote.setup: certificate is set but file does not exist"
+    if [ -n "$key" ] && ! [ -f "$key" ]; then
+        echo "remote.setup: key is set but file does not exist"
         exit 1
     fi
 
@@ -68,7 +68,7 @@ config() {
     echo "export TESTS_REMOTE_PORT=$port" >> "$CFG_FILE"
     echo "export TESTS_REMOTE_USER=$user" >> "$CFG_FILE"
     echo "export TESTS_REMOTE_PASS=$pass" >> "$CFG_FILE"
-    echo "export TESTS_REMOTE_CERT=$cert" >> "$CFG_FILE"
+    echo "export TESTS_REMOTE_KEY=$key" >> "$CFG_FILE"
 }
 
 main() {

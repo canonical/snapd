@@ -121,16 +121,19 @@ func (s *SecLogSuite) TestRunnableFromSecurityTag(c *C) {
 }
 
 func (s *SecLogSuite) TestGrantReasonWithInterface(c *C) {
-	c.Check(seclog.GrantRootAuth.WithInterface("desktop-launch", true),
+	c.Check(seclog.GrantRootAuth.WithInterface("desktop-launch", seclog.InterfaceSidePlug),
 		Equals, seclog.GrantReason("root-auth desktop-launch plug"))
-	c.Check(seclog.GrantUserAuth.WithInterface("snap-themes-control", false),
+	c.Check(seclog.GrantUserAuth.WithInterface("snap-themes-control", seclog.InterfaceSideSlot),
 		Equals, seclog.GrantReason("user-auth snap-themes-control slot"))
-	c.Check(seclog.GrantPolkitAuth.WithInterface("snap-fde-control", true),
+	c.Check(seclog.GrantPolkitAuth.WithInterface("snap-fde-control", seclog.InterfaceSidePlug),
 		Equals, seclog.GrantReason("polkit-auth snap-fde-control plug"))
 
 	// Empty iface means no interface contributed; the base reason is unchanged.
-	c.Check(seclog.GrantRootAuth.WithInterface("", true), Equals, seclog.GrantRootAuth)
-	c.Check(seclog.GrantRootAuth.WithInterface("", false), Equals, seclog.GrantRootAuth)
+	c.Check(seclog.GrantRootAuth.WithInterface("", seclog.InterfaceSidePlug), Equals, seclog.GrantRootAuth)
+	c.Check(seclog.GrantRootAuth.WithInterface("", seclog.InterfaceSideSlot), Equals, seclog.GrantRootAuth)
+	// An unrecognized side is recorded as <unknown>, not guessed as plug or slot.
+	c.Check(seclog.GrantRootAuth.WithInterface("desktop-launch", ""),
+		Equals, seclog.GrantReason("root-auth desktop-launch <unknown>"))
 }
 
 func (s *SecLogSuite) TestSystemUserAddOptionsFromStoreEmail(c *C) {

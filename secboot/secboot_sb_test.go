@@ -6545,3 +6545,135 @@ func (s *secbootSuite) TestTestProtectorKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(works, Equals, false)
 }
+
+func (s *secbootSuite) TestIsKeyUsedByKeyringNotInKeyring(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/foo")
+		return []string{}, nil
+	})()
+
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(remove, Equals, false)
+
+		return nil, sb.ErrKernelKeyNotFound
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKeyForKeyslot(func(devicePath string, name string, key []byte) (bool, error) {
+		c.Errorf("unexpected call")
+		return false, fmt.Errorf("unexpected call")
+	})()
+
+	ret, err := secboot.IsKeyUsedByKeyring("/dev/foo", "test")
+	c.Assert(err, IsNil)
+	c.Check(ret, Equals, false)
+}
+
+func (s *secbootSuite) TestIsKeyUsedByKeyringInKeyringNotMatching(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/foo")
+		return []string{}, nil
+	})()
+
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []byte("foo"), nil
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKeyForKeyslot(func(devicePath string, name string, key []byte) (bool, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(name, Equals, "test")
+		c.Check(key, DeepEquals, []byte("foo"))
+		return false, nil
+	})()
+
+	ret, err := secboot.IsKeyUsedByKeyring("/dev/foo", "test")
+	c.Assert(err, IsNil)
+	c.Check(ret, Equals, false)
+}
+
+func (s *secbootSuite) TestIsKeyUsedByKeyringInKeyringAndMatching(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/foo")
+		return []string{}, nil
+	})()
+
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []byte("foo"), nil
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKeyForKeyslot(func(devicePath string, name string, key []byte) (bool, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(name, Equals, "test")
+		c.Check(key, DeepEquals, []byte("foo"))
+		return true, nil
+	})()
+
+	ret, err := secboot.IsKeyUsedByKeyring("/dev/foo", "test")
+	c.Assert(err, IsNil)
+	c.Check(ret, Equals, true)
+}
+
+func (s *secbootSuite) TestIsKeyUsedByKeyringInKeyringNoKeyslot(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/foo")
+		return []string{}, nil
+	})()
+
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		c.Check(devicePath, Equals, "/dev/foo")
+		return []byte("foo"), nil
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKeyForKeyslot(func(devicePath string, name string, key []byte) (bool, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(name, Equals, "test")
+		c.Check(key, DeepEquals, []byte("foo"))
+		return false, sb.ErrKeyslotNameNotExist
+	})()
+
+	ret, err := secboot.IsKeyUsedByKeyring("/dev/foo", "test")
+	c.Assert(err, IsNil)
+	c.Check(ret, Equals, false)
+}
+
+func (s *secbootSuite) TestIsKeyUsedByKeyringInLegacyKeyring(c *C) {
+	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
+		c.Check(node, Equals, "/dev/foo")
+		return []string{
+			"/dev/disk/by-partuuid/old",
+		}, nil
+	})()
+
+	defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
+		c.Check(prefix, Equals, "ubuntu-fde")
+		c.Check(remove, Equals, false)
+		switch devicePath {
+		case "/dev/foo":
+			return nil, sb.ErrKernelKeyNotFound
+		case "/dev/disk/by-partuuid/old":
+			return []byte("foo"), nil
+		}
+		c.Errorf("unexpected call")
+		return nil, fmt.Errorf("unexpected call")
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKeyForKeyslot(func(devicePath string, name string, key []byte) (bool, error) {
+		c.Check(devicePath, Equals, "/dev/foo")
+		c.Check(name, Equals, "test")
+		c.Check(key, DeepEquals, []byte("foo"))
+		return true, nil
+	})()
+
+	ret, err := secboot.IsKeyUsedByKeyring("/dev/foo", "test")
+	c.Assert(err, IsNil)
+	c.Check(ret, Equals, true)
+}

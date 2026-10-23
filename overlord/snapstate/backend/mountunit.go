@@ -27,20 +27,23 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/systemd"
 )
 
-// MountUnitFlags contains flags that modify behavior of addMountUnit
-type MountUnitFlags struct {
+// mountUnitOptions contains options that modify behavior of addMountUnit
+type mountUnitOptions struct {
 	// PreventRestartIfModified is set if we do not want to restart the
 	// mount unit if even though it was modified
 	PreventRestartIfModified bool
 	// StartBeforeDriversLoad is set if the unit is needed before
 	// udevd starts to run rules
 	StartBeforeDriversLoad bool
+	// IntegrityDataParams contains optional integrity data for the mount unit.
+	IntegrityDataParams *integrity.IntegrityDataParams
 }
 
-func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags MountUnitFlags) error {
+func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, opts mountUnitOptions) error {
 	squashfsPath := dirs.StripRootDir(c.MountFile())
 	whereDir := dirs.StripRootDir(c.MountDir())
 
@@ -49,11 +52,19 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags Mo
 		Description:              c.MountDescription(),
 		What:                     squashfsPath,
 		Where:                    whereDir,
-		PreventRestartIfModified: mountFlags.PreventRestartIfModified,
+		PreventRestartIfModified: opts.PreventRestartIfModified,
 	}
 
-	if err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", mountFlags.StartBeforeDriversLoad); err != nil {
+	if err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", opts.StartBeforeDriversLoad); err != nil {
 		return err
+	}
+
+	if opts.IntegrityDataParams != nil {
+		integrityMountOpts, err := opts.IntegrityDataParams.MountOptions(squashfsPath)
+		if err != nil {
+			return err
+		}
+		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
 	}
 
 	_, err := sysd.EnsureMountUnitFile(mountOptions)

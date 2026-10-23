@@ -165,6 +165,10 @@ if [ "$1" = "purge" ]; then
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
+
+    # Unlike snap-mgmt --purge, this path must clear the boot-scoped guard
+    # itself so a same-boot native package reinstall can activate the mounts.
+    rm -f /run/snapd/packaging/prevent-mount-dir-activation
 fi
 
 #DEBHELPER#

@@ -37,7 +37,6 @@ execute: |
     "$TESTSTOOLS"/snapd-state check-state ".data.snaps.\"$A_SNAP\".channel" = "$A_TRACK/stable"
 
     # now another
-    snap set core experimental.parallel-instances=true
     snap install "${A_SNAP}_a" "${A_SNAP}_b"
     "$TESTSTOOLS"/snapd-state check-state ".data.snaps.\"${A_SNAP}_a\".channel" = "$A_TRACK/stable"
     "$TESTSTOOLS"/snapd-state check-state ".data.snaps.\"${A_SNAP}_b\".channel" = "$A_TRACK/stable"

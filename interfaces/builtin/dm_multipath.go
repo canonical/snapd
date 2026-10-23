@@ -87,6 +87,5 @@ func init() {
 		connectedPlugAppArmor:    dmMultipathConnectedPlugAppArmor,
 		connectedPlugKModModules: dmMultipathConnectedPlugKmod,
 		connectedPlugUDev:        dmMultipathConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

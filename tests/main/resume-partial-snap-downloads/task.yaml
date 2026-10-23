@@ -25,7 +25,7 @@ skip:
 restore: |
     snap remove --purge test-snap-resume || true
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
-    rm -rf test-snap test-snap-resume_1.0_all.snap
+    rm -f test-snap/data.bin test-snap-resume_1.0_all.snap
     rm -f /var/lib/snapd/snaps/test-snap-resume_*.snap.partial
 
 debug: |
@@ -39,17 +39,9 @@ execute: |
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
 
-    # Create a snap large enough for partial download testing.
+    # Make the local test snap large enough for partial download testing.
     # The snap needs to span multiple HTTP write chunks (~32KB each)
     # so the fakestore kill-after mechanism can interrupt mid-transfer.
-    mkdir -p test-snap/meta
-    cat > test-snap/meta/snap.yaml << 'EOF'
-    name: test-snap-resume
-    version: 1.0
-    base: core24
-    summary: Test snap for download resume
-    description: A test snap with padding data for resume testing
-    EOF
     # Using urandom data ensures squashfs cannot compress it away
     dd if=/dev/urandom of=test-snap/data.bin bs=1M count=100 2>/dev/null
     snap pack test-snap

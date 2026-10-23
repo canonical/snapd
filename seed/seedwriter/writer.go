@@ -874,7 +874,7 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 				continue
 			}
 			seedCompsMap[comp] = SeedComponent{
-				ComponentRef: naming.NewComponentRef(modSnap.Name, comp),
+				ComponentRef: naming.NewComponentRef(naming.SnapName(modSnap.Name), comp),
 			}
 		}
 		// We add also components in command options if the model allows it
@@ -887,7 +887,7 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 					return nil, err
 				}
 				seedCompsMap[comp.Name] = SeedComponent{
-					ComponentRef: naming.NewComponentRef(modSnap.Name, comp.Name),
+					ComponentRef: naming.NewComponentRef(naming.SnapName(modSnap.Name), comp.Name),
 				}
 			}
 		}
@@ -998,7 +998,7 @@ func (w *Writer) extraSnapToSeed(optSnap *OptionsSnap) (*SeedSnap, error) {
 		seedComps := make([]SeedComponent, 0, len(optSnap.Components))
 		for _, optComp := range optSnap.Components {
 			seedComps = append(seedComps, SeedComponent{
-				ComponentRef: naming.NewComponentRef(optSnap.Name, optComp.Name),
+				ComponentRef: naming.NewComponentRef(naming.SnapName(optSnap.Name), optComp.Name),
 			})
 		}
 		sn = &SeedSnap{

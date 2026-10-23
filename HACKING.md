@@ -463,11 +463,55 @@ The tools used for creating and hosting the nested VMs are:
 - _ubuntu-image snap_ is used to build the images
 - _QEMU_ is used for the virtualization (with [_KVM_](https://www.linux-kvm.org/page/Main_Page) acceleration)
 
-Nested test suite is composed by the following 4 suites:
+#### Nested helper organization
+
+[`tests/lib/nested.sh`](tests/lib/nested.sh) is the main library sourced by
+the nested test runner. It defines the shared defaults and loads focused
+modules from [`tests/lib/nested/`](tests/lib/nested/):
+
+- `system.sh` detects the host, nested system type, Ubuntu Core version, KVM,
+    TPM, and Secure Boot capabilities.
+- `image.sh` manages image names, models, assertions, cloud-init data, image
+    generation, restoration, and extra snaps or components.
+- `snaps.sh` prepares or repacks the snapd, kernel, gadget, and base snaps used
+    to construct a custom image.
+- `qemu.sh` builds the QEMU configuration, including firmware, TPM, storage,
+    serial devices, and systemd service setup.
+- `lifecycle.sh` starts, stops, restarts, and destroys nested VMs.
+- `setup.sh` prepares SSH, host dependencies, and tools inside the VM.
+- `wait.sh` contains readiness, seeding, reboot, and initialization wait
+    helpers.
+- `secure-boot.sh` manages OVMF assets, signing, TPM state, and VM credentials.
+
+Artifact manipulation is implemented by standalone commands under
+[`tests/lib/tools/`](tests/lib/tools/). Keeping these operations outside the
+sourced libraries makes their inputs and outputs explicit and lets other test
+setup code reuse them:
+
+- `image-generator` assembles the Ubuntu Image command from the model,
+    channels, extra snaps, components, and optional gadget metadata. It obtains
+    the appropriate Ubuntu Image executable through the `ubuntu-image` helper,
+    runs it, records its log, and normalizes the generated image name.
+- `repack-base` downloads and modifies a base snap, for example to enable test
+    logging or inject proxy and time configuration.
+- `repack-gadget` downloads and modifies a gadget snap, including kernel
+    command lines, persistent journaling, partition layout, Secure Boot
+    signatures, and prepare-device hooks.
+- `repack-kernel` downloads or accepts a kernel snap and supports the prepare,
+    nested, initramfs, component, corruption, download, and metadata-rewrite
+    workflows used by tests.
+
+Test tasks should normally use `tests.nested`, for example
+`tests.nested build-image core` or `tests.nested create-vm core`. Use the
+standalone tools directly only when `tests.nested` does not provide the
+required artifact.
+
+#### Nested test suites
+
+Nested tests are organized into three suites:
 
 - _classic_: the nested suite contains an image of a classic system downloaded from cloud-images.ubuntu.com 
 - _core_: it tests a core nested system, and the images are generated with _ubuntu-image snap_
-- _core20_: this is similar to the _core_ suite, but these tests are focused on UC20
 - _manual_: tests on this suite create a non generic image with specific conditions
 
 The nested suites use some environment variables to configure the suite 

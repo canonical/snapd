@@ -1,0 +1,99 @@
+#!/bin/bash
+
+set -eu
+
+show_help() {
+    cat <<'EOF'
+usage:
+    ubuntu-image [ensure|build|help]
+
+Ensure the ubuntu-image binary is available in the test environment and print the
+path to the binary. This mirrors the legacy helper logic previously provided by
+tests/lib/image.sh, but is exposed as a standalone tool for use from spread.yaml.
+
+Commands:
+    ensure      make sure ubuntu-image is available and print its path
+    build      build ubuntu-image from source
+    help       show this help
+EOF
+}
+
+get_ubuntu_image() {
+    if command -v ubuntu-image >/dev/null 2>&1; then
+        command -v ubuntu-image
+        return
+    fi
+
+    if [ -x "$GOHOME/bin/ubuntu-image" ]; then
+        echo "$GOHOME/bin/ubuntu-image"
+        return
+    fi
+
+    if os.query is-arm; then
+        wget -q -c -O ubuntu-image-withtestkeys.tar.gz \
+            https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-arm64.tar.gz
+        tar xvzf ubuntu-image-withtestkeys.tar.gz >&2
+        rm -f ubuntu-image-withtestkeys.tar.gz
+
+        test -x ubuntu-image
+        mv ubuntu-image "$GOHOME/bin"
+        echo "$GOHOME/bin/ubuntu-image"
+        return
+    fi
+
+    wget -q -c -O ubuntu-image-withtestkeys.tar.gz \
+        https://storage.googleapis.com/snapd-spread-tests/ubuntu-image/ubuntu-image-withtestkeys-amd64.tar.gz
+    tar xvzf ubuntu-image-withtestkeys.tar.gz >&2
+    rm -f ubuntu-image-withtestkeys.tar.gz
+
+    test -x ubuntu-image
+    mv ubuntu-image "$GOHOME/bin"
+    echo "$GOHOME/bin/ubuntu-image"
+}
+
+build_ubuntu_image() {
+    local ubuntu_image_dir
+    ubuntu_image_dir="$(mktemp -d "${TMPDIR:-/tmp}/ubuntu-image.XXXXXXXX")"
+
+    git clone --depth=1 https://github.com/canonical/ubuntu-image "$ubuntu_image_dir"
+    (
+        # go 1.22 needs an exact toolchain name for automatic toolchain selection
+        export GOTOOLCHAIN=go1.25.0
+        cd "$ubuntu_image_dir" || exit 1
+        go mod edit -replace="github.com/snapcore/snapd=$PROJECT_PATH"
+        go build -mod=mod -tags withtestkeys -o "$GOHOME/bin/ubuntu-image" ./cmd/ubuntu-image
+    )
+    rm -rf "$ubuntu_image_dir"
+
+    echo "$GOHOME/bin/ubuntu-image"
+}
+
+ensure_ubuntu_image() {
+    if [ "${UBUNTU_IMAGE_USE_LOCAL_SNAPD:-false}" = "true" ]; then
+        build_ubuntu_image
+    else
+        get_ubuntu_image
+    fi
+}
+
+main() {
+    case "${1:-ensure}" in
+        -h|--help|help)
+            show_help
+            exit 0
+            ;;
+        ensure)
+            ensure_ubuntu_image
+            ;;
+        build)
+            build_ubuntu_image
+            ;;
+        *)
+            echo "ubuntu-image: unsupported command: $1" >&2
+            show_help >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

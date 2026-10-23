@@ -8,12 +8,6 @@ details: |
 
 backends: [qemu, openstack]
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-
-restore: |
-    snap set system experimental.parallel-instances=null
-
 execute: |
     SNAP_NAME=test-snapd-tools
     SNAP_CLASSIC=test-snapd-classic-confinement

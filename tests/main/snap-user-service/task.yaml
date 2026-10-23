@@ -20,12 +20,24 @@ systems:
 kill-timeout: 10m
 
 prepare: |
+    # Ensure that snapd.session-agent.socket is enabled.  This may not
+    # be the case on distributions where presets have been used to
+    # disable it.
+    if [ ! -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket ] &&
+            ! systemctl --user --global is-enabled snapd.session-agent.socket; then
+        systemctl --user --global enable snapd.session-agent.socket
+        touch agent-was-enabled
+    fi
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
 
 restore: |
     tests.session -u test restore
     snap unset system experimental.user-daemons
+    if [ -f agent-was-enabled ]; then
+        systemctl --user --global disable snapd.session-agent.socket
+        rm agent-was-enabled
+    fi
 
 debug: |
     tests.session dump
