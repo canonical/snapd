@@ -18,8 +18,10 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
+#include <stdbool.h>
 #include <sys/types.h>
 #include "../libsnap-confine-private/apparmor-support.h"
+#include "../libsnap-confine-private/classic.h"
 #include "snap-confine-invocation.h"
 
 /* Base location where extra libraries might be made available to the snap.
@@ -33,6 +35,38 @@
 #define SC_EXTRA_LIB_DIR "/var/lib/snapd/lib"
 
 /**
+ * Paths for the trust store view that snaps should see.
+ *
+ * snapd generates a bundle plus auxiliary certificate entries under
+ * SC_MANAGED_CA_CERTS_DIR, so snap-confine mounts the directory as a unit to
+ * keep bundle-based and directory-based trust lookups on the same generated
+ * trust store.
+ **/
+#define SC_MANAGED_CA_CERTS_DIR "/var/lib/snapd/pki/v1/merged"
+#define SC_MANAGED_CA_GENERATION_DIR "/var/lib/snapd/pki/v1/published"
+#define SC_SYSTEM_CA_CERTS_DIR "/etc/ssl/certs"
+
+/**
+ * Resolve the host-managed CA certificate view to the immutable generation
+ * directory currently active (/var/lib/snapd/pki/v1/merged). The merged folder
+ * must be a symlink (after generations was introduced), and must be within the
+ * published generations directory.
+ *
+ * This function returns the path to the managed CA certificates directory,
+ * taking into account the managed CA generation directory if necessary.
+ */
+char *sc_resolve_managed_ca_certs_dir(const char *managed_ca_certs_dir, const char *managed_ca_generation_dir);
+
+struct sc_populate_mount_ns_options {
+    struct sc_apparmor *apparmor;
+    int snap_update_ns_fd;
+    const sc_invocation *inv;
+    sc_distro distro;
+    const gid_t real_gid;
+    const gid_t saved_gid;
+};
+
+/**
  * Assuming a new mountspace, populate it accordingly.
  *
  * This function performs many internal tasks:
@@ -40,18 +74,20 @@
  * - creates private /tmp
  * - creates private /dev/pts
  * - processes mount profiles
+ *
+ * Returns the mounted managed CA generation ID in managed_ca_generation_id. The returned
+ * generation ID string must be freed by the caller if not NULL.
  **/
-void sc_populate_mount_ns(struct sc_apparmor *apparmor, int snap_update_ns_fd, const sc_invocation *inv,
-                          const gid_t real_gid, const gid_t saved_gid);
+void sc_populate_mount_ns(struct sc_populate_mount_ns_options *options, char **managed_ca_generation_id);
 
 /**
- * Ensure that / or /snap is mounted with the SHARED option.
+ * Check whether the given directory is a mount point.
  *
- * If the system is found to be not having a shared mount for "/"
- * snap-confine will create a shared bind mount for "/snap" to
- * ensure that "/snap" is mounted shared. See LP:#1668659
+ * This inspects /proc/self/mountinfo and returns true if dir is listed there
+ * as a mount point (regardless of its propagation type). It does not create
+ * or modify any mounts.
  */
-void sc_ensure_shared_snap_mount(void);
+bool sc_is_mount_point(const char *dir) __attribute__((nonnull(1)));
 
 /**
  * Set up user mounts, private to this process.
@@ -63,15 +99,6 @@ void sc_ensure_shared_snap_mount(void);
  * - perform all user mounts
  */
 void sc_setup_user_mounts(struct sc_apparmor *apparmor, int snap_update_ns_fd, const char *snap_name);
-
-/**
- * Ensure that SNAP_MOUNT_DIR and /var/snap are mount points.
- *
- * Create bind mounts and set up shared propagation for SNAP_MOUNT_DIR and
- * /var/snap as needed. This allows for further propagation changes after the
- * initial mount namespace is unshared.
- */
-void sc_ensure_snap_dir_shared_mounts(void);
 
 /**
  * Set up mount namespace for parallel installed classic snap

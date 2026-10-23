@@ -162,7 +162,7 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 	defer lock.Unlock()
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snapRev}
-	if err := runinhibit.LockWithHint(instanceName.String(), runinhibit.HintInhibitedGateRefresh, inhibitInfo, st.Unlocker()); err != nil {
+	if err := runinhibit.LockWithHint(instanceName, runinhibit.HintInhibitedGateRefresh, inhibitInfo, st.Unlocker()); err != nil {
 		return err
 	}
 
@@ -195,7 +195,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 		// action is not set if the gate-auto-refresh hook exits 0 without
 		// invoking --hold/--proceed; this means proceed (except for respecting
 		// refresh inhibit).
-		if err := runinhibit.Unlock(instanceName.String(), st.Unlocker()); err != nil {
+		if err := runinhibit.Unlock(instanceName, st.Unlocker()); err != nil {
 			return fmt.Errorf("cannot unlock inhibit lock for snap %s: %v", instanceName, err)
 		}
 		return snapstate.ProceedWithRefresh(st, instanceName.String(), nil)
@@ -211,7 +211,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 	switch action {
 	case snapstate.GateAutoRefreshHold:
 		// for action=hold the ctlcmd calls HoldRefresh; only unlock runinhibit.
-		if err := runinhibit.Unlock(instanceName.String(), st.Unlocker()); err != nil {
+		if err := runinhibit.Unlock(instanceName, st.Unlocker()); err != nil {
 			return fmt.Errorf("cannot unlock inhibit lock of snap %s: %v", instanceName, err)
 		}
 	case snapstate.GateAutoRefreshProceed:
@@ -227,11 +227,11 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 		// we have HintInhibitedGateRefresh lock already when running the hook, change
 		// it to HintInhibitedForRefresh.
 		// Also let's reuse inhibit info that was saved in Before().
-		_, inhibitInfo, err := runinhibit.IsLocked(instanceName.String(), nil)
+		_, inhibitInfo, err := runinhibit.IsLocked(instanceName, nil)
 		if err != nil {
 			return err
 		}
-		if err := runinhibit.LockWithHint(instanceName.String(), runinhibit.HintInhibitedForRefresh, inhibitInfo, nil); err != nil {
+		if err := runinhibit.LockWithHint(instanceName, runinhibit.HintInhibitedForRefresh, inhibitInfo, nil); err != nil {
 			return fmt.Errorf("cannot set inhibit lock for snap %s: %v", instanceName, err)
 		}
 	default:
@@ -261,7 +261,7 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 	}
 	defer lock.Unlock()
 
-	if err := runinhibit.Unlock(instanceName.String(), st.Unlocker()); err != nil {
+	if err := runinhibit.Unlock(instanceName, st.Unlocker()); err != nil {
 		return false, fmt.Errorf("cannot release inhibit lock of snap %s: %v", instanceName, err)
 	}
 
@@ -308,6 +308,13 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 	return true, nil
 }
 
+// NewGateAutoRefreshHookHandler returns a handler for the gate-auto-refresh
+// hook. The hook manager does not register this handler, thus the hook does not
+// run. Tasks for the hook from an older snapd complete without an effect,
+// because the hook is optional.
+//
+// TODO:GATEREFRESH: remove the handler with the rest of the
+// gate-auto-refresh-hook feature.
 func NewGateAutoRefreshHookHandler(context *Context) *gateAutoRefreshHookHandler {
 	return &gateAutoRefreshHookHandler{
 		context: context,
@@ -349,13 +356,9 @@ func setupHooks(hookMgr *HookManager) {
 	handlerGenerator := func(context *Context) Handler {
 		return &SnapHookHandler{}
 	}
-	gateAutoRefreshHandlerGenerator := func(context *Context) Handler {
-		return NewGateAutoRefreshHookHandler(context)
-	}
 
 	hookMgr.Register(regexp.MustCompile("^install$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^post-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^pre-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
-	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), gateAutoRefreshHandlerGenerator)
 }

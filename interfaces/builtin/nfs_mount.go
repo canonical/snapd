@@ -80,13 +80,12 @@ owner @{PROC}/@{pid}/mounts r,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "nfs-mount",
-		summary:                  nfsMountSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     nfsMountBaseDeclarationSlots,
-		connectedPlugAppArmor:    nfsMountConnectedPlugAppArmor,
-		connectedPlugSecComp:     nfsMountConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "nfs-mount",
+		summary:               nfsMountSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  nfsMountBaseDeclarationSlots,
+		connectedPlugAppArmor: nfsMountConnectedPlugAppArmor,
+		connectedPlugSecComp:  nfsMountConnectedPlugSecComp,
 	})
 }

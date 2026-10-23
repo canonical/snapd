@@ -45,6 +45,10 @@ jobs:
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
           echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
 
+  package-builds:
+    uses: ./.github/workflows/package-builds.yaml
+    secrets: inherit
+
   snap-builds:
     runs-on: ${{ fromJSON(matrix.runs-on) }}
     env:
@@ -77,13 +81,13 @@ jobs:
     strategy:
       matrix:
         runs-on:
-          - '["ubuntu-22.04"]'
-          - ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
+          - '["ubuntu-24.04"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
         toolchain:
           - default
           - FIPS
         exclude:
-          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
             toolchain: FIPS
   
   read-systems:
@@ -144,9 +148,14 @@ jobs:
 
   tag-features:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: [set-inputs, read-systems, snap-builds]
+    needs: [set-inputs, read-systems, snap-builds, package-builds]
     name: "spread ${{ matrix.group }}"
-    if: needs.read-systems.outputs.systems != ''
+    if: >-
+      !cancelled() &&
+      needs.set-inputs.result == 'success' &&
+      needs.read-systems.result == 'success' &&
+      needs.snap-builds.result == 'success' &&
+      needs.read-systems.outputs.systems != ''
     secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
@@ -169,7 +178,10 @@ jobs:
       actions: write
     needs: [set-inputs, tag-features]
     # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
-    if: failure() && fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
+    if: >-
+      !cancelled() &&
+      needs.tag-features.result == 'failure' &&
+      fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
     runs-on: ubuntu-latest
     steps:
       - env:
@@ -245,7 +257,22 @@ jobs:
           MONGO_HOST: ${{ secrets.MONGO_HOST }}
           MONGO_PORT: ${{ secrets.MONGO_PORT }}
         run: ./tests/utils/features/mongo_upload.py --dir "final-feature-tags" --verbose
-      
+
+      - name: Refresh the test-selector service
+        env:
+          TESTS_SELECTOR_URL: http://test-selector.snapd.canonical.com:8181
+        run: |
+          curl --silent --show-error --fail --connect-timeout 10 --max-time 360 \
+              -X POST "$TESTS_SELECTOR_URL/mongodb-updated"
+
+      - name: Delete the oldest results from mongo
+        env:
+          MONGO_USER: ${{ secrets.MONGO_USER }}
+          MONGO_PASSWORD: ${{ secrets.MONGO_PASS }}
+          MONGO_HOST: ${{ secrets.MONGO_HOST }}
+          MONGO_PORT: ${{ secrets.MONGO_PORT }}
+        run: ./tests/utils/features/mongo_delete.py --oldest
+
       - name: Upload feature data
         uses: actions/upload-artifact@v7
         with:

@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -81,16 +82,48 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+// TODO: consider handling for snap components
+func integrityFilePath(snapPath, digest string) string {
+	// strip .snap suffix
+	basePath := strings.TrimSuffix(snapPath, ".snap")
+	// TODO: change dm-verity file name to <instance_name>_<revision>_<root_hash>.dm-verity
+	return fmt.Sprintf("%s.dmverity_%s", basePath, digest)
+}
+
 // IntegrityFile returns the integrity file name corresponding to the integrity
 // type. Currently, only dm-verity is supported.
 func (params *IntegrityDataParams) IntegrityFile(snapPath string) (string, error) {
 	switch params.Type {
 	case "dm-verity":
-		// TODO: change dm-verity file name to <instance_name>_<revision>_<root_hash>.dm-verity
-		return fmt.Sprintf("%s.dmverity_%s", snapPath, params.Digest), nil
+		return integrityFilePath(snapPath, params.Digest), nil
 	default:
 		return "", fmt.Errorf("unexpected integrity data type %q", params.Type)
 	}
+}
+
+// MountOptions returns the mount options needed to mount snap integrity data.
+// Currently, only dm-verity is supported.
+func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, error) {
+	switch params.Type {
+	case "dm-verity":
+		hashDevicePath, err := params.IntegrityFile(snapPath)
+		if err != nil {
+			return nil, err
+		}
+		return []string{
+			fmt.Sprintf("verity.roothash=%s", params.Digest),
+			fmt.Sprintf("verity.hashdevice=%s", hashDevicePath),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unexpected integrity data type %q", params.Type)
+	}
+}
+
+// FindIntegrityFilesForSnap returns the paths of all integrity files found
+// next to the given snap path.
+func FindIntegrityFilesForSnap(snapPath string) ([]string, error) {
+	// glob matches path/to/snap/<instance_name>_<revision>.dmverity_*
+	return filepath.Glob(integrityFilePath(snapPath, "*"))
 }
 
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
@@ -138,9 +171,9 @@ var ErrDmVerityDataNotFound = errors.New("dm-verity data not found")
 // the parameters passed to LookupDmVerityDataAndCrossCheck.
 var ErrUnexpectedDmVerityData = errors.New("unexpected dm-verity data")
 
-// LookupDmVerityDataAndCrossCheck looks up dm-verity data for a snap based on its file name and validates
-// that the superblock properties of the discovered dm-verity data match the passed parameters.
-func LookupDmVerityDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
+// LookupDataAndCrossCheck looks up integrity data for a snap based on its file name and validates
+// that the superblock properties of the discovered integrity data match the passed parameters.
+func LookupDataAndCrossCheck(snapPath string, params *IntegrityDataParams) (string, error) {
 	if params == nil {
 		return "", ErrIntegrityDataParamsNotFound
 	}

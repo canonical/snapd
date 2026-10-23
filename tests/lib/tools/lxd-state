@@ -4,16 +4,21 @@ show_help() {
     echo "usage: lxd-state undo-mount-changes"
     echo "       lxd-state prepare-snap"
     echo "       lxd-state setup-proxy <INSTANCE-NAME>"
+    echo "       lxd-state default-channel"
+}
+
+default_channel() {
+    local channel="${LXD_SNAP_CHANNEL}"
+    if os.query is-ubuntu && os.query is-ubuntu-le 20.04; then
+        # LXD 6 is not supported on older systems. Use 5.21 instead.
+        channel="5.21/${channel#*/}"
+    fi
+    echo "$channel"
 }
 
 prepare_snap(){
     echo "lxd-state: installing lxd snap"
-    channel="${LXD_SNAP_CHANNEL}"
-    if os.query is_ubuntu_le 20.04; then
-        # LXD 6 is not supported on older systems. Use 5.21 instead.
-        channel="5.21/${channel#*/}"
-    fi
-    snap install lxd --channel="$channel"
+    snap install lxd --channel="$(default_channel)"
 
     if tests.pkgs is-installed lxd; then
         echo "lxd-state: remove the lxd pkg (some images carry them) to ensure we use the snap"
@@ -45,6 +50,20 @@ prepare_snap(){
     # Set the default proxy configuration to the default profile
     write_default_proxy_config lxd_default_proxy.yaml
     lxd.lxc profile set default user.user-data "$(cat lxd_default_proxy.yaml)"
+}
+
+wait_for_exec() {
+    local name=$1
+    # 30 * 5s is about 2.5 minutes. A guest on OpenStack was still down at the
+    # old limit of 10 tries, which is about 45 seconds. A ready agent returns
+    # on the first success.
+    if ! retry -n 30 --wait 5 lxc exec "$name" -- true; then
+        echo "lxd-state: serial console for ${name}:" >&2
+        # --show-log prints the saved console and returns. Bound it so a stuck client
+        # cannot hold the already-failed test open.
+        timeout 30 lxc console "$name" --show-log >&2 || echo "lxd-state: could not read the serial console for ${name}" >&2
+        return 1
+    fi
 }
 
 launch() {
@@ -90,7 +109,7 @@ launch() {
     lxc launch --quiet "${remote}:${image}" "$name" $params
 
     # wait for the machine to become available
-    retry -n 10 --wait 5 lxc exec "$name" -- true
+    wait_for_exec "$name"
     # wait for cloud-init to finish before doing any apt operations
     local ret=0
     lxc exec "$name" -- sh -c "cloud-init status --wait" || ret=$?
@@ -193,6 +212,10 @@ main() {
         default-image)
                 shift
                 default_image
+            ;;
+        default-channel)
+                shift
+                default_channel
             ;;
         *)
             echo "lxd-state: unknown command $*" >&2

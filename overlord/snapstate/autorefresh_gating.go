@@ -28,17 +28,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
+
+func gateAutoRefreshHookEnabled(st *state.State) (bool, error) {
+	return features.Flag(config.NewTransaction(st), features.GateAutoRefreshHook)
+}
 
 // gateAutoRefreshAction represents the action executed by
 // snapctl refresh --hold or --proceed and stored in the context of
@@ -169,7 +177,7 @@ func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, ho
 	}
 
 	for _, holdSnap := range holdSnaps {
-		if _, ok := snaps[holdSnap]; !ok {
+		if _, ok := snaps[naming.InstanceName(holdSnap)]; !ok {
 			return snap.NotInstalledError{Snap: holdSnap}
 		}
 	}
@@ -196,8 +204,20 @@ func HoldRefreshesBySystem(st *state.State, level HoldLevel, holdTime string, ho
 // function returns the remaining hold time. The remaining hold time is the
 // minimum of the remaining hold time for all affecting snaps.
 // A hold level can be specified indicating which operations are affected by the
-// hold.
+// hold. Non-system holders require the gate-auto-refresh-hook feature to be enabled.
 func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) (time.Duration, error) {
+	// TODO:GATEREFRESH: this feature is permanently disabled and code for it
+	// will be removed in a future release.
+	if gatingSnap != "system" {
+		enabled, err := gateAutoRefreshHookEnabled(st)
+		if err != nil {
+			return 0, err
+		}
+		if !enabled {
+			return 0, fmt.Errorf("cannot hold refreshes by snap %q: gate-auto-refresh-hook is disabled", gatingSnap)
+		}
+	}
+
 	gating, err := refreshGating(st)
 	if err != nil {
 		return 0, err
@@ -443,6 +463,48 @@ func pruneSnapsHold(st *state.State, snapName string) error {
 	return nil
 }
 
+// cleanupGateAutoRefreshFeature removes what the gate-auto-refresh-hook
+// feature of an older snapd can have left behind. This function:
+//   - removes holds that were not placed by the system snap
+//   - releases run inhibition locks with the HintInhibitedGateRefresh hint
+//
+// Call this before the task runner resumes tasks. The caller must hold the
+// state lock.
+func cleanupGateAutoRefreshFeature(st *state.State) error {
+	pruneErr := pruneNonSystemHolds(st)
+	if pruneErr != nil {
+		pruneErr = fmt.Errorf("cannot prune refresh holds not placed by the system: %v", pruneErr)
+	}
+
+	unlocked, unlockErr := runinhibit.UnlockStaleGateRefreshLocks(st.Unlocker())
+	if len(unlocked) > 0 {
+		logger.Noticef("released stale gate-refresh run inhibition locks of snaps: %s", strings.Join(unlocked, ", "))
+	}
+
+	return strutil.JoinErrors(pruneErr, unlockErr)
+}
+
+// pruneNonSystemHolds removes all holds that were not placed by the system
+// from snaps-hold.
+func pruneNonSystemHolds(st *state.State) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	var changed bool
+	for heldSnap := range gating {
+		if pruneHoldStatesForSnap(gating, heldSnap) {
+			changed = true
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+	return nil
+}
+
 // HeldSnaps returns all snaps that are held at the given level or at more
 // restricting ones and shouldn't be refreshed. The snaps are mapped to a list
 // of snaps with currently effective holds on them.
@@ -602,7 +664,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		if inf.Hooks[gateAutoRefreshHookName] == nil {
 			continue
 		}
-		snapsWithHook[name] = snapSt
+		snapsWithHook[name.String()] = snapSt
 
 		base := inf.Base
 		if base == "none" {
@@ -632,12 +694,12 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		affectedInfo.AffectingSnaps[affectedBy] = true
 	}
 
-	for _, snapName := range updates {
-		snapSt := allSnaps[snapName]
+	for _, instanceName := range updates {
+		snapSt := allSnaps[naming.InstanceName(instanceName)]
 		if snapSt == nil {
 			// this could happen if an update for inactive snap was requested (those
 			// are filtered out above).
-			return nil, fmt.Errorf("internal error: no state for snap %q", snapName)
+			return nil, fmt.Errorf("internal error: no state for snap %q", instanceName)
 		}
 		up, err := snapSt.CurrentInfo()
 		if err != nil {
@@ -787,6 +849,16 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 // TODO: this should be restricted as it doesn't take refresh timer/refresh hold
 // into account.
 func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
+	// TODO:GATEREFRESH: this feature is permanently disabled and code for it
+	// will be removed in a future release.
+	enabled, err := gateAutoRefreshHookEnabled(st)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return fmt.Errorf("internal error: refusing to initiate snap-controlled refreshes")
+	}
+
 	// ensure nothing is in flight already
 	if autoRefreshInFlight(st) {
 		return fmt.Errorf("there is an auto-refresh in progress")

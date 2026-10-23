@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -231,7 +232,7 @@ func (errorsSuite) TestErrorResponderDoesNotPrintfAlways(c *C) {
 
 func (s *errorsSuite) TestErrToResponseInsufficentSpace(c *C) {
 	err := &snapstate.InsufficientSpaceError{
-		Snaps:      []string{"foo", "bar"},
+		Snaps:      []naming.InstanceName{"foo", "bar"},
 		ChangeKind: "some-change",
 		Path:       "/path",
 		Message:    "specific error msg",
@@ -242,7 +243,7 @@ func (s *errorsSuite) TestErrToResponseInsufficentSpace(c *C) {
 		Message: "specific error msg",
 		Kind:    client.ErrorKindInsufficientDiskSpace,
 		Value: map[string]any{
-			"snap-names":  []string{"foo", "bar"},
+			"snap-names":  []naming.InstanceName{"foo", "bar"},
 			"change-kind": "some-change",
 		},
 	})

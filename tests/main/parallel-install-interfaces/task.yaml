@@ -17,8 +17,6 @@ details: |
 backends: [-autopkgtest]
 
 prepare: |
-    snap set system experimental.parallel-instances=true
-
     # parallel instance installation succeeds when all interfaces of the snap
     # support parallel instances (both on plug and slot side)
     echo "Install test snaps"
@@ -30,9 +28,6 @@ prepare: |
         snap disconnect home-consumer:home
         snap disconnect home-consumer_foo:home
     fi
-
-restore: |
-    snap set system experimental.parallel-instances=null
 
 execute: |
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"

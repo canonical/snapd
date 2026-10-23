@@ -31,11 +31,15 @@ execute: |
 
     echo Testing that replacing the wrapper with a symlink works
     $APP "$SNAP/bin/cat"
-    $APP "$SNAP/bin/cat" > orig.txt 2>&1
+    # when feature tagging is running, it emits extra json-formatted logs
+    # with extra trace information.
+    $APP "$SNAP/bin/cat" 2>&1 | grep -v '"level":' > orig.txt
 
     rm "$SNAP_MOUNT_DIR/bin/$APP"
     ln -s /usr/bin/snap "$SNAP_MOUNT_DIR/bin/$APP"
 
     $APP "$SNAP/bin/cat"
-    $APP "$SNAP/bin/cat" > new.txt 2>&1
+    # when feature tagging is running, it emits extra json-formatted logs
+    # with extra trace information.
+    $APP "$SNAP/bin/cat" 2>&1 | grep -v '"level":' > new.txt
     diff -u orig.txt new.txt

@@ -199,7 +199,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
 
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -758,7 +758,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		return m.removeProfilesForSnap(task, tomb, instanceName, perfTimings)
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
-		snapInfo, err := snap.ReadInfo(instanceName.String(), sideInfo)
+		snapInfo, err := snap.ReadInfo(instanceName, sideInfo)
 		if err != nil {
 			return err
 		}

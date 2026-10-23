@@ -35,11 +35,16 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
-var kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
+var (
+	kernelEnsureKernelDriversTree = kernel.EnsureKernelDriversTree
+	osRemoveAll                   = os.RemoveAll
+)
 
 // InstallRecord keeps a record of what installation effectively did as hints
 // about what needs to be undone in case of failure.
@@ -51,6 +56,8 @@ type InstallRecord struct {
 
 type SetupSnapOptions struct {
 	SkipKernelExtraction bool
+	// IntegrityDataParams holds the optional integrity data parameters for the snap installation.
+	IntegrityDataParams *integrity.IntegrityDataParams
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
@@ -96,7 +103,9 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 
 	// in uc20+ and classic with modes run mode, all snaps must be on the
 	// same device
-	opts := &snap.InstallOptions{}
+	opts := &snap.InstallOptions{
+		IntegrityDataParams: setupOpts.IntegrityDataParams,
+	}
 	if dev.HasModeenv() && dev.RunMode() {
 		opts.MustNotCrossDevices = true
 	}
@@ -108,13 +117,14 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 
 	// generate the mount unit for the squashfs
 	t := s.Type()
-	mountFlags := MountUnitFlags{
+	mountOptions := mountUnitOptions{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: t == snap.TypeKernel && dev.HasModeenv(),
+		IntegrityDataParams:    setupOpts.IntegrityDataParams,
 	}
-	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountFlags); err != nil {
+	if err := addMountUnit(s, newSystemd(b.preseed, meter), mountOptions); err != nil {
 		return snapType, nil, err
 	}
 
@@ -128,19 +138,58 @@ func (b Backend) SetupSnap(snapFilePath string, instanceName naming.InstanceName
 	return t, installRecord, nil
 }
 
-// SetupKernelSnap does extra configuration for kernel snaps.
-func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+// SetupKernelReason describes why SetupKernelSnap is being called, and
+// therefore which kernel drivers tree update to perform. The zero value is
+// reserved and intentionally invalid: every caller must pick a reason
+// explicitly.
+type SetupKernelReason int
+
+const (
+	_ SetupKernelReason = iota
+
+	// SetupKernelForInstall builds the tree for a kernel snap being
+	// installed right now.
+	SetupKernelForInstall
+	// SetupKernelRegenerate rebuilds the kernel setup time artifacts for an
+	// already-installed kernel.
+	SetupKernelRegenerate
+)
+
+// SetupKernelSnap does extra configuration for kernel snaps. currentComps
+// should be the currently active kernel-modules components for instanceName/rev
+// and is only meaningful when using SetupKernelRegenerate.
+func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, reason SetupKernelReason, meter progress.Meter) error {
+	var mode kernel.KernelDriversTreeMode
+	switch reason {
+	case SetupKernelForInstall:
+		mode = kernel.KernelInstallMode
+	case SetupKernelRegenerate:
+		mode = kernel.RegenerateMode
+	default:
+		return fmt.Errorf("internal error: unsupported kernel snap setup reason %v", reason)
+	}
+	if mode == kernel.KernelInstallMode && currentComps != nil {
+		return fmt.Errorf("internal error: currentComps must be nil unless regenerating the kernel drivers tree")
+	}
+
 	// Build kernel tree that will be mounted from initramfs
-	cpi := snap.MinimalSnapContainerPlaceInfo(instanceName, rev)
+	cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(instanceName), rev)
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, instanceName, rev)
 
-	// TODO:COMPS: consider components when installed jointly
-	return kernelEnsureKernelDriversTree(
-		kernel.MountPoints{
-			Current: cpi.MountDir(),
-			Target:  cpi.MountDir()},
-		nil, destDir,
-		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	kMntPts := kernel.MountPoints{
+		Current: cpi.MountDir(),
+		Target:  cpi.MountDir(),
+	}
+
+	kinfo, err := kernel.ReadInfo(kMntPts.Current)
+	if err != nil {
+		return err
+	}
+	compsMntPts := compsMountPoints(currentComps, instanceName, rev, kinfo)
+
+	// TODO:COMPS: consider components when installed jointly (currentComps
+	// is always nil for a fresh install today, see doPrepareKernelSnap)
+	return kernelEnsureKernelDriversTree(kMntPts, compsMntPts, destDir, mode)
 }
 
 func (b Backend) RemoveKernelSnapSetup(instanceName string, rev snap.Revision, meter progress.Meter) error {
@@ -177,6 +226,8 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 		return nil, err
 	}
 
+	// TODO: support passing integrity data for components
+
 	// in uc20+ and classic with modes run mode, all snaps must be on the
 	// same device
 	opts := &snap.InstallOptions{}
@@ -191,18 +242,34 @@ func (b Backend) SetupComponent(compFilePath string, compPi snap.ContainerPlaceI
 	}
 
 	// generate the mount unit for the squashfs
-	mountFlags := MountUnitFlags{
+	mountOptions := mountUnitOptions{
 		PreventRestartIfModified: false,
 		// We need early mounts only for UC20+/hybrid, also 16.04
 		// systemd seems to be buggy if we enable this.
 		StartBeforeDriversLoad: compInfo.Type == snap.KernelModulesComponent && dev.HasModeenv(),
 	}
-	if err := addMountUnit(compPi, newSystemd(b.preseed, meter), mountFlags); err != nil {
+	if err := addMountUnit(compPi, newSystemd(b.preseed, meter), mountOptions); err != nil {
 		return nil, err
 	}
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}
 	return installRecord, nil
+}
+
+func removeIntegrityFilesForSnap(s snap.PlaceInfo) error {
+	// in practice only one file should exist, but we do not know the exact
+	// digest, so remove all integrity files found for the snap
+	integrityFiles, err := integrity.FindIntegrityFilesForSnap(s.MountFile())
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, integrityFile := range integrityFiles {
+		if err := osRemoveAll(integrityFile); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return strutil.JoinErrors(errs...)
 }
 
 // RemoveSnapFiles removes the snap files from the disk after unmounting the snap.
@@ -230,8 +297,13 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord 
 		// and is a symlink, which is the case with kernel/core snaps during seeding.
 		keepSeededSnap := installRecord != nil && installRecord.TargetSnapExisted && osutil.IsSymlink(snapPath)
 		if !keepSeededSnap {
+			// remove the snap's integrity files (if any)
+			if err := removeIntegrityFilesForSnap(s); err != nil {
+				return err
+			}
+
 			// remove the snap
-			if err := os.RemoveAll(snapPath); err != nil {
+			if err := osRemoveAll(snapPath); err != nil {
 				return err
 			}
 		}
@@ -367,7 +439,7 @@ func (b Backend) SetupKernelModulesComponents(currentComps, finalComps []*snap.C
 // moveKModsComponentsState changes kernel-modules set-up from currentComps to
 // finalComps, for the kernel/revision specified by ksnapName/ksnapRev.
 func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, cleanErrMsg string) (err error) {
-	cpi := snap.MinimalSnapContainerPlaceInfo(ksnapName, ksnapRev)
+	cpi := snap.MinimalSnapContainerPlaceInfo(naming.InstanceName(ksnapName), ksnapRev)
 	kMntPts := kernel.MountPoints{
 		Current: cpi.MountDir(),
 		Target:  cpi.MountDir(),
@@ -380,12 +452,12 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 	finalCompsMntPts := compsMountPoints(finalComps, ksnapName, ksnapRev, kinfo)
 
 	if err := kernelEnsureKernelDriversTree(kMntPts, finalCompsMntPts, destDir,
-		&kernel.KernelDriversTreeOptions{KernelInstall: false}); err != nil {
+		kernel.ComponentChangeMode); err != nil {
 
 		// Revert change on error
 		currentCompsMntPts := compsMountPoints(currentComps, ksnapName, ksnapRev, kinfo)
 		if e := kernelEnsureKernelDriversTree(kMntPts, currentCompsMntPts, destDir,
-			&kernel.KernelDriversTreeOptions{KernelInstall: false}); e != nil {
+			kernel.ComponentChangeMode); e != nil {
 			logger.Noticef("while restoring kernel tree %s: %v", cleanErrMsg, e)
 		}
 

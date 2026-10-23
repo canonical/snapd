@@ -315,8 +315,8 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 
 	s.state.Unlock()
 	err = s.o.Settle(5 * time.Second)
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 
 	chg := s.state.Change(chgID)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -344,8 +344,8 @@ func (s *confdbTestSuite) TestSetViewDoesNotEraseOtherSchemaUnderSameAccount(c *
 
 	s.state.Unlock()
 	err = s.o.Settle(5 * time.Second)
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(s.state.Change(chgID).Status(), Equals, state.DoneStatus)
 
@@ -358,8 +358,8 @@ func (s *confdbTestSuite) TestSetViewDoesNotEraseOtherSchemaUnderSameAccount(c *
 
 	s.state.Unlock()
 	err = s.o.Settle(5 * time.Second)
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(s.state.Change(chgID).Status(), Equals, state.DoneStatus)
 
@@ -439,8 +439,8 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 
 	s.state.Unlock()
 	err = s.o.Settle(5 * time.Second)
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 
 	chg := s.state.Change(chgID)
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
@@ -1131,8 +1131,8 @@ func (s *confdbTestSuite) TestWriteConfdbCreatesNewChange(c *C) {
 
 	s.state.Unlock()
 	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 
 	s.checkSetConfdbChange(c, chg, hooks)
 }
@@ -1777,8 +1777,8 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 
 	s.state.Unlock()
 	err = s.o.Settle(testutil.HostScaledTimeout(2 * time.Second))
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 
 	err = confdbstate.WriteConfdbFromSnap(ctx, view, nil, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb view %s/network/setup-wifi: timed out \\(0s\\) waiting for change 2", s.devAccID))

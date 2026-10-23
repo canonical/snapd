@@ -1,0 +1,25 @@
+name: test-postgres-system-usernames
+version: "10"
+summary: Test shared system username during preseeding
+description: |
+  Provides a minimal service using the shared snap_daemon system username.
+base: core18
+grade: stable
+confinement: strict
+architectures:
+  - build-on: amd64
+
+apps:
+  postgres:
+    command: usr/bin/sleep infinity
+    daemon: simple
+
+passthrough:
+  system-usernames:
+    snap_daemon: shared
+
+parts:
+  service:
+    plugin: nil
+    stage-packages:
+      - coreutils

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -173,7 +174,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDelta(c *C) {
 		},
 	})
 
-	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"alias-snap"})
+	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, []naming.InstanceName{"alias-snap"})
 	c.Assert(err, IsNil)
 
 	c.Check(changed, HasLen, 1)
@@ -242,7 +243,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaAll(c *C) {
 	sort.Strings(which)
 	c.Check(which, DeepEquals, []string{"alias1", "alias2", "alias4", "alias5"})
 
-	c.Check(dropped, DeepEquals, map[string][]string{
+	c.Check(dropped, DeepEquals, map[naming.InstanceName][]string{
 		"alias-snap-apps-go-away": {"alias-goes-away"},
 	})
 
@@ -278,7 +279,7 @@ func (s *snapmgrTestSuite) TestAutoAliasesDeltaOverManual(c *C) {
 		},
 	})
 
-	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, []string{"alias-snap"})
+	changed, dropped, err := snapstate.AutoAliasesDelta(s.state, []naming.InstanceName{"alias-snap"})
 	c.Assert(err, IsNil)
 
 	c.Check(changed, HasLen, 1)

@@ -126,10 +126,6 @@ func (iface *gpioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
-func (iface *gpioInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
-	return parallelInstancesSystemOrGadgetSlotErr(slot)
-}
-
 func init() {
 	registerIface(&gpioInterface{})
 }

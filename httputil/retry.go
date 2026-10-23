@@ -154,7 +154,7 @@ func ShouldRetryError(err error) (b bool) {
 			// The horror, the horror
 			// TODO: stop Arch to use the cgo resolver
 			// which requires the right side of the OR
-			if strings.Contains(dnsErr.Err, "connection refused") || strings.Contains(dnsErr.Err, "Temporary failure in name resolution") {
+			if strings.Contains(dnsErr.Err, "connection refused") || strings.Contains(dnsErr.Err, "Temporary failure in name resolution") || strings.Contains(dnsErr.Err, "device or resource busy") {
 				logger.Debugf("Retrying because of temporary net error (DNS): %#v", dnsErr)
 				return true
 			}
@@ -248,8 +248,10 @@ func isDnsUnavailable(err error) bool {
 	// We really want to check for EAI_AGAIN error here - but this is
 	// not exposed in net.DNSError and in go-1.10 it is not even
 	// a temporary error so there is no way to distiguish it other
-	// than a fugly string compare on a (potentially) localized string
-	return strings.Contains(dnsErr.Err, "Temporary failure in name resolution")
+	// than a fugly string compare on a (potentially) localized string.
+	// "device or resource busy" is EBUSY from systemd-resolved when a
+	// lookup is made from a network namespace with no connectivity.
+	return strings.Contains(dnsErr.Err, "Temporary failure in name resolution") || strings.Contains(dnsErr.Err, "device or resource busy")
 }
 
 func isTimeout(err error) bool {

@@ -70,6 +70,8 @@ create_test_user(){
 }
 
 build_deb(){
+    local FIPS_BUILD_OPTION=
+
     if [ ! -L debian ] ; then
         echo "no debian directory or symlink, broken test setup"
         exit 1

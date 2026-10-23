@@ -258,10 +258,10 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	const optionalCompName = "othercomp2"
 
 	ssi := &snap.SideInfo{RealName: targetSnapName, Revision: snapRev, SnapID: targetSnapID}
-	cref := naming.NewComponentRef(targetSnapName, targetCompName)
+	cref := naming.NewComponentRef(naming.SnapName(targetSnapName), targetCompName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 
-	otherCref := naming.NewComponentRef(targetSnapName, optionalCompName)
+	otherCref := naming.NewComponentRef(naming.SnapName(targetSnapName), optionalCompName)
 	otherCsi := snap.NewComponentSideInfo(otherCref, compRev)
 
 	componentsMap := map[string]any{

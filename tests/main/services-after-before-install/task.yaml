@@ -11,12 +11,6 @@ details: |
 # slow in autopkgtest (>3m)
 backends: [-autopkgtest]
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-
-restore: |
-    snap set system experimental.parallel-instances=null
-
 debug: |
     for name in $(snap list | grep '^test-snapd-after-before-service' | awk '{print $1}'); do
         for service in before-middle middle after-middle; do

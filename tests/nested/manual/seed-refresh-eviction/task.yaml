@@ -150,7 +150,7 @@ execute: |
   orig_seed_label="$(gojq -r '.[0].system' seeded-systems-before.json)"
   previous_seed_label="${orig_seed_label}"
 
-  remote.exec 'sudo snap set core experimental.seed-refresh=true'
+  tests.nested enable-wip-features seed-refresh
 
   for revision in 2 3 4; do
     make_fake_store_revision "${test_snap_path}" "./${test_snap_name}-rev${revision}.snap" "${test_snap_id}" "${revision}"

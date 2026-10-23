@@ -355,7 +355,7 @@ func checkBases(st *state.State, snapInfo, curInfo *snap.Info, _ snap.Container,
 		if err != nil {
 			return err
 		}
-		if typ == snap.TypeBase && otherSnap == snapInfo.Base {
+		if typ == snap.TypeBase && otherSnap.String() == snapInfo.Base {
 			return nil
 		}
 		// core can be used instead for core16
@@ -541,7 +541,7 @@ func checkDesktopFileIDsConflicts(st *state.State, info *snap.Info) error {
 		return err
 	}
 	for instanceName, snapst := range stateMap {
-		if instanceName == info.InstanceName().String() {
+		if instanceName == info.InstanceName() {
 			continue
 		}
 
