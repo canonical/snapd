@@ -511,13 +511,16 @@ func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.Reader
 // The repair is best effort. Whenever the boot image or any of the boot image
 // partitions cannot be read, the references to that kernel revision are left
 // as they are, so the repair never makes a matrix any worse than it was found.
-func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
+// The reasons for every kernel revision whose references were left as they are
+// are returned, so they can be reported should no free boot image partition be
+// found because of them.
+func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) (notRepaired []string, err error) {
 	duplicates, err := env.DuplicateKernelBootPartitions()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(duplicates) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// repair in a stable order so that what gets logged is predictable
@@ -529,25 +532,29 @@ func (l *lk) repairDuplicateKernelBootPartitions(env *lkenv.Env) error {
 
 	repaired := false
 	for _, kernel := range kernels {
-		ok, err := l.repairDuplicateKernel(env, kernel, duplicates[kernel])
+		ok, reason, err := l.repairDuplicateKernel(env, kernel, duplicates[kernel])
 		if err != nil {
-			return err
+			return nil, err
+		}
+		if reason != "" {
+			logger.Noticef("cannot repair lk boot image matrix: %s", reason)
+			notRepaired = append(notRepaired, reason)
 		}
 		repaired = repaired || ok
 	}
 
 	if !repaired {
-		return nil
+		return notRepaired, nil
 	}
 
-	return env.Save()
+	return notRepaired, env.Save()
 }
 
 // repairDuplicateKernel drops the redundant references to a single kernel
 // revision recorded in all of the given boot image partitions, see
 // repairDuplicateKernelBootPartitions(). It returns whether any reference was
-// dropped.
-func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions []string) (bool, error) {
+// dropped, or the reason why the references were left as they are.
+func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions []string) (repaired bool, notRepairedReason string, err error) {
 	keep, drops := bootPartitions[0], bootPartitions[1:]
 
 	// a kernel revision that nothing boots from cannot be booted from
@@ -557,10 +564,10 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 		for _, drop := range drops {
 			logger.Noticef("repairing lk boot image matrix: unreferenced kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
 			if err := env.ClearKernelBootPartition(drop); err != nil {
-				return false, err
+				return false, "", err
 			}
 		}
-		return true, nil
+		return true, "", nil
 	}
 
 	// a kernel revision that is referenced is only ever kept in a boot image
@@ -570,22 +577,19 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 	// overwrite a boot image that is still needed
 	bootImg, err := l.openKernelBootImage(env, kernel)
 	if err != nil {
-		logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in more than one boot image partition but its boot image cannot be read: %v", kernel, err)
-		return false, nil
+		return false, fmt.Sprintf("kernel %s is recorded in more than one boot image partition but its boot image cannot be read: %v", kernel, err), nil
 	}
 	defer bootImg.Close()
 	// an empty boot image is trivially held by every boot image partition
 	if bootImg.Size() == 0 {
-		logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in more than one boot image partition but its boot image is empty", kernel)
-		return false, nil
+		return false, fmt.Sprintf("kernel %s is recorded in more than one boot image partition but its boot image is empty", kernel), nil
 	}
 
 	var holding, notHolding []string
 	for _, bootPartition := range bootPartitions {
 		holds, err := l.bootPartitionHoldsBootImage(bootPartition, bootImg, bootImg.Size())
 		if err != nil {
-			logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in more than one boot image partition but boot image partition %s cannot be checked: %v", kernel, bootPartition, err)
-			return false, nil
+			return false, fmt.Sprintf("kernel %s is recorded in more than one boot image partition but boot image partition %s cannot be checked: %v", kernel, bootPartition, err), nil
 		}
 		if holds {
 			holding = append(holding, bootPartition)
@@ -595,15 +599,14 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 	}
 
 	if len(holding) == 0 {
-		logger.Noticef("cannot repair lk boot image matrix: kernel %s is recorded in boot image partitions %s but none of them holds its boot image", kernel, strings.Join(bootPartitions, ", "))
-		return false, nil
+		return false, fmt.Sprintf("kernel %s is recorded in boot image partitions %s but none of them holds its boot image", kernel, strings.Join(bootPartitions, ", ")), nil
 	}
 
 	keep = holding[0]
 	for _, drop := range holding[1:] {
 		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
 		if err := env.ClearKernelBootPartition(drop); err != nil {
-			return false, err
+			return false, "", err
 		}
 	}
 	// a reference to a boot image partition that does not hold the boot image
@@ -614,11 +617,11 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 	for _, drop := range notHolding {
 		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in boot image partition %s which does not hold its boot image, keeping %s and freeing %s", kernel, drop, keep, drop)
 		if err := env.ClearKernelBootPartition(drop); err != nil {
-			return false, err
+			return false, "", err
 		}
 	}
 
-	return true, nil
+	return true, "", nil
 }
 
 // ExtractKernelAssets extract kernel assets per bootloader specifics
@@ -655,14 +658,22 @@ func (l *lk) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error {
 	// When preparing an image the env comes straight from the gadget, there
 	// is no device whose boot image partitions could be checked, and nothing
 	// to recover.
+	var notRepaired []string
 	if !l.prepareImageTime {
-		if err := l.repairDuplicateKernelBootPartitions(env); err != nil {
+		notRepaired, err = l.repairDuplicateKernelBootPartitions(env)
+		if err != nil {
 			return err
 		}
 	}
 
 	bootPartition, err := env.FindFreeKernelBootPartition(blobName)
 	if err != nil {
+		if len(notRepaired) != 0 {
+			// the duplicates left in place are what takes the boot image
+			// partitions, report why they were, as such a device needs to be
+			// repaired manually
+			return fmt.Errorf("%v: cannot repair lk boot image matrix: %s", err, strings.Join(notRepaired, "; "))
+		}
 		return err
 	}
 

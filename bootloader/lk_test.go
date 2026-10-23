@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -830,25 +831,29 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateNotHoldingIts
 	lk := bootloader.NewLk(s.rootdir, opts)
 	c.Assert(lk, NotNil)
 
+	noneHolds := "kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a, boot_b but none of them holds its boot image"
 	for _, t := range []struct {
 		comment      string
 		bootA, bootB string
+		reason       string
 	}{{
 		// the two boot image partitions agree with each other, but neither
-		// holds the boot image of the kernel recorded in them
+		// holds the boot image of the kernel recorded in them, so there is no
+		// telling which kernel the bootloader really boots from either of them
 		comment: "identical content that is not the boot image",
 		bootA:   "some other boot image",
 		bootB:   "some other boot image",
+		reason:  noneHolds,
 	}, {
 		comment: "different content that is not the boot image",
 		bootA:   "some other boot image",
 		bootB:   "yet another boot image",
+		reason:  noneHolds,
 	}} {
 		logbuf, r := logger.MockLogger()
 		defer r()
 
-		// there is no telling which kernel the bootloader really boots from
-		// either of them, so neither reference may be dropped
+		// neither reference may be dropped
 		env, bootA, bootB := s.wedgeBootImageMatrix(c, "ubuntu-kernel_42.snap", true)
 		s.installKernelSnap(c, "ubuntu-kernel_42.snap", "kernel 42 boot image")
 		c.Assert(os.WriteFile(bootA, []byte(t.bootA), 0755), IsNil)
@@ -856,8 +861,11 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateNotHoldingIts
 
 		info, snapf := makeKernelSnap(c, 43, "kernel 43 boot image")
 		err := lk.ExtractKernelAssets(info, snapf)
-		c.Assert(err, ErrorMatches, "cannot find free boot image partition", Commentf(t.comment))
-		c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in boot image partitions boot_a, boot_b but none of them holds its boot image", Commentf(t.comment))
+		// and the reason why is reported along with the failure, as the
+		// device needs to be repaired manually
+		c.Assert(err, ErrorMatches, regexp.QuoteMeta("cannot find free boot image partition: cannot repair lk boot image matrix: "+t.reason), Commentf(t.comment))
+		c.Check(logbuf.String(), testutil.Contains, "cannot repair lk boot image matrix: "+t.reason+"\n", Commentf(t.comment))
+		c.Check(logbuf.String(), Not(testutil.Contains), "repairing", Commentf(t.comment))
 
 		// both boot image partitions are left exactly as they were
 		content, err := os.ReadFile(bootA)
@@ -897,7 +905,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairDuplicateWithoutKernel
 
 	info, snapf := makeKernelSnap(c, 43, "kernel 43 boot image")
 	err := lk.ExtractKernelAssets(info, snapf)
-	c.Assert(err, ErrorMatches, "cannot find free boot image partition")
+	c.Assert(err, ErrorMatches, `cannot find free boot image partition: cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in more than one boot image partition but its boot image cannot be read: .*ubuntu-kernel_42.snap: no such file or directory`)
 	c.Check(logbuf.String(), Matches, `(?s).*cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in more than one boot image partition but its boot image cannot be read: .*ubuntu-kernel_42.snap: no such file or directory.*`)
 
 	c.Assert(env.Load(), IsNil)
@@ -1027,7 +1035,7 @@ func (s *lkTestSuite) TestExtractKernelAssetsDoesNotRepairWhenBootPartitionCanno
 		// the boot image, and the repair leaves the matrix alone
 		info, snapf := makeKernelSnap(c, 43, "kernel 43 boot image")
 		err := lk.ExtractKernelAssets(info, snapf)
-		c.Assert(err, ErrorMatches, "cannot find free boot image partition", Commentf(t.comment))
+		c.Assert(err, ErrorMatches, `cannot find free boot image partition: cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in more than one boot image partition but boot image partition boot_b cannot be checked: `+t.errRe, Commentf(t.comment))
 		c.Check(logbuf.String(), Matches, `(?s).*cannot repair lk boot image matrix: kernel ubuntu-kernel_42.snap is recorded in more than one boot image partition but boot image partition boot_b cannot be checked: `+t.errRe+`\n`, Commentf(t.comment))
 		c.Check(logbuf.String(), Not(testutil.Contains), "repairing", Commentf(t.comment))
 
