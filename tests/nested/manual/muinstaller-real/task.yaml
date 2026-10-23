@@ -364,26 +364,34 @@ execute: |
       # XXX on 22.04 snap-bootstrap does not set up the mount
       remote.exec "sudo snap install test-snapd-classic-confinement_foo --classic"
       remote.exec "test-snapd-classic-confinement_foo"
+  fi
 
-      # With snap-bootstrap generating the snap.mount unit early in the boot, there
-      # should be no duplicate mounts.
-      remote.exec "cat /proc/self/mountinfo" > vm-mountinfo
-      for snap_name in pc-kernel snapd test-snapd-classic-confinement_foo; do
-          entries="$(awk -v p="/snap/$snap_name/" '$0 ~ p { print $5 }' vm-mountinfo)"
-          test -n "$entries"
-          sorted="$(echo "$entries" | tr ' ' '\n' | sort)"
-          uniqued="$(echo "$entries" | tr ' ' '\n' | sort -u)"
-          # ensure there are no duplicates
-          test "$sorted" = "$uniqued"
-          count="$(echo "$uniqued" | tr ' ' '\n' | wc -l)"
-          case "$snap_name" in
-              pc-kernel)
-                  # 3 entries - repacked kernel + component (24.04+) + original kernel revision
-                  test "$count" -le 3 ;;
-              *)
-                  test "$count" -eq 1 ;;
-          esac
-      done
+  # With snap-bootstrap generating the snap.mount unit early in the boot, there
+  # should be no duplicate mounts.
+  remote.exec "cat /proc/self/mountinfo" > vm-mountinfo
+  check_no_duplicates_with_quirks() {
+      snap_name="$1"
+      entries="$(awk -v p="/snap/$snap_name/" '$0 ~ p { print $5 }' vm-mountinfo)"
+      test -n "$entries"
+      sorted="$(echo "$entries" | tr ' ' '\n' | sort)"
+      uniqued="$(echo "$entries" | tr ' ' '\n' | sort -u)"
+      # ensure there are no duplicates
+      test "$sorted" = "$uniqued"
+      count="$(echo "$uniqued" | tr ' ' '\n' | wc -l)"
+      case "$snap_name" in
+          pc-kernel)
+              # 3 entries - repacked kernel + component (24.04+) + original kernel revision
+              test "$count" -le 3 ;;
+          *)
+              test "$count" -eq 1 ;;
+      esac
+  }
+
+  check_no_duplicates_with_quirks pc-kernel
+  check_no_duplicates_with_quirks snapd
+
+  if [ "$version" != 22 ]; then
+      check_no_duplicates_with_quirks test-snapd-classic-confinement_foo
   fi
 
   # NON seeded variants of the test end here
