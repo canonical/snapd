@@ -5116,18 +5116,28 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var currentComps []*snap.ComponentSideInfo
+	reason := backend.SetupKernelForInstall
+	if snapSt.Current == snapsup.Revision() {
+		// On a component-only refresh, some old components may already have
+		// been unlinked from SnapState, but the live tree must retain them until
+		// prepare-kernel-modules-components switches it to the new set. If
+		// the change fails before then, undo relinks the old components but
+		// does not regenerate the tree.
+		if snapsup.PreUpdateKernelModuleComponents == nil {
+			return fmt.Errorf("internal error: missing pre-update kernel-modules components for %q", snapsup.InstanceName())
+		}
+		currentComps = snapsup.PreUpdateKernelModuleComponents
+		reason = backend.SetupKernelRegenerate
+	}
+
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	timings.Run(perfTimings, "prepare-kernel-snap",
 		fmt.Sprintf("preparing kernel snap %q", snapsup.InstanceName()),
 		func(timings.Measurer) {
-			// TODO pass information on components if running for an
-			// already installed kernel
-
-			// TODO explicitly indicate when we could be regenerating the
-			// drivers tree as a result of a refresh to the same revision.
 			err = m.backend.SetupKernelSnap(
-				snapsup.InstanceName().String(), snapsup.Revision(), nil, backend.SetupKernelForInstall, pm)
+				snapsup.InstanceName().String(), snapsup.Revision(), currentComps, reason, pm)
 		})
 	st.Lock()
 	if err != nil {
