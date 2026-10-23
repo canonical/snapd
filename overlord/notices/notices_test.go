@@ -102,7 +102,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	userID := uint32(1000)
 
 	s.st.Lock()
-	id1, err := s.st.AddNotice(&userID, state.WarningNotice, "foo", nil)
+	id1, err := s.st.AddNotice(&userID, state.InterfacesRequestsPromptNotice, "foo", nil)
 	c.Assert(err, IsNil)
 	id2, err := s.st.AddNotice(&userID, state.ChangeUpdateNotice, "bar", nil)
 	c.Assert(err, IsNil)
@@ -113,7 +113,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	// were not held, querying state notices would panic.
 	notices := nm.Notices(nil)
 	c.Check(notices, HasLen, 2)
-	c.Check(notices[0].Type(), Equals, state.WarningNotice)
+	c.Check(notices[0].Type(), Equals, state.InterfacesRequestsPromptNotice)
 	c.Check(notices[1].Type(), Equals, state.ChangeUpdateNotice)
 
 	filtered := nm.Notices(&state.NoticeFilter{Keys: []string{"bar"}})
@@ -121,7 +121,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	c.Check(filtered[0].Type(), Equals, state.ChangeUpdateNotice)
 
 	notice := nm.Notice(id1)
-	c.Check(notice.Type(), Equals, state.WarningNotice)
+	c.Check(notice.Type(), Equals, state.InterfacesRequestsPromptNotice)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -129,7 +129,7 @@ func (s *noticesSuite) TestNewNoticeManagerStateBackend(c *C) {
 	waited, err := nm.WaitNotices(ctx, &state.NoticeFilter{Keys: []string{"foo"}})
 	c.Assert(err, IsNil)
 	c.Check(waited, HasLen, 1)
-	c.Check(waited[0].Type(), Equals, state.WarningNotice)
+	c.Check(waited[0].Type(), Equals, state.InterfacesRequestsPromptNotice)
 
 	waitChan := make(chan []*state.Notice)
 	go func() {
@@ -176,7 +176,8 @@ func (s *noticesSuite) TestRegisterBackend(c *C) {
 
 	noticeID := "foo-123"
 	noticeKey := "456"
-	validateErr := validateNotice1(noticeID, typ1, noticeKey, nil)
+	opts := &state.AddNoticeOptions{ExpireAfter: time.Hour * 24}
+	validateErr := validateNotice1(noticeID, typ1, noticeKey, opts)
 	c.Assert(validateErr, IsNil)
 
 	typ2 := state.ChangeUpdateNotice
@@ -320,7 +321,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 
 	// Create some notices before creating the manager
 	s.st.Lock()
-	id1, err := s.st.AddNotice(&uid, state.WarningNotice, "foo", nil)
+	id1, err := s.st.AddNotice(&uid, state.InterfacesRequestsPromptNotice, "foo", nil)
 	c.Assert(err, IsNil)
 	id2, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "bar", nil)
 	c.Assert(err, IsNil)
@@ -332,7 +333,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	s.st.Lock()
 	id3, err := s.st.AddNotice(&uid, state.ChangeUpdateNotice, "baz", nil)
 	c.Assert(err, IsNil)
-	id4, err := s.st.AddNotice(&uid, state.WarningNotice, "qux", nil)
+	id4, err := s.st.AddNotice(&uid, state.InterfacesRequestsPromptNotice, "qux", nil)
 	c.Assert(err, IsNil)
 	s.st.Unlock()
 
@@ -352,7 +353,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	// Send empty notices over noticesChan so registration doesn't block
 	// trying to get notices to update last notice timestamp
 	bknd1.noticesChan <- nil
-	_, drained, err := nm.RegisterBackend(bknd1, state.WarningNotice, "something", false)
+	_, drained, err := nm.RegisterBackend(bknd1, state.InterfacesRequestsPromptNotice, "something", false)
 	c.Check(err, IsNil)
 	c.Check(drained, HasLen, 0)
 
@@ -369,7 +370,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	// Register a backend and do drain notices
 	bknd2 := newTestNoticeBackend()
 	bknd2.noticesChan <- nil
-	_, drained, err = nm.RegisterBackend(bknd2, state.WarningNotice, "another", true)
+	_, drained, err = nm.RegisterBackend(bknd2, state.InterfacesRequestsPromptNotice, "another", true)
 	c.Assert(err, IsNil)
 	c.Assert(drained, HasLen, 2)
 	c.Check(drained[0].ID(), Equals, id1)
@@ -397,7 +398,7 @@ func (s *noticesSuite) TestRegisterBackendDrainNotices(c *C) {
 	// already been drained, so drained is empty.
 	bknd3 := newTestNoticeBackend()
 	bknd3.noticesChan <- nil
-	_, drained, err = nm.RegisterBackend(bknd3, state.WarningNotice, "different", true)
+	_, drained, err = nm.RegisterBackend(bknd3, state.InterfacesRequestsPromptNotice, "different", true)
 	c.Check(err, IsNil)
 	c.Check(drained, HasLen, 0)
 
@@ -504,33 +505,34 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	validID2 := "bar-abc"
 	validKey := "xyz"
 
-	err = validateNotice1(validID1, typ1, validKey, nil)
+	opts := &state.AddNoticeOptions{ExpireAfter: time.Hour * 24}
+	err = validateNotice1(validID1, typ1, validKey, opts)
 	c.Check(err, IsNil)
 
 	err = validateNotice2(validID2, typ2, validKey, nil)
 	c.Check(err, IsNil)
 
 	invalidTyp := state.NoticeType("invalid")
-	err = validateNotice1(validID1, invalidTyp, validKey, nil)
+	err = validateNotice1(validID1, invalidTyp, validKey, opts)
 	c.Check(err, ErrorMatches, "cannot add notice with invalid type.*")
 
 	// Even if backend registered for another type, the closure will return an
 	// error for any type other than the one with which it was specifically
 	// registered.
-	err = validateNotice1(validID1, typ2, validKey, nil)
+	err = validateNotice1(validID1, typ2, validKey, opts)
 	c.Check(err, ErrorMatches, `cannot add change-update notice to notice backend registered to provide warning notices`)
 
 	noPrefixID := "something"
 	onlyPrefixID := "foo" // still treated as no prefix
 	for _, id := range []string{noPrefixID, onlyPrefixID} {
-		err = validateNotice1(id, typ1, validKey, nil)
+		err = validateNotice1(id, typ1, validKey, opts)
 		c.Check(err, ErrorMatches, `cannot add notice without ID prefix to notice backend registered with namespace: "foo"`)
 	}
 
 	otherPrefixID := "bar-123"
 	unrelatedPrefixID := "baz-123"
 	for _, id := range []string{otherPrefixID, unrelatedPrefixID} {
-		err = validateNotice1(id, typ1, validKey, nil)
+		err = validateNotice1(id, typ1, validKey, opts)
 		c.Check(err, ErrorMatches, `cannot add notice with ID prefix not matching the namespace registered to the notice backend: "ba." != "foo"`)
 	}
 }

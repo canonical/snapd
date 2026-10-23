@@ -84,8 +84,8 @@ func (s *noticebackendSuite) TestRegisterWithManager(c *C) {
 	c.Assert(err, IsNil)
 	id6, err := s.st.AddNotice(&uid1, state.InterfacesRequestsPromptNotice, prompting.IDType(0x1000).String(), &state.AddNoticeOptions{Data: data2})
 	c.Assert(err, IsNil)
-	// Add warning notice which we won't drain
-	id7, err := s.st.AddNotice(&uid2, state.WarningNotice, "foo", &state.AddNoticeOptions{Data: data2})
+	// Add change-update notice which we won't drain
+	id7, err := s.st.AddNotice(&uid2, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{Data: data2})
 	c.Assert(err, IsNil)
 	// Add one prompting notice with a key which is not an IDType.String(), which will be dropped
 	id8, err := s.st.AddNotice(&uid2, state.InterfacesRequestsRuleUpdateNotice, "bar", &state.AddNoticeOptions{Data: data2})

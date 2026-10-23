@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -30,6 +31,126 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func (stateSuite) TestWarningFilterCutoffTime(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	fixedTime := time.Now()
+	restore := state.MockTime(fixedTime)
+	defer restore()
+	st.Warnf("one")
+	st.Warnf("two")
+	n, _ := st.WarningsSummary()
+	// this is 1 when using only the wall clock without
+	// accounting for possible lastNoticeTimestamps later than
+	// the wall clock
+	c.Check(n, check.Equals, 2)
+}
+
+func (stateSuite) TestMigrateWarnings(c *check.C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	firstAdded := now.Add(-5 * time.Minute)
+	lastAdded := now.Add(-3 * time.Minute)
+	lastShown := now.Add(-1 * time.Minute)
+	defaultShowAfter := state.DefaultWarningShowAfter.String()
+	defaultExpireAfter := state.DefaultWarningExpireAfter.String()
+
+	oldWarning := json.RawMessage(
+		fmt.Sprintf(`
+			[
+				{"message": "first test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "second test warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s"},
+				{"message": "other test warning", "first-added": "%s", "last-added": "%s","repeat-after": "%s", "last-shown": "%s"},
+				{"message": "warn", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "danger", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": " ", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "another test warning", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s", "last-shown": "%s"},
+				{"message": "some warning", "first-added": "%s", "last-added": "%s", "expire-after": "%s", "repeat-after": "%s"}
+			]`,
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), defaultExpireAfter, defaultShowAfter, lastShown.Format(time.RFC3339Nano),
+			// case without repeat-after and last-shown fields, repeat after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(1*time.Second).Format(time.RFC3339), defaultExpireAfter,
+			// no expire-after field falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(2*time.Second).Format(time.RFC3339), defaultShowAfter, lastShown.Format(time.RFC3339),
+			// invalid expire-after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(3*time.Second).Format(time.RFC3339), "24d", defaultShowAfter, lastShown.Format(time.RFC3339Nano),
+			// invalid show-after falls back to default
+			firstAdded.Format(time.RFC3339), lastAdded.Add(4*time.Second).Format(time.RFC3339), defaultExpireAfter, "24d", lastShown.Format(time.RFC3339Nano),
+
+			// the following cases should not result in notices being created
+			// whitespace message
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), defaultExpireAfter, defaultShowAfter, lastShown.Format(time.RFC3339Nano),
+			// empty message
+			firstAdded.Format(time.RFC3339), lastAdded.Format(time.RFC3339), defaultExpireAfter, defaultShowAfter, lastShown.Format(time.RFC3339Nano),
+			// first-added is 0
+			lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter, defaultExpireAfter, lastShown.Format(time.RFC3339),
+			// expired warning
+			firstAdded.Format(time.RFC3339), now.Add(-2*time.Hour).Format(time.RFC3339), time.Hour.String(), defaultShowAfter,
+		),
+	)
+
+	stateJSON := json.RawMessage(
+		fmt.Sprintf(
+			`{
+				"warnings": %s,
+				"data": {},
+				"changes": {},
+				"tasks": {},
+				"notices":[],
+				"last-change-id": 0,
+			 	"last-task-id": 0,
+				"last-lane-id": 0,
+				"last-notice-id": 0
+			}`,
+			oldWarning,
+		),
+	)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal(stateJSON, st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+
+	c.Assert(st.NumNotices(), check.Equals, 5)
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, check.HasLen, 5)
+
+	c.Check(st.LastNoticeId(), check.Equals, 5)
+
+	for idx, notice := range notices {
+		increment := time.Duration(idx)
+		expectedLastAdded := lastAdded.Add(increment * time.Second).UTC().Format(time.RFC3339)
+		switch idx {
+		case 0:
+			c.Check(notice.Key(), check.Equals, "first test warning")
+			c.Check(notice.LastData()["show-after"], check.Equals, defaultShowAfter)
+			c.Check(notice.LastData()["last-shown"], check.Equals, lastShown.Format(time.RFC3339Nano))
+		case 1:
+			c.Check(notice.Key(), check.Equals, "second test warning")
+		case 2:
+			c.Check(notice.Key(), check.Equals, "other test warning")
+		case 3:
+			c.Check(notice.Key(), check.Equals, "warn")
+		case 4:
+			c.Check(notice.Key(), check.Equals, "danger")
+		default:
+			c.Error("unexpected warning notice")
+		}
+		c.Check(notice.NoticeLastOccurred().Format(time.RFC3339), check.Equals, expectedLastAdded)
+		c.Check(notice.LastRepeated().Format(time.RFC3339), check.Equals, expectedLastAdded)
+		c.Check(notice.ID(), check.Equals, strconv.Itoa(idx+1))
+		c.Check(notice.Type(), check.Equals, state.WarningNotice)
+		c.Check(notice.NoticeFirstOccurred().Format(time.RFC3339), check.Equals, firstAdded.Format(time.RFC3339))
+		c.Check(notice.ExpireAfter(), check.Equals, state.DefaultWarningExpireAfter)
+	}
+}
 
 func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	st := state.New(nil)
@@ -57,7 +178,7 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	c.Check(v[0], check.HasLen, expectedNumKeys)
 	c.Check(v[0]["message"], check.DeepEquals, "hello")
 	c.Check(v[0]["expire-after"], check.Equals, state.DefaultWarningExpireAfter.String())
-	c.Check(v[0]["repeat-after"], check.Equals, state.DefaultWarningRepeatAfter.String())
+	c.Check(v[0]["repeat-after"], check.Equals, state.DefaultWarningShowAfter.String())
 	c.Check(v[0]["first-added"], check.Equals, v[0]["last-added"])
 	t, err := time.Parse(time.RFC3339, v[0]["first-added"])
 	c.Assert(err, check.IsNil)
@@ -73,11 +194,6 @@ func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 		c.Check(0 <= dt, check.Equals, true)
 		c.Check(dt < time.Minute, check.Equals, true)
 	}
-
-	var ws2 []*state.Warning
-	c.Assert(json.Unmarshal(buf, &ws2), check.IsNil)
-	c.Assert(ws2, check.HasLen, 1)
-	c.Check(ws2[0], check.DeepEquals, ws[0])
 }
 
 func (s stateSuite) TestMarshalWarning(c *check.C) {
@@ -88,39 +204,18 @@ func (s stateSuite) TestMarshalShownWarning(c *check.C) {
 	s.testMarshalWarning(true, c)
 }
 
-func (stateSuite) TestUnmarshalErrors(c *check.C) {
-	var w state.Warning
-	c.Check(json.Unmarshal([]byte(`42`), &w), check.ErrorMatches, ".* cannot unmarshal .*")
+func (s stateSuite) TestAddWarningWithBadMessages(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
 
-	type T1 struct {
-		b string
-		e error
-	}
+	c.Check(func() { st.Warnf("") }, check.PanicMatches,
+		`internal error: cannot add warning notice with invalid key ""`,
+	)
 
-	for _, t := range []T1{
-		// validity check
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, nil},
-		// remove one field at a time:
-		{`{                "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningMessage},
-		{`{"message": "x",                                        "expire-after": "1h", "repeat-after": "1h"}`, state.ErrNoWarningFirstAdded},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z",                       "repeat-after": "1h"}`, state.ErrNoWarningExpireAfter},
-	} {
-		var w state.Warning
-		c.Check(json.Unmarshal([]byte(t.b), &w), check.Equals, t.e)
-	}
-
-	type T2 struct{ b, e string }
-
-	for _, t := range []T2{
-		// some bogus values
-		{`{"message": " ", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "malformed warning message"},
-		{`{"message": "x", "first-added": "2006",                 "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
-		{`{"message": "x", "first-added": "2006-01-02T15:04:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
-	} {
-		var w state.Warning
-		c.Check(json.Unmarshal([]byte(t.b), &w), check.ErrorMatches, t.e)
-	}
+	c.Check(func() { st.Warnf(" ") }, check.PanicMatches,
+		`internal error: cannot add warning notice with invalid key " "`,
+	)
 }
 
 func (stateSuite) TestEmptyStateWarnings(c *check.C) {
@@ -139,8 +234,8 @@ func (stateSuite) TestDeleteExpired(c *check.C) {
 	defer st.Unlock()
 	st.Warnf("hello again") // adding this twice to trigger the swap in sort
 	st.AddWarning("hello", &state.AddWarningOptions{
-		Time:        oldTime,
-		RepeatAfter: state.DefaultWarningRepeatAfter,
+		Time:      oldTime,
+		ShowAfter: state.DefaultWarningShowAfter,
 	})
 	st.Warnf("hello again")
 
@@ -169,8 +264,8 @@ func (stateSuite) TestOldRepeatedWarning(c *check.C) {
 	st.Lock()
 	defer st.Unlock()
 	st.AddWarning("hello", &state.AddWarningOptions{
-		Time:        oldTime,
-		RepeatAfter: state.DefaultWarningRepeatAfter,
+		Time:      oldTime,
+		ShowAfter: state.DefaultWarningShowAfter,
 	})
 	st.Warnf("hello")
 
@@ -204,8 +299,8 @@ func (stateSuite) TestWarningsSummaryReturnsLastLastAdded(c *check.C) {
 	defer st.Unlock()
 	t0 := time.Now().Add(-100 * time.Hour)
 	st.AddWarning("hello", &state.AddWarningOptions{
-		Time:        t0,
-		RepeatAfter: state.DefaultWarningRepeatAfter,
+		Time:      t0,
+		ShowAfter: state.DefaultWarningShowAfter,
 	})
 	n, t := st.WarningsSummary()
 	c.Check(n, check.Equals, 1)
@@ -261,7 +356,7 @@ func (stateSuite) TestShowAndOkayWithRepeats(c *check.C) {
 	n := st.OkayWarnings(t1)
 	c.Check(n, check.Equals, 1)
 
-	st.AddWarning("hello", &state.AddWarningOptions{RepeatAfter: myRepeatAfter})
+	st.AddWarning("hello", &state.AddWarningOptions{ShowAfter: myRepeatAfter})
 
 	ws, _ = st.PendingWarnings()
 	c.Check(ws, check.HasLen, 0) // not enough time has passed
