@@ -502,11 +502,14 @@ func (l *lk) bootPartitionHoldsBootImage(bootPartition string, bootImg io.Reader
 //
 // For a kernel revision that is referenced, every boot image partition it is
 // recorded in is compared against the boot image shipped in that kernel
-// revision's snap. The reference in the first boot image partition that holds
-// that boot image is kept and all others are dropped: those that hold the same
-// boot image are redundant, and those that do not hold it are wrong. When none
-// of them holds it, nothing is dropped, as there is no telling which of them
-// the kernel revision really boots from.
+// revision's snap. The bootloader boots the kernel revision from the first boot
+// image partition it is recorded in, so that reference is the one kept, and
+// only if that boot image partition holds the boot image. All others are then
+// dropped: those that hold the same boot image are redundant, and those that do
+// not hold it are wrong. When the first boot image partition does not hold the
+// boot image, nothing is dropped: the device boots from that boot image
+// partition today, and switching the kernel revision to another one, which has
+// never booted the device, must not happen outside of try mode.
 //
 // The repair is best effort. Whenever the boot image or any of the boot image
 // partitions cannot be read, the references to that kernel revision are left
@@ -601,8 +604,14 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 	if len(holding) == 0 {
 		return false, fmt.Sprintf("kernel %s is recorded in boot image partitions %s but none of them holds its boot image", kernel, strings.Join(bootPartitions, ", ")), nil
 	}
+	// the first boot image partition in the matrix is the one the bootloader
+	// boots the kernel revision from today, never drop it in favour of another
+	// one, as that would switch the kernel revision to a boot image partition
+	// that has never booted the device, and outside of try mode
+	if holding[0] != keep {
+		return false, fmt.Sprintf("kernel %s boots from boot image partition %s which does not hold its boot image", kernel, keep), nil
+	}
 
-	keep = holding[0]
 	for _, drop := range holding[1:] {
 		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in both boot image partitions %s and %s, freeing %s", kernel, keep, drop, drop)
 		if err := env.ClearKernelBootPartition(drop); err != nil {
@@ -610,10 +619,8 @@ func (l *lk) repairDuplicateKernel(env *lkenv.Env, kernel string, bootPartitions
 		}
 	}
 	// a reference to a boot image partition that does not hold the boot image
-	// of the kernel revision is wrong, and if it appears first in the matrix it
-	// is the one the bootloader resolves the kernel revision to. Dropping it
-	// makes the bootloader boot the kernel revision from the boot image
-	// partition that really holds it
+	// of the kernel revision, and is not the one the bootloader boots it from,
+	// is wrong
 	for _, drop := range notHolding {
 		logger.Noticef("repairing lk boot image matrix: kernel %s is recorded in boot image partition %s which does not hold its boot image, keeping %s and freeing %s", kernel, drop, keep, drop)
 		if err := env.ClearKernelBootPartition(drop); err != nil {
