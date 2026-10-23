@@ -1,0 +1,10 @@
+if ! output="$(snapcraft --version 2>&1)" ; then
+    workshopctl set-health error "$output"
+    exit 1
+fi
+output="$(sudo -iu workshop command -v snapcraft)"
+if [ ! "$output" = /home/workshop/.local/bin/snapcraft ] ; then
+    workshopctl set-health error "$output"
+    exit 1
+fi
+workshopctl set-health okay

@@ -1,0 +1,2 @@
+# Not using spread from image-garden snap, so install it from upstream
+GOPATH=/home/workshop/.local go install github.com/canonical/spread-plus/cmd/spread@latest
