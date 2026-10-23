@@ -96,6 +96,17 @@ func (s *accelSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.accel.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.accel.app"), testutil.Contains, "/dev/accel/accel* rw,\n")
+	for _, rule := range []string{
+		"/sys/bus/pci/drivers/intel_vpu/ r,",
+		"/sys/devices/pci*/**/accel/{,accel[0-9]*/} r,",
+		"/sys/devices/pci*/**/{device,npu_busy_time_us,npu_memory_utilization} r,",
+		"/sys/module/intel_vpu/version r,",
+		"/sys/kernel/debug/accel/*/fw_version r,",
+		"/sys/class/intel_pmt/ r,",
+		"/sys/devices/pci*/**/intel_pmt/telem[0-9]*/{guid,size,offset,telem} r,",
+	} {
+		c.Check(apparmorSpec.SnippetForTag("snap.accel.app"), testutil.Contains, rule+"\n")
+	}
 
 	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
