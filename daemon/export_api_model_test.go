@@ -41,6 +41,14 @@ func MockDevicestateDeviceManagerUnregister(mock func(*devicestate.DeviceManager
 	}
 }
 
+func MockDevicestateDeviceManagerRegister(mock func(*devicestate.DeviceManager) error) (restore func()) {
+	oldDevicestateDeviceManagerRegister := devicestateDeviceManagerRegister
+	devicestateDeviceManagerRegister = mock
+	return func() {
+		devicestateDeviceManagerRegister = oldDevicestateDeviceManagerRegister
+	}
+}
+
 type (
 	PostModelData = postModelData
 )

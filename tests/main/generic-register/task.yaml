@@ -1,0 +1,53 @@
+summary: Ensure that the device registration API works.
+
+details: |
+   This test verifies that device registration can be requested through
+   the snapd API and is triggered promptly. Requesting registration on an
+   already registered device must keep the existing serial, and requesting
+   it after the serial was forgotten must lead to a new serial. The lazy
+   registration bypass for systems without snaps is covered by unit tests.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    systemctl stop snapd.service snapd.socket
+    cp /var/lib/snapd/state.json state.json.bak
+    mkdir key
+    cp /var/lib/snapd/device/private-keys-v1/* key
+    systemctl start snapd.service snapd.socket
+
+restore: |
+    systemctl stop snapd.service snapd.socket
+    rm -f /var/lib/snapd/device/private-keys-v1/*
+    cp key/* /var/lib/snapd/device/private-keys-v1/
+    cp state.json.bak /var/lib/snapd/state.json
+    systemctl start snapd.service snapd.socket
+
+execute: |
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
+    wait_for_device_initialized_change
+
+    if snap model --verbose | NOMATCH "brand-id:\s* generic" ; then
+       echo "Not a generic model. Skipping."
+       exit 0
+    fi
+
+    serial_before="$(snap model --serial --assertion | awk '/^serial:/ {print $2}')"
+    test -n "$serial_before"
+
+    echo "Requesting registration on a registered device keeps the serial"
+    echo '{"action":"register"}' | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial
+    serial_after="$(snap model --serial --assertion | awk '/^serial:/ {print $2}')"
+    test "$serial_before" = "$serial_after"
+
+    echo "Requesting registration after forgetting the serial registers again"
+    echo '{"action":"forget","no-registration-until-reboot":false}' | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial
+    snap model --serial 2>&1 | MATCH "error: device not registered yet"
+
+    echo '{"action":"register"}' | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial
+    retry --wait 2 -n 120 sh -c 'snap model --serial 2>&1 | NOMATCH "error: device not registered yet"'
+    serial_new="$(snap model --serial --assertion | awk '/^serial:/ {print $2}')"
+    test -n "$serial_new"
+    test "$serial_new" != "$serial_before"
