@@ -443,6 +443,61 @@ func writeInitramfsMountUnit(what, where string, utype unitType) error {
 	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
 }
 
+const snapMountDirUnit = `[Unit]
+Description=Mount of snap mount directory
+DefaultDependencies=no
+After=sysroot.mount
+Before=initrd-fs.target
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What=%[1]s
+Where=%[2]s
+Options=rbind,private,shared
+`
+
+// writeSnapMountDirMountUnit writes a self-bind mount unit for the snap
+// mount directory that establishes it as a shared mount point with its own
+// peer group. On classic with createSysrootMount(), the rootfs is mounted
+// at /sysroot by sysroot.mount; the snap mount directory is at
+// /sysroot/<snap-mount-dir>, which becomes /<snap-mount-dir> after
+// switch_root. Self-binding it with rbind,private,shared before any snap
+// content mounts are established ensures that after switch_root the
+// directory is already correctly set up, without the packaged snap.mount
+// unit re-binding it and duplicating mounts.
+func writeSnapMountDirMountUnit(rootfsDir string) error {
+	snapMountDir := filepath.Join(dirs.GlobalRootDir, "sysroot", dirs.StripRootDir(dirs.SnapMountDir))
+
+	// Ensure the mount point exists in the rootfs before sysroot.mount
+	// makes it available under /sysroot.
+	if err := os.MkdirAll(filepath.Join(rootfsDir, dirs.StripRootDir(dirs.SnapMountDir)), 0755); err != nil {
+		return err
+	}
+
+	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
+	if err := os.MkdirAll(unitDir, 0755); err != nil {
+		return err
+	}
+
+	what := dirs.StripRootDir(snapMountDir)
+	where := dirs.StripRootDir(snapMountDir)
+	unit := fmt.Sprintf(snapMountDirUnit, what, where)
+	unitFileName := systemd.EscapeUnitNamePath(where) + ".mount"
+	unitPath := filepath.Join(unitDir, unitFileName)
+	if err := os.WriteFile(unitPath, []byte(unit), 0644); err != nil {
+		return err
+	}
+
+	// Pull the unit from initrd-fs.target
+	wantsDir := filepath.Join(unitDir, "initrd-fs.target.wants")
+	if err := os.MkdirAll(wantsDir, 0755); err != nil {
+		return err
+	}
+	linkPath := filepath.Join(wantsDir, unitFileName)
+	return os.Symlink(filepath.Join("..", unitFileName), linkPath)
+}
+
 func assembleSysrootMountUnitContent(what, mntType string, opts []string) string {
 	var typ string
 
