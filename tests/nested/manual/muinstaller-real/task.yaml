@@ -355,6 +355,38 @@ execute: |
       remote.exec "snap debug seeding" | MATCH "^preseeded: +true"
   fi
 
+  # This is one of a few tests that set up hybrid system, given how the mount
+  # namespace of the host is set up and peculiar requirements for parallel
+  # installing classic snaps, let's make sure that they can be installed and
+  # work.
+  # TODO this should really be exercised in a separate test to isolate any failures.
+  if [ "$version" != 22 ]; then
+      # XXX on 22.04 snap-bootstrap does not set up the mount
+      remote.exec "sudo snap install test-snapd-classic-confinement_foo --classic"
+      remote.exec "test-snapd-classic-confinement_foo"
+
+      # With snap-bootstrap generating the snap.mount unit early in the boot, there
+      # should be no duplicate mounts.
+      remote.exec "cat /proc/self/mountinfo" > vm-mountinfo
+      for snap_name in pc-kernel snapd test-snapd-classic-confinement_foo; do
+          entries="$(awk -v p="/snap/$snap_name/" '$0 ~ p { print $5 }' vm-mountinfo)"
+          test -n "$entries"
+          sorted="$(echo "$entries" | tr ' ' '\n' | sort)"
+          uniqued="$(echo "$entries" | tr ' ' '\n' | sort -u)"
+          # ensure there are no duplicates
+          test "$sorted" = "$uniqued"
+          count="$(echo "$uniqued" | tr ' ' '\n' | wc -l)"
+          case "$snap_name" in
+              pc-kernel)
+                  # 3 entries - repacked kernel + component (24.04+) + original kernel revision
+                  test "$count" -le 3 ;;
+              *)
+                  test "$count" -eq 1 ;;
+          esac
+      done
+  fi
+
+  # NON seeded variants of the test end here
   if [ "$SEED_PARTITION" = 'false' ]; then
       remote.exec not test -e /run/mnt/ubuntu-seed/systems/classic
       exit 0
@@ -429,24 +461,4 @@ execute: |
 
   for name in passwd shadow group gshadow; do
       remote.exec "findmnt -n /etc/${name}" | awk '{ print $2 }' | MATCH "tmpfs\[/snapd/hybrid-users/${name}\]"
-  done
-
-  # Go back to run mode
-  boot_id=$(remote.exec "cat /proc/sys/kernel/random/boot_id")
-  remote.exec "sudo reboot" || true
-  remote.wait-for reboot "${boot_id}"
-
-  # This is one of a few tests that set up hybrid system, given how the mount
-  # namespace of the host is set up and peculiar requirements for parallel
-  # installing classic snaps, let's make sure that they can be installed and
-  # work.
-  remote.exec "sudo snap install test-snapd-classic-confinement_foo --classic"
-  remote.exec "test-snapd-classic-confinement_foo"
-
-  # With snap-bootstrap generating the snap.mount unit early in the boot, there
-  # should be no duplicate mounts.
-  remote.exec "cat /proc/self/mountinfo" > vm-mountinfo
-  for snap_name in pc-kernel snapd test-snapd-classic-confinement_foo; do
-      count="$(awk -v p="/snap/$snap_name/" 'index($5, p) == 1' vm-mountinfo | wc -l)"
-      test "$count" -eq 1
   done
