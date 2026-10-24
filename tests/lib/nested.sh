@@ -28,7 +28,6 @@
 : "${NESTED_DISK_PHYSICAL_BLOCK_SIZE:=512}"
 : "${NESTED_DISK_LOGICAL_BLOCK_SIZE:=512}"
 
-
 # shellcheck source=tests/lib/nested/system.sh
 . "$TESTSLIB/nested/system.sh"
 # shellcheck source=tests/lib/nested/wait.sh
