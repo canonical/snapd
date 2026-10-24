@@ -102,6 +102,8 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		header["X-Snapctl-Features"] = strings.Join(supportedFeatures, ",")
 	}
 
+	header["Content-Type"] = "application/json"
+
 	var output snapctlOutput
 	_, err = client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(b), &output)
 	if err != nil {

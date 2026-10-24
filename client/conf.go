@@ -32,7 +32,10 @@ func (client *Client) SetConf(snapName string, patch map[string]any) (changeID s
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("PUT", "/v2/snaps/"+snapName+"/conf", nil, nil, bytes.NewReader(b))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return client.doAsync("PUT", "/v2/snaps/"+snapName+"/conf", nil, headers, bytes.NewReader(b))
 }
 
 // Conf asks for a snap's current configuration.

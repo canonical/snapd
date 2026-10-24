@@ -360,7 +360,10 @@ func (client *Client) Start(names []string, scope ScopeSelector, users UserSelec
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return client.doAsync("POST", "/v2/apps", nil, headers, bytes.NewReader(buf))
 }
 
 // StopOptions represent the different options of the Stop call.
@@ -390,7 +393,10 @@ func (client *Client) Stop(names []string, scope ScopeSelector, users UserSelect
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return client.doAsync("POST", "/v2/apps", nil, headers, bytes.NewReader(buf))
 }
 
 // RestartOptions represent the different options of the Restart call.
@@ -421,5 +427,8 @@ func (client *Client) Restart(names []string, scope ScopeSelector, users UserSel
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("POST", "/v2/apps", nil, nil, bytes.NewReader(buf))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return client.doAsync("POST", "/v2/apps", nil, headers, bytes.NewReader(buf))
 }

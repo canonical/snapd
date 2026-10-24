@@ -102,7 +102,10 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 	if err := json.NewEncoder(&body).Encode(&req); err != nil {
 		return err
 	}
-	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, header, &body, nil); err != nil {
 		return fmt.Errorf("cannot request system action: %v", err)
 	}
 	return nil
@@ -134,7 +137,10 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	if err := json.NewEncoder(&body).Encode(&req); err != nil {
 		return err
 	}
-	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, header, &body, nil); err != nil {
 		if systemLabel != "" {
 			return fmt.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
 		}
@@ -337,7 +343,10 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	if err := json.NewEncoder(&body).Encode(&req); err != nil {
 		return "", err
 	}
-	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, header, &body)
 	if err != nil {
 		return "", fmt.Errorf("cannot request system install for %q: %v", systemLabel, err)
 	}
@@ -372,7 +381,10 @@ func (client *Client) GeneratePreInstallRecoveryKey(systemLabel string) (recover
 	var rsp struct {
 		RecoveryKey string `json:"recovery-key"`
 	}
-	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, &rsp); err != nil {
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, header, &body, &rsp); err != nil {
 		return "", fmt.Errorf("cannot generate recovery key for system %q: %v", systemLabel, err)
 	}
 	return rsp.RecoveryKey, nil
