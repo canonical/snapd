@@ -41,6 +41,11 @@ const dockerConnectedPlugAppArmor = `
 
 # Allow talking to the docker daemon
 /{,var/}run/docker.sock rw,
+
+# Do not in the future use peer=(label=unconfined), because we want snaps with
+# docker plugs to be able to communicate with the docker daemon running on the
+# system regardless of whether docker happens to be running unconfined or as a
+# snap.
 `
 
 const dockerConnectedPlugSecComp = `
