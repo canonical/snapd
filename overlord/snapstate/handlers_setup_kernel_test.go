@@ -20,12 +20,16 @@
 package snapstate_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -214,6 +218,76 @@ func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionStillRecordsPrevio
 	})
 }
 
+func (s *setupKernelSnapSuite) TestPrepareKernelSnapSameRevisionKeepsCompleteComponents(c *C) {
+	s.state.Lock()
+	oldComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "old"), snap.R(1))
+	newComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "old"), snap.R(2))
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "mykernel", Revision: snap.R(33)}})
+	seq.Revisions[0].Components = []*sequence.ComponentState{sequence.NewComponentState(oldComp, snap.KernelModulesComponent)}
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{Sequence: seq, Current: snap.R(33)})
+	setup := &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "mykernel", Revision: snap.R(33)}}
+	setupTask := s.state.NewTask("nop", "snap setup")
+	setupTask.Set("snap-setup", setup)
+	compTask := s.state.NewTask("nop", "replacement component")
+	compTask.Set("snap-setup-task", setupTask.ID())
+	compTask.Set("component-setup", snapstate.NewComponentSetup(newComp, snap.KernelModulesComponent, ""))
+	setupTask.Set("component-setup-tasks", []string{compTask.ID()})
+	t := s.state.NewTask("prepare-kernel-snap", "same revision")
+	t.Set("snap-setup-task", setupTask.ID())
+	t.WaitFor(compTask)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(setupTask)
+	chg.AddTask(compTask)
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Check(chg.Err(), IsNil)
+	s.state.Unlock()
+	c.Check(s.fakeBackend.kernelSetupRevs, DeepEquals, []snap.Revision{snap.R(33)})
+	c.Check(s.fakeBackend.kernelSetupComps, DeepEquals, [][]*snap.ComponentSideInfo{{oldComp}})
+}
+
+func (s *setupKernelSnapSuite) TestPrepareKernelSnapExistingTargetMergesMountedSet(c *C) {
+	s.state.Lock()
+	oldComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "old"), snap.R(1))
+	newComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "new"), snap.R(2))
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "mykernel", Revision: snap.R(30)},
+		{RealName: "mykernel", Revision: snap.R(33)},
+	})
+	seq.Revisions[0].Components = []*sequence.ComponentState{sequence.NewComponentState(oldComp, snap.KernelModulesComponent)}
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{Sequence: seq, Current: snap.R(33)})
+	setupTask := s.state.NewTask("nop", "snap setup")
+	setupTask.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "mykernel", Revision: snap.R(30)}})
+	compTask := s.state.NewTask("nop", "mounted component")
+	compTask.Set("snap-setup-task", setupTask.ID())
+	compTask.Set("component-setup", snapstate.NewComponentSetup(newComp, snap.KernelModulesComponent, ""))
+	setupTask.Set("component-setup-tasks", []string{compTask.ID()})
+	t := s.state.NewTask("prepare-kernel-snap", "revisit old revision")
+	t.Set("snap-setup-task", setupTask.ID())
+	t.WaitFor(compTask)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(setupTask)
+	chg.AddTask(compTask)
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Check(chg.Err(), IsNil)
+	s.state.Unlock()
+	c.Check(s.fakeBackend.kernelSetupRevs, DeepEquals, []snap.Revision{snap.R(30)})
+	c.Check(s.fakeBackend.kernelSetupComps, DeepEquals, [][]*snap.ComponentSideInfo{{oldComp, newComp}})
+}
+
 func (s *setupKernelSnapSuite) TestUndoSetupKernelSnapSameRevisionDoesNotRemove(c *C) {
 	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
@@ -312,12 +386,18 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 
 	s.state.Lock()
 
+	oldComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "old"), snap.R(1))
+	newComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "new"), snap.R(2))
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "mykernel", Revision: snap.R(30)},
+		{RealName: "mykernel", Revision: snap.R(33)},
+	})
+	seq.Revisions[0].Components = []*sequence.ComponentState{sequence.NewComponentState(oldComp, snap.KernelModulesComponent)}
+	seq.Revisions[1].Components = []*sequence.ComponentState{sequence.NewComponentState(newComp, snap.KernelModulesComponent)}
 	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "mykernel", Revision: snap.R(33)},
-		}),
-		Current: snap.R(33),
-		UserID:  1,
+		Sequence: seq,
+		Current:  snap.R(33),
+		UserID:   1,
 	})
 	t := s.state.NewTask("discard-old-kernel-snap-setup", "test discard setup")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -347,13 +427,79 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 	s.state.Unlock()
 
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
-		{
-			op: "remove-kernel-snap-setup",
-		},
-		{
-			op: "prepare-kernel-snap",
-		},
+		{op: "remove-kernel-snap-setup"},
+		{op: "prepare-kernel-snap"},
 	})
+	c.Check(s.fakeBackend.kernelSetupRevs, DeepEquals, []snap.Revision{snap.R(30)})
+	c.Check(s.fakeBackend.kernelSetupComps, DeepEquals, [][]*snap.ComponentSideInfo{{oldComp}})
+}
+
+func (s *setupKernelSnapSuite) TestUndoOldKernelSetupMissingRevisionFailsClosed(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+	})
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "discard old tree")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "mykernel", Revision: snap.R(33)}})
+	t.Set("previous-kernel-rev", snap.R(30))
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+	fail := s.state.NewTask("error-trigger", "trigger undo")
+	fail.WaitFor(t)
+	chg.AddTask(fail)
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*previous revision 30 is unavailable.*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	s.state.Unlock()
+	c.Check(s.fakeBackend.kernelSetupRevs, HasLen, 0)
+}
+
+func (s *setupKernelSnapSuite) TestUndoOldKernelSetupMissingComponentSourceFailsClosed(c *C) {
+	s.state.Lock()
+	oldComp := snap.NewComponentSideInfo(naming.NewComponentRef("mykernel", "old"), snap.R(1))
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+		{RealName: "mykernel", Revision: snap.R(30)},
+		{RealName: "mykernel", Revision: snap.R(33)},
+	})
+	seq.Revisions[0].Components = []*sequence.ComponentState{sequence.NewComponentState(oldComp, snap.KernelModulesComponent)}
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{Sequence: seq, Current: snap.R(33)})
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "discard old tree")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "mykernel", Revision: snap.R(33)}})
+	t.Set("previous-kernel-rev", snap.R(30))
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+	fail := s.state.NewTask("error-trigger", "trigger undo")
+	fail.WaitFor(t)
+	chg.AddTask(fail)
+	s.state.Unlock()
+
+	// A real backend rejects the missing component metadata before invoking
+	// Ensure. Exercise the handler's error path without host mounts.
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "prepare-kernel-snap" {
+			return errors.New("cannot read kernel component source: old mount unavailable")
+		}
+		return nil
+	}
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*old mount unavailable.*`)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	s.state.Unlock()
+	c.Check(s.fakeBackend.kernelSetupRevs, DeepEquals, []snap.Revision{snap.R(30)})
+	c.Check(s.fakeBackend.kernelSetupComps, DeepEquals, [][]*snap.ComponentSideInfo{{oldComp}})
 }
 
 func (s *setupKernelSnapSuite) TestDiscardOldKernelSnapSetupSameRevisionDoesNotRemove(c *C) {
