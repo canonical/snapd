@@ -1,0 +1,37 @@
+summary: Ensure the snapd Workshop definition works.
+
+details: |
+  Launch the snapd-dev workshop and check that static and unit tests pass
+  within it.
+
+systems: [ubuntu-24.04-64]
+
+environment:
+  LXD_SNAP_CHANNEL: 6/stable
+
+prepare: |
+  echo "Install lxd"
+  "$TESTSTOOLS"/lxd-state prepare-snap
+  snap install workshop --classic
+
+restore: |
+  cd "$PROJECT_PATH"
+  workshop stop snapd-dev || true
+  workshop remove snapd-dev || true
+  rm -f debian
+  snap remove --purge workshop
+  snap remove --purge lxd
+
+execute: |
+  cd "$PROJECT_PATH"
+  workshop launch snapd-dev
+  workshop run snapd-dev checks
+  # symlink used to install builds deps did not leak
+  not test -L debian
+
+  echo "Create a different symlink from the one used by workshop"
+  ln -s packaging/ubuntu-16.04 debian
+  workshop refresh
+  # original symlink should still exist
+  test -L debian
+  readlink debian | MATCH 'packaging/ubuntu-16.04'
