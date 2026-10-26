@@ -9,6 +9,12 @@ systems: [ubuntu-24.04-64]
 environment:
   LXD_SNAP_CHANNEL: 6/stable
 
+skip:
+  - reason: Cannot run when there is an http proxy because workshop launch pulls things
+    if: |
+      [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
+      [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]
+
 prepare: |
   echo "Install lxd"
   "$TESTSTOOLS"/lxd-state prepare-snap
