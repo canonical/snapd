@@ -100,3 +100,7 @@ func (n *Notice) NoticeLastOccurred() time.Time {
 func (w *Warning) BackingNotice() *Notice {
 	return w.notice
 }
+
+func (w *Warning) LastShown() (time.Time, error) {
+	return w.lastShown()
+}

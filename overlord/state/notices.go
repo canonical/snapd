@@ -171,6 +171,7 @@ func (n *Notice) DeepCopy() *Notice {
 		userIDVal := *n.userID
 		userID = &userIDVal
 	}
+	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
 	var lastData map[string]string
 	if len(n.lastData) > 0 {
 		lastData = make(map[string]string, len(n.lastData))
@@ -353,12 +354,11 @@ func (t NoticeType) Valid() bool {
 	return false
 }
 
-// NextNoticeTimestamp computes a notice timestamp which is guaranteed to be
-// after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
-// the result and returns it.
-func (s *State) NextNoticeTimestamp() time.Time {
-	s.lastNoticeTimestampMu.Lock()
-	defer s.lastNoticeTimestampMu.Unlock()
+// nextNoticeTimestamp is a helper that returns a notice timestamp which is
+// guaranteed to be after the current lastNoticeTimestamp. The
+//
+// lastNoticeTimestampMu must be held by the caller.
+func (s *State) nextNoticeTimestamp() time.Time {
 	now := timeNow().UTC()
 	// Ensure that two notices never have the same sent time.
 	//
@@ -374,8 +374,25 @@ func (s *State) NextNoticeTimestamp() time.Time {
 	if !now.After(s.lastNoticeTimestamp) {
 		now = s.lastNoticeTimestamp.Add(time.Nanosecond)
 	}
-	s.lastNoticeTimestamp = now
+	return now
+}
+
+// NextNoticeTimestamp computes a notice timestamp which is guaranteed to be
+// after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
+// the result and returns it.
+func (s *State) NextNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	s.lastNoticeTimestamp = s.nextNoticeTimestamp()
 	return s.lastNoticeTimestamp
+}
+
+// peekNextNoticeTimestamp returns the next notice timestamp without updating
+// lastNoticeTimestamp.
+func (s *State) peekNextNoticeTimestamp() time.Time {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	return s.nextNoticeTimestamp()
 }
 
 // getLastNoticeTimestamp returns the current lastNoticeTimestamp.
@@ -464,12 +481,9 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
-	// XXX: do we want this to be:
-	//     if !ok || notice.Expired(now) {
-	// If so, then we won't reuse an expired notice which happens to have not
-	// yet been pruned.
-	if !ok {
+	if !ok || notice.Expired(now) {
 		// First occurrence of this notice userID+type+key
+		// or reoccurrence for an expired but not yet pruned notice userID+type+key.
 		s.lastNoticeId++
 		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, options.ExpireAfter)
 		s.notices[uniqueKey] = notice

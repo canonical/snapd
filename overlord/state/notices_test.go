@@ -165,6 +165,40 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-data"], DeepEquals, map[string]any{"fizz": "buzz"})
 }
 
+func (s *noticesSuite) TestReoccurForExpiredNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	userID := uint32(123)
+	key := "baz"
+	opt := &state.AddNoticeOptions{
+		Time:        time.Now(),
+		ExpireAfter: time.Microsecond,
+	}
+
+	id1, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, opt)
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+
+	time.Sleep(3 * time.Microsecond)
+	timestamp := time.Now()
+	c.Assert(notice1.Expired(timestamp), Equals, true)
+
+	opt2 := &state.AddNoticeOptions{
+		Time: timestamp,
+	}
+	id2, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, opt2)
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+
+	c.Assert(id1, Not(Equals), id2)
+	// expired notice is not available
+	c.Assert(st.Notice(id1), IsNil)
+}
+
 func (s *noticesSuite) TestDeepCopy(c *C) {
 	id := "foo"
 	userID := uint32(123)
