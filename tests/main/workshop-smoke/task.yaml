@@ -21,23 +21,30 @@ prepare: |
   snap install workshop --classic
 
 restore: |
-  cd "$PROJECT_PATH"
-  workshop stop snapd-dev || true
-  workshop remove snapd-dev || true
+  tests.session -u test exec workshop -p "$PROJECT_PATH" stop snapd-dev || true
+  tests.session -u test exec workshop -p "$PROJECT_PATH" remove snapd-dev || true
   rm -f debian
   snap remove --purge workshop
   snap remove --purge lxd
 
+debug: |
+  tests.session -u test exec workshop -p "$PROJECT_PATH" changes || true
+  change_id="$(tests.session -u test exec workshop -p "$PROJECT_PATH" changes | tail | cut -d ' ' -f 1)"
+  tests.session -u test exec workshop -p "$PROJECT_PATH" tasks "$change_id" || true
+
 execute: |
   cd "$PROJECT_PATH"
-  workshop launch snapd-dev
-  workshop run snapd-dev checks
-  # symlink used to install builds deps did not leak
-  not test -L debian
 
-  echo "Create a different symlink from the one used by workshop"
-  ln -s packaging/ubuntu-16.04 debian
-  workshop refresh
-  # original symlink should still exist
+  # ensure that vendor directory is owned by test
+  chown -R test:test vendor/
+
+  # prepare-restore.sh creates debian symlink
   test -L debian
-  readlink debian | MATCH 'packaging/ubuntu-16.04'
+  orig_debian="$(readlink debian)"
+
+  tests.session -u test exec workshop -p "$PROJECT_PATH" launch snapd-dev
+  tests.session -u test exec workshop -p "$PROJECT_PATH" run snapd-dev checks
+
+  # original debian symlink was preserved
+  test -L debian
+  test "$(readlink debian)" = "$orig_debian"
