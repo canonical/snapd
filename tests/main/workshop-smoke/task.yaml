@@ -29,7 +29,7 @@ restore: |
 
 debug: |
   tests.session -u test exec workshop -p "$PROJECT_PATH" changes || true
-  change_id="$(tests.session -u test exec workshop -p "$PROJECT_PATH" changes | tail | cut -d ' ' -f 1)"
+  change_id="$(tests.session -u test exec workshop -p "$PROJECT_PATH" changes | tail -1 | cut -d ' ' -f 1)"
   tests.session -u test exec workshop -p "$PROJECT_PATH" tasks "$change_id" || true
 
 execute: |
