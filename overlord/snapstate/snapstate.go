@@ -3687,7 +3687,7 @@ func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
 		return fmt.Errorf("cannot snapshot user data directories in NFS mounts: use --purge to skip taking a snapshot")
 	}
 
-	st.AddWarning("May not be able to remove user data under NFS mounted snap directory", nil)
+	st.Warnf("May not be able to remove user data under NFS mounted snap directory")
 	return nil
 }
 
