@@ -165,6 +165,51 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 	}
 }
 
+func (stateSuite) TestMigrateWarningsUniqueLastRepeated(c *check.C) {
+	now := time.Now().Truncate(time.Second)
+	restore := state.MockTime(now)
+	defer restore()
+
+	firstAdded1 := now.Add(-10 * time.Minute)
+	firstAdded2 := now.Add(-9 * time.Minute)
+	lastAdded := now.Add(-3 * time.Minute)
+
+	oldWarnings := fmt.Sprintf(`
+		[
+			{"message": "warning one", "first-added": "%s", "last-added": "%s", "expire-after": "%s"},
+			{"message": "warning two", "first-added": "%s", "last-added": "%s", "expire-after": "%s"}
+		]`,
+		firstAdded1.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter,
+		firstAdded2.Format(time.RFC3339), lastAdded.Format(time.RFC3339), state.DefaultWarningExpireAfter,
+	)
+	stateJSON := fmt.Sprintf(`{
+		"warnings": %s,
+		"data": {}, "changes": {}, "tasks": {}, "notices": [],
+		"last-change-id": 0, "last-task-id": 0, "last-lane-id": 0, "last-notice-id": 0
+	}`, oldWarnings)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal([]byte(stateJSON), st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+
+	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
+	c.Assert(notices, check.HasLen, 2)
+
+	// WaitNotices/Notices "after:" cursors require unique lastRepeated values.
+	seen := map[time.Time]bool{}
+	for _, n := range notices {
+		seen[n.LastRepeated()] = true
+	}
+	c.Check(seen, check.HasLen, 2)
+
+	// Cursor at the earliest lastRepeated must still see the other notice.
+	after := notices[0].LastRepeated()
+	got := st.Notices(&state.NoticeFilter{After: after})
+	c.Check(got, check.HasLen, 1)
+}
+
 func (stateSuite) testMarshalWarning(shown bool, c *check.C) {
 	st := state.New(nil)
 	st.Lock()

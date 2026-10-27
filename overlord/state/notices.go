@@ -402,6 +402,16 @@ func (s *State) getLastNoticeTimestamp() time.Time {
 	return s.lastNoticeTimestamp
 }
 
+// advanceLastNoticeTimestamp raises lastNoticeTimestamp to t if t is later.
+// The caller must not hold lastNoticeTimestampMu.
+func (s *State) advanceLastNoticeTimestamp(t time.Time) {
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	if t.After(s.lastNoticeTimestamp) {
+		s.lastNoticeTimestamp = t
+	}
+}
+
 // HandleReportedLastNoticeTimestamp updates lastNoticeTimestamp to the given
 // time if the given time is after the current lastNoticeTimestamp.
 //
@@ -409,11 +419,28 @@ func (s *State) getLastNoticeTimestamp() time.Time {
 // lastNoticeTimestamp value is the last timestamp of all notices across all
 // notice backends.
 func (s *State) HandleReportedLastNoticeTimestamp(t time.Time) {
-	s.lastNoticeTimestampMu.Lock()
-	defer s.lastNoticeTimestampMu.Unlock()
-	if t.After(s.lastNoticeTimestamp) {
-		s.lastNoticeTimestamp = t
+	s.advanceLastNoticeTimestamp(t)
+}
+
+// nextUniqueTimestamp returns a timestamp at or after t that is not the
+// lastRepeated time of any existing non-expired notice. If t is already in
+// use, it is advanced by one nanosecond at a time until it is free. It also
+// raises the state's last notice timestamp to at least the result so that
+// later generated notice timestamps sort after it.
+//
+// The caller must hold noticesMu for writing, so that the returned value
+// remains unique until the notice is recorded.
+func (s *State) nextUniqueTimestamp(t time.Time) time.Time {
+	for _, n := range s.doNotices(nil) {
+		if n.lastRepeated.After(t) {
+			break
+		}
+		if n.lastRepeated.Equal(t) {
+			t = t.Add(time.Nanosecond)
+		}
 	}
+	s.advanceLastNoticeTimestamp(t)
+	return t
 }
 
 // AddNoticeOptions holds optional parameters for an AddNotice call.
@@ -475,6 +502,8 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 	now := options.Time
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
+	} else {
+		now = s.nextUniqueTimestamp(now)
 	}
 	now = now.UTC()
 	newOrRepeated := false

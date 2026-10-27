@@ -470,6 +470,72 @@ func (s *noticesSuite) TestOccurrences(c *C) {
 	c.Check(n["occurrences"], Equals, 1.0)
 }
 
+func (s *noticesSuite) TestAddNoticeUniqueTimestamp(c *C) {
+	now := time.Now().UTC()
+	restore := state.MockTime(now)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// Put t0 in the future so NextNoticeTimestamp cannot mask the explicit
+	// timestamps with the wall clock.
+	t0 := now.Add(time.Hour)
+
+	add := func(key string, options *state.AddNoticeOptions) time.Time {
+		id, err := st.AddNotice(nil, state.ChangeUpdateNotice, key, options)
+		c.Assert(err, IsNil)
+		n := st.Notice(id)
+		c.Assert(n, NotNil)
+		return n.LastRepeated()
+	}
+
+	t1 := add("one", &state.AddNoticeOptions{Time: t0})
+	t2 := add("two", &state.AddNoticeOptions{Time: t0})
+	t3 := add("three", &state.AddNoticeOptions{Time: t0})
+	// nextUniqueTimestamp also advances lastNoticeTimestamp, so a generated
+	// timestamp must come after all the explicit ones.
+	t4 := add("four", nil)
+
+	c.Check(t1.Equal(t0), Equals, true)
+	c.Check(t2.Equal(t0.Add(time.Nanosecond)), Equals, true)
+	c.Check(t3.Equal(t0.Add(2*time.Nanosecond)), Equals, true)
+	c.Check(t4.Equal(t0.Add(3*time.Nanosecond)), Equals, true)
+
+	seen := map[string]bool{}
+	for _, t := range []time.Time{t1, t2, t3, t4} {
+		seen[t.Format(time.RFC3339Nano)] = true
+	}
+	c.Check(seen, HasLen, 4)
+}
+
+func (s *noticesSuite) TestAddNoticeUniqueTimestampGeneratedThenExplicit(c *C) {
+	now := time.Now().UTC()
+	restore := state.MockTime(now)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// First notice has no explicit time, so it gets NextNoticeTimestamp() == now.
+	id1, err := st.AddNotice(nil, state.ChangeUpdateNotice, "generated", nil)
+	c.Assert(err, IsNil)
+	first := st.Notice(id1)
+	c.Assert(first, NotNil)
+	c.Check(first.LastRepeated().Equal(now), Equals, true)
+
+	// An explicit time equal to the generated one must be bumped forward.
+	id2, err := st.AddNotice(nil, state.ChangeUpdateNotice, "explicit",
+		&state.AddNoticeOptions{Time: now})
+	c.Assert(err, IsNil)
+	second := st.Notice(id2)
+	c.Assert(second, NotNil)
+	c.Check(second.LastRepeated().Equal(now.Add(time.Nanosecond)), Equals, true)
+	c.Check(first.LastRepeated().Equal(second.LastRepeated()), Equals, false)
+}
+
 func (s *noticesSuite) TestRepeatAfterFirst(c *C) {
 	s.testRepeatAfter(c, 10*time.Second, 0, 10*time.Second)
 }
