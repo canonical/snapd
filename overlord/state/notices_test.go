@@ -27,6 +27,7 @@ import (
 	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -295,10 +296,6 @@ func (s *noticesSuite) TestUnmarshalErrors(c *C) {
 	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`
 	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
 	for _, t := range []T{
-		// remove a field at a time:
-		{`{"key": "x", "type":"warning",                                           "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "invalid first-occurred time: .*"},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z",                                          "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "invalid last-occurred time: .*"},
-		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z",                                          "expire-after": "1h", "repeat-after": "1h"}`, "invalid last-repeated time: .*"},
 		// some bogus values
 		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
 		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
@@ -309,6 +306,50 @@ func (s *noticesSuite) TestUnmarshalErrors(c *C) {
 		var n *state.Notice
 		c.Check(json.Unmarshal([]byte(t.b), &n), check.ErrorMatches, t.e)
 	}
+}
+
+func (s *noticesSuite) TestUnflattenNoticesDropsZeroTimestamps(c *C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	ts := now.Add(-time.Minute).UTC().Format(time.RFC3339)
+
+	// One valid notice and one notice missing each of the three timestamps.
+	stateJSON := fmt.Sprintf(`{
+		"data": {}, "changes": {}, "tasks": {},
+		"notices": [
+			{"id": "1", "type": "change-update", "key": "valid",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "2", "type": "change-update", "key": "no-first-occurred",
+			 "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "3", "type": "change-update", "key": "no-last-occurred",
+			 "first-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "4", "type": "change-update", "key": "no-last-repeated",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s"}
+		],
+		"last-change-id": 0, "last-task-id": 0, "last-lane-id": 0, "last-notice-id": 0
+	}`, ts)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal([]byte(stateJSON), st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+
+	// Only the valid notice is kept.
+	notices := st.Notices(nil)
+	c.Assert(notices, check.HasLen, 1)
+	c.Check(notices[0].Key(), check.Equals, "valid")
+
+	// Each zero timestamp is logged.
+	logs := logBuf.String()
+	c.Check(logs, check.Matches, `(?s).*invalid first-occurred time.*`)
+	c.Check(logs, check.Matches, `(?s).*invalid last-occurred time.*`)
+	c.Check(logs, check.Matches, `(?s).*invalid last-repeated time.*`)
 }
 
 func (s *noticesSuite) TestString(c *C) {
