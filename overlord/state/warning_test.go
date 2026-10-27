@@ -260,14 +260,51 @@ func (stateSuite) TestDeleteExpired(c *check.C) {
 
 	c.Assert(allWs, check.HasLen, 2)
 	c.Check(fmt.Sprintf("%q", allWs), check.Equals, `["hello" "hello again"]`)
-	c.Check(allWs[0].ExpiredBefore(now), check.Equals, true)
+	c.Check(allWs[0].Expired(now), check.Equals, true)
 	c.Check(allWs[0].ShowAfter(now), check.Equals, true)
-	c.Check(allWs[1].ExpiredBefore(now), check.Equals, false)
+	c.Check(allWs[1].Expired(now), check.Equals, false)
 	c.Check(allWs[1].ShowAfter(now), check.Equals, true)
 
 	allWs = st.AllWarnings()
 	c.Check(allWs, check.HasLen, 1)
 	c.Check(fmt.Sprintf("%q", allWs), check.Equals, `["hello again"]`)
+}
+
+func (stateSuite) TestExpiredWarningLastShownNotPreserved(c *check.C) {
+	restore := state.MockDefaultWarningExpireAfter(10 * time.Millisecond)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+	st.Warnf("hello")
+	now := time.Now()
+	st.OkayWarnings(now)
+
+	allWs := st.AllWarnings()
+	c.Assert(allWs, check.HasLen, 1)
+	w := allWs[0]
+	c.Check(w.Expired(now), check.Equals, false)
+
+	lastShown1, err := w.LastShown()
+	c.Check(err, check.IsNil)
+	c.Check(lastShown1, check.Equals, now.UTC())
+
+	time.Sleep(10 * time.Millisecond)
+	now = time.Now()
+	c.Check(w.Expired(now), check.Equals, true)
+
+	st.Warnf("hello")
+	allWs = st.AllWarnings()
+	c.Assert(allWs, check.HasLen, 1)
+	w = allWs[0]
+	now = time.Now()
+	c.Check(w.Expired(now), check.Equals, false)
+	lastShown2, err := w.LastShown()
+	c.Check(err, check.IsNil)
+	c.Check(lastShown2, check.Not(check.Equals), lastShown1)
+	var t time.Time
+	c.Check(lastShown2, check.Equals, t)
 }
 
 func (stateSuite) TestOldRepeatedWarning(c *check.C) {
@@ -285,8 +322,11 @@ func (stateSuite) TestOldRepeatedWarning(c *check.C) {
 	allWs := st.AllWarnings()
 	c.Assert(allWs, check.HasLen, 1)
 	w := allWs[0]
-	c.Check(w.ExpiredBefore(now), check.Equals, false)
-	c.Check(w.ShowAfter(now), check.Equals, true)
+	c.Check(w.Expired(now), check.Equals, false)
+	// firstAdded for the latest warning is not oldTime since
+	// expired notices are not repeated.
+	c.Check(w.ShowAfter(now), check.Equals, false)
+	c.Check(w.BackingNotice().NoticeFirstOccurred().After(oldTime), check.Equals, true)
 }
 
 func (stateSuite) TestCheckpoint(c *check.C) {

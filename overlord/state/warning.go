@@ -166,18 +166,18 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 		jw.LastShown = &lastShown
 	}
 	showAfter, err := w.showAfter()
-	// XXX: this round-trip is only necessary for validation purposes
+	// this round-trip is only necessary for validation purposes
 	if err != nil {
 		return nil, err
 	}
-	// XXX: the "omitempty" directive in the jsonWarning was and remains always
-	// unused, since duration 0 marshals as "0s"
+	// The "omitempty" directive in the jsonWarning was and remains always
+	// unused, and duration 0 marshals as "0s"
 	jw.RepeatAfter = showAfter.String()
 
 	return json.Marshal(jw)
 }
 
-func (w *Warning) ExpiredBefore(now time.Time) bool {
+func (w *Warning) Expired(now time.Time) bool {
 	return w.notice.Expired(now)
 }
 
@@ -231,7 +231,6 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	s.writing()
 	// Hold the notices mutex for the duration of the function, since we need
 	// to look up the existing notice to preserve the lastShown value.
-	// XXX: this wouldn't be the case if we stored lastShown in a dedicated value...
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
@@ -251,7 +250,8 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	}
 
 	// Get the existing notice data, if present, to persist the "last-shown" value
-	if existing := s.noticeBackingWarning(message); existing != nil {
+	existing := s.noticeBackingWarning(message)
+	if existing != nil && !existing.Expired(s.peekNextNoticeTimestamp()) {
 		if lastShown, ok := existing.lastData["last-shown"]; ok {
 			addNoticeOptions.Data["last-shown"] = lastShown
 		}
