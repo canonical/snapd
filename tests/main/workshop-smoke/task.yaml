@@ -6,6 +6,8 @@ details: |
 
 systems: [ubuntu-24.04-64]
 
+kill-timeout: 90m
+
 environment:
   LXD_SNAP_CHANNEL: 6/stable
 
