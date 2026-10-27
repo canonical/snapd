@@ -24,10 +24,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,6 +55,9 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 	now := time.Now()
 	restore := state.MockTime(now)
 	defer restore()
+
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
 
 	firstAdded := now.Add(-5 * time.Minute)
 	lastAdded := now.Add(-3 * time.Minute)
@@ -117,6 +122,14 @@ func (stateSuite) TestMigrateWarnings(c *check.C) {
 	err := json.Unmarshal(stateJSON, st)
 	c.Assert(err, check.IsNil)
 	st.Unlock()
+
+	logs := logBuf.String()
+	c.Check(strings.Count(logs, "warning skipped in migration:"), check.Equals, 3)
+	// The "another test warning" warning has no first-added.
+	c.Check(logs, check.Matches, `(?s).*empty first-added\n.*`)
+	// The whitespace and empty messages fail ValidateNotice in doAddNotice.
+	c.Check(logs, check.Matches, `(?s).*cannot add warning notice with invalid key ""\n.*`)
+	c.Check(logs, check.Matches, `(?s).*cannot add warning notice with invalid key " "\n.*`)
 
 	c.Assert(st.NumNotices(), check.Equals, 5)
 	notices := st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})

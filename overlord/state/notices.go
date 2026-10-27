@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -294,17 +296,8 @@ func (n *Notice) UnmarshalJSON(data []byte) error {
 	n.userID = jn.UserID
 	n.noticeType = NoticeType(jn.Type)
 	n.key = jn.Key
-	if jn.FirstOccurred.IsZero() {
-		return fmt.Errorf("invalid first-occurred time: %v", jn.FirstOccurred)
-	}
 	n.firstOccurred = jn.FirstOccurred
-	if jn.LastOccurred.IsZero() {
-		return fmt.Errorf("invalid last-occurred time: %v", jn.LastOccurred)
-	}
 	n.lastOccurred = jn.LastOccurred
-	if jn.LastRepeated.IsZero() {
-		return fmt.Errorf("invalid last-repeated time: %v", jn.LastRepeated)
-	}
 	n.lastRepeated = jn.LastRepeated
 	n.occurrences = jn.Occurrences
 	n.lastData = jn.LastData
@@ -718,6 +711,18 @@ func (s *State) unflattenNotices(flat []*Notice) {
 	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
+		if n.firstOccurred.IsZero() {
+			logger.Noticef("invalid first-occurred time: %v", n.firstOccurred)
+			continue
+		}
+		if n.lastOccurred.IsZero() {
+			logger.Noticef("invalid last-occurred time: %v", n.lastOccurred)
+			continue
+		}
+		if n.lastRepeated.IsZero() {
+			logger.Noticef("invalid last-repeated time: %v", n.lastRepeated)
+			continue
+		}
 		if n.Expired(now) {
 			continue
 		}

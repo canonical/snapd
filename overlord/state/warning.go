@@ -52,6 +52,7 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 	now := timeNow()
 	for _, w := range oldWarnings {
 		if w.FirstAdded.IsZero() {
+			logger.Noticef("warning skipped in migration: empty first-added")
 			continue
 		}
 		expireAfter, err := time.ParseDuration(w.ExpireAfter)
@@ -83,6 +84,7 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 
 		notice, err := s.doAddNotice(nil, WarningNotice, w.Message, addNoticeOptions)
 		if err != nil {
+			logger.Noticef("warning skipped in migration: %v", err)
 			continue
 		}
 		// doAddNotice sets firstOccurred to addNoticeOptions.Time for new notices
