@@ -8,9 +8,8 @@ for tool in dbus-launch clang-format shellcheck golangci-lint; do
     fi
 done
 
-if ! env AUTO_INSTALL=0 /project/run-checks --verify-tools; then
+if env AUTO_INSTALL=0 /project/run-checks --verify-tools; then
+    workshopctl set-health okay
+else
     workshopctl set-health error "run-checks --verify-tools exited with error code $?"
-    exit 0
 fi
-
-workshopctl set-health okay

@@ -15,7 +15,7 @@ skip:
   - reason: Cannot run when there is an http proxy because workshop launch pulls things
     if: |
       [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
-      [ -n "${HTTPS_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]
+      [ -n "${HTTP_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]
 
 prepare: |
   echo "Install lxd"
