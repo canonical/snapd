@@ -289,6 +289,41 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
+func (s *SnapSuite) TestUnknownCommandSuggestion(c *C) {
+	restore := mockArgs("snap", "instal")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "instal", did you mean "install"\?\nSee 'snap help' for list of available commands\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionSub(c *C) {
+	restore := mockArgs("snap", "debug", "stat")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "stat", did you mean "state"\?\nSee 'snap help debug' for list of available commands\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionTransposition(c *C) {
+	restore := mockArgs("snap", "debgu")
+	defer restore()
+
+	// "debgu" is a transposition of "debug"; Levenshtein distance only
+	// counts single character edits, so it is two edits away and the
+	// relative distance is still low enough to suggest it.
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "debgu", did you mean "debug"\?\nSee 'snap help' for list of available commands\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionCaseInsensitive(c *C) {
+	restore := mockArgs("snap", "INSTAL")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "INSTAL", did you mean "install"\?\nSee 'snap help' for list of available commands\.`)
+}
+
 func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 	for _, args := range [][]string{
 		{"snap", "--foo"},
