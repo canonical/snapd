@@ -125,7 +125,7 @@ func (s *transactionTestSuite) TestCommitPreservesPruningBoundaries(c *C) {
 
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
-	err = view.Unset(tx, "users[0].name")
+	err = view.Unset(tx, "users[0].name", nil)
 	c.Assert(err, IsNil)
 	err = view.Set(tx, "users[0].name", "updated")
 	c.Assert(err, IsNil)
@@ -382,7 +382,7 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 
-	err = tx.Unset(parsePath(c, "foo"))
+	err = tx.Unset(parsePath(c, "foo"), nil)
 	c.Assert(err, IsNil)
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
@@ -448,7 +448,7 @@ func (s *transactionTestSuite) TestMarshallingPreservesPruningOrder(c *C) {
 
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
-	err = tx.Unset(parsePath(c, "users[0].name"))
+	err = tx.Unset(parsePath(c, "users[0].name"), nil)
 	c.Assert(err, IsNil)
 	err = tx.PruneEmpty()
 	c.Assert(err, IsNil)
@@ -515,7 +515,7 @@ func (s *transactionTestSuite) TestSerializableUnsetDifferentPaths(c *C) {
 		tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 		c.Assert(err, IsNil, cmt)
 
-		err = tx.Unset(parsePath(c, tc.path))
+		err = tx.Unset(parsePath(c, tc.path), nil)
 		c.Assert(err, IsNil, cmt)
 
 		jsonData, err := json.Marshal(tx)
@@ -570,7 +570,7 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	err = tx.Reset(s.state)
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
-	err = tx.Unset(parsePath(c, "foo"))
+	err = tx.Unset(parsePath(c, "foo"), nil)
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
 	_, err = tx.Get(parsePath(c, "foo"), nil)

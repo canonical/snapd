@@ -128,6 +128,7 @@ type UnmatchedConstraintsError struct {
 	view        string
 	requests    []string
 	constraints []string
+	operation   string
 }
 
 func (e *UnmatchedConstraintsError) Error() string {
@@ -142,7 +143,7 @@ func (e *UnmatchedConstraintsError) Error() string {
 		constraintsStr = i18n.G("constraint ")
 	}
 	constraintsStr += strutil.Quoted(e.constraints)
-	return fmt.Sprintf(i18n.G("cannot get%s %s: no placeholder for %s"), requestsStr, e.view, constraintsStr)
+	return fmt.Sprintf(i18n.G("cannot %s%s %s: no placeholder for %s"), e.operation, requestsStr, e.view, constraintsStr)
 }
 
 func (e *UnmatchedConstraintsError) Is(err error) bool {
@@ -150,11 +151,12 @@ func (e *UnmatchedConstraintsError) Is(err error) bool {
 	return ok
 }
 
-func newUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+func newUnmatchedConstraintsError(view *View, op string, requests, constraints []string) *UnmatchedConstraintsError {
 	return &UnmatchedConstraintsError{
 		view:        view.ID(),
 		requests:    requests,
 		constraints: constraints,
+		operation:   op,
 	}
 }
 
@@ -216,7 +218,7 @@ func (e *UnauthorizedAccessError) Error() string {
 type Databag interface {
 	Get(path []Accessor, constraints map[string]any) (any, error)
 	Set(path []Accessor, value any) error
-	Unset(path []Accessor) error
+	Unset(path []Accessor, constraints map[string]any) error
 	Data() ([]byte, error)
 	// PruneEmpty removes every empty map or list in the databag.
 	PruneEmpty() error
@@ -578,20 +580,15 @@ func newView(schema *Schema, name string, viewRules []any, paramPresence map[str
 	return view, nil
 }
 
-// checkFilteredPathConsistency checks that readable rules with overlapping
-// request and storage paths have the same filters. Otherwise, requests could
-// match both filtered and unfiltered paths, resulting in an inconsistent merged
-// value.
+// checkFilteredPathConsistency checks that rules which allow the same operation
+// and have overlapping request and storage paths use the same filters. Otherwise,
+// an operation could match both filtered and unfiltered paths.
 func checkFilteredPathConsistency(rules []viewRule) error {
 	for i, rule := range rules {
-		if !rule.isReadable() {
-			// TODO: take write-only rules into account once we implement filtering
-			// on write (will need to consider if rules overlap access-wise)
-			continue
-		}
-
 		for _, other := range rules[i+1:] {
-			if other.isReadable() && pathsOverlap(rule.request, other.request) &&
+			equivAccess := rule.isReadable() && other.isReadable() ||
+				rule.isWriteable() && other.isWriteable()
+			if equivAccess && pathsOverlap(rule.request, other.request) &&
 				!storagePathsHaveConsistentFilters(rule.storage, other.storage) {
 				return fmt.Errorf("storage paths %q and %q access overlapping data with different field filters", rule.originalStorage, other.originalStorage)
 			}
@@ -1373,8 +1370,9 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 	}
 }
 
-// Unset unsets the value at request in the named view.
-func (v *View) Unset(databag Databag, request string) error {
+// Unset unsets the value at request in the named view. If constraints are
+// provided, only the portion selected by them is removed.
+func (v *View) Unset(databag Databag, request string, constraints map[string]any) error {
 	opts := ParseOptions{AllowPlaceholders: false}
 	accessors, err := ParsePathIntoAccessors(request, opts)
 	if err != nil {
@@ -1390,15 +1388,18 @@ func (v *View) Unset(databag Databag, request string) error {
 		return NewNoMatchError(v, "unset", []string{request})
 	}
 
-	for _, match := range matches {
-		if err := databag.Unset(match.storagePath); err != nil {
-			return err
-		}
-
+	if err := v.checkUnconstrainedParams("unset", matches, constraints); err != nil {
+		return err
 	}
 
-	// remove the containers left empty by the databag Sets. This cannot be done
-	// in the databag methods because list item removals can impact subsequent writes.
+	for _, match := range matches {
+		if err := databag.Unset(match.storagePath, constraints); err != nil {
+			return err
+		}
+	}
+
+	// Remove containers left empty by the databag unsets. This cannot be done in
+	// the databag methods because list item removals can affect subsequent matches.
 	if err := databag.PruneEmpty(); err != nil {
 		return err
 	}
@@ -1412,9 +1413,8 @@ func (v *View) Unset(databag Databag, request string) error {
 	// a bit of a waste. Maybe cache the result so we only do the first validation
 	// and then in viewstate on Commit
 	if err := v.schema.DatabagSchema.Validate(data); err != nil {
-		return fmt.Errorf(`cannot unset data: %w`, err)
+		return fmt.Errorf("cannot unset data: %w", err)
 	}
-
 	return nil
 }
 
@@ -1919,8 +1919,8 @@ func newUnconstrainedParamsError(op string, unconstrained map[string][]string) e
 }
 
 func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, constraints map[string]any) error {
-	if op != "get" && op != "set" {
-		return fmt.Errorf(`internal error: operation expected to be "get" or "set"`)
+	if op != "get" && op != "set" && op != "unset" {
+		return fmt.Errorf(`internal error: operation expected to be "get", "set" or "unset"`)
 	}
 
 	unconstrainedReqs := make(map[string][]string)
@@ -1947,7 +1947,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 					fallthrough
 				case pres == requiredOnRead && op == "get":
 					fallthrough
-				case pres == requiredOnWrite && op == "set":
+				case pres == requiredOnWrite && (op == "set" || op == "unset"):
 					params := unconstrainedReqs[m.request]
 					params = append(params, param)
 					unconstrainedReqs[m.request] = params
@@ -1962,12 +1962,14 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	return nil
 }
 
-// CheckAllConstraintsAreUsed returns a UnmatchedConstraintsError if any constraints are unused across all the matching
-// rules' storage paths (after replacing matched placeholders from request paths), otherwise returns nil.
-func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[string]any) error {
+// CheckAllConstraintsAreUsed returns a UnmatchedConstraintsError if any
+// constraints are unused across all the matching rules' storage paths (after
+// replacing matched placeholders from request paths), otherwise returns nil.
+func (v *View) CheckAllConstraintsAreUsed(op string, requests []string, constraints map[string]any) error {
 	if len(constraints) == 0 {
 		return nil
 	}
+
 	if len(requests) == 0 {
 		requests = []string{""}
 	}
@@ -1981,10 +1983,18 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 	for _, request := range requests {
 		accessors, err := ParsePathIntoAccessors(request, opts)
 		if err != nil {
-			return badRequestErrorFrom(v, "get", request, err.Error())
+			return badRequestErrorFrom(v, op, request, err.Error())
 		}
 
-		matches, err := v.matchGetRequest(accessors)
+		var matches []requestMatch
+		if op == "get" {
+			matches, err = v.matchGetRequest(accessors)
+		} else {
+			matches, err = v.matchWriteRequest(accessors)
+			if err == nil && len(matches) == 0 {
+				err = NewNoMatchError(v, op, []string{request})
+			}
+		}
 		if err != nil {
 			return err
 		}
@@ -2011,7 +2021,7 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 
 	unusedConstraints := keys(constraintPlaceholders)
 	sort.Strings(unusedConstraints)
-	return newUnmatchedConstraintsError(v, requests, unusedConstraints)
+	return newUnmatchedConstraintsError(v, op, requests, unusedConstraints)
 }
 
 // ValidateConstraints checks that every constraint value is a non-null scalar.
@@ -2397,8 +2407,14 @@ func JoinAccessors(parts []Accessor) string {
 		if dotPrecedesAccessorType(part) && i != 0 {
 			sb.WriteRune('.')
 		}
-
 		sb.WriteString(part.Access())
+
+		filters := part.FieldFilters()
+		fields := keys(filters)
+		sort.Strings(fields)
+		for _, field := range fields {
+			fmt.Fprintf(&sb, "[.%s={%s}]", field, filters[field])
+		}
 	}
 
 	return sb.String()
@@ -3019,7 +3035,11 @@ func (s JSONDatabag) Set(accessors []Accessor, value any) error {
 	if value != nil {
 		_, err = set(accessors, 0, s, value)
 	} else {
-		_, err = unset(accessors, 0, s)
+		// we don't need to pass constraints here because a constrained write is
+		// implemented by reading the opposite constraints, merging that w/ the new
+		// value and then writing the result, effectively replacing the data matching
+		// the constraints.
+		_, err = unset(accessors, 0, s, nil)
 	}
 	return err
 }
@@ -3260,22 +3280,23 @@ func emptyContainerForType(acc Accessor) any {
 }
 
 // Unset takes a list of accessors, parsed from a path, and removes the value
-// they lead to.
-func (s JSONDatabag) Unset(accessors []Accessor) error {
-	_, err := unset(accessors, 0, s)
+// they lead to. If constraints are provided, only the portion selected by them
+// is removed.
+func (s JSONDatabag) Unset(accessors []Accessor, constraints map[string]any) error {
+	_, err := unset(accessors, 0, s, constraints)
 	return err
 }
 
-func unset(accessors []Accessor, index int, node any) (json.RawMessage, error) {
+func unset(accessors []Accessor, index int, node any, constraints map[string]any) (json.RawMessage, error) {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
 	}
 
 	if obj, ok := node.(map[string]json.RawMessage); ok {
-		return unsetMap(accessors, index, obj)
+		return unsetMap(accessors, index, obj, constraints)
 	} else if list, ok := node.([]json.RawMessage); ok {
-		return unsetList(accessors, index, list)
+		return unsetList(accessors, index, list, constraints)
 	}
 
 	// should be impossible since we handle terminal cases in the type specific functions
@@ -3283,11 +3304,10 @@ func unset(accessors []Accessor, index int, node any) (json.RawMessage, error) {
 	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
-func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
+func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]any) (json.RawMessage, error) {
 	// NOTE: we don't remove the entire map even if we left it empty because that
-	// might impact matched set/unsets of subsequent list that may contain this.
-	// This is pruned after all matches are serviced (see view.Set/Unset)
-
+	// might impact matched set/unsets of subsequent lists. This is pruned after
+	// all matches are serviced (see View.Set/Unset).
 	acc := accessors[index]
 	pathPrefix := JoinAccessors(accessors[:index])
 	if acc.Type() != MapKeyType && acc.Type() != KeyPlaceholderType {
@@ -3296,19 +3316,39 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) 
 
 	if index == len(accessors)-1 {
 		if acc.Type() == KeyPlaceholderType {
-			if index == 0 {
-				// if we're unsetting the top level we can't replace the entire object, we
-				// must unset each key
-				for k := range node {
-					delete(node, k)
-				}
-			} else {
-				// for any other level, it's more efficient to replace the map entirely
+			if index > 0 && len(constraints) == 0 {
+				// for the common case, it's more efficient to replace the map entirely
 				node = map[string]json.RawMessage{}
+			} else {
+				// we can't replace the entire object if it's the top level or, of course,
+				// if we're applying constraints
+				for k, raw := range node {
+					matches, err := matchesConstraints(acc, entry{key: k, value: raw}, constraints)
+					if err != nil {
+						return nil, err
+					}
+					if matches {
+						delete(node, k)
+					}
+				}
 			}
-		} else {
-			delete(node, acc.Name())
+
+			return json.Marshal(node)
 		}
+
+		raw, ok := node[acc.Name()]
+		if !ok {
+			return json.Marshal(node)
+		}
+		matches, err := matchesConstraints(acc, entry{key: acc.Name(), value: raw}, constraints)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
+			return json.Marshal(node)
+		}
+
+		delete(node, acc.Name())
 		return json.Marshal(node)
 	}
 
@@ -3317,13 +3357,19 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) 
 		if !ok {
 			return nil
 		}
-
+		matches, err := matchesConstraints(acc, entry{key: key, value: nextLevelRaw}, constraints)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return nil
+		}
 		nextLevel, err := unmarshalLevel(accessors, index+1, nextLevelRaw)
 		if err != nil {
 			return err
 		}
 
-		updated, err := unset(accessors, index+1, nextLevel)
+		updated, err := unset(accessors, index+1, nextLevel, constraints)
 		if err != nil {
 			return err
 		}
@@ -3349,10 +3395,10 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) 
 	return json.Marshal(node)
 }
 
-func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json.RawMessage, error) {
+func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage, constraints map[string]any) (json.RawMessage, error) {
 	// NOTE: we don't remove the entire list even if we left it empty because
 	// that might impact matched set/unsets of subsequent list items. This is
-	// pruned after all matches are serviced (see view.Set/Unset)
+	// pruned after all matches are serviced (see View.Set/Unset).
 	acc := accessors[accIndex]
 	pathPrefix := JoinAccessors(accessors[:accIndex])
 	if acc.Type() != ListIndexType && acc.Type() != IndexPlaceholderType {
@@ -3361,12 +3407,31 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json
 
 	if accIndex == len(accessors)-1 {
 		if acc.Type() == IndexPlaceholderType {
-			node = node[:0]
+			var wi int
+			for _, raw := range node {
+				matches, err := matchesConstraints(acc, entry{value: raw}, constraints)
+				if err != nil {
+					return nil, err
+				}
+				if matches {
+					continue
+				}
+				node[wi] = raw
+				wi++
+			}
+			node = node[:wi]
 			return json.Marshal(node)
 		}
 
 		i, _ := strconv.Atoi(acc.Name())
 		if i < len(node) {
+			matches, err := matchesConstraints(acc, entry{value: node[i]}, constraints)
+			if err != nil {
+				return nil, err
+			}
+			if !matches {
+				return json.Marshal(node)
+			}
 			node = append(node[:i], node[i+1:]...)
 		}
 
@@ -3374,12 +3439,20 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json
 	}
 
 	unsetIndex := func(list []json.RawMessage, index int) (json.RawMessage, error) {
+		matches, err := matchesConstraints(acc, entry{value: list[index]}, constraints)
+		if err != nil {
+			return nil, err
+		}
+		if !matches {
+			return list[index], nil
+		}
+
 		nextLevel, err := unmarshalLevel(accessors, accIndex+1, list[index])
 		if err != nil {
 			return nil, err
 		}
 
-		return unset(accessors, accIndex+1, nextLevel)
+		return unset(accessors, accIndex+1, nextLevel, constraints)
 	}
 
 	if acc.Type() == IndexPlaceholderType {

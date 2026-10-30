@@ -68,7 +68,7 @@ func setViaView(bag confdb.Databag, view *confdb.View, requests map[string]any) 
 	for request, value := range requests {
 		var err error
 		if value == nil {
-			err = view.Unset(bag, request)
+			err = view.Unset(bag, request, nil)
 		} else {
 			err = view.Set(bag, request, value)
 		}
@@ -140,7 +140,7 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 // GetViaView uses the view to get values for the requests from the databag in
 // the transaction.
 func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constraints map[string]any, userAccess confdb.Access) (any, error) {
-	if err := view.CheckAllConstraintsAreUsed(requests, constraints); err != nil {
+	if err := view.CheckAllConstraintsAreUsed("get", requests, constraints); err != nil {
 		return nil, err
 	}
 

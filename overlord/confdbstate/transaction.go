@@ -120,10 +120,12 @@ type unsetOperation struct {
 func (op *unsetOperation) kind() operationKind { return unsetOpKind }
 
 func (op *unsetOperation) apply(bag confdb.Databag) error {
-	return bag.Unset(op.path)
+	// TODO: add support for constraints in transactions.
+	return bag.Unset(op.path, nil)
 }
 
 func (op *unsetOperation) MarshalJSON() ([]byte, error) {
+	// TODO: marshal constraints once transactions support constrained unsets.
 	return json.Marshal(struct {
 		Operation operationKind `json:"operation"`
 		Path      string        `json:"path"`
@@ -313,7 +315,7 @@ func (t *Transaction) Set(path []confdb.Accessor, value any) error {
 
 // Unset unsets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
-func (t *Transaction) Unset(path []confdb.Accessor) error {
+func (t *Transaction) Unset(path []confdb.Accessor, _ map[string]any) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
