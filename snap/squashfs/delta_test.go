@@ -244,7 +244,7 @@ func (s *DeltaTestSuite) TestSuperBlockFlagsToMksquashfsArgs(c *C) {
 }
 
 func (s *DeltaTestSuite) TestSetupPipesNoPipes(c *C) {
-	tempDir, pipePaths, err := squashfs.SetupPipes()
+	tempDir, pipePaths, err := squashfs.SetupPipes("")
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(tempDir)
 
@@ -258,7 +258,7 @@ func (s *DeltaTestSuite) TestSetupPipesNoPipes(c *C) {
 
 func (s *DeltaTestSuite) TestSetupPipesMultiplePipes(c *C) {
 	pipeNames := []string{"fifo1", "fifo2"}
-	tempDir, pipePaths, err := squashfs.SetupPipes(pipeNames...)
+	tempDir, pipePaths, err := squashfs.SetupPipes("", pipeNames...)
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(tempDir)
 	c.Check(tempDir, Not(HasLen), 0)
@@ -280,7 +280,7 @@ func (s *DeltaTestSuite) TestSetupPipesFail(c *C) {
 	// This name is invalid because it contains a path separator.
 	// syscall.Mkfifo will fail trying to create a file in a non-existent subdirectory.
 	pipeNames := []string{"good_pipe", "invalid/pipe"}
-	tempDir, pipePaths, err := squashfs.SetupPipes(pipeNames...)
+	tempDir, pipePaths, err := squashfs.SetupPipes("", pipeNames...)
 
 	if err == nil {
 		// If it did succeed (unexpectedly),cleanup before failing
@@ -385,42 +385,42 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 	snapdBinDir := "/usr/bin/"
 	unsquashfsPath := filepath.Join(snapdBinDir, "unsquashfs")
 	xdelta3Path := filepath.Join(snapdBinDir, "xdelta3")
-	tmpDirPattern := regexp.QuoteMeta(filepath.Clean(os.TempDir()))
+	deltaDirPattern := regexp.QuoteMeta(filepath.Clean(dirs.GlobalRootDir))
 	defer squashfs.MockCommandFromSystemSnapWithContext(
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		c.Assert(len(cmd.Args), Equals, 9)
+		c.Check(cmd.Args[0:7], DeepEquals,
+			[]string{unsquashfsPath, "-da", "128", "-fr", "128", "-no-progress", "-pf"})
+		c.Check(cmd.Args[7], Matches, deltaDirPattern+`/snap-delta-.*/src\.pf`)
+		c.Check(cmd.Args[8], Matches, `.*/source\.snap`)
+		return nil
+	})()
 
 	defer squashfs.MockOsutilRunManyWithContext(
 		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
 			// Execute the builder to get the commands
 			cmds, tasks, err := buildWithContext(ctx)
 			c.Assert(err, IsNil)
-			c.Check(len(cmds), Equals, 3)
+			c.Check(len(cmds), Equals, 2)
 			c.Check(len(tasks), Equals, 0)
 
-			// 1. Assert on Unsquashfs Source
-			unsquashfsArgs1 := cmds[0].Args
-			c.Check(len(unsquashfsArgs1), Equals, 9)
-			c.Check(unsquashfsArgs1[0:7], DeepEquals,
-				[]string{unsquashfsPath, "-da", "128", "-fr", "128", "-no-progress", "-pf"})
-			c.Check(unsquashfsArgs1[7], Matches, tmpDirPattern+`/snap-delta-.*/src-pipe`)
-			c.Check(unsquashfsArgs1[8], Matches, "*./source.snap")
-
-			// 2. Assert on Unsquashfs Target
-			unsquashfsArgs2 := cmds[1].Args
-			c.Check(len(unsquashfsArgs2), Equals, 8)
-			c.Check(unsquashfsArgs2[0:6], DeepEquals,
+			// Target unsquashfs still streams into a pipe.
+			unsquashfsArgs := cmds[0].Args
+			c.Check(len(unsquashfsArgs), Equals, 8)
+			c.Check(unsquashfsArgs[0:6], DeepEquals,
 				[]string{unsquashfsPath, "-da", "128", "-fr", "128", "-pf"})
-			c.Check(unsquashfsArgs2[6], Matches, tmpDirPattern+`/snap-delta-.*/trgt-pipe`)
-			c.Check(unsquashfsArgs2[7], Matches, "*./target.snap")
+			c.Check(unsquashfsArgs[6], Matches, deltaDirPattern+`/snap-delta-.*/trgt-pipe`)
+			c.Check(unsquashfsArgs[7], Matches, `.*/target\.snap`)
 
-			// 3. Assert on Xdelta3
-			xdelta3Args := cmds[2].Args
+			// xdelta3 reads the completed source file and the target pipe.
+			xdelta3Args := cmds[1].Args
 			c.Check(len(xdelta3Args), Equals, 8)
 			c.Check(xdelta3Args[0:6], DeepEquals, []string{xdelta3Path, "-7", "-e", "-f", "-A", "-s"})
-			c.Check(xdelta3Args[6], Matches, tmpDirPattern+`/snap-delta-.*/src-pipe`)
-			c.Check(xdelta3Args[7], Matches, tmpDirPattern+`/snap-delta-.*/trgt-pipe`)
+			c.Check(xdelta3Args[6], Matches, deltaDirPattern+`/snap-delta-.*/src\.pf`)
+			c.Check(xdelta3Args[7], Matches, deltaDirPattern+`/snap-delta-.*/trgt-pipe`)
 			return nil
 		})()
 
@@ -459,11 +459,15 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Cancelled(c *C) {
 	dst := s.createMockSnap(c, "target.snap", 2000, 4, 0x0040)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
 
-	// Mock the external commands
+	// Mock the external commands. The source pseudo-file is written before the
+	// parallel group, so cmdRun must be mocked or unsquashfs runs for real.
 	defer squashfs.MockCommandFromSystemSnapWithContext(
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -512,7 +516,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3PipeSetupError(c *C) {
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
 
 	// Mock setupPipes
-	defer squashfs.MockSetupPipes(func(pipeNames ...string) (string, []string, error) {
+	defer squashfs.MockSetupPipes(func(parent string, pipeNames ...string) (string, []string, error) {
 		return "", nil, errors.New("cannot set-up pipes")
 	})()
 
@@ -639,41 +643,40 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 	unsquashfsPath := filepath.Join(snapdBinDir, "unsquashfs")
 	xdelta3Path := filepath.Join(snapdBinDir, "xdelta3")
 	mksquashfsPath := filepath.Join(snapdBinDir, "mksquashfs")
-	tmpDirPattern := regexp.QuoteMeta(filepath.Clean(os.TempDir()))
 	defer squashfs.MockCommandFromSystemSnapWithContext(
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		c.Check(cmd.Args[0:3], DeepEquals, []string{unsquashfsPath, "-no-progress", "-pf"})
+		c.Check(cmd.Args[3], Matches, `snap-delta-.*/src\.pf`)
+		c.Check(cmd.Args[4], Equals, sourceSnap)
+		return nil
+	})()
 
 	defer squashfs.MockOsutilRunManyWithContext(
 		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
 			cmds, tasks, err := buildWithContext(ctx)
 			c.Assert(err, IsNil)
-			c.Check(len(cmds), Equals, 3)
+			c.Check(len(cmds), Equals, 2)
 			c.Check(len(tasks), Equals, 1) // The deltaWriter goroutine
 
-			// 1. Check Unsquashfs args
-			c.Check(cmds[0].Path, Equals, unsquashfsPath)
-			c.Check(cmds[0].Args, DeepEquals, []string{
-				unsquashfsPath, "-no-progress", "-pf", cmds[0].Args[3], sourceSnap,
-			})
-
-			// 2. Check Mksquashfs args
+			// 1. Check Mksquashfs args
 			// Should have: -comp gzip, -mkfs-time 5000.
 			// Since flags 0x0040 (duplicates) is set, -no-duplicates should NOT be present.
-			c.Check(cmds[1].Path, Equals, mksquashfsPath)
+			c.Check(cmds[0].Path, Equals, mksquashfsPath)
 			expectedMksquashArgs := []string{
 				mksquashfsPath, "-", "target.snap", "-pf", "-", "-noappend", "-quiet",
 				"-comp", "gzip", "-mkfs-time", "5000",
 			}
-			c.Check(cmds[1].Args, DeepEquals, expectedMksquashArgs)
+			c.Check(cmds[0].Args, DeepEquals, expectedMksquashArgs)
 
-			// 3. Check Xdelta3 args
-			c.Check(cmds[2].Path, Equals, xdelta3Path)
-			c.Check(len(cmds[2].Args), Equals, 6)
-			c.Check(cmds[2].Args[0:3], DeepEquals, []string{xdelta3Path, "-d", "-f"})
-			c.Check(cmds[2].Args[4], Matches, tmpDirPattern+`/snap-delta-.*/src`)
-			c.Check(cmds[2].Args[5], Matches, tmpDirPattern+`/snap-delta-.*/delta`)
+			// 2. Check Xdelta3 args. The source is a file; the delta stays a pipe.
+			c.Check(cmds[1].Path, Equals, xdelta3Path)
+			c.Check(len(cmds[1].Args), Equals, 6)
+			c.Check(cmds[1].Args[0:4], DeepEquals, []string{xdelta3Path, "-d", "-f", "-s"})
+			c.Check(cmds[1].Args[4], Matches, `snap-delta-.*/src\.pf`)
+			c.Check(cmds[1].Args[5], Matches, `snap-delta-.*/delta`)
 
 			// Create the target file so that growSnapToMinSize can stat it.
 			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)
@@ -690,11 +693,14 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Cancelled(c *C) {
 	err := os.WriteFile(sourceSnap, []byte("mock source"), 0644)
 	c.Assert(err, IsNil)
 
-	// Mock commands
+	// Mock commands. The source pseudo-file is written before the parallel group.
 	defer squashfs.MockCommandFromSystemSnapWithContext(
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -736,6 +742,9 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	// Mock RunManyWithContext to manually trigger the deltaWriter task.
 	defer squashfs.MockOsutilRunManyWithContext(
@@ -747,12 +756,12 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 
 			// We need to simulate the consumer (xdelta3) reading from the pipe
 			// so the deltaWriter doesn't block forever on the FIFO write.
-			// The deltaPipe path is found in the arguments of the xdelta3 command (cmds[2]).
-			c.Assert(len(cmds), Equals, 3)
-			c.Assert(cmds[2].Path, Equals, "/usr/bin/xdelta3")
-			c.Assert(len(cmds[2].Args), Equals, 6)
-			c.Assert(cmds[2].Args[0:3], DeepEquals, []string{"/usr/bin/xdelta3", "-d", "-f"})
-			deltaPipePath := cmds[2].Args[5]
+			// The deltaPipe path is found in the arguments of the xdelta3 command.
+			c.Assert(len(cmds), Equals, 2)
+			c.Assert(cmds[1].Path, Equals, "/usr/bin/xdelta3")
+			c.Assert(len(cmds[1].Args), Equals, 6)
+			c.Assert(cmds[1].Args[0:4], DeepEquals, []string{"/usr/bin/xdelta3", "-d", "-f", "-s"})
+			deltaPipePath := cmds[1].Args[5]
 
 			// Start a reader in the background to capture what the deltaWriter sends.
 			readResult := make(chan []byte)
@@ -876,8 +885,8 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3RunManyError(c *C) {
 
 	// Capture the temp directory created during the process
 	var capturedTempDir string
-	defer squashfs.MockSetupPipes(func(pipeNames ...string) (string, []string, error) {
-		tempDir, pipes, err := squashfs.SetupPipes(pipeNames...)
+	defer squashfs.MockSetupPipes(func(parent string, pipeNames ...string) (string, []string, error) {
+		tempDir, pipes, err := squashfs.SetupPipes(parent, pipeNames...)
 		capturedTempDir = tempDir
 		return tempDir, pipes, err
 	})()
@@ -887,6 +896,9 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3RunManyError(c *C) {
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	// Force RunManyWithContext to fail
 	defer squashfs.MockOsutilRunManyWithContext(
@@ -919,6 +931,9 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3PadsToMinSize(c *C) {
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	defer squashfs.MockOsutilRunManyWithContext(
 		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
@@ -950,6 +965,9 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3NoPadIfLargeEnough(c *C) {
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	defer squashfs.MockOsutilRunManyWithContext(
 		func(ctx context.Context, buildWithContext func(context.Context) ([]*exec.Cmd, []func() error, error)) error {
@@ -976,8 +994,8 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3RunManyError(c *C) {
 
 	// Capture the temp directory created during the process
 	var capturedTempDir string
-	defer squashfs.MockSetupPipes(func(pipeNames ...string) (string, []string, error) {
-		tempDir, pipes, err := squashfs.SetupPipes(pipeNames...)
+	defer squashfs.MockSetupPipes(func(parent string, pipeNames ...string) (string, []string, error) {
+		tempDir, pipes, err := squashfs.SetupPipes(parent, pipeNames...)
 		capturedTempDir = tempDir
 		return tempDir, pipes, err
 	})()
@@ -987,6 +1005,9 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3RunManyError(c *C) {
 		func(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
 			return &exec.Cmd{Path: cmd, Args: append([]string{cmd}, args...)}, nil
 		})()
+	defer squashfs.MockCmdRun(func(cmd *exec.Cmd) error {
+		return nil
+	})()
 
 	// Force RunManyWithContext to fail
 	defer squashfs.MockOsutilRunManyWithContext(

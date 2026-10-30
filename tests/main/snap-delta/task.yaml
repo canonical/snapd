@@ -71,7 +71,7 @@ prepare: |
 
     # Download two real snapd snap revisions for end-to-end testing
     snap download snapd --revision=25585 --basename=snapd-old
-    snap download snapd --revision=25839 --basename=snapd-new
+    snap download snapd --revision=28651 --basename=snapd-new
 
 restore: |
     rm -rf source-snap target-snap

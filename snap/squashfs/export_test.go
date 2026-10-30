@@ -86,7 +86,7 @@ func MockOsutilRunManyWithContext(f func(context.Context, func(context.Context) 
 	}
 }
 
-func MockSetupPipes(f func(pipeNames ...string) (string, []string, error)) (restore func()) {
+func MockSetupPipes(f func(parent string, pipeNames ...string) (string, []string, error)) (restore func()) {
 	oldSetupPipes := setupPipes
 	setupPipes = f
 	return func() {
