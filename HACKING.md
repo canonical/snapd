@@ -63,6 +63,7 @@ Package build dependencies for other distributions can be found under the
     sudo dnf install -y rpmdevtools
     sudo dnf install -y $(rpmspec -q --buildrequires snapd.spec)
     sudo dnf install -y glibc-static.i686 glibc-devel.i686
+    sudo dnf install -y make autoconf autoconf-archive automake make libtool
 
 Source dependencies are automatically retrieved at build time.
 Sometimes, it might be useful to pull them without building:
