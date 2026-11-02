@@ -37,8 +37,13 @@ const (
 // ErrNoCustomDataEntry represents the case of no custom data entry for a given key.
 var ErrNoCustomDataEntry = errors.New("no custom notice data entry for key")
 
+// NoticeCustomData holds the arbitrary key-value data associated with a
+// notice. Each value is stored as its raw JSON encoding, so any JSON value
+// (including null) can be represented.
 type NoticeCustomData map[string]json.RawMessage
 
+// Get unmarshals the JSON value stored under key into value, which must be a
+// pointer. It returns ErrNoCustomDataEntry if there is no entry for key.
 func (data NoticeCustomData) Get(key string, value any) error {
 	entryJSON, ok := data[key]
 	if !ok {
@@ -51,11 +56,14 @@ func (data NoticeCustomData) Get(key string, value any) error {
 	return nil
 }
 
+// Has returns whether there is an entry for key.
 func (data NoticeCustomData) Has(key string) bool {
 	_, ok := data[key]
 	return ok
 }
 
+// Set stores the JSON encoding of value under key. A nil value is encoded as
+// JSON null. Set panics if value cannot be marshalled to JSON.
 func (data NoticeCustomData) Set(key string, value any) {
 	serialized, err := json.Marshal(value)
 	if err != nil {
@@ -64,10 +72,13 @@ func (data NoticeCustomData) Set(key string, value any) {
 	data[key] = json.RawMessage(serialized)
 }
 
+// Delete removes the entry for key. It is a no-op if there is no entry for
+// key.
 func (data NoticeCustomData) Delete(key string) {
 	delete(data, key)
 }
 
+// Copy returns a deep copy of the notice custom data.
 func (data NoticeCustomData) Copy() NoticeCustomData {
 	var copy NoticeCustomData
 	if len(data) > 0 {
