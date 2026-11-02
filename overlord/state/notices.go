@@ -57,15 +57,15 @@ func (data NoticeCustomData) Has(key string) bool {
 }
 
 func (data NoticeCustomData) Set(key string, value any) {
-	if value == nil {
-		delete(data, key)
-		return
-	}
 	serialized, err := json.Marshal(value)
 	if err != nil {
 		logger.Panicf("internal error: could not marshal value for custom notice data entry %q: %v", key, err)
 	}
 	data[key] = json.RawMessage(serialized)
+}
+
+func (data NoticeCustomData) Delete(key string) {
+	delete(data, key)
 }
 
 func (data NoticeCustomData) Copy() NoticeCustomData {
