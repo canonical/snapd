@@ -284,6 +284,8 @@ func (s *State) RemoveWarning(message string) error {
 	return nil
 }
 
+// warningNoticeKey is a helper function that returns the noticeKey for a
+// warning with given its message.
 func warningNoticeKey(message string) noticeKey {
 	const (
 		warningNoticeHasUserID = false
@@ -292,6 +294,8 @@ func warningNoticeKey(message string) noticeKey {
 	return noticeKey{warningNoticeHasUserID, warningNoticeUserID, WarningNotice, message}
 }
 
+// noticeBackingWarning is a helper function that returns the notice
+// backing the warning with given its message.
 func (s *State) noticeBackingWarning(message string) *Notice {
 	key := warningNoticeKey(message)
 	notice, ok := s.notices[key]
