@@ -119,7 +119,8 @@ func (w *Warning) lastAdded() time.Time {
 func (w *Warning) lastShown() (time.Time, error) {
 	var t time.Time
 	err := w.notice.lastData.Get("last-shown", &t)
-	if err != nil && !errors.Is(err, ErrNoState) {
+	// fix
+	if err != nil && !errors.Is(err, ErrNoCustomDataEntry) {
 		return t, err
 	}
 	return t, nil

@@ -17,6 +17,7 @@ package state
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -33,22 +34,26 @@ const (
 	maxNoticeKeyLength = 256
 )
 
-type NoticeCustomData map[string]*json.RawMessage
+// ErrNoCustomDataEntry represents the case of no custom data entry for a given key.
+var ErrNoCustomDataEntry = errors.New("no custom notice data entry for key")
+
+type NoticeCustomData map[string]json.RawMessage
 
 func (data NoticeCustomData) Get(key string, value any) error {
-	entryJSON := data[key]
-	if entryJSON == nil {
-		return &NoStateError{Key: key}
+	entryJSON, ok := data[key]
+	if !ok {
+		return ErrNoCustomDataEntry
 	}
-	err := json.Unmarshal(*entryJSON, value)
+	err := json.Unmarshal(entryJSON, value)
 	if err != nil {
-		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
+		return fmt.Errorf("internal error: could not unmarshal custom notice data entry %q: %v", key, err)
 	}
 	return nil
 }
 
 func (data NoticeCustomData) Has(key string) bool {
-	return data[key] != nil
+	_, ok := data[key]
+	return ok
 }
 
 func (data NoticeCustomData) Set(key string, value any) {
@@ -58,10 +63,9 @@ func (data NoticeCustomData) Set(key string, value any) {
 	}
 	serialized, err := json.Marshal(value)
 	if err != nil {
-		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
+		logger.Panicf("internal error: could not marshal value for custom notice data entry %q: %v", key, err)
 	}
-	entryJSON := json.RawMessage(serialized)
-	data[key] = &entryJSON
+	data[key] = json.RawMessage(serialized)
 }
 
 func (data NoticeCustomData) Copy() NoticeCustomData {
@@ -69,7 +73,7 @@ func (data NoticeCustomData) Copy() NoticeCustomData {
 	if len(data) > 0 {
 		copy = make(NoticeCustomData, len(data))
 		for k, v := range data {
-			copy[k] = v
+			copy[k] = append(json.RawMessage(nil), v...)
 		}
 	}
 	return copy
@@ -256,17 +260,17 @@ func (n *Notice) Expired(now time.Time) bool {
 // needs to live in this package (rather than the API) because we save state
 // to disk as JSON.
 type jsonNotice struct {
-	ID            string                      `json:"id"`
-	UserID        *uint32                     `json:"user-id"`
-	Type          string                      `json:"type"`
-	Key           string                      `json:"key"`
-	FirstOccurred time.Time                   `json:"first-occurred"`
-	LastOccurred  time.Time                   `json:"last-occurred"`
-	LastRepeated  time.Time                   `json:"last-repeated"`
-	Occurrences   int                         `json:"occurrences"`
-	LastData      map[string]*json.RawMessage `json:"last-data,omitempty"`
-	RepeatAfter   string                      `json:"repeat-after,omitempty"`
-	ExpireAfter   string                      `json:"expire-after,omitempty"`
+	ID            string                     `json:"id"`
+	UserID        *uint32                    `json:"user-id"`
+	Type          string                     `json:"type"`
+	Key           string                     `json:"key"`
+	FirstOccurred time.Time                  `json:"first-occurred"`
+	LastOccurred  time.Time                  `json:"last-occurred"`
+	LastRepeated  time.Time                  `json:"last-repeated"`
+	Occurrences   int                        `json:"occurrences"`
+	LastData      map[string]json.RawMessage `json:"last-data,omitempty"`
+	RepeatAfter   string                     `json:"repeat-after,omitempty"`
+	ExpireAfter   string                     `json:"expire-after,omitempty"`
 }
 
 func (n *Notice) MarshalJSON() ([]byte, error) {
