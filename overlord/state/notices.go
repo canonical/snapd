@@ -521,7 +521,7 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 	return notice, nil
 }
 
-// ValidateNotice validates notice type and key before adding.
+// ValidateNotice validates notice type, key, and options before adding.
 func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions) error {
 	if !noticeType.Valid() {
 		return fmt.Errorf("cannot add notice with invalid type %q", noticeType)
@@ -535,23 +535,31 @@ func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions
 	if noticeType == RefreshInhibitNotice && key != "-" {
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
 	}
+	if err := validateNoticeOptions(noticeType, options); err != nil {
+		return fmt.Errorf(`cannot add %s notice with %w`, noticeType, err)
+	}
+	return nil
+}
 
+// validateNoticeOptions validates contents of AddNoticeOptions. Currently,
+// only for warning notices.
+func validateNoticeOptions(noticeType NoticeType, options *AddNoticeOptions) error {
 	if noticeType == WarningNotice {
 		if options == nil {
-			return fmt.Errorf("cannot add %s notice without specifying options", noticeType)
+			return fmt.Errorf("no options")
 		}
 		if showAfter, ok := options.Data["show-after"]; ok {
 			if _, err := time.ParseDuration(showAfter); err != nil {
-				return fmt.Errorf("cannot add %s notice with invalid show-after duration: %w", noticeType, err)
+				return fmt.Errorf("invalid show-after duration: %w", err)
 			}
 		}
 		if lastShown, ok := options.Data["last-shown"]; ok {
 			if _, err := time.Parse(time.RFC3339Nano, lastShown); err != nil {
-				return fmt.Errorf("cannot add %s notice with invalid last-shown time: %w", noticeType, err)
+				return fmt.Errorf("invalid last-shown time: %w", err)
 			}
 		}
 		if options.ExpireAfter == 0 {
-			return fmt.Errorf("cannot add %s notice with no expire-after duration", noticeType)
+			return fmt.Errorf("empty expire-after duration")
 		}
 	}
 	return nil
@@ -745,16 +753,25 @@ func (s *State) unflattenNotices(flat []*Notice) {
 	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
+		noticeType := n.Type()
 		if n.firstOccurred.IsZero() {
-			logger.Noticef("invalid first-occurred time: %v", n.firstOccurred)
+			logger.Noticef("%s notice skipped due to invalid first-occurred time: %v", noticeType, n.firstOccurred)
 			continue
 		}
 		if n.lastOccurred.IsZero() {
-			logger.Noticef("invalid last-occurred time: %v", n.lastOccurred)
+			logger.Noticef("%s notice skipped due to invalid last-occurred time: %v", noticeType, n.lastOccurred)
 			continue
 		}
 		if n.lastRepeated.IsZero() {
-			logger.Noticef("invalid last-repeated time: %v", n.lastRepeated)
+			logger.Noticef("%s notice skipped due to invalid last-repeated time: %v", noticeType, n.lastRepeated)
+			continue
+		}
+		err := validateNoticeOptions(n.Type(), &AddNoticeOptions{
+			Data:        n.lastData,
+			ExpireAfter: n.expireAfter,
+		})
+		if err != nil {
+			logger.Noticef("%s notice skipped due to invalid option: %v", noticeType, err)
 			continue
 		}
 		if n.Expired(now) {

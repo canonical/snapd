@@ -157,20 +157,15 @@ func (w *Warning) MarshalJSON() ([]byte, error) {
 		LastAdded:   w.lastAdded(),
 		ExpireAfter: w.expireAfter().String(),
 	}
-	lastShown, err := w.lastShown()
-	if err != nil {
-		return nil, err
-	}
-	if !lastShown.IsZero() {
+	// Safe to use lastShown and showAfter since warning notices
+	// are validated on creation and state load.
+	if lastShown, _ := w.lastShown(); !lastShown.IsZero() {
 		jw.LastShown = &lastShown
 	}
-	showAfter, err := w.showAfter()
-	// this round-trip is only necessary for validation purposes
-	if err != nil {
-		return nil, err
-	}
 	// The "omitempty" directive in the jsonWarning was and remains always
-	// unused, and duration 0 marshals as "0s"
+	// unused. RepeatAfter is always set with an absent show-after rendered
+	// as "0s".
+	showAfter, _ := w.showAfter()
 	jw.RepeatAfter = showAfter.String()
 
 	return json.Marshal(jw)
@@ -187,11 +182,7 @@ func (w *Warning) ShowAfter(t time.Time) bool {
 		return !w.firstAdded().After(t)
 	}
 	// Treat invalid "show-after" as the same as showAfter of 0
-	showAfter, err := w.showAfter()
-	if err != nil {
-		showAfter = 0
-	}
-
+	showAfter, _ := w.showAfter()
 	return lastShown.Add(showAfter).Before(t)
 }
 
