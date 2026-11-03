@@ -477,6 +477,8 @@ type Systemd interface {
 	// EnsureMountUnitFile adds/enables/starts a mount unit with options.
 	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
+	// baseDir is the mount point path relative to rootDir (i.e. already
+	// stripped of the rootDir prefix).
 	RemoveMountUnitFile(rootDir, baseDir string) error
 	// ListMountUnits gets the list of mount points of the mount units created
 	// by the `origin` module for the given snap. filter controls whether only
@@ -1470,26 +1472,6 @@ func ExistingMountUnitPath(rootDir, mountPointDir string) string {
 	return ""
 }
 
-// stripRootDir strips the given root directory prefix from the specified
-// absolute path, returning a path absolute to the root filesystem. An error
-// is returned if dir is not an absolute path or is not under rootDir.
-func stripRootDir(rootDir, dir string) (string, error) {
-	if !filepath.IsAbs(dir) {
-		return "", fmt.Errorf("supplied path is not absolute %q", dir)
-	}
-	if rootDir == "" {
-		rootDir = "/"
-	}
-	result, err := filepath.Rel(rootDir, dir)
-	if err != nil {
-		return "", err
-	}
-	if result == ".." || strings.HasPrefix(result, "../") {
-		return "", fmt.Errorf("supplied path %q is not under root directory %q", dir, rootDir)
-	}
-	return "/" + result, nil
-}
-
 var squashfsFsType = squashfs.FsType
 
 const (
@@ -1664,10 +1646,11 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 	return mountUnitName, nil
 }
 
-func (s *systemd) RemoveMountUnitFile(rootDir, mountedDir string) error {
+func (s *systemd) RemoveMountUnitFile(rootDir, baseDir string) error {
 	// unmount regardless of whether the unit file exists as
 	// the unit file may have been deleted while the mount is
 	// still active
+	mountedDir := filepath.Join(rootDir, baseDir)
 	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
@@ -1685,11 +1668,7 @@ func (s *systemd) RemoveMountUnitFile(rootDir, mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountPointDir, err := stripRootDir(rootDir, mountedDir)
-	if err != nil {
-		return err
-	}
-	unit := ExistingMountUnitPath(rootDir, mountPointDir)
+	unit := ExistingMountUnitPath(rootDir, baseDir)
 	if unit == "" {
 		return nil
 	}

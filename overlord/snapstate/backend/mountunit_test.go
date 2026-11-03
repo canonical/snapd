@@ -22,6 +22,7 @@ package backend_test
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -113,7 +114,8 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	})
 	defer restore()
 
-	err := backend.RemoveMountUnit("/some/where", progress.Null)
+	mountDir := filepath.Join(dirs.GlobalRootDir, "/some/where")
+	err := backend.RemoveMountUnit(mountDir, progress.Null)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
 	c.Check(sysd.RemoveMountUnitFileCalls[0], Equals, "/some/where")

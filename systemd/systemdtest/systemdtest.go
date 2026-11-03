@@ -169,8 +169,8 @@ func (s *FakeSystemd) EnsureMountUnitFile(mountOptions *systemd.MountUnitOptions
 	return s.EnsureMountUnitFileResult.Path, s.EnsureMountUnitFileResult.Err
 }
 
-func (s *FakeSystemd) RemoveMountUnitFile(rootDir, mountDir string) error {
-	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, mountDir)
+func (s *FakeSystemd) RemoveMountUnitFile(rootDir, baseDir string) error {
+	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, baseDir)
 	return s.RemoveMountUnitFileResult
 }
 

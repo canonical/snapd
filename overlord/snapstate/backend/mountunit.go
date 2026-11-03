@@ -63,7 +63,7 @@ func addMountUnit(c snap.ContainerPlaceInfo, sysd systemd.Systemd, mountFlags Mo
 
 func removeMountUnit(mountDir string, meter progress.Meter) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
-	return sysd.RemoveMountUnitFile(dirs.GlobalRootDir, mountDir)
+	return sysd.RemoveMountUnitFile(dirs.GlobalRootDir, dirs.StripRootDir(mountDir))
 }
 
 // RemoveContainerMountUnits removes mount units for the given container. Only
