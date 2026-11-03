@@ -70,6 +70,9 @@ func (s *closestSuite) TestClosestCommand(c *C) {
 		{"INSTALL", "install", true},
 		{"Install", "install", true},
 		{"inSTALL", "install", true},
+		// command aliases are valid suggestions
+		{"chage", "change", true},
+		{"seach", "search", true},
 		{"xyzzy", "", false},
 		// clearly unrelated commands must not produce a suggestion
 		{"readme", "", false},
@@ -104,6 +107,20 @@ func (s *closestSuite) TestClosestCommandHidden(c *C) {
 	name, ok := snap.ClosestCommand(parser.Command, "internal-thin")
 	c.Check(ok, Equals, true)
 	c.Check(name, Equals, "internal-thing")
+}
+
+func (s *closestSuite) TestClosestCommandIneligibleNotPreferred(c *C) {
+	parser := flags.NewParser(nil, flags.Default)
+	for _, name := range []string{"ack", "tasks"} {
+		_, err := parser.AddCommand(name, "", "", &struct{}{})
+		c.Assert(err, IsNil)
+	}
+
+	// "ack" sorts first and is equally distant, but does not pass the
+	// distance cutoff, so "tasks" is suggested instead
+	name, ok := snap.ClosestCommand(parser.Command, "aks")
+	c.Check(ok, Equals, true)
+	c.Check(name, Equals, "tasks")
 }
 
 func (s *closestSuite) TestClosestCommandEquidistant(c *C) {

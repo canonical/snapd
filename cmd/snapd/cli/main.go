@@ -643,9 +643,17 @@ func run() error {
 				parent := parser.Command
 				if len(xtra) > 0 {
 					sub = xtra[0]
-					if x := parser.Command.Active; x != nil && x.Name != "help" {
-						sug = "snap help " + x.Name
-						parent = x
+					// parsing stopped at the innermost active command, only
+					// its sub-commands are valid suggestions
+					innermost := parser.Command
+					var path []string
+					for innermost.Active != nil {
+						innermost = innermost.Active
+						path = append(path, innermost.Name)
+					}
+					if len(path) > 0 && path[0] != "help" {
+						sug = "snap help " + strings.Join(path, " ")
+						parent = innermost
 					}
 				}
 				if closest, ok := closestCommand(parent, sub); ok {

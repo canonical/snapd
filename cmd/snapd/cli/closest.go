@@ -70,11 +70,11 @@ func levenshtein(s, t string) int {
 	return prev[len(tr)]
 }
 
-// closestCommand returns the name of the sub-command of parent that is the
-// closest match for the mistyped command name, if any is close enough.
-// Hidden commands are considered too, since they are still runnable. A
-// candidate is only returned when the edit distance relative to its length
-// is small enough so that clearly unrelated commands do not yield a
+// closestCommand returns the name, or one of the aliases, of the sub-command
+// of parent that is the closest match for the mistyped command name, if any is
+// close enough. Hidden commands are considered too, since they are still
+// runnable. A candidate is only returned when the edit distance relative to
+// its length is small enough so that clearly unrelated commands do not yield a
 // suggestion.
 func closestCommand(parent *flags.Command, typo string) (string, bool) {
 	if parent == nil {
@@ -84,6 +84,7 @@ func closestCommand(parent *flags.Command, typo string) (string, bool) {
 	var names []string
 	for _, cmd := range parent.Commands() {
 		names = append(names, cmd.Name)
+		names = append(names, cmd.Aliases...)
 	}
 	// sort to have a deterministic choice when several candidates are
 	// equally close
@@ -97,16 +98,18 @@ func closestCommand(parent *flags.Command, typo string) (string, bool) {
 	bestDist := -1
 	for _, name := range names {
 		dist := levenshtein(typo, name)
+		// keep candidates where fewer than half of the runes need to
+		// be edited; clearly unrelated ones are not useful
+		// suggestions, and must not shadow a closer eligible one
+		if float64(dist)/float64(utf8.RuneCountInString(name)) >= 0.5 {
+			continue
+		}
 		if bestDist < 0 || dist < bestDist {
 			best, bestDist = name, dist
 		}
 	}
-	if best == "" {
+	if bestDist < 0 {
 		return "", false
 	}
-
-	if float64(bestDist)/float64(utf8.RuneCountInString(best)) < 0.5 {
-		return best, true
-	}
-	return "", false
+	return best, true
 }

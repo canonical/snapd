@@ -305,6 +305,26 @@ func (s *SnapSuite) TestUnknownCommandSuggestionSub(c *C) {
 	c.Assert(err, ErrorMatches, `unknown command "stat", did you mean "state"\?\nSee 'snap help debug' for list of available commands\.`)
 }
 
+func (s *SnapSuite) TestUnknownCommandSuggestionNested(c *C) {
+	restore := mockArgs("snap", "debug", "execution", "internal-tol")
+	defer restore()
+
+	// suggestions come from the sub-commands of "execution" and the help
+	// path covers the whole command chain
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "internal-tol", did you mean "internal-tool"\?\nSee 'snap help debug execution' for list of available commands\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionNestedSibling(c *C) {
+	restore := mockArgs("snap", "debug", "execution", "stat")
+	defer restore()
+
+	// "state" is a sub-command of "debug" and close to the typo, but it
+	// is not a valid sub-command of "execution", so nothing is suggested
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "stat", see 'snap help debug execution'\.`)
+}
+
 func (s *SnapSuite) TestUnknownCommandSuggestionTransposition(c *C) {
 	restore := mockArgs("snap", "debgu")
 	defer restore()
@@ -314,6 +334,15 @@ func (s *SnapSuite) TestUnknownCommandSuggestionTransposition(c *C) {
 	// relative distance is still low enough to suggest it.
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `unknown command "debgu", did you mean "debug"\?\nSee 'snap help' for list of available commands\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionAlias(c *C) {
+	restore := mockArgs("snap", "chage", "42")
+	defer restore()
+
+	// "change" is an alias of "tasks" and a closer match than "changes"
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "chage", did you mean "change"\?\nSee 'snap help' for list of available commands\.`)
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionCaseInsensitive(c *C) {
