@@ -1,0 +1,12 @@
+name: test-snap-with-channel-and-revision
+summary: A snap to be used for testing
+description: A snap to be used for testing
+version: "2.0"
+grade: stable
+confinement: strict
+base: core24
+
+parts:
+  copy:
+    plugin: dump
+    source: .

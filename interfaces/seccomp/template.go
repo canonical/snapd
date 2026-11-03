@@ -365,9 +365,10 @@ open
 openat
 
 # Deny openat2 from being used as struct open_how is behind a pointer and it
-# may be used to pass suid/sgid mode.
+# may be used to pass suid/sgid mode. Return ENOSYS so that callers fall back
+# to openat, which is filtered by mode.
 # openat2 <dirfd> <path> <how> <size>
-~openat2
+~ENOSYS:openat2
 
 # Deny setuid bit (S_ISUID = 0o4000) from being used together with O_CREAT.
 ~open - |O_CREAT |S_ISUID

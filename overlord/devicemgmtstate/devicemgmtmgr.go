@@ -767,7 +767,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		return nil
 	}
 
-	err = handler.Validate(tomb.Context(nil), m.state, msg)
+	err = handler.Validate(tomb.Context(nil), m.state, *msg)
 	if err != nil {
 		var unauthorizedErr *handlers.UnauthorizedError
 		status := asserts.MessageStatusRejected
@@ -776,7 +776,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) er
 		}
 		reason := err.Error()
 
-		// handler.Validate may drop the state lock internally. Concurrent tasks
+		// MessageHandler.Validate may drop the state lock internally. Concurrent tasks
 		// in other lanes may have mutated the state in that window, so re-read before mutating.
 		ms, msg, err = m.getMessageAndState(msgKey)
 		if err != nil {
@@ -849,9 +849,9 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error
 	// TODO: If a shutdown terminates this context while we're waiting for
 	// another op to complete, we'll error out of this call and mark the
 	// message as failed. It would make sense to retry this task instead.
-	chgID, applyErr := handler.Apply(tomb.Context(nil), m.state, msg)
+	chgID, applyErr := handler.Apply(tomb.Context(nil), m.state, *msg)
 
-	// handler.Apply may drop the state lock internally. Concurrent tasks in
+	// MessageHandler.Apply may drop the state lock internally. Concurrent tasks in
 	// other lanes may have mutated the state in that window, so re-read before mutating.
 	ms, msg, err = m.getMessageAndState(msgKey)
 	if err != nil {
@@ -897,7 +897,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 		return err
 	}
 
-	// handler.ResultFromChange may drop the state lock internally. Concurrent tasks
+	// MessageHandler.ResultFromChange may drop the state lock internally. Concurrent tasks
 	// in other lanes may have mutated the state in that window, so re-read before mutating.
 	responseStatus := msg.ResponseStatus
 	responseBody := msg.ResponseBody

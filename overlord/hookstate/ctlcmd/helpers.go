@@ -582,7 +582,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 		affectedComponents = cmd.components
 	} else {
 		for _, comp := range cmd.components {
-			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(snapName, comp)) == nil {
+			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(naming.SnapName(snapName), comp)) == nil {
 				affectedComponents = append(affectedComponents, comp)
 			}
 		}
@@ -606,7 +606,7 @@ func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (t
 	st.Lock()
 	defer st.Unlock()
 
-	return snapstateRemoveComponents(st, hctx.InstanceName().String(), cmd.components,
+	return snapstateRemoveComponents(st, hctx.InstanceName(), cmd.components,
 		snapstate.RemoveComponentsOpts{RefreshProfile: true,
 			ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
 }

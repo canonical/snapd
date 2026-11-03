@@ -310,7 +310,7 @@ execute: |
   # ensure that all the components are installed before enabling seed-refresh
   remote.exec "sudo snap install ${full_component_names[*]}"
 
-  remote.exec 'sudo snap set core experimental.seed-refresh=true'
+  tests.nested enable-wip-features seed-refresh
 
   snap_revision=1
   if [ "$COMPONENT_EXCLUSIVE" = "false" ]; then

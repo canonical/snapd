@@ -81,7 +81,7 @@ var (
 )
 
 func init() {
-	swfeats.RegisterEnsure("SnapManager", "autoRefresh.Ensure")
+	swfeats.RegisterEnsure("SnapManager", "autoRefresh.EnsureAfterSeed")
 	swfeats.RegisterEnsure("SnapManager", "autoRefresh.ensureLastRefreshAnchor")
 }
 
@@ -116,6 +116,12 @@ func (rc *refreshCandidate) InstanceName() naming.InstanceName {
 
 func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
 	return rc.SnapSetup.Prereq
+}
+
+// ComponentSetups returns the components that are refreshed together with the
+// snap.
+func (rc *refreshCandidate) ComponentSetups() []ComponentSetup {
+	return rc.Components
 }
 
 func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
@@ -302,8 +308,8 @@ func isStoreOnline(s *state.State) (bool, error) {
 	return access != "offline", nil
 }
 
-// Ensure ensures that we refresh all installed snaps periodically
-func (m *autoRefresh) Ensure() (err error) {
+// EnsureAfterSeed ensures that we refresh all installed snaps periodically
+func (m *autoRefresh) EnsureAfterSeed() (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -353,7 +359,7 @@ func (m *autoRefresh) Ensure() (err error) {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "SnapManager", "func", "autoRefresh.Ensure")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "autoRefresh.EnsureAfterSeed")
 
 	now := time.Now()
 	// compute next refresh attempt time (if needed)

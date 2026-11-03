@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -214,7 +215,11 @@ func EnsureClassicModelAfterSeed(m *DeviceManager) error {
 }
 
 func EnsureCloudInitRestricted(m *DeviceManager) error {
-	return m.ensureCloudInitRestricted()
+	deviceCtx, err := ensureDeviceCtxForTest(m)
+	if err != nil {
+		return err
+	}
+	return m.ensureCloudInitRestrictedAfterSeed(deviceCtx)
 }
 
 func ensureDeviceCtxForTest(m *DeviceManager) (snapstate.DeviceContext, error) {
@@ -386,6 +391,7 @@ var (
 
 	RenderExtraSnapdKernelCommandLineFragments = renderExtraSnapdKernelCommandLineFragments
 	KernelCommandLineAppendArgsFromSnapd       = kernelCommandLineAppendArgsFromSnapd
+	InstalledComponentRevision                 = installedComponentRevision
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
@@ -906,4 +912,12 @@ func MockHookKeyProtectorFactory(f func(*DeviceManager, *snap.Info) (secboot.Key
 
 func MockKeysSaveProtectorKey(f func(key keys.ProtectorKey, path string) error) (restore func()) {
 	return testutil.Mock(&keysSaveProtectorKey, f)
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
+	return testutil.Mock(&snapstate.ValidatedIntegrityData, f)
+}
+
+func MockSecbootIsKeyUsedByKeyring(f func(devicePath string, name string) (bool, error)) (restore func()) {
+	return testutil.Mock(&secbootIsKeyUsedByKeyring, f)
 }

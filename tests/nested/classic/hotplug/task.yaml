@@ -34,6 +34,8 @@ prepare: |
     remote.push serial-port-hotplug_1.0_all.snap
     echo "Add test user to dialout group required for ttyUSB* devices"
     remote.exec "sudo usermod -a -G dialout user1"
+    # Verify that the user has been added to the dialout group successfully
+    remote.exec --reconnect "id -nG | grep -qw dialout"
 
 restore: |
     rm -f /tmp/serialport{0,1}

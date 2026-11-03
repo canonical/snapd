@@ -199,6 +199,12 @@ func (iface *mediaHubInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool
 	return true
 }
 
+func (iface *mediaHubInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// media-hub owns the well-known bus name core.ubuntu.media.Service on
+	// the session bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&mediaHubInterface{})
 }

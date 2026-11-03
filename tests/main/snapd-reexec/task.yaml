@@ -88,7 +88,7 @@ execute: |
         fi
     fi
     if [ "$IS_REEXEC" = true ]; then
-        /usr/bin/env SNAPD_LOG_SNAP_TO_JOURNAL=false SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/current/usr/bin/snap\""
+        /usr/bin/env SNAPD_LOG_SNAP_TO_JOURNAL=false SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAPD_MOUNT_DIR/current/(usr/bin/snap|usr/lib/snapd/snap|usr/lib/snapd/snapd)\""
     fi
 
     echo "Ensure that we do not re-exec into older versions"

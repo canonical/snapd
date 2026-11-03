@@ -70,6 +70,8 @@ create_test_user(){
 }
 
 build_deb(){
+    local FIPS_BUILD_OPTION=
+
     if [ ! -L debian ] ; then
         echo "no debian directory or symlink, broken test setup"
         exit 1
@@ -444,7 +446,7 @@ prepare_project() {
             # now remove all snaps that aren't a base, core or snapd
             for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+(?!base)' | awk '{print $1}'); do
                 if [ "$sn" != snapd ] && [ "$sn" != core ]; then
-                    snap remove "$sn" || true
+                    snap remove --purge "$sn" || true
                 fi
             done
 
@@ -809,9 +811,7 @@ prepare_suite_each() {
     esac
 
     # Check for invariants late, in order to detect any bugs in the code above.
-    if [[ "$variant" = full ]]; then
-        "$TESTSTOOLS"/cleanup-state pre-invariant
-    fi
+    "$TESTSTOOLS"/cleanup-state pre-invariant
     tests.invariant check
 
     if [ -n "$TAG_FEATURES" ]; then

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -342,12 +343,12 @@ func checkChangeConflictManyWithOptions(st *state.State, instanceNames []string,
 // changes that alters the snap (like remove, install, refresh) are in
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
-func CheckChangeConflict(st *state.State, instanceName string, snapst *SnapState) error {
+func CheckChangeConflict(st *state.State, instanceName naming.InstanceName, snapst *SnapState) error {
 	return checkChangeConflictIgnoringOneChange(st, instanceName, snapst, ConflictOptions{})
 }
 
-func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, snapst *SnapState, opts ConflictOptions) error {
-	if err := checkChangeConflictManyWithOptions(st, []string{instanceName}, opts); err != nil {
+func checkChangeConflictIgnoringOneChange(st *state.State, instanceName naming.InstanceName, snapst *SnapState, opts ConflictOptions) error {
+	if err := checkChangeConflictManyWithOptions(st, []string{instanceName.String()}, opts); err != nil {
 		return err
 	}
 
@@ -359,13 +360,13 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 		// install, while getting the snap info; for refresh, when
 		// getting what needs refreshing).
 		var cursnapst SnapState
-		if err := Get(st, instanceName, &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		if err := Get(st, instanceName.String(), &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 
 		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
 		if !reflect.DeepEqual(snapst, &cursnapst) {
-			return &ChangeConflictError{Snap: instanceName}
+			return &ChangeConflictError{Snap: instanceName.String()}
 		}
 	}
 

@@ -813,7 +813,6 @@ func validateRequestStoragePair(request, storage string) (reqAccessors []Accesso
 		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	opts.ForbidIndexes = false
 	storageAccessors, err = ParsePathIntoAccessors(storage, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
@@ -1189,6 +1188,8 @@ var maxValueDepth = 64
 // validateSetValue performs some basic checks on the value being set:
 //   - map keys conform to the path sub-key regex
 //   - containers must contain a scalar either directly or indirectly
+//   - lists cannot contain null values, since they can only be used to unset
+//     list elements which can change the meaning of subsequent writes.
 //   - nestedness is limited.
 func validateSetValue(initial any) error {
 	for depth, values := 1, []any{initial}; len(values) > 0; depth++ {
@@ -1203,6 +1204,13 @@ func validateSetValue(initial any) error {
 				if len(typed) == 0 {
 					return fmt.Errorf(`cannot set empty container: must contain at least one scalar`)
 				}
+
+				for _, el := range typed {
+					if el == nil {
+						return fmt.Errorf(`cannot set null value in list`)
+					}
+				}
+
 				values = append(values, typed...)
 			case map[string]any:
 				if len(typed) == 0 {

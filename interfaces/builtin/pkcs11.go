@@ -159,6 +159,12 @@ func (iface *pkcs11Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
+func (iface *pkcs11Interface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the p11-kit server listens on a socket under /run/p11-kit/; only one
+	// snap instance can hold a given socket path at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&pkcs11Interface{})
 }

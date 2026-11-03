@@ -288,6 +288,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNotSeeded(c *C) {
 	c.Assert(s.restartRequests, HasLen, 0)
 }
 
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesMissingContextAfterSeed(c *C) {
+	restore := snapstatetest.MockDeviceContext(nil)
+	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+}
+
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleWritesServicesFilesUC16(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it

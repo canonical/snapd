@@ -152,6 +152,10 @@ execute: |
         stat /run/systemd/system/sysroot-usr-lib-modules.mount
         stat /run/systemd/system/"sysroot-writable-system\x2ddata-snap-$device\x2dkernel-"*
 
+        # Check the generator version
+        gojq '.["generator-version"]'  /var/lib/snapd/kernel/"$device"-kernel/x1/kernel.json | \
+            MATCH '^1$'
+
         not mountpoint /run/mnt/base
         loop="$(findmnt -o source / -n)"
         # Might be in /run/mnt/ubuntu-seed/ on first 26+ boot or in /run/mnt/data/

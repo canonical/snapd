@@ -20,6 +20,7 @@
 package kernel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -39,6 +40,88 @@ import (
 
 // For testing purposes
 var osSymlink = os.Symlink
+
+// atomicWriteFile is a mockable wrapper around osutil.AtomicWriteFile, used
+// by writeDriversTreeMeta, so tests can simulate a marker-write failure
+// (e.g. ENOSPC) without needing to actually exhaust disk space.
+var atomicWriteFile = osutil.AtomicWriteFile
+
+// kernelDriversTreeGeneratorVersion identifies the logic that produced a
+// kernel drivers tree (the on-disk symlinks/files under
+// <destDir>/lib/{modules,firmware}).
+//
+// IMPORTANT: bump this whenever there is a change to the layout or organization of the
+// kernel drivers or firmware trees.
+var kernelDriversTreeGeneratorVersion = 1
+
+// driversTreeMeta is the content of the <destDir>/kernel.json marker file
+// written after every successful kernel drivers tree build.
+type driversTreeMeta struct {
+	GeneratorVersion int `json:"generator-version"`
+}
+
+func driversTreeMetaPath(destDir string) string {
+	return filepath.Join(destDir, "kernel.json")
+}
+
+// writeDriversTreeMeta records the generator version that produced destDir.
+func writeDriversTreeMeta(destDir string) error {
+	meta := driversTreeMeta{GeneratorVersion: kernelDriversTreeGeneratorVersion}
+	data, err := json.Marshal(&meta)
+	if err != nil {
+		return err
+	}
+	return atomicWriteFile(driversTreeMetaPath(destDir), data, 0644, 0)
+}
+
+var (
+	errGeneratorMetaCorrupted = errors.New("kernel drivers tree generator metadata file is corrupted")
+)
+
+// readDriversTreeMeta returns the generator metadata recorded for
+// destDir. If no marker value is present a default zero value with
+// GeneratorVersion set to 0 is returned and no error.
+func readDriversTreeMeta(destDir string) (driversTreeMeta, error) {
+	data, err := os.ReadFile(driversTreeMetaPath(destDir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return driversTreeMeta{
+			// Explicit zero value so that there are no misconceptions
+			// of what it means
+			GeneratorVersion: 0,
+		}, nil
+	}
+	if err != nil {
+		return driversTreeMeta{}, err
+	}
+	var meta driversTreeMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		// The marker could be corrupted, which means that the tree likely needs a rebuild.
+		return driversTreeMeta{}, errGeneratorMetaCorrupted
+	}
+	return meta, nil
+}
+
+// DriversTreeOutdated returns true when the kernel modules & firmware tree at
+// destDir was built by an older version of the generator code, indicating it
+// may need to be checked or rebuilt.
+func DriversTreeOutdated(destDir string) (bool, error) {
+	v, err := readDriversTreeMeta(destDir)
+	if err != nil {
+		if errors.Is(err, errGeneratorMetaCorrupted) {
+			// Corrupted metadata file warrants a rebuild.
+			return true, nil
+		}
+		return false, err
+	}
+	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
+		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
+	// A tree marked with a version *newer* than what is currently running (e.g.
+	// after a snapd revert) is deliberately NOT considered outdated: rebuilding
+	// it with older, possibly-buggy logic could regress a fix already applied
+	// by the newer generator. Only consider the kernel tree to be outdated if
+	// the current snapd version is strictly newer.
+	return kernelDriversTreeGeneratorVersion > v.GeneratorVersion, nil
+}
 
 // We expect as a minimum something that starts with three numbers
 // separated by dots for the kernel version.
@@ -293,10 +376,26 @@ func RemoveKernelDriversTree(treeRoot string) (err error) {
 	return os.RemoveAll(treeRoot)
 }
 
-type KernelDriversTreeOptions struct {
-	// Set if we are building the tree for a kernel we are installing right now
-	KernelInstall bool
-}
+// KernelDriversTreeMode selects which of a fixed set of scenarios
+// EnsureKernelDriversTree is building the tree for.
+type KernelDriversTreeMode int
+
+const (
+	// zero value is reserved and intentionally invalid: every caller must
+	// pick a mode explicitly instead of silently defaulting to one.
+	_ KernelDriversTreeMode = iota
+
+	// KernelInstallMode builds a tree for a kernel snap being installed
+	// right now (possibly together with kernel-modules components).
+	KernelInstallMode
+	// ComponentChangeMode updates the tree of an already-installed kernel in
+	// response to a kernel-modules component install or removal. Can be
+	// applied to a live, active kernel tree.
+	ComponentChangeMode
+	// RegenerateMode rebuilds in place the tree of an already installed
+	// kernel and its artifacts.
+	RegenerateMode
+)
 
 // MountPoints describes mount points for a snap or a component.
 type MountPoints struct {
@@ -328,9 +427,9 @@ type ModulesCompMountPoints struct {
 }
 
 // EnsureKernelDriversTree creates a drivers tree that can include modules/fw
-// from kernel-modules components. opts.KernelInstall tells the function if
-// this is a kernel install (which might be installing components at the same
-// time) or an only components install.
+// from kernel-modules components. mode tells the function which of the
+// fixed set of scenarios (KernelInstallMode, ComponentChangeMode,
+// RegenerateMode) it is building the tree for.
 //
 // For kernel installs, this function creates a tree in destDir (should be of
 // the form <somedir>/var/lib/snapd/kernel/<ksnapName>/<rev>), which is
@@ -352,7 +451,16 @@ type ModulesCompMountPoints struct {
 // from the initramfs). To consider all cases, we need to run depmod with links
 // to the currently available content, and then replace those links with the
 // expected mounts in the running system.
-func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, opts *KernelDriversTreeOptions) (err error) {
+func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, mode KernelDriversTreeMode) (err error) {
+	// TODO add support for regenerate
+
+	switch mode {
+	case KernelInstallMode, ComponentChangeMode, RegenerateMode:
+		// ok
+	default:
+		return fmt.Errorf("internal error: unsupported kernel drivers tree mode %v", mode)
+	}
+
 	// The temporal dir when installing only components can be fixed as a
 	// task installing/updating a kernel-modules component must conflict
 	// with changes containing this same task. This helps with clean-ups if
@@ -360,12 +468,14 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// filesystem as the final one so we can atomically switch the folders.
 	destDir = strings.TrimSuffix(destDir, "/")
 	targetDir := destDir + "_tmp"
-	if opts.KernelInstall {
+	if mode == KernelInstallMode {
 		targetDir = destDir
 		exists, isDir, _ := osutil.DirExists(targetDir)
 		if exists && isDir {
 			logger.Debugf("device tree %q already created on installation, not re-creating",
 				targetDir)
+			// Nothing was built here, so the existing marker (if any) is
+			// left untouched.
 			return nil
 		}
 	}
@@ -377,7 +487,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 	defer func() {
 		// Remove on return if error or if temporary tree
-		if err == nil && opts.KernelInstall {
+		if err == nil && mode == KernelInstallMode {
 			return
 		}
 		if rmErr := RemoveKernelDriversTree(targetDir); rmErr != nil &&
@@ -398,7 +508,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")
-	if opts.KernelInstall {
+	if mode == KernelInstallMode {
 		// symlinks in /lib/firmware are not affected by components
 		if err := createFirmwareSymlinks(kMntPts, fwDir); err != nil {
 			return err
@@ -421,7 +531,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// folder.
 	syscall.Sync()
 
-	if !opts.KernelInstall {
+	if mode != KernelInstallMode {
 		// There is a (very small) chance of a poweroff/reboot while
 		// having swapped only one of these two folders. If that
 		// happens, snapd will re-run the task on the next boot, but
@@ -450,6 +560,14 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 		// Make sure that changes are written
 		syscall.Sync()
+	}
+
+	if mode == KernelInstallMode {
+		// Record the version of the layout used for the firmware and modules
+		// tree.
+		if err := writeDriversTreeMeta(targetDir); err != nil {
+			return err
+		}
 	}
 
 	return nil

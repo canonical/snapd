@@ -603,6 +603,12 @@ func (iface *networkManagerInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo
 	return true
 }
 
+func (iface *networkManagerInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// NetworkManager owns the well-known bus name org.freedesktop.NetworkManager
+	// on the system bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&networkManagerInterface{})
 }

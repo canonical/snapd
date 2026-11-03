@@ -80,11 +80,11 @@ post:
               result:
                 description: |-
                   The result of the synchronous operation, specific to each endpoint, action, or step:
-                    - `null` for actions `'do'` and `'reboot'`;
-                    - the generated recovery key for action `'install'` with step `'generate-recovery-key'`;
-                    - the quality assessment of the passphrase or PIN for actions `'check-passphrase-quality'` and
-                      `'check-pin-quality'`; and
-                    - the updated system details for action `'fix-encryption-support'`.
+                    - `null` for actions `do` and `reboot`;
+                    - the generated recovery key for action `install` with step `generate-recovery-key`;
+                    - the quality assessment of the passphrase or PIN for actions `check-passphrase-quality` and
+                      `check-pin-quality`; and
+                    - the updated system details for action `fix-encryption-support`.
                 anyOf:
                   - $ref: '../components/schemas/SystemActionInstallGenerateRecoveryKeyResponse.yaml'
                   - $ref: '../components/schemas/SystemActionCheckAuthQualityResponse.yaml'
@@ -99,3 +99,5 @@ post:
       $ref: '../components/responses/BadRequest.yaml'
     404:
       $ref: '../components/responses/NotFound.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'

@@ -19,6 +19,13 @@
 
 package builtin
 
+import (
+	"strings"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+)
+
 const lxdSummary = `allows access to the LXD socket`
 
 const lxdBaseDeclarationSlots = `
@@ -32,7 +39,7 @@ const lxdConnectedPlugAppArmor = `
 # Description: allow access to the LXD daemon socket. This gives privileged
 # access to the system via LXD's socket API.
 
-/var/snap/lxd/common/lxd/unix.socket rw,
+/var/snap/###SLOT_INSTANCE_NAME###/common/lxd/unix.socket rw,
 `
 
 const lxdConnectedPlugSecComp = `
@@ -42,12 +49,24 @@ const lxdConnectedPlugSecComp = `
 socket AF_NETLINK - NETLINK_GENERIC
 `
 
+type lxdInterface struct {
+	commonInterface
+}
+
+// AppArmorConnectedPlug uses the connected slot's instance name.
+func (iface *lxdInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	old := "###SLOT_INSTANCE_NAME###"
+	new := slot.Snap().InstanceName().String()
+	snippet := strings.ReplaceAll(lxdConnectedPlugAppArmor, old, new)
+	spec.AddSnippet(snippet)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "lxd",
-		summary:               lxdSummary,
-		baseDeclarationSlots:  lxdBaseDeclarationSlots,
-		connectedPlugAppArmor: lxdConnectedPlugAppArmor,
-		connectedPlugSecComp:  lxdConnectedPlugSecComp,
-	})
+	registerIface(&lxdInterface{commonInterface{
+		name:                 "lxd",
+		summary:              lxdSummary,
+		baseDeclarationSlots: lxdBaseDeclarationSlots,
+		connectedPlugSecComp: lxdConnectedPlugSecComp,
+	}})
 }

@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SnapAndApp holds a snap name and an application name
@@ -89,7 +90,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 			if !strings.HasPrefix(installedSnap.Name, matchSnap.Snap) {
 				continue
 			}
-			info, err := snap.ReadCurrentInfo(installedSnap.Name)
+			info, err := snap.ReadCurrentInfo(naming.InstanceName(installedSnap.Name))
 			if err != nil {
 				continue
 			}
@@ -107,7 +108,7 @@ func (s SnapAndApp) Complete(match string) []flags.Completion {
 		matchSnap.Snap = ret[0].Item
 	}
 	// A dot in match, or only one option: complete with the apps inside the specified snap
-	info, err := snap.ReadCurrentInfo(matchSnap.Snap)
+	info, err := snap.ReadCurrentInfo(naming.InstanceName(matchSnap.Snap))
 	if err != nil {
 		return nil
 	}

@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -730,8 +731,8 @@ func (s *backendSuite) TestSetupManyProfilesAreAlwaysLoaded(c *C) {
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName string) interfaces.ConfinementOptions { return opts },
-			func(snapName string) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -770,8 +771,8 @@ func (s *backendSuite) TestSetupManyProfilesWithChanged(c *C) {
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName string) interfaces.ConfinementOptions { return opts },
-			func(snapName string) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -823,8 +824,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingPermanentError(c *C) 
 		// mock apparmor_parser again with a failing one (and restore immediately for the next iteration of the test)
 		s.loadProfilesReturn = errors.New("apparmor_parser crash")
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName string) interfaces.ConfinementOptions { return opts },
-			func(snapName string) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -874,8 +875,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackOK(c
 			return nil
 		})
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName string) interfaces.ConfinementOptions { return opts },
-			func(snapName string) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -928,8 +929,8 @@ func (s *backendSuite) TestSetupManyApparmorBatchProcessingErrorWithFallbackPart
 			return nil
 		})
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName string) interfaces.ConfinementOptions { return opts },
-			func(snapName string) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)
@@ -2092,7 +2093,7 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	// backed implements the right interface
 	late, ok := s.Backend.(interfaces.SecurityBackendDiscardingLate)
 	c.Assert(ok, Equals, true)
-	err = late.RemoveLate(snapdInfo.InstanceName().String(), snapdInfo.Revision, snapdInfo.Type())
+	err = late.RemoveLate(snapdInfo.InstanceName(), snapdInfo.Revision, snapdInfo.Type())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FileAbsent)
 	// but the canary is still present
@@ -2829,7 +2830,7 @@ func (s *backendSuite) TestCasperOverlaySnippets(c *C) {
 }
 
 func (s *backendSuite) TestProfileGlobs(c *C) {
-	globs := apparmor.ProfileGlobs("foo")
+	globs := apparmor.ProfileGlobs(naming.NewInstanceName("foo", ""))
 	c.Assert(globs, DeepEquals, []string{"snap.foo.*", "snap.foo+*.hook.*", "snap-update-ns.foo"})
 }
 
@@ -3321,8 +3322,8 @@ func (s *backendSuite) TestSetupManyInPreseedMode(c *C) {
 		setupManyInterface, ok := s.Backend.(interfaces.SecurityBackendSetupMany)
 		c.Assert(ok, Equals, true)
 		errs := setupManyInterface.SetupMany([]*interfaces.SnapAppSet{appSet1, appSet2},
-			func(snapName string) interfaces.ConfinementOptions { return opts },
-			func(snapName string) interfaces.SetupContext {
+			func(instanceName naming.InstanceName) interfaces.ConfinementOptions { return opts },
+			func(instanceName naming.InstanceName) interfaces.SetupContext {
 				return interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}
 			},
 			s.Repo, s.meas)

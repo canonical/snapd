@@ -569,7 +569,7 @@ func (s *baseInitramfsMountsSuite) setupSeedGeneric(c *C, modelAssertTime time.T
 
 	if opts.hasKModsComps {
 		testSeed.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel="+channel+"+kmods"],
-			nil, snap.R(1), nil, "canonical", testSeed.StoreSigning.Database)
+			seedtest.SampleSnapFiles["pc-kernel="+channel+"+kmods"], snap.R(1), nil, "canonical", testSeed.StoreSigning.Database)
 	} else {
 		if opts.integrityData != nil {
 			testSeed.MakeAssertedSnapWithIntegrityData(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil,

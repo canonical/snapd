@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 
 	. "gopkg.in/check.v1"
@@ -39,6 +40,115 @@ var _ = Suite(&ensureLogCheckerSuite{})
 
 func (s *ensureLogCheckerSuite) TestCheckEnsureLoopLogging(c *C) {
 	swfeatstest.CheckEnsureLoopLogging("example_test.go", c, true)
+}
+
+func (s *ensureLogCheckerSuite) TestCheckEnsureLoopLoggingSubmanagerEnsureAfterSeed(c *C) {
+	dir := c.MkDir()
+	managerFilename := filepath.Join(dir, "manager.go")
+	err := os.WriteFile(managerFilename, []byte(`package example
+
+import "github.com/snapcore/snapd/logger"
+
+type manager struct {
+	submanager *submanager
+}
+
+func (m *manager) Ensure() error {
+	m.ensureChild()
+	m.submanager.EnsureAfterSeed()
+	return nil
+}
+
+func (m *manager) ensureChild() {
+	logger.Trace("ensure", "manager", "manager", "func", "ensureChild")
+}
+`), 0644)
+	c.Assert(err, IsNil)
+
+	submanagerFilename := filepath.Join(dir, "submanager.go")
+	err = os.WriteFile(submanagerFilename, []byte(`package example
+
+import "github.com/snapcore/snapd/logger"
+
+type submanager struct{}
+
+func (m *submanager) EnsureBeforeSeed() {
+}
+
+func (m *submanager) EnsureAfterSeed() {
+	logger.Trace("ensure", "manager", "manager", "func", "submanager.EnsureAfterSeed")
+}
+`), 0644)
+	c.Assert(err, IsNil)
+
+	swfeats.RegisterEnsure("manager", "ensureChild")
+	swfeats.RegisterEnsure("manager", "submanager.EnsureAfterSeed")
+	swfeatstest.CheckEnsureLoopLogging(managerFilename, c, true, submanagerFilename)
+}
+
+type submanagerEnsureAfterSeedChildSuite struct {
+	managerFilename    string
+	submanagerFilename string
+}
+
+func (s *submanagerEnsureAfterSeedChildSuite) TestCheckEnsureLoopLogging(c *C) {
+	swfeatstest.CheckEnsureLoopLogging(s.managerFilename, c, true, s.submanagerFilename)
+}
+
+func (s *ensureLogCheckerSuite) TestCheckEnsureLoopLoggingSubmanagerEnsureAfterSeedChildNotLogged(c *C) {
+	dir := c.MkDir()
+	managerFilename := filepath.Join(dir, "manager.go")
+	err := os.WriteFile(managerFilename, []byte(`package example
+
+import "github.com/snapcore/snapd/logger"
+
+type manager struct {
+	submanager *submanager
+}
+
+func (m *manager) Ensure() error {
+	m.ensureChild()
+	m.submanager.EnsureAfterSeed()
+	return nil
+}
+
+func (m *manager) ensureChild() {
+	logger.Trace("ensure", "manager", "manager", "func", "ensureChild")
+}
+`), 0644)
+	c.Assert(err, IsNil)
+
+	submanagerFilename := filepath.Join(dir, "submanager.go")
+	err = os.WriteFile(submanagerFilename, []byte(`package example
+
+import "github.com/snapcore/snapd/logger"
+
+type submanager struct{}
+
+func (m *submanager) EnsureAfterSeed() {
+	logger.Trace("ensure", "manager", "manager", "func", "submanager.EnsureAfterSeed")
+	m.ensureLastRefreshAnchor()
+}
+
+func (m *submanager) ensureLastRefreshAnchor() {
+}
+`), 0644)
+	c.Assert(err, IsNil)
+
+	swfeats.RegisterEnsure("manager", "ensureChild")
+	swfeats.RegisterEnsure("manager", "submanager.EnsureAfterSeed")
+	var output bytes.Buffer
+	result := Run(&submanagerEnsureAfterSeedChildSuite{
+		managerFilename:    managerFilename,
+		submanagerFilename: submanagerFilename,
+	}, &RunConf{Output: &output})
+	c.Check(result.Succeeded, Equals, 0)
+	c.Check(result.Failed, Equals, 1)
+	c.Check(result.Panicked, Equals, 0)
+	c.Check(result.FixturePanicked, Equals, 0)
+	c.Check(result.RunError, IsNil)
+	c.Check(strings.Contains(output.String(), "ensureLastRefreshAnchor"), Equals, true)
+	c.Check(strings.Contains(output.String(), "trace log was not found"), Equals, true)
 }
 
 type unregisteredEnsureSuite struct {

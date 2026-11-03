@@ -126,8 +126,9 @@ func (iface *dspInterface) UDevConnectedPlug(spec *udev.Specification, plug *int
 
 func init() {
 	registerIface(&dspInterface{commonInterface{
-		name:                 "dsp",
-		summary:              dspSummary,
-		baseDeclarationSlots: dspBaseDeclarationSlots,
+		name:                     "dsp",
+		summary:                  dspSummary,
+		baseDeclarationSlots:     dspBaseDeclarationSlots,
+		parallelInstancesPlugErr: errParallelInstancesSharedResources,
 	}})
 }

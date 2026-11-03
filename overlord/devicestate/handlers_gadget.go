@@ -68,7 +68,7 @@ func CurrentGadgetData(st *state.State, curDeviceCtx snapstate.DeviceContext) (*
 }
 
 func pendingGadgetData(snapsup *snapstate.SnapSetup, pendingDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
-	info, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
+	info, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read candidate gadget snap details: %v", err)
 	}
@@ -167,7 +167,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// if this is a gadget update triggered by an updated kernel we
 	// need to ensure "updateData.KernelRootDir" points to the new kernel
 	if snapsup.Type == snap.TypeKernel {
-		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
+		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
 		if err != nil {
 			return fmt.Errorf("cannot read candidate kernel snap details: %v", err)
 		}

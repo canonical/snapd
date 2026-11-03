@@ -35,6 +35,10 @@ func init() {
 	NumAssertionType = len(typeRegistry)
 }
 
+func NewAssertionBase(headers map[string]any) AssertionBase {
+	return AssertionBase{headers: headers}
+}
+
 // v1FixedTimestamp exposed for tests
 var V1FixedTimestamp = v1FixedTimestamp
 
@@ -264,6 +268,18 @@ func init() {
 	typeRegistry[TestOnlyRevType.Name] = TestOnlyRevType
 	typeRegistry[TestOnlySeqType.Name] = TestOnlySeqType
 	maxSupportedFormat[TestOnlySeqType.Name] = 2
+}
+
+// MockExternalTypesInitialization resets the external assertion type initialization state
+// for a test and restores the active registry and state afterwards.
+func MockExternalTypesInitialization() (restore func()) {
+	previousRegistry := typeRegistry
+	previousInitialized := externalTypesInitialized
+	externalTypesInitialized = false
+	return func() {
+		typeRegistry = previousRegistry
+		externalTypesInitialized = previousInitialized
+	}
 }
 
 func (ak *AccountKey) CanSign(a Assertion) bool {

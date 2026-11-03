@@ -44,6 +44,20 @@ const (
 	jsonBody
 )
 
+// TypeDefinition contains the information needed to define an external assertion type.
+// External assertion types require a definite authority and support only format 0.
+type TypeDefinition struct {
+	// Name is the process-wide unique assertion type name.
+	Name string
+	// PrimaryKey lists the headers that uniquely identify an assertion.
+	// At least one header is required.
+	PrimaryKey []string
+	// Assembler validates and constructs the concrete assertion.
+	Assembler func(assert AssertionBase) (Assertion, error)
+	// Force keyed literals so fields can be added compatibly.
+	_ struct{}
+}
+
 // MetaHeaders is a list of headers in assertions which are about the assertion
 // itself.
 var MetaHeaders = [...]string{
@@ -77,16 +91,40 @@ type AssertionType struct {
 	flags     typeFlags
 }
 
-func (at *AssertionType) validate() {
+func (at *AssertionType) validate() error {
+	if at.Name == "" {
+		return fmt.Errorf("assertion type name cannot be empty")
+	}
+	if !headerNameValidity.MatchString(at.Name) {
+		return fmt.Errorf("invalid assertion type name: %q", at.Name)
+	}
+	if at.assembler == nil {
+		return fmt.Errorf("assertion type %q assembler cannot be nil", at.Name)
+	}
+	primaryKeys := make(map[string]bool, len(at.PrimaryKey))
+	for _, name := range at.PrimaryKey {
+		if !headerNameValidity.MatchString(name) {
+			return fmt.Errorf("assertion type %q has invalid primary key header name %q", at.Name, name)
+		}
+		if primaryKeys[name] {
+			return fmt.Errorf("assertion type %q has duplicate primary key header %q", at.Name, name)
+		}
+		primaryKeys[name] = true
+		for _, metaHeader := range MetaHeaders {
+			if name == metaHeader {
+				return fmt.Errorf("assertion type %q cannot use meta header %q as primary key", at.Name, name)
+			}
+		}
+	}
 	if len(at.OptionalPrimaryKeyDefaults) != 0 && at.flags&sequenceForming != 0 {
-		panic(fmt.Sprintf("assertion type %q cannot be both sequence forming and have optional primary keys", at.Name))
+		return fmt.Errorf("assertion type %q cannot be both sequence forming and have optional primary keys", at.Name)
 	}
 	noptional := 0
 	for _, k := range at.PrimaryKey {
 		defl := at.OptionalPrimaryKeyDefaults[k]
 		if noptional > 0 {
 			if defl == "" {
-				panic(fmt.Sprintf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k))
+				return fmt.Errorf("assertion type %q primary key header %q has no default, optional primary keys must be a proper suffix of the primary key", at.Name, k)
 			}
 		}
 		if defl != "" {
@@ -94,8 +132,26 @@ func (at *AssertionType) validate() {
 		}
 	}
 	if len(at.OptionalPrimaryKeyDefaults) != noptional {
-		panic(fmt.Sprintf("assertion type %q has defaults values for unknown primary key headers", at.Name))
+		return fmt.Errorf("assertion type %q has defaults values for unknown primary key headers", at.Name)
 	}
+	return nil
+}
+
+// NewAssertionType creates an external assertion type from def. The returned type must
+// not be mutated.
+func NewAssertionType(def TypeDefinition) (*AssertionType, error) {
+	at := &AssertionType{
+		Name:       def.Name,
+		PrimaryKey: append([]string(nil), def.PrimaryKey...),
+		assembler:  def.Assembler,
+	}
+	if err := at.validate(); err != nil {
+		return nil, err
+	}
+	if len(at.PrimaryKey) == 0 {
+		return nil, fmt.Errorf("assertion type %q must have at least one primary key header", at.Name)
+	}
+	return at, nil
 }
 
 // MaxSupportedFormat returns the maximum supported format iteration for the type.
@@ -211,7 +267,10 @@ func TypeNames() []string {
 	return names
 }
 
-var maxSupportedFormat = map[string]int{}
+var (
+	externalTypesInitialized bool
+	maxSupportedFormat       = map[string]int{}
+)
 
 func init() {
 	// register maxSupportedFormats while breaking initialisation loop
@@ -233,8 +292,48 @@ func init() {
 	maxSupportedFormat[AccountKeyType.Name] = 1
 
 	for _, at := range typeRegistry {
-		at.validate()
+		if err := at.validate(); err != nil {
+			panic(err)
+		}
 	}
+}
+
+// InitExternalTypes extends the process-wide set of assertion types. It must be
+// called during application initialization and complete before concurrent
+// assertion processing or assertion type lookups begin. Initialization can
+// succeed only once and requires at least one assertion type.
+// Failed calls leave the active set unchanged and may be retried. Assertion
+// types must not be mutated after a successful call.
+func InitExternalTypes(assertionTypes ...*AssertionType) error {
+	if len(assertionTypes) == 0 {
+		return fmt.Errorf("cannot initialize external assertion types: at least one assertion type is required")
+	}
+	if externalTypesInitialized {
+		return fmt.Errorf("external assertion types are already initialized")
+	}
+
+	types := make(map[string]*AssertionType, len(typeRegistry)+len(assertionTypes))
+	for name, assertionType := range typeRegistry {
+		types[name] = assertionType
+	}
+	for _, assertionType := range assertionTypes {
+		if assertionType == nil {
+			return fmt.Errorf("cannot initialize external assertion types: assertion type cannot be nil")
+		}
+		if err := assertionType.validate(); err != nil {
+			return fmt.Errorf("cannot initialize external assertion types: %v", err)
+		}
+		if len(assertionType.PrimaryKey) == 0 {
+			return fmt.Errorf("cannot initialize external assertion types: assertion type %q must have at least one primary key header", assertionType.Name)
+		}
+		if _, ok := types[assertionType.Name]; ok {
+			return fmt.Errorf("cannot initialize external assertion types: assertion type %q is already registered", assertionType.Name)
+		}
+		types[assertionType.Name] = assertionType
+	}
+	typeRegistry = types
+	externalTypesInitialized = true
+	return nil
 }
 
 func MockMaxSupportedFormat(assertType *AssertionType, maxFormat int) (restore func()) {

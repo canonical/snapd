@@ -711,6 +711,19 @@ if [ "$UNIT" = 1 ]; then
     else
         echo ">> [Python] Skipping pytest-3 test for release-tools"
     fi
+    if [ -n "$SKIP_PYTHON_UNIT_TESTS" ]; then
+        echo ">> [Python] Skipping python3 unit tests for agent skill scripts"
+    elif command -v python3; then
+        echo ">> [Python] Running python3 unit tests for agent skill scripts"
+        for scripts in .agents/skills/*/scripts; do
+            # unittest exits 5 when no tests are found (python >= 3.12)
+            if compgen -G "$scripts/test_*.py" >/dev/null; then
+                PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s "$scripts" -p 'test_*.py'
+            fi
+        done
+    else
+        echo ">> [Python] Skipping python3 unit tests for agent skill scripts"
+    fi
 fi
 
 if [ -n "${SKIP_UNCLEAN:-}" ]; then

@@ -51,10 +51,16 @@ send_results_to_test_predictor() {
     local run_attempt="$4"
     local group="$5"
     local scenario="$6"
+    local pr="${7:-}"
     local GH_API_RETRIES=5
     local job_ids
     local job_id
     local http_code
+    local -a pr_form=()
+
+    if [[ -n "$pr" ]]; then
+        pr_form=(--form "pr=$pr")
+    fi
 
     if [ ! -f "$results_file" ]; then
         echo "No spread results found, skipping sending results to Test-Predictor"
@@ -83,7 +89,8 @@ send_results_to_test_predictor() {
         --form "attempt=$run_attempt" \
         --form "job_id=$job_id" \
         --form "run_id=$run_id" \
-        --form "scenario=$scenario"); then
+        --form "scenario=$scenario" \
+        "${pr_form[@]}"); then
         echo "Failed to send results to Test-Predictor" >&2
         return 1
     fi

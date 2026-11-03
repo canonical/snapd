@@ -119,7 +119,6 @@ func init() {
 			// Not supported on core yet
 			implicitPlugOnCore:       false,
 			implicitPlugOnClassic:    true,
-			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
 			parallelInstancesSlotErr: errParallelInstancesLibrarySource,
 		},
 	})

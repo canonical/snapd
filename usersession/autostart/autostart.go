@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -42,10 +43,10 @@ var (
 	currentDesktop = strings.Split(os.Getenv("XDG_CURRENT_DESKTOP"), ":")
 )
 
-func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
+func autostartCmd(instanceName naming.InstanceName, desktopFilePath string) (*exec.Cmd, error) {
 	desktopFile := filepath.Base(desktopFilePath)
 
-	info, err := snap.ReadCurrentInfo(snapName)
+	info, err := snap.ReadCurrentInfo(instanceName)
 	if err != nil {
 		return nil, err
 	}
@@ -58,12 +59,12 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 		}
 	}
 	if app == nil {
-		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", snapName)
+		return nil, fmt.Errorf("cannot match desktop file with snap %s applications", instanceName)
 	}
 
 	de, err := desktopentry.Read(desktopFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse desktop file for application %s in snap %s: %v", app.Name, snapName, err)
+		return nil, fmt.Errorf("cannot parse desktop file for application %s in snap %s: %v", app.Name, instanceName, err)
 	}
 	if !de.ShouldAutostart(currentDesktop) {
 		return nil, fmt.Errorf("skipped")
@@ -156,11 +157,11 @@ func AutostartSessionApps(usrSnapDir string) error {
 		//    some-snap/current/.config/autostart/some-app.desktop
 		noHomePrefix := strings.TrimPrefix(desktopFilePath, usrSnapDir+"/")
 		// some-snap/current/.config/autostart/some-app.desktop -> some-snap
-		snapName := noHomePrefix[0:strings.IndexByte(noHomePrefix, '/')]
+		instanceName := naming.InstanceName(noHomePrefix[0:strings.IndexByte(noHomePrefix, '/')])
 
-		logger.Debugf("snap name: %q", snapName)
+		logger.Debugf("snap name: %q", instanceName)
 
-		cmd, err := autostartCmd(snapName, desktopFilePath)
+		cmd, err := autostartCmd(instanceName, desktopFilePath)
 		if err != nil {
 			failedApps[desktopFile] = err
 			continue

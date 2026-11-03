@@ -525,7 +525,7 @@ func (c *getCommand) buildDefaultOutput(request string) (map[string]any, error) 
 func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.PlugInfo, error) {
 	// TODO: this check currently doesn't support per-app plugs but it should eventually
 	repo := ifacerepo.Get(ctx.State())
-	plug := repo.Plug(ctx.InstanceName().String(), plugName)
+	plug := repo.Plug(ctx.InstanceName(), plugName)
 	if plug == nil {
 		return nil, fmt.Errorf(i18n.G("cannot find plug :%s for snap %q"), plugName, ctx.InstanceName())
 	}
@@ -534,7 +534,7 @@ func checkConfdbPlugConnection(ctx *hookstate.Context, plugName string) (*snap.P
 		return nil, fmt.Errorf(i18n.G("cannot use --view with non-confdb plug :%s"), plugName)
 	}
 
-	conns, err := repo.Connected(ctx.InstanceName().String(), plugName)
+	conns, err := repo.Connected(ctx.InstanceName(), plugName)
 	if err != nil {
 		return nil, fmt.Errorf(i18n.G("cannot check if plug :%s is connected: %v"), plugName, err)
 	}

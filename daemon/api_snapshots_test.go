@@ -417,6 +417,28 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, map[string]any{"set-id": setID, "snaps": snapNames})
 }
 
+func (s *snapshotSuite) TestImportSnapshotContentTypeWithParams(c *check.C) {
+	data := []byte("mocked snapshot export data file")
+
+	setID := uint64(3)
+	snapNames := []string{"baz", "bar", "foo"}
+	importCalled := 0
+	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
+		importCalled++
+		return setID, snapNames, nil
+	})()
+
+	req, err := http.NewRequest("POST", "/v2/snapshots", bytes.NewReader(data))
+	c.Assert(err, check.IsNil)
+	req.Header.Add("Content-Length", strconv.Itoa(len(data)))
+	req.Header.Set("Content-Type", client.SnapshotExportMediaType+"; foo=bar")
+
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.DeepEquals, map[string]any{"set-id": setID, "snaps": snapNames})
+	c.Check(importCalled, check.Equals, 1)
+}
+
 func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	defer daemon.MockSnapshotImport(func(context.Context, *state.State, io.Reader) (uint64, []string, error) {
 		return uint64(0), nil, errors.New("no")

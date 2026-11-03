@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type copySnapDataSuite struct {
@@ -53,7 +54,7 @@ func (s *copySnapDataSuite) TestDoCopySnapDataFailedRead(c *C) {
 	})
 
 	// With an app belonging to the snap that is apparently running.
-	snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+	snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 		return nil, errors.New("some error")
 	})
 

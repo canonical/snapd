@@ -75,7 +75,6 @@ func init() {
 		baseDeclarationSlots:     auditdSupportBaseDeclarationSlots,
 		connectedPlugSecComp:     auditdSupportConnectedPlugSecComp,
 		connectedPlugAppArmor:    auditdSupportConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

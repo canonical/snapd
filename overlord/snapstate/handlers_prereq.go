@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 	"gopkg.in/tomb.v2"
 )
@@ -204,7 +205,7 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 		var ts *state.TaskSet
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
 			ts, err = ensurePrerequisite(t, contentAttrs, StoreSnap{
-				InstanceName: prereqName,
+				InstanceName: naming.InstanceName(prereqName),
 				RevOpts: RevisionOptions{
 					Channel: defaultPrereqSnapsChannel(),
 				},
@@ -227,7 +228,7 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 			baseTS, err = ensurePrerequisite(t, nil, StoreSnap{
-				InstanceName: base,
+				InstanceName: naming.InstanceName(base),
 				RevOpts: RevisionOptions{
 					Channel: defaultBaseSnapsChannel(),
 				},
@@ -501,7 +502,7 @@ func removalInProgress(st *state.State, snapName string) (*state.Change, error) 
 func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 
-	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
+	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName.String(), opts.Flags.RequireTypeBase)
 	if err != nil {
 		return nil, err
 	}
@@ -528,7 +529,7 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 		}
 	}
 
-	installed, err := isInstalled(st, sn.InstanceName)
+	installed, err := isInstalled(st, sn.InstanceName.String())
 	if err != nil {
 		return nil, err
 	}
@@ -573,9 +574,9 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 	return ts, nil
 }
 
-func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []string, opts Options) (*state.TaskSet, error) {
+func maybeUpdateContentProvider(t *state.Task, instanceName naming.InstanceName, contentAttrs []string, opts Options) (*state.TaskSet, error) {
 	st := t.State()
-	provided, err := hasAllContentAttrs(st, snapName, contentAttrs)
+	provided, err := hasAllContentAttrs(st, instanceName.String(), contentAttrs)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +585,7 @@ func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []s
 	}
 
 	ts, err := UpdateOne(context.TODO(), st, StoreUpdateGoal(StoreUpdate{
-		InstanceName: snapName,
+		InstanceName: instanceName,
 	}), nil, opts)
 	if err != nil {
 		var cerr *ChangeConflictError
@@ -593,7 +594,7 @@ func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []s
 			// cannot handle this during seeding, so expect the
 			// ChangeConflictError in this scenario.
 			if cerr.ChangeKind == "seed" {
-				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), cerr)
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", instanceName, strings.Join(contentAttrs, ", "), cerr)
 				return nil, nil
 			}
 
@@ -602,7 +603,7 @@ func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []s
 
 		// don't propagate error to avoid failing the main install since the
 		// content provider is (for now) a soft dependency
-		t.Logf("cannot update %q, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), err)
+		t.Logf("cannot update %q, will not have required content %q: %s", instanceName, strings.Join(contentAttrs, ", "), err)
 		return nil, nil
 	}
 
@@ -615,7 +616,7 @@ func hasAllContentAttrs(st *state.State, snapName string, requiredContentAttrs [
 	providedContentAttrs := make(map[string]bool)
 	repo := ifacerepo.Get(st)
 
-	for _, slot := range repo.Slots(snapName) {
+	for _, slot := range repo.Slots(naming.InstanceName(snapName)) {
 		if slot.Interface != "content" {
 			continue
 		}

@@ -59,5 +59,8 @@ func init() {
 		baseDeclarationSlots:  dockerBaseDeclarationSlots,
 		connectedPlugAppArmor: dockerConnectedPlugAppArmor,
 		connectedPlugSecComp:  dockerConnectedPlugSecComp,
+		// docker daemon owns the well-known /run/docker.sock; only one snap instance
+		// can hold it at a time.
+		parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 	})
 }

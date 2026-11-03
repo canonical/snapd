@@ -325,7 +325,7 @@ dbus (receive)
     bus=session
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
-    member={ActionInvoked,NotificationClosed,NotificationReplied}
+    member={ActivationToken,ActionInvoked,NotificationClosed,NotificationReplied}
     peer=(label="{plasmashell,unconfined}"),
 
 # KDE Plasma's Inhibited property indicating "do not disturb" mode
@@ -731,6 +731,13 @@ type desktopInterface struct {
 	commonInterface
 }
 
+func (iface *desktopInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) error {
+	if _, exists := plug.Lookup("desktop-file-ids"); exists {
+		return fmt.Errorf(`"desktop-file-ids" attribute must not be set`)
+	}
+	return nil
+}
+
 func (iface *desktopInterface) shouldMountHostFontCache(attribs interfaces.Attrer) (bool, error) {
 	value, ok := attribs.Lookup("mount-host-font-cache")
 	if !ok {
@@ -922,6 +929,9 @@ func init() {
 			baseDeclarationPlugs: desktopBaseDeclarationPlugs,
 			// affects the plug snap because of mount backend
 			affectsPlugOnRefresh: true,
+			// desktop slot owns the well-known bus names (org.gtk.Settings, etc.) on the
+			// session bus; only one snap instance can hold it at a time.
+			parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 		},
 	})
 }

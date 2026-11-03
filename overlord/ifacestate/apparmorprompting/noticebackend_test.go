@@ -356,16 +356,19 @@ func (s *noticebackendSuite) TestAddNoticeSomeExpired(c *C) {
 		c.Assert(err, IsNil)
 		ruleBackend := noticeBackend.RuleBackend()
 
+		// Make first two notices expired by setting their timestamps in the past
+		r1, r2, r3 := ruleBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+			return time.Now().Add(-1000 * time.Hour)
+		})
 		c.Check(ruleBackend.AddNotice(userID, 1, nil), IsNil)
 		c.Check(ruleBackend.AddNotice(userID, 2, nil), IsNil)
+		r1()
 		c.Check(ruleBackend.AddNotice(userID, 3, nil), IsNil)
 		c.Check(ruleBackend.AddNotice(userID, 4, nil), IsNil)
+		r2()
 		origNotices := ruleBackend.BackendNotices(nil)
+		r3()
 		c.Check(origNotices, HasLen, 4, Commentf("testCase %d: %+v\norigNotices: %+v", i, testCase, origNotices))
-		// Expire the first two notices by re-recording them in the past
-		for _, notice := range origNotices[:2] {
-			notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
-		}
 
 		// Record the specified notice
 		c.Check(ruleBackend.AddNotice(userID, testCase.record, nil), IsNil)
@@ -391,15 +394,18 @@ func (s *noticebackendSuite) TestAddNoticeAllExpired(c *C) {
 
 		userID := uint32(1000)
 
+		// Make all notices expired by setting their timestamps in the past
+		r1, r2, r3 := promptBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+			return time.Now().Add(-1000 * time.Hour)
+		})
 		c.Check(promptBackend.AddNotice(userID, 1, nil), IsNil)
 		c.Check(promptBackend.AddNotice(userID, 2, nil), IsNil)
 		c.Check(promptBackend.AddNotice(userID, 3, nil), IsNil)
+		r1()
+		r2()
 		origNotices := promptBackend.BackendNotices(&state.NoticeFilter{UserID: &userID})
+		r3()
 		c.Check(origNotices, HasLen, 3, Commentf("trying to add notice %s", id))
-		// Expire all existing notices by re-recording them in the past
-		for _, notice := range origNotices {
-			notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
-		}
 
 		// Record the specified notice
 		c.Check(promptBackend.AddNotice(userID, id, nil), IsNil)
@@ -423,16 +429,20 @@ func (s *noticebackendSuite) TestAddNoticeSaveFailureRollback(c *C) {
 
 		userID := uint32(1000)
 
+		// Make first two notices expired by setting their timestamps in the past
+		r1, r2, r3 := promptBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+			return time.Now().Add(-1000 * time.Hour)
+		})
 		c.Check(promptBackend.AddNotice(userID, 1, nil), IsNil)
 		c.Check(promptBackend.AddNotice(userID, 2, nil), IsNil)
+		r1()
 		c.Check(promptBackend.AddNotice(userID, 3, nil), IsNil)
 		c.Check(promptBackend.AddNotice(userID, 4, nil), IsNil)
+		r2()
 		origNotices := promptBackend.BackendNotices(&state.NoticeFilter{UserID: &userID})
+		r3()
 		c.Assert(origNotices, HasLen, 4)
-		// Expire the first two notices by re-recording them in the past
-		for _, notice := range origNotices[:2] {
-			notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
-		}
+
 		beforeNotices := promptBackend.BackendNotices(&state.NoticeFilter{UserID: &userID})
 		c.Assert(beforeNotices, HasLen, 2)
 		c.Assert(beforeNotices[0].Key(), Equals, prompting.IDType(3).String())
@@ -524,16 +534,19 @@ func (s *noticebackendSuite) TestLoadSomeExpired(c *C) {
 
 	userID := uint32(1000)
 
+	// Make first two notices expired by setting their timestamps in the past
+	r1, r2, r3 := promptBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+		return time.Now().Add(-1000 * time.Hour)
+	})
 	c.Check(promptBackend.AddNotice(userID, 1, nil), IsNil)
 	c.Check(promptBackend.AddNotice(userID, 2, nil), IsNil)
+	r1()
 	c.Check(promptBackend.AddNotice(userID, 3, nil), IsNil)
 	c.Check(promptBackend.AddNotice(userID, 4, nil), IsNil)
+	r2()
 	origNotices := promptBackend.BackendNotices(nil)
+	r3()
 	c.Assert(origNotices, HasLen, 4)
-	// Expire the first two notices by re-recording them in the past
-	for _, notice := range origNotices[:2] {
-		notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
-	}
 
 	// Manually save to disk to ensure the expired notices are written to disk.
 	// Notices are saved when adding a new notice, but that also drops expired
@@ -569,16 +582,19 @@ func (s *noticebackendSuite) TestLoadAllExpired(c *C) {
 	c.Assert(err, IsNil)
 	promptBackend := noticeBackend.PromptBackend()
 
+	// Make all notices expired by setting their timestamps in the past
+	r1, r2, r3 := promptBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+		return time.Now().Add(-1000 * time.Hour)
+	})
 	c.Check(promptBackend.AddNotice(1000, 1, nil), IsNil)
 	c.Check(promptBackend.AddNotice(1000, 2, nil), IsNil)
 	c.Check(promptBackend.AddNotice(1000, 3, nil), IsNil)
 	c.Check(promptBackend.AddNotice(1000, 4, nil), IsNil)
+	r1()
+	r2()
 	origNotices := promptBackend.BackendNotices(nil)
+	r3()
 	c.Assert(origNotices, HasLen, 4)
-	// Expire all the notices by re-recording them in the past
-	for _, notice := range origNotices {
-		notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
-	}
 
 	// Manually save to disk to ensure the expired notices are written to disk.
 	// Notices are saved when adding a new notice, but that also drops expired
@@ -743,18 +759,19 @@ func (s *noticebackendSuite) TestBackendNotices(c *C) {
 	userID3 := uint32(11235)
 
 	// Prepare the backend with some notices
+	r1, r2, r3 := promptBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+		return time.Now().Add(-1000 * time.Hour)
+	})
 	promptBackend.AddNotice(userID1, 0, nil) // expire this notice
+	r1()
 	promptBackend.AddNotice(userID1, 1, nil)
 	promptBackend.AddNotice(userID1, 5, nil) // record 5, then re-record later
 	promptBackend.AddNotice(userID2, 2, nil)
 	promptBackend.AddNotice(userID2, 3, nil)
 	promptBackend.AddNotice(userID1, 4, nil)
 	promptBackend.AddNotice(userID1, 5, nil)
-
-	// Expire notice with ID 0
-	toExpire := promptBackend.BackendNotice("prompt-0000000000000000")
-	c.Assert(toExpire, NotNil)
-	toExpire.Reoccur(toExpire.LastRepeated().Add(-1000*time.Hour), nil, 0)
+	r2()
+	r3()
 
 	allNotices := promptBackend.BackendNotices(nil)
 	c.Assert(allNotices, HasLen, 5)
@@ -891,16 +908,19 @@ func (s *noticebackendSuite) TestBackendNotice(c *C) {
 	c.Assert(err, IsNil)
 	ruleBackend := noticeBackend.RuleBackend()
 
+	// Make first two notices expired by setting their timestamps in the past
+	r1, r2, r3 := ruleBackend.MockNextNoticeTimestampSkipExpirationTimeNow(func() time.Time {
+		return time.Now().Add(-1000 * time.Hour)
+	})
 	c.Check(ruleBackend.AddNotice(1234, 1, nil), IsNil)
 	c.Check(ruleBackend.AddNotice(1234, 2, nil), IsNil)
+	r1()
 	c.Check(ruleBackend.AddNotice(1234, 3, nil), IsNil)
 	c.Check(ruleBackend.AddNotice(1234, 4, nil), IsNil)
+	r2()
 	origNotices := ruleBackend.BackendNotices(nil)
+	r3()
 	c.Assert(origNotices, HasLen, 4)
-	// Expire the first two notices by re-recording them in the past
-	for _, notice := range origNotices[:2] {
-		notice.Reoccur(notice.LastRepeated().Add(-1000*time.Hour), nil, 0)
-	}
 
 	afterNotices := ruleBackend.BackendNotices(nil)
 	c.Assert(afterNotices, HasLen, 2)

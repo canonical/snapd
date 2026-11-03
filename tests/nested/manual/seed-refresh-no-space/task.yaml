@@ -139,7 +139,7 @@ execute: |
   capture_seed_state before
 
   echo "Enable seed-refresh"
-  remote.exec 'sudo snap set core experimental.seed-refresh=true'
+  tests.nested enable-wip-features seed-refresh
 
   echo "Publish refreshed base and kernel snaps"
   make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/${base_snap}.snap" "./${base_snap}-rev2.snap" "${base_id}" 2

@@ -24,6 +24,7 @@ slots:
 parts:
     deps:
         plugin: python
+        source: .
         stage-packages: [python3-gi, python3-dbus, gir1.2-glib-2.0]
     copy:
         plugin: dump

@@ -1,0 +1,17 @@
+name: test-snapd-gating
+version: 1.0
+summary: Test snap that gates the "test-snapd-gated" snap
+description: Test snap for integration testing of the gating feature.
+base: bare
+build-base: core24
+grade: stable
+confinement: strict
+
+platforms:
+  all:
+    build-on: [amd64]
+    build-for: [all]
+
+parts:
+  empty:
+    plugin: nil

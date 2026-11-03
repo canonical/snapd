@@ -19,17 +19,24 @@
 
 package interfaces
 
-import "github.com/snapcore/snapd/strutil"
+import (
+	"github.com/snapcore/snapd/snap/naming"
+)
 
-func systemSnapNames() []string {
-	return []string{"snapd", "core"}
+func systemSnapNames() []naming.InstanceName {
+	return []naming.InstanceName{naming.Snapd, naming.Core}
 }
 
 // IsTheSystemSnap returns true if snapName is one of the possible
 // names for the snap representing the system.
 func IsTheSystemSnap(snapName string) bool {
-	if snapName == "" || strutil.ListContains(systemSnapNames(), snapName) {
+	if snapName == "" {
 		return true
+	}
+	for _, name := range systemSnapNames() {
+		if name.String() == snapName {
+			return true
+		}
 	}
 	return false
 }

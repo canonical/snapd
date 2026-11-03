@@ -25,7 +25,7 @@ systems:
   - -ubuntu-24.04-arm-64
 
 environment:
-  IMAGE: rocks.canonical.com/alpine:latest
+  IMAGE: rocks.canonical.com/cdk/busybox:1.36
   ROOT_SOCK: /run/podman/podman.sock
   ROOT_DAEMON_OUT: /var/snap/podman-consumer/common/root-daemon.out
   USER_DAEMON_OUT: /home/test/snap/podman-consumer/common/user-daemon.out

@@ -357,6 +357,12 @@ func (iface *ofonoInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
+func (iface *ofonoInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// ofono owns the well-known bus name org.ofono on the system bus; only
+	// one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&ofonoInterface{})
 }

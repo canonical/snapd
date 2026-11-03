@@ -43,16 +43,25 @@ var evalSymlinks = filepath.EvalSymlinks
 var readDir = os.ReadDir
 
 var (
-	errParallelInstancesSystemPlug      = errors.New("system plug cannot have parallel instances")
-	errParallelInstancesSystemSlot      = errors.New("system slot cannot have parallel instances")
 	errParallelInstancesSharedResources = errors.New("conflicting operations on shared system resources")
-	// system*.library-source files under SnapExportDir use "_" to encode the
-	// instance name, slot name and interface name in their names. Since parallel
-	// instance names also use "_" to append the instance key, some functionality
-	// may not correctly distinguish parallel instances.
+	// errParallelInstancesLibrarySource is used since system*.library-source
+	// files under SnapExportDir use "_" to encode the instance name, slot name
+	// and interface name in their names. Since parallel instance names also
+	// use "_" to append the instance key, some functionality may not correctly
+	// distinguish parallel instances.
 	// TODO: add tests for *-driver-libs interfaces to check if parallel instances on
 	// slot side work and remove this error if they do.
 	errParallelInstancesLibrarySource = errors.New("library-source filenames cannot distinguish parallel instances")
+	// errParallelInstancesUniqueResourceOwner is used for interfaces which
+	// own a globally unique resource (e.g. a well-known D-Bus name or socket):
+	// two parallel instances of the providing snap would conflict with each
+	// other for ownership of it.
+	errParallelInstancesUniqueResourceOwner = errors.New("owning a unique global resource cannot have parallel instances")
+	// errParallelInstancesSupportInterfacePlug is used for the plug side of
+	// *-support interfaces. These are very application-specific interfaces
+	// that usually evolve with their own development. Unless specifically
+	// requested, these are currently marked unsupported.
+	errParallelInstancesSupportInterfacePlug = errors.New("*-support interfaces are currently unsupported")
 )
 
 type commonInterface struct {

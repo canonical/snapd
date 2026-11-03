@@ -66,6 +66,9 @@
 %global import_path     %{provider_prefix}
 
 %global snappy_svcs      snapd.service snapd.socket snapd.seeded.service snapd.apparmor.service snapd.mounts.target snapd.mounts-pre.target
+# var-lib-snapd-snap.mount, var-snap.mount: shipped via %%files, not here.
+# Enabling/starting them (and the /snap symlink, see snap_symlink above) is
+# left to the user, like classic snap support in general on this distro.
 %global snappy_user_svcs snapd.session-agent.service snapd.session-agent.socket
 
 # Note that packaging for Fedora does omit cap_setgid and cap_setuid that are
@@ -861,6 +864,8 @@ make -C data -k check
 %{_unitdir}/snapd.apparmor.service
 %{_unitdir}/snapd.mounts.target
 %{_unitdir}/snapd.mounts-pre.target
+%{_unitdir}/var-lib-snapd-snap.mount
+%{_unitdir}/var-snap.mount
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 %{_tmpfilesdir}/snapd.conf
@@ -963,6 +968,12 @@ make -C data -k check
 # Create the private tmp directory for snap-confine
 install -d -m 0700 /tmp/snap-private-tmp
 
+# Defer self-binds over live child mounts before %%systemd_post reloads units.
+if ! %{_libexecdir}/snapd/snap-mgmt --check-post-upgrade-mount-activation; then
+   install -d -m 0755 /run/snapd/packaging || exit 1
+   touch /run/snapd/packaging/prevent-mount-dir-activation || exit 1
+fi
+
 %if 0%{?rhel} == 7
 %sysctl_apply 99-snap.conf
 %endif
@@ -985,6 +996,16 @@ fi
 # Remove all Snappy content if snapd is being fully uninstalled
 if [ $1 -eq 0 ]; then
    %{_libexecdir}/snapd/snap-mgmt --purge || :
+
+   # var-lib-snapd-snap.mount, var-snap.mount: never auto-enabled (see
+   # snappy_svcs above), so %%systemd_preun above does not touch them.
+   # snap-mgmt --purge already unmounts them (after tearing down
+   # per-snap content mounts first); only stop/disable here to drop
+   # enablement symlinks for a user who opted in.
+   if [ -x /usr/bin/systemctl ]; then
+      systemctl stop var-lib-snapd-snap.mount var-snap.mount >/dev/null 2>&1 || :
+      systemctl --no-reload disable var-lib-snapd-snap.mount var-snap.mount >/dev/null 2>&1 || :
+   fi
 fi
 
 %postun

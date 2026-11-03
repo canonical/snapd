@@ -370,7 +370,7 @@ func (c *refreshCommand) proceed() error {
 			return err
 		}
 		if !gateAutoRefreshHook {
-			return fmt.Errorf("cannot proceed without experimental.gate-auto-refresh feature enabled")
+			return fmt.Errorf("cannot proceed: gate-auto-refresh-hook is disabled")
 		}
 
 		return autoRefreshForGatingSnap(st, ctx.InstanceName().String())
@@ -397,7 +397,7 @@ func hasSnapRefreshControlInterface(st *state.State, snapName string) (bool, err
 		if err != nil {
 			return false, fmt.Errorf("internal error: %s", err)
 		}
-		if connRef.PlugRef.Snap == snapName {
+		if connRef.PlugRef.Snap.String() == snapName {
 			return true, nil
 		}
 	}
@@ -420,7 +420,7 @@ func (c *refreshCommand) printInhibitLockHint() error {
 	}
 	defer lock.Unlock()
 
-	hint, _, err := runinhibit.IsLocked(instanceName.String(), nil)
+	hint, _, err := runinhibit.IsLocked(instanceName, nil)
 	if err != nil {
 		return err
 	}

@@ -165,6 +165,105 @@ func (s *setupKernelSnapSuite) TestUndoSetupKernelSnap(c *C) {
 	})
 }
 
+func (s *setupKernelSnapSuite) TestSetupKernelSnapSameRevisionStillRecordsPreviousRev(c *C) {
+	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+		UserID:  1,
+	})
+
+	// same-revision refresh: target revision equals snapst.Current.
+	// previous-kernel-rev is still recorded unconditionally; safety is
+	// enforced by the consumers (discard-old-kernel-snap-setup and its
+	// undo), not by withholding this value.
+	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "mykernel",
+			Revision: snap.R(33),
+		},
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	var prevKernelRev snap.Revision
+	c.Check(t.Get("previous-kernel-rev", &prevKernelRev), IsNil)
+	c.Check(prevKernelRev, Equals, snap.R(33))
+	s.state.Unlock()
+
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "prepare-kernel-snap",
+		},
+	})
+}
+
+func (s *setupKernelSnapSuite) TestUndoSetupKernelSnapSameRevisionDoesNotRemove(c *C) {
+	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+		UserID:  1,
+	})
+
+	// same-revision refresh: do's SetupKernelSnap was a no-op on the live
+	// tree, so undo must not remove it.
+	t := s.state.NewTask("prepare-kernel-snap", "test kernel setup")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "mykernel",
+			Revision: snap.R(33),
+		},
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking undo kernel setup")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*provoking undo kernel setup.*`)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	s.state.Unlock()
+
+	// no remove-kernel-snap-setup: that would delete the live/mounted tree
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op: "prepare-kernel-snap",
+		},
+	})
+}
+
 func (s *setupKernelSnapSuite) TestRemoveKernelSnapSetup(c *C) {
 	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
@@ -255,4 +354,90 @@ func (s *setupKernelSnapSuite) TestUndoRemoveKernelSnapSetup(c *C) {
 			op: "prepare-kernel-snap",
 		},
 	})
+}
+
+func (s *setupKernelSnapSuite) TestDiscardOldKernelSnapSetupSameRevisionDoesNotRemove(c *C) {
+	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+		UserID:  1,
+	})
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "test discard kernel set-up")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "mykernel",
+			Revision: snap.R(33),
+		},
+		SnapPath: testSnap,
+	})
+	// defensive guard: previous-kernel-rev set equal to the current
+	// revision (should never happen upstream, but must never remove)
+	t.Set("previous-kernel-rev", snap.R(33))
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	s.state.Unlock()
+
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+}
+
+func (s *setupKernelSnapSuite) TestUndoDiscardOldKernelSnapSetupSameRevisionDoesNotRecreate(c *C) {
+	v1 := "name: mykernel\nversion: 1.0\ntype: kernel\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "mykernel", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "mykernel", Revision: snap.R(33)},
+		}),
+		Current: snap.R(33),
+		UserID:  1,
+	})
+	t := s.state.NewTask("discard-old-kernel-snap-setup", "test discard kernel set-up")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "mykernel",
+			Revision: snap.R(33),
+		},
+		SnapPath: testSnap,
+	})
+	// same-revision case: previous-kernel-rev equals the current revision,
+	// so do's RemoveKernelSnapSetup was a no-op; undo must not recreate it
+	// either (symmetry).
+	t.Set("previous-kernel-rev", snap.R(33))
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking undo discard kernel setup")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	c.Check(chg.Err(), ErrorMatches, `(?s).*provoking undo discard kernel setup.*`)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	s.state.Unlock()
+
+	c.Check(s.fakeBackend.ops, HasLen, 0)
 }

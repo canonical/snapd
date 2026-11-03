@@ -84,7 +84,7 @@ func (x *cmdDisconnect) Execute(args []string) error {
 	}
 
 	opts := &client.DisconnectOptions{Forget: x.Forget}
-	id, err := x.client.Disconnect(offer.Snap, offer.Name, use.Snap, use.Name, opts)
+	id, err := x.client.Disconnect(offer.Snap.String(), offer.Name, use.Snap.String(), use.Name, opts)
 	if err != nil {
 		if client.IsInterfacesUnchangedError(err) {
 			fmt.Fprintln(Stdout, i18n.G("No connections to disconnect"))

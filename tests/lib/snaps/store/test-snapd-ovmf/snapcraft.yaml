@@ -44,6 +44,7 @@ parts:
         -D TPM2_ENABLE
         -D TPM2_CONFIG_ENABLE
         -D SECURE_BOOT_ENABLE
+        --pcd gEfiSecurityPkgTokenSpaceGuid.PcdTcgLogAreaMinLen=0x20000
       )
       case "${CRAFT_ARCH_BUILD_FOR}" in
         amd64)

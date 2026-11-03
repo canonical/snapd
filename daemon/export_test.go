@@ -40,15 +40,41 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues       = createQuotaValues
+	ParseOptionalTime       = parseOptionalTime
+	SeclogSnapdUserFromAuth = seclogSnapdUserFromAuth
+	NewAuthzRecorder        = newAuthzRecorder
 )
+
+// AuthzRecorder is [authzRecorder] for tests outside package daemon.
+type AuthzRecorder = authzRecorder
+
+// RecordGranted exposes [authzRecorder.recordGranted] for tests.
+func (rec *authzRecorder) RecordGranted(reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
+	rec.recordGranted(reason, iface, side)
+}
+
+// RecordDenied exposes [authzRecorder.recordDenied] for tests.
+func (rec *authzRecorder) RecordDenied(reason seclog.DenialReason) {
+	rec.recordDenied(reason)
+}
+
+// Log exposes [authzRecorder.log] for tests.
+func (rec *authzRecorder) Log() {
+	rec.log()
+}
+
+// SeclogPeer exposes [ucrednet.seclogPeer] for tests.
+func (un *ucrednet) SeclogPeer() seclog.Peer {
+	return un.seclogPeer()
+}
 
 func APICommands() []*Command {
 	return api
@@ -251,7 +277,7 @@ func MockSnapstateTryPath(mock func(*state.State, string, string, snapstate.Flag
 	}
 }
 
-func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateSwitch(mock func(*state.State, naming.InstanceName, *snapstate.RevisionOptions, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateSwitch := snapstateSwitch
 	snapstateSwitch = mock
 	return func() {
@@ -315,7 +341,7 @@ func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.S
 	}
 }
 
-func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateMigrate(mock func(*state.State, []naming.InstanceName) ([]*state.TaskSet, error)) (restore func()) {
 	oldSnapstateMigrate := snapstateMigrateHome
 	snapstateMigrateHome = mock
 	return func() {
@@ -339,7 +365,7 @@ func MockSnapstateHoldRefreshesBySystem(f func(st *state.State, level snapstate.
 	}
 }
 
-func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateRemoveComponents(mock func(st *state.State, instanceName naming.InstanceName, compName []string, opts snapstate.RemoveComponentsOpts) ([]*state.TaskSet, error)) (restore func()) {
 	oldSnapstateRemoveComponents := snapstateRemoveComponents
 	snapstateRemoveComponents = mock
 	return func() {
@@ -347,7 +373,7 @@ func MockSnapstateRemoveComponents(mock func(st *state.State, snapName string, c
 	}
 }
 
-func MockConfigstateConfigureInstalled(f func(st *state.State, name string, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
+func MockConfigstateConfigureInstalled(f func(st *state.State, name naming.InstanceName, patchValues map[string]any, flags int) (*state.TaskSet, error)) (restore func()) {
 	old := configstateConfigureInstalled
 	configstateConfigureInstalled = f
 	return func() {

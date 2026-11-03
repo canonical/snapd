@@ -13,7 +13,9 @@ restore: |
 execute: |
   snap connect test-snap:network
   snap connect test-snap:camera
-  OUT=$(test-snap.listconn 2>&1 || true)
+  # When feature tagging is active, it emits extra json-formatted
+  # logs; filter those out
+  OUT=$(test-snap.listconn 2>&1 | grep -v '"level":' || true)
   EXPECTED=$(printf "camera\nnetwork\n")
   if [ "$OUT" != "$EXPECTED" ]; then
     echo "List connections doesn't show expected plugs/slots: $OUT"
@@ -21,7 +23,9 @@ execute: |
   fi
 
   snap disconnect test-snap:camera
-  OUT=$(test-snap.listconn 2>&1 || true)
+  # When feature tagging is active, it emits extra json-formatted
+  # logs; filter those out
+  OUT=$(test-snap.listconn 2>&1 | grep -v '"level":' || true)
   EXPECTED=$(printf "network\n")
   if [ "$OUT" != "$EXPECTED" ]; then
     echo "List connections doesn't show expected plugs/slots: $OUT"

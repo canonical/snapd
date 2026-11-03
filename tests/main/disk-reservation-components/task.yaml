@@ -1,0 +1,142 @@
+summary: Check that the disk space checks consider the size of components.
+
+details: |
+  Verify that the disk-reservation.size option and the disk space checks
+  consider the size of components. The test installs a large local component
+  for a snap that is already installed, and a snap together with a large local
+  component. Each install must fail if the component size and the reservation
+  together are larger than the free disk space, and must pass when they are
+  smaller.
+
+# this test remounts /var/lib/snapd which is too intrusive for core.
+systems: [-ubuntu-core-*]
+
+environment:
+  TMPFSMOUNT: /var/lib/snapd
+  # filling tmpfs mounted under /var/lib/snapd triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+  SUFFICIENT_SIZE: 300M
+  SNAP_NAME: test-snap-disk-comps
+  # the sideloaded files are written to /var/lib/snapd before the disk space
+  # check runs, so the component uses this much free space before the check.
+  COMP_SIZE_MB: 10
+  # the free space before the install. after the component file is uploaded,
+  # approximately 20MB stay free.
+  FREE_MB: 30
+  # the free space before the install in the test for an unset reservation.
+  # after the component file is uploaded, approximately 12MB stay free. this is
+  # sufficient for the component, but not for the component together with the
+  # fallback reservation of 5MB.
+  SMALL_FREE_MB: 22
+
+prepare: |
+  systemctl stop snapd.{socket,service}
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  SNAPD_REV="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
+
+  # preserve the snapd snap under test because snap-mgmt --purge removes it.
+  cp "$TMPFSMOUNT/snaps/snapd_${SNAPD_REV}.snap" \
+  "$TESTSTMP/snapd-under-test.snap"
+
+  snapd.tool exec snap-mgmt --purge
+  mount -t tmpfs tmpfs -o size="$SUFFICIENT_SIZE",mode=0755 "$TMPFSMOUNT"
+  mkdir -p "$TMPFSMOUNT/snaps"
+  # recreate the snap mount directory inside the tmpfs; on some distros
+  # (e.g. Fedora) it lives under /var/lib/snapd
+  mkdir -p "$SNAP_MOUNT_DIR"
+
+  systemctl start snapd.{socket,service}
+  snap wait system seed.loaded
+  snap install --dangerous "$TESTSTMP/snapd-under-test.snap"
+  rm -f "$TESTSTMP/snapd-under-test.snap"
+
+  # random data does not compress, so the size of the component file is
+  # approximately the size of the data
+  head -c "${COMP_SIZE_MB}M" /dev/urandom > comp-big/data
+  snap pack "$SNAP_NAME"/
+  snap pack comp-big/
+
+restore: |
+  rm -f comp-big/data ./*.snap ./*.comp install-error.txt
+  systemctl stop snapd.{socket,service}
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  snapd.tool exec snap-mgmt --purge
+  umount -l "$TMPFSMOUNT"
+  # recreate the snap mount directory on the real filesystem, now that
+  # the tmpfs is unmounted
+  mkdir -p "$SNAP_MOUNT_DIR"
+  systemctl start snapd.{socket,service}
+
+execute: |
+  resize() {
+    mount -o remount,size="$1",mode=0755 "$TMPFSMOUNT"
+  }
+
+  get_disk_usage() {
+    df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
+  }
+
+  SNAP_FILE="./${SNAP_NAME}_1.0_all.snap"
+  COMP_FILE="./${SNAP_NAME}+big_1.0.comp"
+
+  echo "=== Test 1: Component for an installed snap ==="
+  resize "$SUFFICIENT_SIZE"
+  snap install --dangerous "$SNAP_FILE"
+
+  NEWSIZE=$(($(get_disk_usage) + FREE_MB))
+  resize "${NEWSIZE}M"
+
+  # the reservation alone fits in the free space, but the reservation and the
+  # component together do not fit
+  snap set system disk-reservation.size=15M
+  if snap install --dangerous "$COMP_FILE" 2>install-error.txt; then
+    echo "expected the component install to fail with a 15MB reservation"
+    exit 1
+  fi
+  MATCH "cannot install \"$SNAP_NAME\" due to low disk space" < install-error.txt
+  snap components "$SNAP_NAME" | MATCH "$SNAP_NAME\+big\s+available\s+standard"
+
+  # the reservation and the component together fit in the free space
+  snap set system disk-reservation.size=2M
+  snap install --dangerous "$COMP_FILE"
+  snap components "$SNAP_NAME" | MATCH "$SNAP_NAME\+big\s+installed\s+standard"
+
+  snap remove --purge "$SNAP_NAME"
+
+  echo "=== Test 2: Snap and component together ==="
+  resize "$SUFFICIENT_SIZE"
+  NEWSIZE=$(($(get_disk_usage) + FREE_MB))
+  resize "${NEWSIZE}M"
+
+  snap set system disk-reservation.size=15M
+  if snap install --dangerous "$SNAP_FILE" "$COMP_FILE" 2>install-error.txt; then
+    echo "expected the snap and component install to fail with a 15MB reservation"
+    exit 1
+  fi
+  MATCH "cannot install \"$SNAP_NAME\" due to low disk space" < install-error.txt
+  not snap list "$SNAP_NAME"
+
+  snap set system disk-reservation.size=2M
+  snap install --dangerous "$SNAP_FILE" "$COMP_FILE"
+  snap components "$SNAP_NAME" | MATCH "$SNAP_NAME\+big\s+installed\s+standard"
+
+  echo "=== Test 3: Unset reservation skips the checks ==="
+  snap remove --purge "$SNAP_NAME"
+  resize "$SUFFICIENT_SIZE"
+  NEWSIZE=$(($(get_disk_usage) + SMALL_FREE_MB))
+  resize "${NEWSIZE}M"
+
+  # a reservation of the same size as the fallback reservation does not fit
+  # together with the component. this makes sure that the install with an
+  # unset reservation fails if the checks use the fallback reservation.
+  snap set system disk-reservation.size=5M
+  if snap install --dangerous "$SNAP_FILE" "$COMP_FILE" 2>install-error.txt; then
+    echo "expected the snap and component install to fail with a 5MB reservation"
+    exit 1
+  fi
+  MATCH "cannot install \"$SNAP_NAME\" due to low disk space" < install-error.txt
+  not snap list "$SNAP_NAME"
+
+  snap unset system disk-reservation.size
+  snap install --dangerous "$SNAP_FILE" "$COMP_FILE"
+  snap components "$SNAP_NAME" | MATCH "$SNAP_NAME\+big\s+installed\s+standard"

@@ -1,3 +1,6 @@
-export GI_TYPELIB_PATH=$SNAP/usr/lib/girepository-1.0:$(ls -d $SNAP/usr/lib/*/girepository-1.0)
+#!/bin/sh
 
-$SNAP/usr/bin/python3 $SNAP/provider.py
+GI_TYPELIB_PATH="$SNAP/usr/lib/girepository-1.0:$(ls -d "$SNAP"/usr/lib/*/girepository-1.0)"
+export GI_TYPELIB_PATH
+
+exec "$SNAP"/bin/python3 "$SNAP"/provider.py

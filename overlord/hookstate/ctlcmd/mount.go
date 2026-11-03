@@ -207,7 +207,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			return err
 		}
 
-		if connRef.PlugRef.Snap != instanceName.String() {
+		if connRef.PlugRef.Snap != instanceName {
 			continue
 		}
 

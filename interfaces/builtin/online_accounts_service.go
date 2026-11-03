@@ -138,6 +138,13 @@ func (iface *onlineAccountsServiceInterface) AutoConnect(plug *snap.PlugInfo, sl
 	return true
 }
 
+func (iface *onlineAccountsServiceInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the online accounts service owns the well-known bus name
+	// com.ubuntu.OnlineAccounts.Manager on the session bus; only one snap
+	// instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&onlineAccountsServiceInterface{})
 }
