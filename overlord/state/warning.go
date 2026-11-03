@@ -248,9 +248,14 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) {
 		addNoticeOptions.Data["show-after"] = options.ShowAfter.String()
 	}
 
+	if addNoticeOptions.Time.IsZero() {
+		addNoticeOptions.Time = s.NextNoticeTimestamp()
+	}
+	timestamp := addNoticeOptions.Time
+
 	// Get the existing notice data, if present, to persist the "last-shown" value
 	existing := s.noticeBackingWarning(message)
-	if existing != nil && !existing.Expired(s.peekNextNoticeTimestamp()) {
+	if existing != nil && !existing.Expired(timestamp) {
 		if lastShown, ok := existing.lastData["last-shown"]; ok {
 			addNoticeOptions.Data["last-shown"] = lastShown
 		}

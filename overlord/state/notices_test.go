@@ -165,7 +165,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["last-data"], DeepEquals, map[string]any{"fizz": "buzz"})
 }
 
-func (s *noticesSuite) TestReoccurForExpiredNotice(c *C) {
+func (s *noticesSuite) TestAddNoticeForExistingExpiredNotice(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()

@@ -356,7 +356,6 @@ func (t NoticeType) Valid() bool {
 
 // nextNoticeTimestamp is a helper that returns a notice timestamp which is
 // guaranteed to be after the current lastNoticeTimestamp. The
-//
 // lastNoticeTimestampMu must be held by the caller.
 func (s *State) nextNoticeTimestamp() time.Time {
 	now := timeNow().UTC()
@@ -385,14 +384,6 @@ func (s *State) NextNoticeTimestamp() time.Time {
 	defer s.lastNoticeTimestampMu.Unlock()
 	s.lastNoticeTimestamp = s.nextNoticeTimestamp()
 	return s.lastNoticeTimestamp
-}
-
-// peekNextNoticeTimestamp returns the next notice timestamp without updating
-// lastNoticeTimestamp.
-func (s *State) peekNextNoticeTimestamp() time.Time {
-	s.lastNoticeTimestampMu.Lock()
-	defer s.lastNoticeTimestampMu.Unlock()
-	return s.nextNoticeTimestamp()
 }
 
 // getLastNoticeTimestamp returns the current lastNoticeTimestamp.
