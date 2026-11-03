@@ -490,27 +490,27 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 		return nil, fmt.Errorf("internal error: %w", err)
 	}
 
-	now := options.Time
-	if now.IsZero() {
-		now = s.NextNoticeTimestamp()
+	timestamp := options.Time
+	if timestamp.IsZero() {
+		timestamp = s.NextNoticeTimestamp()
 	} else {
-		now = s.nextUniqueTimestamp(now)
+		timestamp = s.nextUniqueTimestamp(timestamp)
 	}
-	now = now.UTC()
+	timestamp = timestamp.UTC()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
-	if !ok || notice.Expired(now) {
+	if !ok || notice.Expired(timeNow()) {
 		// First occurrence of this notice userID+type+key
 		// or reoccurrence for an expired but not yet pruned notice userID+type+key.
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, options.ExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, timestamp, options.Data, options.RepeatAfter, options.ExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(timestamp, options.Data, options.RepeatAfter)
 		s.notices[uniqueKey] = notice
 	}
 

@@ -198,6 +198,40 @@ func (s *noticesSuite) TestAddNoticeForExistingExpiredNotice(c *C) {
 	// expired notice is not available
 	c.Assert(st.Notice(id1), IsNil)
 }
+func (s *noticesSuite) TestAddNoticeBackdatedForExistingExpiredNotice(c *C) {
+	now := time.Now().UTC()
+	restore := state.MockTime(now)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t0 := now.Add(-8 * 24 * time.Hour)
+
+	_, err := st.AddNotice(nil, state.ChangeUpdateNotice, "A",
+		&state.AddNoticeOptions{Time: t0, ExpireAfter: 7 * 24 * time.Hour})
+	c.Assert(err, IsNil)
+	_, err = st.AddNotice(nil, state.ChangeUpdateNotice, "B",
+		&state.AddNoticeOptions{Time: t0, ExpireAfter: 28 * 24 * time.Hour})
+	c.Assert(err, IsNil)
+	// Backdated reoccurrence should not repeat A.
+	t1 := now.Add(-6 * 24 * time.Hour)
+	id, err := st.AddNotice(nil, state.ChangeUpdateNotice, "A",
+		&state.AddNoticeOptions{Time: t1, ExpireAfter: 7 * 24 * time.Hour, RepeatAfter: 72 * time.Hour})
+	c.Assert(err, IsNil)
+	// Notice gets t1, not the stale t0.
+	c.Check(st.Notice(id).LastRepeated().Equal(t1), Equals, true)
+	c.Check(st.Notice(id).LastRepeated().Equal(t0), Equals, false)
+
+	ns := st.Notices(nil)
+	c.Assert(ns, HasLen, 2)
+	seen := map[time.Time]bool{}
+	for _, n := range ns {
+		seen[n.LastRepeated()] = true
+	}
+	c.Check(seen, HasLen, 2)
+}
 
 func (s *noticesSuite) TestDeepCopy(c *C) {
 	id := "foo"
