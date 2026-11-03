@@ -112,7 +112,7 @@ func (w *Warning) lastAdded() time.Time {
 	// Since repeatAfter is always 0 for warnings, the value for
 	// lastOccurred and lastRepeated are equal. Notices are
 	// guaranteed to be sorted by their lastRepeated and
-	// lastAdded is used as the time stramp for warnings in
+	// lastAdded is used as the timestamp for warnings in
 	// WarningSummary, Therefore, lastAdded is set to lastRepeated.
 	return w.notice.lastRepeated
 }
