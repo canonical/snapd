@@ -413,14 +413,30 @@ func (s *State) PendingWarnings() ([]*Warning, time.Time) {
 // State lock does not need to be held, as the notices mutex ensures
 // warnings can be safely read.
 func (s *State) WarningsSummary() (int, time.Time) {
-	var last time.Time
 	s.noticesMu.RLock()
 	defer s.noticesMu.RUnlock()
-	pending, _ := s.pendingWarnings()
-	if len(pending) > 0 {
-		last = pending[len(pending)-1].lastAdded()
+
+	now := timeNow().UTC()
+	if timestamp := s.getLastNoticeTimestamp(); timestamp.After(now) {
+		now = timestamp
 	}
-	return len(pending), last
+
+	noticeFilter := &NoticeFilter{Types: []NoticeType{WarningNotice}}
+	allWarningNotices := s.filterNotices(noticeFilter)
+
+	var last time.Time
+	var n int
+	for _, notice := range allWarningNotices {
+		w := Warning{notice: notice}
+		if w.ShowAfter(now) {
+			n++
+			if w.lastAdded().After(last) {
+				last = w.lastAdded()
+			}
+		}
+	}
+
+	return n, last
 }
 
 // UnshowAllWarnings clears the lastShown timestamp from all the
