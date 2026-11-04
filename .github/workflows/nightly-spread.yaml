@@ -55,15 +55,15 @@ jobs:
     strategy:
       matrix:
         runs-on:
-          - '["ubuntu-24.04"]'
-          - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - '["ubuntu-26.04"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-26.04-arm"]' }}
         toolchain:
           - default
           - FIPS
         variant:
           - test
         exclude:
-          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-26.04-arm"]' }}
             toolchain: FIPS
 
   spread-nightly:
