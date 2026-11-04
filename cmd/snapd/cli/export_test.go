@@ -106,7 +106,6 @@ var (
 
 	ComposeSubCmd = composeSubCmd
 
-	Levenshtein    = levenshtein
 	ClosestCommand = closestCommand
 )
 

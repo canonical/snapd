@@ -30,28 +30,6 @@ type closestSuite struct{}
 
 var _ = Suite(&closestSuite{})
 
-func (s *closestSuite) TestLevenshtein(c *C) {
-	for _, tc := range []struct {
-		a, b string
-		d    int
-	}{
-		{"", "", 0},
-		{"abc", "", 3},
-		{"", "abc", 3},
-		{"install", "install", 0},
-		{"instal", "install", 1},
-		{"install", "instal", 1},
-		{"kitten", "sitting", 3},
-		{"debug", "debgu", 2},
-		{"żółw", "zolw", 3},
-	} {
-		comment := Commentf("%q vs %q", tc.a, tc.b)
-		c.Check(snap.Levenshtein(tc.a, tc.b), Equals, tc.d, comment)
-		// distance is symmetric
-		c.Check(snap.Levenshtein(tc.b, tc.a), Equals, tc.d, comment)
-	}
-}
-
 func (s *closestSuite) TestClosestCommand(c *C) {
 	// build the real parser so that the command tree matches the one
 	// used by the snap command

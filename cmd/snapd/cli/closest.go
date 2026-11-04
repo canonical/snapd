@@ -25,50 +25,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/strutil"
 )
-
-// levenshtein returns the Levenshtein edit distance between two strings,
-// that is the minimum number of single-rune insertions, deletions or
-// substitutions required to turn s into t.
-func levenshtein(s, t string) int {
-	sr := []rune(s)
-	tr := []rune(t)
-
-	if len(sr) == 0 {
-		return len(tr)
-	}
-	if len(tr) == 0 {
-		return len(sr)
-	}
-
-	// only two rows are needed at a time
-	prev := make([]int, len(tr)+1)
-	curr := make([]int, len(tr)+1)
-	for j := range prev {
-		prev[j] = j
-	}
-
-	for i := 1; i <= len(sr); i++ {
-		curr[0] = i
-		for j := 1; j <= len(tr); j++ {
-			cost := 1
-			if sr[i-1] == tr[j-1] {
-				cost = 0
-			}
-			dist := prev[j-1] + cost
-			if v := curr[j-1] + 1; v < dist {
-				dist = v
-			}
-			if v := prev[j] + 1; v < dist {
-				dist = v
-			}
-			curr[j] = dist
-		}
-		prev, curr = curr, prev
-	}
-
-	return prev[len(tr)]
-}
 
 // closestCommand returns the name, or one of the aliases, of the sub-command
 // of parent that is the closest match for the mistyped command name, if any is
@@ -97,7 +56,7 @@ func closestCommand(parent *flags.Command, typo string) (string, bool) {
 	best := ""
 	bestDist := -1
 	for _, name := range names {
-		dist := levenshtein(typo, name)
+		dist := strutil.LevenshteinDistance(typo, name)
 		// keep candidates where fewer than half of the runes need to
 		// be edited; clearly unrelated ones are not useful
 		// suggestions, and must not shadow a closer eligible one
