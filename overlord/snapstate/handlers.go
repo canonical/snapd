@@ -56,6 +56,7 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/integrity/dmverity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
@@ -784,28 +785,40 @@ func checkKernelHasUpdateAssetsTask(t *state.Task) error {
 
 var integrityLookupDataAndCrossCheck = integrity.LookupDataAndCrossCheck
 
-func validatedIntegrityDataFromSnapSetup(st *state.State, snapsup *SnapSetup) (*integrity.IntegrityDataParams, error) {
+var dmverityEnabledForTesting = dmverity.EnabledForTesting
+
+// integrityMountsAllowed reports whether snaps can be mounted with integrity
+// data for the given device context.
+//
+// TODO: decide based on a policy derived from the model in deviceCtx, until
+// then dm-verity is only enabled for testing.
+func integrityMountsAllowed(deviceCtx DeviceContext) bool {
+	return dmverityEnabledForTesting()
+}
+
+func integrityDataForSnap(st *state.State, deviceCtx DeviceContext, sideInfo *snap.SideInfo, snapPath string) (*integrity.IntegrityDataParams, error) {
 	// TODO: when policy for choosing the preferred integrity method is
 	//       implemented, not having integrity data should return an error
 	//       if enforced through some policy
-	// TODO: only mount with integrity data if on UC and model base snap
-	//       has validated integrity data.
-	if snapsup.SideInfo == nil || !snapsup.SideInfo.Revision.Store() {
+	if !integrityMountsAllowed(deviceCtx) {
 		return nil, nil
 	}
-	idp, err := ValidatedIntegrityData(st, snapsup.SideInfo.SnapID, snapsup.SideInfo.Revision)
+	if sideInfo == nil || !sideInfo.Revision.Store() {
+		return nil, nil
+	}
+	idp, err := ValidatedIntegrityData(st, sideInfo.SnapID, sideInfo.Revision)
 	if errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	if _, err := integrityLookupDataAndCrossCheck(snapsup.SnapPath, idp); err != nil {
+	if _, err := integrityLookupDataAndCrossCheck(snapPath, idp); err != nil {
 		if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
-			logger.Noticef("cannot find integrity data for snap %q: %v", snapsup.InstanceName(), err)
+			logger.Noticef("cannot find integrity data for snap-id %q (revision %s): %v", sideInfo.SnapID, sideInfo.Revision, err)
 			return nil, nil
 		}
-		return nil, fmt.Errorf("cannot validate integrity data for snap %q: %w", snapsup.InstanceName(), err)
+		return nil, fmt.Errorf("cannot validate integrity data for snap-id %q (revision %s): %w", sideInfo.SnapID, sideInfo.Revision, err)
 	}
 
 	return idp, nil
@@ -881,7 +894,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Lock()
 		defer st.Unlock()
-		idp, err = validatedIntegrityDataFromSnapSetup(st, snapsup)
+		idp, err = integrityDataForSnap(st, deviceCtx, snapsup.SideInfo, snapsup.SnapPath)
 	}()
 	if err != nil {
 		return err
