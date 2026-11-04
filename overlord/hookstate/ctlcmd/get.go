@@ -220,20 +220,20 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf(`cannot use --with with non-confdb read (missing --view)`)
 	}
 
+	snapName, name, isPlugOrSlot := strings.Cut(c.Positional.PlugOrSlotSpec, ":")
+
 	// --view always reads through a confdb view referenced by a plug, so it
 	// requires a plug spec.
-	if c.View && !strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
+	if c.View && !isPlugOrSlot {
 		return errors.New(i18n.G("cannot use --view without <:plug> argument"))
 	}
 
-	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
-		parts := strings.SplitN(c.Positional.PlugOrSlotSpec, ":", 2)
-		snap, name := parts[0], parts[1]
+	if isPlugOrSlot {
 		if name == "" {
 			return fmt.Errorf("plug or slot name not provided")
 		}
-		if snap != "" {
-			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, parts[1])
+		if snapName != "" {
+			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, name)
 		}
 
 		if c.View {

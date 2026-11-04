@@ -102,6 +102,9 @@ var getTests = []struct {
 	args:  "get :foo bar",
 	error: ".*interface attributes can only be read during the execution of interface hooks.*",
 }, {
+	args:  "get mysnap:myplug bar",
+	error: `"snapctl get mysnap:myplug" not supported, use "snapctl get :myplug" instead`,
+}, {
 	args:   "get test-key1",
 	stdout: "test-value1\n",
 }, {
