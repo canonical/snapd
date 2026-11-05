@@ -336,6 +336,8 @@ func (s *modelSuite) TestModelCommandSnapdControlPlugParallelInstance(c *C) {
 	s.addSnapDeclaration(c, "snap1-control-id", "other-brand", "snap1-control")
 
 	s.state.Lock()
+	defer s.state.Unlock()
+
 	current := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
@@ -372,28 +374,33 @@ func (s *modelSuite) TestModelCommandSnapdControlPlugParallelInstance(c *C) {
 	ctxSnap := contextFor("snap1-control")
 	ctxInstance := contextFor("snap1-control_x")
 
+	// run snapctl model without holding the state lock
+	runModel := func(ctx *hookstate.Context) (stderr []byte, err error) {
+		s.state.Unlock()
+		defer s.state.Lock()
+		_, stderr, _, err = ctlcmd.Run(ctx, []string{"model"}, 0, nil)
+		return stderr, err
+	}
+
 	// only snap1-control has snapd-control connected
 	s.state.Set("conns", map[string]any{
 		"snap1-control:snapd-control core:snapd-control": map[string]any{"interface": "snapd-control"},
 	})
-	s.state.Unlock()
 
-	_, _, _, err = ctlcmd.Run(ctxSnap, []string{"model"}, 0, nil)
+	_, err = runModel(ctxSnap)
 	c.Check(err, IsNil)
-	_, stderr, _, err := ctlcmd.Run(ctxInstance, []string{"model"}, 0, nil)
+	stderr, err := runModel(ctxInstance)
 	c.Check(err, ErrorMatches, `insufficient permissions to get model assertion for snap "snap1-control_x"`)
 	c.Check(string(stderr), Matches, `cannot get model assertion for snap "snap1-control_x": .*\n`)
 
 	// only snap1-control_x has snapd-control connected
-	s.state.Lock()
 	s.state.Set("conns", map[string]any{
 		"snap1-control_x:snapd-control core:snapd-control": map[string]any{"interface": "snapd-control"},
 	})
-	s.state.Unlock()
 
-	_, _, _, err = ctlcmd.Run(ctxInstance, []string{"model"}, 0, nil)
+	_, err = runModel(ctxInstance)
 	c.Check(err, IsNil)
-	_, _, _, err = ctlcmd.Run(ctxSnap, []string{"model"}, 0, nil)
+	_, err = runModel(ctxSnap)
 	c.Check(err, ErrorMatches, `insufficient permissions to get model assertion for snap "snap1-control"`)
 }
 
