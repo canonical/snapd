@@ -102,11 +102,10 @@ func (s *accelSuite) TestConnectedPlugSnippet(c *C) {
 		"/sys/devices/pci*/**/{device,npu_busy_time_us,npu_memory_utilization} r,",
 		"/sys/module/intel_vpu/version r,",
 		"/sys/kernel/debug/accel/*/fw_version r,",
-		"/sys/class/intel_pmt/ r,",
-		"/sys/devices/pci*/**/intel_pmt/telem[0-9]*/{guid,size,offset,telem} r,",
 	} {
 		c.Check(apparmorSpec.SnippetForTag("snap.accel.app"), testutil.Contains, rule+"\n")
 	}
+	c.Check(apparmorSpec.SnippetForTag("snap.accel.app"), Not(testutil.Contains), "intel_pmt")
 
 	appSet, err = interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)

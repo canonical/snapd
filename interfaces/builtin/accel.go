@@ -54,11 +54,6 @@ const accelConnectedPlugAppArmor = `
 
 # Firmware version reported by the accelerator's debugfs entry.
 /sys/kernel/debug/accel/*/fw_version r,
-
-# Intel Platform Monitoring Technology (PMT) discovery, platform GUID and
-# telemetry data for NPU power, frequency, temperature and memory bandwidth.
-/sys/class/intel_pmt/ r,
-/sys/devices/pci*/**/intel_pmt/telem[0-9]*/{guid,size,offset,telem} r,
 `
 
 var accelConnectedPlugUDev = []string{
