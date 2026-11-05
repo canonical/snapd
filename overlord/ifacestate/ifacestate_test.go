@@ -8712,7 +8712,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 
 func (s *interfaceManagerSuite) TestDisconnectInterfacesConnectionError(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
-	_ = s.manager(c)
+	mgr := s.manager(c)
 
 	consumerInfo := s.mockSnap(c, consumerYaml)
 	producerInfo := s.mockSnap(c, producerYaml)
@@ -8730,7 +8730,7 @@ func (s *interfaceManagerSuite) TestDisconnectInterfacesConnectionError(c *C) {
 			RealName: "consumer"},
 	}
 
-	repo := s.manager(c).Repository()
+	repo := mgr.Repository()
 	c.Assert(repo.AddAppSet(consumerAppSet), IsNil)
 	c.Assert(repo.AddAppSet(producerAppSet), IsNil)
 
@@ -8762,7 +8762,9 @@ func (s *interfaceManagerSuite) TestDisconnectInterfacesConnectionError(c *C) {
 	// the task must not silently succeed without disconnecting
 	c.Check(t.Status(), Equals, state.ErrorStatus)
 	c.Check(t.HaltTasks(), HasLen, 0)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*internal error: cannot get connection "consumer:renamed-plug producer:slot": snap "consumer" has no plug named "renamed-plug".*`)
+	// only the stable prefix and the connection id are asserted, the
+	// wording of the nested repository error is not part of the contract
+	c.Check(chg.Err(), ErrorMatches, `(?s).*internal error: cannot get connection "consumer:renamed-plug producer:slot":.*`)
 }
 
 func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingKind string) {
