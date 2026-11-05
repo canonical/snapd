@@ -175,6 +175,14 @@ func MockMuxVars(vars func(*http.Request) map[string]string) (restore func()) {
 	}
 }
 
+func MockStacktraces(stack func([]byte, bool) int, initialSize, maxSize int) (restore func()) {
+	restore = testutil.BackupMany(&runtimeStack, &stacktracesInitialSize, &stacktracesMaxSize)
+	runtimeStack = stack
+	stacktracesInitialSize = initialSize
+	stacktracesMaxSize = maxSize
+	return restore
+}
+
 func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	old := shutdownTimeout
 	shutdownTimeout = tm

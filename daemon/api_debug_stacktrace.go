@@ -23,9 +23,36 @@ import (
 	"runtime"
 )
 
+var (
+	runtimeStack = runtime.Stack
+
+	// stacktracesInitialSize is the initial size of the buffer used to
+	// collect the stack traces of all goroutines.
+	stacktracesInitialSize = 64 * 1024
+	// stacktracesMaxSize is the upper bound on the size of the buffer used
+	// to collect the stack traces of all goroutines.
+	stacktracesMaxSize = 16 * 1024 * 1024
+)
+
+const stacktracesTruncatedMarker = "\n... stack traces truncated\n"
+
 func getStacktraces() Response {
-	stack := make([]byte, 65535)
-	all := true
-	n := runtime.Stack(stack, all)
-	return SyncResponse(string(stack[:n]))
+	size := stacktracesInitialSize
+	for {
+		stack := make([]byte, size)
+		const all = true
+		n := runtimeStack(stack, all)
+		if n < len(stack) {
+			return SyncResponse(string(stack[:n]))
+		}
+		if size >= stacktracesMaxSize {
+			// the buffer was filled up to the bound, the output is
+			// most likely incomplete
+			return SyncResponse(string(stack[:n]) + stacktracesTruncatedMarker)
+		}
+		size *= 2
+		if size > stacktracesMaxSize {
+			size = stacktracesMaxSize
+		}
+	}
 }
