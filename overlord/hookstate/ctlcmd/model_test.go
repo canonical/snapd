@@ -43,9 +43,11 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -325,6 +327,74 @@ func (s *modelSuite) TestHappyModelCommandSnapdControlPlug(c *C) {
 	c.Check(err, IsNil)
 	c.Check(len(string(stdout)) > 0, Equals, true)
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *modelSuite) TestModelCommandSnapdControlPlugParallelInstance(c *C) {
+	// Verify that the snapd-control connection is checked for the
+	// requesting snap instance and not for any instance of the same snap.
+	s.setupBrands()
+	s.addSnapDeclaration(c, "snap1-control-id", "other-brand", "snap1-control")
+
+	s.state.Lock()
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	mockInstalledSnap(c, s.state, snapWithSnapdControlOnlyYaml, "")
+	info := snaptest.MockSnapInstanceCurrent(c, "snap1-control_x", snapWithSnapdControlOnlyYaml, &snap.SideInfo{Revision: snap.R(1)})
+	snapstate.Set(s.state, "snap1-control_x", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snap1-control",
+			Revision: info.Revision,
+			SnapID:   "snap1-control-id",
+		}}),
+		Current:     info.Revision,
+		InstanceKey: "x",
+	})
+
+	contextFor := func(instanceName string) *hookstate.Context {
+		task := s.state.NewTask("test-task", "my test task")
+		setup := &hookstate.HookSetup{Snap: instanceName, Revision: snap.R(1), Hook: "test-hook"}
+		ctx, err := hookstate.NewContext(task, s.state, setup, s.mockHandler, "")
+		c.Assert(err, IsNil)
+		return ctx
+	}
+	ctxSnap := contextFor("snap1-control")
+	ctxInstance := contextFor("snap1-control_x")
+
+	// only snap1-control has snapd-control connected
+	s.state.Set("conns", map[string]any{
+		"snap1-control:snapd-control core:snapd-control": map[string]any{"interface": "snapd-control"},
+	})
+	s.state.Unlock()
+
+	_, _, _, err = ctlcmd.Run(ctxSnap, []string{"model"}, 0, nil)
+	c.Check(err, IsNil)
+	_, stderr, _, err := ctlcmd.Run(ctxInstance, []string{"model"}, 0, nil)
+	c.Check(err, ErrorMatches, `insufficient permissions to get model assertion for snap "snap1-control_x"`)
+	c.Check(string(stderr), Matches, `cannot get model assertion for snap "snap1-control_x": .*\n`)
+
+	// only snap1-control_x has snapd-control connected
+	s.state.Lock()
+	s.state.Set("conns", map[string]any{
+		"snap1-control_x:snapd-control core:snapd-control": map[string]any{"interface": "snapd-control"},
+	})
+	s.state.Unlock()
+
+	_, _, _, err = ctlcmd.Run(ctxInstance, []string{"model"}, 0, nil)
+	c.Check(err, IsNil)
+	_, _, _, err = ctlcmd.Run(ctxSnap, []string{"model"}, 0, nil)
+	c.Check(err, ErrorMatches, `insufficient permissions to get model assertion for snap "snap1-control"`)
 }
 
 func (s *modelSuite) TestHappyModelCommandPublisherYaml(c *C) {
