@@ -38,28 +38,27 @@ func (s *closestSuite) TestClosestCommand(c *C) {
 	for _, tc := range []struct {
 		typo string
 		name string
-		ok   bool
 	}{
-		{"instal", "install", true},
-		{"isntall", "install", true},
-		{"lst", "list", true},
-		{"remov", "remove", true},
+		{"instal", "install"},
+		{"isntall", "install"},
+		{"lst", "list"},
+		{"remov", "remove"},
+		// "akc" is one transposition away from "ack"
+		{"akc", "ack"},
 		// command names are matched case-insensitively
-		{"INSTALL", "install", true},
-		{"Install", "install", true},
-		{"inSTALL", "install", true},
+		{"INSTALL", "install"},
+		{"Install", "install"},
+		{"inSTALL", "install"},
 		// command aliases are valid suggestions
-		{"chage", "change", true},
-		{"seach", "search", true},
-		{"xyzzy", "", false},
+		{"chage", "change"},
+		{"seach", "search"},
+		{"xyzzy", ""},
 		// clearly unrelated commands must not produce a suggestion
-		{"readme", "", false},
-		{"", "", false},
+		{"readme", ""},
+		{"", ""},
 	} {
-		name, ok := snap.ClosestCommand(parser.Command, tc.typo)
 		comment := Commentf("typo %q", tc.typo)
-		c.Check(ok, Equals, tc.ok, comment)
-		c.Check(name, Equals, tc.name, comment)
+		c.Check(snap.ClosestCommand(parser.Command, tc.typo), Equals, tc.name, comment)
 	}
 }
 
@@ -68,9 +67,7 @@ func (s *closestSuite) TestClosestCommandSubCommands(c *C) {
 	debug := parser.Command.Find("debug")
 	c.Assert(debug, NotNil)
 
-	name, ok := snap.ClosestCommand(debug, "stat")
-	c.Check(ok, Equals, true)
-	c.Check(name, Equals, "state")
+	c.Check(snap.ClosestCommand(debug, "stat"), Equals, "state")
 }
 
 func (s *closestSuite) TestClosestCommandHidden(c *C) {
@@ -82,9 +79,7 @@ func (s *closestSuite) TestClosestCommandHidden(c *C) {
 	hidden.Hidden = true
 
 	// hidden commands are still runnable, so they are suggested too
-	name, ok := snap.ClosestCommand(parser.Command, "internal-thin")
-	c.Check(ok, Equals, true)
-	c.Check(name, Equals, "internal-thing")
+	c.Check(snap.ClosestCommand(parser.Command, "internal-thin"), Equals, "internal-thing")
 }
 
 func (s *closestSuite) TestClosestCommandIneligibleNotPreferred(c *C) {
@@ -96,9 +91,7 @@ func (s *closestSuite) TestClosestCommandIneligibleNotPreferred(c *C) {
 
 	// "ack" sorts first and is equally distant, but does not pass the
 	// distance cutoff, so "tasks" is suggested instead
-	name, ok := snap.ClosestCommand(parser.Command, "aks")
-	c.Check(ok, Equals, true)
-	c.Check(name, Equals, "tasks")
+	c.Check(snap.ClosestCommand(parser.Command, "aks"), Equals, "tasks")
 }
 
 func (s *closestSuite) TestClosestCommandEquidistant(c *C) {
@@ -110,13 +103,9 @@ func (s *closestSuite) TestClosestCommandEquidistant(c *C) {
 
 	// both candidates are one edit away from the typo, the
 	// lexicographically first one wins
-	name, ok := snap.ClosestCommand(parser.Command, "cap")
-	c.Check(ok, Equals, true)
-	c.Check(name, Equals, "car")
+	c.Check(snap.ClosestCommand(parser.Command, "cap"), Equals, "car")
 }
 
 func (s *closestSuite) TestClosestCommandNil(c *C) {
-	name, ok := snap.ClosestCommand(nil, "install")
-	c.Check(ok, Equals, false)
-	c.Check(name, Equals, "")
+	c.Check(snap.ClosestCommand(nil, "install"), Equals, "")
 }

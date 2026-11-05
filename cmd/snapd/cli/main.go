@@ -656,7 +656,7 @@ func run() error {
 						parent = innermost
 					}
 				}
-				if closest, ok := closestCommand(parent, sub); ok {
+				if closest := closestCommand(parent, sub); closest != "" {
 					// TRANSLATORS: %q is the command the user entered, %q is the closest known command and %s is 'snap help' or 'snap help <cmd>'
 					return unknownCommandError{fmt.Sprintf(i18n.G("unknown command %q, did you mean %q?\nSee '%s' for list of available commands."), sub, closest, sug)}
 				}

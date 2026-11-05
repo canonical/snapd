@@ -326,14 +326,17 @@ func (s *SnapSuite) TestUnknownCommandSuggestionNestedSibling(c *C) {
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionTransposition(c *C) {
-	restore := mockArgs("snap", "debgu")
-	defer restore()
+	// a transposition of two adjacent characters is a single edit
+	for _, tc := range []struct{ typo, name string }{
+		{"debgu", "debug"},
+		{"akc", "ack"},
+	} {
+		restore := mockArgs("snap", tc.typo)
+		defer restore()
 
-	// "debgu" is a transposition of "debug"; Levenshtein distance only
-	// counts single character edits, so it is two edits away and the
-	// relative distance is still low enough to suggest it.
-	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "debgu", did you mean "debug"\?\nSee 'snap help' for list of available commands\.`)
+		err := snap.RunMain()
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`unknown command %q, did you mean %q\?\nSee 'snap help' for list of available commands\.`, tc.typo, tc.name))
+	}
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionAlias(c *C) {

@@ -22,22 +22,19 @@ package cli
 import (
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/strutil"
 )
 
-// closestCommand returns the name, or one of the aliases, of the sub-command
-// of parent that is the closest match for the mistyped command name, if any is
+// closestCommand returns the name, or one of the aliases, of the sub-command of
+// parent that is the closest match for the mistyped command name, if any is
 // close enough. Hidden commands are considered too, since they are still
-// runnable. A candidate is only returned when the edit distance relative to
-// its length is small enough so that clearly unrelated commands do not yield a
-// suggestion.
-func closestCommand(parent *flags.Command, typo string) (string, bool) {
+// runnable.
+func closestCommand(parent *flags.Command, typo string) string {
 	if parent == nil {
-		return "", false
+		return ""
 	}
 
 	var names []string
@@ -53,22 +50,5 @@ func closestCommand(parent *flags.Command, typo string) (string, bool) {
 	// in any case, so normalize the typo before comparing
 	typo = strings.ToLower(typo)
 
-	best := ""
-	bestDist := -1
-	for _, name := range names {
-		dist := strutil.LevenshteinDistance(typo, name)
-		// keep candidates where fewer than half of the runes need to
-		// be edited; clearly unrelated ones are not useful
-		// suggestions, and must not shadow a closer eligible one
-		if float64(dist)/float64(utf8.RuneCountInString(name)) >= 0.5 {
-			continue
-		}
-		if bestDist < 0 || dist < bestDist {
-			best, bestDist = name, dist
-		}
-	}
-	if bestDist < 0 {
-		return "", false
-	}
-	return best, true
+	return strutil.ClosestMatch(typo, names)
 }
