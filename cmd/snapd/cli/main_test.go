@@ -294,7 +294,7 @@ func (s *SnapSuite) TestUnknownCommandSuggestion(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "instal", did you mean "install"\?\nSee 'snap help' for list of available commands\.`)
+	c.Assert(err, ErrorMatches, `unknown command "instal", did you mean "install"\?\nSee 'snap help'\.`)
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionSub(c *C) {
@@ -302,7 +302,7 @@ func (s *SnapSuite) TestUnknownCommandSuggestionSub(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "stat", did you mean "state"\?\nSee 'snap help debug' for list of available commands\.`)
+	c.Assert(err, ErrorMatches, `unknown command "stat", did you mean "state"\?\nSee 'snap help debug'\.`)
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionNested(c *C) {
@@ -312,7 +312,7 @@ func (s *SnapSuite) TestUnknownCommandSuggestionNested(c *C) {
 	// suggestions come from the sub-commands of "execution" and the help
 	// path covers the whole command chain
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "internal-tol", did you mean "internal-tool"\?\nSee 'snap help debug execution' for list of available commands\.`)
+	c.Assert(err, ErrorMatches, `unknown command "internal-tol", did you mean "internal-tool"\?\nSee 'snap help debug execution'\.`)
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionNestedSibling(c *C) {
@@ -335,7 +335,7 @@ func (s *SnapSuite) TestUnknownCommandSuggestionTransposition(c *C) {
 		defer restore()
 
 		err := snap.RunMain()
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`unknown command %q, did you mean %q\?\nSee 'snap help' for list of available commands\.`, tc.typo, tc.name))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`unknown command %q, did you mean %q\?\nSee 'snap help'\.`, tc.typo, tc.name))
 	}
 }
 
@@ -345,7 +345,7 @@ func (s *SnapSuite) TestUnknownCommandSuggestionAlias(c *C) {
 
 	// "change" is an alias of "tasks" and a closer match than "changes"
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "chage", did you mean "change"\?\nSee 'snap help' for list of available commands\.`)
+	c.Assert(err, ErrorMatches, `unknown command "chage", did you mean "change"\?\nSee 'snap help'\.`)
 }
 
 func (s *SnapSuite) TestUnknownCommandSuggestionCaseInsensitive(c *C) {
@@ -353,7 +353,7 @@ func (s *SnapSuite) TestUnknownCommandSuggestionCaseInsensitive(c *C) {
 	defer restore()
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "INSTAL", did you mean "install"\?\nSee 'snap help' for list of available commands\.`)
+	c.Assert(err, ErrorMatches, `unknown command "INSTAL", did you mean "install"\?\nSee 'snap help'\.`)
 }
 
 func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
