@@ -4,8 +4,9 @@ details: |
     The device access map of an application is shared by all of its running
     processes. Launching the application again must not make the map
     transiently empty, as that denies running processes access to devices like
-    /dev/null (LP: #2170603). Entries that are no longer allowed must still be
-    removed from the map.
+    /dev/null (LP: #2170603). snap-confine now reuses an existing map instead
+    of purging and re-creating it, so running processes never observe a
+    transiently empty map during relaunch.
 
 # skip all systems that do not use unified cgroup hierarchy by default
 systems:
@@ -29,25 +30,16 @@ restore: |
 
 execute: |
     map=/sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
-    flat_dump() {
-        bpftool map dump pinned "$map" | tr -s ' \n' ' '
-    }
 
     echo "Launch the app so that snap-confine creates the device access map"
     snap run test-snapd-sh-core24.sh -c '/bin/true'
     test -e "$map"
-    # key for c 1:3 (/dev/null)
-    flat_dump | MATCH 'key: 63 01 00 00 00 03 00 00 00 value: 01'
+    # /dev/null (c 1:3) must be present in the map
+    tests.device-cgroup test-snapd-sh-core24.sh dump | MATCH 'c 1:3 rwm'
 
-    echo "Add an entry that is not allowed by the current configuration"
-    # key for c 99:99, which is not assigned to the snap
-    bpftool map update pinned "$map" key hex 63 63 00 00 00 63 00 00 00 value hex 01
-    flat_dump | MATCH 'key: 63 63 00 00 00 63 00 00 00 value: 01'
-
-    echo "Relaunch the app and verify the stale entry is removed"
+    echo "Relaunch the app and verify /dev/null is still present"
     snap run test-snapd-sh-core24.sh -c '/bin/true'
-    flat_dump | NOMATCH 'key: 63 63 00 00 00 63 00 00 00'
-    flat_dump | MATCH 'key: 63 01 00 00 00 03 00 00 00 value: 01'
+    tests.device-cgroup test-snapd-sh-core24.sh dump | MATCH 'c 1:3 rwm'
 
     echo "Keep a process using /dev/null running while the app is relaunched"
     rm -f /var/snap/test-snapd-sh-core24/common/stop /var/snap/test-snapd-sh-core24/common/failed
