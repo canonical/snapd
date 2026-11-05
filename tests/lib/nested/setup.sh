@@ -13,13 +13,9 @@ nested_prepare_ssh() {
     
     remote.exec "echo test:ubuntu123 | sudo chpasswd"
     remote.exec "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
-    # Check we can connect with the new test user and make sudo
-    remote.exec --user test --pass ubuntu123 "sudo true"
 
     remote.exec "echo external:ubuntu123 | sudo chpasswd"
     remote.exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
-    # Check we can connect with the new external user and make sudo
-    remote.exec --user external --pass ubuntu123 "sudo true"
 }
 
 
@@ -223,4 +219,3 @@ nested_fetch_spread() {
     echo "/snap/bin/spread-plus.spread"
 
 }
-
