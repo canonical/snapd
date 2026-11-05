@@ -204,6 +204,65 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *SnapSuite) TestKnownRemoteDirectNonPrimaryKeyFilter(c *check.C) {
+	var server *httptest.Server
+
+	restorer := snap.MockStoreNew(func(cfg *store.Config, stoCtx store.DeviceAndAuthContext) *store.Store {
+		if cfg == nil {
+			cfg = store.DefaultConfig()
+		}
+		serverURL, _ := url.Parse(server.URL)
+		cfg.AssertionsBaseURL = serverURL
+		return store.New(cfg, stoCtx)
+	})
+	defer restorer()
+
+	n := 0
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/assertions/model/16/canonical/pi99")
+		fmt.Fprint(w, mockModelAssertion)
+		n++
+	}))
+	defer server.Close()
+
+	// architecture is not part of the primary key and does not match
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99", "architecture=amd64"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+
+	// architecture is not part of the primary key and matches
+	s.stdout.Reset()
+	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"known", "--direct", "model", "series=16", "brand-id=canonical", "model=pi99", "architecture=armhf"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, mockModelAssertion)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 2)
+}
+
+func (s *SnapSuite) TestKnownRemoteViaSnapdNonPrimaryKeyFilter(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/assertions/model")
+		c.Check(r.URL.Query().Get("architecture"), check.Equals, "amd64")
+		// a snapd that does not apply non-primary-key filters to
+		// remote queries
+		w.Header().Set("X-Ubuntu-Assertions-Count", "1")
+		fmt.Fprint(w, mockModelAssertion)
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "model", "series=16", "brand-id=canonical", "model=pi99", "architecture=amd64"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(n, check.Equals, 1)
+}
+
 func (s *SnapSuite) TestKnownRemoteMissingPrimaryKey(c *check.C) {
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"known", "--remote", "--direct", "model", "series=16", "brand-id=canonical"})
 	c.Assert(err, check.ErrorMatches, `cannot query remote assertion: must provide primary key: model`)
