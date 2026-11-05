@@ -4,7 +4,7 @@ details: |
   Launch the snapd-dev workshop and check that static and unit tests pass
   within it.
 
-systems: [ubuntu-24.04-64]
+systems: [ubuntu-24.04-64, ubuntu-26.04-64]
 
 kill-timeout: 90m
 
