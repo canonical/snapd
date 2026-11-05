@@ -316,6 +316,81 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFiltersBaseDirs(c *C) {
 	})
 }
 
+// realSystemd is created before any test mocks the systemd constructor.
+var realSystemd = systemd.New(systemd.SystemMode, nil)
+
+// mockMountUnitsOfSnapsWithCommonNamePrefix mocks systemctl to report snapctl
+// mount units of snap "foo", of snap "foobar", of the parallel instance
+// "foo_x" and the (origin-less) mount unit of component "foo+comp".
+// All mount points are under the data directory of foo revision 3.
+func mockMountUnitsOfSnapsWithCommonNamePrefix(c *C) (restore func(), fooMount, foobarMount, fooXMount string) {
+	fooMount = fmt.Sprintf("%s/var/snap/foo/3/mnt", dirs.GlobalRootDir)
+	foobarMount = fmt.Sprintf("%s/var/snap/foo/3/foobar-mnt", dirs.GlobalRootDir)
+	fooXMount = fmt.Sprintf("%s/var/snap/foo/3/foo_x-mnt", dirs.GlobalRootDir)
+	restore, err := systemdtest.MockSystemctlForOriginMountUnits(c.MkDir(), []systemdtest.OriginMountUnit{
+		{Description: "Mount unit for foo, revision 3 via mount-control", Where: fooMount, Origin: "mount-control"},
+		{Description: "Mount unit for foobar, revision 1 via mount-control", Where: foobarMount, Origin: "mount-control"},
+		{Description: "Mount unit for foo_x, revision 1 via mount-control", Where: fooXMount, Origin: "mount-control"},
+		{Description: "Mount unit for foo+comp, revision 1", Where: "/snap/foo/components/mnt/comp/1"},
+	})
+	c.Assert(err, IsNil)
+	return restore, fooMount, foobarMount, fooXMount
+}
+
+func (s *mountunitSuite) TestRemoveSnapMountUnitsOnlyOwnUnitsOfSnapWithCommonNamePrefix(c *C) {
+	restore, fooMount, _, _ := mockMountUnitsOfSnapsWithCommonNamePrefix(c)
+	defer restore()
+
+	var sysd *systemdtest.FakeSystemd
+	restore = systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &systemdtest.FakeSystemd{ListMountUnitsDelegate: realSystemd}
+		return sysd
+	})
+	defer restore()
+
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(3)}}
+	b := backend.Backend{}
+	for _, origin := range []string{"", "mount-control"} {
+		err := b.RemoveContainerMountUnits(info, progress.Null, origin, nil)
+		c.Assert(err, IsNil)
+		// Units of foobar and foo_x are left alone.
+		c.Check(sysd.RemoveMountUnitFileCalls, DeepEquals, []string{fooMount}, Commentf("origin %q", origin))
+	}
+}
+
+func (s *mountunitSuite) testListNonSnapctlMountsOtherSnapsWithCommonNamePrefix(c *C, variant scope) {
+	restore, fooMount, foobarMount, fooXMount := mockMountUnitsOfSnapsWithCommonNamePrefix(c)
+	defer restore()
+
+	restore = systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{ListMountUnitsDelegate: realSystemd}
+	})
+	defer restore()
+
+	mountInfoContent := fmt.Sprintf(
+		"36 1 8:1 / %s rw - ext4 /dev/sda1 rw\n"+
+			"37 1 8:2 / %s rw - ext4 /dev/sda2 rw\n"+
+			"38 1 8:3 / %s rw - ext4 /dev/sda3 rw\n",
+		fooMount, foobarMount, fooXMount)
+	restoreMI := osutil.MockMountInfo(mountInfoContent)
+	defer restoreMI()
+
+	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(3)}}
+	fn := variant.fn()
+	mounts, err := fn(info, nil)
+	c.Assert(err, IsNil)
+	// Mounts made by snapctl of other snaps are not snapctl mounts of foo.
+	c.Check(mounts, DeepEquals, []string{foobarMount, fooXMount})
+}
+
+func (s *mountunitSuite) TestListNonSnapctlMountsRevOtherSnapsWithCommonNamePrefix(c *C) {
+	s.testListNonSnapctlMountsOtherSnapsWithCommonNamePrefix(c, scopeRev)
+}
+
+func (s *mountunitSuite) TestListNonSnapctlMountsAllOtherSnapsWithCommonNamePrefix(c *C) {
+	s.testListNonSnapctlMountsOtherSnapsWithCommonNamePrefix(c, scopeAll)
+}
+
 func (s *mountunitSuite) TestIsUnderAnyDirDisallowExactMatch(c *C) {
 	disallowExactMatch := backend.IsUnderAnyDirOptions{}
 	// Subdirectory matches.
