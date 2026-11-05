@@ -130,7 +130,7 @@ func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) er
 	for _, req := range varEqVal {
 		split := strings.SplitN(req, "=", 2)
 		if len(split) != 2 {
-			return fmt.Errorf("incorrect setting %q", varEqVal)
+			return fmt.Errorf("incorrect setting %q", req)
 		}
 		toSet[split[0]] = split[1]
 	}

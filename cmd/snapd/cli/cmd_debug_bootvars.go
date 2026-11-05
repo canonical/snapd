@@ -78,7 +78,7 @@ func (x *cmdBootvarsGet) Execute(args []string) error {
 
 func (x *cmdBootvarsSet) Execute(args []string) error {
 	if release.OnClassic {
-		return errors.New(`the "boot-vars" command is not available on classic systems`)
+		return errors.New(`the "set-boot-vars" command is not available on classic systems`)
 	}
 	return boot.DebugSetBootVars(x.RootDir, x.Recovery, x.Positional.VarEqValue)
 }
