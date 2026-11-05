@@ -211,13 +211,19 @@ func SetFromHookContext(ctx *hookstate.Context) error {
 
 // isStale returns true if the health refers to a revision other than the
 // current revision of the snap, for example because the check-health hook
-// ran for a revision whose installation or refresh was later undone.
+// ran for a revision whose installation or refresh was later undone. It is
+// also stale if it was recorded before the current revision was installed
+// or refreshed to: a local revision number is reused by the next local
+// install after an undone one, so the revision alone does not identify it.
 func isStale(health *HealthState, snapst *snapstate.SnapState) bool {
 	if health.Revision.Unset() {
 		// health recorded without a revision, keep it
 		return false
 	}
-	return snapst == nil || health.Revision != snapst.Current
+	if snapst == nil || health.Revision != snapst.Current {
+		return true
+	}
+	return snapst.LastRefreshTime != nil && health.Timestamp.Before(*snapst.LastRefreshTime)
 }
 
 // All returns the health of all snaps, omitting the health recorded for
