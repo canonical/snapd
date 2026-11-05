@@ -8710,6 +8710,61 @@ func (s *interfaceManagerSuite) TestDisconnectInterfaces(c *C) {
 	}
 }
 
+func (s *interfaceManagerSuite) TestDisconnectInterfacesConnectionError(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	_ = s.manager(c)
+
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	consumerAppSet, err := interfaces.NewSnapAppSet(consumerInfo, nil)
+	c.Assert(err, IsNil)
+
+	producerAppSet, err := interfaces.NewSnapAppSet(producerInfo, nil)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+
+	sup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer"},
+	}
+
+	repo := s.manager(c).Repository()
+	c.Assert(repo.AddAppSet(consumerAppSet), IsNil)
+	c.Assert(repo.AddAppSet(producerAppSet), IsNil)
+
+	_, err = repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// make the repository inconsistent so that the connection reported
+	// by repo.Connections cannot be looked up with repo.Connection
+	plug := repo.Plug("consumer", "plug")
+	c.Assert(plug, NotNil)
+	plug.Name = "renamed-plug"
+
+	chg := s.state.NewChange("remove", "")
+	t := s.state.NewTask("auto-disconnect", "")
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the task must not silently succeed without disconnecting
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Check(t.HaltTasks(), HasLen, 0)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*internal error: cannot get connection "consumer:renamed-plug producer:slot": snap "consumer" has no plug named "renamed-plug".*`)
+}
+
 func (s *interfaceManagerSuite) testDisconnectInterfacesRetry(c *C, conflictingKind string) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	_ = s.manager(c)
