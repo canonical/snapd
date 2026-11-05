@@ -253,3 +253,59 @@ func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
 	// no health in the context -> no health in state
 	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 }
+
+func (s *healthSuite) TestSetFromHookContextUnsetRevisionUsesCurrent(c *check.C) {
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	ctx.Set("health", &healthstate.HealthState{Status: healthstate.OkayStatus})
+	c.Assert(healthstate.SetFromHookContext(ctx), check.IsNil)
+
+	health, err := healthstate.Get(s.state, "test-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(health, check.DeepEquals, &healthstate.HealthState{Revision: snap.R(42), Status: healthstate.OkayStatus})
+}
+
+func (s *healthSuite) TestGetAndAllOmitStaleRevisions(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("health", map[string]*healthstate.HealthState{
+		// current revision
+		"test-snap": {Revision: snap.R(42), Status: healthstate.OkayStatus},
+		// revision is not current (e.g. refresh was undone)
+		"other-snap": {Revision: snap.R(7), Status: healthstate.UnknownStatus},
+		// snap is not installed
+		"gone-snap": {Revision: snap.R(1), Status: healthstate.UnknownStatus},
+		// no revision recorded
+		"norev-snap": {Status: healthstate.WaitingStatus},
+	})
+	sideInfo := &snap.SideInfo{RealName: "other-snap", Revision: snap.R(6)}
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
+		Current:  snap.R(6),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	all, err := healthstate.All(s.state)
+	c.Assert(err, check.IsNil)
+	c.Check(all, check.DeepEquals, map[string]*healthstate.HealthState{
+		"test-snap":  {Revision: snap.R(42), Status: healthstate.OkayStatus},
+		"norev-snap": {Status: healthstate.WaitingStatus},
+	})
+
+	for name, expected := range map[string]*healthstate.HealthState{
+		"test-snap":  {Revision: snap.R(42), Status: healthstate.OkayStatus},
+		"other-snap": nil,
+		"gone-snap":  nil,
+		"norev-snap": {Status: healthstate.WaitingStatus},
+	} {
+		health, err := healthstate.Get(s.state, name)
+		c.Assert(err, check.IsNil)
+		c.Check(health, check.DeepEquals, expected, check.Commentf("%s", name))
+	}
+}

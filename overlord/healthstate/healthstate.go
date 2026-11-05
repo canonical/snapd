@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -174,7 +175,19 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 		}
 		hs = map[string]*HealthState{}
 	}
-	hs[ctx.InstanceName().String()] = health
+	instanceName := ctx.InstanceName().String()
+	if health.Revision.Unset() {
+		// hooks of snaps installed from a file, and snapctl invoked
+		// outside of a hook, do not know the revision; record the
+		// current one so that the health can be told apart from that
+		// of other revisions
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		health.Revision = snapst.Current
+	}
+	hs[instanceName] = health
 	st.Set("health", hs)
 
 	return nil
@@ -196,10 +209,38 @@ func SetFromHookContext(ctx *hookstate.Context) error {
 	return appendHealth(ctx, &health)
 }
 
+// isStale returns true if the health refers to a revision other than the
+// current revision of the snap, for example because the check-health hook
+// ran for a revision whose installation or refresh was later undone.
+func isStale(health *HealthState, snapst *snapstate.SnapState) bool {
+	if health.Revision.Unset() {
+		// health recorded without a revision, keep it
+		return false
+	}
+	return snapst == nil || health.Revision != snapst.Current
+}
+
+// All returns the health of all snaps, omitting the health recorded for
+// revisions that are not current.
 func All(st *state.State) (map[string]*HealthState, error) {
 	var hs map[string]*HealthState
 	if err := st.Get("health", &hs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
+	}
+	if len(hs) == 0 {
+		return hs, nil
+	}
+	snapStates, err := snapstate.All(st)
+	if err != nil {
+		return nil, err
+	}
+	for name, health := range hs {
+		if health == nil {
+			continue
+		}
+		if isStale(health, snapStates[naming.InstanceName(name)]) {
+			delete(hs, name)
+		}
 	}
 	return hs, nil
 }
@@ -221,6 +262,17 @@ func Get(st *state.State, snap string) (*HealthState, error) {
 	var health HealthState
 	if err := json.Unmarshal(buf, &health); err != nil {
 		return nil, err
+	}
+
+	snapst := &snapstate.SnapState{}
+	if err := snapstate.Get(st, snap, snapst); err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return nil, err
+		}
+		snapst = nil
+	}
+	if isStale(&health, snapst) {
+		return nil, nil
 	}
 
 	return &health, nil
