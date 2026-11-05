@@ -22,8 +22,8 @@ nested_prepare_ssh() {
     remote.exec --user external --pass ubuntu123 "sudo true"
 
     # Kill the test and external users' sessions to ensure a clean state
-    remote.exec "loginctl kill-user test"
-    remote.exec "loginctl kill-user external"
+    remote.exec "sudo loginctl kill-user test"
+    remote.exec "sudo loginctl kill-user external"
 }
 
 
