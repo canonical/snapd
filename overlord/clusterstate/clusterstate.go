@@ -232,22 +232,33 @@ func decodeClusterBundle(bundle io.Reader) (*asserts.Batch, *asserts.Cluster, er
 }
 
 // applyClusterState creates the tasks needed to apply the state described by
-// the cluster assertion on this device.
-func applyClusterState(st *state.State, cluster *asserts.Cluster) (map[string]*state.TaskSet, error) {
+// the cluster assertion on this device. Subclusters for which skip returns
+// true, e.g. because a change applying them is still in progress, are not
+// considered.
+func applyClusterState(st *state.State, cluster *asserts.Cluster, skip func(subcluster string) bool) (map[string]*state.TaskSet, error) {
 	serial, err := devicestate.Serial(st)
 	if err != nil {
 		return nil, err
 	}
 
-	deviceID, ok := clusterDeviceIDBySerial(cluster, serial.Serial())
+	device := asserts.DeviceID{
+		Serial:  serial.Serial(),
+		Model:   serial.Model(),
+		BrandID: serial.BrandID(),
+	}
+	deviceID, ok := clusterDeviceID(cluster, device)
 	if !ok {
-		return nil, fmt.Errorf("device with serial %q not found in cluster assertion", serial.Serial())
+		return nil, fmt.Errorf("device %q not found in cluster assertion", device)
 	}
 
 	// mapping of subcluster name to tasks to match desired subcluster state
 	tasksets := make(map[string]*state.TaskSet)
 	for _, subcluster := range cluster.Subclusters() {
 		if !deviceInSubcluster(subcluster, deviceID) {
+			continue
+		}
+
+		if skip(subcluster.Name) {
 			continue
 		}
 
@@ -379,9 +390,9 @@ func deviceInSubcluster(subcluster asserts.Subcluster, deviceID int) bool {
 	return false
 }
 
-func clusterDeviceIDBySerial(cluster *asserts.Cluster, serial string) (int, bool) {
+func clusterDeviceID(cluster *asserts.Cluster, device asserts.DeviceID) (int, bool) {
 	for _, dev := range cluster.Devices() {
-		if dev.Serial == serial {
+		if dev.DeviceID == device {
 			return dev.ID, true
 		}
 	}
