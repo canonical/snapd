@@ -650,11 +650,8 @@ func run() error {
 						cmd = cmd.Active
 						path = append(path, cmd.Name)
 					}
-					if len(path) > 0 && path[0] != "help" {
+					if len(path) > 0 {
 						sug = "snap help " + strings.Join(path, " ")
-					} else {
-						// suggestions come from the top-level commands
-						cmd = parser.Command
 					}
 				}
 				if closest := closestCommand(cmd, sub); closest != "" {

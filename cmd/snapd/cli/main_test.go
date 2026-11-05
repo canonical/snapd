@@ -348,14 +348,6 @@ func (s *SnapSuite) TestUnknownCommandSuggestionAlias(c *C) {
 	c.Assert(err, ErrorMatches, `unknown command "chage", did you mean "change"\?\nSee 'snap help'\.`)
 }
 
-func (s *SnapSuite) TestUnknownCommandSuggestionCaseInsensitive(c *C) {
-	restore := mockArgs("snap", "INSTAL")
-	defer restore()
-
-	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `unknown command "INSTAL", did you mean "install"\?\nSee 'snap help'\.`)
-}
-
 func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 	for _, args := range [][]string{
 		{"snap", "--foo"},

@@ -21,7 +21,6 @@ package cli
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -46,9 +45,7 @@ func closestCommand(parent *flags.Command, typo string) string {
 	// equally close
 	sort.Strings(names)
 
-	// no command name uses uppercase characters, but a user may type one
-	// in any case, so normalize the typo before comparing
-	typo = strings.ToLower(typo)
-
+	// command names are lowercase and it is unlikely that a user would
+	// type one in uppercase, so the typo is compared as-is
 	return strutil.ClosestMatch(typo, names)
 }

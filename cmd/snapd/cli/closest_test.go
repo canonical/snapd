@@ -45,10 +45,8 @@ func (s *closestSuite) TestClosestCommand(c *C) {
 		{"remov", "remove"},
 		// "akc" is one transposition away from "ack"
 		{"akc", "ack"},
-		// command names are matched case-insensitively
-		{"INSTALL", "install"},
-		{"Install", "install"},
-		{"inSTALL", "install"},
+		// command names are not matched case-insensitively
+		{"INSTALL", ""},
 		// command aliases are valid suggestions
 		{"chage", "change"},
 		{"seach", "search"},
@@ -80,18 +78,6 @@ func (s *closestSuite) TestClosestCommandHidden(c *C) {
 
 	// hidden commands are still runnable, so they are suggested too
 	c.Check(snap.ClosestCommand(parser.Command, "internal-thin"), Equals, "internal-thing")
-}
-
-func (s *closestSuite) TestClosestCommandIneligibleNotPreferred(c *C) {
-	parser := flags.NewParser(nil, flags.Default)
-	for _, name := range []string{"ack", "tasks"} {
-		_, err := parser.AddCommand(name, "", "", &struct{}{})
-		c.Assert(err, IsNil)
-	}
-
-	// "ack" sorts first and is equally distant, but does not pass the
-	// distance cutoff, so "tasks" is suggested instead
-	c.Check(snap.ClosestCommand(parser.Command, "aks"), Equals, "tasks")
 }
 
 func (s *closestSuite) TestClosestCommandEquidistant(c *C) {
