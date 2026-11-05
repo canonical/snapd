@@ -192,26 +192,28 @@ func (s *snapshotSuite) TestRestoreMountOfSnapWithCommonNamePrefixIsUnknown(c *C
 	// restarted and they block the restore.
 	si := snap.MinimalPlaceInfo("hello-snap", snap.R(42))
 	for _, owner := range []string{"hello-snapper", "hello-snap_x"} {
-		s.sysd.StopCalls = nil
-		s.sysd.StartCalls = nil
-		mountPoint := filepath.Join(si.DataDir(), owner+"-target")
-		makeMountUnitFile(c, mountPoint)
-		restore, err := systemdtest.MockSystemctlForOriginMountUnits(c.MkDir(), []systemdtest.OriginMountUnit{
-			{Description: fmt.Sprintf("Mount unit for %s, revision 1 via mount-control", owner), Where: mountPoint, Origin: "mount-control"},
-		})
-		c.Assert(err, IsNil)
-		s.sysd.ListMountUnitsDelegate = realSystemd
-		restoreMI := osutil.MockMountInfo(mountInfoLine(mountPoint))
+		// a function per owner, so that the deferred restores also run
+		// when saveAndOpenSnapshot skips the test or an assertion fails
+		func() {
+			s.sysd.StopCalls = nil
+			s.sysd.StartCalls = nil
+			mountPoint := filepath.Join(si.DataDir(), owner+"-target")
+			makeMountUnitFile(c, mountPoint)
+			restore, err := systemdtest.MockSystemctlForOriginMountUnits(c.MkDir(), []systemdtest.OriginMountUnit{
+				{Description: fmt.Sprintf("Mount unit for %s, revision 1 via mount-control", owner), Where: mountPoint, Origin: "mount-control"},
+			})
+			c.Assert(err, IsNil)
+			defer restore()
+			s.sysd.ListMountUnitsDelegate = realSystemd
+			defer osutil.MockMountInfo(mountInfoLine(mountPoint))()
 
-		shr := saveAndOpenSnapshot(c)
-		_, err = shr.Restore(context.TODO(), snap.R(0), nil, logger.Debugf, nil)
-		c.Check(err, ErrorMatches, `.*cannot move data with unknown mount.*`, Commentf("owner %s", owner))
-		c.Check(s.sysd.StopCalls, HasLen, 0)
-		c.Check(s.sysd.StartCalls, HasLen, 0)
-
-		shr.Close()
-		restoreMI()
-		restore()
+			shr := saveAndOpenSnapshot(c)
+			defer shr.Close()
+			_, err = shr.Restore(context.TODO(), snap.R(0), nil, logger.Debugf, nil)
+			c.Check(err, ErrorMatches, `.*cannot move data with unknown mount.*`, Commentf("owner %s", owner))
+			c.Check(s.sysd.StopCalls, HasLen, 0)
+			c.Check(s.sysd.StartCalls, HasLen, 0)
+		}()
 	}
 }
 
