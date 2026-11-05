@@ -2,7 +2,7 @@ name: snapd-dev
 base: ubuntu@26.04
 sdks:
   - name: go
-    channel: 1.26/stable # default for 26.04
+    channel: 1.27/stable # match snapcraft.yaml
   - name: project-snapd-build-deps
   - name: opencode
   # Uncomment other LLM harnesses as desired
