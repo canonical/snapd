@@ -215,7 +215,7 @@ func (s *validateSuite) TestValidationSetsList(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "Validation  Mode     Seq  Current       Notes\n"+
+	c.Check(s.Stdout(), check.Equals, "Validation  Mode     Seq  Current  Notes\n"+
 		"foo/bar=2   monitor  3    valid    \n"+
 		"foo/baz     enforce  1    invalid  \n",
 	)
