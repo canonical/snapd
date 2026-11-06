@@ -4815,6 +4815,32 @@ volume-assignments:
 	lus[0].HasPartitions = true
 	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
 	c.Assert(err, ErrorMatches, `volume ufs is not compatible with disk /dev/sdc: UFS boot logical unit 0:0:0:0 \(/dev/sda\) for boot-lu-a has a partition table`)
+
+	// with two UFS devices, the saved /dev/sdc can be renumbered to a logical
+	// unit of the device the volume is not assigned to
+	const assignedDevice = "/dev/disk/by-path/platform-11270000.ufshci-scsi-0:0:0:2"
+	lvol["ufs"].Volume.AssignedDevice = assignedDevice
+	lus = gadgettest.MockUFSLogicalUnits
+	assignedDisk := *gadgettest.VMUFSVolumeDiskMapping
+	assignedDisk.DevNode = "/dev/sdf"
+	assignedDisk.DevNum = "8:80"
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sdc":     gadgettest.VMUFSVolumeDiskMapping,
+		assignedDevice: &assignedDisk,
+	})
+	defer restore()
+	_, err = gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
+	c.Assert(err, ErrorMatches, `volume ufs is not compatible with disk /dev/sdc: device /dev/sdc does not match assigned device `+assignedDevice)
+
+	// the disk is the assigned device
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sdc":     gadgettest.VMUFSVolumeDiskMapping,
+		assignedDevice: gadgettest.VMUFSVolumeDiskMapping,
+	})
+	defer restore()
+	traits, err = gadget.DiskTraitsFromDeviceAndValidate(lvol["ufs"].Volume, "/dev/sdc", nil)
+	c.Assert(err, IsNil)
+	c.Assert(traits, DeepEquals, gadgettest.VMUFSVolumeDeviceTraits)
 }
 
 func (u *updateTestSuite) TestDiskTraitsFromDeviceAndValidateGPTMultiVolume(c *C) {

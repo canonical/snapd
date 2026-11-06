@@ -387,6 +387,15 @@ func ensureVolumeUFSCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume
 	if err != nil {
 		return nil, fmt.Errorf("cannot get disk for device %s: %v", diskVolume.Device, err)
 	}
+	if gadgetVolume.AssignedDevice != "" {
+		assignedDisk, err := disks.DiskFromDeviceName(gadgetVolume.AssignedDevice)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get disk for assigned device %s: %v", gadgetVolume.AssignedDevice, err)
+		}
+		if assignedDisk.Dev() != disk.Dev() {
+			return nil, fmt.Errorf("device %s does not match assigned device %s", diskVolume.Device, gadgetVolume.AssignedDevice)
+		}
+	}
 	gadgetStructIdxToOnDiskStruct := map[int]*OnDiskStructure{}
 	for _, gs := range gadgetVolume.Structure {
 		lu, err := resolveUFSBootLU(disk.KernelDevicePath(), gs.Name)
