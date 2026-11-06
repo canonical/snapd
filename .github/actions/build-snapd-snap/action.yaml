@@ -76,10 +76,13 @@ runs:
 
     - name: Build snapd snap
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
-      uses: canonical/craft-actions/snapcraft/pack@v1
+      # temporarily try with bboozzoo's fork until
+      # https://github.com/canonical/craft-actions/pull/149 lands
+      uses: bboozzoo/craft-actions/snapcraft/pack@cab75ae9409569e70258789f35dc7478ee991f5d
       with:
         channel: 8.x/stable
         verbosity: verbose
+        build-info: true
 
     - name: Uploading snapd snap artifact
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
