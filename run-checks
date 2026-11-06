@@ -21,6 +21,9 @@ tool_version() {
     shellcheck)
         $tool --version | grep version
         ;;
+    rg)
+        $tool --version | grep ripgrep
+        ;;
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
@@ -42,6 +45,7 @@ tool_install() {
         ;;
     go) ;&         # fallthrough
     shellcheck) ;& # fallthrough
+    rg) ;&         # fallthrough
     python3) ;&    # fallthrough
     pytest-3) ;&   # fallthrough
     dbus-launch) ;&   # fallthrough
@@ -71,6 +75,7 @@ tool_configure() {
         fi
         ;;
     shellcheck) ;&    # fallthrough
+    rg) ;&            # fallthrough
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
@@ -483,11 +488,20 @@ if [ "$STATIC" = 1 ]; then
         fi
 
         regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
-        if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude '*.qcow2' --exclude-dir .git --exclude-dir vendor "$regexp"; then
-            echo "Using GOPATH as if it were a single entry and not a list:" >&2
-            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude '*.qcow2' --exclude-dir .git --exclude-dir vendor "$regexp"
-            echo "Use GOHOME, or {GOPATH%%:*}, instead." >&2
-            exit 1
+        if command -v rg >/dev/null; then
+            if rg -qP -g '!HACKING.md' -g '!Makefile.*' -g '!*.qcow2' -g '!.git' -g '!vendor' "$regexp"; then
+                echo "Using GOPATH as if it were a single entry and not a list:" >&2
+                rg -PHn --no-heading --sort=path -C1 -g '!HACKING.md' -g '!Makefile.*' -g '!*.qcow2' -g '!.git' -g '!vendor' "$regexp"
+                echo "Use GOHOME, or {GOPATH%%:*}, instead." >&2
+                exit 1
+            fi
+        else
+            if grep -qPr --exclude HACKING.md --exclude 'Makefile.*' --exclude '*.qcow2' --exclude-dir .git --exclude-dir vendor "$regexp"; then
+                echo "Using GOPATH as if it were a single entry and not a list:" >&2
+                grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude '*.qcow2' --exclude-dir .git --exclude-dir vendor "$regexp"
+                echo "Use GOHOME, or {GOPATH%%:*}, instead." >&2
+                exit 1
+            fi
         fi
         unset regexp
 
@@ -648,12 +662,21 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] Checking that all ensure helper methods have been registered"
     missing=0
-    while IFS=' ' read -r manager func; do
-        if ! grep -rq "swfeats.RegisterEnsure(\"$manager\",.*\"$func\")" .; then
-            echo "Missing ensure function registration. Add the following to the relevant file: swfeats.RegEnsure(\"$manager\", \"$func\")"
-            missing=1
-        fi
-    done < <(grep --exclude '*_test.go'  --exclude 'ensurelogchecker.go' -r '.Trace("ensure"' overlord | sed -n 's/.*\.Trace("ensure",.*"manager",.*"\([^"]*\)",.*"func",.*"\([^"]*\)").*/\1 \2/p')
+    if command -v rg >/dev/null; then
+        while IFS=' ' read -r manager func; do
+            if ! rg -q "swfeats.RegisterEnsure\(\"$manager\",.*\"$func\"\)" .; then
+                echo "Missing ensure function registration. Add the following to the relevant file: swfeats.RegEnsure(\"$manager\", \"$func\")"
+                missing=1
+            fi
+        done < <(rg -g '!*_test.go' -g '!ensurelogchecker.go' '.Trace\("ensure"' overlord | sed -n 's/.*\.Trace("ensure",.*"manager",.*"\([^"]*\)",.*"func",.*"\([^"]*\)").*/\1 \2/p')
+    else
+        while IFS=' ' read -r manager func; do
+            if ! grep -rq "swfeats.RegisterEnsure(\"$manager\",.*\"$func\")" .; then
+                echo "Missing ensure function registration. Add the following to the relevant file: swfeats.RegEnsure(\"$manager\", \"$func\")"
+                missing=1
+            fi
+        done < <(grep --exclude '*_test.go'  --exclude 'ensurelogchecker.go' -r '.Trace("ensure"' overlord | sed -n 's/.*\.Trace("ensure",.*"manager",.*"\([^"]*\)",.*"func",.*"\([^"]*\)").*/\1 \2/p')
+    fi
     if [ $missing -eq 1 ]; then
         exit 1
     fi
