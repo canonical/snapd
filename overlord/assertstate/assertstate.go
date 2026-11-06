@@ -81,7 +81,7 @@ func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertions
 
 	snapStates, err := snapstate.All(s)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx, opts)
