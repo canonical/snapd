@@ -112,7 +112,7 @@ endef
 
 endef
 
-$(foreach r,16.04 18.04 20.04 22.04 24.04 25.04 25.10,$(eval $(call ubuntu_cloud_init_magic,$r)))
+$(foreach r,16.04 18.04 20.04 22.04 24.04 25.04 25.10 26.04 26.10,$(eval $(call ubuntu_cloud_init_magic,$r)))
 
 # In the snapd project Ubuntu Core images are built from classic Ubuntu images
 # in a somewhat complex manner. Ubuntu Core 16 and 18 kernels do not support
