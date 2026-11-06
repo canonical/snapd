@@ -73,10 +73,6 @@ struct sc_device_cgroup {
     };
 };
 
-#ifdef ENABLE_BPF
-struct sc_cgroup_v2_device_key;
-#endif
-
 __attribute__((format(printf, 2, 3))) static void sc_dprintf(int fd, const char *format, ...);
 
 static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup_fds *fds);
@@ -520,8 +516,7 @@ static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
     _sc_cgroup_v2_set_memlock_limit(self->v2.old_limit);
 
     sc_cleanup_string(&self->v2.tag);
-    free(self->v2.stale_keys);
-    self->v2.stale_keys = NULL;
+    _sc_cleanup_v2_device_key(&self->v2.stale_keys);
     /* the map is pinned to a per-snap-application file and referenced by the
      * program */
     sc_cleanup_close(&self->v2.devmap_fd);
@@ -541,6 +536,8 @@ static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major,
     if (bpf_update_map(self->v2.devmap_fd, &key, &value) < 0) {
         die("cannot update device map for key %c %u:%u", key.type, key.major, key.minor);
     }
+
+    /* remove the key from the stale set so it is not pruned after attach */
     for (size_t i = 0; i < self->v2.stale_count; i++) {
         const sc_cgroup_v2_device_key *s = &self->v2.stale_keys[i];
         if (s->type == key.type && s->major == key.major && s->minor == key.minor) {
