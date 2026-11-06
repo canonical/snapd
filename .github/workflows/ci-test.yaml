@@ -53,6 +53,7 @@ jobs:
       toolchain: ${{ matrix.toolchain }}
       variant: ${{ matrix.variant }}
     strategy:
+      fail-fast: false
       matrix:
         runs-on:
           - '["ubuntu-26.04"]'
