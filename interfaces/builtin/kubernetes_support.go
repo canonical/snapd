@@ -68,6 +68,9 @@ capability dac_override,
 # https://github.com/projectcalico/cni-plugin/blob/master/pkg/types/types.go
 /{,var/}run/calico/ipam.lock rwk,
 
+# Cilium's CNI plugin locks its deletion queue when the agent is unavailable.
+/{,var/}run/cilium/deleteQueue/lockfile rwk,
+
 # manually add java certs here
 # see also https://bugs.launchpad.net/apparmor/+bug/1816372
 /etc/ssl/certs/java/{,*} r,
