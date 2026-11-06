@@ -537,13 +537,20 @@ static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major,
         die("cannot update device map for key %c %u:%u", key.type, key.major, key.minor);
     }
 
-    /* remove the key from the stale set so it is not pruned after attach */
-    for (size_t i = 0; i < self->v2.stale_count; i++) {
+    /* Remove the key from the stale set so it is not pruned afterwards.
+     * The snapshot may contain the same key more than once: bpf_map_get_next_key
+     * restarts from the first key when its cursor is deleted between two calls.
+     * With locking in place, concurrent deletes cannot happen, but an older
+     * snap-device-helper from the native package (delivered before the locking
+     * change) can still race with the snapshot, so remove all matching copies
+     * rather than just the first one. */
+    for (size_t i = 0; i < self->v2.stale_count;) {
         const sc_cgroup_v2_device_key *s = &self->v2.stale_keys[i];
         if (s->type == key.type && s->major == key.major && s->minor == key.minor) {
             self->v2.stale_keys[i] = self->v2.stale_keys[--self->v2.stale_count];
-            break;
+            continue; /* re-check the entry swapped into slot i */
         }
+        i++;
     }
 }
 
