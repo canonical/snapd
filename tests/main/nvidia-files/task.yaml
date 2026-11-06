@@ -92,7 +92,7 @@ prepare: |
     skip["ubuntu-24.04-64/418-server"]="no-driver"
     skip["ubuntu-24.04-64/450-server"]="no-driver"
     skip["ubuntu-24.04-64/470"]="broken-driver"
-    skip["ubuntu-24.04-64/470-server"]="transitional-driver"
+    skip["ubuntu-24.04-64/470-server"]="broken-driver"
     skip["ubuntu-24.04-64/510"]="transitional-driver"
     skip["ubuntu-24.04-64/515"]="transitional-driver"
     skip["ubuntu-24.04-64/515-server"]="transitional-driver"
