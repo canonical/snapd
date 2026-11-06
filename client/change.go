@@ -150,7 +150,10 @@ func (client *Client) Abort(id string) (*Change, error) {
 	}
 
 	var chg Change
-	if _, err := client.doSync("POST", "/v2/changes/"+id, nil, nil, &body, &chg); err != nil {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if _, err := client.doSync("POST", "/v2/changes/"+id, nil, headers, &body, &chg); err != nil {
 		return nil, err
 	}
 

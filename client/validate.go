@@ -67,8 +67,11 @@ func (client *Client) ForgetValidationSet(accountID, name string, sequence int) 
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return err
 	}
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
-	if _, err := client.doSync("POST", path, nil, nil, &body, nil); err != nil {
+	if _, err := client.doSync("POST", path, nil, header, &body, nil); err != nil {
 		return fmt.Errorf("cannot forget validation set: %w", err)
 	}
 	return nil
@@ -94,7 +97,10 @@ func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateA
 	}
 	path := fmt.Sprintf("/v2/validation-sets/%s/%s", accountID, name)
 
-	if _, err := client.doSync("POST", path, nil, nil, &body, &res); err != nil {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if _, err := client.doSync("POST", path, nil, headers, &body, &res); err != nil {
 		return nil, fmt.Errorf("cannot apply validation set: %w", err)
 	}
 	return res, nil
