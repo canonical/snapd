@@ -1176,6 +1176,9 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	c.Check(delays, check.HasLen, 1)
 	c.Check(delays[0], check.DeepEquals, rebootWaitTimeout)
+	// the fallback is not the requested schedule, so it is not a security event
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_shutdown")
 
 	now := time.Now()
 
@@ -1185,6 +1188,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	timeToStop := time.Since(now)
 	c.Check(timeToStop > rebootWaitTimeout+rebootNoticeWait, check.Equals, true)
 	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
+	c.Check(strings.Count(seclogBuf.String(), expectedEvent+" "), check.Equals, 1)
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
 	c.Check(seclogBuf.String(), testutil.Contains, expectedEvent+" ")
 	logged := fmt.Sprintf("%s of type %s", expectedDescription, restartKind)
@@ -1251,6 +1255,48 @@ func (s *daemonSuite) TestRestartSystemHaltImmediateWiring(c *check.C) {
 
 func (s *daemonSuite) TestRestartSystemPoweroffImmediateWiring(c *check.C) {
 	s.testRestartSystemWiring(c, nil, restart.Request, restart.RestartSystemPoweroffNow, 0)
+}
+
+func (s *daemonSuite) TestHandleRestartFallbackRebootError(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+	restore := MockReboot(func(boot.RebootAction, time.Duration, *boot.RebootInfo) error {
+		return errors.New("cannot reboot")
+	})
+	defer restore()
+
+	for _, rst := range []restart.RestartType{
+		restart.RestartSystem,
+		restart.RestartSystemNow,
+		restart.RestartSystemHaltNow,
+		restart.RestartSystemPoweroffNow,
+	} {
+		seclogBuf.Reset()
+		logBuf.Reset()
+		d.HandleRestart(rst, nil, "")
+		c.Check(seclogBuf.String(), check.Equals, "")
+		c.Check(logBuf.String(), testutil.Contains, "cannot reboot")
+	}
+}
+
+func (s *daemonSuite) TestHandleRestartUnknownType(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	d := s.newTestDaemon(c)
+	d.HandleRestart(restart.RestartType(99), nil, "")
+
+	c.Check(seclogBuf.String(), check.Equals, "")
+	c.Check(logBuf.String(), testutil.Contains, "unknown restart type: restart-type(99)")
 }
 
 type rstManager struct {
@@ -1494,15 +1540,44 @@ func (s *daemonSuite) TestDoRebootDoesNotLogWhenRebootFails(c *check.C) {
 
 	d := s.newTestDaemon(c)
 	d.Version = "2.78"
+	var nReboot int
 	restore := MockReboot(func(boot.RebootAction, time.Duration, *boot.RebootInfo) error {
+		nReboot++
 		return errors.New("cannot reboot")
 	})
 	defer restore()
 
-	err := d.doReboot(nil, restart.RestartSystemNow, nil, true, time.Second)
-	c.Check(err, check.ErrorMatches, "cannot reboot")
-	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart")
-	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_shutdown")
+	checkSnapdRestart := func(reason string) {
+		c.Check(strings.Count(seclogBuf.String(), "sys_restart_snapd"), check.Equals, 1)
+		c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+reason)
+		c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+		c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+reason+`"]`)
+		// "sys_restart " keeps sys_restart_snapd from matching the system event.
+		c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart ")
+		c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_shutdown")
+		seclogBuf.Reset()
+	}
+
+	for _, rst := range []restart.RestartType{
+		restart.RestartSystemNow,
+		restart.RestartSystemHaltNow,
+		restart.RestartSystemPoweroffNow,
+	} {
+		nReboot = 0
+		err := d.doReboot(nil, rst, nil, true, time.Second)
+		c.Check(err, check.ErrorMatches, "cannot reboot")
+		c.Check(nReboot, check.Equals, 1)
+		checkSnapdRestart(seclog.SnapdRestartRequestFailed(rst.String()))
+	}
+
+	d.state.Lock()
+	d.state.Set("daemon-system-restart-at", "not-a-time")
+	d.state.Unlock()
+	nReboot = 0
+	err := d.doReboot(nil, restart.RestartSystem, nil, false, time.Second)
+	c.Check(err, check.ErrorMatches, `internal error: could not unmarshal state entry "daemon-system-restart-at": .*`)
+	c.Check(nReboot, check.Equals, 0)
+	checkSnapdRestart(seclog.SnapdRestartScheduleFailed(restart.RestartSystem.String()))
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {

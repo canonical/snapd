@@ -334,6 +334,20 @@ const (
 	SnapdRestartIdleAborted string = "snapd-idle-aborted"
 )
 
+// SnapdRestartScheduleFailed is the sys_restart_snapd reason when a requested
+// system reboot, halt, or poweroff cannot be scheduled. restartType is the
+// string from restart.RestartType.String.
+func SnapdRestartScheduleFailed(restartType string) string {
+	return restartType + "-schedule-failed"
+}
+
+// SnapdRestartRequestFailed is the sys_restart_snapd reason when the shutdown
+// request for a system reboot, halt, or poweroff is rejected. restartType is
+// the string from restart.RestartType.String.
+func SnapdRestartRequestFailed(restartType string) string {
+	return restartType + "-request-failed"
+}
+
 // AssertionRef identifies an assertion by type and primary key. It mirrors
 // asserts.Ref but uses plain strings so the audit payload stays self-contained.
 type AssertionRef struct {
