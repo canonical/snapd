@@ -106,6 +106,20 @@ var isConnectedTests = []struct {
 	args:     []string{"is-connected", "--pid", "1005", "audio-record"},
 	exitCode: ctlcmd.ClassicSnapCode,
 }, {
+	args: []string{"is-connected", "--check-system-slot", "server-record"},
+	err:  `cannot use --check-system-slot without --pid or --apparmor-label`,
+}, {
+	args: []string{"is-connected", "--pid", "1003", "--check-system-slot", "cc"},
+	err:  `cannot use --check-system-slot with snap1:cc`,
+}, {
+	// snap1:server-record slot is not connected to snap6 unless the system audio slot is considered
+	args:     []string{"is-connected", "--pid", "1006", "server-record"},
+	exitCode: 1,
+}, {
+	// snap1:server-record slot is treated as connected to snap6 via core:audio-record
+	args:     []string{"is-connected", "--pid", "1006", "--check-system-slot", "server-record"},
+	exitCode: 0,
+}, {
 	// snap1:plug1 does not use an allowed interface
 	args: []string{"is-connected", "--apparmor-label", "snap.snap2.app", "plug1"},
 	err:  `cannot use --apparmor-label check with snap1:plug1`,
@@ -133,6 +147,14 @@ var isConnectedTests = []struct {
 	// snap1:audio-record slot is not connected to classic snap5
 	args:     []string{"is-connected", "--apparmor-label", "snap.snap5.app", "audio-record"},
 	exitCode: ctlcmd.ClassicSnapCode,
+}, {
+	// snap1:server-record slot is not connected to snap6 unless the system audio slot is considered
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap6.app", "server-record"},
+	exitCode: 1,
+}, {
+	// snap1:server-record slot is treated as connected to snap6 via core:audio-record
+	args:     []string{"is-connected", "--apparmor-label", "snap.snap6.app", "--check-system-slot", "server-record"},
+	exitCode: 0,
 }}
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.Info {
@@ -168,7 +190,11 @@ slots:
   cc:
     interface: cups-control
   audio-record:
-    interface: audio-record`, "")
+    interface: audio-record
+  server-record:
+    interface: audio-record
+  pipewire:
+    interface: pipewire`, "")
 	mockInstalledSnap(c, s.st, `name: snap2
 slots:
   slot2:
@@ -191,6 +217,10 @@ confinement: classic
 plugs:
   cc:
     interface: cups-control`, "")
+	mockInstalledSnap(c, s.st, `name: snap6
+plugs:
+  client-record:
+    interface: audio-record`, "")
 	restore := ctlcmd.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
 		switch {
 		case 1000 < pid && pid < 1100:
@@ -202,12 +232,13 @@ plugs:
 	defer restore()
 
 	s.st.Set("conns", map[string]any{
-		"snap1:plug1 snap2:slot2": map[string]any{},
-		"snap1:plug2 snap3:slot3": map[string]any{"undesired": true},
-		"snap1:plug3 snap4:slot4": map[string]any{"hotplug-gone": true},
-		"snap3:plug4 snap1:slot1": map[string]any{},
-		"snap3:cc snap1:cc":       map[string]any{},
-		"snap5:cc snap1:cc":       map[string]any{},
+		"snap1:plug1 snap2:slot2":               map[string]any{},
+		"snap1:plug2 snap3:slot3":               map[string]any{"undesired": true},
+		"snap1:plug3 snap4:slot4":               map[string]any{"hotplug-gone": true},
+		"snap3:plug4 snap1:slot1":               map[string]any{},
+		"snap3:cc snap1:cc":                     map[string]any{},
+		"snap5:cc snap1:cc":                     map[string]any{},
+		"snap6:client-record core:audio-record": map[string]any{},
 	})
 
 	s.st.Unlock()
