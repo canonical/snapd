@@ -68,7 +68,23 @@ func mockUFSSysfs(c *C, withWriteProtect bool) (targetDir string) {
 	return targetDir
 }
 
+// mockUFSUdev mocks the udev properties of the logical units, with an
+// (empty) partition table on the given block device.
+func mockUFSUdev(c *C, withPartTable string) (restore func()) {
+	return disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Check(typeOpt, Equals, "--path")
+		props := map[string]string{"DEVTYPE": "disk"}
+		if filepath.Base(dev) == withPartTable {
+			props["ID_PART_TABLE_TYPE"] = "gpt"
+		}
+		return props, nil
+	})
+}
+
 func (s *diskSuite) TestUFSLogicalUnitsForDiskDevicePath(c *C) {
+	restore := mockUFSUdev(c, "")
+	defer restore()
+
 	for _, withWriteProtect := range []bool{false, true} {
 		dirs.SetRootDir(c.MkDir())
 		targetDir := mockUFSSysfs(c, withWriteProtect)
@@ -111,6 +127,21 @@ func (s *diskSuite) TestUFSLogicalUnitsForDiskDevicePath(c *C) {
 			},
 		})
 	}
+}
+
+func (s *diskSuite) TestUFSLogicalUnitsForDiskDevicePathEmptyPartitionTable(c *C) {
+	// a GPT without any partition has no partition in sysfs
+	restore := mockUFSUdev(c, "sda")
+	defer restore()
+
+	targetDir := mockUFSSysfs(c, false)
+	lus, err := disks.UFSLogicalUnitsForDiskDevicePath(filepath.Join(targetDir, "0:0:0:2/block/sdc"))
+	c.Assert(err, IsNil)
+	c.Assert(lus, HasLen, 3)
+	c.Check(lus[0].KernelDeviceNode, Equals, "/dev/sda")
+	c.Check(lus[0].HasPartitions, Equals, true)
+	c.Check(lus[1].KernelDeviceNode, Equals, "/dev/sdb")
+	c.Check(lus[1].HasPartitions, Equals, false)
 }
 
 func (s *diskSuite) TestUFSLogicalUnitsForDiskDevicePathNotUFS(c *C) {

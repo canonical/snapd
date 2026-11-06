@@ -290,8 +290,8 @@ type UFSLogicalUnit struct {
 	WriteProtect *uint8
 	// ReadOnly is true when the block device is read-only for the kernel.
 	ReadOnly bool
-	// HasPartitions is true when the kernel found a partition table on the
-	// logical unit.
+	// HasPartitions is true when the logical unit has a partition table,
+	// even one without any partition.
 	HasPartitions bool
 	// SizeInBytes is the size of the logical unit.
 	SizeInBytes uint64

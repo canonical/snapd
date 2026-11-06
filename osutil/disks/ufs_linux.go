@@ -134,6 +134,15 @@ func ufsLogicalUnitFromSysfs(luDir, blockDevPath string) (UFSLogicalUnit, error)
 		return lu, fmt.Errorf("internal error: %v", err)
 	}
 	lu.HasPartitions = len(parts) != 0
+	if !lu.HasPartitions {
+		// a partition table without any partition has no such
+		// sub-directory, check whether udev (blkid) found one
+		props, err := udevPropertiesForPath(blockDevPath)
+		if err != nil {
+			return lu, fmt.Errorf("cannot get udev properties: %v", err)
+		}
+		lu.HasPartitions = props["ID_PART_TABLE_TYPE"] != ""
+	}
 
 	return lu, nil
 }
