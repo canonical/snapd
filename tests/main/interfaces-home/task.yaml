@@ -15,6 +15,8 @@ environment:
     WRITABLE_FILE: "$HOME/writable"
     HIDDEN_CREATABLE_FILE: "$HOME/.creatable"
     HIDDEN_READABLE_FILE: "$HOME/.readable"
+    TEST_HOME_FILE_1: /home/test/testfile
+    TEST_HOME_FILE_2: /home/test/testfile2
 
 prepare: |
     echo "Given a snap declaring the home plug is installed"
@@ -29,8 +31,13 @@ prepare: |
     echo "And there is a hidden readable file in HOME"
     echo ok > "$HIDDEN_READABLE_FILE"
 
+    echo "And there are 2 files in the home dir of test user"
+    echo test > "$TEST_HOME_FILE_1"
+    echo test > "$TEST_HOME_FILE_2"
+    chown test.test "$TEST_HOME_FILE_2"
+
 restore: |
-    rm -f "$READABLE_FILE" "$WRITABLE_FILE" "$CREATABLE_FILE" "$HIDDEN_READABLE_FILE"
+    rm -f "$READABLE_FILE" "$WRITABLE_FILE" "$CREATABLE_FILE" "$HIDDEN_READABLE_FILE" "$TEST_HOME_FILE_1" "$TEST_HOME_FILE_2"
 
 execute: |
     if os.query is-core; then
@@ -89,6 +96,11 @@ execute: |
     echo "Then the snap is able to create home files"
     home-consumer.writer "$CREATABLE_FILE"
     grep -Pqz "ok" < "$CREATABLE_FILE"
+
+    # Then the snap can read owned files in other user dirs
+    # and cannot read the non owned user files 
+    home-consumer.reader "$TEST_HOME_FILE_1"
+    not home-consumer.reader "$TEST_HOME_FILE_2"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
