@@ -566,6 +566,19 @@ static void _sc_cgroup_v2_deny_bpf(sc_device_cgroup *self, int kind, int major, 
     }
 }
 
+/* Drop stale keys that were not re-allowed during setup. Called after the
+ * BPF program is attached, when the map is fully populated. */
+static void _sc_cgroup_v2_prune_stale_keys(sc_device_cgroup *self) {
+    for (size_t i = 0; i < self->v2.stale_count; i++) {
+        sc_cgroup_v2_device_key key = self->v2.stale_keys[i];
+        debug("delete key for %c %d:%d", key.type, key.major, key.minor);
+        if (bpf_map_delete_elem(self->v2.devmap_fd, &key) < 0 && errno != ENOENT) {
+            die("cannot delete device map entry for %c %d:%d", key.type, key.major, key.minor);
+        }
+    }
+    self->v2.stale_count = 0;
+}
+
 static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     /* we are setting up device filtering for ourselves */
     if (pid != getpid()) {
@@ -607,14 +620,7 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     }
 
     /* the map is fully populated, drop entries that are no longer allowed */
-    for (size_t i = 0; i < self->v2.stale_count; i++) {
-        sc_cgroup_v2_device_key key = self->v2.stale_keys[i];
-        debug("delete key for %c %d:%d", key.type, key.major, key.minor);
-        if (bpf_map_delete_elem(self->v2.devmap_fd, &key) < 0 && errno != ENOENT) {
-            die("cannot delete device map entry for %c %d:%d", key.type, key.major, key.minor);
-        }
-    }
-    self->v2.stale_count = 0;
+    _sc_cgroup_v2_prune_stale_keys(self);
 }
 #endif /* ENABLE_BPF */
 
