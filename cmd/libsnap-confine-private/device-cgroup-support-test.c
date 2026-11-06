@@ -30,9 +30,7 @@ static struct mocks {
     size_t deleted_count;
 } mocks;
 
-static void mocks_reset(void) {
-    memset(&mocks, 0, sizeof(mocks));
-}
+static void mocks_reset(void) { memset(&mocks, 0, sizeof(mocks)); }
 
 int bpf_update_map(int map_fd, const void *key, const void *value) {
     (void)map_fd;
@@ -65,7 +63,7 @@ int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, s
 }
 
 int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t insns_cnt, char *log_buf,
-                 size_t log_buf_size, const char *prog_name) {
+                  size_t log_buf_size, const char *prog_name) {
     (void)type;
     (void)insns;
     (void)insns_cnt;
@@ -110,9 +108,7 @@ bool bpf_path_is_bpffs(const char *path) {
     return true;
 }
 
-void bpf_mount_bpffs(const char *path) {
-    (void)path;
-}
+void bpf_mount_bpffs(const char *path) { (void)path; }
 
 /* End of BPF mocks. */
 
@@ -178,10 +174,10 @@ static bool stale_contains(sc_device_cgroup *self, uint8_t type, uint32_t major,
 static void test_stale_keys_remove_all_duplicates(void) {
     sc_device_cgroup *self = make_test_cgroup("snap.test-snapd-sh-core24.sh");
     sc_cgroup_v2_device_key keys[] = {
-        make_key('c', 1, 3),   /* /dev/null */
-        make_key('c', 1, 5),   /* /dev/zero */
-        make_key('c', 1, 3),   /* /dev/null (duplicate) */
-        make_key('c', 1, 9),   /* /dev/urandom */
+        make_key('c', 1, 3), /* /dev/null */
+        make_key('c', 1, 5), /* /dev/zero */
+        make_key('c', 1, 3), /* /dev/null (duplicate) */
+        make_key('c', 1, 9), /* /dev/urandom */
     };
     set_stale_keys(self, keys, 4);
 
@@ -249,11 +245,11 @@ static void test_stale_keys_remove_single(void) {
 static void test_stale_keys_remove_triple_duplicates(void) {
     sc_device_cgroup *self = make_test_cgroup("snap.test-snapd-sh-core24.sh");
     sc_cgroup_v2_device_key keys[] = {
-        make_key('c', 1, 3),
-        make_key('c', 1, 3),
-        make_key('c', 1, 5),
-        make_key('c', 1, 3),
-        make_key('c', 1, 9),
+        make_key('c', 1, 3), /* /dev/null */
+        make_key('c', 1, 3), /* /dev/null (duplicate) */
+        make_key('c', 1, 5), /* /dev/zero */
+        make_key('c', 1, 3), /* /dev/null (duplicate) */
+        make_key('c', 1, 9), /* /dev/urandom */
     };
     set_stale_keys(self, keys, 5);
 
@@ -284,10 +280,10 @@ static bool was_deleted_from_map(uint8_t type, uint32_t major, uint32_t minor) {
 static void test_prune_after_allow(void) {
     sc_device_cgroup *self = make_test_cgroup("snap.test-snapd-sh-core24.sh");
     sc_cgroup_v2_device_key keys[] = {
-        make_key('c', 1, 3),   /* /dev/null */
-        make_key('c', 1, 5),   /* /dev/zero */
-        make_key('c', 1, 7),   /* /dev/full */
-        make_key('c', 1, 9),   /* /dev/urandom */
+        make_key('c', 1, 3), /* /dev/null */
+        make_key('c', 1, 5), /* /dev/zero */
+        make_key('c', 1, 7), /* /dev/full */
+        make_key('c', 1, 9), /* /dev/urandom */
     };
     set_stale_keys(self, keys, 4);
 
@@ -376,11 +372,11 @@ static void test_prune_none_allowed(void) {
 static void test_prune_with_duplicates(void) {
     sc_device_cgroup *self = make_test_cgroup("snap.test-snapd-sh-core24.sh");
     sc_cgroup_v2_device_key keys[] = {
-        make_key('c', 1, 3),   /* /dev/null */
-        make_key('c', 1, 5),   /* /dev/zero */
-        make_key('c', 1, 3),   /* /dev/null (duplicate) */
-        make_key('c', 1, 9),   /* /dev/urandom */
-        make_key('c', 1, 3),   /* /dev/null (duplicate) */
+        make_key('c', 1, 3), /* /dev/null */
+        make_key('c', 1, 5), /* /dev/zero */
+        make_key('c', 1, 3), /* /dev/null (duplicate) */
+        make_key('c', 1, 9), /* /dev/urandom */
+        make_key('c', 1, 3), /* /dev/null (duplicate) */
     };
     set_stale_keys(self, keys, 5);
 
