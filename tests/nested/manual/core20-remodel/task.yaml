@@ -12,7 +12,7 @@ systems:
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
-  # FIXME: missing test-snapd-tools-core26
+  - ubuntu-26*
 
 environment:
   NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
