@@ -28,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+type AssembleClusterSetup = assembleClusterSetup
+
 func MockInstallWithGoal(f func(context.Context, *state.State, snapstate.InstallGoal, snapstate.Options) ([]*snap.Info, []*state.TaskSet, error)) func() {
 	restore := testutil.Backup(&installWithGoal)
 	installWithGoal = f
