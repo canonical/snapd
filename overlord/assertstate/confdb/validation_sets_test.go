@@ -389,7 +389,7 @@ func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
 	c.Assert(err, IsNil)
 
 	// unset part of the data
-	err = s.view.Unset(tx, "my-account.valid-set.pinned-sequence")
+	err = s.view.Unset(tx, "my-account.valid-set.pinned-sequence", nil)
 	c.Assert(err, IsNil)
 
 	handler := &assertstateconfdb.ValsetsConfdbHandler{}
@@ -428,7 +428,7 @@ func (s *confdbHandlerSuite) TestCannotUnsetMode(c *C) {
 	c.Assert(err, ErrorMatches, `.*cannot find required combinations of keys`)
 
 	// unsetting mode fails because the storage schema marks it as required
-	err = s.view.Unset(tx, "my-account.my-set.mode")
+	err = s.view.Unset(tx, "my-account.my-set.mode", nil)
 	c.Assert(err, ErrorMatches, `.*cannot find required combinations of keys`)
 }
 
@@ -447,7 +447,7 @@ func (s *confdbHandlerSuite) TestCommitForgetsDeletedValidationSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// unset through confdb
-	err = s.view.Unset(tx, "my-account.my-set")
+	err = s.view.Unset(tx, "my-account.my-set", nil)
 	c.Assert(err, IsNil)
 
 	handler := &assertstateconfdb.ValsetsConfdbHandler{}
@@ -463,7 +463,7 @@ func (s *confdbHandlerSuite) TestCommitForgetsDeletedValidationSet(c *C) {
 	tx, err = confdbstate.NewTransaction(s.st, "system", "validation-sets")
 	c.Assert(err, IsNil)
 
-	err = s.view.Unset(tx, "my-account.my-set")
+	err = s.view.Unset(tx, "my-account.my-set", nil)
 	c.Assert(err, IsNil)
 
 	// unsetting an untracked validation set should be a no-op
@@ -616,7 +616,7 @@ func (s *confdbHandlerSuite) TestCommitEnforceFailureLeavesStateUnchanged(c *C) 
 	// enforcing my-set will fail due to a missing snap, so state shouldn't change
 	c.Assert(s.view.Set(tx, "my-account.my-set.mode", "enforce"), IsNil)
 	c.Assert(s.view.Set(tx, "my-account.valid-set.mode", "monitor"), IsNil)
-	c.Assert(s.view.Unset(tx, "my-account.another-valid-set"), IsNil)
+	c.Assert(s.view.Unset(tx, "my-account.another-valid-set", nil), IsNil)
 
 	handler := &assertstateconfdb.ValsetsConfdbHandler{}
 	_, err = handler.Commit(s.st, tx)
@@ -708,7 +708,7 @@ func (s *confdbHandlerSuite) TestCommitForgetFailureDoesNotRollbackEnforceOrMoni
 	c.Assert(s.view.Set(tx, "my-account.another-valid-set.mode", "enforce"), IsNil)
 	c.Assert(s.view.Set(tx, "my-account.my-set.mode", "monitor"), IsNil)
 	// but this will fail (enforced by the model)
-	c.Assert(s.view.Unset(tx, "my-account.valid-set"), IsNil)
+	c.Assert(s.view.Unset(tx, "my-account.valid-set", nil), IsNil)
 
 	handler := &assertstateconfdb.ValsetsConfdbHandler{}
 	_, err = handler.Commit(s.st, tx)
