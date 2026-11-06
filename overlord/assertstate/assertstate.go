@@ -629,16 +629,6 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		return err
 	}
 
-	monitorModeSets := make(map[string]*ValidationSetTracking)
-	enforceModeSets := make(map[string]*ValidationSetTracking)
-	for vk, vset := range vsets {
-		if vset.Mode == Monitor {
-			monitorModeSets[vk] = vset
-		} else {
-			enforceModeSets[vk] = vset
-		}
-	}
-
 	// update validation set tracking state
 	for _, vs := range vsets {
 		if vs.PinnedAt == 0 {
