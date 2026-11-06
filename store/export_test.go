@@ -179,7 +179,7 @@ func MockApplyDelta(f func(ctx context.Context, s *Store, name string, deltaPath
 	}
 }
 
-func MockSquashfsApplyDelta(f func(ctx context.Context, sourceSnap, deltaFile, targetSnap string) error) (restore func()) {
+func MockSquashfsApplyDelta(f func(ctx context.Context, sourceSnap, deltaFile, targetSnap string, opts *squashfs.ApplyDeltaOpts) error) (restore func()) {
 	origSquashfsApplySnapDelta := squashfsApplyDelta
 	squashfsApplyDelta = f
 	return func() {
