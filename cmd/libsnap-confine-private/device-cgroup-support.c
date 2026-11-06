@@ -63,10 +63,17 @@ struct sc_device_cgroup {
             char *tag;
             char pretty_name[BPF_OBJ_NAME_LEN]; /* only for presentation */
             struct rlimit old_limit;
+            /* keys found in a pre-existing map, not yet re-allowed */
+            struct sc_cgroup_v2_device_key *stale_keys;
+            size_t stale_count;
         } v2;
 #endif
     };
 };
+
+#ifdef ENABLE_BPF
+struct sc_cgroup_v2_device_key;
+#endif
 
 __attribute__((format(printf, 2, 3))) static void sc_dprintf(int fd, const char *format, ...);
 
@@ -255,6 +262,14 @@ static int load_devcgroup_prog(int map_fd, const char *name) {
     return prog_fd;
 }
 
+static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
+    if (keyptr == NULL || *keyptr == NULL) {
+        return;
+    }
+    free(*keyptr);
+    *keyptr = NULL;
+}
+
 static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
     /* we may be setting the limit over the current max, which requires root
      * privileges or CAP_SYS_RESOURCE */
@@ -436,14 +451,54 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         if (chown(path, 0, 0) != 0) {
             die("cannot chmod BPF map");
         }
-    } else {
-        /* The device map already exists and is shared with programs attached
-         * to cgroups of already running processes of the same app. Reuse it
-         * as-is; snap-device-helper keeps it up-to-date via udev events, so
-         * there is no need to clear or prune entries. This avoids transiently
-         * emptying the map and denying access to devices like /dev/null for
-         * running processes (LP: #2170603). */
-        debug("found existing device map, reusing it");
+    } else if (!from_existing) {
+        /* the devices access map exists, and we have been asked to setup a
+         * cgroup, so clear the old map first so it was like it never existed */
+
+        debug("found existing device map");
+        /* the v1 implementation blocks all devices by default and then adds
+         * each assigned one individually, however for v2 there's no way to drop
+         * all the contents of the map, so we need to find out what keys are
+         * there in the map */
+
+        /* first collect all keys in the map */
+        sc_cgroup_v2_device_key *existing_keys SC_CLEANUP(_sc_cleanup_v2_device_key) =
+            calloc(max_entries, sizeof(sc_cgroup_v2_device_key));
+        if (existing_keys == NULL) {
+            die("cannot allocate keys map");
+        }
+        /* 'current' key is zeroed, such that no entry can match it and thus
+         * we'll iterate over the keys from the beginning */
+        sc_cgroup_v2_device_key key = {0};
+        size_t existing_count = 0;
+        while (true) {
+            sc_cgroup_v2_device_key next = {0};
+            if (existing_count >= max_entries) {
+                die("too many elements in the map");
+            }
+            if (existing_count > 0) {
+                /* grab the previous key */
+                key = existing_keys[existing_count - 1];
+            }
+            int ret = bpf_map_get_next_key(devmap_fd, &key, &next);
+            if (ret == -1) {
+                if (errno != ENOENT) {
+                    die("cannot lookup existing device map keys");
+                }
+                /* we are done */
+                break;
+            }
+            existing_keys[existing_count] = next;
+            existing_count++;
+        }
+        debug("found %zu existing entries in devices map", existing_count);
+        /* The map is shared with programs attached to cgroups of already
+         * running processes of the same app, so it must never be observed
+         * empty. Keep the entries, remember them, and prune those that are
+         * not allowed again once the new set has been populated. */
+        self->v2.stale_keys = existing_keys;
+        self->v2.stale_count = existing_count;
+        existing_keys = NULL;
     }
 
     if (!from_existing) {
@@ -463,6 +518,8 @@ static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
     _sc_cgroup_v2_set_memlock_limit(self->v2.old_limit);
 
     sc_cleanup_string(&self->v2.tag);
+    free(self->v2.stale_keys);
+    self->v2.stale_keys = NULL;
     /* the map is pinned to a per-snap-application file and referenced by the
      * program */
     sc_cleanup_close(&self->v2.devmap_fd);
@@ -479,6 +536,13 @@ static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major,
     debug("v2 allow %c %u:%u", (char)key.type, key.major, key.minor);
     if (bpf_update_map(self->v2.devmap_fd, &key, &value) < 0) {
         die("cannot update device map for key %c %u:%u", key.type, key.major, key.minor);
+    }
+    for (size_t i = 0; i < self->v2.stale_count; i++) {
+        const sc_cgroup_v2_device_key *s = &self->v2.stale_keys[i];
+        if (s->type == key.type && s->major == key.major && s->minor == key.minor) {
+            self->v2.stale_keys[i] = self->v2.stale_keys[--self->v2.stale_count];
+            break;
+        }
     }
 }
 
@@ -533,6 +597,16 @@ static void _sc_cgroup_v2_attach_pid_bpf(sc_device_cgroup *self, pid_t pid) {
     if (attach < 0) {
         die("cannot attach cgroup program");
     }
+
+    /* the map is fully populated, drop entries that are no longer allowed */
+    for (size_t i = 0; i < self->v2.stale_count; i++) {
+        sc_cgroup_v2_device_key key = self->v2.stale_keys[i];
+        debug("delete key for %c %d:%d", key.type, key.major, key.minor);
+        if (bpf_map_delete_elem(self->v2.devmap_fd, &key) < 0 && errno != ENOENT) {
+            die("cannot delete device map entry for %c %d:%d", key.type, key.major, key.minor);
+        }
+    }
+    self->v2.stale_count = 0;
 }
 #endif /* ENABLE_BPF */
 
