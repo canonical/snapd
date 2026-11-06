@@ -39,20 +39,30 @@ nested_print_serial_log() {
     fi
 }
 
-nested_configure_vm_resources() {
-    if [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
-        PARAM_MEM="-m ${NESTED_MEM:-2048}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-8192}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-6}"
-    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]] || [[ "$SPREAD_BACKEND" = "openstack-validation" ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
-    else
-        echo "unknown spread backend $SPREAD_BACKEND"
-        exit 1
+nested_get_available_cpus() {
+    # Leave one CPU for the host and return the remaining CPU count for the VM.
+    local available_cpus
+    available_cpus=$(( $(nproc) - 1 ))
+    if [ "$available_cpus" -lt 1 ]; then
+        available_cpus=1
     fi
+    echo "$available_cpus"
+}
+
+nested_get_available_memory_mb() {
+    # Leave 1 GiB for the host and return the remaining memory in MiB for the VM.
+    local available_memory_mb
+    available_memory_mb=$(awk '/^MemTotal:/ { print int($2 / 1024) - 1024 }' /proc/meminfo)
+    if [ "$available_memory_mb" -lt 1 ]; then
+        echo "not enough host memory to reserve 1 GiB for the host" >&2
+        return 1
+    fi
+    echo "$available_memory_mb"
+}
+
+nested_configure_vm_resources() {
+    PARAM_MEM="-m ${NESTED_MEM:-$(nested_get_available_memory_mb)}"
+    PARAM_SMP="-smp ${NESTED_CPUS:-$(nested_get_available_cpus)}"
 }
 
 nested_configure_legacy_vm_machine() {
