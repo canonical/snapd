@@ -87,6 +87,25 @@ static void test_sc_lock_unlock(void) {
     g_assert_cmpint(err, ==, 0);
 }
 
+// Check that sc_lock_devcgroup places the lock file at
+// $SECURITY_TAG.devcgroup.lock.
+static void test_sc_lock_devcgroup(void) {
+    if (geteuid() != 0) {
+        g_test_skip("this test only runs as root");
+        return;
+    }
+
+    const char *lock_dir = sc_test_use_fake_lock_dir();
+    int fd = sc_lock_devcgroup("snap.foo.bar");
+    // The lock file must have been created with the expected name as a regular file.
+    char *lock_file SC_CLEANUP(sc_cleanup_string) = NULL;
+    lock_file = g_strdup_printf("%s/snap.foo.bar.devcgroup.lock", lock_dir);
+    g_assert_true(g_file_test(lock_file, G_FILE_TEST_IS_REGULAR));
+
+    // Release the lock.
+    sc_unlock(fd);
+}
+
 // Check that holding a lock is properly detected.
 static void test_sc_verify_snap_lock__locked(void) {
     if (geteuid() != 0) {
@@ -181,6 +200,7 @@ static void test_sc_snap_is_inhibited__present_file(void) {
 
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/locking/sc_lock_unlock", test_sc_lock_unlock);
+    g_test_add_func("/locking/sc_lock_devcgroup", test_sc_lock_devcgroup);
     g_test_add_func("/locking/sc_enable_sanity_timeout", test_sc_enable_sanity_timeout);
     g_test_add_func("/locking/sc_verify_snap_lock__locked", test_sc_verify_snap_lock__locked);
     g_test_add_func("/locking/sc_verify_snap_lock__unlocked", test_sc_verify_snap_lock__unlocked);
