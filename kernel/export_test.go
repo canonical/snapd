@@ -33,13 +33,31 @@ func MockOsSymlink(newSymlink func(string, string) error) (restore func()) {
 	return func() { osSymlink = old }
 }
 
+// MockDoSync mocks the syscall.Sync wrapper for tests.
+func MockDoSync(newSync func()) (restore func()) {
+	return testutil.Mock(&doSync, newSync)
+}
+
 // MockAtomicWriteFile mocks the osutil.AtomicWriteFile wrapper used by
 // writeDriversTreeMeta, so tests can simulate a marker-write failure.
 func MockAtomicWriteFile(f func(string, []byte, os.FileMode, osutil.AtomicWriteFlags) error) (restore func()) {
 	return testutil.Mock(&atomicWriteFile, f)
 }
 
-var WriteDriversTreeMeta = writeDriversTreeMeta
+// MockAtomicSymlink mocks the osutil.AtomicSymlink wrapper for tests.
+func MockAtomicSymlink(f func(target, linkPath string) error) (restore func()) {
+	return testutil.Mock(&atomicSymlink, f)
+}
+
+var DirSwapOrRename = dirSwapOrRename
+
+func MockDriversTreeCheckpoint(f func(string) error) func() {
+	return testutil.Mock(&driversTreeCheckpoint, f)
+}
+
+func WriteDriversTreeMeta(destDir string) error {
+	return writeDriversTreeMeta(driversTreeMetaPath(destDir), driversTreeMeta{GeneratorVersion: kernelDriversTreeGeneratorVersion})
+}
 
 var ReadDriversTreeMeta = readDriversTreeMeta
 

@@ -41,10 +41,19 @@ import (
 // For testing purposes
 var osSymlink = os.Symlink
 
+// doSync is a mockable wrapper around syscall.Sync for tests.
+var doSync = syscall.Sync
+
 // atomicWriteFile is a mockable wrapper around osutil.AtomicWriteFile, used
 // by writeDriversTreeMeta, so tests can simulate a marker-write failure
 // (e.g. ENOSPC) without needing to actually exhaust disk space.
 var atomicWriteFile = osutil.AtomicWriteFile
+
+// atomicSymlink is a mockable wrapper around osutil.AtomicSymlink for tests.
+var atomicSymlink = osutil.AtomicSymlink
+
+// driversTreeCheckpoint lets tests interrupt a build at durability boundaries.
+var driversTreeCheckpoint = func(string) error { return nil }
 
 // kernelDriversTreeGeneratorVersion identifies the logic that produced a
 // kernel drivers tree (the on-disk symlinks/files under
@@ -52,26 +61,27 @@ var atomicWriteFile = osutil.AtomicWriteFile
 //
 // IMPORTANT: bump this whenever there is a change to the layout or organization of the
 // kernel drivers or firmware trees.
-var kernelDriversTreeGeneratorVersion = 1
+var kernelDriversTreeGeneratorVersion = 2
 
-// driversTreeMeta is the content of the <destDir>/kernel.json marker file
-// written after every successful kernel drivers tree build.
+// driversTreeMeta records the exact inputs used to build a drivers tree.
+// An absent input field denotes a legacy version-only marker.
 type driversTreeMeta struct {
-	GeneratorVersion int `json:"generator-version"`
+	GeneratorVersion int                      `json:"generator-version"`
+	Kernel           *MountPoints             `json:"kernel,omitempty"`
+	Components       []ModulesCompMountPoints `json:"components"`
+	Destination      string                   `json:"destination,omitempty"`
 }
 
 func driversTreeMetaPath(destDir string) string {
 	return filepath.Join(destDir, "kernel.json")
 }
 
-// writeDriversTreeMeta records the generator version that produced destDir.
-func writeDriversTreeMeta(destDir string) error {
-	meta := driversTreeMeta{GeneratorVersion: kernelDriversTreeGeneratorVersion}
+func writeDriversTreeMeta(path string, meta driversTreeMeta) error {
 	data, err := json.Marshal(&meta)
 	if err != nil {
 		return err
 	}
-	return atomicWriteFile(driversTreeMetaPath(destDir), data, 0644, 0)
+	return atomicWriteFile(path, data, 0644, 0)
 }
 
 var (
@@ -82,7 +92,16 @@ var (
 // destDir. If no marker value is present a default zero value with
 // GeneratorVersion set to 0 is returned and no error.
 func readDriversTreeMeta(destDir string) (driversTreeMeta, error) {
-	data, err := os.ReadFile(driversTreeMetaPath(destDir))
+	path := driversTreeMetaPath(destDir)
+	for _, pending := range []string{path + ".in", path + ".built"} {
+		if _, err := os.Lstat(pending); err == nil {
+			path = pending
+			break
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return driversTreeMeta{}, err
+		}
+	}
+	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return driversTreeMeta{
 			// Explicit zero value so that there are no misconceptions
@@ -115,6 +134,15 @@ func DriversTreeOutdated(destDir string) (bool, error) {
 	}
 	logger.Debugf("checking kernel tree generator version, current %v, on disk %v",
 		kernelDriversTreeGeneratorVersion, v.GeneratorVersion)
+	// Do not treat a pending build as complete just because an older final
+	// marker exists. A newer generator remains protected on downgrade.
+	for _, suffix := range []string{".in", ".built"} {
+		if _, err := os.Lstat(driversTreeMetaPath(destDir) + suffix); err == nil {
+			return v.GeneratorVersion <= kernelDriversTreeGeneratorVersion, nil
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return false, err
+		}
+	}
 	// A tree marked with a version *newer* than what is currently running (e.g.
 	// after a snapd revert) is deliberately NOT considered outdated: rebuilding
 	// it with older, possibly-buggy logic could regress a fix already applied
@@ -157,25 +185,28 @@ func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 	return kversion, nil
 }
 
-func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
-	fwOrig := fwMount.UnderCurrentPath("firmware")
-	if err := os.MkdirAll(fwDest, 0755); err != nil {
-		return err
-	}
+// firmwareSymlinkTarget describes the symlink entry that should exist for
+// one entry found in a kernel/component mount's firmware/ directory.
+type firmwareSymlinkTarget struct {
+	name   string
+	target string
+}
 
-	// Symbolic links inside firmware folder - it cannot be directly a
-	// symlink to "firmware" as we will use firmware/updates/ subfolder for
-	// components.
+// firmwareSymlinkTargets computes the desired firmware symlinks for a
+// mount, shared by candidate construction and live reconciliation.
+func firmwareSymlinkTargets(fwMount MountPoints, fwDest string) ([]firmwareSymlinkTarget, error) {
+	fwOrig := fwMount.UnderCurrentPath("firmware")
 	entries, err := os.ReadDir(fwOrig)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Debugf("no firmware found in %q", fwOrig)
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
 
 	fwTarget := fwMount.UnderTargetPath("firmware")
+	var targets []firmwareSymlinkTarget
 	for _, node := range entries {
 		switch node.Type() {
 		case 0, fs.ModeDir:
@@ -186,27 +217,47 @@ func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 				continue
 			}
 			// Create link for regular files or directories
-			lpath := filepath.Join(fwDest, node.Name())
-			if err := os.Symlink(filepath.Join(fwTarget, node.Name()), lpath); err != nil {
-				return err
-			}
+			targets = append(targets, firmwareSymlinkTarget{
+				name:   node.Name(),
+				target: filepath.Join(fwTarget, node.Name()),
+			})
 		case fs.ModeSymlink:
 			// Replicate link (it should be relative)
 			// TODO check this in snap pack
 			lpath := filepath.Join(fwDest, node.Name())
 			dest, err := os.Readlink(filepath.Join(fwOrig, node.Name()))
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if filepath.IsAbs(dest) {
-				return fmt.Errorf("symlink %q points to absolute path %q", lpath, dest)
+				return nil, fmt.Errorf("symlink %q points to absolute path %q", lpath, dest)
 			}
-			if err := os.Symlink(dest, lpath); err != nil {
-				return err
-			}
+			targets = append(targets, firmwareSymlinkTarget{name: node.Name(), target: dest})
 		default:
-			return fmt.Errorf("%q has unexpected file type: %s",
+			return nil, fmt.Errorf("%q has unexpected file type: %s",
 				node.Name(), node.Type())
+		}
+	}
+
+	return targets, nil
+}
+
+func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
+	if err := os.MkdirAll(fwDest, 0755); err != nil {
+		return err
+	}
+
+	// Symbolic links inside firmware folder - it cannot be directly a
+	// symlink to "firmware" as we will use firmware/updates/ subfolder for
+	// components.
+	targets, err := firmwareSymlinkTargets(fwMount, fwDest)
+	if err != nil {
+		return err
+	}
+	for _, t := range targets {
+		lpath := filepath.Join(fwDest, t.name)
+		if err := os.Symlink(t.target, lpath); err != nil {
+			return err
 		}
 	}
 
@@ -362,6 +413,137 @@ func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMou
 	return nil
 }
 
+// generatedFirmwareLink reports whether an absolute link target points into
+// the kernel snap's firmware directory. Relative links may also be created by
+// the generator, but a stale relative link cannot be distinguished from a
+// user-created one, so leave it alone.
+func generatedFirmwareLink(target, snapFwDir string) bool {
+	if !filepath.IsAbs(target) {
+		return false
+	}
+	rel, err := filepath.Rel(snapFwDir, target)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func generatedFirmwareFromAny(target string, fwDirs []string) bool {
+	for _, dir := range fwDirs {
+		if generatedFirmwareLink(target, dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// syncFirmwareTopLevelSymlinks live-updates children of lib/firmware.
+// Its parent can be a bind-mount source and must retain its inode.
+func syncFirmwareTopLevelSymlinks(kMntPts MountPoints, liveFwDir string, ownedFwDirs []string) error {
+	if err := os.MkdirAll(liveFwDir, 0755); err != nil {
+		return err
+	}
+
+	desired, err := firmwareSymlinkTargets(kMntPts, liveFwDir)
+	if err != nil {
+		return err
+	}
+
+	// A failed update leaves the pending marker for a repeatable retry.
+	// Keep going on error so every entry gets a chance, but remember the
+	// first failure so the caller does not advance the marker over a
+	// partially-fixed tree.
+	var firstErr error
+	desiredNames := make(map[string]bool, len(desired))
+	for _, d := range desired {
+		desiredNames[d.name] = true
+		lpath := filepath.Join(liveFwDir, d.name)
+		fi, statErr := os.Lstat(lpath)
+		switch {
+		case errors.Is(statErr, fs.ErrNotExist):
+			// Missing: create the link below.
+		case statErr != nil:
+			if firstErr == nil {
+				firstErr = statErr
+			}
+			continue
+		case fi.Mode().Type() != os.ModeSymlink:
+			// A non-symlink entry may be user-placed content; never
+			// destroy it, whatever its type.
+			return fmt.Errorf("cannot replace unowned firmware entry %q", lpath)
+		default:
+			cur, err := os.Readlink(lpath)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			if cur == d.target {
+				continue
+			}
+			if !generatedFirmwareFromAny(cur, ownedFwDirs) {
+				return fmt.Errorf("cannot replace unowned firmware symlink %q", lpath)
+			}
+		}
+		// Only a child of the mount point is touched, never lib/firmware
+		// itself, so this is safe live. Atomic replace avoids a window
+		// where lpath is unresolvable to a concurrent reader.
+		if err := atomicSymlink(d.target, lpath); err != nil {
+			logger.Noticef("cannot set up firmware symlink %q: %v", lpath, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if err := driversTreeCheckpoint("after-firmware-link"); err != nil {
+			return err
+		}
+	}
+
+	// Remove stale entries left by an older generator version. Same
+	// best-effort handling: keep going, remember the first failure.
+	entries, err := os.ReadDir(liveFwDir)
+	if err != nil {
+		if firstErr == nil {
+			firstErr = err
+		}
+		return firstErr
+	}
+	for _, e := range entries {
+		if e.Name() == "updates" || desiredNames[e.Name()] {
+			// "updates" is created at runtime or by the user
+			continue
+		}
+		if e.Type()&fs.ModeSymlink == 0 {
+			// May be user-created; leave it.
+			logger.Noticef("unexpected entry %q found in %q", e.Name(), liveFwDir)
+			continue
+		}
+		lpath := filepath.Join(liveFwDir, e.Name())
+		cur, err := os.Readlink(lpath)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if !generatedFirmwareFromAny(cur, ownedFwDirs) {
+			logger.Noticef("leaving non-kernel firmware symlink %q untouched", lpath)
+			continue
+		}
+		if err := os.Remove(lpath); err != nil {
+			logger.Noticef("cannot remove stale firmware symlink %q: %v", lpath, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if err := driversTreeCheckpoint("after-firmware-unlink"); err != nil {
+			return err
+		}
+	}
+
+	return firstErr
+}
+
 // DriversTreeDir returns the directory for a given kernel and revision under
 // rootdir.
 func DriversTreeDir(rootdir, kernelName string, rev snap.Revision) string {
@@ -375,27 +557,6 @@ func DriversTreeDir(rootdir, kernelName string, rev snap.Revision) string {
 func RemoveKernelDriversTree(treeRoot string) (err error) {
 	return os.RemoveAll(treeRoot)
 }
-
-// KernelDriversTreeMode selects which of a fixed set of scenarios
-// EnsureKernelDriversTree is building the tree for.
-type KernelDriversTreeMode int
-
-const (
-	// zero value is reserved and intentionally invalid: every caller must
-	// pick a mode explicitly instead of silently defaulting to one.
-	_ KernelDriversTreeMode = iota
-
-	// KernelInstallMode builds a tree for a kernel snap being installed
-	// right now (possibly together with kernel-modules components).
-	KernelInstallMode
-	// ComponentChangeMode updates the tree of an already-installed kernel in
-	// response to a kernel-modules component install or removal. Can be
-	// applied to a live, active kernel tree.
-	ComponentChangeMode
-	// RegenerateMode rebuilds in place the tree of an already installed
-	// kernel and its artifacts.
-	RegenerateMode
-)
 
 // MountPoints describes mount points for a snap or a component.
 type MountPoints struct {
@@ -426,97 +587,158 @@ type ModulesCompMountPoints struct {
 	MountPoints
 }
 
-// EnsureKernelDriversTree creates a drivers tree that can include modules/fw
-// from kernel-modules components. mode tells the function which of the
-// fixed set of scenarios (KernelInstallMode, ComponentChangeMode,
-// RegenerateMode) it is building the tree for.
-//
-// For kernel installs, this function creates a tree in destDir (should be of
-// the form <somedir>/var/lib/snapd/kernel/<ksnapName>/<rev>), which is
-// bind-mounted after a reboot to /usr/lib/{modules,firmware} (the currently
-// active kernel is using a different path as it has a different revision).
-// This tree contains files from the kernel snap content in kSnapRoot, as well
-// as symlinks to it. Information from modules is found by looking at
-// comps slice.
-//
-// For components-only install, we want the components to be available without
-// rebooting. For this, we work on a temporary tree, and after finishing it we
-// swap atomically the affected modules/firmware folders with those of the
-// currently active kernel drivers tree.
-//
-// To make this work in all cases we need to know the current mounts of the
-// kernel snap / components to be installed and the final mounts when the
-// system is run after installation (as the installing system might be classic
-// while the installed system could be hybrid or UC, or we could be installing
-// from the initramfs). To consider all cases, we need to run depmod with links
-// to the currently available content, and then replace those links with the
-// expected mounts in the running system.
-func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, mode KernelDriversTreeMode) (err error) {
-	// TODO add support for regenerate
-
-	switch mode {
-	case KernelInstallMode, ComponentChangeMode, RegenerateMode:
-		// ok
-	default:
-		return fmt.Errorf("internal error: unsupported kernel drivers tree mode %v", mode)
+func dirSwapOrRename(temp, target string) (existed bool, retErr error) {
+	exists, isDir, err := osutil.DirExists(target)
+	if err != nil {
+		return false, err
 	}
+	missing := !(exists && isDir)
+	if missing {
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return false, err
+		}
+		if err := os.Rename(temp, target); err != nil {
+			return false, fmt.Errorf("while moving %q to %q: %w", temp, target, err)
+		}
+		// Did not exist, but created successfully
+		return false, nil
+	} else {
+		if err := osutil.SwapDirs(temp, target); err != nil {
+			return true, fmt.Errorf("while swapping %q <-> %q: %w", temp, target, err)
+		}
+		return true, nil
+	}
+}
 
-	// The temporal dir when installing only components can be fixed as a
-	// task installing/updating a kernel-modules component must conflict
-	// with changes containing this same task. This helps with clean-ups if
-	// something goes wrong. Note that this folder needs to be in the same
-	// filesystem as the final one so we can atomically switch the folders.
-	destDir = strings.TrimSuffix(destDir, "/")
-	targetDir := destDir + "_tmp"
-	if mode == KernelInstallMode {
-		targetDir = destDir
-		exists, isDir, _ := osutil.DirExists(targetDir)
-		if exists && isDir {
-			logger.Debugf("device tree %q already created on installation, not re-creating",
-				targetDir)
-			// Nothing was built here, so the existing marker (if any) is
-			// left untouched.
-			return nil
+// EnsureKernelDriversTree reconciles the managed tree with the supplied mounts.
+// Current mounts are used for discovery and depmod; links point at Target.
+// Existing root and lib/{modules,firmware} inodes remain stable for bind mounts.
+func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string) (retErr error) {
+	destDir = filepath.Clean(destDir)
+	rootInfo, err := os.Lstat(destDir)
+	exists := err == nil
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if exists && !rootInfo.IsDir() {
+		return fmt.Errorf("cannot update kernel drivers tree %q: not a directory", destDir)
+	}
+	meta := driversTreeMeta{
+		GeneratorVersion: kernelDriversTreeGeneratorVersion,
+		Kernel:           &kMntPts, Components: compsMntPts, Destination: destDir,
+	}
+	// A newer generator's output must not be rewritten by an older one.
+	// Existing input markers identify previous generated absolute firmware
+	// links (including links left by an interrupted earlier pass).
+	ownedFwDirs := []string{kMntPts.UnderTargetPath("firmware")}
+	for _, suffix := range []string{".in", ".built", ""} {
+		path := driversTreeMetaPath(destDir) + suffix
+		data, err := os.ReadFile(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		var old driversTreeMeta
+		if err := json.Unmarshal(data, &old); err != nil {
+			return fmt.Errorf("cannot read kernel drivers tree marker %q: %w", path, err)
+		}
+		if old.GeneratorVersion > kernelDriversTreeGeneratorVersion {
+			return fmt.Errorf("cannot replace kernel drivers tree %q from newer generator %d", destDir, old.GeneratorVersion)
+		}
+		if old.Kernel != nil && old.Destination == destDir {
+			ownedFwDirs = append(ownedFwDirs, old.Kernel.UnderTargetPath("firmware"))
 		}
 	}
-	// Initial clean-up to make the function idempotent
-	if rmErr := RemoveKernelDriversTree(targetDir); rmErr != nil &&
-		!errors.Is(err, fs.ErrNotExist) {
-		logger.Noticef("while removing old kernel tree: %v", rmErr)
+
+	// A bare mount directory may have been created by a mount unit without
+	// its kernel snap. Do not certify an empty tree for such a source.
+	if _, modErr := os.Stat(kMntPts.UnderCurrentPath("modules")); errors.Is(modErr, fs.ErrNotExist) {
+		if _, fwErr := os.Stat(kMntPts.UnderCurrentPath("firmware")); errors.Is(fwErr, fs.ErrNotExist) {
+			if _, metaErr := os.Stat(kMntPts.UnderCurrentPath("meta", "snap.yaml")); metaErr != nil {
+				return fmt.Errorf("cannot read kernel drivers source %q: no mounted kernel content", kMntPts.Current)
+			}
+		} else if fwErr != nil {
+			return fwErr
+		}
+	} else if modErr != nil {
+		return modErr
+	}
+	if fi, err := os.Stat(kMntPts.Current); err != nil {
+		return fmt.Errorf("cannot read kernel drivers source %q: %w", kMntPts.Current, err)
+	} else if !fi.IsDir() {
+		return fmt.Errorf("cannot read kernel drivers source %q: not a directory", kMntPts.Current)
+	}
+	for _, cmp := range compsMntPts {
+		if fi, err := os.Stat(cmp.Current); err != nil {
+			return fmt.Errorf("cannot read kernel component source %q: %w", cmp.Current, err)
+		} else if !fi.IsDir() {
+			return fmt.Errorf("cannot read kernel component source %q: not a directory", cmp.Current)
+		}
+		// Dynamic module directories have no component metadata, but must
+		// contain drivers. An empty mount directory is not a driverless
+		// component: without metadata it can be an unmounted squashfs.
+		if !sourceExists(cmp.UnderCurrentPath("meta", "component.yaml")) &&
+			!sourceExists(cmp.UnderCurrentPath("modules")) &&
+			!sourceExists(cmp.UnderCurrentPath("firmware")) {
+			return fmt.Errorf("cannot read kernel component source %q: no mounted component content", cmp.Current)
+		}
 	}
 
+	// Build beside the destination so a prepared image and a running system
+	// both use their own filesystem for atomic renames.
+	candidate := destDir + "_tmp"
+	if err := os.MkdirAll(filepath.Dir(candidate), 0755); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(candidate); err != nil {
+		return err
+	}
 	defer func() {
-		// Remove on return if error or if temporary tree
-		if err == nil && mode == KernelInstallMode {
-			return
-		}
-		if rmErr := RemoveKernelDriversTree(targetDir); rmErr != nil &&
-			!errors.Is(err, fs.ErrNotExist) {
-			logger.Noticef("while cleaning up kernel tree: %v", rmErr)
+		if err := os.RemoveAll(candidate); err != nil {
+			logger.Noticef("while removing candidate kernel tree: %v", err)
 		}
 	}()
 
-	// Create drivers tree
-	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
-	if err == nil {
-		if err := createModulesSubtree(kMntPts, targetDir,
-			kversion, compsMntPts); err != nil {
-			return err
-		}
-	} else {
-		logger.Debugf("no modules found in %q", kMntPts.Current)
+	markerRoot := candidate
+	if exists {
+		markerRoot = destDir
+	}
+	in := driversTreeMetaPath(markerRoot) + ".in"
+	built := driversTreeMetaPath(markerRoot) + ".built"
+	if err := os.MkdirAll(candidate, 0755); err != nil {
+		return err
+	}
+	// On an existing tree, persist intent before touching any live child.
+	if err := driversTreeCheckpoint("before-in"); err != nil {
+		return err
+	}
+	if err := writeDriversTreeMeta(in, meta); err != nil {
+		return err
+	}
+	doSync()
+	if err := driversTreeCheckpoint("after-in"); err != nil {
+		return err
+	}
+	if err := driversTreeCheckpoint("before-build"); err != nil {
+		return err
 	}
 
-	fwDir := filepath.Join(targetDir, "lib", "firmware")
-	if mode == KernelInstallMode {
-		// symlinks in /lib/firmware are not affected by components
-		if err := createFirmwareSymlinks(kMntPts, fwDir); err != nil {
+	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
+		logger.Debugf("no modules found in %q", kMntPts.Current)
+	} else if err := createModulesSubtree(kMntPts, candidate, kversion, compsMntPts); err != nil {
+		return err
+	}
+	fwDir := filepath.Join(candidate, "lib", "firmware")
+	if err := createFirmwareSymlinks(kMntPts, fwDir); err != nil {
+		return err
 	}
 	updateFwDir := filepath.Join(fwDir, "updates")
-	// This folder needs to exist always to allow for directory swapping
-	// in the future, even if right now we don't have components.
 	if err := os.MkdirAll(updateFwDir, 0755); err != nil {
 		return err
 	}
@@ -525,51 +747,158 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 			return err
 		}
 	}
-
-	// Sync before returning successfully (install kernel case) and also
-	// for swapping case so we have consistent content before swapping
-	// folder.
-	syscall.Sync()
-
-	if mode != KernelInstallMode {
-		// There is a (very small) chance of a poweroff/reboot while
-		// having swapped only one of these two folders. If that
-		// happens, snapd will re-run the task on the next boot, but
-		// with mismatching modules/fw for the installed components. As
-		// modules shipped by components should not be that critical,
-		// in principle the system should recover.
-
-		// Swap modules directories
-		oldRoot := destDir
-
-		// Swap updates directory inside firmware dir
-		oldFwUpdates := filepath.Join(oldRoot, "lib", "firmware", "updates")
-		if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-			return fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
-		}
-
-		newMods := filepath.Join(targetDir, "lib", "modules", kversion)
-		oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
-		if err := osutil.SwapDirs(oldMods, newMods); err != nil {
-			// Undo firmware swap
-			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-				logger.Noticef("while reverting modules swap: %v", err)
-			}
-			return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
-		}
-
-		// Make sure that changes are written
-		syscall.Sync()
+	if err := driversTreeCheckpoint("after-build"); err != nil {
+		return err
 	}
-
-	if mode == KernelInstallMode {
-		// Record the version of the layout used for the firmware and modules
-		// tree.
-		if err := writeDriversTreeMeta(targetDir); err != nil {
+	// Preflight all firmware conflicts before mutating any live subtree.
+	if exists {
+		if err := checkFirmwareCollisions(kMntPts, filepath.Join(destDir, "lib", "firmware"), ownedFwDirs); err != nil {
 			return err
 		}
 	}
+	doSync()
+	if err := driversTreeCheckpoint("before-built"); err != nil {
+		return err
+	}
+	if err := os.Rename(in, built); err != nil {
+		return err
+	}
+	doSync()
+	if err := driversTreeCheckpoint("after-built"); err != nil {
+		return err
+	}
 
+	if !exists {
+		if err := driversTreeCheckpoint("before-install-rename"); err != nil {
+			return err
+		}
+		if err := os.Rename(candidate, destDir); err != nil {
+			return err
+		}
+		// The marker moved together with the candidate.
+		built = driversTreeMetaPath(destDir) + ".built"
+		doSync()
+		if err := driversTreeCheckpoint("after-install-rename"); err != nil {
+			return err
+		}
+	} else {
+		liveLib := filepath.Join(destDir, "lib")
+		liveMods := filepath.Join(liveLib, "modules")
+		liveFw := filepath.Join(liveLib, "firmware")
+		for _, dir := range []string{liveMods, liveFw} {
+			if fi, err := os.Lstat(dir); err == nil && !fi.IsDir() {
+				return fmt.Errorf("cannot update kernel drivers tree %q: parent is not a directory", dir)
+			} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+				return err
+			}
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return err
+			}
+		}
+		// The versioned modules directory and firmware updates directory are
+		// safe swap units. Never swap a bind-mounted parent directory.
+		if err := driversTreeCheckpoint("before-firmware-swap"); err != nil {
+			return err
+		}
+		if err := replaceManagedDir(updateFwDir, filepath.Join(liveFw, "updates")); err != nil {
+			return err
+		}
+		if err := driversTreeCheckpoint("after-firmware-swap"); err != nil {
+			return err
+		}
+		if kversion != "" {
+			if err := driversTreeCheckpoint("before-modules-swap"); err != nil {
+				return err
+			}
+			if err := replaceManagedDir(filepath.Join(candidate, "lib", "modules", kversion), filepath.Join(liveMods, kversion)); err != nil {
+				return err
+			}
+			if err := driversTreeCheckpoint("after-modules-swap"); err != nil {
+				return err
+			}
+		}
+		entries, err := os.ReadDir(liveMods)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if entry.Name() != kversion {
+				if err := os.RemoveAll(filepath.Join(liveMods, entry.Name())); err != nil {
+					return err
+				}
+			}
+		}
+		if err := driversTreeCheckpoint("before-firmware-links"); err != nil {
+			return err
+		}
+		if err := syncFirmwareTopLevelSymlinks(kMntPts, liveFw, ownedFwDirs); err != nil {
+			return err
+		}
+		if err := driversTreeCheckpoint("after-firmware-links"); err != nil {
+			return err
+		}
+		if err := driversTreeCheckpoint("before-live-sync"); err != nil {
+			return err
+		}
+		doSync()
+		if err := driversTreeCheckpoint("after-live-sync"); err != nil {
+			return err
+		}
+	}
+	if err := driversTreeCheckpoint("before-final"); err != nil {
+		return err
+	}
+	if err := os.Rename(built, driversTreeMetaPath(destDir)); err != nil {
+		return err
+	}
+	doSync()
+	if err := driversTreeCheckpoint("after-final"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func sourceExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// replaceManagedDir atomically exchanges a candidate directory with any
+// existing managed child, even one left with the wrong type by an old run.
+func replaceManagedDir(candidate, live string) error {
+	if _, err := os.Lstat(live); errors.Is(err, fs.ErrNotExist) {
+		return os.Rename(candidate, live)
+	} else if err != nil {
+		return err
+	}
+	return osutil.SwapDirs(candidate, live)
+}
+
+func checkFirmwareCollisions(kMntPts MountPoints, liveFw string, ownedFwDirs []string) error {
+	desired, err := firmwareSymlinkTargets(kMntPts, liveFw)
+	if err != nil {
+		return err
+	}
+	for _, d := range desired {
+		path := filepath.Join(liveFw, d.name)
+		fi, err := os.Lstat(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if fi.Mode().Type() != os.ModeSymlink {
+			return fmt.Errorf("cannot replace unowned firmware entry %q", path)
+		}
+		old, err := os.Readlink(path)
+		if err != nil {
+			return err
+		}
+		if old != d.target && !generatedFirmwareFromAny(old, ownedFwDirs) {
+			return fmt.Errorf("cannot replace unowned firmware symlink %q", path)
+		}
+	}
 	return nil
 }
 

@@ -154,7 +154,7 @@ execute: |
 
         # Check the generator version
         gojq '.["generator-version"]'  /var/lib/snapd/kernel/"$device"-kernel/x1/kernel.json | \
-            MATCH '^1$'
+            MATCH '^2$'
 
         not mountpoint /run/mnt/base
         loop="$(findmnt -o source / -n)"
