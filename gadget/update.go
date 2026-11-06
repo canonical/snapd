@@ -1721,8 +1721,9 @@ func arePartitionTypesCompatible(from, to *VolumeStructure) bool {
 func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) error {
 	from := &fromV.Structure[fromIdx]
 	to := &toV.Structure[toIdx]
-	if !toV.HasPartial(PartialSchema) && toV.Schema == schemaGPT && from.Name != to.Name {
-		// partition names are only effective when GPT is used
+	if (isVolumeUFS(toV) || !toV.HasPartial(PartialSchema) && toV.Schema == schemaGPT) && from.Name != to.Name {
+		// partition names are only effective when GPT is used, UFS
+		// structure names select the boot logical unit to write to
 		return fmt.Errorf("cannot change structure name from %q to %q",
 			from.Name, to.Name)
 	}
