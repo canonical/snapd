@@ -52,6 +52,12 @@ var api = []*Command{
 	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
+	// NOTE: signAssertCmd must be registered *before* assertsFindManyCmd.
+	// The latter uses the /v2/assertions/{assertType} wildcard and gorilla/mux
+	// matches routes in registration order, so registering it first would
+	// shadow /v2/assertions/sign.
+	signAssertCmd,
+	listKeysCmd,
 	assertsFindManyCmd,
 	stateChangeCmd,
 	stateChangesCmd,
@@ -136,6 +142,7 @@ const (
 	polkitActionManageInterfaces    = "io.snapcraft.snapd.manage-interfaces"
 	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
 	polkitActionManageFDE           = "io.snapcraft.snapd.manage-fde"
+	polkitActionSign                = "io.snapcraft.snapd.sign"
 )
 
 // userFromRequest extracts user information from request and return the

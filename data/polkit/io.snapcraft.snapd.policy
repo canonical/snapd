@@ -57,4 +57,14 @@
     </defaults>
   </action>
 
+  <action id="io.snapcraft.snapd.sign">
+    <description gettext-domain="snappy">Sign an assertion with a managed key</description>
+    <message gettext-domain="snappy">Authentication is required to sign an assertion on behalf of an application</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
 </policyconfig>
