@@ -270,7 +270,8 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
 
     int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0)) ? S_IFBLK : S_IFCHR;
 
-    sc_device_cgroup *cgroup = sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
+    sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
+        sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
     if (!cgroup) {
         if (errno == ENOENT) {
             debug("device cgroup does not exist");

@@ -188,6 +188,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cgroup-support-test.c \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
+	libsnap-confine-private/device-cgroup-support-test.c \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/feature-test.c \

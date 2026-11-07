@@ -47,6 +47,7 @@ static struct mocks {
 
     size_t cgroup_allow_calls;
     size_t cgroup_deny_calls;
+    size_t cgroup_cleanup_calls;
     int device_type;
     int device_major;
     int device_minor;
@@ -86,6 +87,12 @@ int sc_device_cgroup_deny(sc_device_cgroup *self, int kind, int major, int minor
     return 0;
 }
 
+void sc_device_cgroup_cleanup(sc_device_cgroup **self) {
+    g_debug("cgroup cleanup called");
+    mocks.cgroup_cleanup_calls++;
+    *self = NULL;
+}
+
 struct sdh_test_data {
     char *action;
     // snap.foo.bar
@@ -116,14 +123,17 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 1);
     } else if (g_strcmp0(td->action, "remove") == 0) {
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 1);
     } else if (g_strcmp0(td->action, "unbind") == 0) {
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 0);
     }
     if (g_strcmp0(td->action, "unbind") != 0) {
         g_assert_cmpint(mocks.device_major, ==, 8);
@@ -154,14 +164,17 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 1);
     } else if (g_strcmp0(td->action, "remove") == 0) {
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 1);
     } else if (g_strcmp0(td->action, "unbind") == 0) {
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 0);
     }
     if (g_strcmp0(td->action, "unbind") != 0) {
         g_assert_cmpint(mocks.device_major, ==, 6);
@@ -237,6 +250,7 @@ static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_d
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 1);
         g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
         g_assert_cmpint(mocks.device_minor, ==, tcs[i].expected_min);
         g_assert_cmpint(mocks.device_type, ==, tcs[i].expected_type);
@@ -325,6 +339,7 @@ static void test_sdh_action_remove_fallback_devtype(sdh_test_fixture *fixture, g
         g_assert_cmpint(mocks.cgroup_new_calls, ==, 1);
         g_assert_cmpint(mocks.cgroup_allow_calls, ==, 0);
         g_assert_cmpint(mocks.cgroup_deny_calls, ==, 1);
+        g_assert_cmpuint(mocks.cgroup_cleanup_calls, ==, 1);
         g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
         g_assert_cmpint(mocks.device_minor, ==, tcs[i].expected_min);
         g_assert_cmpint(mocks.device_type, ==, tcs[i].expected_type);
