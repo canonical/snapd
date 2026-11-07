@@ -113,7 +113,7 @@ func (c *modelCommand) reportError(format string, a ...any) {
 
 // hasSnapdControlInterface returns true if the requesting snap has the
 // snapd-control plug and only if it is connected as well.
-func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string) (bool, error) {
+func (c *modelCommand) hasSnapdControlInterface(st *state.State, instanceName string) (bool, error) {
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
 		return false, err
@@ -126,7 +126,7 @@ func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string
 		if err != nil {
 			return false, err
 		}
-		if connRef.PlugRef.Snap.String() == snapName {
+		if connRef.PlugRef.Snap.String() == instanceName {
 			return true, nil
 		}
 	}
@@ -164,7 +164,7 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 	if snapInfo.Publisher.ID == deviceCtx.Model().BrandID() {
 		return nil
 	}
-	if conn, err := c.hasSnapdControlInterface(st, snapInfo.SnapName().String()); err != nil {
+	if conn, err := c.hasSnapdControlInterface(st, snapInfo.InstanceName().String()); err != nil {
 		return fmt.Errorf("cannot check for snapd-control interface: %v", err)
 	} else if conn {
 		return nil
@@ -172,8 +172,8 @@ func (c *modelCommand) checkPermissions(st *state.State, deviceCtx snapstate.Dev
 
 	c.reportError("cannot get model assertion for snap %q: "+
 		"must be either a gadget or a kernel snap, from the same publisher as the model "+
-		"or have the snapd-control interface\n", snapInfo.SnapName())
-	return fmt.Errorf("insufficient permissions to get model assertion for snap %q", snapInfo.SnapName())
+		"or have the snapd-control interface\n", snapInfo.InstanceName())
+	return fmt.Errorf("insufficient permissions to get model assertion for snap %q", snapInfo.InstanceName())
 }
 
 // findSerialAssertion is a helper function to find the newest matching serial assertion
