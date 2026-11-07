@@ -462,6 +462,12 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 		return &MissingContextError{inst.Action}
 	}
 
+	// Service commands can only be invoked by root (see nonRootAllowed), and
+	// "self" cannot refer to root, so there is no user to act on.
+	if inst.Users.Selector == client.UserSelectionSelf {
+		return errors.New(i18n.G("cannot use --user with snapctl as it always runs as root, use --users=all instead"))
+	}
+
 	// patch service names for parallel installed snap if needed
 	var err error
 	inst.Names, _, err = maybePatchServiceNames(context.InstanceName().String(), inst.Names)
