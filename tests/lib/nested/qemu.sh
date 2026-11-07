@@ -147,7 +147,7 @@ nested_create_vm_service() {
 
     local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
-    PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22,hostfwd=tcp::8023-:8023,hostfwd=tcp::9022-:9022"
+    PARAM_NETWORK="${NESTED_PARAM_NETWORK:--net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22,hostfwd=tcp::8023-:8023,hostfwd=tcp::9022-:9022}"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server=on,wait=off"
     PARAM_USB="-usb"
     PARAM_CD="${NESTED_PARAM_CD:-}"
@@ -228,9 +228,10 @@ nested_create_vm_service() {
     else
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device ide-hd,drive=disk1"
     fi
-    PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
+    # NESTED_PARAM_IMAGE replaces the disk argument, including block sizes.
+    PARAM_IMAGE="${NESTED_PARAM_IMAGE:-${PARAM_IMAGE},${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}}"
 
-    if nested_is_core_20_system; then
+    if nested_is_core_20_system && [ -z "${NESTED_NO_REEXEC_ON_FAILURE:-}" ]; then
         # This is to deal with the following qemu error which occurs using q35 machines in focal
         # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
         # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT

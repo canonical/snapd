@@ -1,0 +1,117 @@
+#cloud-config
+runcmd:
+  - |
+    echo nested-autoinstall-live >/dev/ttyS0
+@LIVE_SNAPD_SETUP@
+    # Firmware boot of the stock ISO has no autoinstall kernel parameter, so
+    # the desktop installer waits for confirmation after the config loads.
+    setsid python3 - >/dev/ttyS0 2>&1 <<'PY' &
+    import os
+    import socket
+    import stat
+    import time
+    import http.client
+
+    SOCK = "/run/subiquity/socket"
+
+    class UnixHTTPConnection(http.client.HTTPConnection):
+        def __init__(self, path):
+            super().__init__("localhost")
+            self.unix_path = path
+
+        def connect(self):
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            sock.connect(self.unix_path)
+            self.sock = sock
+
+    def request(method, url):
+        conn = UnixHTTPConnection(SOCK)
+        conn.request(method, url)
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8", "replace")
+        status = resp.status
+        conn.close()
+        return status, body
+
+    print("nested-autoinstall-confirm-wait", flush=True)
+    for _ in range(180):
+        try:
+            mode = os.stat(SOCK).st_mode
+        except FileNotFoundError:
+            print("nested-autoinstall-confirm-no-socket", flush=True)
+            time.sleep(2)
+            continue
+        if not stat.S_ISSOCK(mode):
+            print("nested-autoinstall-confirm-no-socket", flush=True)
+            time.sleep(2)
+            continue
+        try:
+            _, body = request("GET", "/meta/status")
+        except Exception as exc:
+            print("nested-autoinstall-confirm-error", exc, flush=True)
+            time.sleep(2)
+            continue
+        if "NEEDS_CONFIRMATION" not in body:
+            time.sleep(2)
+            continue
+        for url in ("/meta/confirm?tty=%22autoinstall%22", "/meta/confirm?tty=autoinstall"):
+            try:
+                code, out = request("POST", url)
+            except Exception as exc:
+                print("nested-autoinstall-confirm-error", exc, flush=True)
+                continue
+            print("nested-autoinstall-confirm-http", code, url, flush=True)
+            print(out, flush=True)
+            if code == 200:
+                print("nested-autoinstall-confirmed", flush=True)
+                raise SystemExit(0)
+        time.sleep(2)
+    print("nested-autoinstall-confirm-timeout", flush=True)
+    raise SystemExit(1)
+    PY
+    setsid bash -c 'exec >>/dev/ttyS0 2>&1
+    declare -A seen
+    while true; do
+      for f in /var/log/installer/*; do
+        [ -f "$f" ] || continue
+        [ -L "$f" ] && continue
+        size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+        prev=${seen[$f]:-0}
+        if [ "$size" -gt "$prev" ]; then
+          echo "==> $f <=="
+          tail -c +$((prev + 1)) "$f"
+          seen[$f]=$size
+        fi
+      done
+      sleep 2
+    done' </dev/null >/dev/ttyS0 2>&1 &
+autoinstall:
+  version: 1
+  interactive-sections: []
+  refresh-installer:
+    update: false
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  source:
+    id: @SOURCE_ID@
+    search_drivers: false
+  identity:
+    hostname: nested
+    username: user1
+    password: '@PASSWORD_HASH@'
+  ssh:
+    install-server: true
+    allow-pw: true
+  drivers:
+    install: false
+  oem:
+    install: false
+  shutdown: poweroff
+  error-commands:
+    - echo nested-autoinstall-failed >/dev/ttyS0
+  late-commands:
+    - printf "user1 ALL=(ALL) NOPASSWD:ALL\n" > /target/etc/sudoers.d/99-nested-user && chmod 440 /target/etc/sudoers.d/99-nested-user
+    - mkdir -p /target/etc/systemd/system/snapd.service.d && printf "[Service]\nEnvironment=SNAPPY_TESTING=1\n" > /target/etc/systemd/system/snapd.service.d/99-nested-testing.conf
+@PROXY_LINE@@STORAGE@

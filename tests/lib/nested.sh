@@ -21,6 +21,10 @@
 : "${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:=}"
 : "${NESTED_UBUNTU_IMAGE_PRESEED_KEY:=}"
 : "${NESTED_UBUNTU_SEED_SIZE:=}"
+: "${NESTED_UBUNTU_DESKTOP_ISO_URL:=}"
+: "${NESTED_DESKTOP_SOURCE_ID:=ubuntu-desktop-minimal}"
+: "${NESTED_AUTOINSTALL_CONFIG:=}"
+: "${NESTED_DESKTOP_SNAPD:=iso}"
 : "${NESTED_KEEP_FIRMWARE_STATE:=}"
 : "${NESTED_CUSTOM_FIRMWARE:=}"
 : "${NESTED_ENABLE_ARM_TRUSTZONE:=false}"
@@ -45,3 +49,5 @@
 . "$TESTSLIB/nested/setup.sh"
 # shellcheck source=tests/lib/nested/secure-boot.sh
 . "$TESTSLIB/nested/secure-boot.sh"
+# shellcheck source=tests/lib/nested/installer.sh
+. "$TESTSLIB/nested/installer.sh"

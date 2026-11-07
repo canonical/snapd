@@ -1,0 +1,67 @@
+summary: Install the daily Ubuntu desktop image with TPM encryption
+
+details: |
+    Boot the 26.04 daily desktop ISO from cdimage.ubuntu.com/ubuntu/resolute/daily-live/current/
+    in a nested QEMU guest. The guest uses enrolled OVMF variables, a virtual TPM, a SCSI CD for
+    the ISO, and a second SCSI CD for the autoinstall config, in front of a virtio disk.
+
+    The seed document is tests/lib/nested/autoinstall-user-data.in. The storage section is the
+    hybrid TPM-backed layout in tests/nested/manual/desktop-autoinstall/autoinstall-tpmfde.yaml,
+    including the running-in-vm exception. Subiquity does not yet honor that exception, so the
+    seed restarts the live snapd with SNAPPY_TESTING=1. The secboot preinstall check permits a
+    virtual machine only in that mode.
+
+    The iso variant uses that image snapd. The branch variant installs the snapd snap built
+    for this tree from the seed CD, restarts it with SNAP_REEXEC=force, and continues only
+    when the running executable is under /snap/snapd. The installed system keeps the image
+    snapd, and the same testing setting, in both variants.
+
+    The stock ISO boot does not put autoinstall on the kernel command line, so the seed
+    confirms that prompt on the installer socket. The seed also sets a user, SSH, and power-off
+    so the test can reach the installed system.
+
+    After the installer powers off, boot the same disk with the OVMF variables and TPM state
+    kept. Check that snapd reports storage encryption as active, the FDE marker is present, and
+    ubuntu-data-enc is a LUKS volume.
+
+    The image URL can be replaced with NESTED_UBUNTU_DESKTOP_ISO_URL, and
+    the autoinstall source id with NESTED_DESKTOP_SOURCE_ID.
+
+systems:
+    - ubuntu-26.04-64
+
+warn-timeout: 2h
+
+kill-timeout: 3h
+
+environment:
+    NESTED_ENABLE_TPM: true
+    NESTED_ENABLE_SECURE_BOOT: true
+    NESTED_USE_CLOUD_INIT: true
+    # 8192 MB is refused on the shared.medium workers.
+    NESTED_MEM: 4096
+    NESTED_CPUS: 4
+    NESTED_DESKTOP_SNAPD/iso: iso
+    NESTED_DESKTOP_SNAPD/branch: branch
+
+debug: |
+    tests.nested get serial-log || true
+
+execute: |
+    export NESTED_AUTOINSTALL_CONFIG="${PWD}/autoinstall-tpmfde.yaml"
+    # create-vm declares its own NESTED_MEM and NESTED_CPUS. The task
+    # environment does not reach QEMU unless these flags are passed.
+    # The call downloads the daily ISO, builds the autoinstall seed, and
+    # firmware-boots the installer. It waits until that guest powers off, then
+    # boots the same disk with the OVMF variables and TPM state kept. It
+    # returns only after SSH answers and snapd is seeded.
+    tests.nested create-vm installer --param-mem "$NESTED_MEM" --param-cpus "$NESTED_CPUS"
+
+    # The guest is now the installed system. Confirm its identity and that TPM
+    # encryption is active, the FDE marker is present, and ubuntu-data-enc is a LUKS volume.
+    remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
+    remote.exec "hostname" | MATCH nested
+    remote.exec "whoami" | MATCH user1
+    remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null" | gojq '.result.status' | MATCH '"active"'
+    remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
+    remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
