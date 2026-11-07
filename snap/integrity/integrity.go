@@ -82,12 +82,17 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 	return nil
 }
 
+const dmVerityFileSuffix = ".dmverity"
+
+func integrityFilePathPrefix(snapPath string) string {
+	return strings.TrimSuffix(snapPath, ".snap") + "_"
+}
+
+// integrityFilePath returns <instance_name>_<revision>_<digest>.dmverity next to the snap.
+//
 // TODO: consider handling for snap components
 func integrityFilePath(snapPath, digest string) string {
-	// strip .snap suffix
-	basePath := strings.TrimSuffix(snapPath, ".snap")
-	// TODO: change dm-verity file name to <instance_name>_<revision>_<root_hash>.dm-verity
-	return fmt.Sprintf("%s.dmverity_%s", basePath, digest)
+	return integrityFilePathPrefix(snapPath) + digest + dmVerityFileSuffix
 }
 
 // IntegrityFile returns the integrity file name corresponding to the integrity
@@ -122,8 +127,23 @@ func (params *IntegrityDataParams) MountOptions(snapPath string) ([]string, erro
 // FindIntegrityFilesForSnap returns the paths of all integrity files found
 // next to the given snap path.
 func FindIntegrityFilesForSnap(snapPath string) ([]string, error) {
-	// glob matches path/to/snap/<instance_name>_<revision>.dmverity_*
-	return filepath.Glob(integrityFilePath(snapPath, "*"))
+	// glob matches path/to/snap/<instance_name>_<revision>_*.dmverity
+	matches, err := filepath.Glob(integrityFilePath(snapPath, "*"))
+	if err != nil {
+		return nil, err
+	}
+	prefix := integrityFilePathPrefix(snapPath)
+	var files []string
+	for _, match := range matches {
+		digest := strings.TrimSuffix(strings.TrimPrefix(match, prefix), dmVerityFileSuffix)
+		// digests never contain "_", if a match does then it belongs to another
+		// snap instance e.g. foo_1_2_<digest>.dmverity for snap foo_1
+		if strings.Contains(digest, "_") {
+			continue
+		}
+		files = append(files, match)
+	}
+	return files, nil
 }
 
 // ErrNoIntegrityDataFoundInRevision is returned when a snap revision doesn't contain integrity data.
