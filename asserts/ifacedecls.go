@@ -517,7 +517,7 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 	// well-formed
 	// +1+1+1 accounts for defaults for missing on-classic, on-core-desktop plus missing
 	// on-store/on-brand/on-model
-	if defaultUsed == len(nameConstraints)+len(attributeConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1+1 {
+	if defaultUsed == len(nameConstraints)+len(attrConstraints)+len(idConstraints)+len(sideArityConstraints)+1+1+1 {
 		return fmt.Errorf("%s must specify at least one of %s, %s, %s, %s, on-classic, on-core-desktop, on-store, on-brand, on-model", context, strings.Join(nameConstraints, ", "), strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "), strings.Join(sideArityConstraints, ", "))
 	}
 	return nil
