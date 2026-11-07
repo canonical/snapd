@@ -287,6 +287,19 @@ var MockGadgetEMMCOnDiskVolume = gadget.OnDiskVolume{
 	},
 }
 
+// This matches the disk mapping set by MockGadgetPartitionedDisk for the UFS
+// volume: the volume is assigned to the partitioned logical unit of the UFS
+// device, the boot logical units are not partitions of that disk.
+var MockGadgetUFSOnDiskVolume = gadget.OnDiskVolume{
+	Device:           "/dev/sdc",
+	Schema:           "gpt",
+	Size:             5120 * quantity.SizeMiB,
+	UsableSectorsEnd: 5120*oneMeg/512 - 34,
+	SectorSize:       512,
+	ID:               "0a1b8bc3-5b55-4b0b-a6c4-2e4f0e3a9a6d",
+	Structure:        []gadget.OnDiskStructure{},
+}
+
 func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {
 	// TODO test for UC systems too
 	model = boottest.MakeMockClassicWithModesModel()
@@ -425,6 +438,20 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 			mappings[mmcSysPath] = disk
 			// symlink to the disk in /dev
 			mappings["/dev/mmcblk0"] = disk
+		case "my-ufs":
+			disk := &disks.MockDiskMapping{
+				DevNode:             "/dev/sdc",
+				DevPath:             UFSDataLUSysPath,
+				DevNum:              "8:32",
+				DiskUsableSectorEnd: 5120*oneMeg/512 - 34,
+				DiskSizeInBytes:     5120 * oneMeg,
+				SectorSizeBytes:     512,
+				DiskSchema:          "gpt",
+				ID:                  "0a1b8bc3-5b55-4b0b-a6c4-2e4f0e3a9a6d",
+			}
+			mappings[UFSDataLUSysPath] = disk
+			// symlink to the disk in /dev
+			mappings["/dev/sdc"] = disk
 		}
 	}
 

@@ -21,6 +21,7 @@ package gadget
 
 import (
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -104,6 +105,12 @@ func (v *Volume) YamlIdxToStructureIdx(yamlIdx int) (int, error) {
 func MockFindVolumesMatchingDeviceAssignment(f func(gi *Info) (map[string]*Volume, error)) (restore func()) {
 	r := testutil.Backup(&VolumesForCurrentDeviceAssignment)
 	VolumesForCurrentDeviceAssignment = f
+	return r
+}
+
+func MockUFSLogicalUnitsForDiskDevicePath(mock func(diskDevPath string) ([]disks.UFSLogicalUnit, error)) (restore func()) {
+	r := testutil.Backup(&ufsLogicalUnitsForDiskDevicePath)
+	ufsLogicalUnitsForDiskDevicePath = mock
 	return r
 }
 
