@@ -79,8 +79,9 @@ execute: |
     not snap run --strace="-V" test-snapd-sh-core24.sh -c 'echo hello-world' >stdout 2>stderr
     MATCH "strace -- version" < stdout
     # We don't want to test for an empty stderr should there be unrelated errors with
-    # strace. Instead we look for a keyword
-    NOMATCH 'exec' < stderr
+    # strace. Instead we look for a keyword. Filter out feature-tagging trace
+    # lines which contain "exec" in function names and file paths.
+    grep -v '"level":"TRACE"' stderr | NOMATCH 'exec'
 
     # more sensible method by expecting timestamps
     snap run --strace="-ttt" test-snapd-sh-core24.sh -c true >stdout 2>stderr

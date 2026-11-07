@@ -465,6 +465,17 @@ if [ "$STATIC" = 1 ]; then
         else
             echo "Checking all the bash files"
             INITIAL_FILES="$( (git ls-files -z 2>/dev/null || find . \( -name .git -o -name vendor -o -name c-vendor \) -prune -o -print0) | xargs -0 file -N | awk -F": " '$2~/shell.script/{print $1}')"
+            if ! git ls-files 2>/dev/null >/dev/null; then
+                # can't use git ls-files, so manually prune files not in .gitignore
+                TRACKED_FILES=
+                for file in $INITIAL_FILES; do
+                    # strip leading "./" and trailing "~" when checking
+                    if ! grep -q "^$(echo "$file" | sed -e 's|^\./||' -e 's/~*$//')$" .gitignore; then
+                        TRACKED_FILES="$TRACKED_FILES $file"
+                    fi
+                done
+                INITIAL_FILES="$TRACKED_FILES"
+            fi
         fi
 
         echo "Filtering files"
@@ -710,6 +721,19 @@ if [ "$UNIT" = 1 ]; then
         PYTHONDONTWRITEBYTECODE=1 pytest-3 ./release-tools
     else
         echo ">> [Python] Skipping pytest-3 test for release-tools"
+    fi
+    if [ -n "$SKIP_PYTHON_UNIT_TESTS" ]; then
+        echo ">> [Python] Skipping python3 unit tests for agent skill scripts"
+    elif command -v python3; then
+        echo ">> [Python] Running python3 unit tests for agent skill scripts"
+        for scripts in .agents/skills/*/scripts; do
+            # unittest exits 5 when no tests are found (python >= 3.12)
+            if compgen -G "$scripts/test_*.py" >/dev/null; then
+                PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s "$scripts" -p 'test_*.py'
+            fi
+        done
+    else
+        echo ">> [Python] Skipping python3 unit tests for agent skill scripts"
     fi
 fi
 

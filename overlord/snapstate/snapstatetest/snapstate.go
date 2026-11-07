@@ -84,12 +84,14 @@ func InstallEssentialSnaps(c *check.C, st *state.State, base string, gadgetFiles
 		Channel:  "latest/stable",
 	}, InstallSnapOptions{Required: true})
 
-	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
-		SnapID:   fakeSnapID("pc-kernel"),
-		Revision: snap.R(1),
-		RealName: "pc-kernel",
-		Channel:  "latest/stable",
-	}, InstallSnapOptions{Required: true})
+	InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n",
+		[][]string{{"modules/1.0.0/", ""}},
+		&snap.SideInfo{
+			SnapID:   fakeSnapID("pc-kernel"),
+			Revision: snap.R(1),
+			RealName: "pc-kernel",
+			Channel:  "latest/stable",
+		}, InstallSnapOptions{Required: true})
 
 	InstallSnap(c, st, fmt.Sprintf("name: %s\nversion: 1\ntype: base\n", base), nil, &snap.SideInfo{
 		SnapID:   fakeSnapID(base),

@@ -58,13 +58,12 @@ var alsaConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "alsa",
-		summary:                  alsaSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     alsaBaseDeclarationSlots,
-		connectedPlugAppArmor:    alsaConnectedPlugAppArmor,
-		connectedPlugUDev:        alsaConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "alsa",
+		summary:               alsaSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  alsaBaseDeclarationSlots,
+		connectedPlugAppArmor: alsaConnectedPlugAppArmor,
+		connectedPlugUDev:     alsaConnectedPlugUDev,
 	})
 }

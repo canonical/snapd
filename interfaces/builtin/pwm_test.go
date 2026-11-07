@@ -211,7 +211,3 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/pwm/pwmchip10/pwm100/* rwk`)
 }
-
-func (s *PwmInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
-}

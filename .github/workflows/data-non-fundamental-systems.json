@@ -141,7 +141,7 @@
         "group": "ubuntu-noble-resolute (garden)",
         "backend": "garden",
         "systems": "ubuntu-24.04-64 ubuntu-26.04-64",
-        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry tests/main/workshop-smoke",
         "rules": "main"
       },
       {

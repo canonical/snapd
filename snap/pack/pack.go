@@ -284,7 +284,7 @@ func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 		}
 	}
 	if info.SnapType == snap.TypeKernel {
-		if err := kernel.Validate(sourceDir); err != nil {
+		if err := kernel.Validate(sourceDir, info.Components); err != nil {
 			return nil, err
 		}
 	}

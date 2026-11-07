@@ -130,8 +130,7 @@ func init() {
 		baseDeclarationSlots:     lxdSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     lxdSupportBaseDeclarationPlugs,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{lxdSupportServiceSnippet},
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	},
 	})
 }

@@ -138,26 +138,26 @@ slots:
 
 func (s *themesSuite) TestThemePackageCandidates(c *C) {
 	// The package name includes the passed in prefix
-	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "Yaru"), DeepEquals, []string{"gtk-theme-yaru"})
-	c.Check(daemon.ThemePackageCandidates("icon-theme-", "Yaru"), DeepEquals, []string{"icon-theme-yaru"})
-	c.Check(daemon.ThemePackageCandidates("sound-theme-", "Yaru"), DeepEquals, []string{"sound-theme-yaru"})
+	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "Yaru"), DeepEquals, []naming.InstanceName{"gtk-theme-yaru"})
+	c.Check(daemon.ThemePackageCandidates("icon-theme-", "Yaru"), DeepEquals, []naming.InstanceName{"icon-theme-yaru"})
+	c.Check(daemon.ThemePackageCandidates("sound-theme-", "Yaru"), DeepEquals, []naming.InstanceName{"sound-theme-yaru"})
 
 	// If a theme name includes multiple dash separated
 	// components, multiple possible package names are returned,
 	// from most specific to least.
-	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "Yaru-dark"), DeepEquals, []string{"gtk-theme-yaru-dark", "gtk-theme-yaru"})
-	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "Matcha-dark-azul"), DeepEquals, []string{"gtk-theme-matcha-dark-azul", "gtk-theme-matcha-dark", "gtk-theme-matcha"})
+	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "Yaru-dark"), DeepEquals, []naming.InstanceName{"gtk-theme-yaru-dark", "gtk-theme-yaru"})
+	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "Matcha-dark-azul"), DeepEquals, []naming.InstanceName{"gtk-theme-matcha-dark-azul", "gtk-theme-matcha-dark", "gtk-theme-matcha"})
 
 	// Digits are accepted in package names
-	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "abc123xyz"), DeepEquals, []string{"gtk-theme-abc123xyz"})
+	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "abc123xyz"), DeepEquals, []naming.InstanceName{"gtk-theme-abc123xyz"})
 
 	// In addition to case folding, bad characters are converted to dashes
-	c.Check(daemon.ThemePackageCandidates("icon-theme-", "Breeze_Snow"), DeepEquals, []string{"icon-theme-breeze-snow", "icon-theme-breeze"})
+	c.Check(daemon.ThemePackageCandidates("icon-theme-", "Breeze_Snow"), DeepEquals, []naming.InstanceName{"icon-theme-breeze-snow", "icon-theme-breeze"})
 
 	// Groups of bad characters are collapsed to a single dash,
 	// with leading and trailing dashes removed
-	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "+foo_"), DeepEquals, []string{"gtk-theme-foo"})
-	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "foo-_--bar+-"), DeepEquals, []string{"gtk-theme-foo-bar", "gtk-theme-foo"})
+	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "+foo_"), DeepEquals, []naming.InstanceName{"gtk-theme-foo"})
+	c.Check(daemon.ThemePackageCandidates("gtk-theme-", "foo-_--bar+-"), DeepEquals, []naming.InstanceName{"gtk-theme-foo-bar", "gtk-theme-foo"})
 }
 
 func (s *themesSuite) TestThemeStatusForPrefix(c *C) {
@@ -180,7 +180,7 @@ func (s *themesSuite) TestThemeStatusForPrefix(c *C) {
 
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
-	toInstall := make(map[string]bool)
+	toInstall := make(map[naming.InstanceName]bool)
 
 	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Installed", "Installed", "Available", "Unavailable"}, []string{"Installed"}, status, toInstall)
 	c.Check(err, IsNil)
@@ -207,7 +207,7 @@ func (s *themesSuite) TestThemeStatusForPrefixStripsSuffixes(c *C) {
 
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
-	toInstall := make(map[string]bool)
+	toInstall := make(map[naming.InstanceName]bool)
 
 	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru-dark"}, nil, status, toInstall)
 	c.Check(err, IsNil)
@@ -232,7 +232,7 @@ func (s *themesSuite) TestThemeStatusForPrefixIgnoresUnstable(c *C) {
 
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
-	toInstall := make(map[string]bool)
+	toInstall := make(map[naming.InstanceName]bool)
 
 	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Yaru"}, nil, status, toInstall)
 	c.Check(err, IsNil)
@@ -249,7 +249,7 @@ func (s *themesSuite) TestThemeStatusForPrefixReturnsErrors(c *C) {
 
 	ctx := context.Background()
 	status := make(map[string]daemon.ThemeStatus)
-	toInstall := make(map[string]bool)
+	toInstall := make(map[naming.InstanceName]bool)
 
 	err := daemon.CollectThemeStatusForPrefix(ctx, s, nil, "gtk-theme-", []string{"Theme"}, nil, status, toInstall)
 	c.Check(err, Equals, s.err)
@@ -321,7 +321,7 @@ slots:
 		"Bar-sounds": daemon.ThemeAvailable,
 		"Baz-sounds": daemon.ThemeUnavailable,
 	})
-	c.Check(candidateSnaps, DeepEquals, map[string]bool{
+	c.Check(candidateSnaps, DeepEquals, map[naming.InstanceName]bool{
 		"gtk-theme-bar":   true,
 		"icon-theme-bar":  true,
 		"sound-theme-bar": true,

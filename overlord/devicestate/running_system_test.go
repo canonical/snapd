@@ -674,6 +674,8 @@ type handlersReprovisionSuite struct {
 
 	dataBootstrappedContainer *mockBootstrappedContainer
 	saveBootstrappedContainer *mockBootstrappedContainer
+
+	usedByKeyring map[string][]byte
 }
 
 var _ = Suite(&handlersReprovisionSuite{})
@@ -820,6 +822,37 @@ func (s *handlersReprovisionSuite) SetUpTest(c *C) {
 	c.Assert(os.MkdirAll(dirs.SnapFDEDir, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"), []byte("save-key"), 0644), IsNil)
 
+	s.usedByKeyring = make(map[string][]byte)
+	// Typical boot is recovery key was used on data, and save
+	// could be opened from protector key.
+	s.usedByKeyring["/dev/data"] = []byte("old-data-recovery")
+	s.usedByKeyring["/dev/save"] = []byte("old-save")
+
+	s.dataBootstrappedContainer.OnCommit = func() {
+		s.usedByKeyring["/dev/data"] = []byte("new-data-default")
+	}
+	s.saveBootstrappedContainer.OnCommit = func() {
+		s.usedByKeyring["/dev/save"] = []byte("new-save-default")
+	}
+
+	s.AddCleanup(devicestate.MockSecbootIsKeyUsedByKeyring(func(devicePath string, name string) (bool, error) {
+		var container *mockContainer
+		switch devicePath {
+		case "/dev/data":
+			container = s.dataKeys
+		case "/dev/save":
+			container = s.saveKeys
+		default:
+			c.Errorf("unexpected disk")
+			return false, fmt.Errorf("unexpected disk")
+		}
+		containerKey, containerHasKey := container.keys[name]
+		keyringKey, keyringHasDevice := s.usedByKeyring[devicePath]
+		if !containerHasKey || !keyringHasDevice {
+			return false, nil
+		}
+		return bytes.Equal(containerKey.key, keyringKey), nil
+	}))
 }
 
 func (s *handlersReprovisionSuite) setupModel(c *C) *asserts.Model {
@@ -903,6 +936,7 @@ type mockBootstrappedContainer struct {
 	primaryKey   []byte
 	unlockKey    []byte
 	keyCommitted bool
+	OnCommit     func()
 }
 
 func (m *mockBootstrappedContainer) AddKey(slotName string, newKey []byte) error {
@@ -939,6 +973,9 @@ func (m *mockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockK
 }
 
 func (m *mockBootstrappedContainer) CommitUsedKey() {
+	if m.OnCommit != nil {
+		m.OnCommit()
+	}
 	m.keyCommitted = true
 }
 
@@ -1008,8 +1045,15 @@ func (s *handlersReprovisionSuite) testDoReprovisionHappy(c *C) {
 	defer devicestate.MockSecbootTestProtectorKey(func(ctx context.Context, disk string, keyName string, key []byte) (bool, error) {
 		switch keyName {
 		case "snapd-reprovision-default":
-			// this is the happy case, so if we find an old key, we say it is working
-			return true, nil
+			switch {
+			case bytes.Equal(key, []byte("save-key")):
+				return true, nil
+			case bytes.Equal(key, []byte("new-protector")):
+				return false, nil
+			default:
+				c.Errorf("unexpected")
+				return false, fmt.Errorf("unexpected")
+			}
 		default:
 			c.Errorf("unexpected")
 			return false, fmt.Errorf("unexpected")
@@ -1258,6 +1302,44 @@ func (s *handlersReprovisionSuite) TestDoReprovisionHappyWithFailedPreviousRepro
 	s.saveKeys.keys["snapd-reprovision-default-recovery"] = &mockKey{isRecovery: true, key: []byte("old-save-recovery-failed")}
 
 	s.testDoReprovisionHappy(c)
+}
+
+func (s *handlersReprovisionSuite) TestDoReprovisionHappyWithFailedPreviousReprovisionAndWrongKeyring(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
+	// Oh no! We failed a reprovision, rebooted, and
+	// snap-bootstrap decided to use a failed ned key along with
+	// the old save key (the latter was correct choice).
+	s.usedByKeyring["/dev/data"] = []byte("old-data-failed")
+	s.usedByKeyring["/dev/save"] = []byte("old-save-default")
+
+	dataCommited := false
+
+	// We need to verify the before committing the keys to
+	// keyring, we still have the saved keyslot. The cleanup will
+	// be tested by testDoReprovisionHappy.
+	s.dataBootstrappedContainer.OnCommit = func() {
+		dataCommited = true
+		backupKey, hasBackupKey := s.dataKeys.keys["snapd-active-key-backup"]
+		c.Assert(hasBackupKey, Equals, true)
+		c.Check(backupKey.key, DeepEquals, []byte("old-data-failed"))
+
+		s.usedByKeyring["/dev/data"] = []byte("new-data-default")
+	}
+
+	s.dataKeys.keys["snapd-reprovision-default"] = &mockKey{isRecovery: false, key: []byte("old-data-failed")}
+	s.dataKeys.keys["snapd-reprovision-default-fallback"] = &mockKey{isRecovery: false, key: []byte("old-data-fallback-failed")}
+	s.dataKeys.keys["snapd-reprovision-default-recovery"] = &mockKey{isRecovery: true, key: []byte("old-data-recovery-failed")}
+
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapFDEDir, "ubuntu-save.key"), []byte("new-protector"), 0644), IsNil)
+	s.saveKeys.keys["snapd-reprovision-default"] = &mockKey{isRecovery: false, key: []byte("old-save-failed")}
+	s.saveKeys.keys["snapd-reprovision-default-fallback"] = &mockKey{isRecovery: false, key: []byte("old-save-fallback-failed")}
+	s.saveKeys.keys["snapd-reprovision-default-recovery"] = &mockKey{isRecovery: true, key: []byte("old-save-recovery-failed")}
+
+	s.testDoReprovisionHappy(c)
+	c.Check(dataCommited, Equals, true)
 }
 
 func (s *handlersReprovisionSuite) TestDoReprovisionHappyWithNotCleanedPreviousReprovision(c *C) {

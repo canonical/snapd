@@ -1,0 +1,52 @@
+summary: Ensure the snapd Workshop definition works.
+
+details: |
+  Launch the snapd-dev workshop and check that static and unit tests pass
+  within it.
+
+systems: [ubuntu-24.04-64, ubuntu-26.04-64]
+
+kill-timeout: 90m
+
+environment:
+  LXD_SNAP_CHANNEL: 6/stable
+
+skip:
+  - reason: Cannot run when there is an http proxy because workshop launch pulls things
+    if: |
+      [ -n "${http_proxy:-}" ] || [ -n "${https_proxy:-}" ] ||
+      [ -n "${HTTP_PROXY:-}" ] || [ -n "${HTTPS_PROXY:-}" ]
+
+prepare: |
+  echo "Install lxd"
+  "$TESTSTOOLS"/lxd-state prepare-snap
+  snap install workshop --classic
+
+restore: |
+  tests.session -u test exec workshop -p "$PROJECT_PATH" stop snapd-dev || true
+  tests.session -u test exec workshop -p "$PROJECT_PATH" remove snapd-dev || true
+  rm -f debian
+  snap remove --purge workshop
+  snap remove --purge lxd
+
+debug: |
+  tests.session -u test exec workshop -p "$PROJECT_PATH" changes || true
+  change_id="$(tests.session -u test exec workshop -p "$PROJECT_PATH" changes | tail -1 | cut -d ' ' -f 1)"
+  tests.session -u test exec workshop -p "$PROJECT_PATH" tasks "$change_id" || true
+
+execute: |
+  cd "$PROJECT_PATH"
+
+  # ensure that vendor directory is owned by test
+  chown -R test:test vendor/
+
+  # prepare-restore.sh creates debian symlink
+  test -L debian
+  orig_debian="$(readlink debian)"
+
+  tests.session -u test exec workshop -p "$PROJECT_PATH" launch snapd-dev
+  tests.session -u test exec workshop -p "$PROJECT_PATH" run snapd-dev checks
+
+  # original debian symlink was preserved
+  test -L debian
+  test "$(readlink debian)" = "$orig_debian"

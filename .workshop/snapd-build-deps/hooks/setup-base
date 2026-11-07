@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+
+apt-get update
+apt-get install -y \
+    clang-format \
+    dbus-x11 \
+    python3-yamlordereddictloader \
+    shellcheck
+
+if ! snap list golangci-lint >/dev/null 2>&1; then
+    snap install golangci-lint --classic
+fi
