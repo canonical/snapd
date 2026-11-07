@@ -83,6 +83,10 @@ func (s *LoginSessionObserveSuite) TestAppArmor(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "@{SNAP_COREUTIL_DIRS}who")
+	// the logind signal is PrepareForShutdown; a truncated name would
+	// silently deny the signal to connected snaps
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "member=PrepareFor{Shutdown,Sleep}")
+	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "PrepareForShutdow,")
 }
 
 func (s *LoginSessionObserveSuite) TestInterfaces(c *C) {
