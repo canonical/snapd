@@ -44,7 +44,6 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
@@ -1482,34 +1481,20 @@ func getSystemD() systemd.Systemd {
 
 // maybeAppendIntegrityMountOptions appends integrity mount options to the given mount
 // options in-place if the snap has validated integrity data.
-func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
-	// TODO: only mount with integrity data if on UC and model base snap
-	//       has validated integrity data.
-	if !info.Revision.Store() {
-		return nil
-	}
-
-	idp, err := ValidatedIntegrityData(st, info.SnapID, info.Revision)
-	// TODO: when policy for choosing the preferred integrity method is
-	//       implemented, not having integrity data should return an error
-	//       if enforced through some policy
-	if err != nil && !errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+func maybeAppendIntegrityMountOptions(st *state.State, deviceCtx DeviceContext, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
+	snapPath := info.MountFile()
+	idp, err := integrityDataForSnap(st, deviceCtx, &info.SideInfo, snapPath)
+	if err != nil {
 		return err
 	}
-	if idp != nil {
-		if _, err := integrityLookupDataAndCrossCheck(info.MountFile(), idp); err != nil {
-			if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
-				logger.Noticef("cannot find integrity data for snap %q: %v", info.InstanceName(), err)
-				return nil
-			}
-			return fmt.Errorf("cannot validate integrity data for snap %q: %w", info.InstanceName(), err)
-		}
-		integrityMountOpts, err := idp.MountOptions(info.MountFile())
-		if err != nil {
-			return err
-		}
-		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
+	if idp == nil {
+		return nil
 	}
+	integrityMountOpts, err := idp.MountOptions(snapPath)
+	if err != nil {
+		return err
+	}
+	mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
 	return nil
 }
 
@@ -1567,7 +1552,7 @@ func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) erro
 				return err
 			}
 
-			if err := maybeAppendIntegrityMountOptions(m.state, mountOptions, info); err != nil {
+			if err := maybeAppendIntegrityMountOptions(m.state, deviceCtx, mountOptions, info); err != nil {
 				return err
 			}
 
