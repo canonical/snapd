@@ -63,6 +63,24 @@ func (s *SnapSuite) TestDebugBootvarsNotOnClassic(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `the "boot-vars" command is not available on classic systems`)
 }
 
+func (s *SnapSuite) TestDebugSetBootvarsNotOnClassic(c *check.C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars", "foo=bar"})
+	c.Assert(err, check.ErrorMatches, `the "set-boot-vars" command is not available on classic systems`)
+}
+
+func (s *SnapSuite) TestDebugSetBootvarsIncorrectSetting(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	bloader := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bloader)
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "set-boot-vars",
+		"snap_mode=trying", "bad-setting"})
+	c.Assert(err, check.ErrorMatches, `incorrect setting "bad-setting"`)
+}
+
 func (s *SnapSuite) TestDebugSetBootvars(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
