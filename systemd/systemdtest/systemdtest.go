@@ -21,6 +21,8 @@ package systemdtest
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -100,6 +102,49 @@ FragmentPath=%s
 	return output, true
 }
 
+// OriginMountUnit describes a mount unit with a snapd origin, as created for
+// example by "snapctl mount".
+type OriginMountUnit struct {
+	Description string
+	Where       string
+	Origin      string
+}
+
+// MockSystemctlForOriginMountUnits writes unit files for the given mount
+// units into dir and mocks systemctl so that both loaded and installed mount
+// unit listings report them. It is meant for exercising the real
+// systemd.ListMountUnits implementation.
+func MockSystemctlForOriginMountUnits(dir string, units []OriginMountUnit) (restore func(), err error) {
+	osutil.MustBeTestBinary("mocking systemctl output can only be done from tests")
+	var unitFiles []string
+	var mounts []MountUnitInfo
+	for _, u := range units {
+		unitFile := systemd.EscapeUnitNamePath(u.Where) + ".mount"
+		path := filepath.Join(dir, unitFile)
+		contents := fmt.Sprintf("[Unit]\nDescription=%s\n\n[Mount]\nWhere=%s\n\n[Install]\nX-SnapdOrigin=%s\n",
+			u.Description, u.Where, u.Origin)
+		if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
+			return nil, err
+		}
+		unitFiles = append(unitFiles, unitFile)
+		mounts = append(mounts, MountUnitInfo{Description: u.Description, Where: u.Where, FragmentPath: path})
+	}
+	restore = systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		if out, ok := HandleMockListMountUnitsOutput(args, mounts); ok {
+			return out, nil
+		}
+		if len(args) > 0 && args[0] == "list-unit-files" {
+			var out []byte
+			for _, unitFile := range unitFiles {
+				out = append(out, []byte(unitFile+" enabled enabled\n")...)
+			}
+			return out, nil
+		}
+		return nil, fmt.Errorf("unexpected systemctl call: %q", args)
+	})
+	return restore, nil
+}
+
 type FakeSystemd struct {
 	systemd.Systemd
 
@@ -114,6 +159,9 @@ type FakeSystemd struct {
 
 	ListMountUnitsCalls  []ParamsForListMountUnits
 	ListMountUnitsResult ResultForListMountUnits
+	// ListMountUnitsDelegate, if set, is used to compute the result of
+	// ListMountUnits instead of ListMountUnitsResult.
+	ListMountUnitsDelegate systemd.Systemd
 
 	StopCalls  [][]string
 	StopResult error
@@ -177,6 +225,9 @@ func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
 func (s *FakeSystemd) ListMountUnits(snapName, origin string, filter systemd.MountUnitFilter) ([]string, error) {
 	s.ListMountUnitsCalls = append(s.ListMountUnitsCalls,
 		ParamsForListMountUnits{SnapName: snapName, Origin: origin, Filter: filter})
+	if s.ListMountUnitsDelegate != nil {
+		return s.ListMountUnitsDelegate.ListMountUnits(snapName, origin, filter)
+	}
 	return s.ListMountUnitsResult.MountPoints, s.ListMountUnitsResult.Err
 }
 
