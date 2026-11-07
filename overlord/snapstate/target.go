@@ -227,10 +227,10 @@ func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOp
 		info:   sar.Info,
 		snapst: *snapst,
 		setup: SnapSetup{
-			DownloadInfo:      &sar.DownloadInfo,
-			Channel:           trackedChannel,
-			CohortKey:         revOpts.CohortKey,
-			IntegrityDataInfo: sar.IntegrityData,
+			DownloadInfo:           &sar.DownloadInfo,
+			Channel:                trackedChannel,
+			CohortKey:              revOpts.CohortKey,
+			IntegrityDownloadInfos: sar.IntegrityDownloadInfos,
 		},
 		components: components,
 	}, nil
@@ -292,11 +292,12 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 
 	snapsup := SnapSetup{
-		Channel:      t.setup.Channel,
-		CohortKey:    t.setup.CohortKey,
-		DownloadInfo: t.setup.DownloadInfo,
-		SnapPath:     t.setup.SnapPath,
-		AlwaysUpdate: t.setup.AlwaysUpdate,
+		Channel:                t.setup.Channel,
+		CohortKey:              t.setup.CohortKey,
+		DownloadInfo:           t.setup.DownloadInfo,
+		IntegrityDownloadInfos: t.setup.IntegrityDownloadInfos,
+		SnapPath:               t.setup.SnapPath,
+		AlwaysUpdate:           t.setup.AlwaysUpdate,
 
 		Base:               t.info.Base,
 		Prereq:             keys(providerContentAttrs),
@@ -316,14 +317,6 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			// XXX we store this for the benefit of old snapd
 			Website: t.info.Website(),
 		},
-	}
-
-	// TODO: only get the download info for integrity data.
-	// TODO: until dm-verity data are used for all snaps, we will only
-	// use integrity data for specific snap types (the essential snaps).
-	typ := t.info.Type()
-	if typ == snap.TypeBase || typ == snap.TypeKernel || typ == snap.TypeGadget || typ == snap.TypeSnapd {
-		snapsup.IntegrityDataInfo = t.setup.IntegrityDataInfo
 	}
 
 	return snapsup, compsups, nil
