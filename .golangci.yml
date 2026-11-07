@@ -75,6 +75,10 @@ linters:
           - gosec
         path: _test\.go
       - linters:
+          - misspell
+        # intentional misspellings
+        path: cmd/snapd/cli/closest_test.go
+      - linters:
           - deadcode
           - testpackage
         path: export.*_test\.go
