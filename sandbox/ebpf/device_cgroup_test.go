@@ -20,6 +20,7 @@
 package ebpf_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -146,4 +147,153 @@ func (s *ebpfSuite) TestFindActiveDeviceMapsForSnapNoDir(c *C) {
 	tags, err := ebpf.FindActiveDeviceMapsForSnap("anything")
 	c.Assert(err, IsNil)
 	c.Check(tags, IsNil)
+}
+
+func (s *ebpfSuite) TestSecurityTagToDeviceDenyLogPath(c *C) {
+	c.Check(ebpf.SecurityTagToDeviceDenyLogPath("snap.foo.bar"), Equals,
+		filepath.Join(dirs.SnapBPFFSDir, "snap_foo_bar@denylog"))
+}
+
+func (s *ebpfSuite) TestDecodeDeviceDenyEvent(c *C) {
+	// Build a 40-byte event payload
+	data := make([]byte, 40)
+	data[0] = 'c'  // dev_type
+	data[1] = 0x06 // access: read|write
+	// padding at [2:4]
+	e := arch.Endian()
+	e.PutUint32(data[4:8], 1)          // major
+	e.PutUint32(data[8:12], 7)         // minor
+	e.PutUint32(data[12:16], 12345)    // pid
+	e.PutUint64(data[16:24], 99999999) // timestamp
+	copy(data[24:40], "my-process\x00\x00\x00\x00\x00\x00")
+
+	ev, err := ebpf.DecodeDeviceDenyEvent(data)
+	c.Assert(err, IsNil)
+	c.Check(ev.DevType, Equals, uint8('c'))
+	c.Check(ev.Access, Equals, uint8(0x06))
+	c.Check(ev.Major, Equals, uint32(1))
+	c.Check(ev.Minor, Equals, uint32(7))
+	c.Check(ev.PID, Equals, uint32(12345))
+	c.Check(ev.Timestamp, Equals, uint64(99999999))
+	c.Check(ev.CommString(), Equals, "my-process")
+}
+
+func (s *ebpfSuite) TestDecodeDeviceDenyEventShort(c *C) {
+	_, err := ebpf.DecodeDeviceDenyEvent(make([]byte, 10))
+	c.Check(err, ErrorMatches, "short event record: 10 bytes, want 40")
+}
+
+func (s *ebpfSuite) TestCommString(c *C) {
+	ev := &ebpf.DeviceDenyEvent{}
+
+	// Full buffer, no null
+	copy(ev.Comm[:], "0123456789abcdef")
+	c.Check(ev.CommString(), Equals, "0123456789abcdef")
+
+	// Null terminated early
+	copy(ev.Comm[:], "foo\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00")
+	c.Check(ev.CommString(), Equals, "foo")
+
+	// Empty
+	ev.Comm = [16]byte{}
+	c.Check(ev.CommString(), Equals, "")
+}
+
+func (s *ebpfSuite) TestAccessString(c *C) {
+	ev := &ebpf.DeviceDenyEvent{}
+
+	ev.Access = 1
+	c.Check(ev.AccessString(), Equals, "mknod")
+
+	ev.Access = 2
+	c.Check(ev.AccessString(), Equals, "read")
+
+	ev.Access = 4
+	c.Check(ev.AccessString(), Equals, "write")
+
+	ev.Access = 7
+	c.Check(ev.AccessString(), Equals, "mknod,read,write")
+
+	ev.Access = 6
+	c.Check(ev.AccessString(), Equals, "read,write")
+
+	ev.Access = 0
+	c.Check(ev.AccessString(), Equals, "0x0")
+}
+
+func (s *ebpfSuite) TestDiscardPinnedMapsBothExist(c *C) {
+	// Create fake pinned files under dirs.SnapBPFFSDir
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+	mapPath := filepath.Join(dirs.SnapBPFFSDir, "snap_foo_bar")
+	ringPath := filepath.Join(dirs.SnapBPFFSDir, "snap_foo_bar@denylog")
+	c.Assert(os.WriteFile(mapPath, []byte("map"), 0644), IsNil)
+	c.Assert(os.WriteFile(ringPath, []byte("ring"), 0644), IsNil)
+
+	var logs []string
+	logf := func(format string, a ...any) {
+		logs = append(logs, fmt.Sprintf(format, a...))
+	}
+
+	err := ebpf.DiscardPinnedMaps("snap.foo.bar", logf)
+	c.Assert(err, IsNil)
+	c.Check(logs, HasLen, 0)
+
+	// Both files removed
+	_, err = os.Stat(mapPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+	_, err = os.Stat(ringPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *ebpfSuite) TestDiscardPinnedMapsOneMissing(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+
+	// Only create the map, not the ring buffer
+	mapPath := filepath.Join(dirs.SnapBPFFSDir, "snap_foo_bar")
+	c.Assert(os.WriteFile(mapPath, []byte("map"), 0644), IsNil)
+
+	var logs []string
+	logf := func(format string, a ...any) {
+		logs = append(logs, fmt.Sprintf(format, a...))
+	}
+
+	err := ebpf.DiscardPinnedMaps("snap.foo.bar", logf)
+	c.Assert(err, IsNil)
+	// One log about missing ring buffer
+	c.Check(logs, HasLen, 1)
+	c.Check(logs[0], Matches, ".*does not exist.*")
+
+	// Map was removed
+	_, err = os.Stat(mapPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *ebpfSuite) TestDiscardPinnedMapsBothMissing(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+
+	var logs []string
+	logf := func(format string, a ...any) {
+		logs = append(logs, fmt.Sprintf(format, a...))
+	}
+
+	err := ebpf.DiscardPinnedMaps("snap.foo.bar", logf)
+	c.Assert(err, IsNil)
+	c.Check(logs, HasLen, 2)
+}
+
+func (s *ebpfSuite) TestDiscardPinnedMapsPermissionError(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+
+	// Create a non-empty subdirectory (os.Remove fails with ENOTEMPTY)
+	dirPath := filepath.Join(dirs.SnapBPFFSDir, "snap_foo_bar")
+	c.Assert(os.Mkdir(dirPath, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirPath, "child"), []byte("x"), 0644), IsNil)
+
+	var logs []string
+	logf := func(format string, a ...any) {
+		logs = append(logs, fmt.Sprintf(format, a...))
+	}
+
+	err := ebpf.DiscardPinnedMaps("snap.foo.bar", logf)
+	c.Check(err, ErrorMatches, "cannot remove.*")
 }
