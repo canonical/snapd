@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type cmdKnown struct {
@@ -101,6 +102,30 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	return []asserts.Assertion{as}, nil
 }
 
+// filterByNonPrimaryKeyHeaders keeps only the assertions whose headers that
+// are not part of the primary key match the provided values. Remote queries
+// look up assertions only by their primary key.
+func filterByNonPrimaryKeyHeaders(assertions []asserts.Assertion, headers map[string]string) []asserts.Assertion {
+	var filtered []asserts.Assertion
+	for _, a := range assertions {
+		primaryKey := a.Type().PrimaryKey
+		match := true
+		for k, v := range headers {
+			if strutil.ListContains(primaryKey, k) {
+				continue
+			}
+			if a.Header(k) != v {
+				match = false
+				break
+			}
+		}
+		if match {
+			filtered = append(filtered, a)
+		}
+	}
+	return filtered
+}
+
 func (x *cmdKnown) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -136,6 +161,9 @@ func (x *cmdKnown) Execute(args []string) error {
 	}
 	if err != nil {
 		return err
+	}
+	if x.Remote || x.Direct {
+		assertions = filterByNonPrimaryKeyHeaders(assertions, headers)
 	}
 
 	enc := asserts.NewEncoder(Stdout)
