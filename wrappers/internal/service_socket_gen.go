@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
@@ -139,7 +140,7 @@ WantedBy={{.SocketsTarget}}
 	}
 	switch appInfo.DaemonScope {
 	case snap.SystemDaemon:
-		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(appInfo.Snap.MountDir()))
+		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(dirs.GlobalRootDir, dirs.StripRootDir(appInfo.Snap.MountDir())))
 	case snap.UserDaemon:
 		// nothing
 	default:

@@ -23,6 +23,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func CandidateByLabelPath(label string) (string, error) {
+func CandidateByLabelPath(rootDir, label string) (string, error) {
 	return "", osutil.ErrDarwin
 }
