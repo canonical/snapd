@@ -13,8 +13,8 @@ restore: |
     rm -f remote.setup.cfg my-key my-key-2
 
 execute: |
-    remote.setup --help | MATCH 'usage: remote.setup config --host <host> --port <port> --user <USER> \[--pass <PASS>\] \[--cert <CERT>\]'
-    remote.setup -h | MATCH 'usage: remote.setup config --host <host> --port <port> --user <USER> \[--pass <PASS>\] \[--cert <CERT>\]'
+    remote.setup --help | MATCH 'usage: remote.setup config --host <host> --port <port> --user <USER> \[--pass <PASS>\] \[--key <KEY>\]'
+    remote.setup -h | MATCH 'usage: remote.setup config --host <host> --port <port> --user <USER> \[--pass <PASS>\] \[--key <KEY>\]'
 
     # Check basic configuration
     remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-pass-1
@@ -24,7 +24,7 @@ execute: |
     test "$TESTS_REMOTE_PORT" = 22
     test "$TESTS_REMOTE_USER" = tools-user-1
     test "$TESTS_REMOTE_PASS" = tools-pass-1
-    test -z "$TESTS_REMOTE_CERT"
+    test -z "$TESTS_REMOTE_KEY"
 
     # Check get-config-path subcommand
     remote.setup get-config-path | MATCH "$(pwd)/remote.setup.cfg"
@@ -40,13 +40,13 @@ execute: |
     remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-pass-1
     remote.setup get-config-path | MATCH "$(pwd)/remote.setup.cfg"
 
-    # Check the certificate
+    # Check the key
     touch my-key
-    remote.setup config --host 127.0.0.1 --port 22 --user tools-user-1 --cert my-key
+    remote.setup config --host 127.0.0.1 --port 22 --user tools-user-1 --key my-key
     # shellcheck disable=SC1091
     . remote.setup.cfg
     test "$TESTS_REMOTE_HOST" = 127.0.0.1
-    test "$TESTS_REMOTE_CERT" = my-key
+    test "$TESTS_REMOTE_KEY" = my-key
 
     # Check basic errors
     remote.setup config --port 22 --user tools-user-1 --pass tools-pass-1 2>&1 | MATCH "remote.setup: host, port and user values are require"
@@ -54,7 +54,7 @@ execute: |
     remote.setup config --host 127.0.0.1 --port 22 --pass tools-pass-1 2>&1 | MATCH "remote.setup: host, port and user values are require"
 
     # Check other errors
-    remote.setup config --host 127.0.0.1 --port 22 --user tools-user-1 --cert my-key-2 2>&1 | MATCH "remote.setup: certificate is set but file does not exist"
+    remote.setup config --host 127.0.0.1 --port 22 --user tools-user-1 --key my-key-2 2>&1 | MATCH "remote.setup: key is set but file does not exist"
     remote.setup config --host localhost --port 22 --user tools-user-1 --password tools-user-1 2>&1 | MATCH "tests.remote: unknown option --password"
     if [ -z "$(command -v sshpass)" ]; then
         remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-user-1 | MATCH "remote.setup: sshpass tool is required when password is configured"

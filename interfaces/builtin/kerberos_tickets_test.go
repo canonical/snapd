@@ -77,6 +77,9 @@ func (s *krbInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
 	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /var/lib/snapd/hostfs/tmp/krb5cc* rkw,")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /var/lib/snapd/hostfs/tmp/krb5cc*/ rw,")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /var/lib/snapd/hostfs/tmp/krb5cc*/primary rkw,")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "owner /var/lib/snapd/hostfs/tmp/krb5cc*/tkt* rkw,")
 }
 
 func (s *krbInterfaceSuite) TestInterfaces(c *C) {

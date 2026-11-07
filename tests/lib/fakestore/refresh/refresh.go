@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func newAssertsDB(signingPrivKey string) (*asserts.Database, error) {
@@ -208,7 +209,7 @@ func getOrigInfo(snapName, snapOrigBlob string) (*info, error) {
 		return nil, err
 	}
 
-	place := snap.MinimalPlaceInfo(snapName, rev)
+	place := snap.MinimalPlaceInfo(naming.InstanceName(snapName), rev)
 	origDigest, origSize, err := asserts.SnapFileSHA3_384(place.MountFile())
 	if err != nil {
 		return nil, err

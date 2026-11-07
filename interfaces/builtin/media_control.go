@@ -50,13 +50,12 @@ var mediaControlConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "media-control",
-		summary:                  mediaControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     mediaControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    mediaControlConnectedPlugAppArmor,
-		connectedPlugUDev:        mediaControlConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "media-control",
+		summary:               mediaControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  mediaControlBaseDeclarationSlots,
+		connectedPlugAppArmor: mediaControlConnectedPlugAppArmor,
+		connectedPlugUDev:     mediaControlConnectedPlugUDev,
 	})
 }

@@ -20,13 +20,9 @@ prepare: |
     rm -rf /home/test/snap
     rm -rf /var/snap/test-snapd-sh /var/snap/test-snapd-sh_foo
 
-    snap set system experimental.parallel-instances=true
-
     tests.session -u test prepare
 
 restore: |
-    snap set system experimental.parallel-instances=null
-
     tests.session -u test restore
 
 execute: |

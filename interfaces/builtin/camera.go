@@ -75,13 +75,12 @@ var cameraConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "camera",
-		summary:                  cameraSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     cameraBaseDeclarationSlots,
-		connectedPlugAppArmor:    cameraConnectedPlugAppArmor,
-		connectedPlugUDev:        cameraConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "camera",
+		summary:               cameraSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  cameraBaseDeclarationSlots,
+		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
+		connectedPlugUDev:     cameraConnectedPlugUDev,
 	})
 }

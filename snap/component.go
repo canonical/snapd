@@ -18,7 +18,6 @@
 package snap
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -110,8 +109,8 @@ func (csi *ComponentSideInfo) Equal(other *ComponentSideInfo) bool {
 
 // ComponentBaseDir returns where components are to be found for the
 // snap with name instanceName.
-func ComponentsBaseDir(instanceName string) string {
-	return filepath.Join(BaseDir(instanceName), "components")
+func ComponentsBaseDir(instanceName naming.InstanceName) string {
+	return filepath.Join(BaseDir(instanceName.String()), "components")
 }
 
 // componentPlaceInfo holds information about where to put a component in the
@@ -152,7 +151,7 @@ func (c *componentPlaceInfo) Filename() string {
 // will be of the form:
 // /snaps/<snap_instance>/components/mnt/<component_name>/<component_revision>
 func (c *componentPlaceInfo) MountDir() string {
-	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance.String())
+	return ComponentMountDir(c.compName, c.compRevision, c.snapInstance)
 }
 
 // MountFile returns the path of the file to be mounted for a component,
@@ -167,29 +166,13 @@ func (c *componentPlaceInfo) MountDescription() string {
 	return fmt.Sprintf("Mount unit for %s, revision %s", c.ContainerName(), c.compRevision)
 }
 
-// DmVerityFile returns the name of the dm-verity hash file computed by the snap name and the digest.
-// If the snap doesn't contain integrity data or contains integrity data but not of type
-// "dm-verity", this will return an error.
-// XXX: dm-verity for components is not supported yet.
-func (c *componentPlaceInfo) DmVerityFile() (string, error) {
-	return "", errors.New("dm-verity for components not supported.")
-}
-
-// DmVerityDigest returns the dm-verity digest of the integrity data associated with the snap.
-// If the snap doesn't contain integrity data or contains integrity data but not of type
-// "dm-verity", this will return an error.
-// XXX: dm-verity for components is not supported yet.
-func (c *componentPlaceInfo) DmVerityDigest() (string, error) {
-	return "", errors.New("dm-verity for components not supported.")
-}
-
 // ComponentLinkPath returns the path for the symlink for a component for a
 // given snap revision. Note that this function only uses the ContainerName
 // method on the ContainerPlaceInfo. If that changes, callers of this function
 // may need to change how the parameters are initialized.
 func ComponentLinkPath(cpi ContainerPlaceInfo, snapRev Revision) string {
 	instanceName, compName, _ := strings.Cut(cpi.ContainerName(), "+")
-	compBase := ComponentsBaseDir(instanceName)
+	compBase := ComponentsBaseDir(naming.InstanceName(instanceName))
 	return filepath.Join(compBase, snapRev.String(), compName)
 }
 
@@ -250,7 +233,7 @@ func ReadComponentInfoFromContainer(compf Container, snapInfo *Info, csi *Compon
 		return componentInfo, nil
 	}
 
-	if snapInfo.SnapName().String() != componentInfo.Component.SnapName {
+	if snapInfo.SnapName() != componentInfo.Component.SnapName {
 		return nil, fmt.Errorf(
 			"component %q is not a component for snap %q", componentInfo.Component, snapInfo.SnapName())
 	}

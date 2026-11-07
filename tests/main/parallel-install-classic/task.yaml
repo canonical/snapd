@@ -23,6 +23,11 @@ details: |
 # core does not support classic confinement
 systems: [-ubuntu-core-*]
 
+skip:
+    - reason: requires the var-snap and snap-mount-dir mount units shipped by
+        the native package
+      if: not systemctl cat var-snap.mount
+
 prepare: |
     # ensure we have no snap user data directories yet
     rm -rf /home/test/snap
@@ -39,10 +44,42 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    snap set system experimental.parallel-instances=true
+    # Fedora/openSUSE/Arch/Debian make var-snap.mount opt-in; Ubuntu enables it.
+    # Classic parallel installs need both mount points active.
+    if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
+        SNAP_MOUNT_UNIT="snap.mount"
+    else
+        SNAP_MOUNT_UNIT="var-lib-snapd-snap.mount"
+    fi
+    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+        printf '%s %s %s\n' "$u" "$(systemctl is-enabled "$u" || true)" "$(systemctl is-active "$u" || true)"
+    done > mount-units.state
+    systemctl enable --now var-snap.mount
+    systemctl start "$SNAP_MOUNT_UNIT"
 
 restore: |
-    snap unset system experimental.parallel-instances
+    # Remove child content mounts before stopping an opt-in parent mount.
+    for snap_name in test-snapd-classic-confinement_foo test-snapd-classic-confinement; do
+        if snap list "$snap_name" >/dev/null 2>&1; then
+            snap remove --purge "$snap_name"
+        fi
+    done
+    if [ -f mount-units.state ]; then
+        while read -r u enabled active; do
+            if [ "$active" != active ]; then
+                systemctl stop "$u"
+            fi
+            case "$enabled" in
+                enabled) systemctl enable "$u" ;;
+                disabled) systemctl disable "$u" ;;
+                static) : ;;
+                *) echo "unexpected initial state for $u: $enabled" >&2; exit 1 ;;
+            esac
+            if [ "$active" = active ]; then
+                systemctl start "$u"
+            fi
+        done < mount-units.state
+    fi
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic

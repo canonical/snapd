@@ -8,10 +8,9 @@ details: |
     instances, from the snap store, to ensure that the store is not confused by
     the presence of the instance key.
 
-restore: |
-    snap set system experimental.parallel-instances=
-
 execute: |
+    echo "Installation of parallel instance fails if the feature is disabled"
+    snap set system experimental.parallel-instances=false
     not snap install test-snapd-tools_foo 2> run.err
     MATCH 'experimental feature disabled' < run.err
 

@@ -10,6 +10,7 @@
 # like a developer would do locally in which case this ends up checking all
 # commits locally - some day that may grow to be unwieldy but for now seems ok.
 
+import getpass
 import os
 import subprocess
 from email.utils import parseaddr
@@ -49,6 +50,9 @@ def exception_invalid(maybeaddr: str) -> bool:
 
 if __name__ == "__main__":
     if not os.path.exists('.git'):
+        exit(0)
+    if getpass.getuser() == 'workshop' and os.getcwd() == '/project' and os.path.isfile('.git'):
+        # gitdir for git worktrees isn't accessible inside workshop
         exit(0)
     commitrange = get_commit_range()
     args = ["git", "log", "--format=format:%h,%ce%n%h,%ae"]

@@ -19,9 +19,6 @@ environment:
     INSTANCE_NAME: ${SNAP_NAME}_foo
 
 prepare: |
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
-
     echo "Given a snap declaring the network plug is installed"
     "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
 

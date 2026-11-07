@@ -40,13 +40,12 @@ var dvbConnectedPlugUDev = []string{`SUBSYSTEM=="dvb"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "dvb",
-		summary:                  dvbSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     dvbBaseDeclarationSlots,
-		connectedPlugAppArmor:    dvbConnectedPlugAppArmor,
-		connectedPlugUDev:        dvbConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "dvb",
+		summary:               dvbSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  dvbBaseDeclarationSlots,
+		connectedPlugAppArmor: dvbConnectedPlugAppArmor,
+		connectedPlugUDev:     dvbConnectedPlugUDev,
 	})
 }

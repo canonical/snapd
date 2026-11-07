@@ -102,7 +102,7 @@ func printInstallHint(assertPath string, containerPaths []string) {
 `), assertPath, strings.Join(relativePaths, " "))
 }
 
-func downloadDirect(snapName string, components []string, opts tooling.DownloadSnapOptions) error {
+func downloadDirect(snapName naming.SnapName, components []string, opts tooling.DownloadSnapOptions) error {
 	compRefs := make([]string, 0, len(components))
 	for _, comp := range components {
 		compRefs = append(compRefs, naming.NewComponentRef(snapName, comp).String())
@@ -131,14 +131,14 @@ func downloadDirect(snapName string, components []string, opts tooling.DownloadS
 	}
 	tsto.Stdout = Stdout
 
-	dl, err := downloadContainers(snapName, components, tsto, opts)
+	dl, err := downloadContainers(snapName.String(), components, tsto, opts)
 	if err != nil {
 		return err
 	}
 
 	downloaded := make([]string, 0, len(compRefs)+1)
 	if !opts.OnlyComponents {
-		downloaded = append(downloaded, snapName)
+		downloaded = append(downloaded, snapName.String())
 	}
 	downloaded = append(downloaded, compRefs...)
 
@@ -251,7 +251,7 @@ func downloadAssertionsImpl(
 	return assertPath, nil
 }
 
-func (x *cmdDownload) downloadFromStore(snap string, comps []string, revision snap.Revision) error {
+func (x *cmdDownload) downloadFromStore(snap naming.SnapName, comps []string, revision snap.Revision) error {
 	return downloadDirect(snap, comps, tooling.DownloadSnapOptions{
 		TargetDir: x.TargetDir,
 		Basename:  x.Basename,
@@ -298,5 +298,5 @@ func (x *cmdDownload) Execute(args []string) error {
 		return errors.New(i18n.G("cannot specify --only-components without providing any components;"))
 	}
 
-	return x.downloadFromStore(snap, comps, revision)
+	return x.downloadFromStore(naming.SnapName(snap), comps, revision)
 }

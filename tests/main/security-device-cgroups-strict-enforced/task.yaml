@@ -88,7 +88,13 @@ execute: |
     touch /var/snap/test-strict-cgroup/common/ready
     wait || true
     # nothing was logged, i.e. /dev/zero access was successful
-    MATCH "^$" < run.log
+    if [ -n "$TAG_FEATURES" ]; then
+      # When feature tagging is active, it emits extra json-formatted
+      # logs; filter those out
+      grep -v '"level":' run.log | MATCH "^$"
+    else
+      MATCH "^$" < run.log
+    fi
     # dumps are the same, because the event action was 'change', so /dev/full
     # still exists
     diff -up dump-before-change dump-after-change

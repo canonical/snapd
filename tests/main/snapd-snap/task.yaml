@@ -3,7 +3,7 @@ summary: Ensure snapd builds as a snap
 details: |
   This test verifies that snapd can be built with snapcraft with lxd
   backend as well as host backend on matching version of the
-  build-base (currently 22.04)
+  build-base (currently 26.04)
 
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a
@@ -30,14 +30,15 @@ systems:
     # used as development environments anyway
     - -ubuntu-16.04-*
     - -ubuntu-18.04-*
+    - -ubuntu-20.04-*
 
 # Start early as it takes a long time.
 priority: 100
 kill-timeout: 35m
 
 environment:
-    # the destructive build mode runs only on xenial, but we also run lxd on
-    # xenial to make sure it builds there too
+    # the destructive build mode runs only on resolute, but we also run lxd on
+    # resolute to make sure it builds there too
     SNAPCRAFT_BUILD_ENVIRONMENT/destructive: host
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
     CONSUMER_SNAP: test-snapd-policy-app-consumer
@@ -60,9 +61,9 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    # only run the destructive mode variant on xenial
-    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-jammy"
+    # only run the destructive mode variant on resolute
+    if ! os.query is-resolute && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-resolute"
         exit 0
     fi
 
@@ -146,9 +147,9 @@ execute: |
 
     libexecdir="$(os.paths libexec-dir)"
 
-    # only run the destructive mode variant on xenial
-    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-jammy"
+    # only run the destructive mode variant on resolute
+    if ! os.query is-resolute && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-resolute"
         exit 0
     fi
 

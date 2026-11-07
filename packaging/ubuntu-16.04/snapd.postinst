@@ -9,6 +9,13 @@ fi
 
 case "$1" in
     configure)
+        # Set the boot-scoped guard before debhelper reloads or starts units.
+        # Self-binding a mount directory over live child mounts hides them.
+        if ! /usr/lib/snapd/snap-mgmt --check-post-upgrade-mount-activation; then
+            install -d -m 0755 /run/snapd/packaging
+            touch /run/snapd/packaging/prevent-mount-dir-activation
+        fi
+
         # Create the private tmp directory for snap-confine
         install -d -m 0700 /tmp/snap-private-tmp
 

@@ -29,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/systemd"
 	"golang.org/x/sys/unix"
 )
@@ -100,7 +101,10 @@ var (
 	fcntl           = unix.FcntlInt
 	sdNotify        = systemd.SdNotify
 	sdNotifyWithFds = systemd.SdNotifyWithFds
+	sdNotifySocket  = systemd.NotifySocket
 	netFileListener = net.FileListener
+
+	selinuxIsEnabled = selinux.IsEnabled
 )
 
 // Note: os.File is used to wrap raw fds so that the
@@ -217,17 +221,36 @@ func (s *store) initFdstore() {
 	}
 }
 
-var ErrUnsupportedSystemdVersion = errors.New("unsupported systemd version")
+var ErrUnsupported = errors.New("fdstore is not supported")
 var ErrNotFound = errors.New("file descriptor not found")
 
-func checkSystemdVersion() error {
+func checkUnsupported() error {
+	// The fdstore relies on systemd passing file descriptors back to
+	// snapd, which requires snapd to be managed by systemd. During
+	// preseeding snapd is not run by systemd (no NOTIFY_SOCKET), so the
+	// fdstore cannot be used.
+	if _, err := sdNotifySocket(); err != nil {
+		return fmt.Errorf("%w: %v: snapd is not running as a systemd service", ErrUnsupported, err)
+	}
+
+	selinuxEnabled, err := selinuxIsEnabled()
+	if err != nil {
+		return fmt.Errorf("%w: cannot check SELinux status: %v", ErrUnsupported, err)
+	}
+	if selinuxEnabled {
+		// fdstore is not supported on SELinux-enabled systems because
+		// SELinux may interfere with the passing of file descriptors
+		// to systemd, which fdstore relies on.
+		return fmt.Errorf("%w: SELinux is enabled", ErrUnsupported)
+	}
+
 	// FDNAME=... was added in systemd v233, but for the sake
 	// of being consistent with removal (FDSTOREREMOVE=1 was
 	// added in systemd v236), require at least systemd v236.
 	//
 	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDNAME=%E2%80%A6
 	if err := systemd.EnsureAtLeast(236); err != nil {
-		return fmt.Errorf("%w: %v", ErrUnsupportedSystemdVersion, err)
+		return fmt.Errorf("%w: %v", ErrUnsupported, err)
 	}
 	return nil
 }
@@ -235,7 +258,7 @@ func checkSystemdVersion() error {
 func (s *store) Remove(name FdName) error {
 	s.initFdstore()
 
-	if err := checkSystemdVersion(); err != nil {
+	if err := checkUnsupported(); err != nil {
 		return fmt.Errorf("cannot remove file descriptor from fdstore: %w", err)
 	}
 
@@ -294,7 +317,7 @@ func duplicateFile(name FdName, f *os.File) (*os.File, error) {
 func (s *store) Get(name FdName) (*os.File, error) {
 	s.initFdstore()
 
-	if err := checkSystemdVersion(); err != nil {
+	if err := checkUnsupported(); err != nil {
 		return nil, fmt.Errorf("cannot get file descriptor from fdstore: %w", err)
 	}
 
@@ -320,7 +343,7 @@ func (s *store) Get(name FdName) (*os.File, error) {
 func (s *store) Add(name FdName, f *os.File) error {
 	s.initFdstore()
 
-	if err := checkSystemdVersion(); err != nil {
+	if err := checkUnsupported(); err != nil {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %w", err)
 	}
 

@@ -204,7 +204,14 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 			return err
 		}
 		values := gadget.SystemDefaults(gi.Defaults)
-		if err := configcoreEarly(dev, rt, values); err != nil {
+		// configcoreEarly runs validation that may lock the state (e.g. to
+		// record warnings for experimental features) and perform slow
+		// filesystem work, so it must not be called with the state lock
+		// held. Re-acquire the lock afterwards to commit the transaction.
+		st.Unlock()
+		err = configcoreEarly(dev, rt, values)
+		st.Lock()
+		if err != nil {
 			return err
 		}
 		rt.Commit()

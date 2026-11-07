@@ -82,7 +82,9 @@ type fakeOp struct {
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
 	unlinkSkipBinaries     bool
-	skipKernelExtraction   bool
+
+	skipKernelExtraction bool
+	integrityDataParams  integrity.IntegrityDataParams
 
 	services             []string
 	removedServices      []string
@@ -482,7 +484,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 				Digest:        "digest",
 			},
 			DownloadInfo: snap.DownloadInfo{
-				DownloadURL: "foo_1.snap.dmverity_digest1",
+				DownloadURL: "foo_1.dmverity_digest1",
 			},
 		}
 	}
@@ -778,7 +780,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		if cur.InstanceName == "" || cur.SnapID == "" || cur.Revision.Unset() {
 			return nil, nil, fmt.Errorf("internal error: incomplete current snap info")
 		}
-		curByInstanceName[cur.InstanceName] = cur
+		curByInstanceName[cur.InstanceName.String()] = cur
 		curSnaps[i] = *cur
 	}
 	sort.Sort(curSnaps)
@@ -908,7 +910,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 		})
 
 		if err == store.ErrNoUpdateAvailable {
-			refreshErrors[cur.InstanceName] = err
+			refreshErrors[cur.InstanceName.String()] = err
 			continue
 		}
 		if err != nil {
@@ -1165,14 +1167,19 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, instanceName naming.I
 	if si != nil {
 		revno = si.Revision
 	}
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:    "setup-snap",
 		name:  instanceName.String(),
 		path:  snapFilePath,
 		revno: revno,
-
-		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
-	})
+	}
+	if opts != nil {
+		op.skipKernelExtraction = opts.SkipKernelExtraction
+		if opts.IntegrityDataParams != nil {
+			op.integrityDataParams = *opts.IntegrityDataParams
+		}
+	}
+	f.appendOp(op)
 	snapType := snap.TypeApp
 	switch si.RealName {
 	case "core":
@@ -1189,11 +1196,15 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, instanceName naming.I
 	return snapType, &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, meter progress.Meter) (err error) {
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, reason backend.SetupKernelReason, meter progress.Meter) error {
 	meter.Notify("prepare-kernel-snap")
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op: "prepare-kernel-snap",
-	})
+	}
+	f.appendOp(op)
+	if err := f.maybeErr(op); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1252,7 +1263,7 @@ func (f *fakeSnappyBackend) RemoveComponentDir(cpi snap.ContainerPlaceInfo) erro
 	return nil
 }
 
-func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+func (f *fakeSnappyBackend) ReadInfo(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
 	}
@@ -1262,7 +1273,8 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "not-there" && si.Revision == snap.R(2) {
 		return nil, &snap.NotFoundError{Snap: name, Revision: si.Revision}
 	}
-	snapName, instanceKey := snap.SplitInstanceName(name)
+	snapName := name.SnapName().String()
+	instanceKey := name.InstanceKey()
 	// naive emulation for now, always works
 	info := &snap.Info{
 		SuggestedName: snapName,
@@ -1350,7 +1362,7 @@ apps:
 		info.Base = "core24"
 	}
 
-	if snapInfos, ok := f.infos[name]; ok {
+	if snapInfos, ok := f.infos[name.String()]; ok {
 		if storedInfo, ok := snapInfos[si.Revision]; ok {
 			storedInfo.SideInfo = *si
 			info = storedInfo
@@ -1390,9 +1402,9 @@ func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
 	})
 }
 
-func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
+func (f *fakeSnappyBackend) StoreInfo(st *state.State, name naming.InstanceName, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
 	return f.ReadInfo(name, &snap.SideInfo{
-		RealName: name,
+		RealName: name.String(),
 	})
 }
 
@@ -1922,7 +1934,7 @@ func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinh
 	}
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: info.SnapRevision()}
-	if err := runinhibit.LockWithHint(info.InstanceName().String(), hint, inhibitInfo, stateUnlocker); err != nil {
+	if err := runinhibit.LockWithHint(info.InstanceName(), hint, inhibitInfo, stateUnlocker); err != nil {
 		return nil, err
 	}
 
