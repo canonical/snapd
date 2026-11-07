@@ -822,7 +822,7 @@ func (s *managerSuite) TestApplyClusterStateDeviceMissing(c *check.C) {
 	st.Unlock()
 	defer st.Lock()
 	err = mgr.Ensure()
-	c.Assert(err, check.ErrorMatches, `device with serial "serial-9" not found in cluster assertion`)
+	c.Assert(err, check.ErrorMatches, `device "serial-9.ubuntu-core-24-amd64.canonical" not found in cluster assertion`)
 
 	st.Lock()
 	defer st.Unlock()
@@ -949,6 +949,113 @@ func (s *managerSuite) TestApplyClusterStateSkipsExistingChange(c *check.C) {
 		c.Assert(chg.Kind(), check.Equals, "apply-cluster-subcluster")
 		c.Assert(chg.Summary(), check.Equals, `Apply subcluster "`+subclusters[1].Name+`" state`)
 	}
+}
+
+func (s *managerSuite) TestApplyClusterStateInProgressChangeNoTasks(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	st.Lock()
+	defer st.Unlock()
+
+	bundle, cluster := makeClusterBundle(c, stack, []map[string]any{
+		{
+			"id":        "1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}, []map[string]any{
+		{
+			"name":    "one",
+			"devices": []any{"1"},
+			"snaps": []any{
+				map[string]any{
+					"state":    "clustered",
+					"instance": "snap-one",
+					"channel":  "latest/stable",
+				},
+			},
+		},
+	})
+
+	// a change for subcluster one is still installing snap-one
+	inProgress := st.NewChange("apply-cluster-subcluster", `Apply subcluster "one" state`)
+	inProgress.Set("cluster-change-ref", map[string]string{
+		"cluster-id": cluster.ClusterID(),
+		"subcluster": "one",
+	})
+	inProgress.SetStatus(state.DoStatus)
+
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
+
+	// while snap-one is being installed by the in-progress change, trying to
+	// install it again conflicts
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		return nil, nil, &snapstate.ChangeConflictError{Snap: "snap-one", ChangeKind: "install", ChangeID: inProgress.ID()}
+	})
+	defer restore()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
+
+	st.Unlock()
+	defer st.Lock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(st.Changes(), check.HasLen, 1)
+}
+
+func (s *managerSuite) TestApplyClusterStateDeviceSerialOtherModel(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	// same serial, but a different model and brand
+	bundle, _ := makeClusterBundle(c, stack, []map[string]any{
+		{
+			"id":        "1",
+			"device":    "serial-1.other-model.other-brand",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}, []map[string]any{
+		{
+			"name":    "default",
+			"devices": []any{"1"},
+			"snaps": []any{
+				map[string]any{
+					"state":    "clustered",
+					"instance": "snap-one",
+					"channel":  "latest/stable",
+				},
+			},
+		},
+	})
+
+	st.Lock()
+	defer st.Unlock()
+
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
+
+	restore := clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		c.Fatal("unexpected install")
+		return nil, nil, errors.New("unexpected")
+	})
+	defer restore()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
+
+	st.Unlock()
+	defer st.Lock()
+	err = mgr.Ensure()
+	c.Assert(err, check.ErrorMatches, `device "serial-1.ubuntu-core-24-amd64.canonical" not found in cluster assertion`)
+
+	st.Lock()
+	defer st.Unlock()
+	c.Assert(st.Changes(), check.HasLen, 0)
 }
 
 func registerAccount(stack *assertstest.StoreStack, accountID string) *assertstest.SigningAccounts {
