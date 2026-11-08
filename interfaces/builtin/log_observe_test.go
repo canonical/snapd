@@ -92,6 +92,14 @@ func (s *LogObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, "/var/log/")
 }
 
+func (s *LogObserveInterfaceSuite) TestAppArmorAuditModeIsReadOnly(c *C) {
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
+	c.Check(snippet, testutil.Contains, "/sys/module/apparmor/parameters/audit r,\n")
+	c.Check(snippet, Not(testutil.Contains), "/sys/module/apparmor/parameters/audit rw,")
+}
+
 func (s *LogObserveInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
