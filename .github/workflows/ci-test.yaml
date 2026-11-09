@@ -58,9 +58,8 @@ jobs:
           REF: ${{ github.ref }}
         run: |
           if [[ "$BASE_REF" == fips || "$REF" == refs/heads/fips ]]; then
-            # only FIPS builds are possible on the fips branch: snapcraft.yaml
-            # assumes the required FIPS libraries are available, and spread-fips
-            # is the only spread job that runs there, and it uses the FIPS snap.
+            # only FIPS builds are possible on the fips branch, snapcraft.yaml
+            # assumes the required FIPS libraries are available
             echo 'toolchains=["FIPS"]' >> "$GITHUB_OUTPUT"
           else
             # whereas on other branches, the workflow can make the necessary
