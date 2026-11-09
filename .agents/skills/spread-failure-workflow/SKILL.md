@@ -164,6 +164,17 @@ Preserve the same backend, system, relevant environment, flags, artifact
 source, and fresh/reused machine requirements. If a necessary condition
 changed, record it and do not describe the result as an exact comparison.
 
+When a fix was made for a non-generic CI scenario, run an additional
+compatibility check for the same test and variant in a generic scenario after
+the original-condition verification passes. Select a real generic workflow
+caller and mirror its environment, package artifacts, and snap artifact
+selection; the `generic` label alone does not guarantee that no environment
+variables are set. Use the same backend and system when supported. This check
+is additional and must not replace verification in the scenario that failed.
+If no generic caller supports the selector, do not silently change the backend
+or system; record the limitation and ask before substituting another target.
+Include the generic command and result in the handoff.
+
 If the same failure remains, return to diagnosis and iterate. Do not claim a
 fix from an unrelated passing run, a different failure signature, or a run
 that did not reach the behavior under test.
