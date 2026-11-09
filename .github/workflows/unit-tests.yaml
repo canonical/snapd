@@ -136,7 +136,12 @@ jobs:
           if [ "$CC"  = 'clang' ]; then
               # gcovr can normally guess this, but in our setup things need to
               # be explicit
-              HAVE_GCOV='/usr/bin/llvm-cov-18 gcov'
+              # llvm-21 on 26.04
+              HAVE_GCOV='/usr/bin/llvm-cov-21 gcov'
+              if [ -x /usr/bin/llvm-cov-18 ]; then
+                  # or fall back to llvm-18 on 24.04
+                  HAVE_GCOV='/usr/bin/llvm-cov-18 gcov'
+              fi
           fi
 
           cd cmd/
