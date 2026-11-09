@@ -46,7 +46,29 @@ jobs:
             exit 1
           fi
 
+  snap-toolchains:
+    runs-on: ubuntu-latest
+    outputs:
+      toolchains: ${{ steps.resolve.outputs.toolchains }}
+    steps:
+      - name: Resolve snap build toolchains
+        id: resolve
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          REF: ${{ github.ref }}
+        run: |
+          if [[ "$BASE_REF" == fips || "$REF" == refs/heads/fips ]]; then
+            # only FIPS builds are possible on the fips branch, snapcraft.yaml
+            # assumes the required FIPS libraries are available
+            echo 'toolchains=["FIPS"]' >> "$GITHUB_OUTPUT"
+          else
+            # whereas on other branches, the workflow can make the necessary
+            # adjustments to build both the default and the FIPS snaps
+            echo 'toolchains=["default","FIPS"]' >> "$GITHUB_OUTPUT"
+          fi
+
   snap-builds:
+    needs: [snap-toolchains]
     uses: ./.github/workflows/snap-builds.yaml
     with:
       runs-on: ${{ matrix.runs-on }}
@@ -58,9 +80,7 @@ jobs:
         runs-on:
           - '["ubuntu-24.04"]'
           - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
-        toolchain:
-          - default
-          - FIPS
+        toolchain: ${{ fromJSON(needs.snap-toolchains.outputs.toolchains) }}
         variant:
           # test version is a build of snapd with test keys and should
           # only be installed by test runners. The pristine versions
