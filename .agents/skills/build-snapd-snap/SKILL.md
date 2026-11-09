@@ -37,4 +37,4 @@ ls -lh built-snap/snapd_*.snap.keep
 
 - `run-spread` looks for the snap in `built-snap/`
 - Set `NO_REBUILD=1` to skip rebuilding when snap already exists
-- See `run-spread-test` skill for running tests
+- See `spread-runner` skill for running tests
