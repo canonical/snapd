@@ -639,11 +639,19 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string, aaFeat
 		})
 	}
 
-	// We need loop devices to work to be able to mount the snap.
-	if !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
+	// We need loop devices to work to be able to mount the snap, unless snaps
+	// are mounted with FUSE, as decided by squashfs.FsType() using the same
+	// check (e.g. in a container). Mounting devtmpfs is not possible in an
+	// unprivileged container, so /dev provided by the caller is used as is
+	// in that case.
+	if !squashfs.NeedsFuse() && !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
 		cmd := exec.Command("mount", "-t", "devtmpfs", "none", filepath.Join(rootDir, "/dev"))
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available: %s\nOutput: %s", err, out)
+			var hint string
+			if !osutil.FileExists(filepath.Join(rootDir, "/dev/fuse")) {
+				hint = " (/dev/fuse not available either, it is needed to mount snaps with FUSE instead)"
+			}
+			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available%s: %s\nOutput: %s", hint, err, out)
 		}
 		addCleanup(func() {
 			cmd := exec.Command("umount", "--lazy", filepath.Join(rootDir, "/dev"))

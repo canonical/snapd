@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/squashfs"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -529,6 +530,110 @@ func (s *preseedSuite) TestRunPreseedHappyPremounted(c *C) {
 
 	c.Assert(mockUmountCmd.Calls(), HasLen, 1)
 	c.Check(mockUmountCmd.Calls()[0], DeepEquals, []string{"umount", filepath.Join(tmpDir, targetSnapdRoot)})
+}
+
+func (s *preseedSuite) testRunPreseedFuseNoLoopControl(c *C, label string) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	// snaps are mounted with FUSE, e.g. in an unprivileged container
+	restore := squashfs.MockNeedsFuse(true)
+	defer restore()
+	mockSnapfuse := testutil.MockCommand(c, "snapfuse", "")
+	defer mockSnapfuse.Restore()
+
+	// Faking that /proc is mounted
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/proc/self"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/proc/self/cmdline"), []byte{}, 0644), IsNil)
+
+	// /dev is provided by the caller, without loop devices
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/dev"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/dev/fuse"), []byte{}, 0644), IsNil)
+
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := preseed.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
+	defer restoreSystemSnapFromSeed()
+
+	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
+	if [ "$SNAPD_PRESEED" != "1" ]; then
+		exit 1
+	fi
+`)
+	defer mockTargetSnapd.Restore()
+
+	mockSnapdFromDeb := testutil.MockCommand(c, filepath.Join(tmpDir, "usr/lib/snapd/snapd"), `#!/bin/sh
+	exit 1
+`)
+	defer mockSnapdFromDeb.Restore()
+
+	// snapd from the snap is newer than deb
+	mockVersionFiles(c, targetSnapdRoot, "2.44.0", tmpDir, "2.41.0")
+
+	if label == "" {
+		c.Check(preseed.Classic(tmpDir, nil), IsNil)
+	} else {
+		c.Check(preseed.Hybrid(tmpDir, label, nil), IsNil)
+	}
+
+	// no devtmpfs mount, only the FUSE mount of the snapd snap
+	c.Assert(mockMountCmd.Calls(), HasLen, 1)
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.snapfuse", "-o", "ro,x-gdu.hide,x-gvfs-hide,allow_other", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+
+	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
+	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
+
+	c.Assert(mockUmountCmd.Calls(), HasLen, 1)
+	c.Check(mockUmountCmd.Calls()[0], DeepEquals, []string{"umount", filepath.Join(tmpDir, targetSnapdRoot)})
+}
+
+func (s *preseedSuite) TestRunPreseedFuseNoLoopControl(c *C) {
+	s.testRunPreseedFuseNoLoopControl(c, "")
+}
+
+func (s *preseedSuite) TestRunPreseedHybridFuseNoLoopControl(c *C) {
+	s.testRunPreseedFuseNoLoopControl(c, "20250101")
+}
+
+func (s *preseedSuite) TestRunPreseedDevtmpfsMountUnhappy(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	// Faking that /proc is mounted
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/proc/self"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/proc/self/cmdline"), []byte{}, 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/dev"), 0755), IsNil)
+
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", `
+if [ "$1" = -t ] && [ "$2" = devtmpfs ]; then
+  echo "permission denied" 1>&2
+  exit 32
+fi
+`)
+	defer mockMountCmd.Restore()
+
+	// no FUSE either
+	c.Check(preseed.Classic(tmpDir, nil), ErrorMatches, `cannot prepare chroot: Cannot mount devtmpfs and /dev/loop-control not available \(/dev/fuse not available either, it is needed to mount snaps with FUSE instead\): exit status 32\nOutput: permission denied\n`)
+
+	// with /dev/fuse, but FUSE not chosen for other reasons
+	c.Assert(os.WriteFile(filepath.Join(tmpDir, "/dev/fuse"), []byte{}, 0644), IsNil)
+	c.Check(preseed.Classic(tmpDir, nil), ErrorMatches, `cannot prepare chroot: Cannot mount devtmpfs and /dev/loop-control not available: exit status 32\nOutput: permission denied\n`)
 }
 
 func (s *preseedSuite) TestRunPreseedHappyDebVersionIsNewer(c *C) {
