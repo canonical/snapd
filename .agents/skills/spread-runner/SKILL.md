@@ -27,8 +27,12 @@ Choose the snapd artifact based on what is being reproduced:
 
 - For a failure identified in a test report, use `-d` to download a prebuilt
   snapd snap instead of building from the current checkout.
-- For a GitHub job tied to a local or branch code change, omit `-d` so
-  `run-spread` builds the snap from the checked-out source.
+- For a test-only change, including task metadata, scripts, fixtures, and
+  helper updates, use `-d` unless the requested conditions require a specific
+  locally built snapd revision. The current project files are still sent to
+  the worker; `-d` only avoids rebuilding the snapd snap.
+- For a GitHub job tied to a local or branch snapd product-code change, omit
+  `-d` so `run-spread` builds the snap from the checked-out source.
 - `-d` downloads the latest successful master build, which may not match the
   report's source commit. Record the downloaded build and any source mismatch.
 - Put Spread flags and the selector after `--` when using `run-spread` options,
@@ -235,8 +239,8 @@ systemd, invariant, journal, and nested-VM operations.
 
 ## Prerequisites
 
-For local or branch source changes, let `run-spread` build the snap from the
-current checkout. For report-based failures, use
+For local or branch snapd product-code changes, let `run-spread` build the snap
+from the current checkout. For test-only changes and report-based failures, use
 `./run-spread -d -- <Spread args>` to download a prebuilt snap. Use
 `NO_REBUILD=1` only when reusing a verified matching local artifact.
 
