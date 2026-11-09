@@ -411,7 +411,7 @@ var removeStaleConnections = func(st *state.State) error {
 	return nil
 }
 
-func isBroken(st *state.State, snapName string) (bool, error) {
+func isBroken(st *state.State, instanceName naming.InstanceName) (bool, error) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, snapName, &snapst)
 	if errors.Is(err, state.ErrNoState) {

@@ -64,7 +64,7 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 	new := remodCtx.Model()
 
 	// unmark no-longer required snaps
-	var cleanedRequiredSnaps []string
+	var cleanedRequiredSnaps []naming.InstanceName
 	requiredSnaps := getAllRequiredSnapsForModel(new)
 	// TODO|XXX: have AllByRef
 	snapStates, err := snapstate.All(st)

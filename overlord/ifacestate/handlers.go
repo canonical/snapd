@@ -304,7 +304,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 // split: it preserves restart durability while a snap is inactive during
 // refresh, and lets ifacestate pick the most recent inactive
 // revision/components when regenerating security for affected snaps.
-func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *interfaces.SnapAppSet) error {
+func setPendingProfilesSideInfo(st *state.State, instanceName naming.InstanceName, appSet *interfaces.SnapAppSet) error {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err

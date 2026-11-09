@@ -4130,7 +4130,7 @@ func CurrentInfo(st *state.State, name string) (*snap.Info, error) {
 }
 
 // Get retrieves the SnapState of the given snap.
-func Get(st *state.State, name string, snapst *SnapState) error {
+func Get(st *state.State, name naming.InstanceName, snapst *SnapState) error {
 	if snapst == nil {
 		return fmt.Errorf("internal error: snapst is nil")
 	}
@@ -4224,8 +4224,8 @@ func NumSnaps(st *state.State) (int, error) {
 // Set sets the SnapState of the given snap, overwriting any earlier state.
 // Note that a SnapState with an empty Sequence will be treated as if snapst was
 // nil and name will be deleted from the state.
-func Set(st *state.State, name string, snapst *SnapState) {
-	var snaps map[string]*json.RawMessage
+func Set(st *state.State, name naming.InstanceName, snapst *SnapState) {
+	var snaps map[naming.InstanceName]*json.RawMessage
 	err := st.Get("snaps", &snaps)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic("internal error: cannot unmarshal snaps state: " + err.Error())
@@ -4393,7 +4393,7 @@ func coreInfo(st *state.State) (*snap.Info, error) {
 // ConfigDefaults returns the configuration defaults for the snap as
 // specified in the gadget for the given device context.
 // If gadget is absent or the snap has no snap-id it returns ErrNoState.
-func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (map[string]any, error) {
+func ConfigDefaults(st *state.State, deviceCtx DeviceContext, instanceName naming.InstanceName) (map[string]any, error) {
 	info, err := GadgetInfo(st, deviceCtx)
 	if err != nil {
 		return nil, err

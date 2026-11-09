@@ -2674,7 +2674,7 @@ func offlineComponentInfo(cref naming.ComponentRef, rev snap.Revision, comps []s
 	return comp, nil
 }
 
-func installedSnapRevision(st *state.State, name string) (bool, snap.Revision, error) {
+func installedSnapRevision(st *state.State, name naming.InstanceName) (bool, snap.Revision, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, name, &snapst); err != nil {
 		if errors.Is(err, state.ErrNoState) {

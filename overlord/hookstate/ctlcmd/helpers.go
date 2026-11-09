@@ -230,7 +230,7 @@ func taskApiData(t *state.Task) (map[string]*json.RawMessage, error) {
 	return data, nil
 }
 
-func currentSnapInfo(st *state.State, snapInstance string) (*snap.Info, error) {
+func currentSnapInfo(st *state.State, snapInstance naming.InstanceName) (*snap.Info, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapInstance, &snapst); err != nil {
 		return nil, err
@@ -239,7 +239,7 @@ func currentSnapInfo(st *state.State, snapInstance string) (*snap.Info, error) {
 	return snapst.CurrentInfo()
 }
 
-func getServiceInfos(st *state.State, snapInstance string, serviceNames []string) ([]*snap.AppInfo, error) {
+func getServiceInfos(st *state.State, snapInstance naming.InstanceName, serviceNames []string) ([]*snap.AppInfo, error) {
 	st.Lock()
 	defer st.Unlock()
 

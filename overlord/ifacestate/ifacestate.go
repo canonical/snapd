@@ -285,7 +285,7 @@ func connect(st *state.State, plugSnap naming.InstanceName, plugName string, slo
 	return tasks, nil
 }
 
-func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap string, plugName string, slotSnapInfo *snap.Info, slotSnap string, slotName string) (plugStatic, slotStatic map[string]any, err error) {
+func initialConnectAttributes(st *state.State, plugSnapInfo *snap.Info, plugSnap naming.InstanceName, plugName string, slotSnapInfo *snap.Info, slotSnap naming.InstanceName, slotName string) (plugStatic, slotStatic map[string]any, err error) {
 	var plugSnapst snapstate.SnapState
 
 	if err = snapstate.Get(st, plugSnap, &plugSnapst); err != nil {

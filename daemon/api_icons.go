@@ -45,7 +45,7 @@ func snapIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	return iconGet(c.d.overlord.State(), name)
 }
 
-func iconGet(st *state.State, name string) Response {
+func iconGet(st *state.State, name naming.InstanceName) Response {
 	st.Lock()
 	defer st.Unlock()
 

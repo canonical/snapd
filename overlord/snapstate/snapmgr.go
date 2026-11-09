@@ -1060,7 +1060,7 @@ func affectsRunningHooks(cand *state.Task, running []*state.Task) (block bool) {
 		}
 
 		type hookSetup struct {
-			Snap string `json:"snap"`
+			Snap naming.InstanceName `json:"snap"`
 		}
 
 		var hooksup hookSetup
@@ -1139,7 +1139,7 @@ func (m *SnapManager) EnsureAutoRefreshesAreDelayed(delay time.Duration) ([]*sta
 	return autoRefreshChgsInFlight, nil
 }
 
-func (m *SnapManager) ensureVulnerableSnapRemoved(name string) error {
+func (m *SnapManager) ensureVulnerableSnapRemoved(name naming.InstanceName) error {
 	// Do not do anything if we have already done this removal before on this
 	// device. This is because if, after we have removed vulnerable snaps the
 	// user decides to refresh to a vulnerable version of snapd, that is their

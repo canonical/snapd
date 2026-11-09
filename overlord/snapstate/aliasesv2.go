@@ -107,7 +107,7 @@ const (
 // to go from prevAliases considering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
 // snapName. It assumes that conflicts have already been checked.
-func applyAliasesChange(snapName string, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend, dryRun bool) (add, remove []*backend.Alias, err error) {
+func applyAliasesChange(snapName naming.InstanceName, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend, dryRun bool) (add, remove []*backend.Alias, err error) {
 	for alias, prevTargets := range prevAliases {
 		if _, ok := newAliases[alias]; ok {
 			continue
