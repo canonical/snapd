@@ -188,7 +188,6 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/cgroup-support-test.c \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
-	libsnap-confine-private/device-cgroup-support-test.c \
 	libsnap-confine-private/error-test.c \
 	libsnap-confine-private/fault-injection-test.c \
 	libsnap-confine-private/feature-test.c \
@@ -204,6 +203,11 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/string-utils-test.c \
 	libsnap-confine-private/test-utils-test.c \
 	libsnap-confine-private/utils-test.c
+
+if ENABLE_BPF
+libsnap_confine_private_unit_tests_SOURCES += \
+	libsnap-confine-private/device-cgroup-support-v2-test.c
+endif
 
 libsnap_confine_private_unit_tests_CFLAGS = $(AM_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS) $(SANITIZE_CFLAGS)
 libsnap_confine_private_unit_tests_LDFLAGS = $(SANITIZE_LDFLAGS)
