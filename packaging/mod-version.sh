@@ -11,7 +11,8 @@
 #
 #   - cmd/VERSION  used by autotools (AC_INIT) for snap-confine, so that
 #                  "snap-confine --version" matches the Go binaries
-#   - data/info    the VERSION key only; SNAPD_APPARMOR_REEXEC and the
+#   - data/info    the VERSION key only; SNAPD_APPARMOR_REEXEC,
+#                  SNAPD_PRESEED_APPARMOR_FEATURES_DIR and the
 #                  assertion formats map are preserved from the source tree
 #
 # The version files must already exist, i.e. the tree is expected to be a

@@ -101,8 +101,9 @@ suffix, e.g. `2.77.1-1`), so that they match the binaries'
 
 - `cmd/VERSION` - read by autotools (`AC_INIT`) for snap-confine, so that
   `snap-confine --version` agrees with the Go binaries
-- `data/info` - its `VERSION` key only; `SNAPD_APPARMOR_REEXEC` and the
-  assertion formats map are kept from the source tree
+- `data/info` - its `VERSION` key only; `SNAPD_APPARMOR_REEXEC`,
+  `SNAPD_PRESEED_APPARMOR_FEATURES_DIR` and the assertion formats map are kept
+  from the source tree
 
 To do this, distribution packaging invokes `packaging/mod-version.sh` with the
 full package version, before `cmd/configure` reads `cmd/VERSION`:
