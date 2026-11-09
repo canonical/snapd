@@ -1,16 +1,19 @@
-summary: Check that classic preseeding with --apparmor-features-dir works.
+summary: Check that classic preseeding with the target kernel features works.
 
 details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
-  works with the AppArmor kernel features directory of a target kernel given
-  via --apparmor-features-dir, without securityfs mounted inside the chroot.
+  works with the AppArmor kernel features directory and the seccomp actions of
+  a target kernel given via --apparmor-features-dir and
+  --seccomp-actions-file, without securityfs mounted inside the chroot.
 
   The AppArmor kernel features of the target kernel are snapshotted from the
   host kernel and made distinct from it by dropping the signal feature, as if
   preseeding for a target kernel without signal mediation. The AppArmor parser
   records the kernel features used for compiling the profiles in a .features
   file in its cache directory, which lets the test verify that the profiles
-  were compiled for the target kernel.
+  were compiled for the target kernel. Likewise, the seccomp actions of the
+  target kernel are the ones of the host kernel minus the log action. Both
+  end up in the system key that snapd records in its state when preseeding.
 
 # Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
 # https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
@@ -20,6 +23,7 @@ systems: [ubuntu-20*, ubuntu-22*]
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
   AA_FEATURES_DIR: $(pwd)/aa-features-target
+  SECCOMP_ACTIONS_FILE: $(pwd)/seccomp-actions-target
 
 prepare: |
   # shellcheck source=tests/lib/image.sh
@@ -58,6 +62,9 @@ prepare: |
   # pretend the target kernel has no signal mediation
   rm -rf "$AA_FEATURES_DIR/signal"
 
+  # pretend the target kernel has no seccomp log action
+  tr ' ' '\n' < /proc/sys/kernel/seccomp/actions_avail | grep -vx log | tr '\n' ' ' > "$SECCOMP_ACTIONS_FILE"
+
   # securityfs is not needed inside the chroot when the AppArmor features
   # directory is given
   umount "$IMAGE_MOUNTPOINT/sys/kernel/security"
@@ -84,8 +91,13 @@ execute: |
   not "$SNAP_PRESEED" "$IMAGE_MOUNTPOINT" > preseed.log 2>&1
   MATCH "cannot preseed without the following mountpoints" < preseed.log
 
-  echo "Running pre-seeding with the AppArmor kernel features of the target kernel"
-  SNAPD_DEBUG=1 "$SNAP_PRESEED" --apparmor-features-dir="$AA_FEATURES_DIR" "$IMAGE_MOUNTPOINT" > preseed.log 2>&1
+  echo "Check that --seccomp-actions-file is rejected for Ubuntu Core"
+  mkdir -p uc-image/system-seed
+  "$SNAP_PRESEED" --seccomp-actions-file="$SECCOMP_ACTIONS_FILE" uc-image 2>&1 | MATCH "error: cannot use --seccomp-actions-file for Ubuntu Core"
+
+  echo "Running pre-seeding with the AppArmor kernel features and seccomp actions of the target kernel"
+  SNAPD_DEBUG=1 "$SNAP_PRESEED" --apparmor-features-dir="$AA_FEATURES_DIR" \
+      --seccomp-actions-file="$SECCOMP_ACTIONS_FILE" "$IMAGE_MOUNTPOINT" > preseed.log 2>&1
 
   echo "Check that the snapd from the seed was run"
   MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd \(" < preseed.log
@@ -110,3 +122,12 @@ execute: |
   # the target kernel has no signal mediation, unlike the host kernel
   test -d /sys/kernel/security/apparmor/features/signal
   NOMATCH '^signal ' < "$FEATURES_FILE"
+
+  echo "Check that the system key recorded while preseeding has the target kernel features"
+  gojq -c '.data["preseed-system-key"]["seccomp-features"]' < "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json > seccomp-features
+  # the host kernel has the log action, unlike the target kernel
+  MATCH '\blog\b' < /proc/sys/kernel/seccomp/actions_avail
+  test "$(gojq -r 'sort | join(" ")' < seccomp-features)" = "$(tr ' ' '\n' < "$SECCOMP_ACTIONS_FILE" | grep . | sort | tr '\n' ' ' | sed 's/ $//')"
+  gojq -r '.data["preseed-system-key"]["apparmor-features"][]' < "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json > apparmor-features
+  MATCH '^file$' < apparmor-features
+  NOMATCH '^signal$' < apparmor-features
