@@ -28,6 +28,7 @@
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/device-cgroup-support.h"
+#include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -269,6 +270,12 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
     char *security_tag SC_CLEANUP(sc_cleanup_string) = udev_to_security_tag(udev_tagname);
 
     int devtype = ((subsystem != NULL) && (strcmp(subsystem, "block") == 0)) ? S_IFBLK : S_IFCHR;
+
+    /* Acquire the per-security-tag device cgroup lock to synchronize
+     * map mutations between snap-device-helper and snap-confine. The
+     * lock is released when this function returns (via SC_CLEANUP on
+     * devcgroup_lock_fd). */
+    int devcgroup_lock_fd SC_CLEANUP(sc_cleanup_close) = sc_lock_devcgroup(security_tag);
 
     sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
         sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);

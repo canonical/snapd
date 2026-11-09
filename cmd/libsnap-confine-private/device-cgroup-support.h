@@ -36,6 +36,10 @@ enum {
  * case an existing cgroup will be used, and a -1 return value with errno set to
  * ENOENT indicates that the group was not found. Otherwise, a new device cgroup
  * for a given tag will be set up.
+ *
+ * On cgroup v2, the caller must hold the per-security-tag device cgroup lock
+ * (sc_lock_devcgroup) and keep it held until after sc_device_cgroup_close, to
+ * synchronize map mutations between snap-device-helper and snap-confine.
  */
 sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags);
 /**
@@ -53,6 +57,10 @@ static const uint32_t SC_DEVICE_MINOR_ANY = UINT32_MAX;
  * sc_device_cgroup_allow sets up the cgroup to allow access to a given device
  * or a set of devices if SC_MINOR_ANY is passed as the minor number. The kind
  * must be one of S_IFCHR, S_IFBLK.
+ *
+ * On cgroup v2, the caller must hold the per-security-tag device cgroup lock
+ * (sc_lock_devcgroup) to synchronize map mutations between snap-device-helper
+ * and snap-confine.
  */
 int sc_device_cgroup_allow(sc_device_cgroup *self, int kind, int major, int minor);
 
@@ -60,6 +68,10 @@ int sc_device_cgroup_allow(sc_device_cgroup *self, int kind, int major, int mino
  * sc_device_cgroup_deny sets up the cgroup to deny access to a given device or
  * a set of devices if SC_MINOR_ANY is passed as the minor number. The kind must
  * be one of S_IFCHR, S_IFBLK.
+ *
+ * On cgroup v2, the caller must hold the per-security-tag device cgroup lock
+ * (sc_lock_devcgroup) to synchronize map mutations between snap-device-helper
+ * and snap-confine.
  */
 int sc_device_cgroup_deny(sc_device_cgroup *self, int kind, int major, int minor);
 

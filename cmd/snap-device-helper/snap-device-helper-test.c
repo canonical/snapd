@@ -93,6 +93,13 @@ void sc_device_cgroup_cleanup(sc_device_cgroup **self) {
     *self = NULL;
 }
 
+/* Mock locking without needing real flock. sc_cleanup_close skips fds
+ * that are -1, so return -1 to avoid a spurious close on a fake fd. */
+int sc_lock_devcgroup(const char *security_tag) {
+    (void)security_tag;
+    return -1;
+}
+
 struct sdh_test_data {
     char *action;
     // snap.foo.bar

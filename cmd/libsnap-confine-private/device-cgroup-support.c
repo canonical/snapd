@@ -25,7 +25,6 @@
 
 #include "cgroup-support.h"
 #include "cleanup-funcs.h"
-#include "locking.h"
 #include "snap.h"
 #include "string-utils.h"
 #include "utils.h"
@@ -61,7 +60,6 @@ struct sc_device_cgroup {
         struct {
             int devmap_fd;
             int prog_fd;
-            int devcgroup_lock_fd;
             char *tag;
             char pretty_name[BPF_OBJ_NAME_LEN]; /* only for presentation */
             struct rlimit old_limit;
@@ -521,8 +519,6 @@ static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
      * program */
     sc_cleanup_close(&self->v2.devmap_fd);
     sc_cleanup_close(&self->v2.prog_fd);
-    /* Closing the lock fd releases the flock. */
-    sc_cleanup_close(&self->v2.devcgroup_lock_fd);
 }
 
 static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major, int minor) {
@@ -676,20 +672,6 @@ sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags) {
     }
     self->is_v2 = sc_cgroup_is_v2();
     self->security_tag = sc_strdup(security_tag);
-#ifdef ENABLE_BPF
-    /* The device cgroup v2 BPF map is mutated both by snap-confine (creating
-     * and clearing the map) and by snap-device-helper (adding and removing
-     * device rules). Acquire an exclusive per-security-tag flock shared
-     * between snap-confine and snap-device-helper before touching the map so
-     * concurrent mutations do not overwrite each other. The lock is released
-     * in sc_device_cgroup_close(). The v1 path has no BPF map and is left
-     * unchanged. */
-    if (self->is_v2) {
-        /* Defensive: calloc zeroes the fd; -1 so cleanup never closes stdin. */
-        self->v2.devcgroup_lock_fd = -1;
-        self->v2.devcgroup_lock_fd = sc_lock_devcgroup(security_tag);
-    }
-#endif
 
     int ret = 0;
     if (self->is_v2) {

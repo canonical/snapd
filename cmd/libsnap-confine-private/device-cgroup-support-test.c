@@ -96,13 +96,6 @@ int bpf_map_get_next_key(int map_fd, const void *key, void *next_key) {
     return -1;
 }
 
-int bpf_map_delete_batch(int map_fd, const void *keys, size_t cnt) {
-    (void)map_fd;
-    (void)keys;
-    (void)cnt;
-    return 0;
-}
-
 bool bpf_path_is_bpffs(const char *path) {
     (void)path;
     return true;
@@ -130,7 +123,6 @@ static sc_device_cgroup *make_test_cgroup(const char *tag) {
     self->is_v2 = true;
     self->v2.devmap_fd = -1;
     self->v2.prog_fd = -1;
-    self->v2.devcgroup_lock_fd = -1;
     self->security_tag = sc_strdup(tag);
     return self;
 }
