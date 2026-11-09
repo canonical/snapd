@@ -7,8 +7,9 @@
 #                                     DownstreamVersionSuffix = ""
 #   - cmd/VERSION                     used by autotools (AC_INIT) for snap-confine
 #   - data/info                       VERSION, SNAPD_APPARMOR_REEXEC,
-#                                     SNAPD_PRESEED_APPARMOR_FEATURES_DIR and
-#                                     the assertion formats map
+#                                     SNAPD_PRESEED_APPARMOR_FEATURES_DIR,
+#                                     SNAPD_PRESEED_SECCOMP_ACTIONS and the
+#                                     assertion formats map
 #
 # It has two callers:
 #
@@ -73,5 +74,6 @@ cat <<EOF > "$srcdir/data/info"
 VERSION=$version
 SNAPD_APPARMOR_REEXEC=1
 SNAPD_PRESEED_APPARMOR_FEATURES_DIR=1
+SNAPD_PRESEED_SECCOMP_ACTIONS=1
 ${fmts}
 EOF

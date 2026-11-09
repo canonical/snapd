@@ -113,3 +113,19 @@ func PreseedAppArmorFeaturesDir() string {
 	}
 	return os.Getenv(EnvPreseedAppArmorFeaturesDir)
 }
+
+// EnvPreseedSeccompActions is the environment variable holding the seccomp
+// actions available in the target kernel (in the format of
+// /proc/sys/kernel/seccomp/actions_avail). It is only honored while
+// preseeding. A snapd that understands it advertises so with a key of the same
+// name set to 1 in its info file.
+const EnvPreseedSeccompActions = "SNAPD_PRESEED_SECCOMP_ACTIONS"
+
+// PreseedSeccompActions returns the seccomp actions available in the target
+// kernel, or "" if not set or not preseeding.
+func PreseedSeccompActions() string {
+	if !Preseeding() {
+		return ""
+	}
+	return os.Getenv(EnvPreseedSeccompActions)
+}

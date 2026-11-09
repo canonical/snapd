@@ -30,3 +30,11 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 func FreshSecCompProbe() {
 	secCompProber = &secCompProbe{}
 }
+
+func MockPreseedSeccompActions(actions string) (restore func()) {
+	old := preseedSeccompActions
+	preseedSeccompActions = func() string { return actions }
+	return func() {
+		preseedSeccompActions = old
+	}
+}
