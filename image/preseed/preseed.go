@@ -68,6 +68,10 @@ type ClassicOptions struct {
 	// snapd being run, which must support this, so that securityfs is not
 	// needed inside the chroot
 	AppArmorKernelFeaturesDir string
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail;
+	// it is handed over to the snapd being run, which must support this
+	SeccompActionsFile string
 }
 
 // preseedCoreOptions holds internal preseeding options for the core case

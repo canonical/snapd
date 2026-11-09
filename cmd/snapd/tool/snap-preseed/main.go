@@ -56,6 +56,7 @@ type options struct {
 	SystemLabel         string `long:"system-label"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
+	SeccompActionsFile  string `long:"seccomp-actions-file"`
 	SysfsOverlay        string `long:"sysfs-overlay"`
 }
 
@@ -131,6 +132,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 
 	classicOpts := &preseed.ClassicOptions{
 		AppArmorKernelFeaturesDir: opts.AppArmorFeaturesDir,
+		SeccompActionsFile:        opts.SeccompActionsFile,
 	}
 
 	if opts.Hybrid {
@@ -149,6 +151,9 @@ func run(parser *flags.Parser, args []string) (err error) {
 	if probeCore20ImageDir(chrootDir) {
 		if opts.Reset || opts.ResetChroot {
 			return fmt.Errorf("cannot snap-preseed --reset for Ubuntu Core")
+		}
+		if opts.SeccompActionsFile != "" {
+			return fmt.Errorf("cannot use --seccomp-actions-file for Ubuntu Core")
 		}
 
 		coreOpts := &preseed.CoreOptions{

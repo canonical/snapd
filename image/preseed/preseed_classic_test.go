@@ -350,7 +350,7 @@ func (s *preseedSuite) TestRunPreseedAppArmorFeaturesUnsupportedSnapd(c *C) {
 
 	opts := &preseed.ClassicOptions{AppArmorKernelFeaturesDir: mockAppArmorFeaturesDir(c)}
 	c.Check(preseed.Classic(tmpDir, opts), ErrorMatches,
-		`cannot prepare chroot: cannot use the AppArmor kernel features directory: snapd 2.44.0 from the target system does not support it`)
+		`cannot use the AppArmor kernel features directory: snapd 2.44.0 from the target system does not support it`)
 
 	c.Check(mockTargetSnapd.Calls(), HasLen, 0)
 	// everything was cleaned up
@@ -387,6 +387,80 @@ func (s *preseedSuite) TestRunPreseedAppArmorFeaturesChrootFailure(c *C) {
 	opts := &preseed.ClassicOptions{AppArmorKernelFeaturesDir: mockAppArmorFeaturesDir(c)}
 	c.Check(preseed.Classic(tmpDir, opts), ErrorMatches, fmt.Sprintf("cannot prepare chroot: cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
 	c.Check(filepath.Join(tmpDir, chrootAppArmorFeaturesDir), testutil.FileAbsent)
+}
+
+func (s *preseedSuite) testRunPreseedSeccompActions(c *C, snapdInfo, actionsFileContent string) (snapdCalls int, err error) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := preseed.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
+	defer restoreSystemSnapFromSeed()
+
+	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
+	set -eu
+	[ "${SNAPD_PRESEED}" = "1" ]
+	[ "${SNAPD_PRESEED_SECCOMP_ACTIONS}" = "kill_process errno allow" ]
+	[ -z "${SNAPD_PRESEED_APPARMOR_FEATURES_DIR:-}" ]
+`)
+	defer mockTargetSnapd.Restore()
+
+	mockVersionFiles(c, targetSnapdRoot, "2.44.0", tmpDir, "2.41.0")
+	c.Assert(os.WriteFile(filepath.Join(targetSnapdRoot, dirs.CoreLibExecDir, "info"), []byte(snapdInfo), 0644), IsNil)
+
+	actionsFile := filepath.Join(c.MkDir(), "actions_avail")
+	c.Assert(os.WriteFile(actionsFile, []byte(actionsFileContent), 0644), IsNil)
+
+	err = preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: actionsFile})
+	// all mounts are cleaned up either way
+	c.Check(mockUmountCmd.Calls(), HasLen, len(mockMountCmd.Calls()))
+	return len(mockTargetSnapd.Calls()), err
+}
+
+func (s *preseedSuite) TestRunPreseedSeccompActionsHappy(c *C) {
+	calls, err := s.testRunPreseedSeccompActions(c, "VERSION=2.44.0\nSNAPD_PRESEED_SECCOMP_ACTIONS=1\n", "kill_process errno  allow\n")
+	c.Assert(err, IsNil)
+	c.Check(calls, Equals, 1)
+}
+
+func (s *preseedSuite) TestRunPreseedSeccompActionsUnsupportedSnapd(c *C) {
+	// supporting only the AppArmor features directory is not enough
+	calls, err := s.testRunPreseedSeccompActions(c, "VERSION=2.44.0\nSNAPD_PRESEED_APPARMOR_FEATURES_DIR=1\n", "kill_process errno allow\n")
+	c.Check(err, ErrorMatches, `cannot use the seccomp actions file: snapd 2.44.0 from the target system does not support it`)
+	c.Check(calls, Equals, 0)
+}
+
+func (s *preseedSuite) TestRunPreseedSeccompActionsFileErrors(c *C) {
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error {
+		c.Fatalf("unexpected chroot")
+		return nil
+	})
+	defer restoreSyscallChroot()
+
+	tmpDir := c.MkDir()
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	missing := filepath.Join(tmpDir, "missing")
+	c.Check(preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: missing}), ErrorMatches,
+		`cannot read seccomp actions file: open .*/missing: no such file or directory`)
+
+	empty := filepath.Join(tmpDir, "empty")
+	c.Assert(os.WriteFile(empty, []byte(" \n"), 0644), IsNil)
+	c.Check(preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: empty}), ErrorMatches,
+		`cannot use seccomp actions file ".*/empty": no actions listed`)
 }
 
 func (s *preseedSuite) TestChrootValidationNoSecurityfsWithoutAppArmorFeatures(c *C) {
