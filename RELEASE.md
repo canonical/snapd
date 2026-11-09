@@ -419,7 +419,7 @@ Prerequisites:
 
 Steps:
 1. Sync with the QA person on the team in charge of beta testing to make sure we can go to beta. For example, if a previous release has not yet made it to candidate, we would need to hold off on promoting.
-2. Find the revisions for the snap you just pushed. It will be `beta/<version>`. You can find the revisions by running `snapcraft status snapd`
+2. Find the revisions for the snap you just pushed. It will be `beta/<version>`. Promote also snaps in the fips channel. You can find the revisions by running `snapcraft status snapd`
 3. For each architectural build, you have a unique revision number. You release by running `snapcraft release snapd <revision-number> beta`. You will run that command for each individual revision number.
 4. Update internal roadmap tracking, for example by marking Jira epics and releases as completed.
 5. Update GitHub milestones to close the released milestone
@@ -565,7 +565,7 @@ Prerequisites:
 - snapd QA gives the OK to promote to candidate (we always want to ensure we do not promote to a channel that has an artifact that itself has not yet been promoted to the next channel)
 
 Steps:
-1. You can find the revisions by running `snapcraft status snapd`
+1. You can find the revisions by running `snapcraft status snapd`. Promote also in the fips channel.
 2. For each architectural build, you should have a unique revision number. You release by running `snapcraft release snapd <revision-number> candidate`. You will run that command for each individual revision number.
 3. Update the [snapd roadmap](https://forum.snapcraft.io/t/the-snapd-roadmap/1973)
 4. Create a forum post using the template specified in the document "Snapd Release Form Comms Template" (example https://forum.snapcraft.io/t/snapd-2-74-1-release-update/50694)
@@ -648,6 +648,8 @@ Prerequisites:
 - One week has passed since snapd was promoted to candidate
 - The WSL smoke tests were run
 - No stable-stopper bugs have been filed in Launchpad and internal channels against candidate
+
+Do not promote FIPS snaps to stable.
 
 Request that snapd QA promotes snapd to stable. The release is done progressively. Once the progressive release has completed, update the [snapd roadmap](https://forum.snapcraft.io/t/the-snapd-roadmap/1973).
 
