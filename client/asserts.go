@@ -38,8 +38,11 @@ import (
 // and its prerequisite in the database.
 func (client *Client) Ack(b []byte) error {
 	var rsp any
-	// FIXME: we should set Content-Type here
-	if _, err := client.doSync("POST", "/v2/assertions", nil, nil, bytes.NewReader(b), &rsp); err != nil {
+
+	header := map[string]string{
+		"Content-type": asserts.MediaType,
+	}
+	if _, err := client.doSync("POST", "/v2/assertions", nil, header, bytes.NewReader(b), &rsp); err != nil {
 		return err
 	}
 

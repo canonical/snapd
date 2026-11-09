@@ -95,14 +95,14 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
 	}
 
-	var header map[string]string
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
 
 	if len(supportedFeatures) > 0 {
 		header = make(map[string]string)
 		header["X-Snapctl-Features"] = strings.Join(supportedFeatures, ",")
 	}
-
-	header["Content-Type"] = "application/json"
 
 	var output snapctlOutput
 	_, err = client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(b), &output)
