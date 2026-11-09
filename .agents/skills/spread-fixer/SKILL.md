@@ -82,6 +82,14 @@ baseline used `garden`, rerun the same Garden command and conditions. Report
 that as local verification, not as proof of success on OpenStack; CI
 confirmation requires a separate CI run.
 
+If the fix targets a non-generic CI scenario, also run the same test and
+variant in a generic scenario after verifying the original conditions. Use a
+generic caller's actual environment and artifact selection, and keep the
+backend and system the same when supported. Treat this as an additional
+compatibility check, not a substitute for the original-condition run. If no
+generic caller supports the selector, document that limitation rather than
+silently switching targets.
+
 Update the reproduction report with:
 
 - the test-defect evidence and root cause
