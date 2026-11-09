@@ -56,3 +56,5 @@ require (
 	golang.org/x/term v0.20.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
+
+replace github.com/snapcore/secboot => github.com/valentindavid/secboot v0.0.0-20261109121954-456587af7d07
