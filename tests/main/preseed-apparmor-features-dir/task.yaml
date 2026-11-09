@@ -1,0 +1,112 @@
+summary: Check that classic preseeding with --apparmor-features-dir works.
+
+details: |
+  This test checks that preseeding of Ubuntu cloud images with snap-preseed
+  works with the AppArmor kernel features directory of a target kernel given
+  via --apparmor-features-dir, without securityfs mounted inside the chroot.
+
+  The AppArmor kernel features of the target kernel are snapshotted from the
+  host kernel and made distinct from it by dropping the signal feature, as if
+  preseeding for a target kernel without signal mediation. The AppArmor parser
+  records the kernel features used for compiling the profiles in a .features
+  file in its cache directory, which lets the test verify that the profiles
+  were compiled for the target kernel.
+
+# Ubuntu 24.04: there is no longer any seeded snaps in base or minimal cloud images
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051346
+# https://bugs.launchpad.net/ubuntu/+source/ubuntu-meta/+bug/2051572
+systems: [ubuntu-20*, ubuntu-22*]
+
+environment:
+  IMAGE_MOUNTPOINT: /mnt/cloudimg
+  AA_FEATURES_DIR: $(pwd)/aa-features-target
+
+prepare: |
+  # shellcheck source=tests/lib/image.sh
+  . "$TESTSLIB"/image.sh
+
+  # the get_image_url_for_vm is a convenient helper that returns
+  # a cloud image url matching current $SPREAD_SYSTEM.
+  wget --quiet "$(get_image_url_for_vm)" -O cloudimg.img
+  mkdir -p "$IMAGE_MOUNTPOINT"
+
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
+
+  # add snapd from this branch into the seed, it supports the AppArmor
+  # features directory being handed over
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap_with_run_mode_firstboot_tweaks "$PWD"
+  mv snapd_*.snap snapd.snap
+  inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
+
+  # for images that are already preseeded, we need to undo the preseeding there
+  echo "Running preseed --reset for already preseeded cloud images"
+  SNAP_PRESEED=/usr/lib/snapd/snap-preseed
+  if tests.info is-snapd-from-archive; then
+      SNAP_PRESEED="/snap/snapd/current$SNAP_PRESEED"
+  fi
+  SNAPD_DEBUG=1 "$SNAP_PRESEED" --reset "$IMAGE_MOUNTPOINT"
+
+  # snapshot the AppArmor kernel features of the host kernel, to pretend
+  # they are the ones of the target kernel; cp reads the securityfs files
+  # until EOF, which matters as they report a size of 0
+  mkdir -p "$AA_FEATURES_DIR"
+  cp -r /sys/kernel/security/apparmor/features/. "$AA_FEATURES_DIR/"
+  # pretend the target kernel has no signal mediation
+  rm -rf "$AA_FEATURES_DIR/signal"
+
+  # securityfs is not needed inside the chroot when the AppArmor features
+  # directory is given
+  umount "$IMAGE_MOUNTPOINT/sys/kernel/security"
+
+restore: |
+  #shellcheck source=tests/lib/preseed.sh
+  . "$TESTSLIB/preseed.sh"
+  # securityfs was unmounted by the test, so unmounting it fails
+  umount_ubuntu_image "$IMAGE_MOUNTPOINT" || true
+
+debug: |
+  cat preseed.log || true
+
+execute: |
+  SNAP_PRESEED=/usr/lib/snapd/snap-preseed
+  if tests.info is-snapd-from-archive; then
+      SNAP_PRESEED="/snap/snapd/current$SNAP_PRESEED"
+  fi
+
+  echo "Check that --sysfs-overlay is rejected for classic systems"
+  "$SNAP_PRESEED" --sysfs-overlay=/ "$IMAGE_MOUNTPOINT" 2>&1 | MATCH "error: cannot use --sysfs-overlay with classic or hybrid systems"
+
+  echo "Check that preseeding without securityfs fails without --apparmor-features-dir"
+  not "$SNAP_PRESEED" "$IMAGE_MOUNTPOINT" > preseed.log 2>&1
+  MATCH "cannot preseed without the following mountpoints" < preseed.log
+
+  echo "Running pre-seeding with the AppArmor kernel features of the target kernel"
+  SNAPD_DEBUG=1 "$SNAP_PRESEED" --apparmor-features-dir="$AA_FEATURES_DIR" "$IMAGE_MOUNTPOINT" > preseed.log 2>&1
+
+  echo "Check that the snapd from the seed was run"
+  MATCH "using snapd binary: /tmp/snapd-preseed/usr/lib/snapd/snapd \(" < preseed.log
+
+  echo "Check that no mounts were left behind and the features copy was removed"
+  mount | NOMATCH "snap-preseed"
+  test ! -e "$IMAGE_MOUNTPOINT/tmp/snapd-preseed-apparmor-features"
+
+  echo "Check that the image was preseeded"
+  snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 > tasks.log
+  MATCH "Doing .+ mark-preseeded +Mark system pre-seeded" < tasks.log
+  MATCH "Done .+ setup-profiles +Setup snap \"snapd\" \(x1\) security profiles" < tasks.log
+
+  echo "Check that the profiles were compiled for the target kernel"
+  # the parser records the kernel features used for compiling in a .features
+  # file in the cache directory; the snapd snap profiles were only compiled
+  # by preseeding, unlike any profiles already cached in the image
+  CACHE_FILE="$(find "$IMAGE_MOUNTPOINT"/var/cache/apparmor -type f -name 'snap-confine.snapd.*' -print -quit)"
+  test -n "$CACHE_FILE"
+  FEATURES_FILE="$(dirname "$CACHE_FILE")/.features"
+  MATCH '^file ' < "$FEATURES_FILE"
+  # the target kernel has no signal mediation, unlike the host kernel
+  test -d /sys/kernel/security/apparmor/features/signal
+  NOMATCH '^signal ' < "$FEATURES_FILE"
