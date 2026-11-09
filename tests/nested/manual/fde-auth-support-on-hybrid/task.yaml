@@ -110,7 +110,7 @@ debug: |
   fi
 
   echo "Current system-volumes"
-  remote.exec sudo snap debug api /v2/system-volumes
+  remote.exec sudo snap debug api /v2/system-volumes || true
 
 execute: |
   # The APIs tested here shouldn't be available on anything before 26.04
@@ -167,6 +167,26 @@ execute: |
   reboot_with_passphrase()
   {
     tests.nested vm set-passphrase "$1"
+    tests.nested vm set-pin ""
+    tests.nested vm set-recovery-key ""
+    tests.nested vm stop
+    tests.nested vm start
+  }
+
+  reboot_with_pin()
+  {
+    tests.nested vm set-passphrase ""
+    tests.nested vm set-pin "$1"
+    tests.nested vm set-recovery-key ""
+    tests.nested vm stop
+    tests.nested vm start
+  }
+
+  reboot_with_recovery_key()
+  {
+    tests.nested vm set-passphrase ""
+    tests.nested vm set-pin ""
+    tests.nested vm set-recovery-key "$1"
     tests.nested vm stop
     tests.nested vm start
   }
@@ -376,7 +396,19 @@ execute: |
     # reboot re-syncs it with the reset counter. Because that request uses the
     # correct credential and succeeds, its consumed token is reclaimed and the
     # bucket ends up back at the maximum.
-    reboot_with_passphrase "$cur"
+    case "$auth_type" in
+      passphrase)
+        reboot_with_passphrase "$cur"
+        ;;
+      pin)
+        reboot_with_pin "$cur"
+        ;;
+      *)
+        echo "unknown auth type: $auth_type"
+        exit 1
+        ;;
+    esac
+
 
     # Wait for the post-reboot TPM DA lockout counter reset to complete before
     # probing, so the re-sync reads a zeroed counter.
@@ -439,14 +471,14 @@ execute: |
   change_id="$(gojq --raw-output .change < resp)"
   remote.exec sudo snap watch "$change_id"
 
-  reboot_with_passphrase "1234"
+  reboot_with_pin "1234"
 
   # Test changing PINs
   remote_action_request '{"action": "change-pin", "old-pin": "1234", "new-pin": "4321"}'
   change_id="$(gojq --raw-output .change < resp)"
   remote.exec sudo snap watch "$change_id"
 
-  reboot_with_passphrase "4321"
+  reboot_with_pin "4321"
 
   # Verify the rate limiter re-syncs from a non-zero real TPM DA counter and
   # then throttles once the token bucket is drained.
@@ -464,7 +496,7 @@ execute: |
   change_id="$(gojq --raw-output .change < resp)"
   remote.exec sudo snap watch "$change_id"
 
-  reboot_with_passphrase "6789"
+  reboot_with_pin "6789"
 
   # refresh rebooting snap
   # $1: path to snap file
@@ -550,7 +582,7 @@ execute: |
   reboot_with_passphrase "ubuntu-4"
 
   # Now let's see if we can remove the passphrase when booted with a recovery key
-  reboot_with_passphrase "$(cat recovery-key)"
+  reboot_with_recovery_key "$(cat recovery-key)"
 
   remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'
   change_id="$(gojq --raw-output .change < resp)"

@@ -21,4 +21,5 @@ ExecStart=/usr/lib/snapd/snap-bootstrap initramfs-mounts
 StandardOutput=journal+console
 StandardError=journal+console
 ImportCredential=snapd.fde.password
+ImportCredential=ubuntu-fde.*
 KeyringMode=inherit
