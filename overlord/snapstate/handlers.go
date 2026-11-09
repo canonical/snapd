@@ -3017,14 +3017,19 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		return err
 	}
 
-	// For remove/disable, the end goal is to have services stopped, so undo is skipped
-	// to avoid restarting the services in case of error. This aligns with making
-	// remove/disable best effort towards achieving their end goal.
-	// On the other hand, for example for refresh the end goal is to have the services
-	// running (just from a different revision), so undo is needed to restart the
-	// services in case of error.
+	// For remove, the end goal is to have services stopped, so undo is skipped
+	// to avoid restarting/re-enabling the services in case of error. This
+	// aligns with making remove best effort towards achieving its end goal.
+	// For disable, the end goal is also to have services stopped/disabled, but
+	// since subsequent disable changes would treat the disabled services from
+	// the previous failed task as having been originally disabled, we must undo
+	// the service stop/disable on error. Then, on a later enable change, the
+	// originally-enabled services will be re-enabled correctly.
+	// For other reasons, such as refresh, the end goal is to have the services
+	// running (just from a different revision), so undo is needed to restart
+	// and re-enable the services in case of error.
 	undoerUnlocked := NullUndoer
-	skipUndo := stopReason == snap.StopReasonRemove || stopReason == snap.StopReasonDisable
+	skipUndo := stopReason == snap.StopReasonRemove
 	if !skipUndo {
 		ut, undoOnError := NewUndoTracker(t, &retErr)
 		defer undoOnError()

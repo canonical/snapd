@@ -8392,7 +8392,7 @@ func (s *snapmgrTestSuite) testStopSnapServicesOnStopFailure(c *C, reason snap.S
 			services: []string{"svc1", "svc2"},
 		},
 	}
-	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
+	skipUndo := reason == snap.StopReasonRemove
 	if !skipUndo {
 		expected = append(expected, fakeOp{
 			// Should be triggered due to mock error in StopServices
@@ -8407,6 +8407,10 @@ func (s *snapmgrTestSuite) testStopSnapServicesOnStopFailure(c *C, reason snap.S
 
 func (s *snapmgrTestSuite) TestStopSnapServicesStartsStoppedServicesOnStopFailureForRefresh(c *C) {
 	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonRefresh)
+}
+
+func (s *snapmgrTestSuite) TestStopSnapServicesStartsStoppedServicesOnStopFailureForDisable(c *C) {
+	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonDisable)
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesDoesNotStartStoppedServicesOnStopFailureForRemove(c *C) {
