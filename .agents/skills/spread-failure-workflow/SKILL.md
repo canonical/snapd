@@ -142,6 +142,10 @@ Use `spread-fixer` when the evidence identifies a defect in the test,
 `task.yaml`, helper scripts, or cleanup/restore logic. Read and preserve the
 reproduction handoff, make the smallest change that retains meaningful test
 coverage, and update the handoff with the diagnosis and patch.
+When the original failure reproduces and the evidence identifies a safe,
+focused test defect, implement the fix and verify it in this workflow; do not
+stop after diagnosis to ask whether to proceed. If the failure is not
+reproduced or the responsible behavior is ambiguous, do not patch speculatively.
 
 If the evidence identifies a snapd product defect, fix the owning product code
 and add or retain focused regression coverage; do not weaken the test to hide
@@ -166,7 +170,9 @@ that did not reach the behavior under test.
 
 Update the handoff with the baseline, root cause, files changed, focused-check
 result, exact verification command and result, and any condition differences.
-Do not commit changes or the handoff unless requested.
+Include a suggested commit title and the complete commit message in the
+handoff when a code fix is made. Do not commit changes or the handoff unless
+requested.
 
 ## 5. Report the outcome
 
@@ -178,6 +184,8 @@ Summarize:
 - diagnosed cause and changes made, or why no safe fix was made
 - the exact verification command and result
 - the reproduction handoff path
+- the suggested commit title and complete commit message, when a code fix was
+  made
 
 Clearly separate verified facts from hypotheses. State explicitly if the
 failure was not reproduced, the fix was not verified, or the available CI
