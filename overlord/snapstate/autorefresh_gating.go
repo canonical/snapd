@@ -250,7 +250,7 @@ func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDurati
 			hold.HoldUntil = now.Add(holdDuration)
 			left = holdDuration
 		} else {
-			lastRefreshTime, err := lastRefreshed(st, heldSnap)
+			lastRefreshTime, err := lastRefreshed(st, naming.InstanceName(heldSnap))
 			if err != nil {
 				return 0, err
 			}
@@ -521,7 +521,7 @@ func HeldSnaps(st *state.State, level HoldLevel) (map[string][]string, error) {
 
 	held := make(map[string][]string)
 	for heldSnap, holds := range gating {
-		lastRefresh, err := lastRefreshed(st, heldSnap)
+		lastRefresh, err := lastRefreshed(st, naming.InstanceName(heldSnap))
 		if err != nil {
 			return nil, err
 		}

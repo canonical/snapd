@@ -106,7 +106,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorNoTaskSnapSetup(c *C) {
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	task := s.state.NewTask("kill-snap-apps", "")
 	chg := s.state.NewChange("test", "")
@@ -129,7 +129,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorNoTaskSnapSetup(c *C) {
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot is unchanged
@@ -155,7 +155,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorSnapOpenLock(c *C) {
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	// Mock snaplock.OpenLock failure by making the lock directory unwritable
 	err := os.MkdirAll(dirs.SnapRunLockDir, 0700)
@@ -185,7 +185,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorSnapOpenLock(c *C) {
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot is unchanged
@@ -207,7 +207,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorKillReasonUnmarshal(c *C
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	task := s.state.NewTask("kill-snap-apps", "")
 	// Mock error for task.Get("kill-reason") by setting an invalid value
@@ -234,7 +234,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorKillReasonUnmarshal(c *C
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
@@ -267,7 +267,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorInhibitLockWithHint(c *C
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	// Mock runinhibit.LockWithHint failure by making the InhibitDir unwritable
 	err := os.MkdirAll(runinhibit.InhibitDir, 0755)
@@ -298,7 +298,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorInhibitLockWithHint(c *C
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
@@ -327,7 +327,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapApps(c *C
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	// setup cgroup
 	restore := cgroup.MockVersion(cgroup.V2, nil)
@@ -367,7 +367,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapApps(c *C
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
@@ -404,7 +404,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapServices(
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	// Create snap.yaml on disk for snap.ReadInfo
 	killSnapAppsTestYaml := fmt.Sprintf(`name: %s
@@ -451,7 +451,7 @@ apps:
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
@@ -484,7 +484,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsUndoesOnFutureTaskError(c *C)
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapstBefore)
 
 	// Create snap.yaml on disk for snap.ReadInfo
 	killSnapAppsTestYaml := fmt.Sprintf(`name: %s
@@ -532,7 +532,7 @@ apps:
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, naming.InstanceName(snapName), snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences

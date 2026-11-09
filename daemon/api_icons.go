@@ -42,7 +42,7 @@ func snapIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
-	return iconGet(c.d.overlord.State(), name)
+	return iconGet(c.d.overlord.State(), naming.InstanceName(name))
 }
 
 func iconGet(st *state.State, name naming.InstanceName) Response {
@@ -53,7 +53,7 @@ func iconGet(st *state.State, name naming.InstanceName) Response {
 	err := snapstate.Get(st, name, &snapst)
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
-			return SnapNotFound(name, err)
+			return SnapNotFound(name.String(), err)
 		}
 		return InternalError("cannot consult state: %v", err)
 	}
@@ -62,7 +62,7 @@ func iconGet(st *state.State, name naming.InstanceName) Response {
 		return NotFound("snap has no current revision")
 	}
 
-	icon := snapIcon(snap.MinimalPlaceInfo(naming.InstanceName(name), sideInfo.Revision), sideInfo.SnapID)
+	icon := snapIcon(snap.MinimalPlaceInfo(name, sideInfo.Revision), sideInfo.SnapID)
 
 	if icon == "" {
 		return NotFound("local snap has no icon")

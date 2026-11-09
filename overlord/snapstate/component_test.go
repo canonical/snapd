@@ -109,7 +109,7 @@ components:
 	}
 	snaptest.MockSnap(c, snapYaml, ssi)
 	snaptest.MockSnap(c, snapYaml, ssi2)
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, true)
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
@@ -140,7 +140,7 @@ components:
 			}),
 		Current: snapRev2,
 	}
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
@@ -170,7 +170,7 @@ components:
 			}),
 		Current: snapRev2,
 	}
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapSt)
 
 	c.Check(snapSt.IsComponentInCurrentSeq(cref), Equals, false)
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
@@ -192,7 +192,7 @@ components:
 			}),
 		Current: snapRev,
 	}
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapSt)
 
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, false)
 
@@ -228,7 +228,7 @@ components:
 			}),
 		Current: snapRev,
 	}
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapSt)
 
 	c.Check(snapSt.IsCurrentComponentRevInAnyNonCurrentSeq(cref), Equals, true)
 }
@@ -309,7 +309,7 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	compSt := snapSt.CurrentComponentState(cref)
 
 	snaptest.MockSnap(c, snapYaml, ssi)
-	snapstate.Set(s.state, targetSnapName, snapSt)
+	snapstate.Set(s.state, naming.InstanceName(targetSnapName), snapSt)
 
 	// Validation set configuration
 	const enforcedSnapName = "mysnap"

@@ -3882,7 +3882,7 @@ func (s *snapmgrTestSuite) TestEnsureRemovesVulnerableSnapdSnap(c *C) {
 	s.testEnsureRemovesVulnerableSnap(c, "snapd")
 }
 
-func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, snapName string) {
+func (s *snapmgrTestSuite) testEnsureRemovesVulnerableSnap(c *C, instanceName naming.InstanceName) {
 	// make the currently installed snap info file fixed but an old version
 	// vulnerable
 	fixedInfoFile := `
@@ -3895,21 +3895,21 @@ SNAPD_APPARMOR_REEXEC=1
 `
 
 	// revision 1 vulnerable
-	infoFile := filepath.Join(dirs.SnapMountDir, snapName, "1", dirs.CoreLibExecDir, "info")
+	infoFile := filepath.Join(dirs.SnapMountDir, instanceName.String(), "1", dirs.CoreLibExecDir, "info")
 	err := os.MkdirAll(filepath.Dir(infoFile), 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(infoFile, []byte(vulnInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 2 fixed
-	infoFile2 := filepath.Join(dirs.SnapMountDir, snapName, "2", dirs.CoreLibExecDir, "info")
+	infoFile2 := filepath.Join(dirs.SnapMountDir, instanceName.String(), "2", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile2), 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(infoFile2, []byte(fixedInfoFile), 0644)
 	c.Assert(err, IsNil)
 
 	// revision 11 fixed
-	infoFile11 := filepath.Join(dirs.SnapMountDir, snapName, "11", dirs.CoreLibExecDir, "info")
+	infoFile11 := filepath.Join(dirs.SnapMountDir, instanceName.String(), "11", dirs.CoreLibExecDir, "info")
 	err = os.MkdirAll(filepath.Dir(infoFile11), 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(infoFile11, []byte(fixedInfoFile), 0644)
@@ -3928,17 +3928,17 @@ SNAPD_APPARMOR_REEXEC=1
 	snapSt := &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: snapName, Revision: snap.R(1)},
-			{RealName: snapName, Revision: snap.R(2)},
-			{RealName: snapName, Revision: snap.R(11)},
+			{RealName: instanceName.SnapName().String(), Revision: snap.R(1)},
+			{RealName: instanceName.SnapName().String(), Revision: snap.R(2)},
+			{RealName: instanceName.SnapName().String(), Revision: snap.R(11)},
 		}),
 		Current:  snap.R(11),
 		SnapType: "os",
 	}
-	if snapName == "snapd" {
+	if instanceName == naming.Snapd {
 		snapSt.SnapType = "snapd"
 	}
-	snapstate.Set(s.state, snapName, snapSt)
+	snapstate.Set(s.state, instanceName, snapSt)
 	st.Unlock()
 
 	// special policy only on classic
@@ -3957,7 +3957,7 @@ SNAPD_APPARMOR_REEXEC=1
 	removeChg := allChgs[0]
 	c.Assert(removeChg.Status(), Equals, state.DoStatus)
 	c.Assert(removeChg.Kind(), Equals, "remove-snap")
-	c.Assert(removeChg.Summary(), Equals, fmt.Sprintf(`Remove inactive vulnerable %q snap (1)`, snapName))
+	c.Assert(removeChg.Summary(), Equals, fmt.Sprintf(`Remove inactive vulnerable %q snap (1)`, instanceName))
 
 	c.Assert(removeChg.Tasks(), HasLen, 2)
 	clearSnap := removeChg.Tasks()[0]
@@ -3971,7 +3971,7 @@ SNAPD_APPARMOR_REEXEC=1
 
 	// and we set the appropriate key in the state
 	var removeDone bool
-	st.Get(snapName+"-snap-cve-2022-3328-vuln-removed", &removeDone)
+	st.Get(instanceName.String()+"-snap-cve-2022-3328-vuln-removed", &removeDone)
 	c.Assert(removeDone, Equals, true)
 }
 
@@ -5374,41 +5374,41 @@ func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 	defer st.Unlock()
 
 	for testNr, t := range []struct {
-		expectedSnap string
-		snapNames    []string
-		errMatcher   string
+		expectedSnap  string
+		instanceNames []naming.InstanceName
+		errMatcher    string
 	}{
 		// nothing
-		{"", []string{}, state.ErrNoState.Error()},
+		{"", []naming.InstanceName{}, state.ErrNoState.Error()},
 		// single
-		{"core", []string{"core"}, ""},
-		{"ubuntu-core", []string{"ubuntu-core"}, ""},
-		{"hard-core", []string{"hard-core"}, ""},
+		{"core", []naming.InstanceName{"core"}, ""},
+		{"ubuntu-core", []naming.InstanceName{"ubuntu-core"}, ""},
+		{"hard-core", []naming.InstanceName{"hard-core"}, ""},
 		// unrolled loop to ensure we don't pass because
 		// the order is randomly right
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
-		{"core", []string{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
+		{"core", []naming.InstanceName{"core", "ubuntu-core"}, ""},
 		// unknown combination
-		{"", []string{"duo-core", "single-core"}, `unexpected cores.*`},
+		{"", []naming.InstanceName{"duo-core", "single-core"}, `unexpected cores.*`},
 		// multi-core is not supported
-		{"", []string{"core", "ubuntu-core", "multi-core"}, `unexpected number of cores, got 3`},
+		{"", []naming.InstanceName{"core", "ubuntu-core", "multi-core"}, `unexpected number of cores, got 3`},
 	} {
 		// clear snapstate
 		st.Set("snaps", map[string]*json.RawMessage{})
 
-		for _, snapName := range t.snapNames {
+		for _, instanceName := range t.instanceNames {
 			sideInfo := &snap.SideInfo{
-				RealName: snapName,
+				RealName: instanceName.SnapName().String(),
 				Revision: snap.R(1),
 			}
-			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", snapName, snapName), sideInfo)
-			snapstate.Set(st, snapName, &snapstate.SnapState{
+			snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: os\nversion: %q\n", instanceName, instanceName), sideInfo)
+			snapstate.Set(st, instanceName, &snapstate.SnapState{
 				SnapType: string(snap.TypeOS),
 				Active:   true,
 				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -5421,7 +5421,7 @@ func (s *snapmgrQuerySuite) TestCoreInfoInternal(c *C) {
 			c.Assert(err, ErrorMatches, t.errMatcher)
 		} else {
 			c.Assert(info, NotNil)
-			c.Check(info.InstanceName().String(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.snapNames))
+			c.Check(info.InstanceName().String(), Equals, t.expectedSnap, Commentf("(%d) test %q %v", testNr, t.expectedSnap, t.instanceNames))
 			c.Check(info.Type(), Equals, snap.TypeOS)
 		}
 	}
@@ -5438,7 +5438,7 @@ func (s *snapmgrQuerySuite) TestHasSnapOfType(c *C) {
 	c.Check(ok, Equals, true)
 
 	for _, x := range []struct {
-		snapName string
+		snapName naming.InstanceName
 		snapType snap.Type
 	}{
 		{
@@ -5463,7 +5463,7 @@ func (s *snapmgrQuerySuite) TestHasSnapOfType(c *C) {
 		c.Check(ok, Equals, false, Commentf("%q", x.snapType))
 
 		sideInfo := &snap.SideInfo{
-			RealName: x.snapName,
+			RealName: x.snapName.SnapName().String(),
 			Revision: snap.R(2),
 		}
 		snapstate.Set(st, x.snapName, &snapstate.SnapState{
@@ -6683,7 +6683,7 @@ func (s *snapmgrTestSuite) TestForceDevModeCleanupSkipsRando(c *C) {
 	s.checkForceDevModeCleanupRuns(c, "rando", false)
 }
 
-func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shouldBeReset bool) {
+func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name naming.InstanceName, shouldBeReset bool) {
 	r := sandbox.MockForceDevMode(true)
 	defer r()
 	c.Assert(sandbox.ForceDevMode(), Equals, true)
@@ -6694,7 +6694,7 @@ func (s *snapmgrTestSuite) checkForceDevModeCleanupRuns(c *C, name string, shoul
 	snapstate.Set(s.state, name, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			SnapID:   "id-id-id",
 			Revision: snap.R(1)}}),
 		Current:  snap.R(1),
@@ -6984,16 +6984,16 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, instanceName := range []string{"a-snap", "b-snap"} {
+	for _, instanceName := range []naming.InstanceName{"a-snap", "b-snap"} {
 		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-				{RealName: instanceName, Revision: snap.R(11)},
+				{RealName: instanceName.SnapName().String(), Revision: snap.R(11)},
 			}),
 			Current: snap.R(11),
 			Active:  false,
 		})
 
-		ts, err := snapstate.Enable(s.state, instanceName)
+		ts, err := snapstate.Enable(s.state, instanceName.String())
 		c.Assert(err, IsNil)
 		// need a change to make the tasks visible
 		s.state.NewChange("enable", "...").AddAll(ts)
@@ -7025,18 +7025,18 @@ func (s *snapmgrTestSuite) TestConflictChangeId(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snaps := []string{"a", "b", "c"}
+	snaps := []naming.InstanceName{"a", "b", "c"}
 	changes := make([]*state.Change, len(snaps))
 
 	for i, name := range snaps {
 		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-				{RealName: name, Revision: snap.R(11)},
+				{RealName: name.SnapName().String(), Revision: snap.R(11)},
 			}),
 			Current: snap.R(11),
 		})
 
-		ts, err := snapstate.Enable(s.state, name)
+		ts, err := snapstate.Enable(s.state, name.String())
 		c.Assert(err, IsNil)
 
 		changes[i] = s.state.NewChange("enable", "...")
@@ -7044,7 +7044,7 @@ func (s *snapmgrTestSuite) TestConflictChangeId(c *C) {
 	}
 
 	for i, name := range snaps {
-		err := snapstate.CheckChangeConflictMany(s.state, []string{name}, "")
+		err := snapstate.CheckChangeConflictMany(s.state, []string{name.String()}, "")
 		c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 
 		conflictErr := err.(*snapstate.ChangeConflictError)
@@ -10374,17 +10374,17 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSnapdAndTwoA
 		return nil
 	}
 
-	for _, name := range []string{"snapd", "app-1", "app-2"} {
-		sid := snaptest.AssertedSnapID(name)
-		if name == "snapd" {
+	for _, name := range []naming.InstanceName{"snapd", "app-1", "app-2"} {
+		sid := snaptest.AssertedSnapID(name.String())
+		if name == naming.Snapd {
 			sid = "snapd-snap-id"
 		}
-		s.fakeStore.registerID(name, sid)
+		s.fakeStore.registerID(name.String(), sid)
 
 		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Active: true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
-				RealName: name,
+				RealName: name.SnapName().String(),
 				SnapID:   sid,
 				Revision: snap.R(1),
 			}}),
@@ -10522,10 +10522,10 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorSplitRefresh
 		s.fakeStore.registerID(info.RealName, info.SnapID)
 
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, info.RealName, &snapst)
+		err := snapstate.Get(s.state, naming.InstanceName(info.RealName), &snapst)
 		c.Assert(err, IsNil)
 
-		snapstate.Set(s.state, info.RealName, &snapstate.SnapState{
+		snapstate.Set(s.state, naming.InstanceName(info.RealName), &snapstate.SnapState{
 			Active: snapst.Active,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 				RealName: info.RealName, SnapID: info.SnapID, Revision: snapst.Current},
@@ -10795,7 +10795,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 
 	for _, sn := range opts.current {
 		name := sn.CurrentSideInfo().RealName
-		snapstate.Set(s.state, name, &sn)
+		snapstate.Set(s.state, naming.InstanceName(name), &sn)
 	}
 
 	for _, name := range opts.affected {
@@ -10882,7 +10882,7 @@ func (s *snapmgrTestSuite) testResolveValidationSetsEnforcementErrorComponents(c
 
 	for _, sn := range opts.expected {
 		var got snapstate.SnapState
-		err := snapstate.Get(s.state, sn.SnapName().String(), &got)
+		err := snapstate.Get(s.state, sn.SnapName().AsInstanceName(), &got)
 		c.Assert(err, IsNil)
 		c.Check(got.Current, Equals, sn.Revision)
 
@@ -11484,7 +11484,7 @@ components:
 				sequence.NewRevisionSideState(si, []*sequence.ComponentState{componentState}),
 			},
 		)
-		snapstate.Set(s.state, name.String(), &snapstate.SnapState{
+		snapstate.Set(s.state, name, &snapstate.SnapState{
 			Active:          true,
 			Sequence:        seq,
 			Current:         snapRev,
@@ -13469,8 +13469,8 @@ plugs:
 		{"ok", okYaml},
 		{"nok", nokYaml},
 	} {
-		instanceName := snap.InstanceName("some-snap", tc.instanceKey).String()
-		snaptest.MockSnapInstance(c, instanceName, tc.yaml, si)
+		instanceName := snap.InstanceName("some-snap", tc.instanceKey)
+		snaptest.MockSnapInstance(c, instanceName.String(), tc.yaml, si)
 		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Active:      true,
 			Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
@@ -13498,14 +13498,14 @@ func (s *snapmgrTestSuite) TestMigrateParallelInstancesWithUnsupportedInterfaces
 	c.Assert(link.Get("allow-unsupported-instances-migration-pending", &migrationPending), IsNil)
 	c.Check(migrationPending, Equals, true)
 
-	for name, expected := range map[string]bool{
+	for name, expected := range map[naming.InstanceName]bool{
 		"some-snap":     false,
 		"some-snap_ok":  false,
 		"some-snap_nok": true,
 	} {
 		var snapst snapstate.SnapState
 		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
-		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name))
+		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name.String()))
 	}
 
 	var done bool

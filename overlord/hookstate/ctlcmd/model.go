@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -135,7 +136,7 @@ func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string
 
 // getSnapInfoWithPublisher is a helper utility to read the snap.Info for the requesting snap
 // which also fills the publisher information.
-func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, snapName string) (*snap.Info, error) {
+func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, snapName naming.InstanceName) (*snap.Info, error) {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		return nil, fmt.Errorf("failed to get snapstate for snap %s: %v", snapName, err)
@@ -226,7 +227,7 @@ func (c *modelCommand) Execute([]string) error {
 	// We only return an error in case we could not the get the snap.Info
 	// structure, and 'ignore' any error that caused us not to get the store
 	// account publisher
-	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName().String())
+	snapInfo, err := c.getSnapInfoWithPublisher(st, context.InstanceName())
 	if snapInfo == nil {
 		return err
 	}

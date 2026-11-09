@@ -331,7 +331,7 @@ func snapsForSubcluster(
 ) {
 	for _, sn := range subcluster.Snaps {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, sn.Instance.String(), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		if err := snapstate.Get(st, sn.Instance, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, nil, nil, err
 		}
 

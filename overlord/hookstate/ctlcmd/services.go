@@ -106,7 +106,7 @@ func (c *servicesCommand) Execute([]string) error {
 	}
 
 	st := ctx.State()
-	svcInfos, err := getServiceInfos(st, ctx.InstanceName().String(), serviceNames)
+	svcInfos, err := getServiceInfos(st, ctx.InstanceName(), serviceNames)
 	if err != nil {
 		return err
 	}

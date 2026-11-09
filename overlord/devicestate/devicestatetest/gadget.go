@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -75,7 +76,7 @@ version: gadget
 	}
 
 	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
-	snapstate.Set(st, name, &snapstate.SnapState{
+	snapstate.Set(st, naming.InstanceName(name), &snapstate.SnapState{
 		SnapType: "gadget",
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfoGadget}),

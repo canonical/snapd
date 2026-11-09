@@ -1094,7 +1094,7 @@ func (s *assertMgrSuite) stateFromDecl(c *C, decl *asserts.SnapDeclaration, inst
 	c.Assert(snapName, Equals, decl.SnapName().String())
 
 	snapID := decl.SnapID()
-	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
+	snapstate.Set(s.state, naming.InstanceName(instanceName), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: snapName, SnapID: snapID, Revision: revno},

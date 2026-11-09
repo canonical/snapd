@@ -90,7 +90,7 @@ func (s *setupKernelComponentsSuite) testSetupKernelModules(c *C, snapName, errS
 	// set the state to include the new component, since this task will run
 	// after the component has been linked
 	cs := sequence.NewComponentState(csi, snap.KernelModulesComponent)
-	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2, cs})
+	setStateWithComponents(s.state, naming.InstanceName(snapName), snapRev, []*sequence.ComponentState{cs1, cs2, cs})
 
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)
@@ -169,7 +169,7 @@ func (s *setupKernelComponentsSuite) testRemoveKernelModulesSetup(c *C, snapName
 		snapstate.NewComponentSetup(csi, snap.KernelModulesComponent, ""))
 
 	cs := sequence.NewComponentState(csi, snap.KernelModulesComponent)
-	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1, cs2, cs})
+	setStateWithComponents(s.state, naming.InstanceName(snapName), snapRev, []*sequence.ComponentState{cs1, cs2, cs})
 
 	chg := s.state.NewChange("test change", "change desc")
 	chg.AddTask(t)

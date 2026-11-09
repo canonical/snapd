@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -143,7 +144,7 @@ func (s *refreshSuite) TestPendingSnapRefreshInfo(c *C) {
 
 func (s *refreshSuite) addInstalledSnap(snapst *snapstate.SnapState) (*snapstate.SnapState, *snap.Info) {
 	snapName := snapst.Sequence.Revisions[0].Snap.RealName
-	snapstate.Set(s.state, snapName, snapst)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapst)
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: snapName, Revision: snapst.Current}}
 	return snapst, info
 }
@@ -276,7 +277,7 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshInhibitionTimeout(c *C) {
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
 	snapst.RefreshInhibitedTime = &pastInstant
-	snapstate.Set(s.state, snapst.InstanceName().String(), snapst)
+	snapstate.Set(s.state, snapst.InstanceName(), snapst)
 
 	// Pretend that the snap is running.
 	restore := snapstate.MockRefreshAppsCheck(func(info *snap.Info) error {

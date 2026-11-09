@@ -2117,9 +2117,9 @@ func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C)
 
 	s.AddCleanup(mockGateAutoRefreshFeature(c, st))
 
-	for _, sn := range []string{"some-snap", "another-snap", "foo-snap"} {
+	for _, sn := range []naming.InstanceName{"some-snap", "another-snap", "foo-snap"} {
 		si := snap.SideInfo{
-			RealName: sn,
+			RealName: sn.SnapName().String(),
 			Revision: snap.R(7),
 		}
 
@@ -2733,7 +2733,7 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 						comp22si, snap.StandardComponent),
 				}),
 		})
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
 		Active:   true,
 		Sequence: seq,
 		Current:  snap.R(1),
@@ -2946,8 +2946,8 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
-	const snapName = "snap1"
-	const instanceName = "snap1_key"
+	instanceName := naming.NewInstanceName("snap1", "key")
+	snapName := instanceName.SnapName()
 	const compName = "comp1"
 
 	cref := naming.NewComponentRef(snapName, compName)
@@ -2962,10 +2962,9 @@ func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
 	}))
 
 	s.AddCleanup(snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
-		_, key := snap.SplitInstanceName(name.String())
 		info := &snap.Info{
 			SuggestedName: name.SnapName().String(),
-			InstanceKey:   key,
+			InstanceKey:   name.InstanceKey(),
 			SideInfo:      *si,
 			SnapType:      snap.TypeApp,
 			Components: map[string]*snap.Component{
@@ -2982,7 +2981,7 @@ func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
 	defer s.state.Unlock()
 
 	newSeq := func() sequence.SnapSequence {
-		si := &snap.SideInfo{RealName: snapName, Revision: snap.R(1)}
+		si := &snap.SideInfo{RealName: snapName.String(), Revision: snap.R(1)}
 		csi := snap.NewComponentSideInfo(cref, snap.R(11))
 		return snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -2991,7 +2990,7 @@ func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
 				}),
 			})
 	}
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	snapstate.Set(s.state, snapName.AsInstanceName(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: newSeq(),
 		Current:  snap.R(1),
@@ -3005,7 +3004,7 @@ func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
 		InstanceKey: "key",
 	})
 
-	ts, err := snapstate.Remove(s.state, instanceName, snap.R(0), nil)
+	ts, err := snapstate.Remove(s.state, instanceName.String(), snap.R(0), nil)
 	c.Assert(err, IsNil)
 
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -3035,7 +3034,7 @@ func (s *snapmgrTestSuite) TestRemoveParallelInstanceWithComps(c *C) {
 
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, instanceName, &snapst), testutil.ErrorIs, state.ErrNoState)
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, snapName.AsInstanceName(), &snapst), IsNil)
 	c.Check(snapst.IsComponentInCurrentSeq(cref), Equals, true)
 }
 
@@ -3140,10 +3139,10 @@ func (s *snapmgrTestSuite) TestRemoveWithNFSSnapDirMustPurge(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, sn := range []string{"some-snap", "foo"} {
+	for _, sn := range []naming.InstanceName{"some-snap", "foo"} {
 		snapstate.Set(s.state, sn, &snapstate.SnapState{
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-				{RealName: sn, SnapID: sn + "-id", Revision: snap.R(1)},
+				{RealName: sn.SnapName().String(), SnapID: sn.String() + "-id", Revision: snap.R(1)},
 			}),
 			Current:  snap.R(1),
 			SnapType: "app",

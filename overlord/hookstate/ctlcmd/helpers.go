@@ -255,11 +255,11 @@ func getServiceInfos(st *state.State, snapInstance naming.InstanceName, serviceN
 
 	var svcs []*snap.AppInfo
 	for _, svcName := range serviceNames {
-		if svcName == snapInstance {
+		if svcName == snapInstance.String() {
 			// implicit all services
 			return info.Services(), nil
 		}
-		if !strings.HasPrefix(svcName, snapInstance+".") {
+		if !strings.HasPrefix(svcName, snapInstance.String()+".") {
 			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
 		}
 		// this doesn't support service aliases
@@ -470,7 +470,7 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	}
 
 	st := context.State()
-	appInfos, err := getServiceInfos(st, context.InstanceName().String(), inst.Names)
+	appInfos, err := getServiceInfos(st, context.InstanceName(), inst.Names)
 	if err != nil {
 		return err
 	}
@@ -565,7 +565,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 
 	instanceName := hctx.InstanceName()
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName.String(), &snapst); err != nil {
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
 		return nil, nil, err
 	}
 

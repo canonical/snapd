@@ -81,7 +81,7 @@ func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveCompon
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
 		SnapID: "some-snap-id"}
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -163,7 +163,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentsParallelInstance(c *C) {
 				sequence.NewComponentState(csi, snap.StandardComponent),
 			}),
 		})
-		snapstate.Set(s.state, tc.instanceName, &snapstate.SnapState{
+		snapstate.Set(s.state, naming.InstanceName(tc.instanceName), &snapstate.SnapState{
 			Active:      true,
 			InstanceKey: tc.instanceKey,
 			Sequence:    seq,
@@ -308,7 +308,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentPathRun(c *C) {
 	}
 
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, naming.InstanceName(snapName), &snapst), IsNil)
 
 	c.Assert(snapst.IsComponentInCurrentSeq(cref1), Equals, false)
 	c.Assert(snapst.IsComponentInCurrentSeq(cref2), Equals, true)
@@ -318,7 +318,7 @@ func setInstanceStateWithComponents(st *state.State, snapName, instanceKey strin
 	snapRev snap.Revision, comps []*sequence.ComponentState) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
 		SnapID: "some-snap-id"}
-	snapstate.Set(st, snap.InstanceName(snapName, instanceKey).String(), &snapstate.SnapState{
+	snapstate.Set(st, snap.InstanceName(snapName, instanceKey), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -382,7 +382,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentPathRunParallelInstance(c *C) {
 	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
 	c.Check(snapst.IsComponentInCurrentSeq(cref), Equals, false)
 
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, naming.InstanceName(snapName), &snapst), IsNil)
 	c.Check(snapst.IsComponentInCurrentSeq(cref), Equals, true)
 }
 
@@ -457,7 +457,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentsPathRunWithError(c *C) {
 	c.Check(updateProfTask.Status(), Equals, state.HoldStatus)
 
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, naming.InstanceName(snapName), &snapst), IsNil)
 
 	// we could not remove the components
 	c.Assert(snapst.IsComponentInCurrentSeq(cref1), Equals, true)
@@ -491,7 +491,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentsRevInTwoSeqPts(c *C) {
 			}),
 		Current: snapRev,
 	}
-	snapstate.Set(s.state, snapName, snapst)
+	snapstate.Set(s.state, naming.InstanceName(snapName), snapst)
 
 	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName}, opts)
 	c.Assert(err, IsNil)

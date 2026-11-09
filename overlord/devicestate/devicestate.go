@@ -525,7 +525,7 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	}
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, rt.name.String(), &snapst); err != nil {
+	if err := snapstate.Get(st, rt.name.AsInstanceName(), &snapst); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
 			return 0, nil, err
 		}
@@ -743,7 +743,7 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	constraints snapasserts.SnapPresenceConstraints,
 ) (snapstate.UpdateGoal, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, sn.name.String(), &snapst); err != nil {
+	if err := snapstate.Get(st, sn.name.AsInstanceName(), &snapst); err != nil {
 		return nil, err
 	}
 
@@ -2407,7 +2407,7 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 			return nil, err
 		}
 
-		installed, currentRevision, err := installedSnapRevision(st, sn.Name)
+		installed, currentRevision, err := installedSnapRevision(st, naming.InstanceName(sn.Name))
 		if err != nil {
 			return nil, err
 		}
@@ -2687,7 +2687,7 @@ func installedSnapRevision(st *state.State, name naming.InstanceName) (bool, sna
 
 func installedComponentRevision(st *state.State, snapName naming.InstanceName, compName string) (bool, snap.Revision, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName.String(), &snapst); err != nil {
+	if err := snapstate.Get(st, snapName, &snapst); err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return false, snap.Revision{}, nil
 		}

@@ -836,7 +836,7 @@ func installActionsForAmend(st *state.State, updates map[naming.InstanceName]Sto
 	var localAmends []naming.InstanceName
 	for _, up := range updates {
 		var snapst SnapState
-		if err := Get(st, up.InstanceName.String(), &snapst); err != nil {
+		if err := Get(st, up.InstanceName, &snapst); err != nil {
 			if errors.Is(err, state.ErrNoState) {
 				continue
 			}

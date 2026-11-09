@@ -116,7 +116,7 @@ func applyAliasesChange(snapName naming.InstanceName, prevAutoDisabled bool, pre
 		if effTgt := prevTargets.Effective(prevAutoDisabled); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: snap.JoinSnapApp(snapName, effTgt),
+				Target: snap.JoinSnapApp(snapName.String(), effTgt),
 			})
 		}
 	}
@@ -130,13 +130,13 @@ func applyAliasesChange(snapName naming.InstanceName, prevAutoDisabled bool, pre
 		if prevTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: snap.JoinSnapApp(snapName, prevTgt),
+				Target: snap.JoinSnapApp(snapName.String(), prevTgt),
 			})
 		}
 		if newTgt != "" {
 			add = append(add, &backend.Alias{
 				Name:   alias,
-				Target: snap.JoinSnapApp(snapName, newTgt),
+				Target: snap.JoinSnapApp(snapName.String(), newTgt),
 			})
 		}
 	}
@@ -167,7 +167,7 @@ func autoAliasesDelta(st *state.State, names []naming.InstanceName) (changed map
 		snapStates = make(map[naming.InstanceName]*SnapState, len(names))
 		for _, name := range names {
 			var snapst SnapState
-			err := Get(st, name.String(), &snapst)
+			err := Get(st, name, &snapst)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -491,7 +491,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 		}
 	}
 
-	withAliases := make(map[string]*SnapState, len(snapStates))
+	withAliases := make(map[naming.InstanceName]*SnapState, len(snapStates))
 	for instanceName, snapst := range snapStates {
 		err := m.backend.RemoveSnapAliases(instanceName.String())
 		if err != nil {
@@ -512,7 +512,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 		// TODO: check for conflicts
 		if len(newAliases) != 0 {
 			snapst.Aliases = newAliases
-			withAliases[instanceName.String()] = snapst
+			withAliases[instanceName] = snapst
 		}
 		snapst.AutoAliasesDisabled = false
 		if !snapst.Active {
@@ -526,7 +526,7 @@ func (m *SnapManager) ensureAliasesV2() error {
 			if err != nil {
 				// try to clean up and disable
 				logger.Noticef("cannot create automatic aliases for %q: %v", instanceName, err)
-				m.backend.RemoveSnapAliases(instanceName)
+				m.backend.RemoveSnapAliases(instanceName.String())
 				snapst.AutoAliasesDisabled = true
 			}
 		}
@@ -544,7 +544,7 @@ func Alias(st *state.State, instanceName naming.InstanceName, app, alias string)
 	}
 
 	var snapst SnapState
-	err := Get(st, instanceName.String(), &snapst)
+	err := Get(st, instanceName, &snapst)
 	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: instanceName.String()}
 	}
@@ -601,7 +601,7 @@ func manualAlias(info *snap.Info, curAliases map[string]*AliasTarget, target, al
 // DisableAllAliases disables all aliases of a snap, removing all manual ones.
 func DisableAllAliases(st *state.State, instanceName naming.InstanceName) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, instanceName.String(), &snapst)
+	err := Get(st, instanceName, &snapst)
 	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: instanceName.String()}
 	}
@@ -688,7 +688,7 @@ func manualUnalias(curAliases map[string]*AliasTarget, alias string) (newAliases
 // of other snaps whose aliases will be disabled (removed for manual ones).
 func Prefer(st *state.State, name naming.InstanceName) (*state.TaskSet, error) {
 	var snapst SnapState
-	err := Get(st, name.String(), &snapst)
+	err := Get(st, name, &snapst)
 	if errors.Is(err, state.ErrNoState) {
 		return nil, &snap.NotInstalledError{Snap: name.String()}
 	}

@@ -499,7 +499,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 		_, err := snapstate.CurrentInfo(state, compsSnap)
 		c.Check(err, IsNil)
 		var snapst snapstate.SnapState
-		err = snapstate.Get(state, compsSnap, &snapst)
+		err = snapstate.Get(state, naming.InstanceName(compsSnap), &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true)
 		c.Check(snapst.TrackingChannel, Equals, "latest/stable")
@@ -536,7 +536,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	// channels got set properly
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20", "pc-kernel", "pc"} {
-		err = snapstate.Get(state, reqName, &snapst)
+		err = snapstate.Get(state, naming.InstanceName(reqName), &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 
@@ -1050,7 +1050,7 @@ func (s *firstBoot20Suite) TestPopulateFromSeedClassicWithModesRunModeNoKernelAn
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20"} {
-		err = snapstate.Get(state, reqName, &snapst)
+		err = snapstate.Get(state, naming.InstanceName(reqName), &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 
@@ -1226,7 +1226,7 @@ apps:
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20"} {
-		err = snapstate.Get(state, reqName, &snapst)
+		err = snapstate.Get(state, naming.InstanceName(reqName), &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
 

@@ -126,7 +126,7 @@ func (rc *refreshCandidate) ComponentSetups() []ComponentSetup {
 
 func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
-	if err := Get(st, rc.InstanceName().String(), &snapst); err != nil {
+	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
 		return nil, nil, err
 	}
 
@@ -801,7 +801,7 @@ func inhibitRefresh(st *state.State, snapst *SnapState, snapsup *SnapSetup, info
 		// reset to nil on successful refresh.
 		snapst.RefreshInhibitedTime = &now
 		busyErr.timeRemaining = (maxInhibitionDurationValue - now.Sub(*snapst.RefreshInhibitedTime)).Truncate(time.Second)
-		Set(st, info.InstanceName().String(), snapst)
+		Set(st, info.InstanceName(), snapst)
 	case now.Sub(*snapst.RefreshInhibitedTime) < maxInhibitionDurationValue:
 		// If we are still in the allowed window then just return the error but
 		// don't change the snap state again.
@@ -950,7 +950,7 @@ func MockRefreshCandidate(snapSetup *SnapSetup) any {
 
 func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity snap.RefreshFailureSeverity) error {
 	var snapst SnapState
-	err := Get(st, snapsup.InstanceName().String(), &snapst)
+	err := Get(st, snapsup.InstanceName(), &snapst)
 	if err != nil {
 		return err
 	}
@@ -967,7 +967,7 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity 
 		}
 	}
 	snapst.RefreshFailures.LastFailureSeverity = severity
-	Set(st, snapsup.InstanceName().String(), &snapst)
+	Set(st, snapsup.InstanceName(), &snapst)
 
 	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures).Round(time.Hour)
 	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be delayed by %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
@@ -1142,7 +1142,7 @@ func checkSnapRefreshFailures(st *state.State, snapst *SnapState, targetRevision
 			// Snap has new target revision not known to fail, let's reset RefreshFailures
 			// and continue refresh normally.
 			snapst.RefreshFailures = nil
-			Set(st, snapst.InstanceName().String(), snapst)
+			Set(st, snapst.InstanceName(), snapst)
 		} else if shouldSkipSnapRefresh(snapst, targetRevision, opts) {
 			return errKnownBadRevision
 		}

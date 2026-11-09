@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -647,7 +648,7 @@ func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	defer st.Unlock()
 
 	// Put a side info into the state
-	snapstate.Set(st, snapInfo.InstanceName().String(), &snapstate.SnapState{
+	snapstate.Set(st, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{
@@ -714,14 +715,14 @@ version: %s
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	snapstate.Get(st, instanceName, &snapst)
+	snapstate.Get(st, naming.InstanceName(instanceName), &snapst)
 	snapst.Active = active
 	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(&snapInfo.SideInfo, nil))
 	snapst.Current = snapInfo.SideInfo.Revision
 	snapst.TrackingChannel = "stable"
 	snapst.InstanceKey = instanceKey
 
-	snapstate.Set(st, instanceName, &snapst)
+	snapstate.Set(st, naming.InstanceName(instanceName), &snapst)
 
 	if developer == "" {
 		return snapInfo
