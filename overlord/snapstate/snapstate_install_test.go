@@ -5989,8 +5989,8 @@ func (s *snapmgrTestSuite) TestInstallPathMany(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []naming.InstanceName{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
@@ -6014,7 +6014,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName().String(), Equals, snapNames[i].String())
+				c.Check(sup.SnapName().String(), Equals, instanceNames[i].String())
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}
@@ -6033,7 +6033,7 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
@@ -6100,8 +6100,8 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionally(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []naming.InstanceName{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
@@ -6138,7 +6138,7 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
@@ -6196,8 +6196,8 @@ func (s *snapmgrTestSuite) TestInstallPathManyAsUpdate(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []naming.InstanceName{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		si := &snap.SideInfo{
 			RealName: name.SnapName().String(),
 			Revision: snap.R("1"),
@@ -6238,7 +6238,7 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
@@ -6416,8 +6416,8 @@ func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []naming.InstanceName{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		si := &snap.SideInfo{
 			RealName: name.SnapName().String(),
 			Revision: snap.R("1"),

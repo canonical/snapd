@@ -1218,11 +1218,11 @@ func (s *hookManagerSuite) TestUndoHookTasksBlockedWhileInactive(c *C) {
 	}
 }
 
-func (s *hookManagerSuite) setActive(c *C, snapName naming.InstanceName, active bool) {
+func (s *hookManagerSuite) setActive(c *C, instanceName naming.InstanceName, active bool) {
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
 	snapst.Active = active
-	snapstate.Set(s.state, snapName, &snapst)
+	snapstate.Set(s.state, instanceName, &snapst)
 }
 
 type MockConcurrentHandler struct {

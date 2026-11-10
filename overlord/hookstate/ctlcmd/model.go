@@ -136,10 +136,10 @@ func (c *modelCommand) hasSnapdControlInterface(st *state.State, snapName string
 
 // getSnapInfoWithPublisher is a helper utility to read the snap.Info for the requesting snap
 // which also fills the publisher information.
-func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, snapName naming.InstanceName) (*snap.Info, error) {
+func (c *modelCommand) getSnapInfoWithPublisher(st *state.State, instanceName naming.InstanceName) (*snap.Info, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, snapName, &snapst); err != nil {
-		return nil, fmt.Errorf("failed to get snapstate for snap %s: %v", snapName, err)
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+		return nil, fmt.Errorf("failed to get snapstate for snap %s: %v", instanceName, err)
 	}
 
 	snapInfo, err := snapst.CurrentInfo()

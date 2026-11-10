@@ -98,10 +98,10 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 			return
 		}
 		var snapst snapstate.SnapState
-		for _, snapName := range cleanedRequiredSnaps {
-			if err := snapstate.Get(st, snapName, &snapst); err == nil {
+		for _, instanceName := range cleanedRequiredSnaps {
+			if err := snapstate.Get(st, instanceName, &snapst); err == nil {
 				snapst.Flags.Required = true
-				snapstate.Set(st, snapName, &snapst)
+				snapstate.Set(st, instanceName, &snapst)
 			}
 		}
 	}()

@@ -107,7 +107,7 @@ const (
 // to go from prevAliases considering the automatic aliases flag
 // (prevAutoDisabled) to newAliases considering newAutoDisabled for
 // snapName. It assumes that conflicts have already been checked.
-func applyAliasesChange(snapName naming.InstanceName, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend, dryRun bool) (add, remove []*backend.Alias, err error) {
+func applyAliasesChange(instanceName naming.InstanceName, prevAutoDisabled bool, prevAliases map[string]*AliasTarget, newAutoDisabled bool, newAliases map[string]*AliasTarget, be managerBackend, dryRun bool) (add, remove []*backend.Alias, err error) {
 	for alias, prevTargets := range prevAliases {
 		if _, ok := newAliases[alias]; ok {
 			continue
@@ -116,7 +116,7 @@ func applyAliasesChange(snapName naming.InstanceName, prevAutoDisabled bool, pre
 		if effTgt := prevTargets.Effective(prevAutoDisabled); effTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: snap.JoinSnapApp(snapName.String(), effTgt),
+				Target: snap.JoinSnapApp(instanceName.String(), effTgt),
 			})
 		}
 	}
@@ -130,13 +130,13 @@ func applyAliasesChange(snapName naming.InstanceName, prevAutoDisabled bool, pre
 		if prevTgt != "" {
 			remove = append(remove, &backend.Alias{
 				Name:   alias,
-				Target: snap.JoinSnapApp(snapName.String(), prevTgt),
+				Target: snap.JoinSnapApp(instanceName.String(), prevTgt),
 			})
 		}
 		if newTgt != "" {
 			add = append(add, &backend.Alias{
 				Name:   alias,
-				Target: snap.JoinSnapApp(snapName.String(), newTgt),
+				Target: snap.JoinSnapApp(instanceName.String(), newTgt),
 			})
 		}
 	}

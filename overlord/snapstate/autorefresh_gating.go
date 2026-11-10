@@ -65,10 +65,10 @@ var timeNow = func() time.Time {
 	return time.Now()
 }
 
-func lastRefreshed(st *state.State, snapName naming.InstanceName) (time.Time, error) {
+func lastRefreshed(st *state.State, instanceName naming.InstanceName) (time.Time, error) {
 	var snapst SnapState
-	if err := Get(st, snapName, &snapst); err != nil {
-		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
+	if err := Get(st, instanceName, &snapst); err != nil {
+		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", instanceName, err)
 	}
 	// try to get last refresh time from snapstate, but it may not be present
 	// for snaps installed before the introduction of last-refresh attribute.

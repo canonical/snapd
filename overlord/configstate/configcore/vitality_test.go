@@ -317,11 +317,11 @@ func (s *vitalitySuite) TestConfigureVitalityManySnaps(c *C) {
 }
 
 func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
-	for _, snapName := range []naming.InstanceName{"snap1", "snap2", "snap3"} {
-		si := &snap.SideInfo{RealName: snapName.SnapName().String(), Revision: snap.R(1)}
+	for _, instanceName := range []naming.InstanceName{"snap1", "snap2", "snap3"} {
+		si := &snap.SideInfo{RealName: instanceName.SnapName().String(), Revision: snap.R(1)}
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
-		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
@@ -352,11 +352,11 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 }
 
 func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *C) {
-	for _, snapName := range []naming.InstanceName{"snap1", "snap2", "snap3"} {
-		si := &snap.SideInfo{RealName: snapName.SnapName().String(), Revision: snap.R(1)}
+	for _, instanceName := range []naming.InstanceName{"snap1", "snap2", "snap3"} {
+		si := &snap.SideInfo{RealName: instanceName.SnapName().String(), Revision: snap.R(1)}
 		snaptest.MockSnap(c, mockSnapWithService, si)
 		s.state.Lock()
-		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 			Current:  snap.R(1),
 			Active:   true,
