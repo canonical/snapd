@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *accelSuite) SetUpTest(c *C) {
 }
 
 func (s *accelSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "accel")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("accel"))
 }
 
 func (s *accelSuite) TestUsedSecuritySystems(c *C) {

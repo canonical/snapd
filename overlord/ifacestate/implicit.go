@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func shouldSnapdHostImplicitSlots(mapper SnapMapper) bool {
@@ -64,13 +65,13 @@ func addImplicitInterfaces(st *state.State, snapInfo *snap.Info) error {
 	for _, iface := range builtin.Interfaces() {
 		si := interfaces.StaticInfoOf(iface)
 		if (release.OnClassic && si.ImplicitOnClassic) || (!release.OnClassic && si.ImplicitOnCore) {
-			ifaceName := iface.Name()
+			ifaceName := iface.Name().String()
 			if _, ok := snapInfo.Slots[ifaceName]; !ok {
 				snapInfo.Slots[ifaceName] = makeImplicitSlot(snapInfo, ifaceName)
 			}
 		}
 		if (release.OnClassic && si.ImplicitPlugOnClassic) || (!release.OnClassic && si.ImplicitPlugOnCore) {
-			ifaceName := iface.Name()
+			ifaceName := iface.Name().String()
 			if _, ok := snapInfo.Plugs[ifaceName]; !ok {
 				snapInfo.Plugs[ifaceName] = makeImplicitPlug(snapInfo, ifaceName)
 			}
@@ -88,7 +89,7 @@ func addImplicitInterfaces(st *state.State, snapInfo *snap.Info) error {
 		snapInfo.Slots[hslotInfo.Name] = &snap.SlotInfo{
 			Name:       hslotInfo.Name,
 			Snap:       snapInfo,
-			Interface:  hslotInfo.Interface,
+			Interface: naming.Interface(hslotInfo.Interface),
 			Attrs:      hslotInfo.StaticAttrs,
 			HotplugKey: hslotInfo.HotplugKey,
 		}
@@ -101,7 +102,7 @@ func makeImplicitSlot(snapInfo *snap.Info, ifaceName string) *snap.SlotInfo {
 	return &snap.SlotInfo{
 		Name:      ifaceName,
 		Snap:      snapInfo,
-		Interface: ifaceName,
+		Interface: naming.Interface(ifaceName),
 	}
 }
 
@@ -109,6 +110,6 @@ func makeImplicitPlug(snapInfo *snap.Info, ifaceName string) *snap.PlugInfo {
 	return &snap.PlugInfo{
 		Name:      ifaceName,
 		Snap:      snapInfo,
-		Interface: ifaceName,
+		Interface: naming.Interface(ifaceName),
 	}
 }

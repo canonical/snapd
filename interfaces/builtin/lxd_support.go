@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -74,8 +75,8 @@ type lxdSupportInterface struct {
 	commonInterface
 }
 
-func (iface *lxdSupportInterface) Name() string {
-	return "lxd-support"
+func (iface *lxdSupportInterface) Name() naming.Interface {
+	return naming.Interface("lxd-support")
 }
 
 func (iface *lxdSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {

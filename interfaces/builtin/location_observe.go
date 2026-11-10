@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const locationObserveSummary = `allows access to the current physical location`
@@ -258,8 +259,8 @@ const locationObserveConnectedPlugDBus = `
 
 type locationObserveInterface struct{}
 
-func (iface *locationObserveInterface) Name() string {
-	return "location-observe"
+func (iface *locationObserveInterface) Name() naming.Interface {
+	return naming.Interface("location-observe")
 }
 
 func (iface *locationObserveInterface) StaticInfo() interfaces.StaticInfo {

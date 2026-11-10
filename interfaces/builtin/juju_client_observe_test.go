@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *JujuClientObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *JujuClientObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "juju-client-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("juju-client-observe"))
 }
 
 func (s *JujuClientObserveInterfaceSuite) TestSanitizeSlot(c *C) {

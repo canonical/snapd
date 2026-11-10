@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const contentSummary = `allows sharing code and data with other snaps`
@@ -64,8 +65,8 @@ const contentBaseDeclarationSlots = `
 // contentInterface allows sharing content between snaps
 type contentInterface struct{}
 
-func (iface *contentInterface) Name() string {
-	return "content"
+func (iface *contentInterface) Name() naming.Interface {
+	return naming.Interface("content")
 }
 
 func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -71,7 +72,7 @@ func (s *displayControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *displayControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "display-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("display-control"))
 }
 
 func (s *displayControlInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *GpgPublicKeysInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *GpgPublicKeysInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpg-public-keys")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gpg-public-keys"))
 }
 
 func (s *GpgPublicKeysInterfaceSuite) TestSanitizeSlot(c *C) {

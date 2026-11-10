@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ apps:
 }
 
 func (s *MaliitInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "maliit")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("maliit"))
 }
 
 // The label glob when all apps are bound to the maliit slot

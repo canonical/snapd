@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *NetworkBindInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, netbindMockPlugSnapInfoYaml, nil, "network-bind")
 }
 func (s *NetworkBindInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network-bind")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("network-bind"))
 }
 
 func (s *NetworkBindInterfaceSuite) TestSanitizeSlot(c *C) {

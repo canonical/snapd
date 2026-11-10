@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,7 +70,7 @@ func (s *uinputInterfaceSuite) TearDownTest(c *C) {
 }
 
 func (s *uinputInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "uinput")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("uinput"))
 }
 
 func (s *uinputInterfaceSuite) TestSanitizeSlot(c *C) {

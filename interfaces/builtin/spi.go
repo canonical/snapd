@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const spiSummary = `allows access to specific spi controller`
@@ -44,8 +45,8 @@ const spiBaseDeclarationSlots = `
 
 type spiInterface struct{}
 
-func (iface *spiInterface) Name() string {
-	return "spi"
+func (iface *spiInterface) Name() naming.Interface {
+	return naming.Interface("spi")
 }
 
 func (iface *spiInterface) StaticInfo() interfaces.StaticInfo {

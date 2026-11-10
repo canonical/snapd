@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -70,7 +71,7 @@ func (s *AppstreamMetadataInterfaceSuite) TearDownTest(c *C) {
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "appstream-metadata")
+	c.Check(s.iface.Name(), Equals, naming.Interface("appstream-metadata"))
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestSanitize(c *C) {

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -157,7 +158,7 @@ apps:
 }
 
 func (s *rawVolumeInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "raw-volume")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("raw-volume"))
 }
 
 func (s *rawVolumeInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {

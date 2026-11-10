@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *XilinxDmaInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *XilinxDmaInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "xilinx-dma")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("xilinx-dma"))
 }
 
 func (s *XilinxDmaInterfaceSuite) TestSanitizeSlot(c *C) {

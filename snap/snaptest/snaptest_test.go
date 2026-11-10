@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -71,7 +72,7 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
-	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, naming.Interface("network"))
 }
 
 func (s *snapTestSuite) TestMockSnapInstance(c *C) {
@@ -89,7 +90,7 @@ func (s *snapTestSuite) TestMockSnapInstance(c *C) {
 
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
-	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, naming.Interface("network"))
 }
 
 func (s *snapTestSuite) TestMockSnapCurrent(c *C) {
@@ -133,7 +134,7 @@ func (s *snapTestSuite) TestMockInfo(c *C) {
 	c.Assert(os.IsNotExist(err), Equals, true)
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
-	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, naming.Interface("network"))
 }
 
 func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
@@ -147,8 +148,8 @@ func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 	c.Assert(os.IsNotExist(err), Equals, true)
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
-	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
-	c.Check(snapInfo.Slots["network"].Interface, Equals, "network")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, naming.Interface("network"))
+	c.Check(snapInfo.Slots["network"].Interface, Equals, naming.Interface("network"))
 	// They info object is not valid
 	c.Check(snap.Validate(snapInfo), ErrorMatches, `cannot have plug and slot with the same name: "network"`)
 }

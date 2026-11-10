@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -150,7 +151,7 @@ type simpleIface struct {
 	name string
 }
 
-func (si simpleIface) Name() string                                              { return si.name }
+func (si simpleIface) Name() naming.Interface                                    { return naming.Interface(si.name) }
 func (si simpleIface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool { return false }
 
 func (s *CoreSuite) TestByName(c *C) {
@@ -164,7 +165,7 @@ func (s *CoreSuite) TestByName(c *C) {
 
 	iface, err := interfaces.ByName("mock-network")
 	c.Assert(err, IsNil)
-	c.Assert(iface.Name(), Equals, "mock-network")
+	c.Assert(iface.Name(), Equals, naming.Interface("mock-network"))
 }
 
 type serviceSnippetIface struct {
@@ -198,7 +199,7 @@ func (s *CoreSuite) TestPermanentPlugServiceSnippets(c *C) {
 
 	iface, err := interfaces.ByName("mock-service-snippets")
 	c.Assert(err, IsNil)
-	c.Assert(iface.Name(), Equals, "mock-service-snippets")
+	c.Assert(iface.Name(), Equals, naming.Interface("mock-service-snippets"))
 
 	info := snaptest.MockInfo(c, `
 name: snap
@@ -239,7 +240,7 @@ plugs:
 
 	iface, err := interfaces.ByName("unclean-service-snippets")
 	c.Assert(err, IsNil)
-	c.Assert(iface.Name(), Equals, "unclean-service-snippets")
+	c.Assert(iface.Name(), Equals, naming.Interface("unclean-service-snippets"))
 
 	_, err = interfaces.PermanentPlugServiceSnippets(iface, plug)
 	c.Assert(err, ErrorMatches, "cannot sanitize: foo")

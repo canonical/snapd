@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -122,7 +123,7 @@ func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "shared-memory")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("shared-memory"))
 }
 
 func (s *SharedMemoryInterfaceSuite) TestSanitizePlug(c *C) {

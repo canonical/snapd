@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -82,7 +83,7 @@ func (s *FwupdInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *FwupdInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "fwupd")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("fwupd"))
 }
 
 // The label glob when all apps are bound to the fwupd slot

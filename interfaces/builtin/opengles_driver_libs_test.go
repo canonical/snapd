@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -89,7 +90,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "opengles-driver-libs")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("opengles-driver-libs"))
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {

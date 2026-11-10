@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -63,7 +64,7 @@ func (s *daemoNotifySuite) SetUpTest(c *C) {
 }
 
 func (s *daemoNotifySuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "daemon-notify")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("daemon-notify"))
 }
 
 func (s *daemoNotifySuite) TestBeforePrepareSlot(c *C) {

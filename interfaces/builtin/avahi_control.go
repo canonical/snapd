@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const avahiControlBaseDeclarationSlots = `
@@ -103,8 +104,8 @@ dbus (receive)
 
 type avahiControlInterface struct{}
 
-func (iface *avahiControlInterface) Name() string {
-	return "avahi-control"
+func (iface *avahiControlInterface) Name() naming.Interface {
+	return naming.Interface("avahi-control")
 }
 
 func (iface *avahiControlInterface) StaticInfo() interfaces.StaticInfo {

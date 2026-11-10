@@ -20,7 +20,10 @@
 // Package schema holds structs for reading and writing interface-related state data.
 package schema
 
-import "github.com/snapcore/snapd/snap"
+import (
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
+)
 
 // ConnState holds properties of an interface connection.
 //
@@ -30,7 +33,7 @@ import "github.com/snapcore/snapd/snap"
 type ConnState struct {
 	Auto      bool   `json:"auto,omitempty" yaml:"auto"`
 	ByGadget  bool   `json:"by-gadget,omitempty" yaml:"by-gadget"`
-	Interface string `json:"interface,omitempty" yaml:"interface"`
+	Interface naming.Interface `json:"interface,omitempty" yaml:"interface"`
 	// Undesired tracks connections that were manually disconnected after being auto-connected,
 	// so that they are not automatically reconnected again in the future.
 	Undesired        bool           `json:"undesired,omitempty" yaml:"undesired"`

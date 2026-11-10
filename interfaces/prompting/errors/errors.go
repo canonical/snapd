@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -121,16 +122,16 @@ func NewMissingFieldError(field, msg string) *UnsupportedValueError {
 	}
 }
 
-func NewInvalidInterfaceError(unsupported string, supported []string) *UnsupportedValueError {
+func NewInvalidInterfaceError(unsupported naming.Interface, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "interface",
-		Msg:       fmt.Sprintf("invalid interface: %s", strutil.Quoted([]string{unsupported})),
-		Value:     []string{unsupported},
+		Msg:       fmt.Sprintf("invalid interface: %s", strutil.Quoted([]string{unsupported.String()})),
+		Value:     []string{unsupported.String()},
 		Supported: supported,
 	}
 }
 
-func NewInvalidPermissionsError(iface string, unsupported []string, supported []string) *UnsupportedValueError {
+func NewInvalidPermissionsError(iface naming.Interface, unsupported []string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "permissions",
 		Msg:       fmt.Sprintf("invalid permissions for %s interface: %s", iface, strutil.Quoted(unsupported)),
@@ -139,7 +140,7 @@ func NewInvalidPermissionsError(iface string, unsupported []string, supported []
 	}
 }
 
-func NewPermissionsEmptyError(iface string, supported []string) *UnsupportedValueError {
+func NewPermissionsEmptyError(iface naming.Interface, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "permissions",
 		Msg:       fmt.Sprintf("invalid permissions for %s interface: permissions empty", iface),

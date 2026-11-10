@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *LxdSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *LxdSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "lxd-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("lxd-support"))
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizeSlot(c *C) {

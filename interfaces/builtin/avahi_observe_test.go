@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -83,7 +84,7 @@ func (s *AvahiObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AvahiObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "avahi-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("avahi-observe"))
 }
 
 func (s *AvahiObserveInterfaceSuite) TestSanitizeSlot(c *C) {

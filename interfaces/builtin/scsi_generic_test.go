@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ slots:
 }
 
 func (s *ScsiGenericInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "scsi-generic")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("scsi-generic"))
 }
 
 func (s *ScsiGenericInterfaceSuite) TestSanitizeSlot(c *C) {

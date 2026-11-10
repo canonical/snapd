@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *AuditdSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AuditdSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "auditd-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("auditd-support"))
 }
 
 func (s *AuditdSupportInterfaceSuite) TestSanitizeSlot(c *C) {

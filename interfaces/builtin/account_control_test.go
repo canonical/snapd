@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,7 +70,7 @@ func (s *AccountControlSuite) SetUpTest(c *C) {
 }
 
 func (s *AccountControlSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "account-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("account-control"))
 }
 
 func (s *AccountControlSuite) TestSanitizeSlot(c *C) {

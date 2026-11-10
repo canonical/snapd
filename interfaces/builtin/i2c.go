@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const i2cSummary = `allows access to specific I2C controller`
@@ -58,8 +59,8 @@ const i2cConnectedPlugAppArmorSysfsName = `
 type i2cInterface struct{}
 
 // Getter for the name of the i2c interface
-func (iface *i2cInterface) Name() string {
-	return "i2c"
+func (iface *i2cInterface) Name() naming.Interface {
+	return naming.Interface("i2c")
 }
 
 func (iface *i2cInterface) StaticInfo() interfaces.StaticInfo {
@@ -70,7 +71,7 @@ func (iface *i2cInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *i2cInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Pattern to match allowed i2c device nodes. It is gonna be used to check the

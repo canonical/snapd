@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/requestprompts"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -55,7 +56,7 @@ type fakeInterfacesRequestsManager struct {
 	// Store most recent received values
 	userID               uint32
 	snap                 string
-	iface                string
+	iface                naming.Interface
 	pid                  int32
 	cgroup               string
 	id                   prompting.IDType // used for prompt ID or rule ID
@@ -68,7 +69,7 @@ type fakeInterfacesRequestsManager struct {
 	clientActivity       bool
 }
 
-func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
+func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface naming.Interface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
 	m.userID = uid
 	m.iface = iface
 	m.snap = snap
@@ -101,14 +102,14 @@ func (m *fakeInterfacesRequestsManager) HandleReply(userID uint32, promptID prom
 	return m.satisfiedIDs, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) Rules(userID uint32, snap string, iface naming.Interface) ([]*requestrules.Rule, error) {
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
 	return m.rules, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, iface naming.Interface, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error) {
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
@@ -116,7 +117,7 @@ func (m *fakeInterfacesRequestsManager) AddRule(userID uint32, snap string, ifac
 	return m.rule, m.err
 }
 
-func (m *fakeInterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+func (m *fakeInterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface naming.Interface) ([]*requestrules.Rule, error) {
 	m.userID = userID
 	m.snap = snap
 	m.iface = iface
@@ -724,7 +725,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 
 	// Check parameters
 	c.Check(s.manager.userID, Equals, fakeUID)
-	c.Check(s.manager.iface, Equals, iface)
+	c.Check(s.manager.iface, Equals, naming.Interface(iface))
 	c.Check(s.manager.snap, Equals, expectedSnap)
 	c.Check(s.manager.pid, Equals, fakePID)
 	c.Check(s.manager.cgroup, Equals, fakeCgroup)
@@ -967,7 +968,7 @@ plugs:
 			daemon.BadRequest(`cannot find interface connection for snap "another-snap": "foo"`),
 		},
 	} {
-		result := daemon.ValidateSnapHasInterfaceConnection(d, testCase.snap, testCase.iface)
+		result := daemon.ValidateSnapHasInterfaceConnection(d, testCase.snap, naming.Interface(testCase.iface))
 		c.Check(result, DeepEquals, testCase.expected)
 	}
 
@@ -1506,7 +1507,7 @@ func (s *promptingSuite) TestGetRulesHappy(c *C) {
 		// Check parameters
 		c.Check(s.manager.userID, Equals, uint32(1234))
 		c.Check(s.manager.snap, Equals, testCase.snap)
-		c.Check(s.manager.iface, Equals, testCase.iface)
+		c.Check(s.manager.iface, Equals, naming.Interface(testCase.iface))
 
 		// Check return value
 		rules, ok := rsp.Result.([]*requestrules.Rule)
@@ -1606,7 +1607,7 @@ func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
 	// Check parameters
 	c.Check(s.manager.userID, Equals, uint32(11235))
 	c.Check(s.manager.snap, Equals, contents.Snap)
-	c.Check(s.manager.iface, Equals, contents.Interface)
+	c.Check(s.manager.iface, Equals, naming.Interface(contents.Interface))
 	c.Check(s.manager.ruleConstraintsJSON, DeepEquals, contents.Constraints)
 
 	// Check return value
@@ -1701,7 +1702,7 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 		// Check parameters
 		c.Check(s.manager.userID, Equals, uint32(1234))
 		c.Check(s.manager.snap, Equals, testCase.snap)
-		c.Check(s.manager.iface, Equals, testCase.iface)
+		c.Check(s.manager.iface, Equals, naming.Interface(testCase.iface))
 
 		// Check return value
 		rules, ok := rsp.Result.([]*requestrules.Rule)

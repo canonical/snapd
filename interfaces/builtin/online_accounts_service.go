@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const onlineAccountsServiceSummary = `allows operating as the Online Accounts service`
@@ -99,8 +100,8 @@ listen
 
 type onlineAccountsServiceInterface struct{}
 
-func (iface *onlineAccountsServiceInterface) Name() string {
-	return "online-accounts-service"
+func (iface *onlineAccountsServiceInterface) Name() naming.Interface {
+	return naming.Interface("online-accounts-service")
 }
 
 func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo {

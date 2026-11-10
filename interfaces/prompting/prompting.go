@@ -62,7 +62,7 @@ type Request struct {
 	// If the snap name cannot be determined, the process label may be used.
 	Snap string
 	// Interface is the snapd interface associated with this request.
-	Interface string
+	Interface naming.Interface
 	// Permissions is the abstract permissions being requested.
 	Permissions []string
 	// Path is the path associated with this request.
@@ -149,7 +149,7 @@ func NewRequestFromListener(msg notify.MsgNotificationGeneric, sendResponse list
 	return req, nil
 }
 
-func buildListenerRequestKey(iface string, id uint64) string {
+func buildListenerRequestKey(iface naming.Interface, id uint64) string {
 	return fmt.Sprintf("kernel:%s:%016X", iface, id)
 }
 
@@ -157,8 +157,8 @@ func buildListenerRequestKey(iface string, id uint64) string {
 // given interface must be a non-AppArmor interface (e.g. "audio-record"), and
 // the request's permissions are set to be all available permissions for that
 // interface.
-func NewRequestFromAsk(uid uint32, iface, snap string, pid int32, cgroup string, reply func(allowedPerms []string) error) (*Request, error) {
-	if !strutil.ListContains(nonAppArmorInterfaces, iface) {
+func NewRequestFromAsk(uid uint32, iface naming.Interface, snap string, pid int32, cgroup string, reply func(allowedPerms []string) error) (*Request, error) {
+	if !strutil.ListContains(nonAppArmorInterfaces, iface.String()) {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, nonAppArmorInterfaces)
 	}
 	permissions, err := AvailablePermissions(iface)
@@ -191,7 +191,7 @@ func NewRequestFromAsk(uid uint32, iface, snap string, pid int32, cgroup string,
 	return req, nil
 }
 
-func buildAskRequestKey(uid uint32, iface, snap string, pid int32) string {
+func buildAskRequestKey(uid uint32, iface naming.Interface, snap string, pid int32) string {
 	return fmt.Sprintf("api:%d:%s:%s:%d", uid, iface, snap, pid)
 }
 
@@ -209,7 +209,7 @@ type Metadata struct {
 	// For rules, Cgroup should be unset/ignored.
 	Cgroup string
 	// Interface is the interface for which the prompt or rule applies.
-	Interface string
+	Interface naming.Interface
 }
 
 type IDType uint64

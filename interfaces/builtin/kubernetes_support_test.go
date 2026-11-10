@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -115,7 +116,7 @@ func (s *KubernetesSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "kubernetes-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("kubernetes-support"))
 }
 
 func (s *KubernetesSupportInterfaceSuite) TestSanitizeSlot(c *C) {

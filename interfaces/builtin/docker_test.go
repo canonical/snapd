@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *DockerInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *DockerInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "docker")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("docker"))
 }
 
 func (s *DockerInterfaceSuite) TestStaticInfo(c *C) {

@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var (
@@ -43,7 +44,7 @@ var (
 //
 // If one interface is associated with tags in the tagsets but those tags are
 // not found in every tagset, then returns ErrNoCommonInterface.
-func interfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
+func interfaceFromTagsets(tagsets notify.TagsetMap) (iface naming.Interface, err error) {
 	if len(tagsets) == 0 {
 		return "", prompting_errors.ErrNoInterfaceTags
 	}
@@ -56,11 +57,12 @@ func interfaceFromTagsets(tagsets notify.TagsetMap) (iface string, err error) {
 			if !ok {
 				continue
 			}
-			if iface != "" && tagIface != iface {
+			ifaceTag := naming.Interface(tagIface)
+			if iface != "" && ifaceTag != iface {
 				// We already saw a different interface
 				return "", prompting_errors.ErrMultipleInterfaces
 			}
-			iface = tagIface
+			iface = ifaceTag
 			thisPermHasNoInterfaces = false
 		}
 		if thisPermHasNoInterfaces {

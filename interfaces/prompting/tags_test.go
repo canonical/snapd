@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type tagsSuite struct{}
@@ -94,6 +95,6 @@ func (*tagsSuite) TestInterfaceFromTagsets(c *C) {
 		iface, err := prompting.InterfaceFromTagsets(testCase.tagsets)
 
 		c.Check(err, Equals, testCase.err)
-		c.Check(iface, Equals, testCase.iface)
+		c.Check(iface, Equals, naming.Interface(testCase.iface))
 	}
 }

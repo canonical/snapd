@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const ofonoSummary = `allows operating as the ofono service`
@@ -291,8 +292,8 @@ LABEL="ofono_speedup_end"
 
 type ofonoInterface struct{}
 
-func (iface *ofonoInterface) Name() string {
-	return "ofono"
+func (iface *ofonoInterface) Name() naming.Interface {
+	return naming.Interface("ofono")
 }
 
 func (iface *ofonoInterface) StaticInfo() interfaces.StaticInfo {

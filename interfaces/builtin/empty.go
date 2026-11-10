@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type emptyInterface struct{}
@@ -39,12 +40,12 @@ const emptyInterfaceBaseDeclarationSlots = `
 `
 
 func (iface *emptyInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Name returns the name of the empty interface.
-func (iface *emptyInterface) Name() string {
-	return "empty"
+func (iface *emptyInterface) Name() naming.Interface {
+	return naming.Interface("empty")
 }
 
 func (iface *emptyInterface) StaticInfo() interfaces.StaticInfo {

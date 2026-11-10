@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ slots:
 }
 
 func (s *SystemTraceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-trace")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("system-trace"))
 }
 
 func (s *SystemTraceInterfaceSuite) TestSanitizeSlot(c *C) {

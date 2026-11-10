@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const pkcs11Summary = `allows use of pkcs11 framework and access to exposed tokens`
@@ -41,8 +42,8 @@ const pkcs11BaseDeclarationSlots = `
 type pkcs11Interface struct{}
 
 // Name of the pkcs11 interface.
-func (iface *pkcs11Interface) Name() string {
-	return "pkcs11"
+func (iface *pkcs11Interface) Name() naming.Interface {
+	return naming.Interface("pkcs11")
 }
 
 func (iface *pkcs11Interface) StaticInfo() interfaces.StaticInfo {
@@ -53,7 +54,7 @@ func (iface *pkcs11Interface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *pkcs11Interface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 const pkcs11PermanentSlotSecComp = `

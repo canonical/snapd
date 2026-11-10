@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil/mount/libmount"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -118,7 +119,7 @@ func (s *MountControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *MountControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "mount-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("mount-control"))
 }
 
 func (s *MountControlInterfaceSuite) TestSanitizeSlot(c *C) {

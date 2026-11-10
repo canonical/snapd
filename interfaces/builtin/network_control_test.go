@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,7 +70,7 @@ func (s *NetworkControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *NetworkControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("network-control"))
 }
 
 func (s *NetworkControlInterfaceSuite) TestSanitizeSlot(c *C) {

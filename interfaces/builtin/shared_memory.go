@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const sharedMemorySummary = `allows two snaps to use predefined shared memory objects`
@@ -143,8 +144,8 @@ func validateSharedMemoryPath(path string) error {
 // sharedMemoryInterface allows sharing sharedMemory between snaps
 type sharedMemoryInterface struct{}
 
-func (iface *sharedMemoryInterface) Name() string {
-	return "shared-memory"
+func (iface *sharedMemoryInterface) Name() naming.Interface {
+	return naming.Interface("shared-memory")
 }
 
 func (iface *sharedMemoryInterface) StaticInfo() interfaces.StaticInfo {

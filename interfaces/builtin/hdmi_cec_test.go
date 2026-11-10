@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -60,7 +61,7 @@ slots:
 }
 
 func (s *HdmiCecInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "hdmi-cec")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("hdmi-cec"))
 }
 
 func (s *HdmiCecInterfaceSuite) TestStaticInfo(c *C) {

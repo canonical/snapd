@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -86,7 +87,7 @@ func (s *KernelModuleLoadInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *KernelModuleLoadInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "kernel-module-load")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("kernel-module-load"))
 }
 
 func (s *KernelModuleLoadInterfaceSuite) TestSanitizeSlot(c *C) {

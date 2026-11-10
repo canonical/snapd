@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const unity8Summary = `allows operating as or interacting with Unity 8`
@@ -91,8 +92,8 @@ dbus (receive)
 
 type unity8Interface struct{}
 
-func (iface *unity8Interface) Name() string {
-	return "unity8"
+func (iface *unity8Interface) Name() naming.Interface {
+	return naming.Interface("unity8")
 }
 
 func (iface *unity8Interface) StaticInfo() interfaces.StaticInfo {
@@ -104,7 +105,7 @@ func (iface *unity8Interface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *unity8Interface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

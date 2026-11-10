@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -1227,9 +1228,9 @@ func (s *autoRefreshTestSuite) testMaybeAddRefreshInhibitNotice(c *C, markerInte
 	defer st.Unlock()
 
 	var connCheckCalled int
-	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+	restore := snapstate.MockHasActiveConnection(func(st *state.State, iface naming.Interface) (bool, error) {
 		connCheckCalled++
-		c.Check(iface, Equals, "snap-refresh-observe")
+		c.Check(iface, Equals, naming.Interface("snap-refresh-observe"))
 		return markerInterfaceConnected, nil
 	})
 	defer restore()
@@ -1419,7 +1420,7 @@ func (s *autoRefreshTestSuite) TestMaybeAddRefreshInhibitNoticeWarningFallbackEr
 		RefreshInhibitedTime: &now,
 	})
 
-	restore = snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+	restore = snapstate.MockHasActiveConnection(func(st *state.State, iface naming.Interface) (bool, error) {
 		return false, fmt.Errorf("boom")
 	})
 	defer restore()

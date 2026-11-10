@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *unity8InterfaceSuite) TearDownTest(c *C) {
 }
 
 func (s *unity8InterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "unity8")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("unity8"))
 }
 
 func (s *unity8InterfaceSuite) TestUsedSecuritySystems(c *C) {

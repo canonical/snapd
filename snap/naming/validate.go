@@ -124,6 +124,16 @@ func ValidateInterface(name string) error {
 	return nil
 }
 
+// Interface is the name of a snap interface type, e.g. "home" or "content".
+type Interface string
+
+// String returns the interface name as a plain string.
+func (i Interface) String() string { return string(i) }
+
+// Validate checks that the interface name conforms to the naming rules for
+// plug, slot and interface names.
+func (i Interface) Validate() error { return ValidateInterface(string(i)) }
+
 // Regular expressions describing correct identifiers.
 var validHook = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 

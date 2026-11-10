@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // BaseDeclaration holds a base-declaration assertion, declaring the policies
@@ -47,14 +48,14 @@ func (basedcl *BaseDeclaration) Timestamp() time.Time {
 
 // PlugRule returns the plug-side rule about the given interface if one was
 // included in the plugs stanza of the declaration, otherwise it returns nil.
-func (basedcl *BaseDeclaration) PlugRule(interfaceName string) *PlugRule {
-	return basedcl.plugRules[interfaceName]
+func (basedcl *BaseDeclaration) PlugRule(interfaceName naming.Interface) *PlugRule {
+	return basedcl.plugRules[string(interfaceName)]
 }
 
 // SlotRule returns the slot-side rule about the given interface if one was
 // included in the slots stanza of the declaration, otherwise it returns nil.
-func (basedcl *BaseDeclaration) SlotRule(interfaceName string) *SlotRule {
-	return basedcl.slotRules[interfaceName]
+func (basedcl *BaseDeclaration) SlotRule(interfaceName naming.Interface) *SlotRule {
+	return basedcl.slotRules[string(interfaceName)]
 }
 
 // CheckConsistency performs further checks using the assertion database.

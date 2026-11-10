@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *FpgaInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *FpgaInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "fpga")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("fpga"))
 }
 
 func (s *FpgaInterfaceSuite) TestSanitizeSlot(c *C) {

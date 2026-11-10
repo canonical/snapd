@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -156,7 +157,7 @@ func (s *UDisks2InterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "udisks2")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("udisks2"))
 }
 
 func (s *UDisks2InterfaceSuite) TestSanitizeSlot(c *C) {

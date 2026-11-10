@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *FirewallControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *FirewallControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "firewall-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("firewall-control"))
 }
 
 func (s *FirewallControlInterfaceSuite) TestSanitizeSlot(c *C) {

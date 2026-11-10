@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -590,13 +591,13 @@ type: snapd
 	})
 
 	for _, iface := range builtin.Interfaces() {
-		if name := iface.Name(); name == "snap-interfaces-requests-control" {
+		if name := iface.Name().String(); name == "snap-interfaces-requests-control" {
 			// add implicit slot
 			// XXX copied from implicit.go
 			snapdSnap.Slots[name] = &snap.SlotInfo{
 				Name:      name,
 				Snap:      snapdSnap,
-				Interface: name,
+				Interface: naming.Interface(name),
 			}
 		}
 	}

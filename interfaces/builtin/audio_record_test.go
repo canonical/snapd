@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -80,7 +81,7 @@ func (s *AudioRecordInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AudioRecordInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "audio-record")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("audio-record"))
 }
 
 func (s *AudioRecordInterfaceSuite) TestSanitizeSlot(c *C) {

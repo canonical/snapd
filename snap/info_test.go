@@ -2613,7 +2613,7 @@ func (s *infoSuite) TestConfdbPlugAttrsInvalid(c *C) {
 		plug := &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "test-snap"},
 			Name:      "test-plug",
-			Interface: tc.iface,
+			Interface: naming.Interface(tc.iface),
 			Attrs: map[string]any{
 				"account": tc.account,
 				"view":    tc.view,

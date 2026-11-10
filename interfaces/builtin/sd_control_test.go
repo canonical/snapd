@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -80,7 +81,7 @@ func (s *sdControlSuite) SetUpTest(c *C) {
 }
 
 func (s *sdControlSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "sd-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("sd-control"))
 }
 
 func (s *sdControlSuite) TestSanitizePlug(c *C) {

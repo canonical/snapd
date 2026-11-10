@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -68,7 +69,7 @@ func (s *OpenglInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *OpenglInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "opengl")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("opengl"))
 }
 
 func (s *OpenglInterfaceSuite) TestSanitizeSlot(c *C) {

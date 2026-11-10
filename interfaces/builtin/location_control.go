@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const locationControlSummary = `allows operating as the location service`
@@ -204,8 +205,8 @@ const locationControlConnectedPlugDBus = `
 
 type locationControlInterface struct{}
 
-func (iface *locationControlInterface) Name() string {
-	return "location-control"
+func (iface *locationControlInterface) Name() naming.Interface {
+	return naming.Interface("location-control")
 }
 
 func (iface *locationControlInterface) StaticInfo() interfaces.StaticInfo {

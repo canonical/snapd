@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const unity7Summary = `allows interacting with Unity 7 services`
@@ -683,8 +684,8 @@ bind
 
 type unity7Interface struct{}
 
-func (iface *unity7Interface) Name() string {
-	return "unity7"
+func (iface *unity7Interface) Name() naming.Interface {
+	return naming.Interface("unity7")
 }
 
 func (iface *unity7Interface) StaticInfo() interfaces.StaticInfo {

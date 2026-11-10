@@ -256,7 +256,7 @@ var AddSnapToQuotaGroup = func(st *state.State, snapName string, quotaGroup stri
 	panic("internal error: snapstate.AddSnapToQuotaGroup is unset")
 }
 
-var HasActiveConnection = func(st *state.State, iface string) (bool, error) {
+var HasActiveConnection = func(st *state.State, iface naming.Interface) (bool, error) {
 	panic("internal error: snapstate.HasActiveConnection is unset")
 }
 

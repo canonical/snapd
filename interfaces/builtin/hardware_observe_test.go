@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *HardwareObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *HardwareObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "hardware-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("hardware-observe"))
 }
 
 func (s *HardwareObserveInterfaceSuite) TestSanitizeSlot(c *C) {

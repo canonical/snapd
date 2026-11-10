@@ -364,7 +364,7 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	var match interfaceAccessMatch
 	matched := map[string]bool{}
 	for refStr, connState := range conns {
-		if !connState.Active() || !strutil.ListContains(req.Interfaces, connState.Interface) {
+		if !connState.Active() || !strutil.ListContains(req.Interfaces, connState.Interface.String()) {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
@@ -374,11 +374,11 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 		matchOnSlot := req.Slot && connRef.SlotRef.Snap.String() == instanceName
 		matchOnPlug := req.Plug && connRef.PlugRef.Snap.String() == instanceName
 		if matchOnPlug || matchOnSlot {
-			*r = *r.WithContext(ucrednetAttachInterface(r.Context(), connState.Interface))
+			*r = *r.WithContext(ucrednetAttachInterface(r.Context(), connState.Interface.String()))
 			// Do not return here, but keep processing connections for the side
 			// effect of attaching all connected interfaces we asked for to the
 			// request context.
-			matched[connState.Interface] = true
+			matched[connState.Interface.String()] = true
 		}
 	}
 	if len(matched) == 0 {

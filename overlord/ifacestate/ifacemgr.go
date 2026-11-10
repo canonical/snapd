@@ -44,7 +44,7 @@ import (
 )
 
 type deviceData struct {
-	ifaceName  string
+	ifaceName  naming.Interface
 	hotplugKey snap.HotplugKey
 }
 
@@ -63,7 +63,7 @@ type InterfaceManager struct {
 	udevRetryTimeout    time.Time
 	udevMonitorDisabled bool
 	// indexed by interface name and device key. Reset to nil when enumeration is done.
-	enumeratedDeviceKeys map[string]map[snap.HotplugKey]bool
+	enumeratedDeviceKeys map[naming.Interface]map[snap.HotplugKey]bool
 	enumerationDone      bool
 	// maps sysfs path -> [(interface name, device key)...]
 	hotplugDevicePaths map[string][]deviceData
@@ -99,7 +99,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, noticeManager *
 		// noticeManager is stored to register future notice backends
 		noticeManager: noticeManager,
 		// note: enumeratedDeviceKeys is reset to nil when enumeration is done
-		enumeratedDeviceKeys: make(map[string]map[snap.HotplugKey]bool),
+		enumeratedDeviceKeys: make(map[naming.Interface]map[snap.HotplugKey]bool),
 		hotplugDevicePaths:   make(map[string][]deviceData),
 		// extras
 		extraInterfaces: extraInterfaces,
@@ -421,7 +421,7 @@ type ConnectionState struct {
 	// ByGadget indicates whether the connection was trigged by the gadget
 	ByGadget bool
 	// Interface name of the connection
-	Interface string
+	Interface naming.Interface
 	// Undesired indicates whether the connection, otherwise established
 	// automatically, was explicitly disconnected
 	Undesired        bool
@@ -688,7 +688,7 @@ func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
 
 // MockObservedDevicePath adds the given device to the map of observed devices.
 // This function is used for tests only.
-func (m *InterfaceManager) MockObservedDevicePath(devPath, ifaceName string, hotplugKey snap.HotplugKey) func() {
+func (m *InterfaceManager) MockObservedDevicePath(devPath string, ifaceName naming.Interface, hotplugKey snap.HotplugKey) func() {
 	old := m.hotplugDevicePaths
 	m.hotplugDevicePaths[devPath] = append(m.hotplugDevicePaths[devPath], deviceData{hotplugKey: hotplugKey, ifaceName: ifaceName})
 	return func() { m.hotplugDevicePaths = old }

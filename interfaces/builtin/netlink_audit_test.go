@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *NetlinkAuditInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "netlink-audit")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("netlink-audit"))
 }
 
 func (s *NetlinkAuditInterfaceSuite) TestSanitizeSlot(c *C) {

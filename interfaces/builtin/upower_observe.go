@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const upowerObserveSummary = `allows operating as or reading from the UPower service`
@@ -220,8 +221,8 @@ dbus (send)
 
 type upowerObserveInterface struct{}
 
-func (iface *upowerObserveInterface) Name() string {
-	return "upower-observe"
+func (iface *upowerObserveInterface) Name() naming.Interface {
+	return naming.Interface("upower-observe")
 }
 
 func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {

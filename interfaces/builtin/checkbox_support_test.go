@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ func (s *CheckboxSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CheckboxSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "checkbox-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("checkbox-support"))
 }
 
 func (s *CheckboxSupportInterfaceSuite) TestInterfaces(c *C) {

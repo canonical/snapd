@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -232,8 +233,8 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]any,
 	return nil
 }
 
-func (iface *customDeviceInterface) Name() string {
-	return "custom-device"
+func (iface *customDeviceInterface) Name() naming.Interface {
+	return naming.Interface("custom-device")
 }
 
 func (iface *customDeviceInterface) StaticInfo() interfaces.StaticInfo {

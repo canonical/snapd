@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -589,7 +590,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 // sorted. It also returns a map of the snap names to plugs.
 func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map[string]*snap.PlugInfo, error) {
 	repo := ifacerepo.Get(st)
-	plugs := repo.AllPlugs("confdb")
+	plugs := repo.AllPlugs(naming.Interface("confdb"))
 
 	var custodians []string
 	custodianPlugs := make(map[string]*snap.PlugInfo)
@@ -640,7 +641,7 @@ func getPlugsAffectedByPaths(st *state.State, dbSchema *confdb.Schema, storagePa
 	}
 
 	repo := ifacerepo.Get(st)
-	plugs := repo.AllPlugs("confdb")
+	plugs := repo.AllPlugs(naming.Interface("confdb"))
 
 	affectedPlugs := make(map[string][]*snap.PlugInfo)
 	for _, plug := range plugs {

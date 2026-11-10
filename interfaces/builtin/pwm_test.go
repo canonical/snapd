@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -132,7 +133,7 @@ slots:
 }
 
 func (s *PwmInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "pwm")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("pwm"))
 }
 
 func (s *PwmInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {

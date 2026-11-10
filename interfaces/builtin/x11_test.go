@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -92,7 +93,7 @@ func (s *X11InterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "x11")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("x11"))
 }
 
 func (s *X11InterfaceSuite) TestSanitizeSlot(c *C) {

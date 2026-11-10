@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -73,7 +74,7 @@ func (s *confdbSuite) SetUpTest(c *C) {
 }
 
 func (s *confdbSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "confdb")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("confdb"))
 }
 
 func (s *confdbSuite) TestAutoConnect(c *C) {

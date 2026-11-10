@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // The audio-playback interface is the companion interface to the audio-record
@@ -147,8 +148,8 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 type audioPlaybackInterface struct{}
 
-func (iface *audioPlaybackInterface) Name() string {
-	return "audio-playback"
+func (iface *audioPlaybackInterface) Name() naming.Interface {
+	return naming.Interface("audio-playback")
 }
 
 func (iface *audioPlaybackInterface) StaticInfo() interfaces.StaticInfo {

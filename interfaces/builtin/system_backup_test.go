@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *systemBackupInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *systemBackupInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-backup")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("system-backup"))
 }
 
 func (s *systemBackupInterfaceSuite) TestSanitizeSlot(c *C) {

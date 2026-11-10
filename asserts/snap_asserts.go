@@ -81,13 +81,13 @@ func (snapdcl *SnapDeclaration) RefreshControl() []string {
 }
 
 // PlugRule returns the plug-side rule about the given interface if one was included in the plugs stanza of the declaration, otherwise it returns nil.
-func (snapdcl *SnapDeclaration) PlugRule(interfaceName string) *PlugRule {
-	return snapdcl.plugRules[interfaceName]
+func (snapdcl *SnapDeclaration) PlugRule(interfaceName naming.Interface) *PlugRule {
+	return snapdcl.plugRules[string(interfaceName)]
 }
 
 // SlotRule returns the slot-side rule about the given interface if one was included in the slots stanza of the declaration, otherwise it returns nil.
-func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
-	return snapdcl.slotRules[interfaceName]
+func (snapdcl *SnapDeclaration) SlotRule(interfaceName naming.Interface) *SlotRule {
+	return snapdcl.slotRules[string(interfaceName)]
 }
 
 // AutoAliases returns the optional auto-aliases granted to this snap.

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ apps:
 }
 
 func (s *SnapRefreshObserveInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "snap-refresh-observe")
+	c.Check(s.iface.Name(), Equals, naming.Interface("snap-refresh-observe"))
 }
 
 func (s *SnapRefreshObserveInterfaceSuite) TestSanitizeSlot(c *C) {

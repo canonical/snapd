@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *PodmanInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *PodmanInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "podman")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("podman"))
 }
 
 func (s *PodmanInterfaceSuite) TestConnectedPlugSnippet(c *C) {

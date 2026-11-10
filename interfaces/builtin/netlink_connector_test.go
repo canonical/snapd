@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *NetlinkConnectorInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "netlink-connector")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("netlink-connector"))
 }
 
 func (s *NetlinkConnectorInterfaceSuite) TestSanitizeSlot(c *C) {

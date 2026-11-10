@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -73,7 +74,7 @@ func (s *NetworkManagerInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *NetworkManagerInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network-manager")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("network-manager"))
 }
 
 // The label glob when all apps are bound to the network-manager slot

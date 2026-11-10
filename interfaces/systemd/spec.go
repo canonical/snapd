@@ -86,7 +86,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		SystemdConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.curIface = iface.Name()
+		spec.curIface = iface.Name().String()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedPlug(spec, plug, slot)
 	}
@@ -100,7 +100,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		SystemdConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.curIface = iface.Name()
+		spec.curIface = iface.Name().String()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedSlot(spec, plug, slot)
 	}
@@ -114,7 +114,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		SystemdPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.curIface = iface.Name()
+		spec.curIface = iface.Name().String()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentPlug(spec, plug)
 	}
@@ -128,7 +128,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		SystemdPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
-		spec.curIface = iface.Name()
+		spec.curIface = iface.Name().String()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentSlot(spec, slot)
 	}

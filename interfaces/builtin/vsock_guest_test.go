@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,7 +70,7 @@ func (s *vsockGuestInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *vsockGuestInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "vsock-guest")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("vsock-guest"))
 }
 
 func (s *vsockGuestInterfaceSuite) TestSanitizeSlot(c *C) {

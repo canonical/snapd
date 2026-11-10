@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *UhidInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *UhidInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "uhid")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("uhid"))
 }
 
 func (s *UhidInterfaceSuite) TestSanitizeSlot(c *C) {

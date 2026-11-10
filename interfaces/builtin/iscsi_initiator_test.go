@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -68,7 +69,7 @@ func (s *iscsiInitiatorInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *iscsiInitiatorInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "iscsi-initiator")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("iscsi-initiator"))
 }
 
 func (s *iscsiInitiatorInterfaceSuite) TestUsedSecuritySystems(c *C) {

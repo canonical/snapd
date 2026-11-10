@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -70,7 +71,7 @@ type InterfaceSpecificConstraints interface {
 // according to the given interface. If isPatch is true, then the constraints
 // should be treated as a patch, where fields may be omitted to indicate that
 // they should be left unchanged from the rule which will be patched.
-func parseInterfaceSpecificConstraints(iface string, constraintsJSON ConstraintsJSON, isPatch bool) (InterfaceSpecificConstraints, error) {
+func parseInterfaceSpecificConstraints(iface naming.Interface, constraintsJSON ConstraintsJSON, isPatch bool) (InterfaceSpecificConstraints, error) {
 	var interfaceSpecific InterfaceSpecificConstraints
 	switch iface {
 	case "home":
@@ -201,7 +202,7 @@ func (c *Constraints) UnmarshalJSON([]byte) error {
 //
 // This should only ever be called when unmarshalling API request content;
 // never data from disk.
-func UnmarshalConstraints(iface string, constraintsJSON ConstraintsJSON) (*Constraints, error) {
+func UnmarshalConstraints(iface naming.Interface, constraintsJSON ConstraintsJSON) (*Constraints, error) {
 	const isPatch = false
 	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
 	if err != nil {
@@ -300,7 +301,7 @@ func (c *RuleConstraints) UnmarshalJSON([]byte) error {
 //
 // This should only ever be called when unmarshalling rules from disk; never
 // API request content.
-func UnmarshalRuleConstraints(iface string, constraintsJSON ConstraintsJSON) (*RuleConstraints, error) {
+func UnmarshalRuleConstraints(iface naming.Interface, constraintsJSON ConstraintsJSON) (*RuleConstraints, error) {
 	const isPatch = false
 	interfaceSpecific, err := parseInterfaceSpecificConstraints(iface, constraintsJSON, isPatch)
 	if err != nil {
@@ -381,7 +382,7 @@ func (c *RuleConstraints) PathPattern() *patterns.PathPattern {
 //
 // This should only ever be called when unmarshalling API request content;
 // never data from disk.
-func UnmarshalReplyConstraints(iface string, outcome OutcomeType, lifespan LifespanType, duration string, constraintsJSON ConstraintsJSON) (*Constraints, error) {
+func UnmarshalReplyConstraints(iface naming.Interface, outcome OutcomeType, lifespan LifespanType, duration string, constraintsJSON ConstraintsJSON) (*Constraints, error) {
 	if _, err := outcome.AsBool(); err != nil {
 		// Should not occur, as outcome is validated when unmarshalled
 		return nil, err
@@ -458,7 +459,7 @@ func (c *RuleConstraintsPatch) UnmarshalJSON([]byte) error {
 //
 // This should only ever be called when unmarshalling API request content;
 // never data from disk.
-func UnmarshalRuleConstraintsPatch(iface string, constraintsJSON ConstraintsJSON) (*RuleConstraintsPatch, error) {
+func UnmarshalRuleConstraintsPatch(iface naming.Interface, constraintsJSON ConstraintsJSON) (*RuleConstraintsPatch, error) {
 	constraints := &RuleConstraintsPatch{}
 
 	const isPatch = true
@@ -512,7 +513,7 @@ type permissionEntryType interface {
 // If preserveNilEntries is true (should only be the case for
 // RulePermissionMapPatch), nil permissions are not removed. Otherwise, they
 // are removed from the final permission map.
-func unmarshalPermissionEntryMap[T permissionEntryType](iface string, permissionsJSON json.RawMessage, preserveNilEntries bool) (map[string]T, error) {
+func unmarshalPermissionEntryMap[T permissionEntryType](iface naming.Interface, permissionsJSON json.RawMessage, preserveNilEntries bool) (map[string]T, error) {
 	availablePerms, ok := interfacePermissionsAvailable[iface]
 	if !ok {
 		return nil, prompting_errors.NewInvalidInterfaceError(iface, availableInterfaces())
@@ -575,7 +576,7 @@ func (c *PermissionMap) UnmarshalJSON([]byte) error {
 // unmarshalPermissionMap unmarshals given data into a PermissionMap, checking
 // that all permissions are valid with respect to the given interface without
 // preserving nil entries.
-func unmarshalPermissionMap(iface string, permissionsJSON json.RawMessage) (PermissionMap, error) {
+func unmarshalPermissionMap(iface naming.Interface, permissionsJSON json.RawMessage) (PermissionMap, error) {
 	const preserveNilEntries = false
 	return unmarshalPermissionEntryMap[*PermissionEntry](iface, permissionsJSON, preserveNilEntries)
 }
@@ -606,7 +607,7 @@ func (c *RulePermissionMap) UnmarshalJSON([]byte) error {
 // unmarshalRulePermissionMap unmarshals given data into a RulePermissionMap,
 // checking that all permissions are valid with respect to the given interface
 // without preserving nil entries.
-func unmarshalRulePermissionMap(iface string, permissionsJSON json.RawMessage) (RulePermissionMap, error) {
+func unmarshalRulePermissionMap(iface naming.Interface, permissionsJSON json.RawMessage) (RulePermissionMap, error) {
 	const preserveNilEntries = false
 	return unmarshalPermissionEntryMap[*RulePermissionEntry](iface, permissionsJSON, preserveNilEntries)
 }
@@ -657,7 +658,7 @@ func (c *RulePermissionMapPatch) UnmarshalJSON([]byte) error {
 // unmarshalRulePermissionMapPatch unmarshals given data into a
 // RulePermissionMapPatch, checking that all permissions are valid with respect
 // to the given interface and preserving nil entries.
-func unmarshalRulePermissionMapPatch(iface string, permissionsJSON json.RawMessage) (RulePermissionMapPatch, error) {
+func unmarshalRulePermissionMapPatch(iface naming.Interface, permissionsJSON json.RawMessage) (RulePermissionMapPatch, error) {
 	const preserveNilEntries = true
 	return unmarshalPermissionEntryMap[*PermissionEntry](iface, permissionsJSON, preserveNilEntries)
 }
@@ -887,7 +888,7 @@ func (e *RulePermissionEntry) Supersedes(other *RulePermissionEntry, currSession
 var (
 	// List of permissions available for each interface. This also defines the
 	// order in which the permissions should be presented.
-	interfacePermissionsAvailable = map[string][]string{
+	interfacePermissionsAvailable = map[naming.Interface][]string{
 		"home":         {"read", "write", "execute"},
 		"camera":       {"access"},
 		"audio-record": {"access"},
@@ -899,7 +900,7 @@ var (
 	// Never include AA_MAY_OPEN in the maps below; it should always come from
 	// the kernel with another permission (e.g. AA_MAY_READ or AA_MAY_WRITE),
 	// and if it does not, it should be interpreted as AA_MAY_READ.
-	interfaceFilePermissionsMaps = map[string]map[string]notify.FilePermission{
+	interfaceFilePermissionsMaps = map[naming.Interface]map[string]notify.FilePermission{
 		"home": {
 			"read":    notify.AA_MAY_READ | notify.AA_MAY_GETATTR,
 			"write":   notify.AA_MAY_WRITE | notify.AA_MAY_APPEND | notify.AA_MAY_CREATE | notify.AA_MAY_DELETE | notify.AA_MAY_RENAME | notify.AA_MAY_SETATTR | notify.AA_MAY_CHMOD | notify.AA_MAY_LOCK | notify.AA_MAY_LINK,
@@ -920,7 +921,7 @@ var (
 func availableInterfaces() []string {
 	interfaces := make([]string, 0, len(interfacePermissionsAvailable))
 	for iface := range interfacePermissionsAvailable {
-		interfaces = append(interfaces, iface)
+		interfaces = append(interfaces, iface.String())
 	}
 	sort.Strings(interfaces)
 	return interfaces
@@ -928,7 +929,7 @@ func availableInterfaces() []string {
 
 // AvailablePermissions returns the list of available permissions for the given
 // interface.
-func AvailablePermissions(iface string) ([]string, error) {
+func AvailablePermissions(iface naming.Interface) ([]string, error) {
 	available, exist := interfacePermissionsAvailable[iface]
 	if !exist {
 		// XXX: should this be NewInvalidInterfaceError instead?
@@ -939,7 +940,7 @@ func AvailablePermissions(iface string) ([]string, error) {
 
 // abstractPermissionsFromAppArmorPermissions returns the list of permissions
 // corresponding to the given AppArmor permissions for the given interface.
-func abstractPermissionsFromAppArmorPermissions(iface string, permissions notify.AppArmorPermission) ([]string, error) {
+func abstractPermissionsFromAppArmorPermissions(iface naming.Interface, permissions notify.AppArmorPermission) ([]string, error) {
 	filePerms, ok := permissions.(notify.FilePermission)
 	if !ok {
 		return nil, fmt.Errorf("cannot parse the given permissions as file permissions: %v", permissions)
@@ -984,7 +985,7 @@ func abstractPermissionsFromAppArmorPermissions(iface string, permissions notify
 
 // abstractPermissionsToAppArmorPermissions returns AppArmor permissions
 // corresponding to the given permissions for the given interface.
-func abstractPermissionsToAppArmorPermissions(iface string, permissions []string) (notify.AppArmorPermission, error) {
+func abstractPermissionsToAppArmorPermissions(iface naming.Interface, permissions []string) (notify.AppArmorPermission, error) {
 	// permissions may be empty, e.g. if we're constructing allowed permissions
 	// and denying all of them.
 	filePermsMap, exists := interfaceFilePermissionsMaps[iface]

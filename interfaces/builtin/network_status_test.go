@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ apps:
 }
 
 func (s *NetworkStatusSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "network-status")
+	c.Check(s.iface.Name(), Equals, naming.Interface("network-status"))
 }
 
 func (s *NetworkStatusSuite) TestAppArmorConnectedPlug(c *C) {

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *gconfInterfaceSuite) TearDownTest(c *C) {
 }
 
 func (s *gconfInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gconf")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gconf"))
 }
 
 func (s *gconfInterfaceSuite) TestSanitizeSlot(c *C) {

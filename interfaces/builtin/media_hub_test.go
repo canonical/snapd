@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,7 +67,7 @@ apps:
 }
 
 func (s *MediaHubInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "media-hub")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("media-hub"))
 }
 
 // The label glob when all apps are bound to the media-hub slot

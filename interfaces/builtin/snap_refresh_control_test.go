@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ slots:
 }
 
 func (s *SnapRefreshControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "snap-refresh-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("snap-refresh-control"))
 }
 
 func (s *SnapRefreshControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

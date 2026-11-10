@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *PTPInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *PTPInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ptp")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ptp"))
 }
 
 func (s *PTPInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -82,7 +83,7 @@ func (s *AudioPlaybackInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "audio-playback")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("audio-playback"))
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestSanitizeSlot(c *C) {

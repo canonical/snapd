@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -406,7 +407,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.R
 	c.Check(prompt.Snap, Equals, req.Snap)
 	c.Check(prompt.PID, Equals, req.PID)
 	c.Check(prompt.Cgroup, Equals, req.Cgroup)
-	c.Check(prompt.Interface, Equals, "home")
+	c.Check(prompt.Interface, Equals, naming.Interface("home"))
 	c.Check(prompt.Constraints.Path(), Equals, req.Path)
 
 	// Check that we can retrieve that prompt by ID
@@ -647,7 +648,7 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 		pid    int32  = 5678
 		cgroup string = "/some-cgroup"
 		snap   string = "firefox"
-		iface  string = "audio-record"
+		iface  naming.Interface = "audio-record"
 	)
 
 	// There should be no prompts at first
@@ -1466,7 +1467,7 @@ func (s *apparmorpromptingSuite) TestRequestMerged(c *C) {
 		"path-pattern": json.RawMessage(`"/home/test/**"`),
 		"permissions":  json.RawMessage(`{"read":{"outcome":"allow","lifespan":"forever"}}`),
 	}
-	_, err = mgr.AddRule(s.defaultUser, prompt.Snap, prompt.Interface, constraints)
+	_, err = mgr.AddRule(s.defaultUser, prompt.Snap, naming.Interface(prompt.Interface), constraints)
 	c.Assert(err, IsNil)
 
 	// Create identical request again, it should merge even though some

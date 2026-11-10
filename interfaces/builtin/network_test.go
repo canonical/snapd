@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("network"))
 }
 
 func (s *NetworkInterfaceSuite) TestSanitizeSlot(c *C) {

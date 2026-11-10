@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *CameraInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CameraInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "camera")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("camera"))
 }
 
 func (s *CameraInterfaceSuite) TestSanitizeSlot(c *C) {

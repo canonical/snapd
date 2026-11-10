@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *CpuControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CpuControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "cpu-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("cpu-control"))
 }
 
 func (s *CpuControlInterfaceSuite) TestSanitizeSlot(c *C) {

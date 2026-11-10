@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ slots:
 }
 
 func (s *CoreSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "core-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("core-support"))
 }
 
 func (s *CoreSupportInterfaceSuite) TestSanitizeSlot(c *C) {

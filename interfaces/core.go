@@ -56,7 +56,7 @@ func BeforeConnectPlug(iface Interface, plug *ConnectedPlug) error {
 // ByName returns an Interface for the given interface name. Note that in order for
 // this to work properly, the package "interfaces/builtin" must also eventually be
 // imported to populate the full list of interfaces.
-var ByName = func(name string) (iface Interface, err error) {
+var ByName = func(name naming.Interface) (iface Interface, err error) {
 	panic("ByName is unset, import interfaces/builtin to initialize this")
 }
 
@@ -178,7 +178,7 @@ func ParseConnRef(id string) (*ConnRef, error) {
 // and end users.
 type Interface interface {
 	// Unique and public name of this interface.
-	Name() string
+	Name() naming.Interface
 
 	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming there will be an

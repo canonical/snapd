@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -69,7 +70,7 @@ func (s *acrnSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *acrnSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "acrn-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("acrn-support"))
 }
 
 func (s *acrnSupportInterfaceSuite) TestSanitizeSlot(c *C) {

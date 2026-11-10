@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,7 +67,7 @@ func (s *TimeControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *TimeControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "time-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("time-control"))
 }
 
 func (s *TimeControlInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -66,7 +67,7 @@ func (s *BrowserSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "browser-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("browser-support"))
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizeSlot(c *C) {

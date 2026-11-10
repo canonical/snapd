@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,7 +67,7 @@ apps:
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "online-accounts-service")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("online-accounts-service"))
 }
 
 func (s *OnlineAccountsServiceInterfaceSuite) TestSanitize(c *C) {

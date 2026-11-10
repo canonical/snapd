@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ slots:
 }
 
 func (s *LogObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "log-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("log-observe"))
 }
 
 func (s *LogObserveInterfaceSuite) TestSanitizeSlot(c *C) {

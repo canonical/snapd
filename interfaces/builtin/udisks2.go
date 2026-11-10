@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const udisks2Summary = `allows operating as or interacting with the UDisks2 service`
@@ -405,8 +406,8 @@ ENV{ID_PART_TABLE_TYPE}=="dos", ENV{ID_PART_ENTRY_TYPE}=="0x0", ENV{ID_PART_ENTR
 
 type udisks2Interface struct{}
 
-func (iface *udisks2Interface) Name() string {
-	return "udisks2"
+func (iface *udisks2Interface) Name() naming.Interface {
+	return naming.Interface("udisks2")
 }
 
 func (iface *udisks2Interface) StaticInfo() interfaces.StaticInfo {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const maliitSummary = `allows operating as the Maliit service`
@@ -126,8 +127,8 @@ accept4
 
 type maliitInterface struct{}
 
-func (iface *maliitInterface) Name() string {
-	return "maliit"
+func (iface *maliitInterface) Name() naming.Interface {
+	return naming.Interface("maliit")
 }
 
 func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {

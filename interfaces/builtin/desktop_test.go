@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -83,7 +84,7 @@ func (s *DesktopInterfaceSuite) TearDownTest(c *C) {
 }
 
 func (s *DesktopInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "desktop")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("desktop"))
 }
 
 func (s *DesktopInterfaceSuite) TestSanitizeSlot(c *C) {

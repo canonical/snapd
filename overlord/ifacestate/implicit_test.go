@@ -54,7 +54,7 @@ func (implicitSuite) TestAddImplicitInterfacesOnCore(c *C) {
 	// Ensure that some slots that exist in core systems are present.
 	for _, name := range []string{"network"} {
 		slot := info.Slots[name]
-		c.Assert(slot.Interface, Equals, name)
+		c.Assert(string(slot.Interface), Equals, name)
 		c.Assert(slot.Name, Equals, name)
 		c.Assert(slot.Snap, Equals, info)
 	}
@@ -70,7 +70,7 @@ func (implicitSuite) TestAddImplicitInterfacesOnCore(c *C) {
 	// Ensure hotplug slots were added
 	slot := info.Slots["foo"]
 	c.Assert(slot, NotNil)
-	c.Assert(slot.Interface, Equals, "empty")
+	c.Assert(string(slot.Interface), Equals, "empty")
 	c.Assert(slot.Attrs, DeepEquals, map[string]any{"attr": "value"})
 	c.Assert(slot.HotplugKey, DeepEquals, snap.HotplugKey("1234"))
 }
@@ -89,14 +89,14 @@ func (implicitSuite) TestAddImplicitInterfacesOnClassic(c *C) {
 	// Ensure that some slots that exist in classic systems are present.
 	for _, name := range []string{"network", "unity7"} {
 		slot := info.Slots[name]
-		c.Assert(slot.Interface, Equals, name)
+		c.Assert(string(slot.Interface), Equals, name)
 		c.Assert(slot.Name, Equals, name)
 		c.Assert(slot.Snap, Equals, info)
 	}
 	// Ensure that some plugs that exist in core systems are present.
 	for _, name := range []string{"cuda-driver-libs"} {
 		slot := info.Plugs[name]
-		c.Assert(slot.Interface, Equals, name)
+		c.Assert(string(slot.Interface), Equals, name)
 		c.Assert(slot.Name, Equals, name)
 		c.Assert(slot.Snap, Equals, info)
 	}

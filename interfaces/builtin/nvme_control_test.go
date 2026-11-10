@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *nvmeControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *nvmeControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "nvme-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("nvme-control"))
 }
 
 func (s *nvmeControlInterfaceSuite) TestUsedSecuritySystems(c *C) {

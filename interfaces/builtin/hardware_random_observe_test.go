@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *HardwareRandomObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "hardware-random-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("hardware-random-observe"))
 }
 
 func (s *HardwareRandomObserveInterfaceSuite) TestSanitizeSlot(c *C) {

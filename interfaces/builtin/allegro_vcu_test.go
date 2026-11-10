@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *AllegroVcuInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AllegroVcuInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "allegro-vcu")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("allegro-vcu"))
 }
 
 func (s *AllegroVcuInterfaceSuite) TestSanitizeSlot(c *C) {

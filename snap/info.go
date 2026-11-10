@@ -1146,7 +1146,7 @@ type PlugInfo struct {
 	Snap *Info
 
 	Name      string
-	Interface string
+	Interface naming.Interface
 	Attrs     map[string]any
 	Label     string
 	Apps      map[string]*AppInfo
@@ -1188,7 +1188,7 @@ func getAttribute(snapName string, ifaceName string, attrs map[string]any, key s
 }
 
 func (plug *PlugInfo) Attr(key string, val any) error {
-	return getAttribute(plug.Snap.InstanceName().String(), plug.Interface, plug.Attrs, key, val)
+	return getAttribute(plug.Snap.InstanceName().String(), plug.Interface.String(), plug.Attrs, key, val)
 }
 
 func (plug *PlugInfo) Lookup(key string) (any, bool) {
@@ -1201,7 +1201,7 @@ func (plug *PlugInfo) String() string {
 }
 
 func (slot *SlotInfo) Attr(key string, val any) error {
-	return getAttribute(slot.Snap.InstanceName().String(), slot.Interface, slot.Attrs, key, val)
+	return getAttribute(slot.Snap.InstanceName().String(), slot.Interface.String(), slot.Attrs, key, val)
 }
 
 func (slot *SlotInfo) Lookup(key string) (any, bool) {
@@ -1254,7 +1254,7 @@ type SlotInfo struct {
 	Snap *Info
 
 	Name      string
-	Interface string
+	Interface naming.Interface
 	Attrs     map[string]any
 	Label     string
 	Apps      map[string]*AppInfo

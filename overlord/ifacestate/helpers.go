@@ -1028,7 +1028,7 @@ func (c *autoConnectChecker) check(plug *interfaces.ConnectedPlug, slot *interfa
 		BaseDeclaration:     c.baseDecl,
 		Model:               modelAs,
 		Store:               storeAs,
-		CompatEnabled:       allowCompatLabel(c.contentCompatEnabled, plug.Interface()),
+		CompatEnabled:       allowCompatLabel(c.contentCompatEnabled, plug.Interface().String()),
 	}
 
 	arity, err := ic.CheckAutoConnect()
@@ -1217,7 +1217,7 @@ func (c *connectChecker) check(plug *interfaces.ConnectedPlug, slot *interfaces.
 		BaseDeclaration:     c.baseDecl,
 		Model:               modelAs,
 		Store:               storeAs,
-		CompatEnabled:       allowCompatLabel(c.contentCompatEnabled, plug.Interface()),
+		CompatEnabled:       allowCompatLabel(c.contentCompatEnabled, plug.Interface().String()),
 	}
 
 	// if either of plug or slot snaps don't have a declaration it
@@ -1590,12 +1590,12 @@ func checkSystemSnapIsPresent(st *state.State) bool {
 	return err == nil
 }
 
-func setHotplugAttrs(task *state.Task, ifaceName string, hotplugKey snap.HotplugKey) {
+func setHotplugAttrs(task *state.Task, ifaceName naming.Interface, hotplugKey snap.HotplugKey) {
 	task.Set("interface", ifaceName)
 	task.Set("hotplug-key", hotplugKey)
 }
 
-func getHotplugAttrs(task *state.Task) (ifaceName string, hotplugKey snap.HotplugKey, err error) {
+func getHotplugAttrs(task *state.Task) (ifaceName naming.Interface, hotplugKey snap.HotplugKey, err error) {
 	if err = task.Get("interface", &ifaceName); err != nil {
 		return "", "", fmt.Errorf("internal error: cannot get interface name from hotplug task: %s", err)
 	}
@@ -1646,10 +1646,10 @@ func addHotplugSeqWaitTask(hotplugChange *state.Change, hotplugKey snap.HotplugK
 }
 
 type HotplugSlotInfo struct {
-	Name        string          `json:"name"`
-	Interface   string          `json:"interface"`
-	StaticAttrs map[string]any  `json:"static-attrs,omitempty"`
-	HotplugKey  snap.HotplugKey `json:"hotplug-key"`
+	Name        string           `json:"name"`
+	Interface   naming.Interface `json:"interface"`
+	StaticAttrs map[string]any   `json:"static-attrs,omitempty"`
+	HotplugKey  snap.HotplugKey  `json:"hotplug-key"`
 
 	// device was unplugged but has connections, so slot is remembered
 	HotplugGone bool `json:"hotplug-gone"`
@@ -1671,7 +1671,7 @@ func setHotplugSlots(st *state.State, slots map[string]*HotplugSlotInfo) {
 	st.Set("hotplug-slots", slots)
 }
 
-func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName string, hotplugKey snap.HotplugKey) *HotplugSlotInfo {
+func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName naming.Interface, hotplugKey snap.HotplugKey) *HotplugSlotInfo {
 	for _, slot := range stateSlots {
 		if slot.HotplugKey == hotplugKey && slot.Interface == ifaceName {
 			return slot
@@ -1680,7 +1680,7 @@ func findHotplugSlot(stateSlots map[string]*HotplugSlotInfo, ifaceName string, h
 	return nil
 }
 
-func findConnsForHotplugKey(conns map[string]*schema.ConnState, ifaceName string, hotplugKey snap.HotplugKey) []string {
+func findConnsForHotplugKey(conns map[string]*schema.ConnState, ifaceName naming.Interface, hotplugKey snap.HotplugKey) []string {
 	var connsForDevice []string
 	for id, connSt := range conns {
 		if connSt.Interface != ifaceName || connSt.HotplugKey != hotplugKey {
@@ -1705,7 +1705,7 @@ func (m *InterfaceManager) discardSecurityProfilesLate(instanceName naming.Insta
 	return nil
 }
 
-func hasActiveConnection(st *state.State, iface string) (bool, error) {
+func hasActiveConnection(st *state.State, iface naming.Interface) (bool, error) {
 	conns, err := getConns(st)
 	if err != nil {
 		return false, err

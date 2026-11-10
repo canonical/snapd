@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const networkManagerSummary = `allows operating as the NetworkManager service`
@@ -528,8 +529,8 @@ const networkManagerPermanentSlotDBus = `
 
 type networkManagerInterface struct{}
 
-func (iface *networkManagerInterface) Name() string {
-	return "network-manager"
+func (iface *networkManagerInterface) Name() naming.Interface {
+	return naming.Interface("network-manager")
 }
 
 func (iface *networkManagerInterface) StaticInfo() interfaces.StaticInfo {

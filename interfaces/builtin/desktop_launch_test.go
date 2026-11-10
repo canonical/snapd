@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *desktopLaunchSuite) SetUpTest(c *C) {
 }
 
 func (s *desktopLaunchSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "desktop-launch")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("desktop-launch"))
 }
 
 func (s *desktopLaunchSuite) TestSanitizeSlot(c *C) {

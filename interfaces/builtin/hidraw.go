@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const hidrawSummary = `allows access to specific hidraw device`
@@ -46,8 +47,8 @@ const hidrawBaseDeclarationSlots = `
 type hidrawInterface struct{}
 
 // Name of the hidraw interface.
-func (iface *hidrawInterface) Name() string {
-	return "hidraw"
+func (iface *hidrawInterface) Name() naming.Interface {
+	return naming.Interface("hidraw")
 }
 
 func (iface *hidrawInterface) StaticInfo() interfaces.StaticInfo {
@@ -58,7 +59,7 @@ func (iface *hidrawInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *hidrawInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Pattern to match allowed hidraw device nodes, path attributes will be

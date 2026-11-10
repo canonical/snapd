@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // TestInterface is a interface for various kind of tests.
@@ -179,12 +180,12 @@ type TestConflictingConnectionInterface struct {
 
 // String() returns the same value as Name().
 func (t *TestInterface) String() string {
-	return t.Name()
+	return t.Name().String()
 }
 
 // Name returns the name of the test interface.
-func (t *TestInterface) Name() string {
-	return t.InterfaceName
+func (t *TestInterface) Name() naming.Interface {
+	return naming.Interface(t.InterfaceName)
 }
 
 func (t *TestInterface) StaticInfo() interfaces.StaticInfo {

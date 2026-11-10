@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const boolFileSummary = `allows access to specific file with bool semantics`
@@ -45,12 +46,12 @@ type boolFileInterface struct{}
 
 // String returns the same value as Name().
 func (iface *boolFileInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Name returns the name of the bool-file interface.
-func (iface *boolFileInterface) Name() string {
-	return "bool-file"
+func (iface *boolFileInterface) Name() naming.Interface {
+	return naming.Interface("bool-file")
 }
 
 func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {

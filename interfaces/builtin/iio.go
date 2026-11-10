@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const iioSummary = `allows access to a specific IIO device`
@@ -54,8 +55,8 @@ const iioConnectedPlugAppArmor = `
 type iioInterface struct{}
 
 // Getter for the name of the iio interface
-func (iface *iioInterface) Name() string {
-	return "iio"
+func (iface *iioInterface) Name() naming.Interface {
+	return naming.Interface("iio")
 }
 
 func (iface *iioInterface) StaticInfo() interfaces.StaticInfo {
@@ -66,7 +67,7 @@ func (iface *iioInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *iioInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Pattern to match allowed iio device nodes. It is going to be used to check the

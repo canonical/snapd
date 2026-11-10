@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ apps:
 }
 
 func (s *LocationObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "location-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("location-observe"))
 }
 
 // The label glob when all apps are bound to the location slot

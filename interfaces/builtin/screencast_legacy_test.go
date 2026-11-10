@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *ScreencastLegacyInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *ScreencastLegacyInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "screencast-legacy")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("screencast-legacy"))
 }
 
 func (s *ScreencastLegacyInterfaceSuite) TestSanitizeSlot(c *C) {

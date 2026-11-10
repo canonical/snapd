@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -86,7 +87,7 @@ func (s *MicrocephSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *MicrocephSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "microceph-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("microceph-support"))
 }
 
 func (s *MicrocephSupportInterfaceSuite) TestSanitizeSlot(c *C) {

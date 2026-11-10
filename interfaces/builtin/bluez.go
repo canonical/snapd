@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const bluezSummary = `allows operating as the bluez service`
@@ -244,8 +245,8 @@ const bluezPermanentSlotDBus = `
 
 type bluezInterface struct{}
 
-func (iface *bluezInterface) Name() string {
-	return "bluez"
+func (iface *bluezInterface) Name() naming.Interface {
+	return naming.Interface("bluez")
 }
 
 func (iface *bluezInterface) StaticInfo() interfaces.StaticInfo {

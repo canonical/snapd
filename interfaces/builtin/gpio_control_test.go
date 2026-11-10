@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *GpioControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *GpioControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gpio-control"))
 }
 
 func (s *GpioControlInterfaceSuite) TestSanitizeSlot(c *C) {

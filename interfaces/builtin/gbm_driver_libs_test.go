@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -91,7 +92,7 @@ func (s *GbmDriverLibsInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gbm-driver-libs")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gbm-driver-libs"))
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {

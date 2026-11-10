@@ -123,10 +123,10 @@ func checkNameConstraints(c *asserts.NameConstraints, iface, which, name string)
 }
 
 func checkPlugConnectionConstraints1(connc *ConnectCandidate, constraints *asserts.PlugConnectionConstraints) error {
-	if err := checkNameConstraints(constraints.PlugNames, connc.Plug.Interface(), "plug name", connc.Plug.Name()); err != nil {
+	if err := checkNameConstraints(constraints.PlugNames, connc.Plug.Interface().String(), "plug name", connc.Plug.Name()); err != nil {
 		return err
 	}
-	if err := checkNameConstraints(constraints.SlotNames, connc.Slot.Interface(), "slot name", connc.Slot.Name()); err != nil {
+	if err := checkNameConstraints(constraints.SlotNames, connc.Slot.Interface().String(), "slot name", connc.Slot.Name()); err != nil {
 		return err
 	}
 
@@ -176,10 +176,10 @@ func checkPlugConnectionAltConstraints(connc *ConnectCandidate, altConstraints [
 }
 
 func checkSlotConnectionConstraints1(connc *ConnectCandidate, constraints *asserts.SlotConnectionConstraints) error {
-	if err := checkNameConstraints(constraints.PlugNames, connc.Plug.Interface(), "plug name", connc.Plug.Name()); err != nil {
+	if err := checkNameConstraints(constraints.PlugNames, connc.Plug.Interface().String(), "plug name", connc.Plug.Name()); err != nil {
 		return err
 	}
-	if err := checkNameConstraints(constraints.SlotNames, connc.Slot.Interface(), "slot name", connc.Slot.Name()); err != nil {
+	if err := checkNameConstraints(constraints.SlotNames, connc.Slot.Interface().String(), "slot name", connc.Slot.Name()); err != nil {
 		return err
 	}
 
@@ -265,7 +265,7 @@ func checkMinimalSlotInstallationAltConstraints(slot *snap.SlotInfo, altConstrai
 }
 
 func checkSlotInstallationConstraints1(ic *InstallCandidate, slot *snap.SlotInfo, constraints *asserts.SlotInstallationConstraints) error {
-	if err := checkNameConstraints(constraints.SlotNames, slot.Interface, "slot name", slot.Name); err != nil {
+	if err := checkNameConstraints(constraints.SlotNames, string(slot.Interface), "slot name", slot.Name); err != nil {
 		return err
 	}
 
@@ -307,7 +307,7 @@ func checkSlotInstallationAltConstraints(ic *InstallCandidate, slot *snap.SlotIn
 }
 
 func checkPlugInstallationConstraints1(ic *InstallCandidate, plug *snap.PlugInfo, constraints *asserts.PlugInstallationConstraints) error {
-	if err := checkNameConstraints(constraints.PlugNames, plug.Interface, "plug name", plug.Name); err != nil {
+	if err := checkNameConstraints(constraints.PlugNames, string(plug.Interface), "plug name", plug.Name); err != nil {
 		return err
 	}
 
