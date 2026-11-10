@@ -20,6 +20,10 @@ nested_prepare_ssh() {
     remote.exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
     remote.exec --user external --pass ubuntu123 "sudo true"
+
+    # Kill the test and external users' sessions to ensure a clean state
+    remote.exec "sudo loginctl kill-user test"
+    remote.exec "sudo loginctl kill-user external"
 }
 
 
@@ -223,4 +227,3 @@ nested_fetch_spread() {
     echo "/snap/bin/spread-plus.spread"
 
 }
-
