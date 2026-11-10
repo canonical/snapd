@@ -49,13 +49,12 @@ var hardwareRandomControlConnectedPlugUDev = []string{`KERNEL=="hw_random"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "hardware-random-control",
-		summary:                  hardwareRandomControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     hardwareRandomControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    hardwareRandomControlConnectedPlugAppArmor,
-		connectedPlugUDev:        hardwareRandomControlConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "hardware-random-control",
+		summary:               hardwareRandomControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  hardwareRandomControlBaseDeclarationSlots,
+		connectedPlugAppArmor: hardwareRandomControlConnectedPlugAppArmor,
+		connectedPlugUDev:     hardwareRandomControlConnectedPlugUDev,
 	})
 }

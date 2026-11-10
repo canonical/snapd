@@ -1544,7 +1544,7 @@ suites:
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
                 echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
                 chmod 0600 "$TESTSTMP"/cert-file
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --key "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1614,7 +1614,7 @@ suites:
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
                 echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
                 chmod 0600 "$TESTSTMP"/cert-file
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --key "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1683,7 +1683,7 @@ suites:
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
                 echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
                 chmod 0600 "$TESTSTMP"/cert-file
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --key "$TESTSTMP"/cert-file
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1762,7 +1762,7 @@ suites:
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
                 echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
                 chmod 0600 "$TESTSTMP"/cert-file
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --key "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi

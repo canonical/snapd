@@ -54,11 +54,10 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "screencast-legacy",
-		summary:                  screencastLegacySummary,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     screencastLegacyBaseDeclarationSlots,
-		connectedPlugAppArmor:    screencastLegacyConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "screencast-legacy",
+		summary:               screencastLegacySummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  screencastLegacyBaseDeclarationSlots,
+		connectedPlugAppArmor: screencastLegacyConnectedPlugAppArmor,
 	})
 }

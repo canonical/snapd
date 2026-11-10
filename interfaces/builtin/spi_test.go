@@ -258,7 +258,3 @@ func (s *spiInterfaceSuite) TestAutoConnect(c *C) {
 func (s *spiInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
-
-func (s *spiInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
-}

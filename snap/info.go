@@ -65,17 +65,6 @@ type ContainerPlaceInfo interface {
 
 	// MountDescription is the value for the mount unit Description field.
 	MountDescription() string
-
-	// DmVerityFile returns the name of the dm-verity hash file computed by the container's name
-	// and the digest.
-	// If the container doesn't contain integrity data or contains integrity data but not of type
-	// "dm-verity", this will return an error.
-	DmVerityFile() (string, error)
-
-	// DmVerityDigest returns the dm-verity digest of the integrity data associated with the container.
-	// If the container doesn't contain integrity data or contains integrity data but not of type
-	// "dm-verity", this will return an error.
-	DmVerityDigest() (string, error)
 }
 
 // PlaceInfo offers all the information about where a snap and its data are
@@ -764,11 +753,26 @@ func (s *Info) Services() []*AppInfo {
 
 // ExpandSnapVariables resolves $SNAP, $SNAP_DATA and $SNAP_COMMON in path for this snap.
 func (s *Info) ExpandSnapVariables(path string) string {
+	return s.ExpandSnapVariablesWithOptions(path, nil)
+}
+
+// PathVariablesOptions controls validation and expansion of snap path
+// variables.
+type PathVariablesOptions struct {
+	// AllowSnapInstanceName permits validation and expansion of
+	// $SNAP_INSTANCE_NAME.
+	AllowSnapInstanceName bool
+}
+
+// ExpandSnapVariablesWithOptions resolves $SNAP, $SNAP_DATA and $SNAP_COMMON
+// for this snap. It also resolves $SNAP_INSTANCE_NAME to the instance name,
+// irrespective of perspective, when enabled by opts.
+func (s *Info) ExpandSnapVariablesWithOptions(path string, opts *PathVariablesOptions) string {
 	// NOTE: We use dirs.CoreSnapMountDir here as the path used will be
 	// always inside the mount namespace snap-confine creates and there
 	// we will always have a /snap directory available regardless if the
 	// system we're running on supports this or not.
-	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, PerspectiveSelf)
+	return s.ExpandSnapVariablesSetSnapMountDirWithOptions(path, dirs.CoreSnapMountDir, PerspectiveSelf, opts)
 }
 
 type ExpandSnapPerspective int
@@ -788,6 +792,14 @@ const (
 // while being expanded for use in the context of the plug, special variables
 // may mean instance-specific value.
 func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, expandFor ExpandSnapPerspective) string {
+	return s.ExpandSnapVariablesSetSnapMountDirWithOptions(path, snapMountDir, expandFor, nil)
+}
+
+// ExpandSnapVariablesSetSnapMountDirWithOptions resolves $SNAP, $SNAP_DATA and
+// $SNAP_COMMON using snapMountDir as root directory. It also resolves
+// $SNAP_INSTANCE_NAME to the instance name, irrespective of perspective, when
+// enabled by opts.
+func (s *Info) ExpandSnapVariablesSetSnapMountDirWithOptions(path, snapMountDir string, expandFor ExpandSnapPerspective, opts *PathVariablesOptions) string {
 	name := s.SnapName().String()
 
 	if expandFor == PerspectiveOther {
@@ -802,6 +814,10 @@ func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, exp
 			return DataDir(name, s.Revision)
 		case "SNAP_COMMON":
 			return CommonDataDir(name)
+		case "SNAP_INSTANCE_NAME":
+			if opts != nil && opts.AllowSnapInstanceName {
+				return s.InstanceName().String()
+			}
 		}
 		return ""
 	})
@@ -2162,26 +2178,4 @@ type IntegrityDataInfo struct {
 	integrity.IntegrityDataParams `json:"params"`
 
 	DownloadInfo `json:"download-info,omitempty"`
-}
-
-// DmVerityFile returns the name of the dm-verity hash file computed by the snap name and the digest.
-// If the snap doesn't contain integrity data or contains integrity data but not of type
-// "dm-verity", this will return an error.
-func (s *Info) DmVerityFile() (string, error) {
-	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
-		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
-	}
-
-	return s.IntegrityData.IntegrityFile(s.MountFile())
-}
-
-// DmVerityDigest returns the dm-verity digest of the integrity data associated with the snap.
-// If the snap doesn't contain integrity data or contains integrity data but not of type
-// "dm-verity", this will return an error.
-func (s *Info) DmVerityDigest() (string, error) {
-	if s.IntegrityData == nil || s.IntegrityData.Type != "dm-verity" {
-		return "", fmt.Errorf("internal error: dm-verity data not found for file %q", s.MountFile())
-	}
-
-	return s.IntegrityData.Digest, nil
 }

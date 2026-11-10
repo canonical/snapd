@@ -46,6 +46,8 @@ type (
 	InterfaceAccessMatch = interfaceAccessMatch
 
 	AccessLevel = accessLevel
+
+	SystemsReadAccess = systemsReadAccess
 )
 
 const (

@@ -188,6 +188,5 @@ func init() {
 		baseDeclarationSlots:     adbSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    adbSupportConnectedPlugAppArmor,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

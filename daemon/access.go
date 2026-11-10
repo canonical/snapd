@@ -22,6 +22,7 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 
@@ -496,7 +497,8 @@ func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 type byActionAccess struct {
 	// ByAction maps from detected request action to access checker.
 	ByAction map[string]accessChecker
-	// Default is the fallback access checker if no action was matched.
+	// Default is the fallback access checker if no action was matched or
+	// if request does not use json.
 	//
 	// This can only be one of:
 	//   - rootAccess
@@ -516,22 +518,28 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default)
 	}
 
-	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
-		return BadRequest("unexpected content type: %q", contentType)
-	}
-
-	action, err := actionResultFromContext(r.Context())
-	switch {
-	case errors.Is(err, errActionResultNotCached):
-		return InternalError(err.Error())
-	case err != nil:
-		return BadRequest(err.Error())
-	}
-
-	checker := ac.ByAction[action]
-	if checker == nil {
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		logger.Noticef("cannot parse content type %q for request %q: %v", contentType, r.URL, err)
 		return ac.Default.CheckAccess(d, r, ucred, user, rec)
 	}
 
-	return checker.CheckAccess(d, r, ucred, user, rec)
+	switch mediaType {
+	case "application/json":
+		action, err := actionResultFromContext(r.Context())
+		switch {
+		case errors.Is(err, errActionResultNotCached):
+			return InternalError(err.Error())
+		case err != nil:
+			return BadRequest(err.Error())
+		}
+		checker := ac.ByAction[action]
+		if checker == nil {
+			return ac.Default.CheckAccess(d, r, ucred, user, rec)
+		}
+		return checker.CheckAccess(d, r, ucred, user, rec)
+	default:
+		return ac.Default.CheckAccess(d, r, ucred, user, rec)
+	}
 }

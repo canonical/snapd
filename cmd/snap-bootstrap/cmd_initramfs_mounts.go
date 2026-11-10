@@ -121,7 +121,7 @@ var (
 	installApplyPreseededData        = install.ApplyPreseededData
 	bootEnsureNextBootToRunMode      = boot.EnsureNextBootToRunMode
 	installBuildInstallObserver      = install.BuildInstallObserver
-	lookupDmVerityDataAndCrossCheck  = integrity.LookupDmVerityDataAndCrossCheck
+	integrityLookupDataAndCrossCheck = integrity.LookupDataAndCrossCheck
 	secbootNewActivateContext        = secboot.NewActivateContext
 )
 
@@ -1765,7 +1765,7 @@ func createSysrootMount() bool {
 }
 
 func getVerityOptions(snapPath string, idp *integrity.IntegrityDataParams) (*dmVerityOptions, error) {
-	hashDevice, err := lookupDmVerityDataAndCrossCheck(snapPath, idp)
+	hashDevice, err := integrityLookupDataAndCrossCheck(snapPath, idp)
 
 	if err != nil && err == integrity.ErrIntegrityDataParamsNotFound {
 		// TODO: throw error instead if integrity data are required by policy
@@ -2393,6 +2393,10 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		if isClassic {
 			if err := writeSysrootMountUnit(rootfsDir, "", nil); err != nil {
 				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
+			}
+
+			if err := writeSnapMountDirMountUnit(rootfsDir); err != nil {
+				return fmt.Errorf("cannot write snap.mount: %w", err)
 			}
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]

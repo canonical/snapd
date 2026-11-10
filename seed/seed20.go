@@ -1132,7 +1132,7 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, modelSnap *asserts.ModelSnap
 	}
 	// Currently integrity data are not enforced therefore errors returned when integrity data
 	// are not found for a snap revision are ignored.
-	if err != nil && err != integrity.ErrNoIntegrityDataFoundInRevision {
+	if err != nil && !errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
 		return nil, err
 	}
 

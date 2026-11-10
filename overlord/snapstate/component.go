@@ -109,6 +109,10 @@ func InstallComponents(
 		return nil, err
 	}
 
+	if err := checkComponentsDiskSpace(st, "install", &snapst, compsups); err != nil {
+		return nil, err
+	}
+
 	snapUserID, err := userIDForSnap(st, &snapst, opts.UserID)
 	if err != nil {
 		return nil, err
@@ -303,6 +307,13 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	// data in the snap info
 	compInfo, _, err := backend.OpenComponentFile(path, info, csi)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := checkComponentsDiskSpace(st, "install", &snapst, []ComponentSetup{{
+		CompSideInfo: csi,
+		CompPath:     path,
+	}}); err != nil {
 		return nil, err
 	}
 

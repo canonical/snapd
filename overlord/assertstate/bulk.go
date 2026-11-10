@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -47,7 +48,7 @@ const storeGroup = "store assertion"
 // that. Most systems should be done in one request anyway.
 var maxGroups = 256
 
-func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
+func bulkRefreshSnapDeclarations(s *state.State, snapStates map[naming.InstanceName]*snapstate.SnapState, userID int, deviceCtx snapstate.DeviceContext, opts *RefreshAssertionsOptions) error {
 	db := cachedDB(s)
 
 	pool := asserts.NewPool(db, maxGroups)
@@ -79,7 +80,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 		}
 		// update snap-declaration (and prereqs) for the snap,
 		// they were originally added at install time
-		if err := pool.AddToUpdate(declRef, instanceName); err != nil {
+		if err := pool.AddToUpdate(declRef, instanceName.String()); err != nil {
 			return fmt.Errorf("cannot prepare snap-declaration refresh for snap %q: %v", instanceName, err)
 		}
 

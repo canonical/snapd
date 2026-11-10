@@ -44,13 +44,12 @@ var physicalMemoryObserveConnectedPlugUDev = []string{`KERNEL=="mem"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "physical-memory-observe",
-		summary:                  physicalMemoryObserveSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     physicalMemoryObserveBaseDeclarationSlots,
-		connectedPlugAppArmor:    physicalMemoryObserveConnectedPlugAppArmor,
-		connectedPlugUDev:        physicalMemoryObserveConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "physical-memory-observe",
+		summary:               physicalMemoryObserveSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  physicalMemoryObserveBaseDeclarationSlots,
+		connectedPlugAppArmor: physicalMemoryObserveConnectedPlugAppArmor,
+		connectedPlugUDev:     physicalMemoryObserveConnectedPlugUDev,
 	})
 }

@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -29,7 +30,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -170,6 +173,156 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 	})
 
+}
+
+type doMountSnapWithIntegrityDataOpts struct {
+	integrityLookupErr error
+	expectedErr        string
+}
+
+func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnapWithIntegrityDataOpts) {
+	v1 := "name: mock\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	idp := integrity.IntegrityDataParams{
+		Type:   "dm-verity",
+		Digest: "some-digest",
+	}
+	var expectedIdp integrity.IntegrityDataParams
+	if opts.integrityLookupErr == nil {
+		expectedIdp = idp
+	}
+
+	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		c.Assert(snapID, Equals, "snap-id")
+		c.Assert(rev, Equals, snap.R(33))
+		// make sure the state is locked
+		st.Unlock()
+		st.Lock()
+		return &idp, nil
+	})
+	defer restore()
+
+	restore = snapstate.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+		if opts.integrityLookupErr != nil {
+			return "", opts.integrityLookupErr
+		}
+		return params.IntegrityFile(snapPath)
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			SnapID:   "snap-id",
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		SnapPath:     testSnap,
+		DownloadInfo: &snap.DownloadInfo{DownloadURL: "https://some"},
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(osutil.FileExists(testSnap), Equals, true)
+
+	if opts.expectedErr != "" {
+		c.Check(chg.Err(), ErrorMatches, opts.expectedErr)
+		c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+			{
+				op:  "current",
+				old: "<no-current>",
+			},
+		})
+		return
+	}
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:                  "setup-snap",
+			name:                "foo",
+			path:                testSnap,
+			revno:               snap.R(33),
+			integrityDataParams: expectedIdp,
+		},
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityData(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataNotExist(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		integrityLookupErr: fmt.Errorf("%w: missing", integrity.ErrDmVerityDataNotFound),
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataInvalid(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		integrityLookupErr: fmt.Errorf("unexpected dm-verity hash"),
+		expectedErr:        `(?s).*cannot validate integrity data for snap "foo": unexpected dm-verity hash.*`,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataError(c *C) {
+	v1 := "name: mock\nversion: 1.0\n"
+	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		return nil, fmt.Errorf("boom")
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t := s.state.NewTask("mount-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			SnapID:   "snap-id",
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		SnapPath: testSnap,
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, `(?s).*boom.*`)
+	// snap was never set up
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+	})
 }
 
 func (s *mountSnapSuite) TestDoMountSnapErrorReadInfo(c *C) {

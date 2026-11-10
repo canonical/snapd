@@ -1436,8 +1436,6 @@ func ConfdbSchema(s *state.State, account, schemaName string) (*asserts.ConfdbSc
 	return as.(*asserts.ConfdbSchema), nil
 }
 
-var ErrNoRevisionFound = errors.New("no snap-revision assertion found")
-
 // snapRevisionFromSnapIdAndRevision is a helper that searches for a snap revision in the database given
 // a snap ID, and a revision number. This is to be used in cases when the sha3 hash which is the primary key
 // for revision assertions is not known or we don't want to incur the cost to compute it.
@@ -1448,12 +1446,8 @@ func snapRevisionFromSnapIdAndRevision(db asserts.RODatabase, snapId string, rev
 		"snap-id":       snapId,
 		"snap-revision": strconv.Itoa(rev.N),
 	})
-	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+	if err != nil {
 		return nil, err
-	}
-
-	if len(found) < 1 {
-		return nil, fmt.Errorf("%w that matches (snap-id=%s, snap-revision=%s).", ErrNoRevisionFound, snapId, rev)
 	}
 
 	// Despite the set (snap-id, snap-revision) not comprising a primary key for
@@ -1462,23 +1456,24 @@ func snapRevisionFromSnapIdAndRevision(db asserts.RODatabase, snapId string, rev
 	// therefore the check here should be redundant but we keep it to as a safeguard
 	// in case that behavior changes.
 	if len(found) > 1 {
-		return nil, fmt.Errorf("internal error: multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%s).", snapId, rev)
+		return nil, fmt.Errorf("internal error: multiple snap-revision assertions found that match (snap-id=%s, snap-revision=%s)", snapId, rev)
 	}
 
 	return found[0].(*asserts.SnapRevision), nil
 }
 
-// ValidatedIntegrityData returns the integrity parameters found in the assertion database for a specific
-// snap's revision.
+// ValidatedIntegrityData returns the integrity parameters found in the assertion
+// database for a specific snap's revision.
 //
-// ErrNoRevisionFound is returned if no matching revision assertion is found.
-//
-// integrity.ErrNoIntegrityDataFoundInRevision is returned if matching revision
-// assertion does not contain integrity data.
+// integrity.ErrNoIntegrityDataFoundInRevision is returned if no matching
+// snap-revision assertion was found containing integrity data.
 func ValidatedIntegrityData(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
 	db := DB(st)
 
 	revAssertion, err := snapRevisionFromSnapIdAndRevision(db, snapID, rev)
+	if errors.Is(err, &asserts.NotFoundError{}) {
+		return nil, fmt.Errorf("%w: no snap-revision assertion found that matches (snap-id=%s, snap-revision=%s)", integrity.ErrNoIntegrityDataFoundInRevision, snapID, rev)
+	}
 	if err != nil {
 		return nil, err
 	}

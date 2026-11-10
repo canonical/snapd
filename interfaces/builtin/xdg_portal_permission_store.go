@@ -64,13 +64,12 @@ dbus (receive, send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "xdg-portal-permission-store",
-		summary:                  xdgPortalPermissionStoreSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     xdgPortalPermissionStoreBaseDeclarationPlugs,
-		baseDeclarationSlots:     xdgPortalPermissionStoreBaseDeclarationSlots,
-		connectedPlugAppArmor:    xdgPortalPermissionStoreConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "xdg-portal-permission-store",
+		summary:               xdgPortalPermissionStoreSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  xdgPortalPermissionStoreBaseDeclarationPlugs,
+		baseDeclarationSlots:  xdgPortalPermissionStoreBaseDeclarationSlots,
+		connectedPlugAppArmor: xdgPortalPermissionStoreConnectedPlugAppArmor,
 	})
 }

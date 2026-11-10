@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"syscall"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -209,7 +210,7 @@ func (s *SecLogSuite) TestLogLoggerDisabledNopSkipsNoticef(c *C) {
 }
 
 func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
-	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUpdate)
+	seclog.LogSystemRestartSnapd("2.78", string(restart.RestartSnapdUpdate))
 
 	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
 	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
@@ -218,7 +219,7 @@ func (s *SecLogSuite) TestLogSystemRestartSnapd(c *C) {
 }
 
 func (s *SecLogSuite) TestLogSystemRestartSnapdUndo(c *C) {
-	seclog.LogSystemRestartSnapd("2.78", restart.RestartSnapdUndo)
+	seclog.LogSystemRestartSnapd("2.78", string(restart.RestartSnapdUndo))
 
 	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
 	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-undo")
@@ -235,8 +236,26 @@ func (s *SecLogSuite) TestLogSystemRestartSnapdUnknownReason(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, `[reason="<unknown>"]`)
 }
 
+func (s *SecLogSuite) TestLogSystemRestartSnapdStopFailed(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", seclog.SnapdRestartStopFailed)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-stop-failed")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-stop-failed"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartSnapdIdleAborted(c *C) {
+	seclog.LogSystemRestartSnapd("2.78", seclog.SnapdRestartIdleAborted)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(s.buf.String(), testutil.Contains, "Snapd restart with reason snapd-idle-aborted")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[reason="snapd-idle-aborted"]`)
+}
+
 func (s *SecLogSuite) TestLogSystemStandbySnapd(c *C) {
-	seclog.LogSystemStandbySnapd("2.78", restart.RestartSnapdIdle)
+	seclog.LogSystemStandbySnapd("2.78", string(restart.RestartSnapdIdle))
 
 	c.Check(s.buf.String(), testutil.Contains, "sys_standby_snapd")
 	c.Check(s.buf.String(), testutil.Contains, "Snapd standby with reason snapd-idle")
@@ -296,6 +315,97 @@ func (s *SecLogSuite) TestLogSystemStartupSnapdUnknownVersionAndBootID(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "Snapd startup")
 	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
 	c.Check(s.buf.String(), testutil.Contains, `[boot_id="<unknown>"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestart(c *C) {
+	seclog.LogSystemRestart("2.78", restart.RestartSystem, false, time.Minute)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart ")
+	c.Check(s.buf.String(), testutil.Contains, "System restart of type restart-system in 1m0s")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[retry=false]`)
+	c.Check(s.buf.String(), Not(testutil.Contains), `[reason=`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartNow(c *C) {
+	seclog.LogSystemRestart("2.78", restart.RestartSystemNow, false, 0)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart ")
+	c.Check(s.buf.String(), testutil.Contains, "System restart of type restart-system-now [")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system-now"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[retry=false]`)
+	c.Check(s.buf.String(), Not(testutil.Contains), `[reason=`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartNegativeDelay(c *C) {
+	// a scheduled restart whose time has already passed
+	seclog.LogSystemRestart("2.78", restart.RestartSystem, false, -3*time.Second)
+
+	c.Check(s.buf.String(), testutil.Contains, "System restart of type restart-system [")
+}
+
+func (s *SecLogSuite) TestLogSystemRestartUnknownVersion(c *C) {
+	seclog.LogSystemRestart("", restart.RestartSystem, false, 0)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart ")
+	c.Check(s.buf.String(), testutil.Contains, "System restart of type restart-system [")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system"]`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartRetry(c *C) {
+	seclog.LogSystemRestart("2.78", restart.RestartSystem, true, 0)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_restart ")
+	c.Check(s.buf.String(), testutil.Contains, "System restart retry of type restart-system [")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[retry=true]`)
+	c.Check(s.buf.String(), Not(testutil.Contains), `[reason=`)
+}
+
+func (s *SecLogSuite) TestLogSystemRestartRetryWithDelay(c *C) {
+	seclog.LogSystemRestart("2.78", restart.RestartSystem, true, 10*time.Second)
+
+	c.Check(s.buf.String(), testutil.Contains, "System restart retry of type restart-system in 10s [")
+	c.Check(s.buf.String(), testutil.Contains, `[retry=true]`)
+}
+
+func (s *SecLogSuite) TestLogSystemShutdownHalt(c *C) {
+	seclog.LogSystemShutdown("2.78", restart.RestartSystemHaltNow, 0)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_shutdown ")
+	c.Check(s.buf.String(), testutil.Contains, "System shutdown of type restart-system-halt-now [")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system-halt-now"]`)
+	c.Check(s.buf.String(), Not(testutil.Contains), `[reason=`)
+}
+
+func (s *SecLogSuite) TestLogSystemShutdownPoweroff(c *C) {
+	seclog.LogSystemShutdown("2.78", restart.RestartSystemPoweroffNow, 0)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_shutdown ")
+	c.Check(s.buf.String(), testutil.Contains, "System shutdown of type restart-system-poweroff-now [")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system-poweroff-now"]`)
+	c.Check(s.buf.String(), Not(testutil.Contains), `[reason=`)
+}
+
+func (s *SecLogSuite) TestLogSystemShutdownWithDelay(c *C) {
+	seclog.LogSystemShutdown("2.78", restart.RestartSystemHaltNow, time.Minute)
+
+	c.Check(s.buf.String(), testutil.Contains, "System shutdown of type restart-system-halt-now in 1m0s [")
+}
+
+func (s *SecLogSuite) TestLogSystemShutdownUnknownVersion(c *C) {
+	seclog.LogSystemShutdown("", restart.RestartSystemHaltNow, 0)
+
+	c.Check(s.buf.String(), testutil.Contains, "sys_shutdown ")
+	c.Check(s.buf.String(), testutil.Contains, "System shutdown of type restart-system-halt-now [")
+	c.Check(s.buf.String(), testutil.Contains, `[snapd_version="<unknown>"]`)
+	c.Check(s.buf.String(), testutil.Contains, `[restart_type="restart-system-halt-now"]`)
 }
 
 func (s *SecLogSuite) TestLogUserCreated(c *C) {

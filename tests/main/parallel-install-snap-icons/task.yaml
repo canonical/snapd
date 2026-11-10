@@ -17,15 +17,11 @@ details: |
     of other instances, for example by careless use of a glob pattern to remove
     copied files.
 
-restore: |
-    snap unset system experimental.parallel-instances
-
 execute: |
     echo "Install a snap providing icons"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-icon-theme
 
     echo "Install additional instances of the snap"
-    snap set system experimental.parallel-instances=true
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-icon-theme test-snapd-icon-theme_longname
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-icon-theme test-snapd-icon-theme_foo
 

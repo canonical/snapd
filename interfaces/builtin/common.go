@@ -43,9 +43,6 @@ var evalSymlinks = filepath.EvalSymlinks
 var readDir = os.ReadDir
 
 var (
-	errParallelInstancesSystemPlug      = errors.New("system plug cannot have parallel instances")
-	errParallelInstancesSystemSlot      = errors.New("system slot cannot have parallel instances")
-	errParallelInstancesGadgetSlot      = errors.New("gadget slot cannot have parallel instances")
 	errParallelInstancesSharedResources = errors.New("conflicting operations on shared system resources")
 	// errParallelInstancesLibrarySource is used since system*.library-source
 	// files under SnapExportDir use "_" to encode the instance name, slot name
@@ -269,15 +266,4 @@ func (iface *commonInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo
 // slot attributes.
 func (iface *commonInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
 	return iface.parallelInstancesSlotErr
-}
-
-// parallelInstancesSystemOrGadgetSlotErr returns the appropriate parallel
-// instances error for interfaces whose slot can only be provided by
-// system or gadget snap, neither of which support parallel instances.
-// The slot must be non-nil.
-func parallelInstancesSystemOrGadgetSlotErr(slot *snap.SlotInfo) error {
-	if implicitSystemPermanentSlot(slot) {
-		return errParallelInstancesSystemSlot
-	}
-	return errParallelInstancesGadgetSlot
 }

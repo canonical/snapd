@@ -259,13 +259,12 @@ func (iface *systemObserveInterface) MountPermanentPlug(spec *mount.Specificatio
 func init() {
 	registerIface(&systemObserveInterface{
 		commonInterface: commonInterface{
-			name:                     "system-observe",
-			summary:                  systemObserveSummary,
-			implicitOnCore:           true,
-			implicitOnClassic:        true,
-			baseDeclarationSlots:     systemObserveBaseDeclarationSlots,
-			connectedPlugSecComp:     systemObserveConnectedPlugSecComp,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			name:                 "system-observe",
+			summary:              systemObserveSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: systemObserveBaseDeclarationSlots,
+			connectedPlugSecComp: systemObserveConnectedPlugSecComp,
 		},
 	})
 }

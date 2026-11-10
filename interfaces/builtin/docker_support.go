@@ -189,25 +189,42 @@ pivot_root,
 # TODO: When we drop support for executing other snaps from devmode snaps (or 
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:
-# change_profile unsafe /** -> docker-default,
+# change_profile unsafe /** -> {,&}docker-default,
 # below are auto-generated rules using GenerateAAREExclusionPatterns
-###EXCL{change_profile unsafe <> -> docker-default,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
+###EXCL{change_profile unsafe <> -> {,&}docker-default,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
+
+# We support profile stacking so that Docker can opt to stack the docker-default
+# profile on top of @{profile_name} rather than transitioning profiles. This
+# allows Docker to work with the NoNewPrivs option set, because stacking a
+# profile by definition does not add any new privileges, just restrict them to
+# the intersection of both profiles. The name of a stacked profile is the
+# profile names sorted lexicographically and joined by "//&". For completeness,
+# we specify both orders of the profile names throughout the rules below, rather
+# than hard-code assumptions about the name of @{profile_name}.
 
 # signal/tracing rules too
 signal (send) peer=docker-default,
+signal (send, receive) peer="docker-default//&@{profile_name}",
+signal (send, receive) peer="@{profile_name}//&docker-default",
 ptrace (read, trace) peer=docker-default,
+ptrace (read, readby, trace, tracedby) peer="docker-default//&@{profile_name}",
+ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&docker-default",
 
 # defaults for containerd
 # TODO: When we drop support for executing other snaps from devmode snaps (or 
 # when the AppArmor parser bugs are fixed) this can go back to the much simpler
 # rule:	
-# change_profile unsafe /** -> cri-containerd.apparmor.d,
+# change_profile unsafe /** -> {,&}cri-containerd.apparmor.d,
 # below are auto-generated rules using GenerateAAREExclusionPatterns
-###EXCL{change_profile unsafe <> -> cri-containerd.apparmor.d,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
+###EXCL{change_profile unsafe <> -> {,&}cri-containerd.apparmor.d,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 
 # signal/tracing rules too
 signal (send) peer=cri-containerd.apparmor.d,
+signal (send, receive) peer="cri-containerd.apparmor.d//&@{profile_name}",
+signal (send, receive) peer="@{profile_name}//&cri-containerd.apparmor.d",
 ptrace (read, trace) peer=cri-containerd.apparmor.d,
+ptrace (read, readby, trace, tracedby) peer="cri-containerd.apparmor.d//&@{profile_name}",
+ptrace (read, readby, trace, tracedby) peer="@{profile_name}//&cri-containerd.apparmor.d",
 
 # Graph (storage) driver bits
 /{dev,run}/shm/aufs.xino mrw,
@@ -770,7 +787,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		},
 		&apparmor_sandbox.AAREExclusionPatternsOptions{
 			Prefix: "change_profile unsafe ",
-			Suffix: " -> docker-default,",
+			Suffix: " -> {,&}docker-default,",
 		},
 	)
 	if err != nil {
@@ -785,7 +802,7 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		},
 		&apparmor_sandbox.AAREExclusionPatternsOptions{
 			Prefix: "change_profile unsafe ",
-			Suffix: " -> cri-containerd.apparmor.d,",
+			Suffix: " -> {,&}cri-containerd.apparmor.d,",
 		},
 	)
 	if err != nil {
@@ -887,7 +904,6 @@ func init() {
 		controlsDeviceCgroup:     true,
 		serviceSnippets:          []interfaces.PlugServicesSnippet{dockerSupportServiceSnippet},
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 		// docker-support also uses ptrace(trace), but it already declares this in
 		// the AppArmorConnectedPlug method
 	}})

@@ -5,14 +5,9 @@ details: |
     using either the full snap instance name or an implicit snap name without
     the instance key.
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-
-
 restore: |
     snap remove --purge test-snapd-service-with-configure || true
     snap remove --purge test-snapd-service-with-configure_foo || true
-    snap unset system experimental.parallel-instances
 
 execute: |
     function service_start_time {

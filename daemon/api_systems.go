@@ -44,18 +44,49 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type systemsReadAccess struct {
+}
+
+func (a systemsReadAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec *authzRecorder) *apiError {
+	query := r.URL.Query()
+	if query.Get("running") == "true" {
+		return interfaceRootAccess{
+			Interfaces: []string{"snap-fde-control"},
+			Polkit:     polkitActionManageFDE,
+		}.CheckAccess(d, r, ucred, user, rec)
+	}
+
+	return authenticatedAccess{}.CheckAccess(d, r, ucred, user, rec)
+}
+
 var systemsCmd = &Command{
 	Path:       "/v2/systems",
 	GET:        getAllSystems,
-	ReadAccess: authenticatedAccess{},
+	ReadAccess: systemsReadAccess{},
 	// this is awkward, we want the postSystemsAction function to be used
 	// when the label is empty too, but the router will not handle the request
 	// for /v2/systems with the systemsActionCmd and instead handles it through
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
-	POST:        postSystemsAction,
-	Actions:     []string{"reboot", "create", "install", "reprovision", "fix-encryption-support", "generate-recovery-key"},
-	WriteAccess: rootAccess{},
+	POST:    postSystemsAction,
+	Actions: []string{"reboot", "create", "install", "reprovision", "fix-encryption-support", "generate-recovery-key"},
+	WriteAccess: byActionAccess{
+		ByAction: map[string]accessChecker{
+			"fix-encryption-support": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
+			"generate-recovery-key": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
+			"reprovision": interfaceRootAccess{
+				Interfaces: []string{"snap-fde-control"},
+				Polkit:     polkitActionManageFDE,
+			},
+		},
+		Default: rootAccess{},
+	},
 }
 
 var systemsActionCmd = &Command{

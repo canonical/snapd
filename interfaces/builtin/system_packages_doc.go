@@ -204,8 +204,7 @@ func init() {
 			implicitOnClassic:    true,
 			baseDeclarationSlots: systemPackagesDocBaseDeclarationSlots,
 			// affects the plug snap because of mount backend
-			affectsPlugOnRefresh:     true,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			affectsPlugOnRefresh: true,
 		},
 	})
 }

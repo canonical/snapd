@@ -91,6 +91,5 @@ func init() {
 		baseDeclarationSlots:     checkboxSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     checkboxSupportBaseDeclarationPlugs,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	})
 }

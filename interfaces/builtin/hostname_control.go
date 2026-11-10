@@ -88,14 +88,13 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "hostname-control",
-		summary:                  hostnameControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     hostnameControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    hostnameControlConnectedPlugAppArmor,
-		connectedPlugSecComp:     hostnameControlConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "hostname-control",
+		summary:               hostnameControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  hostnameControlBaseDeclarationSlots,
+		connectedPlugAppArmor: hostnameControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  hostnameControlConnectedPlugSecComp,
 	})
 
 }

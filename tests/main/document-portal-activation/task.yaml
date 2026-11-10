@@ -45,6 +45,12 @@ execute: |
 
     check_stderr() {
         test -n "$1"
+        if [ -n "$TAG_FEATURES" ]; then
+            # Filter out feature-tagging JSON log lines
+            if grep -v '"level":' "$1" > "$1.tmp" 2>/dev/null; then
+                mv "$1.tmp" "$1"
+            fi
+        fi
         if [ -s "$1" ]; then
             echo "stderr contains some messages"
             cat "$1"

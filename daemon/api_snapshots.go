@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -114,7 +115,9 @@ func (action snapshotAction) String() string {
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	if contentType == client.SnapshotExportMediaType {
+	// ignore error as proper parsing was not enforced in the past
+	mediaType, _, _ := mime.ParseMediaType(contentType)
+	if mediaType == client.SnapshotExportMediaType {
 		return doSnapshotImport(c, r, user)
 	}
 

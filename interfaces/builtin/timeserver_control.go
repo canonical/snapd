@@ -131,13 +131,12 @@ bind
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "timeserver-control",
-		summary:                  timeserverControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     timeserverControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    timeserverControlConnectedPlugAppArmor,
-		connectedPlugSecComp:     timeserverControlConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "timeserver-control",
+		summary:               timeserverControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  timeserverControlBaseDeclarationSlots,
+		connectedPlugAppArmor: timeserverControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timeserverControlConnectedPlugSecComp,
 	})
 }

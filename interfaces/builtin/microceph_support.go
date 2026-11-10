@@ -124,6 +124,5 @@ func init() {
 		baseDeclarationSlots:     microcephSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     microcephSupportBaseDeclarationPlugs,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

@@ -277,7 +277,7 @@ func MockSnapstateTryPath(mock func(*state.State, string, string, snapstate.Flag
 	}
 }
 
-func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateSwitch(mock func(*state.State, naming.InstanceName, *snapstate.RevisionOptions, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateSwitch := snapstateSwitch
 	snapstateSwitch = mock
 	return func() {
@@ -341,7 +341,7 @@ func MockSnapstateResolveValSetEnforcementError(f func(context.Context, *state.S
 	}
 }
 
-func MockSnapstateMigrate(mock func(*state.State, []string) ([]*state.TaskSet, error)) (restore func()) {
+func MockSnapstateMigrate(mock func(*state.State, []naming.InstanceName) ([]*state.TaskSet, error)) (restore func()) {
 	oldSnapstateMigrate := snapstateMigrateHome
 	snapstateMigrateHome = mock
 	return func() {

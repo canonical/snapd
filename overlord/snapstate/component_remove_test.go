@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -313,6 +314,78 @@ func (s *snapmgrTestSuite) TestRemoveComponentPathRun(c *C) {
 	c.Assert(snapst.IsComponentInCurrentSeq(cref2), Equals, true)
 }
 
+func setInstanceStateWithComponents(st *state.State, snapName, instanceKey string,
+	snapRev snap.Revision, comps []*sequence.ComponentState) {
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id"}
+	snapstate.Set(st, snap.InstanceName(snapName, instanceKey).String(), &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, comps)}),
+		Current:     snapRev,
+		InstanceKey: instanceKey,
+	})
+}
+
+func (s *snapmgrTestSuite) TestRemoveComponentPathRunParallelInstance(c *C) {
+	const snapName = "mysnap"
+	const instanceName = "mysnap_key"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, _ := createTestComponent(c, snapName, compName, info)
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	cref := naming.NewComponentRef(snapName, compName)
+	newComps := func() []*sequence.ComponentState {
+		csi := snap.NewComponentSideInfo(cref, snap.R(1))
+		return []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}
+	}
+	setStateWithComponents(s.state, snapName, snapRev, newComps())
+	setInstanceStateWithComponents(s.state, snapName, "key", snapRev, newComps())
+
+	tss, err := snapstate.RemoveComponents(s.state, instanceName,
+		[]string{compName}, snapstate.RemoveComponentsOpts{})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 1)
+
+	chg := s.state.NewChange("remove component", "...")
+	chg.AddAll(tss[0])
+
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	verifyComponentRemoveTasks(c, compCurrentIsDiscarded, tss[0])
+
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:   "unlink-component",
+		path: snap.ComponentMountDir(compName, snap.R(1), instanceName),
+	})
+	c.Check(s.fakeBackend.ops, testutil.DeepContains, fakeOp{
+		op:                "undo-setup-component",
+		containerName:     "mysnap_key+mycomp",
+		containerFileName: "mysnap_key+mycomp_1.comp",
+	})
+	for _, op := range s.fakeBackend.ops {
+		c.Check(op.containerName, Not(Equals), "mysnap+mycomp")
+		c.Check(op.path, Not(Equals), snap.ComponentMountDir(compName, snap.R(1), snapName))
+	}
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
+	c.Check(snapst.IsComponentInCurrentSeq(cref), Equals, false)
+
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Check(snapst.IsComponentInCurrentSeq(cref), Equals, true)
+}
+
 func (s *snapmgrTestSuite) TestRemoveComponentsPathRunWithError(c *C) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
@@ -503,6 +576,59 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(tss), Equals, 1)
 	verifyComponentRemoveTasks(c, compCurrentIsDiscarded, tss[0])
+}
+
+func (s *snapmgrTestSuite) TestRemoveComponentNoConflictWithOtherInstance(c *C) {
+	const snapName = "some-snap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, _ := createTestComponent(c, snapName, compName, info)
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	cref := naming.NewComponentRef(snapName, compName)
+	newComps := func() []*sequence.ComponentState {
+		csi := snap.NewComponentSideInfo(cref, snap.R(1))
+		return []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}
+	}
+	setStateWithComponents(s.state, snapName, snapRev, newComps())
+	setInstanceStateWithComponents(s.state, snapName, "key", snapRev, newComps())
+
+	tupd, err := snapstate.Update(s.state, snapName,
+		&snapstate.RevisionOptions{Channel: ""}, s.user.ID,
+		snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("update", "update a snap")
+	chg.AddAll(tupd)
+
+	tss, err := snapstate.RemoveComponents(s.state, "some-snap_key", []string{compName},
+		snapstate.RemoveComponentsOpts{})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 1)
+
+	_, err = snapstate.RemoveComponents(s.state, snapName, []string{compName},
+		snapstate.RemoveComponentsOpts{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" has "update" change in progress`)
+
+	// reverse: an in-progress change on the instance blocks only the instance
+	chg.SetStatus(state.DoneStatus)
+	instChg := s.state.NewChange("remove-component", "remove instance component")
+	instChg.AddAll(tss[0])
+
+	tss, err = snapstate.RemoveComponents(s.state, snapName, []string{compName},
+		snapstate.RemoveComponentsOpts{})
+	c.Assert(err, IsNil)
+	c.Assert(tss, HasLen, 1)
+
+	_, err = snapstate.RemoveComponents(s.state, "some-snap_key", []string{compName},
+		snapstate.RemoveComponentsOpts{})
+	c.Assert(err, ErrorMatches, `snap "some-snap_key" has "remove-component" change in progress`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveComponentInSeedRefresh(c *C) {

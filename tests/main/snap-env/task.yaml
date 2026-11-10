@@ -16,16 +16,8 @@ environment:
     INSTANCE_KEY/parallel: foo
 
 prepare: |
-    if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
-        snap set system experimental.parallel-instances=true
-    fi
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-tools "$NAME"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop-file-ids
-
-restore: |
-    if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
-        snap set system experimental.parallel-instances=null
-    fi
 
 debug: |
     find . -name '*-vars.txt' -exec cat {} \;

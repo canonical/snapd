@@ -46,9 +46,29 @@ permissions:
   actions: read
 
 jobs:
+  snap-builds:
+    uses: ./.github/workflows/snap-builds.yaml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      toolchain: ${{ matrix.toolchain }}
+      variant: ${{ matrix.variant }}
+    strategy:
+      matrix:
+        runs-on:
+          - '["ubuntu-24.04"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+        toolchain:
+          - default
+          - FIPS
+        variant:
+          - test
+        exclude:
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "noble", "ARM64", "large"]' || '["ubuntu-24.04-arm"]' }}
+            toolchain: FIPS
 
   spread-nightly:
     if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly') }}
+    needs: snap-builds
     uses: ./.github/workflows/spread-tests.yaml
     secrets: inherit
     with:
@@ -58,7 +78,6 @@ jobs:
       systems: 'ALL'
       tasks: 'tests/nightly/...'
       rules: ''
-      use-snapd-snap-from-master: true
       scenario: master
 
   spread-test-build-from-current:
@@ -105,7 +124,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
-    needs: [read-systems]
+    needs: [read-systems, snap-builds]
     secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
@@ -119,7 +138,6 @@ jobs:
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
       is-fundamental: true
-      use-snapd-snap-from-master: true
       scenario: master
     strategy:
       fail-fast: false
@@ -129,7 +147,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-not-fundamental') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
-    needs: [read-systems]
+    needs: [read-systems, snap-builds]
     secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
@@ -142,7 +160,6 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
-      use-snapd-snap-from-master: true
       scenario: master
     strategy:
       fail-fast: false
@@ -152,7 +169,7 @@ jobs:
     if: ${{ github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-master-nested') }}
     uses: ./.github/workflows/spread-tests.yaml
     name: "spread master ${{ matrix.group }}"
-    needs: [read-systems]
+    needs: [read-systems, snap-builds]
     secrets: inherit
     with:
       # Github doesn't support passing sequences as parameters.
@@ -165,7 +182,6 @@ jobs:
       systems: ${{ matrix.systems }}
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
-      use-snapd-snap-from-master: true
       scenario: master
     strategy:
       fail-fast: false
@@ -174,6 +190,7 @@ jobs:
   spread-test-with-kernels:
     if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-with-kernels') }}
     uses: ./.github/workflows/spread-tests.yaml
+    needs: snap-builds
     secrets: inherit
     with:
       runs-on: '["self-hosted", "spread-enabled"]'
@@ -212,7 +229,6 @@ jobs:
         tests/main/lxd-snapfuse
         tests/main/user-mounts
       rules: ''
-      use-snapd-snap-from-master: true
       spread-env: "SPREAD_UPDATE_UBUNTU_KERNEL_PATTERN=${{ matrix.kernel }}"
       scenario: kernels
     strategy:

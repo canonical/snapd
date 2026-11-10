@@ -37,12 +37,11 @@ const snapFDEControlBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "snap-fde-control",
-		summary:                  snapFDEControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     snapFDEControlBaseDeclarationPlugs,
-		baseDeclarationSlots:     snapFDEControlBaseDeclarationSlots,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                 "snap-fde-control",
+		summary:              snapFDEControlSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: snapFDEControlBaseDeclarationPlugs,
+		baseDeclarationSlots: snapFDEControlBaseDeclarationSlots,
 	})
 }

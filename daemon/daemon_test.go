@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	fdestatebackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -61,8 +62,10 @@ import (
 	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -83,6 +86,24 @@ func addUcrednet(r *http.Request, securityTag string, uid uint32, socket string,
 
 var _ = check.Suite(&daemonSuite{})
 
+type mockFdstore struct{}
+
+func (m *mockFdstore) Add(name fdstore.FdName, f *os.File) error {
+	return nil
+}
+
+func (m *mockFdstore) Get(name fdstore.FdName) (*os.File, error) {
+	return nil, fdstore.ErrNotFound
+}
+
+func (m *mockFdstore) Remove(name fdstore.FdName) error {
+	return errors.New("mockFdstore.Remove() not implemented")
+}
+
+func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
+	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
+}
+
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -100,6 +121,9 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(MockRebootNoticeWait(0))
 
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
+
+	// mock fdstore so that FDEManager initialization doesn't fail
+	s.AddCleanup(fdestatebackend.MockFdstoreNew(func() fdstore.Store { return &mockFdstore{} }))
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
@@ -852,6 +876,7 @@ func (s *daemonSuite) TestRestartDaemonAfterSocketStandby(c *check.C) {
 	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason snapd-update")
 	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), seclog.SnapdRestartIdleAborted)
 }
 
 func (s *daemonSuite) TestGracefulStop(c *check.C) {
@@ -1050,6 +1075,7 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	defer seclog.Setup(seclog.NewNopLogger())
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	// mark as already seeded
 	s.markSeeded(d)
 
@@ -1078,12 +1104,18 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	expectedAction := boot.RebootReboot
 	expectedOp := "reboot"
+	expectedEvent := "sys_restart"
+	expectedDescription := "System restart"
 	if restartKind == restart.RestartSystemHaltNow {
 		expectedAction = boot.RebootHalt
 		expectedOp = "halt"
+		expectedEvent = "sys_shutdown"
+		expectedDescription = "System shutdown"
 	} else if restartKind == restart.RestartSystemPoweroffNow {
 		expectedAction = boot.RebootPoweroff
 		expectedOp = "poweroff"
+		expectedEvent = "sys_shutdown"
+		expectedDescription = "System shutdown"
 	}
 	var delays []time.Duration
 	reboot = func(a boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
@@ -1154,6 +1186,21 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	c.Check(timeToStop > rebootWaitTimeout+rebootNoticeWait, check.Equals, true)
 	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
 	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, expectedEvent+" ")
+	logged := fmt.Sprintf("%s of type %s", expectedDescription, restartKind)
+	if expectedEvent == "sys_restart" && wait > 0 {
+		logged = fmt.Sprintf("%s in %s", logged, wait)
+	}
+	// the description ends where the attributes begin
+	c.Check(seclogBuf.String(), testutil.Contains, logged+" [")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, fmt.Sprintf(`[restart_type="%s"]`, restartKind))
+	if expectedEvent == "sys_restart" {
+		c.Check(seclogBuf.String(), testutil.Contains, `[retry=false]`)
+	} else {
+		c.Check(seclogBuf.String(), check.Not(testutil.Contains), `[retry=`)
+	}
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), `[reason=`)
 
 	c.Check(delays, check.HasLen, 2)
 	c.Check(delays[1], check.DeepEquals, wait)
@@ -1387,6 +1434,10 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	rebootRetryWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	nRebootCall := 0
 	rebootCheck := func(ra boot.RebootAction, d time.Duration, ri *boot.RebootInfo) error {
 		nRebootCall++
@@ -1400,6 +1451,7 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 	defer r()
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	c.Check(d.overlord, check.IsNil)
 	c.Check(d.expectedRebootDidNotHappen, check.Equals, true)
 
@@ -1426,6 +1478,31 @@ func (s *daemonSuite) TestRestartExpectedRebootDidNotHappen(c *check.C) {
 
 	// we must have called reboot once
 	c.Check(nRebootCall, check.Equals, 1)
+	c.Check(strings.Count(seclogBuf.String(), "sys_restart "), check.Equals, 1)
+	// the retry's scheduled time is now or in the past, so there is no delay clause
+	c.Check(seclogBuf.String(), testutil.Contains, "System restart retry of type restart-system [")
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[restart_type="restart-system"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[retry=true]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), `[reason=`)
+}
+
+func (s *daemonSuite) TestDoRebootDoesNotLogWhenRebootFails(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+	restore := MockReboot(func(boot.RebootAction, time.Duration, *boot.RebootInfo) error {
+		return errors.New("cannot reboot")
+	})
+	defer restore()
+
+	err := d.doReboot(nil, restart.RestartSystemNow, nil, true, time.Second)
+	c.Check(err, check.ErrorMatches, "cannot reboot")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_shutdown")
 }
 
 func (s *daemonSuite) TestRestartExpectedRebootOK(c *check.C) {
@@ -1521,6 +1598,7 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	defer restore()
 
 	d := s.newTestDaemon(c)
+	d.Version = "2.78"
 	makeDaemonListeners(c, d)
 
 	// mark as already seeded, we also have no snaps so this will
@@ -1556,7 +1634,87 @@ func (s *daemonSuite) TestRestartIntoSocketModePendingChanges(c *check.C) {
 	// when the daemon got a pending change it just restarts
 	err := d.Stop(nil)
 	c.Check(err, check.IsNil)
-	c.Check(seclogBuf.String(), check.Equals, "")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+seclog.SnapdRestartIdleAborted)
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+seclog.SnapdRestartIdleAborted+`"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+}
+
+func (s *daemonSuite) TestStopNoOverlordLogsRestart(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := &Daemon{Version: "2.78"}
+	err := d.Stop(nil)
+	c.Check(err, check.ErrorMatches, "internal error: no Overlord")
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+seclog.SnapdRestartStopFailed)
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+seclog.SnapdRestartStopFailed+`"]`)
+}
+
+func (s *daemonSuite) TestStopTombWaitLogsRestart(c *check.C) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+	makeDaemonListeners(c, d)
+	s.markSeeded(d)
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	// A tracked goroutine returning this error is what tomb.Wait reports.
+	// It is not a deadline and not net.ErrClosed, so Stop logs and returns it.
+	stopErr := errors.New("cannot stop snapd")
+	d.tomb.Go(func() error {
+		return stopErr
+	})
+	for i := 0; i < 1000 && d.tomb.Err() != stopErr; i++ {
+		time.Sleep(time.Millisecond)
+	}
+	c.Assert(d.tomb.Err(), check.Equals, stopErr)
+
+	err := d.Stop(nil)
+	c.Check(err, check.Equals, stopErr)
+	c.Check(seclogBuf.String(), testutil.Contains, "sys_restart_snapd")
+	c.Check(seclogBuf.String(), testutil.Contains, "Snapd restart with reason "+seclog.SnapdRestartStopFailed)
+	c.Check(seclogBuf.String(), testutil.Contains, `[snapd_version="2.78"]`)
+	c.Check(seclogBuf.String(), testutil.Contains, `[reason="`+seclog.SnapdRestartStopFailed+`"]`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
+}
+
+func (s *daemonSuite) TestStopTombWaitPreseedDoesNotLogRestart(c *check.C) {
+	restore := snapdenv.MockPreseeding(true)
+	defer restore()
+
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
+	d := s.newTestDaemon(c)
+	d.Version = "2.78"
+	makeDaemonListeners(c, d)
+	s.markSeeded(d)
+	c.Assert(d.Start(context.Background()), check.IsNil)
+
+	// A tracked goroutine returning this error is what tomb.Wait reports.
+	// Preseed stops on the build host, so Stop returns it without a restart event.
+	stopErr := errors.New("cannot stop snapd")
+	d.tomb.Go(func() error {
+		return stopErr
+	})
+	for i := 0; i < 1000 && d.tomb.Err() != stopErr; i++ {
+		time.Sleep(time.Millisecond)
+	}
+	c.Assert(d.tomb.Err(), check.Equals, stopErr)
+
+	err := d.Stop(nil)
+	c.Check(err, check.Equals, stopErr)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_restart_snapd")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "sys_standby_snapd")
 }
 
 func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {

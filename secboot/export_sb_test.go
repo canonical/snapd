@@ -611,3 +611,7 @@ func MockTPMResetDictionaryAttackLock(f func(tpm *sb_tpm2.Connection, lockoutAut
 func MockSbKeyDataRecoverKeys(f func(d *sb.KeyData) (sb.DiskUnlockKey, sb.PrimaryKey, error)) (restore func()) {
 	return testutil.Mock(&sbKeyDataRecoverKeys, f)
 }
+
+func MockSbTestLUKS2ContainerKeyForKeyslot(f func(devicePath string, name string, key []byte) (bool, error)) (restore func()) {
+	return testutil.Mock(&sbTestLUKS2ContainerKeyForKeyslot, f)
+}

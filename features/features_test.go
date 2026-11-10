@@ -194,7 +194,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 		tested++
 	}
 
-	check(features.ParallelInstances, false)
+	check(features.ParallelInstances, true)
 	check(features.Hotplug, false)
 	check(features.UserDaemons, false)
 	check(features.HiddenSnapDataHomeDir, false)

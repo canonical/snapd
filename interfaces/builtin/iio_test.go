@@ -266,7 +266,3 @@ func (s *IioInterfaceSuite) TestAutoConnect(c *C) {
 func (s *IioInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
-
-func (s *IioInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
-}

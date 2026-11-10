@@ -76,6 +76,5 @@ func init() {
 		connectedPlugSecComp:     auditdSupportConnectedPlugSecComp,
 		connectedPlugAppArmor:    auditdSupportConnectedPlugAppArmor,
 		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
 	}})
 }

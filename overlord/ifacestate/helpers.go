@@ -1308,7 +1308,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 		return nil, err
 	}
 	appSets := make([]*interfaces.SnapAppSet, 0, len(all))
-	seen := make(map[string]bool, len(all))
+	seen := make(map[naming.InstanceName]bool, len(all))
 	for instanceName, snapst := range all {
 		if snapst.Active {
 			snapInfo, err := snapst.CurrentInfo()
@@ -1372,7 +1372,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			return nil, err
 		}
 		instanceName := snapsup.InstanceName()
-		if seen[instanceName.String()] {
+		if seen[instanceName] {
 			continue
 		}
 
@@ -1393,7 +1393,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			continue
 		}
 
-		seen[instanceName.String()] = true
+		seen[instanceName] = true
 		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)

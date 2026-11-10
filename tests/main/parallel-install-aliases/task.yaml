@@ -13,13 +13,8 @@ details: |
     break or get confused with the other snap instance.
 
 prepare: |
-    snap set system experimental.parallel-instances=true
-
     "$TESTSTOOLS"/snaps-state install-local aliases
     "$TESTSTOOLS"/snaps-state install-local-as aliases aliases_foo
-
-restore: |
-    snap set system experimental.parallel-instances=null
 
 execute: |
     echo "Create manual aliases"

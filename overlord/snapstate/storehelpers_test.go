@@ -22,6 +22,8 @@ package snapstate_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -31,8 +33,10 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 )
@@ -427,6 +431,126 @@ func (s *snapmgrTestSuite) TestInstallSizeErrorNoDownloadInfo(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: download info missing.*`)
 }
 
+func storeComponentSetup(snapName, compName string, rev int, size int64) snapstate.ComponentSetup {
+	return snapstate.ComponentSetup{
+		CompSideInfo: snap.NewComponentSideInfo(naming.NewComponentRef(naming.SnapName(snapName), compName), snap.R(rev)),
+		CompType:     snap.StandardComponent,
+		DownloadInfo: &snap.DownloadInfo{Size: size},
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithComponents(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	info := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+	info.Size = snap1Size
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.NewInstallSnapInfoWithComponents(info, []snapstate.ComponentSetup{
+			storeComponentSetup("some-snap", "comp-1", 1, snap2Size),
+			storeComponentSetup("some-snap", "comp-2", 2, snap3Size),
+		}),
+	}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size+snap2Size+snap3Size))
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithComponentsExcludesPresentRevisions(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// comp-1 at revision 1 is on the system, but only with the old snap
+	// revision. its file can be used again, so it takes no new space.
+	compSI := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-1"), snap.R(1))
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(&snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)},
+				[]*sequence.ComponentState{sequence.NewComponentState(compSI, snap.StandardComponent)}),
+		}),
+		Current: snap.R(1),
+	})
+
+	info := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	})
+	info.Size = snap1Size
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.NewInstallSnapInfoWithComponents(info, []snapstate.ComponentSetup{
+			storeComponentSetup("some-snap", "comp-1", 1, snap2Size),
+			storeComponentSetup("some-snap", "comp-2", 2, snap3Size),
+		}),
+	}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size+snap3Size))
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithComponentsSnapRevisionPresent(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	compSI := snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-1"), snap.R(1))
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(&snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)},
+				[]*sequence.ComponentState{sequence.NewComponentState(compSI, snap.StandardComponent)}),
+		}),
+		Current: snap.R(1),
+	})
+
+	// the snap revision is already on the system, but the new component is
+	// not
+	info := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+	info.Size = snap1Size
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.NewInstallSnapInfoWithComponents(info, []snapstate.ComponentSetup{
+			storeComponentSetup("some-snap", "comp-1", 1, snap2Size),
+			storeComponentSetup("some-snap", "comp-2", 2, snap3Size),
+		}),
+	}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap3Size))
+}
+
+func (s *snapmgrTestSuite) TestInstallSizeWithLocalComponent(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	compPath := filepath.Join(c.MkDir(), "some-snap+comp-1.comp")
+	c.Assert(os.WriteFile(compPath, make([]byte, snap2Size), 0644), IsNil)
+
+	info := snaptest.MockSnap(c, snapYaml2, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	})
+	info.Size = snap1Size
+
+	sz, err := snapstate.InstallSize(st, []snapstate.MinimalInstallInfo{
+		snapstate.NewInstallSnapInfoWithComponents(info, []snapstate.ComponentSetup{{
+			CompSideInfo: snap.NewComponentSideInfo(naming.NewComponentRef("some-snap", "comp-1"), snap.Revision{}),
+			CompType:     snap.StandardComponent,
+			CompPath:     compPath,
+		}}),
+	}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(sz, Equals, uint64(snap1Size+snap2Size))
+}
+
 func (s *snapmgrTestSuite) TestInstallSizeWithPrereqNoStore(c *C) {
 	st := s.state
 	st.Lock()
@@ -575,7 +699,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSnapsOnly(c *C) {
 	_, err := snapstate.HoldRefresh(st, snapstate.HoldGeneral, "snap-c", 24*time.Hour, "snap-a", "snap-b")
 	c.Assert(err, IsNil)
 
-	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b", "snap-c"})
+	snapHolds, err := snapstate.SnapHolds(st, []naming.InstanceName{"snap-a", "snap-b", "snap-c"})
 	c.Assert(err, IsNil)
 	c.Check(snapHolds, DeepEquals, map[string][]string{
 		"snap-a": {"snap-c"},
@@ -605,7 +729,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSystemOnly(c *C) {
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	snapHolds, err := snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	snapHolds, err := snapstate.SnapHolds(st, []naming.InstanceName{"snap-a", "snap-b"})
 	c.Assert(err, IsNil)
 	c.Check(snapHolds, DeepEquals, map[string][]string{
 		"snap-a": {"system"},
@@ -617,7 +741,7 @@ func (s *snapmgrTestSuite) TestSnapHoldsSystemOnly(c *C) {
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	snapHolds, err = snapstate.SnapHolds(st, []string{"snap-a", "snap-b"})
+	snapHolds, err = snapstate.SnapHolds(st, []naming.InstanceName{"snap-a", "snap-b"})
 	c.Assert(err, IsNil)
 	c.Check(snapHolds, DeepEquals, map[string][]string{
 		"snap-a": {"system"},

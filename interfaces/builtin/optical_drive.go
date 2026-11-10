@@ -101,12 +101,11 @@ func (iface *opticalDriveInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 
 func init() {
 	registerIface(&opticalDriveInterface{commonInterface: commonInterface{
-		name:                     "optical-drive",
-		summary:                  opticalDriveSummary,
-		implicitOnCore:           false,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     opticalDriveBaseDeclarationSlots,
-		connectedPlugUDev:        opticalDriveConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                 "optical-drive",
+		summary:              opticalDriveSummary,
+		implicitOnCore:       false,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: opticalDriveBaseDeclarationSlots,
+		connectedPlugUDev:    opticalDriveConnectedPlugUDev,
 	}})
 }

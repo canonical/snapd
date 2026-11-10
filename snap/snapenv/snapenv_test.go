@@ -485,6 +485,22 @@ func (s *HTestSuite) TestExtendEnvForRunWithComponentNoVersion(c *C) {
 	checkEnvWithComp(c, env, compVersion)
 }
 
+func (s *HTestSuite) TestExtendEnvForRunWithComponentParallelInstance(c *C) {
+	info := *mockSnapInfoWithComponents
+	info.InstanceKey = "bar"
+
+	env := osutil.Environment{"TMPDIR": "/var/tmp"}
+	ExtendEnvForRun(env, &info, nil, mockComponentInfo, nil)
+
+	// the mount namespace maps the instance paths onto the plain snap name
+	checkEnvWithComp(c, env, "1.1")
+	// component name uses the snap name, not the instance name
+	c.Check(env["SNAP_COMPONENT_NAME"], Equals, "foo+comp")
+	c.Check(env["SNAP_COMPONENTS"], Equals, filepath.Join(dirs.CoreSnapMountDir, "foo/components/17"))
+	c.Check(env["SNAP_INSTANCE_NAME"], Equals, "foo_bar")
+	c.Check(env["SNAP_INSTANCE_KEY"], Equals, "bar")
+}
+
 func (s *HTestSuite) TestHiddenDirEnv(c *C) {
 	usr, err := user.Current()
 	c.Assert(err, IsNil)

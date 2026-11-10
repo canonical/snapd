@@ -1845,6 +1845,41 @@ func (s *RunSuite) TestSnapRunExposeKerberosTickets(c *check.C) {
 	c.Assert(logbuf.String(), testutil.Contains, "will not expose Kerberos tickets")
 }
 
+func (s *RunSuite) TestExposeKerberosTickets(c *check.C) {
+	tests := []struct {
+		krb5ccname string
+		expected   string
+	}{
+		{"FILE:/tmp/krb5cc_1000", "FILE:/var/lib/snapd/hostfs/tmp/krb5cc_1000"},
+		{"DIR:/tmp/krb5cc_1000_dir_test", "DIR:/var/lib/snapd/hostfs/tmp/krb5cc_1000_dir_test"},
+		{"DIR::/tmp/krb5cc_1000_dir_test/ticket", ""},
+		{"DIR:/tmp/krb5cc_1000_dir_test/ticket", ""},
+		{"DIR:/tmp/not-a-cache", ""},
+		{"DIR:krb5cc_1000_dir_test", ""},
+		{"KEYRING:persistent:1000", ""},
+	}
+
+	for _, test := range tests {
+		restore := snaprun.MockGetEnv(func(name string) string {
+			if name == "KRB5CCNAME" {
+				return test.krb5ccname
+			}
+			return ""
+		})
+		actual, err := snaprun.ExposeKerberosTickets(nil)
+		restore()
+
+		comment := check.Commentf("KRB5CCNAME=%q", test.krb5ccname)
+		if test.expected == "" {
+			c.Check(err, check.ErrorMatches, "Unsupported KRB5CCNAME: .*", comment)
+			c.Check(actual, check.Equals, "", comment)
+		} else {
+			c.Check(err, check.IsNil, comment)
+			c.Check(actual, check.Equals, test.expected, comment)
+		}
+	}
+}
+
 func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 

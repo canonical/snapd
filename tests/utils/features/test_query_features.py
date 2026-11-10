@@ -92,9 +92,10 @@ class FakeMongoCollection:
 
 
 class MongoMocker:
-    def __init__(self, collection_data, do_patch_stdout=False):
+    def __init__(self, collection_data, do_patch_stdout=False, coverage_data=None):
         self.collection_data = collection_data
-        for data in self.collection_data:
+        self.coverage_data = coverage_data or []
+        for data in self.collection_data + self.coverage_data:
             if 'timestamp' in data:
                 data['timestamp'] = datetime.fromisoformat(data['timestamp'])
         self.do_patch_stdout = do_patch_stdout
@@ -106,10 +107,12 @@ class MongoMocker:
 
     def __enter__(self):
         data = self.collection_data
+        coverage_data = self.coverage_data
 
-        def my_init(self, *_):
-            super(query_features.MongoRetriever, self).__init__()
+        def my_init(self, *_, exclude=None):
+            super(query_features.MongoRetriever, self).__init__(exclude)
             self.collection = FakeMongoCollection(data)
+            self.coverage_collection = FakeMongoCollection(coverage_data)
             self.client = FakeClient()
         self.patch_mongo = patch.object(
             query_features.MongoRetriever, '__init__', my_init)
@@ -1094,6 +1097,46 @@ class TestQueryFeatures:
             assert in_actual
             assert {'timestamp': '2025-05-05T00:00:00', 'systems': ['system2']} in actual
 
+
+    def test_mongoretriever_merges_split_coverages(self):
+        data = [
+            {'timestamp': '2025-05-04', 'system': 'system', 'tests': [
+                {'suite': 'tests/main', 'task_name': 'a', 'variant': '', 'cmds': [{'cmd': 'a'}]},
+                {'suite': 'tests/main', 'task_name': 'b', 'variant': 'v1', 'cmds': [{'cmd': 'b'}]},
+                {'suite': 'tests/main', 'task_name': 'c', 'variant': '', 'cmds': [{'cmd': 'c'}],
+                 'coverages': [{'file': 'inline.go', 'func': 'Inline'}]},
+            ]},
+        ]
+        coverage_data = [
+            {'timestamp': '2025-05-04', 'system': 'system', 'suite': 'tests/main', 'task_name': 'a', 'variant': '',
+             'coverages': [{'file': 'a.go', 'func': 'A'}]},
+            {'timestamp': '2025-05-04', 'system': 'system', 'suite': 'tests/main', 'task_name': 'b', 'variant': 'v1',
+             'coverages': [{'file': 'b.go', 'func': 'B'}]},
+            {'timestamp': '2025-05-04', 'system': 'other', 'suite': 'tests/main', 'task_name': 'a', 'variant': '',
+             'coverages': [{'file': 'other.go', 'func': 'Other'}]},
+        ]
+        with MongoMocker(data, coverage_data=coverage_data):
+            retriever = query_features.MongoRetriever(None)
+            tests = retriever.get_single_json('2025-05-04', 'system')['tests']
+            assert tests[0]['coverages'] == [{'file': 'a.go', 'func': 'A'}]
+            assert tests[1]['coverages'] == [{'file': 'b.go', 'func': 'B'}]
+            # data uploaded before coverages were split out keeps its inline coverages
+            assert tests[2]['coverages'] == [{'file': 'inline.go', 'func': 'Inline'}]
+
+    def test_mongoretriever_skips_split_coverages_when_excluded(self):
+        data = [
+            {'timestamp': '2025-05-04', 'system': 'system', 'tests': [
+                {'suite': 'tests/main', 'task_name': 'a', 'variant': '', 'cmds': [{'cmd': 'a'}]},
+            ]},
+        ]
+        coverage_data = [
+            {'timestamp': '2025-05-04', 'system': 'system', 'suite': 'tests/main', 'task_name': 'a', 'variant': '',
+             'coverages': [{'file': 'a.go', 'func': 'A'}]},
+        ]
+        with MongoMocker(data, coverage_data=coverage_data):
+            retriever = query_features.MongoRetriever(None, exclude=['coverages'])
+            systems = list(retriever.get_systems('2025-05-04'))
+            assert 'coverages' not in systems[0]['tests'][0]
 
     @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
     @patch('argparse.ArgumentParser.parse_args')

@@ -272,7 +272,7 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapNames := []string{"some-snap", "other-snap"}
+	snapNames := []naming.InstanceName{"some-snap", "other-snap"}
 	_, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)
 

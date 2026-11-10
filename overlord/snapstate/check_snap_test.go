@@ -1576,7 +1576,7 @@ func (s *snapmgrTestSuite) TestInstallManyDesktopFileIDsConflicts(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapNames := []string{"some-snap", "other-snap"}
+	snapNames := []naming.InstanceName{"some-snap", "other-snap"}
 	// Don't use channel-for-desktop-file-ids to pass early checks and instead fail inside the install transaction
 	_, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
 	c.Assert(err, IsNil)

@@ -229,13 +229,12 @@ func (iface *kernelModuleLoadInterface) AutoConnect(*snap.PlugInfo, *snap.SlotIn
 func init() {
 	registerIface(&kernelModuleLoadInterface{
 		commonInterface: commonInterface{
-			name:                     "kernel-module-load",
-			summary:                  kernelModuleLoadSummary,
-			baseDeclarationPlugs:     kernelModuleLoadBaseDeclarationPlugs,
-			baseDeclarationSlots:     kernelModuleLoadBaseDeclarationSlots,
-			implicitOnCore:           true,
-			implicitOnClassic:        true,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			name:                 "kernel-module-load",
+			summary:              kernelModuleLoadSummary,
+			baseDeclarationPlugs: kernelModuleLoadBaseDeclarationPlugs,
+			baseDeclarationSlots: kernelModuleLoadBaseDeclarationSlots,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
 		},
 	})
 }
