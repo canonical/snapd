@@ -23,7 +23,7 @@ require (
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/secboot v0.0.0-20260925074118-4924adcf6262
 	golang.org/x/crypto v0.23.0
-	golang.org/x/net v0.21.0 // indirect
+	golang.org/x/net v0.21.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/sys v0.21.0
 	golang.org/x/text v0.15.0
