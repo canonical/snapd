@@ -19,8 +19,17 @@
 
 package udev
 
+import (
+	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/testutil"
+)
+
 func (b *Backend) ReloadRules(subsystemTriggers []string) error {
 	return b.reloadRules(subsystemTriggers)
 }
 
 var ReadRulesSubsystemTriggers = readRulesSubsystemTriggers
+
+func MockRemoveDeviceCgroup(fn func(instanceName naming.InstanceName) error) (restore func()) {
+	return testutil.Mock(&removeDeviceCgroup, fn)
+}

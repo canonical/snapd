@@ -88,36 +88,88 @@ func (s *ebpfSuite) TestDeviceKeyUnmarshalTooShort(c *C) {
 	c.Assert(err, ErrorMatches, "cannot unmarshal device key: unexpected size 2")
 }
 
-func (s *ebpfSuite) TestBpfNameToSecurityTag(c *C) {
+func (s *ebpfSuite) TestBpffsPinnedNameToSecurityTag(c *C) {
 	tests := []struct {
-		name string
-		tag  string
-		err  string
+		name     string
+		expected string
+		err      string
 	}{
-		{"snap_foo_bar", "snap.foo.bar", ""},
-		{"snap_my-snap_my-app", "snap.my-snap.my-app", ""},
-		// instance key: snap name is "foo_inst", app is "bar"
-		{"snap_foo_inst_bar", "snap.foo_inst.bar", ""},
-
-		// bad cases
-		{"_", "", `cannot identify security tag from name "_"`},
-		{"", "", `cannot identify security tag from name ""`},
-		{"snap__", "", `cannot identify security tag from name "snap__"`},
-		{"snap_", "", `cannot identify security tag from name "snap_"`},
-	}
+		{
+			name:     "snap_foo_bar",
+			expected: "snap.foo.bar",
+		}, {
+			// This row exercises underscore/hyphen segmentation through the
+			// unvalidated converter; the tag it yields
+			// (snap.foo_my-app.bar) cannot be a real pin: instance keys
+			// cannot contain hyphens, so the key "my-app" is rejected
+			// by naming.ParseSecurityTag, which the callers' validation
+			// catches.
+			name:     "snap_foo_my-app_bar",
+			expected: "snap.foo_my-app.bar",
+		}, {
+			name:     "snap_foo_inst_bar",
+			expected: "snap.foo_inst.bar",
+		}, {
+			// A snap hook (snap.foo.hook.configure). The same pin name is
+			// also the valid pin of the app "configure" of the instance
+			// whose key is "hook" (snap.foo_hook.configure); it is resolved
+			// as a hook, following the snap-device-helper convention.
+			name:     "snap_foo_hook_configure",
+			expected: "snap.foo.hook.configure",
+		}, {
+			name:     "snap_foo_inst_hook_pre-refresh",
+			expected: "snap.foo_inst.hook.pre-refresh",
+		}, {
+			// Only two segments after "snap_": app shape, so an app
+			// literally named "hook".
+			name:     "snap_foo_hook",
+			expected: "snap.foo.hook",
+		}, {
+			// A hook literally named "hook".
+			name:     "snap_foo_hook_hook",
+			expected: "snap.foo.hook.hook",
+		}, {
+			name:     "snap_foo+comp_hook_install",
+			expected: "snap.foo+comp.hook.install",
+		}, {
+			name:     "snap_foo_inst+comp_hook_pre-refresh",
+			expected: "snap.foo_inst+comp.hook.pre-refresh",
+		}, {
+			name: "snap_foo",
+			err:  "cannot identify security tag from name \"snap_foo\"",
+		}, {
+			name: "snap_",
+			err:  "cannot identify security tag from name \"snap_\"",
+		}, {
+			name: "snap__",
+			err:  "cannot identify security tag from name \"snap__\"",
+		}, {
+			name: "nosnap_foo_bar",
+			err:  "cannot identify security tag from name \"nosnap_foo_bar\"",
+		}, {
+			name: "foo_bar",
+			err:  "cannot identify security tag from name \"foo_bar\"",
+		}, {
+			name: "snap_foo_",
+			err:  "cannot identify security tag from name \"snap_foo_\"",
+		}, {
+			name: "snap_foo_hook_",
+			err:  "cannot identify security tag from name \"snap_foo_hook_\"",
+		}}
 	for _, t := range tests {
 		tag, err := ebpf.BpffsPinnedNameToSecurityTag(t.name)
+		cmt := Commentf("name %q", t.name)
 		if t.err == "" {
-			c.Assert(err, IsNil)
-			c.Check(tag, Equals, t.tag, Commentf("input: %s", t.name))
+			c.Assert(err, IsNil, cmt)
+			c.Check(tag, Equals, t.expected, cmt)
 		} else {
-			c.Check(err, ErrorMatches, t.err)
-			c.Check(tag, Equals, "")
+			c.Check(err, ErrorMatches, t.err, cmt)
+			c.Check(tag, Equals, "", cmt)
 		}
 	}
 }
 
-func (s *ebpfSuite) TestFindActiveDeviceMapsForSnap(c *C) {
+func (s *ebpfSuite) TestFindActiveDeviceMapTagsForSnap(c *C) {
 	// Create the bpffs directory with some entries
 	err := os.MkdirAll(dirs.SnapBPFFSDir, 0755)
 	c.Assert(err, IsNil)
@@ -125,25 +177,116 @@ func (s *ebpfSuite) TestFindActiveDeviceMapsForSnap(c *C) {
 	for _, name := range []string{
 		"snap_mysnap_app1",
 		"snap_mysnap_app2",
-		"snap_other_thing",
+		"snap_mysnap_hook_configure",
+		"snap_mysnap+comp_hook_install",
+		"snap_mysnap_inst_app1",
+		"snap_mysnap_inst_hook_configure",
+		"snap_mysnap_inst+comp_hook_install",
+		"snap_other_app1",
+		"snap_mysnap_a_b_c",
+		"snap_mysnap_",
+		"snap_mysnap_hook_",
 	} {
 		err := os.WriteFile(filepath.Join(dirs.SnapBPFFSDir, name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
-	tags, err := ebpf.FindActiveDeviceMapsForSnap("mysnap")
+	tags, err := ebpf.FindActiveDeviceMapTagsForSnap("mysnap")
 	c.Assert(err, IsNil)
-	c.Check(tags, DeepEquals, []string{"snap.mysnap.app1", "snap.mysnap.app2"})
+	// Sorted: "+" (0x2B) sorts before "." (0x2E)
+	c.Check(tags, DeepEquals, []string{
+		"snap.mysnap+comp.hook.install",
+		"snap.mysnap.app1",
+		"snap.mysnap.app2",
+		"snap.mysnap.hook.configure",
+	})
+
+	tags, err = ebpf.FindActiveDeviceMapTagsForSnap("mysnap_inst")
+	c.Assert(err, IsNil)
+	// Sorted: "+" (0x2B) sorts before "." (0x2E)
+	c.Check(tags, DeepEquals, []string{
+		"snap.mysnap_inst+comp.hook.install",
+		"snap.mysnap_inst.app1",
+		"snap.mysnap_inst.hook.configure",
+	})
+
+	// The ambiguous hook pin (snap_mysnap_hook_configure) is claimed by
+	// the hook reading and thus belongs to instance "mysnap"; the
+	// alternative reading (the app "configure" of instance "mysnap_hook")
+	// is not considered, so that instance sees no tags at all.
+	tags, err = ebpf.FindActiveDeviceMapTagsForSnap("mysnap_hook")
+	c.Assert(err, IsNil)
+	c.Check(tags, HasLen, 0)
 
 	// Non-matching snap
-	tags, err = ebpf.FindActiveDeviceMapsForSnap("nope")
+	tags, err = ebpf.FindActiveDeviceMapTagsForSnap("nope")
 	c.Assert(err, IsNil)
 	c.Check(tags, HasLen, 0)
 }
 
-func (s *ebpfSuite) TestFindActiveDeviceMapsForSnapNoDir(c *C) {
+func (s *ebpfSuite) TestFindActiveDeviceMapTagsForSnapNoDir(c *C) {
 	// SnapBPFFSDir doesn't exist — should return nil, nil
-	tags, err := ebpf.FindActiveDeviceMapsForSnap("anything")
+	tags, err := ebpf.FindActiveDeviceMapTagsForSnap("anything")
 	c.Assert(err, IsNil)
 	c.Check(tags, IsNil)
+}
+
+func (s *ebpfSuite) TestFindActiveDeviceMapPathsForSnap(c *C) {
+	// Create the bpffs directory with some entries
+	err := os.MkdirAll(dirs.SnapBPFFSDir, 0755)
+	c.Assert(err, IsNil)
+
+	for _, name := range []string{
+		"snap_mysnap_app1",
+		"snap_mysnap_app2",
+		"snap_mysnap_hook_configure",
+		"snap_mysnap_inst_app1",
+		"snap_mysnap_inst_hook_configure",
+		"snap_other_app1",
+		"snap_mysnap_a_b_c",
+		"snap_mysnap+comp_hook_install",
+		"snap_mysnap_inst+comp_hook_install",
+		// A malformed component fixture (missing hook name)
+		"snap_mysnap+comp_hook",
+	} {
+		err := os.WriteFile(filepath.Join(dirs.SnapBPFFSDir, name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	paths, err := ebpf.FindActiveDeviceMapPathsForSnap("mysnap")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap+comp_hook_install"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app1"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app2"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_configure"),
+	})
+
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("mysnap_inst")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst+comp_hook_install"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst_app1"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst_hook_configure"),
+	})
+
+	// The ambiguous hook pin (snap_mysnap_hook_configure) is claimed by
+	// the hook reading and thus belongs to instance "mysnap"; the
+	// alternative reading (the app "configure" of instance "mysnap_hook")
+	// is not considered, so that instance sees no paths at all.
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("mysnap_hook")
+	c.Assert(err, IsNil)
+	c.Check(paths, HasLen, 0)
+
+	// Non-matching snap.
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("nope")
+	c.Assert(err, IsNil)
+	c.Check(paths, HasLen, 0)
+}
+
+func (s *ebpfSuite) TestFindActiveDeviceMapPathsForSnapNoDir(c *C) {
+	// SnapBPFFSDir doesn't exist — should return nil, nil
+	paths, err := ebpf.FindActiveDeviceMapPathsForSnap("anything")
+	c.Assert(err, IsNil)
+	c.Check(paths, IsNil)
 }

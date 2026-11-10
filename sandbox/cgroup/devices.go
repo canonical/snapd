@@ -21,6 +21,7 @@ package cgroup
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -28,10 +29,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/ebpf"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // deviceMapAccessor abstracts iteration over device map entries.
@@ -41,8 +44,9 @@ type deviceMapAccessor interface {
 }
 
 var (
-	loadDeviceMapFunc         = loadDeviceMapImpl
-	findDeviceMapsForSnapFunc = ebpf.FindActiveDeviceMapsForSnap
+	loadDeviceMapFunc                   = loadDeviceMapImpl
+	findActiveDeviceMapTagsForSnapFunc  = ebpf.FindActiveDeviceMapTagsForSnap
+	findActiveDeviceMapPathsForSnapFunc = ebpf.FindActiveDeviceMapPathsForSnap
 )
 
 func loadDeviceMapImpl(securityTag string) (deviceMapAccessor, error) {
@@ -57,7 +61,7 @@ func FindActiveDeviceMediationForSnap(snapName string) (tags []string, err error
 		return nil, err
 	}
 	if v == V2 {
-		return findDeviceMapsForSnapFunc(snapName)
+		return findActiveDeviceMapTagsForSnapFunc(snapName)
 	}
 	return findSecurityTagsV1(snapName)
 }
@@ -208,4 +212,89 @@ func collectDevicesV1(securityTag string) ([]DeviceEntry, error) {
 	}
 
 	return entries, nil
+}
+
+// ErrDeviceCgroupV1Busy is returned when the device cgroup v1
+// hierarchy of a snap cannot be removed because it is still in use,
+// for instance when an application of the snap is still running.
+// It is only ever returned when the cgroup v1 hierarchy is in use;
+// removing the pinned BPF device map on cgroup v2 cannot fail with
+// a busy-like error.
+var ErrDeviceCgroupV1Busy = errors.New("device cgroup is still in use")
+
+// RemoveDeviceCgroup removes the device cgroup artifacts of the given
+// snap instance (v1 hierarchy directories or v2 pinned BPF maps).
+// It returns nil if there is nothing to clean up (missing artifacts are
+// not an error). If a v1 device cgroup is still in use, e.g. by a running
+// snap application, the returned error matches ErrDeviceCgroupV1Busy.
+func RemoveDeviceCgroup(instanceName naming.InstanceName) error {
+	v, err := Version()
+	if err != nil {
+		return fmt.Errorf("cannot determine cgroup version: %w", err)
+	}
+	if v == V2 {
+		return removeDeviceCgroupV2(instanceName)
+	}
+	return removeDeviceCgroupV1(instanceName)
+}
+
+func removeDeviceCgroupV2(instanceName naming.InstanceName) error {
+	paths, err := findActiveDeviceMapPathsForSnapFunc(instanceName.String())
+	if err != nil {
+		return fmt.Errorf("cannot enumerate device maps for snap %q: %w", instanceName, err)
+	}
+	var firstErr error
+	for _, path := range paths {
+		// Attached programs keep the map alive via kernel refcounts,
+		// so no busy handling is needed.
+		if err := os.Remove(path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("cannot remove %s: %w", path, err)
+			}
+		}
+	}
+	return firstErr
+}
+
+func removeDeviceCgroupV1(instanceName naming.InstanceName) error {
+	// NOTE: unlike the v2 path, the hierarchy directories of component
+	// hooks (snap.<instance>+<component>.hook.<hookname>) are not removed
+	// here yet.
+	cgroupDevicesPath := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/devices")
+	prefix := fmt.Sprintf("snap.%s.", instanceName.String())
+	entries, err := os.ReadDir(cgroupDevicesPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot read %s: %w", cgroupDevicesPath, err)
+	}
+	var firstErr error
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if !strings.HasPrefix(e.Name(), prefix) {
+			continue
+		}
+		path := filepath.Join(cgroupDevicesPath, e.Name())
+		if err := os.Remove(path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			if firstErr == nil {
+				// cgroupfs rmdir returns EBUSY when the cgroup still has
+				// processes in it or has child cgroups
+				if errors.Is(err, syscall.EBUSY) {
+					firstErr = fmt.Errorf("%w: %v", ErrDeviceCgroupV1Busy, err)
+				} else {
+					firstErr = err
+				}
+			}
+		}
+	}
+	return firstErr
 }
