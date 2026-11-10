@@ -66,7 +66,7 @@ parts:
       - python3-pyelftools
       - xz-utils
     source: https://git.launchpad.net/ubuntu/+source/glibc
-    source-branch: ubuntu/nobel-updates
+    source-branch: ubuntu/noble-updates
     source-type: git
     <<:
       - &dynamic-linker
