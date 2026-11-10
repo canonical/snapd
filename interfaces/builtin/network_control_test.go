@@ -94,6 +94,7 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/resolve1/link/*"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface="org.freedesktop.resolve1.Link"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `unix (bind) type=stream addr="@*/bus/resolvectl/system",`)
 	// Some dbus members policy is wildcard, so splitting this member assert into two
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `member="Set*"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `member="{ListLinks,GetLinkByName,GetLinkByIndex,SetLinkNTP,SetLinkDNS,SetLinkDNSEx,SetLinkDomains,SetLinkDefaultRoute,SetLinkLLMNR,SetLinkMulticastDNS,SetLinkDNSOverTLS,SetLinkDNSSEC,SetLinkDNSSECNegativeTrustAnchors,RevertLinkNTP,RevertLinkDNS,RenewLink,ForceRenewLink,ReconfigureLink,Reload,DescribeLink,Describe}"`)
