@@ -91,41 +91,41 @@ execute: |
     # (skipped gracefully on architectures that don't have SYS_chmod, e.g. arm64)
     if grep -qE 'chmod setuid: skipped' output.txt; then
         echo "SYS_chmod is not available, all chmod tests should be skipped"
-        MATCH 'chmod setuid: skipped' < output.txt
-        MATCH 'chmod setgid: skipped' < output.txt
-        MATCH 'chmod sticky: skipped' < output.txt
-        MATCH 'chmod normal: skipped' < output.txt
+        MATCH '^chmod setuid: skipped' < output.txt
+        MATCH '^chmod setgid: skipped' < output.txt
+        MATCH '^chmod sticky: skipped' < output.txt
+        MATCH '^chmod normal: skipped' < output.txt
     else
-        MATCH 'chmod setuid: succeeded' < output.txt
-        MATCH 'chmod setgid: succeeded' < output.txt
-        MATCH 'chmod sticky: succeeded' < output.txt
-        MATCH 'chmod normal: succeeded' < output.txt
+        MATCH '^chmod setuid: succeeded' < output.txt
+        MATCH '^chmod setgid: succeeded' < output.txt
+        MATCH '^chmod sticky: succeeded' < output.txt
+        MATCH '^chmod normal: succeeded' < output.txt
     fi
 
     # fchmod setuid/setgid must be allowed
-    MATCH 'fchmod setuid: succeeded' < output.txt
-    MATCH 'fchmod setgid: succeeded' < output.txt
-    MATCH 'fchmod sticky: succeeded' < output.txt
-    MATCH 'fchmod normal: succeeded' < output.txt
+    MATCH '^fchmod setuid: succeeded' < output.txt
+    MATCH '^fchmod setgid: succeeded' < output.txt
+    MATCH '^fchmod sticky: succeeded' < output.txt
+    MATCH '^fchmod normal: succeeded' < output.txt
 
     # fchmodat setuid/setgid must be allowed
-    MATCH 'fchmodat setuid: succeeded' < output.txt
-    MATCH 'fchmodat setgid: succeeded' < output.txt
-    MATCH 'fchmodat sticky: succeeded' < output.txt
-    MATCH 'fchmodat normal: succeeded' < output.txt
+    MATCH '^fchmodat setuid: succeeded' < output.txt
+    MATCH '^fchmodat setgid: succeeded' < output.txt
+    MATCH '^fchmodat sticky: succeeded' < output.txt
+    MATCH '^fchmodat normal: succeeded' < output.txt
 
     # fchmodat2 setuid/setgid must be allowed
     # (skipped gracefully on kernels that don't have SYS_fchmodat2)
     if grep -qE 'fchmodat2 setuid: skipped' output.txt; then
-        MATCH 'fchmodat2 setuid: skipped' < output.txt
-        MATCH 'fchmodat2 setgid: skipped' < output.txt
-        MATCH 'fchmodat2 sticky: skipped' < output.txt
-        MATCH 'fchmodat2 normal: skipped' < output.txt
+        MATCH '^fchmodat2 setuid: skipped' < output.txt
+        MATCH '^fchmodat2 setgid: skipped' < output.txt
+        MATCH '^fchmodat2 sticky: skipped' < output.txt
+        MATCH '^fchmodat2 normal: skipped' < output.txt
     else
-        MATCH 'fchmodat2 setuid: succeeded' < output.txt
-        MATCH 'fchmodat2 setgid: succeeded' < output.txt
-        MATCH 'fchmodat2 sticky: succeeded' < output.txt
-        MATCH 'fchmodat2 normal: succeeded' < output.txt
+        MATCH '^fchmodat2 setuid: succeeded' < output.txt
+        MATCH '^fchmodat2 setgid: succeeded' < output.txt
+        MATCH '^fchmodat2 sticky: succeeded' < output.txt
+        MATCH '^fchmodat2 normal: succeeded' < output.txt
     fi
 
     echo "When the interface is disconnected"
@@ -135,10 +135,10 @@ execute: |
     snap run test-snapd-sh-dr.sh -c "\$SNAP_COMMON/test-chmod \$SNAP_COMMON" > output-disconnected.txt
     cat output-disconnected.txt
     if grep -qE 'chmod setuid: skipped' output-disconnected.txt; then
-        MATCH 'chmod setuid: skipped' < output-disconnected.txt
+        MATCH '^chmod setuid: skipped' < output-disconnected.txt
     else
-        MATCH 'chmod setuid: EACCES' < output-disconnected.txt
-        MATCH 'chmod setgid: EACCES' < output-disconnected.txt
+        MATCH '^chmod setuid: EACCES' < output-disconnected.txt
+        MATCH '^chmod setgid: EACCES' < output-disconnected.txt
     fi
-    MATCH 'fchmod setuid: EACCES' < output-disconnected.txt
-    MATCH 'fchmodat setuid: EACCES' < output-disconnected.txt
+    MATCH '^fchmod setuid: EACCES' < output-disconnected.txt
+    MATCH '^fchmodat setuid: EACCES' < output-disconnected.txt
