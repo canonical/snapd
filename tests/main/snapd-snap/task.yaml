@@ -3,7 +3,7 @@ summary: Ensure snapd builds as a snap
 details: |
   This test verifies that snapd can be built with snapcraft with lxd
   backend as well as host backend on matching version of the
-  build-base (currently 26.04)
+  build-base (currently 24.04)
 
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a
@@ -37,8 +37,8 @@ priority: 100
 kill-timeout: 35m
 
 environment:
-    # the destructive build mode runs only on resolute, but we also run lxd on
-    # resolute to make sure it builds there too
+    # the destructive build mode runs only on noble, but we also run lxd on
+    # noble to make sure it builds there too
     SNAPCRAFT_BUILD_ENVIRONMENT/destructive: host
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
     CONSUMER_SNAP: test-snapd-policy-app-consumer
@@ -61,9 +61,9 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    # only run the destructive mode variant on resolute
-    if ! os.query is-resolute && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-resolute"
+    # only run the destructive mode variant on noble
+    if ! os.query is-noble && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-noble"
         exit 0
     fi
 
@@ -147,9 +147,9 @@ execute: |
 
     libexecdir="$(os.paths libexec-dir)"
 
-    # only run the destructive mode variant on resolute
-    if ! os.query is-resolute && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-resolute"
+    # only run the destructive mode variant on noble
+    if ! os.query is-noble && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-noble"
         exit 0
     fi
 
