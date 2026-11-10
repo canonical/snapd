@@ -33,7 +33,8 @@ prepare: |
     name: test-snapd-sh-dr
     summary: A shell with a dracut-support plug
     version: 1.0
-    plugs: [dracut-support]
+    plugs:
+        dracut-support:
     apps:
         sh:
             command: bin/sh

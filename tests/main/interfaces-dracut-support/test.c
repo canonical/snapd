@@ -72,7 +72,14 @@ static void test_fchmodat2(const char *path, mode_t mode, const char *label)
 #ifdef SYS_fchmodat2
     int ret = (int)syscall(SYS_fchmodat2, AT_FDCWD, path, mode, 0);
     if (ret < 0) {
-        printf("fchmodat2 %s: %s\n", label, errno_name(errno));
+        /* The build headers knowing the syscall is not enough: the running
+         * kernel may still not implement it. Treat runtime ENOSYS as a skip
+         * too, while continuing to report other errors. */
+        if (errno == ENOSYS) {
+            printf("fchmodat2 %s: skipped (ENOSYS at runtime)\n", label);
+        } else {
+            printf("fchmodat2 %s: %s\n", label, errno_name(errno));
+        }
     } else {
         printf("fchmodat2 %s: succeeded\n", label);
     }
@@ -94,7 +101,9 @@ int main(int argc, char *argv[])
     int fd;
 
     /* --- chmod --- */
-    snprintf(path, sizeof(path), "%s/test-chmod", argv[1]);
+    /* NOTE: keep the fixture name distinct from the test binary name so
+     * that unlinking the fixture does not remove the running program. */
+    snprintf(path, sizeof(path), "%s/fixture-chmod", argv[1]);
     fd = make_file(path);
     if (fd < 0) return 1;
     close(fd);
