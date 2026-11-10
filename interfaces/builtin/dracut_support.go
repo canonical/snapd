@@ -34,11 +34,17 @@ const dracutSupportSummary = `allows creating files with setuid/setgid bits set 
 // rules so that a snap can preserve setuid/setgid modes when staging files,
 // eg with cp -a, as needed by dracut when building initrd images.
 //
-// This effectively allows the snap to create setuid-root binaries inside its
-// writable areas. While this is not a privilege escalation by itself (the
-// snap cannot make the host execute such binaries as root), it re-opens the
-// attack surface that the default hardening (commit f32fe221c5bcccac3a328efb89fe06286405385e)
-// removed, so connections must be carefully reviewed. Note that openat2
+// This effectively allows the snap to create setuid-root binaries in its
+// writable areas. Note that snap data directories such as
+// /var/snap/<snap>/common are created world-readable and world-executable
+// (mode 0755), so on a suid-enabled host filesystem any unconfined local
+// user can directly execute a root-owned 04755 binary staged there by a
+// root-running snap and gain root: this interface is a privilege escalation
+// vector for the host, not just for the snap sandbox. Connections therefore
+// grant host-root trust and must be reviewed accordingly.
+//
+// This re-opens the attack surface that the default hardening (commit
+// f32fe221c5bcccac3a328efb89fe06286405385e) removed. Note that openat2
 // remains unconditionally denied (ENOSYS) for all snaps as its arguments
 // cannot be inspected by seccomp; callers fall back to openat.
 const dracutSupportBaseDeclarationPlugs = `
