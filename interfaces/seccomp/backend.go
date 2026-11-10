@@ -325,7 +325,7 @@ func generateContent(opts interfaces.ConfinementOptions, spec *Specification, ta
 	}
 
 	buffer.Write(defaultTemplate)
-	if !spec.SuppressSuidCreationDeny() {
+	if !spec.SuppressSuidCreationDeny(tag) {
 		buffer.WriteString(denySuidCreationSyscalls)
 	}
 	buffer.WriteString(spec.SnippetForTag(tag))

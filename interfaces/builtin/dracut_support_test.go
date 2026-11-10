@@ -89,16 +89,16 @@ func (s *dracutSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	spec := seccomp.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	// no snippets are added, but the default setuid/setgid file creation
-	// deny rules are suppressed
+	// deny rules are suppressed for the security tags that have the plug
 	c.Assert(spec.SecurityTags(), HasLen, 0)
-	c.Assert(spec.SuppressSuidCreationDeny(), Equals, true)
+	c.Assert(spec.SuppressSuidCreationDeny("snap.consumer.app"), Equals, true)
 }
 
 func (s *dracutSupportInterfaceSuite) TestSecCompSpecUnconnected(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)
 	spec := seccomp.NewSpecification(appSet)
-	c.Assert(spec.SuppressSuidCreationDeny(), Equals, false)
+	c.Assert(spec.SuppressSuidCreationDeny("snap.consumer.app"), Equals, false)
 }
 
 func (s *dracutSupportInterfaceSuite) TestInterfaces(c *C) {
