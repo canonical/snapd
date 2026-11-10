@@ -275,7 +275,7 @@ int snap_device_helper_run(const struct sdh_invocation *inv) {
      * map mutations between snap-device-helper and snap-confine. The
      * lock is released when this function returns (via SC_CLEANUP on
      * devcgroup_lock_fd). */
-    int devcgroup_lock_fd SC_CLEANUP(sc_cleanup_close) = sc_lock_devcgroup(security_tag);
+    int devcgroup_lock_fd SC_CLEANUP(sc_cleanup_close) __attribute__((unused)) = sc_lock_devcgroup(security_tag);
 
     sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
         sc_device_cgroup_new(security_tag, SC_DEVICE_CGROUP_FROM_EXISTING);
