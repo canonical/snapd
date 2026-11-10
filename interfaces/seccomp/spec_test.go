@@ -107,3 +107,15 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 	c.Assert(spec.SnippetForTag("non-existing"), Equals, "")
 }
+
+func (s *specSuite) TestSuppressSuidCreationDeny(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
+
+	// not suppressed by default
+	c.Assert(spec.SuppressSuidCreationDeny(), Equals, false)
+
+	spec.SetSuppressSuidCreationDeny()
+	c.Assert(spec.SuppressSuidCreationDeny(), Equals, true)
+}

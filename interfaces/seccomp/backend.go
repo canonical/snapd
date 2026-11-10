@@ -296,7 +296,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 
 		path := r.SecurityTag + ".src"
 		content[path] = &osutil.MemoryFileState{
-			Content: generateContent(opts, spec.SnippetForTag(r.SecurityTag), addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
+			Content: generateContent(opts, spec, r.SecurityTag, addSocketcall, b.versionInfo, uidGidChownSyscalls.String()),
 			Mode:    0644,
 		}
 	}
@@ -304,7 +304,7 @@ func (b *Backend) deriveContent(spec *Specification, opts interfaces.Confinement
 	return content, nil
 }
 
-func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, addSocketcall bool, versionInfo seccomp.VersionInfo, uidGidChownSyscalls string) []byte {
+func generateContent(opts interfaces.ConfinementOptions, spec *Specification, tag string, addSocketcall bool, versionInfo seccomp.VersionInfo, uidGidChownSyscalls string) []byte {
 	var buffer bytes.Buffer
 
 	if versionInfo != "" {
@@ -325,7 +325,10 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 	}
 
 	buffer.Write(defaultTemplate)
-	buffer.WriteString(snippetForTag)
+	if !spec.SuppressSuidCreationDeny() {
+		buffer.WriteString(denySuidCreationSyscalls)
+	}
+	buffer.WriteString(spec.SnippetForTag(tag))
 	buffer.WriteString(uidGidChownSyscalls)
 
 	// For systems with partial or missing AppArmor support we need to apply

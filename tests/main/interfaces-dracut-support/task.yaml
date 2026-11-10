@@ -1,0 +1,143 @@
+summary: Ensure that dracut-support lifts the seccomp setuid/setgid denies
+
+details: |
+    The default seccomp policy denies creating files with the setuid or setgid
+    bits set. The super-privileged dracut-support interface suppresses those
+    deny rules so that a snap can preserve setuid/setgid modes when staging
+    files (eg with cp -a when building an initrd image).
+
+    The test installs a test snap carrying a dracut-support plug via a snap
+    declaration that allows installation and connection, and verifies that
+    the snap can chmod a file to give it user or group +s bits. It also
+    verifies that a snap without the plug connected is still denied.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+
+    echo "Build a variant of the test-snapd-sh snap with a dracut-support plug"
+    cp -a "$TESTSLIB"/snaps/test-snapd-sh test-snapd-sh-dr
+    cat > test-snapd-sh-dr/meta/snap.yaml <<'EOF'
+    name: test-snapd-sh-dr
+    summary: A shell with a dracut-support plug
+    version: 1.0
+    plugs: [dracut-support]
+    apps:
+        sh:
+            command: bin/sh
+    EOF
+    snap pack test-snapd-sh-dr
+
+    "$TESTSTOOLS"/store-state make-snap-installable "$BLOB_DIR" test-snapd-sh-dr_1.0_all.snap test-snapd-sh-dr-id
+    cat > snap-decl.json <<'EOF'
+    {
+      "format": "1",
+      "revision": "2",
+      "snap-name": "test-snapd-sh-dr",
+      "snap-id": "test-snapd-sh-dr-id",
+      "plugs":
+      {
+        "dracut-support": {
+          "allow-installation": "true",
+          "allow-connection": "true",
+          "allow-auto-connection": "true"
+        }
+      }
+    }
+    EOF
+    fakestore new-snap-declaration --dir "${BLOB_DIR}" --snap-decl-json snap-decl.json
+    snap ack "${BLOB_DIR}"/asserts/*.snap-declaration
+
+    echo "Install the regular helper snap (for confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test-chmod
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
+
+execute: |
+    echo "Install the snap with the dracut-support plug"
+    snap install test-snapd-sh-dr
+
+    echo "The interface is connected by default via the snap declaration"
+    snap interfaces -i dracut-support | MATCH ":dracut-support .*test-snapd-sh-dr:dracut-support"
+
+    # reuse the test binary in the data directory of the unconfined snap
+    cp /var/snap/test-snapd-sh/common/test-chmod /var/snap/test-snapd-sh-dr/common/test-chmod
+
+    echo "With dracut-support connected, chmod setuid/setgid is allowed"
+    snap run test-snapd-sh-dr.sh -c "\$SNAP_COMMON/test-chmod \$SNAP_COMMON" > output.txt
+    cat output.txt
+
+    # (skipped gracefully on architectures that don't have SYS_chmod, e.g. arm64)
+    if grep -qE 'chmod setuid: skipped' output.txt; then
+        echo "SYS_chmod is not available, all chmod tests should be skipped"
+        MATCH 'chmod setuid: skipped' < output.txt
+        MATCH 'chmod setgid: skipped' < output.txt
+        MATCH 'chmod sticky: skipped' < output.txt
+        MATCH 'chmod normal: skipped' < output.txt
+    else
+        MATCH 'chmod setuid: succeeded' < output.txt
+        MATCH 'chmod setgid: succeeded' < output.txt
+        MATCH 'chmod sticky: succeeded' < output.txt
+        MATCH 'chmod normal: succeeded' < output.txt
+    fi
+
+    # fchmod setuid/setgid must be allowed
+    MATCH 'fchmod setuid: succeeded' < output.txt
+    MATCH 'fchmod setgid: succeeded' < output.txt
+    MATCH 'fchmod sticky: succeeded' < output.txt
+    MATCH 'fchmod normal: succeeded' < output.txt
+
+    # fchmodat setuid/setgid must be allowed
+    MATCH 'fchmodat setuid: succeeded' < output.txt
+    MATCH 'fchmodat setgid: succeeded' < output.txt
+    MATCH 'fchmodat sticky: succeeded' < output.txt
+    MATCH 'fchmodat normal: succeeded' < output.txt
+
+    # fchmodat2 setuid/setgid must be allowed
+    # (skipped gracefully on kernels that don't have SYS_fchmodat2)
+    if grep -qE 'fchmodat2 setuid: skipped' output.txt; then
+        MATCH 'fchmodat2 setuid: skipped' < output.txt
+        MATCH 'fchmodat2 setgid: skipped' < output.txt
+        MATCH 'fchmodat2 sticky: skipped' < output.txt
+        MATCH 'fchmodat2 normal: skipped' < output.txt
+    else
+        MATCH 'fchmodat2 setuid: succeeded' < output.txt
+        MATCH 'fchmodat2 setgid: succeeded' < output.txt
+        MATCH 'fchmodat2 sticky: succeeded' < output.txt
+        MATCH 'fchmodat2 normal: succeeded' < output.txt
+    fi
+
+    echo "When the interface is disconnected"
+    snap disconnect test-snapd-sh-dr:dracut-support
+
+    echo "Then chmod setuid/setgid is denied again"
+    snap run test-snapd-sh-dr.sh -c "\$SNAP_COMMON/test-chmod \$SNAP_COMMON" > output-disconnected.txt
+    cat output-disconnected.txt
+    if grep -qE 'chmod setuid: skipped' output-disconnected.txt; then
+        MATCH 'chmod setuid: skipped' < output-disconnected.txt
+    else
+        MATCH 'chmod setuid: EACCES' < output-disconnected.txt
+        MATCH 'chmod setgid: EACCES' < output-disconnected.txt
+    fi
+    MATCH 'fchmod setuid: EACCES' < output-disconnected.txt
+    MATCH 'fchmodat setuid: EACCES' < output-disconnected.txt

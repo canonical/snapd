@@ -386,9 +386,61 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"open\n",
 		"getuid\n",
 		"setresuid\n", // this is not random
+		// the default setuid/setgid file creation hardening denies
+		"~chmod - |S_ISUID\n",
+		"~fchmodat - - |S_ISGID\n",
+		"~creat - |S_ISUID\n",
+		"~mknodat - - |S_ISGID\n",
+		"~open - |O_CREAT |S_ISUID\n",
+		"~openat - - |O_TMPFILE |S_ISGID\n",
+		// openat2 is always denied
+		"~ENOSYS:openat2\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
+}
+
+func (s *backendSuite) TestSuppressSuidCreationDeny(c *C) {
+	// an interface that suppresses the setuid/setgid file creation denies
+	s.Iface.SecCompPermanentSlotCallback = func(spec *seccomp.Specification, slot *snap.SlotInfo) error {
+		spec.SetSuppressSuidCreationDeny()
+		return nil
+	}
+
+	// NOTE: we don't call seccomp.MockTemplate()
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
+	data, err := os.ReadFile(profile + ".src")
+	c.Assert(err, IsNil)
+	for _, line := range []string{
+		"~chmod - |S_ISUID",
+		"~chmod - |S_ISGID",
+		"~fchmod - |S_ISUID",
+		"~fchmodat - - |S_ISUID",
+		"~fchmodat2 - - |S_ISUID",
+		"~creat - |S_ISUID",
+		"~creat - |S_ISGID",
+		"~mknod - |S_ISUID",
+		"~mknodat - - |S_ISGID",
+		"|O_CREAT |S_ISUID",
+		"|O_CREAT |S_ISGID",
+		"|O_TMPFILE |S_ISUID",
+		"|O_TMPFILE |S_ISGID",
+	} {
+		c.Check(string(data), Not(testutil.Contains), line, Commentf("line %q unexpectedly present", line))
+	}
+	// the plain allows and the unconditional openat2 deny are still there
+	for _, line := range []string{
+		"chmod\n",
+		"fchmodat\n",
+		"creat\n",
+		"open\n",
+		"openat\n",
+		"~ENOSYS:openat2\n",
+	} {
+		c.Check(string(data), testutil.Contains, line)
+	}
+	s.RemoveSnap(c, snapInfo)
 }
 
 type combineSnippetsScenario struct {
