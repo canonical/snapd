@@ -154,3 +154,68 @@ func (s *ebpfSuite) TestFindActiveDeviceMapTagsForSnapNoDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(tags, IsNil)
 }
+
+func (s *ebpfSuite) TestFindActiveDeviceMapPathsForSnap(c *C) {
+	// Create the bpffs directory with some entries
+	err := os.MkdirAll(dirs.SnapBPFFSDir, 0755)
+	c.Assert(err, IsNil)
+
+	for _, name := range []string{
+		"snap_mysnap_app1",
+		"snap_mysnap_app2",
+		"snap_mysnap_hook_configure",
+		"snap_mysnap_hook_App",
+		"snap_mysnap_hook_123",
+		"snap_mysnap_inst_app1",
+		"snap_mysnap_inst_hook_configure",
+		"snap_other_app1",
+		"snap_mysnap_a_b_c",
+		"snap_mysnap+comp_hook_install",
+		"snap_mysnap_inst+comp_hook_install",
+		// A malformed component fixture (missing hook name)
+		"snap_mysnap+comp_hook",
+	} {
+		err := os.WriteFile(filepath.Join(dirs.SnapBPFFSDir, name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	paths, err := ebpf.FindActiveDeviceMapPathsForSnap("mysnap")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap+comp_hook_install"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app1"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app2"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_configure"),
+	})
+
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("mysnap_inst")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst+comp_hook_install"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst_app1"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst_hook_configure"),
+	})
+
+	// The ambiguous hook pin (snap_mysnap_hook_configure) is claimed by
+	// the hook reading and thus belongs to instance "mysnap"; the
+	// alternative reading (the app "configure" of instance "mysnap_hook")
+	// is not considered. Only names that cannot be hooks fall back to apps.
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("mysnap_hook")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_123"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_App"),
+	})
+
+	// Non-matching snap.
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("nope")
+	c.Assert(err, IsNil)
+	c.Check(paths, HasLen, 0)
+}
+
+func (s *ebpfSuite) TestFindActiveDeviceMapPathsForSnapNoDir(c *C) {
+	// SnapBPFFSDir doesn't exist — should return nil, nil
+	paths, err := ebpf.FindActiveDeviceMapPathsForSnap("anything")
+	c.Assert(err, IsNil)
+	c.Check(paths, IsNil)
+}

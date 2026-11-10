@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/cilium/ebpf"
@@ -150,4 +151,29 @@ func FindActiveDeviceMapTagsForSnap(instanceName string) (tags []string, err err
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+// FindActiveDeviceMapPathsForSnap returns the bpffs paths of the device maps
+// pinned for the given snap instance name, which includes the maps of apps,
+// snap hooks and component hooks of this instance. It returns nil if there
+// is no pinned device map.
+func FindActiveDeviceMapPathsForSnap(instanceName string) (paths []string, retErr error) {
+	entries, err := os.ReadDir(dirs.SnapBPFFSDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot read %s: %v", dirs.SnapBPFFSDir, err)
+	}
+	for _, e := range entries {
+		tag, err := naming.BPFMapNameToSecurityTag(e.Name())
+		if err != nil {
+			continue
+		}
+		if tag.InstanceName() != instanceName {
+			continue
+		}
+		paths = append(paths, filepath.Join(dirs.SnapBPFFSDir, e.Name()))
+	}
+	return paths, nil
 }
