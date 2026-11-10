@@ -100,7 +100,6 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	}
 
 	if len(supportedFeatures) > 0 {
-		header = make(map[string]string)
 		header["X-Snapctl-Features"] = strings.Join(supportedFeatures, ",")
 	}
 

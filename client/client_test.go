@@ -84,6 +84,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.doCalls = 0
 	cs.contentLength = 0
 	cs.countingCloser = nil
+	cs.ignoreContentType = false
 
 	dirs.SetRootDir(c.MkDir())
 	cs.AddCleanup(func() { dirs.SetRootDir("") })
