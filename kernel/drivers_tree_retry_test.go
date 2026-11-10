@@ -9,6 +9,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -83,7 +84,7 @@ func (s *kernelDriversTestSuite) TestEnsureMarkerLegacyAndForward(c *C) {
 	c.Assert(os.Symlink("/unrelated/user.bin", link), IsNil)
 	outdated, err := kernel.DriversTreeOutdated(dest)
 	c.Assert(err, IsNil)
-	c.Check(outdated, Equals, false)
+	c.Check(outdated, Equals, true)
 	c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), IsNil)
 	c.Check(link, testutil.SymlinkTargetEquals, filepath.Join(mountDir, "firmware", "wifi_fw.bin"))
 	meta, err := kernel.ReadDriversTreeMeta(dest)
@@ -97,7 +98,7 @@ func (s *kernelDriversTestSuite) TestEnsureMarkerLegacyAndForward(c *C) {
 	writePendingDriversTreeMarker(c, dest, mounts, nil)
 	outdated, err = kernel.DriversTreeOutdated(dest)
 	c.Assert(err, IsNil)
-	c.Check(outdated, Equals, false)
+	c.Check(outdated, Equals, true)
 	c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), IsNil)
 	c.Check(marker+".pending", testutil.FileAbsent)
 	c.Assert(os.WriteFile(marker+".pending", forward, 0644), IsNil)
@@ -117,6 +118,77 @@ func (s *kernelDriversTestSuite) TestEnsureMarkerLegacyAndForward(c *C) {
 	meta, err = kernel.ReadDriversTreeMeta(dest)
 	c.Assert(err, IsNil)
 	c.Check(meta.GeneratorVersion, Equals, kernel.KernelDriversTreeGeneratorVersion())
+}
+
+func (s *kernelDriversTestSuite) TestEnsureMigratesLegacyComponentAliases(c *C) {
+	depmod := testutil.MockCommand(c, "depmod", "")
+	defer depmod.Restore()
+
+	version := "6.5.4-test"
+	kernelMount := filepath.Join(dirs.SnapMountDir, "pc-kernel", "1")
+	createKernelSnapFiles(c, version, kernelMount, createKernelSnapFilesOpts{})
+	mounts := kernel.MountPoints{Current: kernelMount, Target: kernelMount}
+
+	oldMount := filepath.Join(dirs.SnapMountDir, "pc-kernel", "components", "mnt", "comp1", "11")
+	newMount := filepath.Join(dirs.SnapMountDir, "pc-kernel", "components", "mnt", "comp1", "22")
+	createKernelModulesCompFiles(c, version, oldMount, "old")
+	createKernelModulesCompFiles(c, version, newMount, "new")
+	c.Assert(os.Symlink("old.bin", filepath.Join(oldMount, "firmware", "alias.bin")), IsNil)
+	c.Assert(os.Symlink("new.bin", filepath.Join(newMount, "firmware", "alias.bin")), IsNil)
+	oldComp := kernel.ModulesCompMountPoints{LinkName: "comp1", MountPoints: kernel.MountPoints{Current: oldMount, Target: oldMount}}
+	newComp := kernel.ModulesCompMountPoints{LinkName: "comp1", MountPoints: kernel.MountPoints{Current: newMount, Target: newMount}}
+
+	for _, tc := range []struct {
+		name    string
+		version int
+		pending bool
+	}{
+		{"markerless", 0, false},
+		{"version-one", 1, false},
+		{"markerless-pending", 0, true},
+		{"version-one-pending", 1, true},
+	} {
+		c.Logf("migrating %s", tc.name)
+		dest := filepath.Join(c.MkDir(), "pc-kernel", "1")
+		c.Assert(kernel.EnsureKernelDriversTree(mounts, []kernel.ModulesCompMountPoints{oldComp}, dest), IsNil)
+		updates := filepath.Join(dest, "lib", "firmware", "updates")
+		alias := filepath.Join(updates, "alias.bin")
+		c.Assert(os.Remove(alias), IsNil)
+		c.Assert(os.Symlink("old.bin", alias), IsNil)
+		stale := filepath.Join(updates, "stale.bin")
+		c.Assert(os.Symlink("old.bin", stale), IsNil)
+		marker := filepath.Join(dest, "kernel.json")
+		if tc.version == 0 {
+			c.Assert(os.Remove(marker), IsNil)
+		} else {
+			c.Assert(os.WriteFile(marker, []byte(`{"generator-version":1}`), 0644), IsNil)
+		}
+		if tc.pending {
+			writePendingDriversTreeMarker(c, dest, mounts, []kernel.ModulesCompMountPoints{newComp})
+		}
+
+		c.Assert(kernel.EnsureKernelDriversTree(mounts, []kernel.ModulesCompMountPoints{newComp}, dest), IsNil)
+		c.Check(alias, testutil.SymlinkTargetEquals, filepath.Join(newMount, "firmware", "alias.bin"))
+		resolved, err := filepath.EvalSymlinks(alias)
+		c.Assert(err, IsNil)
+		c.Check(resolved, Equals, filepath.Join(newMount, "firmware", "new.bin"))
+		c.Check(stale, testutil.FileAbsent)
+		c.Check(filepath.Join(updates, "old.bin"), testutil.FileAbsent)
+		c.Check(filepath.Join(updates, "new.bin"), testutil.SymlinkTargetEquals, filepath.Join(newMount, "firmware", "new.bin"))
+		meta, err := kernel.ReadDriversTreeMeta(dest)
+		c.Assert(err, IsNil)
+		c.Check(meta.GeneratorVersion, Equals, kernel.KernelDriversTreeGeneratorVersion())
+		c.Check(marker+".pending", testutil.FileAbsent)
+
+		// Once version 2 is complete, unrelated relative links remain unowned.
+		c.Assert(os.Remove(alias), IsNil)
+		c.Assert(os.Symlink("user.bin", alias), IsNil)
+		c.Assert(kernel.EnsureKernelDriversTree(mounts, []kernel.ModulesCompMountPoints{newComp}, dest), ErrorMatches, `cannot replace unowned firmware symlink .*alias.bin.*`)
+		c.Check(alias, testutil.SymlinkTargetEquals, "user.bin")
+		c.Assert(os.Remove(alias), IsNil)
+		c.Assert(kernel.EnsureKernelDriversTree(mounts, nil, dest), IsNil)
+		c.Check(alias, testutil.FileAbsent)
+	}
 }
 
 func (s *kernelDriversTestSuite) TestEnsureDiscardsCandidateWithoutLosingPending(c *C) {

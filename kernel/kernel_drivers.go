@@ -59,7 +59,7 @@ var atomicSymlink = osutil.AtomicSymlink
 //
 // IMPORTANT: bump this whenever there is a change to the layout or organization of the
 // kernel drivers or firmware trees.
-var kernelDriversTreeGeneratorVersion = 1
+var kernelDriversTreeGeneratorVersion = 2
 
 // driversTreeMeta records the generator and inputs for a completed tree.
 // Absent inputs denote a legacy version-only marker.
@@ -144,7 +144,7 @@ func DriversTreeOutdated(destDir string) (bool, error) {
 		if json.Unmarshal(data, &marker) != nil {
 			return true, nil
 		}
-		if suffix == "" && marker.GeneratorVersion > kernelDriversTreeGeneratorVersion {
+		if suffix == "" && !pending && marker.GeneratorVersion > kernelDriversTreeGeneratorVersion {
 			return false, nil
 		}
 		pending = pending || suffix != ""
@@ -193,9 +193,16 @@ type firmwareSymlinkTarget struct {
 	target string
 }
 
+type fromWhere int
+
+const (
+	fromKernel fromWhere = iota
+	fromComponent
+)
+
 // firmwareSymlinkTargets computes the desired firmware symlinks for a
 // mount, shared by candidate construction and live reconciliation.
-func firmwareSymlinkTargets(fwMount MountPoints, fwDest string) ([]firmwareSymlinkTarget, error) {
+func firmwareSymlinkTargets(fwMount MountPoints, fwDest string, source fromWhere) ([]firmwareSymlinkTarget, error) {
 	fwOrig := fwMount.UnderCurrentPath("firmware")
 	entries, err := os.ReadDir(fwOrig)
 	if err != nil {
@@ -233,6 +240,10 @@ func firmwareSymlinkTargets(fwMount MountPoints, fwDest string) ([]firmwareSymli
 			if filepath.IsAbs(dest) {
 				return nil, fmt.Errorf("symlink %q points to absolute path %q", lpath, dest)
 			}
+			if source == fromComponent {
+				// Resolve component aliases inside their mount, not in firmware/updates.
+				dest = filepath.Join(fwTarget, node.Name())
+			}
 			targets = append(targets, firmwareSymlinkTarget{name: node.Name(), target: dest})
 		default:
 			return nil, fmt.Errorf("%q has unexpected file type: %s",
@@ -243,7 +254,7 @@ func firmwareSymlinkTargets(fwMount MountPoints, fwDest string) ([]firmwareSymli
 	return targets, nil
 }
 
-func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
+func createFirmwareSymlinks(fwMount MountPoints, fwDest string, source fromWhere) error {
 	if err := os.MkdirAll(fwDest, 0755); err != nil {
 		return err
 	}
@@ -251,7 +262,7 @@ func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 	// Symbolic links inside firmware folder - it cannot be directly a
 	// symlink to "firmware" as we will use firmware/updates/ subfolder for
 	// components.
-	targets, err := firmwareSymlinkTargets(fwMount, fwDest)
+	targets, err := firmwareSymlinkTargets(fwMount, fwDest, source)
 	if err != nil {
 		return err
 	}
@@ -632,15 +643,18 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// Completed metadata must still be readable; its version does not prevent
 	// rebuilding after a snapd downgrade.
 	final := driversTreeMetaPath(destDir)
+	var old driversTreeMeta
 	data, err := os.ReadFile(final)
 	if err == nil {
-		var old driversTreeMeta
 		if err := json.Unmarshal(data, &old); err != nil {
 			return fmt.Errorf("cannot read kernel drivers tree marker %q: %w", final, err)
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
+	// Version 0 had no marker; both 0 and 1 could copy component aliases as relative links.
+	legacyRelativeFirmware := kernelDriversTreeGeneratorVersion == 2 &&
+		(old.GeneratorVersion == 0 || old.GeneratorVersion == 1)
 
 	// TODO: If the completed marker matches the inputs, pending is absent,
 	// and links match, skip the candidate only after verifying copied
@@ -674,7 +688,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	candidateFwUpdatesDir := filepath.Join(candidateFwDir, "updates")
 
 	// Top level symlinks from the kernel mount.
-	if err := createFirmwareSymlinks(kMntPts, candidateFwDir); err != nil {
+	if err := createFirmwareSymlinks(kMntPts, candidateFwDir, fromKernel); err != nil {
 		return err
 	}
 
@@ -684,7 +698,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 	// Pick up firmware symlinks from components.
 	for _, cmp := range compsMntPts {
-		if err := createFirmwareSymlinks(cmp.MountPoints, candidateFwUpdatesDir); err != nil {
+		if err := createFirmwareSymlinks(cmp.MountPoints, candidateFwUpdatesDir, fromComponent); err != nil {
 			return err
 		}
 	}
@@ -703,7 +717,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 
 	// Preflight both live firmware directories before publishing pending. The
 	// checks could be done earlier, but it's clearer to keep them here.
-	topLevel, err := firmwareSymlinkTargets(kMntPts, liveFw)
+	topLevel, err := firmwareSymlinkTargets(kMntPts, liveFw, fromKernel)
 	if err != nil {
 		return err
 	}
@@ -720,7 +734,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		desiredUpdates = append(desiredUpdates, firmwareSymlinkTarget{name: entry.Name(), target: target})
 	}
 	componentLink := func(target string) bool {
-		return componentFirmwareLink(destDir, target)
+		return componentFirmwareLink(destDir, target) || (legacyRelativeFirmware && !filepath.IsAbs(target))
 	}
 
 	if err := checkFirmwareCollisions(topLevel, liveFw, nil); err != nil {

@@ -1373,6 +1373,8 @@ func (s *kernelDriversTestSuite) TestReconcileModulesAndFirmwareUpdates(c *C) {
 
 	fwUpdatesDir := filepath.Join(destDir, "lib", "firmware", "updates")
 	modsUpdatesDir := filepath.Join(destDir, "lib", "modules", kversion, "updates")
+	alias := filepath.Join(fwUpdatesDir, "alias.bin")
+	c.Check(alias, testutil.SymlinkTargetEquals, filepath.Join(compMntDir, "firmware", "alias.bin"))
 
 	// A user link occupying a component's desired name fails preflight;
 	// it must not be overwritten merely because it is a symlink.
@@ -1406,13 +1408,16 @@ func (s *kernelDriversTestSuite) TestReconcileModulesAndFirmwareUpdates(c *C) {
 	c.Check(userLink, testutil.SymlinkTargetEquals, "/missing/user.bin")
 	c.Check(staleDynamic, testutil.FileAbsent)
 	c.Check(compLink, testutil.SymlinkTargetEquals, filepath.Join(newCompMntDir, "firmware", "comp1.bin"))
+	c.Check(alias, testutil.SymlinkTargetEquals, filepath.Join(newCompMntDir, "firmware", "alias.bin"))
+	resolved, err := filepath.EvalSymlinks(alias)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, filepath.Join(newCompMntDir, "firmware", "comp1.bin"))
 	c.Check(filepath.Join(modsUpdatesDir, "comp1"), testutil.SymlinkTargetEquals, filepath.Join(newCompMntDir, "modules", kversion))
 
-	// A removed component's absolute links disappear even while its old
-	// mount still exists. Relative aliases cannot be identified and remain.
+	// A removed component's links disappear even while its old mount still exists.
 	c.Assert(kernel.EnsureKernelDriversTree(kMntPts, nil, destDir), IsNil)
 	c.Check(filepath.Join(fwUpdatesDir, "comp1.bin"), testutil.FileAbsent)
-	c.Check(filepath.Join(fwUpdatesDir, "alias.bin"), testutil.SymlinkTargetEquals, "comp1.bin")
+	c.Check(alias, testutil.FileAbsent)
 	c.Check(userFile, testutil.FileEquals, []byte("keep"))
 	c.Check(userBlob, testutil.FileEquals, []byte("nested"))
 	c.Check(userLink, testutil.SymlinkTargetEquals, "/missing/user.bin")

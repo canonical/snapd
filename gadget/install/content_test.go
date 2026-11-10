@@ -563,6 +563,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeRealImagePrepara
 	compFw := filepath.Join(currentComp, "firmware")
 	c.Assert(os.MkdirAll(compFw, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(compFw, "comp.bin"), nil, 0644), IsNil)
+	c.Assert(os.Symlink("comp.bin", filepath.Join(compFw, "alias.bin")), IsNil)
 
 	info := &install.KernelSnapInfo{
 		Name: "pc-kernel", Revision: snap.R(111), MountPoint: currentKernel,
@@ -579,6 +580,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeRealImagePrepara
 	futureComp := snap.MinimalComponentContainerPlaceInfo("kmod1", snap.R(3), "pc-kernel").MountDir()
 	c.Check(filepath.Join(dest, "lib", "firmware", "kernel.bin"), testutil.SymlinkTargetEquals, filepath.Join(futureKernel, "firmware", "kernel.bin"))
 	c.Check(filepath.Join(dest, "lib", "firmware", "updates", "comp.bin"), testutil.SymlinkTargetEquals, filepath.Join(futureComp, "firmware", "comp.bin"))
+	c.Check(filepath.Join(dest, "lib", "firmware", "updates", "alias.bin"), testutil.SymlinkTargetEquals, filepath.Join(futureComp, "firmware", "alias.bin"))
 	c.Check(filepath.Join(dest, "lib", "modules", version, "updates", "kmod1"), testutil.SymlinkTargetEquals, filepath.Join(futureComp, "modules", version))
 	c.Check(filepath.Join(dest, "kernel.json"), testutil.FilePresent)
 	c.Check(dest+"_tmp", testutil.FileAbsent)
@@ -589,6 +591,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeRealImagePrepara
 	info.ModulesComps = nil
 	c.Assert(install.WriteFilesystemContent(m, info, "/dev/node2", obs), IsNil)
 	c.Check(filepath.Join(dest, "lib", "firmware", "updates", "comp.bin"), testutil.FileAbsent)
+	c.Check(filepath.Join(dest, "lib", "firmware", "updates", "alias.bin"), testutil.FileAbsent)
 	c.Check(filepath.Join(dest, "lib", "modules", version, "updates", "kmod1"), testutil.FileAbsent)
 }
 
