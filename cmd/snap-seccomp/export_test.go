@@ -32,6 +32,7 @@ var (
 	GoSeccompFeatures = goSeccompFeatures
 	ExportBPF         = exportBPF
 	Dump              = dump
+	ActLog            = actLog
 )
 
 func MockArchDpkgArchitecture(f func() string) (restore func()) {
@@ -78,4 +79,8 @@ func MockOsCreateTemp(f func(dir, pattern string) (*os.File, error)) (restore fu
 	restore = testutil.Backup(&osCreateTemp)
 	osCreateTemp = f
 	return restore
+}
+
+func MockPreseedSeccompActions(actions string) (restore func()) {
+	return testutil.Mock(&preseedSeccompActions, func() string { return actions })
 }
