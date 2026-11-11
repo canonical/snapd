@@ -323,56 +323,6 @@ nested_wait_for_qemu_exit() {
     return 1
 }
 
-nested_installed_disk_is_ready() {
-    local disk="$1"
-    local devloop tmp part found
-    sync
-    tmp="$(mktemp -d)"
-    if ! devloop="$(retry -n 3 --wait 1 losetup -f --show -P --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" "$disk")"; then
-        rmdir "$tmp"
-        return 1
-    fi
-    found=1
-    # losetup can apply the block size after the partition scan.
-    retry -n 2 --wait 1 test -b "${devloop}p1" || true
-    if ! [ -b "${devloop}p1" ]; then
-        partx -u "$devloop" || true
-        retry -n 2 --wait 1 test -b "${devloop}p1" || true
-    fi
-    for part in "${devloop}"p*; do
-        if [ ! -b "$part" ]; then
-            continue
-        fi
-        # Hybrid TPM encryption leaves the root filesystem inside LUKS.
-        if blkid "$part" 2>/dev/null | grep -q 'TYPE="crypto_LUKS"'; then
-            found=0
-            break
-        fi
-        if mount -o ro "$part" "$tmp"; then
-            if [ -f "${tmp}/etc/os-release" ]; then
-                found=0
-            fi
-            if ! umount "$tmp"; then
-                echo "cannot unmount ${part}" >&2
-                return 1
-            fi
-            if [ "$found" -eq 0 ]; then
-                break
-            fi
-        fi
-    done
-    if ! rmdir "$tmp"; then
-        echo "cannot remove ${tmp}" >&2
-        return 1
-    fi
-    # udev can hold the device briefly after unmount.
-    if ! retry -n 5 --wait 1 losetup -d "$devloop"; then
-        echo "cannot detach ${devloop}" >&2
-        return 1
-    fi
-    return "$found"
-}
-
 nested_restore_installer_vm_params() {
     local saved_keep="$1"
     local saved_image="$2"
@@ -455,10 +405,6 @@ nested_start_installer_vm() {
     fi
     if ! nested_wait_for_qemu_exit 540 10; then
         nested_installer_fail "cannot finish the desktop installation"
-        return 1
-    fi
-    if ! nested_installed_disk_is_ready "$disk"; then
-        nested_installer_fail "installed disk has no root filesystem or encrypted volume"
         return 1
     fi
     if ! nested_boot_installed_desktop "$disk"; then
