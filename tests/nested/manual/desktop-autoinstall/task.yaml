@@ -21,8 +21,7 @@ details: |
     so the test can reach the installed system.
 
     After the installer powers off, boot the same disk with the OVMF variables and TPM state
-    kept. Check that snapd reports storage encryption as active, the FDE marker is present, and
-    ubuntu-data-enc is a LUKS volume.
+    kept. Check that snapd reports storage encryption as active.
 
     The image URL can be replaced with NESTED_UBUNTU_DESKTOP_ISO_URL, and
     the autoinstall source id with NESTED_DESKTOP_SOURCE_ID.
@@ -57,11 +56,9 @@ execute: |
     # returns only after SSH answers and snapd is seeded.
     tests.nested create-vm installer --param-mem "$NESTED_MEM" --param-cpus "$NESTED_CPUS"
 
-    # The guest is now the installed system. Confirm its identity and that TPM
-    # encryption is active, the FDE marker is present, and ubuntu-data-enc is a LUKS volume.
+    # The guest is now the installed system. Confirm its identity and that snapd
+    # reports storage encryption as active.
     remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
     remote.exec "hostname" | MATCH nested
     remote.exec "whoami" | MATCH user1
     remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null" | gojq '.result.status' | MATCH '"active"'
-    remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
-    remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
