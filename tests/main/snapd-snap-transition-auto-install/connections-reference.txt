@@ -12,6 +12,7 @@ content[sound-themes]   firefox:sound-themes             gtk-common-themes:sound
 cups-control            firefox:cups-control             :cups-control                   -
 desktop                 firefox:desktop                  :desktop                        -
 desktop-legacy          firefox:desktop-legacy           :desktop-legacy                 -
+fwupd                   fwupd:fwupdmgr                   fwupd:fwupd                     -
 gsettings               firefox:gsettings                :gsettings                      -
 hardware-observe        firefox:hardware-observe         :hardware-observe               -
 hardware-observe        fwupd:hardware-observe           :hardware-observe               -
