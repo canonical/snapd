@@ -543,8 +543,9 @@ static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major,
     for (size_t i = 0; i < self->v2.stale_count;) {
         const sc_cgroup_v2_device_key *s = &self->v2.stale_keys[i];
         if (s->type == key.type && s->major == key.major && s->minor == key.minor) {
-            self->v2.stale_keys[i] = self->v2.stale_keys[--self->v2.stale_count];
-            continue; /* re-check the entry swapped into slot i */
+            self->v2.stale_count -= 1; /* dropping the slot i entry */
+            self->v2.stale_keys[i] = self->v2.stale_keys[self->v2.stale_count];
+            continue; /* re-check the entry swapped into slot i if we still have entries left */
         }
         i++;
     }
