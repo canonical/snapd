@@ -1,0 +1,23 @@
+name: security-scan
+on:
+  pull_request:
+    branches: ["master"]
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: canonical/reposcan@main
+        with:
+          fail-on: none
+          pr-comment: true
+          sbom: true
