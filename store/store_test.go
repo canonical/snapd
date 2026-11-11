@@ -1419,6 +1419,46 @@ func (s *storeTestSuite) TestInfo(c *C) {
 	c.Check(slot.Apps["content-plug"].Command, Equals, "bin/content-plug")
 }
 
+func (s *storeTestSuite) TestInfoKernelBuildBase(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		c.Check(r.URL.Path, Equals, "/v2/snaps/info/pc-kernel")
+		c.Check(strings.Split(r.URL.Query().Get("fields"), ","), testutil.Contains, "snap-yaml")
+
+		io.WriteString(w, `{
+			"snap": {
+				"name": "pc-kernel",
+				"type": "kernel"
+			},
+			"channel-map": [{
+				"channel": {
+					"architecture": "amd64",
+					"name": "stable",
+					"track": "latest",
+					"risk": "stable"
+				},
+				"revision": 5,
+				"version": "1.0",
+				"snap-yaml": "name: pc-kernel\nversion: 1.0\ntype: kernel\nbuild-base: core24\n"
+			}]
+		}`)
+	}))
+	defer mockServer.Close()
+
+	mockServerURL, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	cfg := store.Config{StoreBaseURL: mockServerURL}
+	sto := store.New(&cfg, &testDauthContext{c: c, device: s.device})
+
+	info, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "pc-kernel"}, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.SnapName().String(), Equals, "pc-kernel")
+	c.Check(info.Type(), Equals, snap.TypeKernel)
+	c.Check(info.Revision, Equals, snap.R(5))
+	c.Check(info.Base, Equals, "")
+	c.Check(info.BuildBase, Equals, "core24")
+}
+
 func (s *storeTestSuite) TestInfoBadResponses(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

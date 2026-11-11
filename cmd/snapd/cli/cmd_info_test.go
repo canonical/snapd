@@ -601,6 +601,18 @@ func (s *infoSuite) TestMaybePrintBase(c *check.C) {
 	snap.MaybePrintBase(iw)
 	c.Check(buf.String(), check.Equals, "base:\txyzzy\n")
 	buf.Reset()
+
+	// build-base + verbose -> build-base
+	dSnap.Base = ""
+	dSnap.BuildBase = "core24"
+	snap.MaybePrintBuildBase(iw)
+	c.Check(buf.String(), check.Equals, "build-base:\tcore24\n")
+	buf.Reset()
+
+	// no verbose -> no build-base
+	snap.SetVerbose(iw, false)
+	snap.MaybePrintBase(iw)
+	c.Check(buf.String(), check.Equals, "")
 }
 
 func (s *infoSuite) TestMaybePrintPath(c *check.C) {
@@ -626,10 +638,53 @@ func (s *infoSuite) TestClientSnapFromPath(c *check.C) {
 	fn := snaptest.MakeTestSnapWithFiles(c, `
 name: some-snap
 version: 9
+type: kernel
+build-base: core24
 `, nil)
 	dSnap, err := snap.ClientSnapFromPath(fn)
 	c.Assert(err, check.IsNil)
 	c.Check(dSnap.Version, check.Equals, "9")
+	c.Check(dSnap.Type, check.Equals, "kernel")
+	c.Check(dSnap.Base, check.Equals, "")
+	c.Check(dSnap.BuildBase, check.Equals, "core24")
+}
+
+func (s *infoSuite) TestInfoUninstalledKernelBuildBase(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "GET")
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			c.Check(r.URL.Query().Get("name"), check.Equals, "pc-kernel")
+			fmt.Fprint(w, `{
+				"type": "sync",
+				"status-code": 200,
+				"result": [{
+					"name": "pc-kernel",
+					"type": "kernel",
+					"build-base": "core24",
+					"summary": "A test kernel",
+					"description": "A test kernel",
+					"confinement": "strict"
+				}]
+			}`)
+		case 1:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps/pc-kernel")
+			w.WriteHeader(404)
+			fmt.Fprint(w, `{"type":"error","status-code":404,"result":{"message":"snap not installed","kind":"snap-not-found"}}`)
+		default:
+			c.Fatalf("expected 2 requests, now on %d (%v)", n+1, r)
+		}
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "--verbose", "pc-kernel"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(n, check.Equals, 2)
+	c.Check(s.Stdout(), check.Matches, "(?s).*\\ntype: +kernel\\nbuild-base: +core24\\n")
+	c.Check(s.Stderr(), check.Equals, "")
 }
 
 func (s *infoSuite) TestInfoPricedNarrowTerminal(c *check.C) {

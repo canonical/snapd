@@ -379,6 +379,12 @@ func (iw *infoWriter) maybePrintBase() {
 	}
 }
 
+func (iw *infoWriter) maybePrintBuildBase() {
+	if iw.verbose && iw.theSnap.BuildBase != "" {
+		fmt.Fprintf(iw, "build-base:\t%s\n", iw.theSnap.BuildBase)
+	}
+}
+
 func (iw *infoWriter) maybePrintPath() {
 	if iw.path != "" {
 		fmt.Fprintf(iw, "path:\t%q\n", iw.path)
@@ -755,6 +761,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.Flush()
 		iw.maybePrintType()
 		iw.maybePrintBase()
+		iw.maybePrintBuildBase()
 		iw.maybePrintSum()
 		iw.maybePrintID()
 		iw.maybePrintCohortKey()

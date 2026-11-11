@@ -316,7 +316,7 @@ func init() {
 		panic(err)
 	}
 	defaultConfig.DetailFields = jsonutil.StructFields((*snapDetails)(nil), "snap_yaml_raw", "integrity")
-	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "snap-yaml", "integrity")
+	defaultConfig.InfoFields = jsonutil.StructFields((*storeSnap)(nil), "integrity")
 	defaultConfig.FindFields = append(jsonutil.StructFields((*storeSnap)(nil),
 		"architectures", "created-at", "epoch", "name", "snap-id", "snap-yaml", "resources", "integrity"),
 		"channel")
