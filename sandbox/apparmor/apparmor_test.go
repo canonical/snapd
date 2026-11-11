@@ -227,6 +227,56 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi5(c *C) {
 	assertInternalAppArmorParser(c, parser, libSnapdDir, "5.0")
 }
 
+func (*apparmorSuite) TestAppArmorInternalAppArmorParserPreseedKernelFeatures(c *C) {
+	parser, libSnapdDir, restore := setupInternalAppArmorParserEnv(c, "3.0", "4.0", "5.0")
+	defer restore()
+	defer apparmor.MockPreseedAppArmorFeaturesDir("/aa-features")()
+
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Assert(err, IsNil)
+	c.Check(internal, Equals, true)
+	// --kernel-features keeps the --policy-features pin in place
+	c.Check(cmd.Args, DeepEquals, []string{
+		parser,
+		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
+		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
+		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/5.0"),
+		"--kernel-features", "/aa-features",
+	})
+}
+
+func (s *apparmorSuite) TestAppArmorParserDistroPreseedKernelFeatures(c *C) {
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	defer apparmor.MockParserSearchPath(mockParserCmd.BinDir())()
+	defer apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return false })()
+	defer apparmor.MockPreseedAppArmorFeaturesDir("/aa-features")()
+
+	abi30 := filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0")
+	abi50 := filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")
+	defer apparmor.MockHostAbi30File(abi30)()
+	defer apparmor.MockHostAbi50File(abi50)()
+
+	// no ABI pin: possibly a parser older than 2.13, use --features-file
+	cmd, internal, err := apparmor.AppArmorParser()
+	c.Assert(err, IsNil)
+	c.Check(internal, Equals, false)
+	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe(), "--features-file", "/aa-features"})
+
+	// ABI 3.0 pin
+	c.Assert(os.MkdirAll(filepath.Dir(abi30), 0755), IsNil)
+	c.Assert(os.WriteFile(abi30, nil, 0644), IsNil)
+	cmd, _, err = apparmor.AppArmorParser()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe(), "--policy-features", abi30, "--kernel-features", "/aa-features"})
+
+	// ABI 5.0 pin
+	c.Assert(os.WriteFile(abi50, nil, 0644), IsNil)
+	cmd, _, err = apparmor.AppArmorParser()
+	c.Assert(err, IsNil)
+	c.Check(cmd.Args, DeepEquals, []string{mockParserCmd.Exe(), "--policy-features", abi50, "--kernel-features", "/aa-features"})
+}
+
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
 	c.Check(apparmor.Unknown.String(), Equals, "unknown")
 	c.Check(apparmor.Unsupported.String(), Equals, "none")
@@ -474,6 +524,35 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 		expected = append(expected, "policy:permstable32:prompt", "xyz")
 		c.Check(features, DeepEquals, expected, Commentf("test case: %+v", testCase))
 	}
+}
+
+func (s *apparmorSuite) TestKernelFeaturesDir(c *C) {
+	c.Check(apparmor.KernelFeaturesDir(), Equals, apparmor.FeaturesSysDir())
+
+	defer apparmor.MockPreseedAppArmorFeaturesDir("/aa-features")()
+	c.Check(apparmor.KernelFeaturesDir(), Equals, "/aa-features")
+}
+
+func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverride(c *C) {
+	// the running kernel
+	c.Assert(os.MkdirAll(filepath.Join(s.fakeroot, featuresSysPath, "host-only"), 0755), IsNil)
+	// the target kernel
+	targetDir := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(targetDir, "target-only"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(targetDir, "policy", "notify"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(targetDir, "policy", "permstable32"), []byte("allow deny prompt"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(targetDir, "policy", "permstable32_version"), []byte("0x3"), 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(targetDir, "policy", "notify", "user"), []byte("file"), 0644), IsNil)
+
+	defer apparmor.MockPreseedAppArmorFeaturesDir(targetDir)()
+
+	features, err := apparmor.ProbeKernelFeatures()
+	c.Assert(err, IsNil)
+	c.Check(features, DeepEquals, []string{"policy", "policy:notify", "policy:notify:user:file", "policy:permstable32:prompt", "target-only"})
+
+	version, err := apparmor.ProbeKernelFeaturesPermstable32Version()
+	c.Assert(err, IsNil)
+	c.Check(version, Equals, int64(3))
 }
 
 func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C) {

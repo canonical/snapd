@@ -144,3 +144,27 @@ func (s *snapdenvSuite) TestMockPreseeding(c *C) {
 	snapdenv.MockPreseeding(false)
 	c.Check(snapdenv.Preseeding(), Equals, false)
 }
+
+func (s *snapdenvSuite) TestPreseedAppArmorFeaturesDir(c *C) {
+	oldDir, hadDir := os.LookupEnv(snapdenv.EnvPreseedAppArmorFeaturesDir)
+	defer func() {
+		if hadDir {
+			os.Setenv(snapdenv.EnvPreseedAppArmorFeaturesDir, oldDir)
+		} else {
+			os.Unsetenv(snapdenv.EnvPreseedAppArmorFeaturesDir)
+		}
+	}()
+
+	r := snapdenv.MockPreseeding(false)
+	defer r()
+
+	os.Setenv(snapdenv.EnvPreseedAppArmorFeaturesDir, "/aa-features")
+	// ignored when not preseeding
+	c.Check(snapdenv.PreseedAppArmorFeaturesDir(), Equals, "")
+
+	snapdenv.MockPreseeding(true)
+	c.Check(snapdenv.PreseedAppArmorFeaturesDir(), Equals, "/aa-features")
+
+	os.Unsetenv(snapdenv.EnvPreseedAppArmorFeaturesDir)
+	c.Check(snapdenv.PreseedAppArmorFeaturesDir(), Equals, "")
+}
