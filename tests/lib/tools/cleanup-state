@@ -73,18 +73,9 @@ main() {
 			done
 
 			# If using cgroups v1, the current snapd code does not remove
-			# freezer or device cgroups, just clean them up here
+			# freezer cgroups, just clean them up here
 			if [ -d /sys/fs/cgroup/freezer ]; then
 				find /sys/fs/cgroup/freezer/ -type d -name 'snap.*' -prune -ls -exec rmdir \{\} \;
-			fi
-
-			if [ -d /sys/fs/cgroup/devices ]; then
-				find /sys/fs/cgroup/devices/ -type d -name 'snap.*' -prune -ls -exec rmdir \{\} \;
-			fi
-
-			# Remove any cgroup pinned map files might be left behind
-			if [ -d /sys/fs/bpf/snap ]; then
-				find /sys/fs/bpf/snap -type f -name "snap_*" -ls -exec rm \{\} \;
 			fi
 
 			# If the root user has a systemd --user instance then ask it to reload.
