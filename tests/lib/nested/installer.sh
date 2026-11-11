@@ -83,10 +83,7 @@ nested_live_snapd_setup() {
     case "${NESTED_DESKTOP_SNAPD}" in
         iso)
             cat <<'EOF'
-    mkdir -p /etc/systemd/system/snapd.service.d
-    printf '[Service]\nEnvironment=SNAPPY_TESTING=1\n' >/etc/systemd/system/snapd.service.d/99-nested-testing.conf
-    systemctl daemon-reload
-    if systemctl restart snapd.socket snapd.service; then
+    if printf '%s\n' '[Service]' 'Environment=SNAPPY_TESTING=1' | systemctl edit snapd.service --stdin --drop-in=99-nested-testing.conf && systemctl restart snapd.socket snapd.service; then
       echo nested-autoinstall-snapd-testing >/dev/ttyS1
     else
       echo nested-autoinstall-snapd-testing-failed >/dev/ttyS1
@@ -99,7 +96,7 @@ EOF
             # The image snapd may be newer than the branch snap, so re-exec
             # happens only when SNAP_REEXEC=force.
             cat <<'EOF'
-    mkdir -p /mnt/cidata /etc/systemd/system/snapd.service.d
+    mkdir -p /mnt/cidata
     if ! mount -o ro /dev/disk/by-label/cidata /mnt/cidata; then
       echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       exit 1
@@ -108,9 +105,7 @@ EOF
       echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       exit 1
     fi
-    printf '[Service]\nEnvironment=SNAPPY_TESTING=1\nEnvironment=SNAP_REEXEC=force\n' >/etc/systemd/system/snapd.service.d/99-nested-testing.conf
-    systemctl daemon-reload
-    if ! systemctl restart snapd.socket snapd.service; then
+    if ! printf '%s\n' '[Service]' 'Environment=SNAPPY_TESTING=1' 'Environment=SNAP_REEXEC=force' | systemctl edit snapd.service --stdin --drop-in=99-nested-testing.conf || ! systemctl restart snapd.socket snapd.service; then
       echo nested-autoinstall-snapd-testing-failed >/dev/ttyS1
       systemctl list-units --all '*snapd*' >/dev/ttyS0 2>&1 || true
       exit 1
