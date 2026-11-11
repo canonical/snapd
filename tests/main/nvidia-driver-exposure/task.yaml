@@ -1,0 +1,111 @@
+summary: Verify snap-confine exposes host NVIDIA libraries for compute and full drivers
+
+details: |
+    Install the host NVIDIA userspace driver in either compute-only form
+    (libnvidia-compute-<N>, which ships libcuda.so.<version> but not
+    libnvidia-glcore.so) or full form (libnvidia-gl-<N>, which ships both).
+
+    We check that snap-confine exposes the libraries under /var/lib/snapd/lib/gl.
+
+systems:
+    - ubuntu-18.04-64
+    - ubuntu-20.04-64
+    - ubuntu-22.04-64
+    - ubuntu-24.04-64
+    - ubuntu-26.04-64
+
+environment:
+    DRIVER_FLAVOR/compute: compute
+    DRIVER_FLAVOR/full: full
+
+prepare: |
+    apt-get update
+    case "$DRIVER_FLAVOR" in
+        compute)
+            # Pick the newest driver version available on this system.
+            PACKAGE_VERSION="$(apt-cache pkgnames libnvidia-compute- |
+                sed -e 's/^libnvidia-compute-//' | grep -Ex '[0-9]+' | sort -n | tail -n1)"
+            if [ -z "$PACKAGE_VERSION" ]; then
+                echo "no libnvidia-compute-<N> package available, skipping"
+                exit 0
+            fi
+            PACKAGES=("libnvidia-compute-$PACKAGE_VERSION")
+            ;;
+        full)
+            # Pick the newest driver version available on this system.
+            PACKAGE_VERSION="$(apt-cache pkgnames libnvidia-gl- |
+                sed -e 's/^libnvidia-gl-//' | grep -Ex '[0-9]+' | sort -n | tail -n1)"
+            if [ -z "$PACKAGE_VERSION" ]; then
+                echo "no libnvidia-gl-<N> package available, skipping"
+                exit 0
+            fi
+            # for 20.04, libnvidia-gl does not depend on libnividia-compute
+            # so need to manually install both.
+            PACKAGES=("libnvidia-compute-$PACKAGE_VERSION" "libnvidia-gl-$PACKAGE_VERSION")
+            ;;
+        *)
+            echo "unknown DRIVER_FLAVOR: $DRIVER_FLAVOR"
+            exit 1
+            ;;
+    esac
+
+    if ! apt-get install -y "${PACKAGES[@]}"; then
+        echo "cannot install ${PACKAGES[*]}, skipping"
+        exit 0
+    fi
+
+    # Look at libcuda.so.*.* to get the exact version of the driver.
+    # It should be present for both full and compute-only driver installs.
+    DRIVER_VERSION="$(find /usr/lib/x86_64-linux-gnu/ -name 'libcuda.so.*.*' | sed -e 's,.*/libcuda\.so\.,,')"
+    test -n "$DRIVER_VERSION"
+
+    mkdir -p /tmp/sys-module/nvidia
+    tests.cleanup defer rm -rf /tmp/sys-module
+    echo "$DRIVER_VERSION" >/tmp/sys-module/nvidia/version
+    # mock /sys/module we need to recreate /sys/module/apparmor
+    mkdir -p /tmp/sys-module-apparmor
+    tests.cleanup defer rmdir /tmp/sys-module-apparmor
+    mount -o bind /sys/module/apparmor /tmp/sys-module-apparmor
+    tests.cleanup defer umount /tmp/sys-module-apparmor
+    mkdir -p /tmp/sys-module/apparmor
+
+    mount -o bind /tmp/sys-module/ /sys/module
+    # and recreate apparmor directory
+    mount -o bind /tmp/sys-module-apparmor /sys/module/apparmor
+    tests.cleanup defer umount -R /sys/module
+
+    snap pack test-nvidia-exposure
+    snap install --dangerous test-nvidia-exposure_*.snap
+
+    # Marker so the execute phase knows this flavor was actually set up.
+    touch run-this-flavor
+    tests.cleanup defer rm -f run-this-flavor
+
+restore: |
+    snap remove --purge test-nvidia-exposure 2>/dev/null || true
+    # Remove the userspace libraries installed by this test.
+    apt-get purge -y 'libnvidia-*' 2>/dev/null || true
+    rm -f test-nvidia-exposure_*.snap
+
+debug: |
+    dpkg -l 'libnvidia-*' 2>/dev/null || true
+
+execute: |
+    if [ ! -f run-this-flavor ]; then
+        echo "skipping $DRIVER_FLAVOR (no usable driver package)"
+        exit 0
+    fi
+
+    case "$DRIVER_FLAVOR" in
+        compute)
+            # libcuda is present, but the GL libraries shipped by
+            # libnvidia-gl-<N> are not.
+            test-nvidia-exposure.present 'libcuda.so*'
+            test-nvidia-exposure.missing 'libnvidia-glcore.so*' 'libEGL_nvidia.so*'
+            ;;
+        full)
+            # Both libcuda and the GL libraries are present.
+            test-nvidia-exposure.present \
+              'libcuda.so*' 'libnvidia-glcore.so*' 'libEGL_nvidia.so*' 'libGLX_nvidia.so*'
+            ;;
+    esac

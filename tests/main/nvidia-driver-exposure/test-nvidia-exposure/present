@@ -1,0 +1,20 @@
+#!/bin/bash -eux
+
+libdir=/var/lib/snapd/lib/gl
+echo "SNAP_LIBRARY_PATH=${SNAP_LIBRARY_PATH:-}"
+
+require() {
+    local matches
+    matches="$(compgen -G "$libdir/$1" || true)"
+    if [ -z "$matches" ]; then
+        echo "MISSING: $libdir/$1"
+        ls -la "$libdir" || true
+        exit 1
+    fi
+    echo "found: $libdir/$1 -> $matches"
+}
+
+while [ "$#" -gt 0 ]; do
+    require "$1"
+    shift
+done
