@@ -352,14 +352,24 @@ nested_installed_disk_is_ready() {
             if [ -f "${tmp}/etc/os-release" ]; then
                 found=0
             fi
-            umount "$tmp" || true
+            if ! umount "$tmp"; then
+                echo "cannot unmount ${part}" >&2
+                return 1
+            fi
             if [ "$found" -eq 0 ]; then
                 break
             fi
         fi
     done
-    rmdir "$tmp" || true
-    losetup -d "$devloop" || true
+    if ! rmdir "$tmp"; then
+        echo "cannot remove ${tmp}" >&2
+        return 1
+    fi
+    # udev can hold the device briefly after unmount.
+    if ! retry -n 5 --wait 1 losetup -d "$devloop"; then
+        echo "cannot detach ${devloop}" >&2
+        return 1
+    fi
     return "$found"
 }
 
