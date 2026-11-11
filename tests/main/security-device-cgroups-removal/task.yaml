@@ -1,0 +1,71 @@
+summary: Verify that device cgroup artifacts are removed when a snap is removed or disabled
+
+details: |
+    Device cgroup artifacts are created by snap-confine when an app runs; on
+    core24+ bases the device cgroup is required, so it is created even when no
+    udev-tagged devices are assigned. On removal, snapd cleans up the artifacts:
+    on cgroup v2 the pinned BPF device maps under /sys/fs/bpf/snap/, on cgroup
+    v1 the hierarchy directories under /sys/fs/cgroup/devices/.
+
+    Removing the security profiles (the remove-profiles task) happens both
+    during snap removal and snap disable, so the device cgroup artifacts are
+    cleaned up in both flows.
+
+execute: |
+    #shellcheck source=tests/lib/systems.sh
+    . "$TESTSLIB"/systems.sh
+    if is_cgroupv2; then
+        echo "This system uses cgroup v2"
+    else
+        echo "This system uses cgroup v1"
+    fi
+
+    artifacts_exist() {
+        if is_cgroupv2; then
+            test -e /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+        else
+            test -e /sys/fs/cgroup/devices/snap.test-snapd-sh-core24.sh
+        fi
+    }
+
+    artifacts_gone() {
+        if is_cgroupv2; then
+            # shellcheck disable=SC2012
+            ls /sys/fs/bpf/snap | NOMATCH "snap_test-snapd-sh-core24"
+        else
+            # shellcheck disable=SC2012
+            ls /sys/fs/cgroup/devices | NOMATCH "snap.test-snapd-sh-core24"
+        fi
+    }
+
+    echo "Given a snap whose device cgroup is required is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    tests.cleanup defer snap remove --purge test-snapd-sh-core24
+
+    echo "And its app is run once"
+    test-snapd-sh-core24.sh -c 'true'
+
+    echo "Then the device cgroup artifacts exist"
+    artifacts_exist
+
+    echo "When the snap is removed"
+    snap remove --purge test-snapd-sh-core24
+
+    echo "Then all device cgroup artifacts of the snap are gone"
+    artifacts_gone
+
+    echo "And the snap can be installed again and the artifacts recreated"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    test-snapd-sh-core24.sh -c 'true'
+    artifacts_exist
+
+    echo "When the snap is disabled"
+    snap disable test-snapd-sh-core24 | MATCH disabled
+
+    echo "Then all device cgroup artifacts of the snap are gone"
+    artifacts_gone
+
+    echo "And after the snap is enabled and its app is run the artifacts are recreated"
+    snap enable test-snapd-sh-core24 | MATCH enabled
+    test-snapd-sh-core24.sh -c 'true'
+    artifacts_exist
