@@ -87,9 +87,9 @@ nested_live_snapd_setup() {
     printf '[Service]\nEnvironment=SNAPPY_TESTING=1\n' >/etc/systemd/system/snapd.service.d/99-nested-testing.conf
     systemctl daemon-reload
     if systemctl restart snapd.socket snapd.service; then
-      echo nested-autoinstall-snapd-testing >/dev/ttyS0
+      echo nested-autoinstall-snapd-testing >/dev/ttyS1
     else
-      echo nested-autoinstall-snapd-testing-failed >/dev/ttyS0
+      echo nested-autoinstall-snapd-testing-failed >/dev/ttyS1
       systemctl list-units --all '*snapd*' >/dev/ttyS0 2>&1 || true
       exit 1
     fi
@@ -101,30 +101,30 @@ EOF
             cat <<'EOF'
     mkdir -p /mnt/cidata /etc/systemd/system/snapd.service.d
     if ! mount -o ro /dev/disk/by-label/cidata /mnt/cidata; then
-      echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS0
+      echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       exit 1
     fi
     if ! snap install --dangerous /mnt/cidata/snapd.snap >/dev/ttyS0 2>&1; then
-      echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS0
+      echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       exit 1
     fi
     printf '[Service]\nEnvironment=SNAPPY_TESTING=1\nEnvironment=SNAP_REEXEC=force\n' >/etc/systemd/system/snapd.service.d/99-nested-testing.conf
     systemctl daemon-reload
     if ! systemctl restart snapd.socket snapd.service; then
-      echo nested-autoinstall-snapd-testing-failed >/dev/ttyS0
+      echo nested-autoinstall-snapd-testing-failed >/dev/ttyS1
       systemctl list-units --all '*snapd*' >/dev/ttyS0 2>&1 || true
       exit 1
     fi
-    echo nested-autoinstall-snapd-testing >/dev/ttyS0
+    echo nested-autoinstall-snapd-testing >/dev/ttyS1
     pid="$(systemctl show -p MainPID --value snapd)"
     exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
     echo "nested-autoinstall-snapd-exe ${exe}" >/dev/ttyS0
     case "$exe" in
       /snap/snapd/*)
-        echo nested-autoinstall-snapd-reexec >/dev/ttyS0
+        echo nested-autoinstall-snapd-reexec >/dev/ttyS1
         ;;
       *)
-        echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS0
+        echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
         exit 1
         ;;
     esac
@@ -264,6 +264,10 @@ nested_remove_vm_unit() {
 nested_installer_dump_logs() {
     echo "serial log:" >&2
     nested_print_serial_log >&2 || true
+    if [ -f "${NESTED_LOGS_DIR}/installer-status.log" ]; then
+        echo "installer status log:" >&2
+        cat "${NESTED_LOGS_DIR}/installer-status.log" >&2 || true
+    fi
     local log
     for log in "${NESTED_LOGS_DIR}/qemu.log" "${NESTED_LOGS_DIR}/qemu-install.log"; do
         if [ -f "$log" ]; then
@@ -297,10 +301,17 @@ nested_wait_for_qemu_exit() {
         if [ "$state" = "inactive" ]; then
             return 0
         fi
+        if [ -f "${NESTED_LOGS_DIR}/installer-status.log" ]; then
+            # Markers are whole lines on the status port. The seed contains
+            # the commands that print them, so an unanchored match is not used.
+            if grep -q -E '^(nested-autoinstall-failed|nested-autoinstall-snapd-testing-failed|nested-autoinstall-confirm-timeout|nested-autoinstall-snapd-reexec-failed)[[:space:]]*$' "${NESTED_LOGS_DIR}/installer-status.log"; then
+                echo "desktop installer reported a failure" >&2
+                return 1
+            fi
+        fi
         if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-            # Anchor the markers to a whole line. The seed contains the command
-            # that prints them, and an unanchored match treats that as a failure.
-            if grep -q -E '^(nested-autoinstall-failed|nested-autoinstall-snapd-testing-failed|nested-autoinstall-confirm-timeout|nested-autoinstall-snapd-reexec-failed)[[:space:]]*$|is not available: running-in-vm' "${NESTED_LOGS_DIR}/serial.log"; then
+            # This sentence is only in the forwarded installer log.
+            if grep -q -F 'is not available: running-in-vm' "${NESTED_LOGS_DIR}/serial.log"; then
                 echo "desktop installer reported a failure" >&2
                 return 1
             fi
@@ -327,11 +338,13 @@ nested_restore_installer_vm_params() {
     local saved_keep="$1"
     local saved_image="$2"
     local saved_cd="$3"
-    local saved_no_reexec="$4"
+    local saved_extra="$4"
+    local saved_no_reexec="$5"
 
     NESTED_KEEP_FIRMWARE_STATE="$saved_keep"
     NESTED_PARAM_IMAGE="$saved_image"
     NESTED_PARAM_CD="$saved_cd"
+    NESTED_PARAM_EXTRA="$saved_extra"
     NESTED_NO_REEXEC_ON_FAILURE="$saved_no_reexec"
 }
 
@@ -343,6 +356,7 @@ nested_start_desktop_qemu() {
     local saved_keep="${NESTED_KEEP_FIRMWARE_STATE-}"
     local saved_image="${NESTED_PARAM_IMAGE-}"
     local saved_cd="${NESTED_PARAM_CD-}"
+    local saved_extra="${NESTED_PARAM_EXTRA-}"
     local saved_no_reexec="${NESTED_NO_REEXEC_ON_FAILURE-}"
     local block_opts status
 
@@ -355,6 +369,12 @@ nested_start_desktop_qemu() {
         # QEMU exit with "Bus 'scsi0.1' not found".
         NESTED_PARAM_CD="-device virtio-scsi-pci,id=scsi0 -drive if=none,file=${iso},readonly=on,media=cdrom,format=raw,id=installer-cd -device scsi-cd,bus=scsi0.0,drive=installer-cd,bootindex=1 -drive if=none,file=${seed},readonly=on,media=cdrom,format=raw,id=cidata-cd -device scsi-cd,bus=scsi0.0,drive=cidata-cd,bootindex=2"
         NESTED_PARAM_IMAGE="-drive file=${disk},if=none,format=raw,id=boot-disk -device virtio-blk-pci,drive=boot-disk,bootindex=3,write-cache=on,${block_opts}"
+        # PARAM_EXTRA follows the console serial, so this port is ttyS1.
+        if [ -n "$saved_extra" ]; then
+            NESTED_PARAM_EXTRA="${saved_extra} -serial file:${NESTED_LOGS_DIR}/installer-status.log"
+        else
+            NESTED_PARAM_EXTRA="-serial file:${NESTED_LOGS_DIR}/installer-status.log"
+        fi
     else
         NESTED_KEEP_FIRMWARE_STATE=1
         NESTED_PARAM_CD=
@@ -367,7 +387,7 @@ nested_start_desktop_qemu() {
     else
         status=$?
     fi
-    nested_restore_installer_vm_params "$saved_keep" "$saved_image" "$saved_cd" "$saved_no_reexec"
+    nested_restore_installer_vm_params "$saved_keep" "$saved_image" "$saved_cd" "$saved_extra" "$saved_no_reexec"
     return "$status"
 }
 

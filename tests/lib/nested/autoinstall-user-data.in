@@ -1,11 +1,11 @@
 #cloud-config
 runcmd:
   - |
-    echo nested-autoinstall-live >/dev/ttyS0
+    echo nested-autoinstall-live >/dev/ttyS1
 @LIVE_SNAPD_SETUP@
     # Firmware boot of the stock ISO has no autoinstall kernel parameter, so
     # the desktop installer waits for confirmation after the config loads.
-    setsid python3 - >/dev/ttyS0 2>&1 <<'PY' &
+    setsid python3 - >/dev/ttyS1 2>&1 <<'PY' &
     import os
     import socket
     import stat
@@ -110,7 +110,7 @@ autoinstall:
     install: false
   shutdown: poweroff
   error-commands:
-    - echo nested-autoinstall-failed >/dev/ttyS0
+    - echo nested-autoinstall-failed >/dev/ttyS1
   late-commands:
     - printf "user1 ALL=(ALL) NOPASSWD:ALL\n" > /target/etc/sudoers.d/99-nested-user && chmod 440 /target/etc/sudoers.d/99-nested-user
     - mkdir -p /target/etc/systemd/system/snapd.service.d && printf "[Service]\nEnvironment=SNAPPY_TESTING=1\n" > /target/etc/systemd/system/snapd.service.d/99-nested-testing.conf
