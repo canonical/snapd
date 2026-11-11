@@ -71,21 +71,21 @@ runcmd:
     raise SystemExit(1)
     PY
     setsid bash -c 'exec >>/dev/ttyS0 2>&1
-    declare -A seen
-    while true; do
-      for f in /var/log/installer/*; do
-        [ -f "$f" ] || continue
-        [ -L "$f" ] && continue
-        size=$(stat -c %s "$f" 2>/dev/null || echo 0)
-        prev=${seen[$f]:-0}
-        if [ "$size" -gt "$prev" ]; then
-          echo "==> $f <=="
-          tail -c +$((prev + 1)) "$f"
-          seen[$f]=$size
-        fi
-      done
-      sleep 2
-    done' </dev/null >/dev/ttyS0 2>&1 &
+      declare -A seen
+      while true; do
+        for f in /var/log/installer/*; do
+          [ -f "$f" ] || continue
+          [ -L "$f" ] && continue
+          size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+          prev=${seen[$f]:-0}
+          if [ "$size" -gt "$prev" ]; then
+            echo "==> $f <=="
+            tail -c +$((prev + 1)) "$f"
+            seen[$f]=$size
+          fi
+        done
+        sleep 2
+      done' </dev/null >/dev/ttyS0 2>&1 &
 autoinstall:
   version: 1
   interactive-sections: []
