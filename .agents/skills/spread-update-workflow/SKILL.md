@@ -90,10 +90,12 @@ new selector under the specified conditions.
 
 When fixtures must be created or refreshed:
 
-1. Run the updated test on the target with `-shell` when a shell is needed in
-  place of the execute step to inspect or prepare test state proactively. Use
-  `-debug` when execute should run normally and the shell should open only
-  after a failure, preserving generated output and failed state.
+1. Run the updated test on the target with `-shell` when an interactive shell
+  is needed in place of the execute step to inspect or prepare test state
+  proactively. Use `-debug-socket` for remote inspection when execute should
+  run normally and pause only after a failure, preserving generated output and
+  failed state. Use `spread exec -- COMMAND` to inspect and `spread stop` to
+  resume; use `-debug` when a human-operated terminal shell is needed.
 2. Inspect every difference against the old fixture and acceptance criteria.
 3. Add or update fixtures only after the differences are understood.
 4. Rerun the same selector from a fresh worker when image state or generated
@@ -115,8 +117,10 @@ When a validation or Spread run fails, do not stop at reporting the failure
 while an evidence-based next action is available:
 
 1. Identify the failed phase, command, exit status, and first relevant error.
-2. Keep the Spread `-debug` shell open and inspect the failed worker's live
+2. Keep the Spread debug session paused and inspect the failed worker's live
   state, generated files, logs, and commands needed to explain the failure.
+  For remote inspection, use `spread exec -- COMMAND` and resume with
+  `spread stop`.
   If diagnosis must happen before execute, rerun with `-shell` and perform the
   execute commands selectively. Use downloaded artifacts when a live shell is
   unavailable or persistent evidence is specifically required.

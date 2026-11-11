@@ -1,6 +1,6 @@
 ---
 name: spread-runner
-description: Run and debug snapd Spread tests, choose the correct test suite and runner, investigate failures in the live debug shell, and verify changes. Use standalone or as the execution stage of spread-failure-workflow, spread-reproducer, or spread-fixer.
+description: Run and debug snapd Spread tests, choose the correct test suite and runner, investigate failures in an interactive shell or remote debug-socket session, and verify changes. Use standalone or as the execution stage of spread-failure-workflow, spread-reproducer, or spread-fixer.
 metadata:
   project: snapd
   task-type: test
@@ -12,7 +12,7 @@ metadata:
 This skill owns Spread execution and debugging mechanics. The
 `spread-failure-workflow` skill coordinates a complete run-reproduce-fix-verify
 cycle. Use
-`spread-reproducer` to investigate a nightly predictor report, and
+`spread-reproducer` to investigate failures from supplied CI job URLs, and
 `spread-fixer` to make a focused fix to a test or its helpers. Those skills
 should use this one for test commands and verification rather than duplicating
 runner guidance.
@@ -36,7 +36,7 @@ Choose the snapd artifact based on what is being reproduced:
 - `-d` downloads the latest successful master build, which may not match the
   report's source commit. Record the downloaded build and any source mismatch.
 - Put Spread flags and the selector after `--` when using `run-spread` options,
-  for example: `./run-spread -d -- -debug BACKEND:SYSTEM:TEST_PATH`.
+  for example: `./run-spread -d -- -debug-socket BACKEND:SYSTEM:TEST_PATH`.
 - Use `NO_REBUILD=1` only when an existing local snap is known to match the
   intended source; it may be stale.
 
@@ -76,25 +76,25 @@ corresponds to the workflow's `spread-experimental-features` input.
 
 ```bash
 # Generic has no implied environment; this example builds the current checkout
-./run-spread -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH
+./run-spread -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 
 # Deb: match nightly build-from-current
 SPREAD_SNAPD_DEB_FROM_REPO=false \
 SPREAD_MODIFY_CORE_SNAP_FOR_REEXEC=0 \
 SPREAD_SNAP_REEXEC=0 \
-./run-spread -d -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH
+./run-spread -d -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 
 # ci-release deb-test (scenario label remains generic)
 SPREAD_SNAPD_DEB_FROM_REPO=false \
 SPREAD_SNAP_REEXEC=0 \
-./run-spread -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH
+./run-spread -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 
 # Master-push snap artifact
-./run-spread -d -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH
+./run-spread -d -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 
 # Feature diagnostics and artifact collection
 SPREAD_TAG_FEATURES=1 \
-./run-spread -- -debug -repeat 3 -artifacts spread-artifacts BACKEND:SYSTEM:TEST_PATH
+./run-spread -- -debug-socket -repeat 3 -artifacts spread-artifacts BACKEND:SYSTEM:TEST_PATH
 ```
 
 ## Spread mental model
@@ -115,10 +115,16 @@ their scope, while `prepare-each` and `restore-each` run around each task.
 The task itself runs `prepare`, `execute`, and `restore`; cleanup is attempted
 even if setup or execution fails.
 
-`-debug` pauses at the failure with a shell on that same worker and environment
-before cleanup continues. Collect evidence there; exiting the shell lets
-Spread proceed with restore. This interactive shell is separate from task
-`debug` or `debug-each` scripts, which can emit diagnostics on failure.
+`-debug` pauses at the failure with an interactive shell on that same worker
+and environment before cleanup continues. For agent-driven or headless remote
+debugging, use `-debug-socket` instead. It pauses without opening a terminal and
+creates `.spread.socket` in the project directory. While the Spread process is
+paused, run `spread exec -- COMMAND` from that directory to execute a command in
+the failed task's directory and environment; run `spread stop` when evidence
+collection is complete so Spread can continue with restore. Each `spread exec`
+uses a separate remote command and does not share process state with the task.
+The socket commands are separate from task `debug` or `debug-each` scripts,
+which can emit diagnostics on failure.
 
 Tasks are normally ordered randomly. Spread logs a seed that can help replay
 the order, but with multiple workers task assignment can vary due to scheduling.
@@ -201,10 +207,10 @@ connection. It then uses the `tests.nested` tool and helpers under
   during suite preparation and create/remove a guest for each task.
   `tests/nested/manual/` leaves image and VM lifecycle to each test.
 
-The outer host's `-debug` shell is not the nested guest shell. Before
-`restore-each` removes the guest, collect guest-side evidence such as its
-serial log, VM status, or service state. The nested lifecycle and image logic
-is in [`tests/lib/tools/tests.nested`](../../../tests/lib/tools/tests.nested),
+The outer host's `-debug` shell or `spread exec` session is not the nested guest
+shell. Before `restore-each` removes the guest, collect guest-side evidence
+such as its serial log, VM status, or service state. The nested lifecycle and
+image logic is in [`tests/lib/tools/tests.nested`](../../../tests/lib/tools/tests.nested),
 [`tests/lib/nested/image.sh`](../../../tests/lib/nested/image.sh), and
 [`tests/lib/nested/lifecycle.sh`](../../../tests/lib/nested/lifecycle.sh).
 
@@ -240,7 +246,7 @@ systemd, invariant, journal, and nested-VM operations.
 ## Prerequisites
 
 For local or branch snapd product-code changes, let `run-spread` build the snap
-from the current checkout. For test-only changes and report-based failures, use
+from the current checkout. For a CI job that used a prebuilt master snap, use
 `./run-spread -d -- <Spread args>` to download a prebuilt snap. Use
 `NO_REBUILD=1` only when reusing a verified matching local artifact.
 
@@ -248,23 +254,26 @@ from the current checkout. For test-only changes and report-based failures, use
 
 ```bash
 # Report-based failure (download prebuilt snapd from master)
-./run-spread -d -- -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
+./run-spread -d -- -debug-socket garden:ubuntu-24.04-64:tests/main/snap-mgmt
 
 # Failure tied to local/branch changes (build current checkout)
-./run-spread -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
+./run-spread -debug-socket garden:ubuntu-24.04-64:tests/main/snap-mgmt
 
 # Reuse a verified matching local snap
-NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread -debug-socket garden:ubuntu-24.04-64:tests/main/snap-mgmt
 
 # Reuse VMs for faster iteration with a verified matching local snap
-NO_REBUILD=1 ./run-spread -reuse -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread -reuse -debug-socket garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 
 Always specify `<backend>:<system>:<test-path>` — bare `./run-spread` runs everything.
 
 ## Flags
 
-- `-debug`: Get SSH shell on failure. Use by default.
+- `-debug-socket`: Pause on failure for remote commands through `spread exec`;
+  use for agent-driven or headless debugging.
+- `-debug`: Open an interactive SSH shell on failure when a terminal is
+  available.
 - `-reuse`: Keep VMs alive between runs (faster iteration).
 
 ## Backend and system
@@ -272,11 +281,11 @@ Always specify `<backend>:<system>:<test-path>` — bare `./run-spread` runs eve
 In this snapd workflow, `garden` runs local QEMU VMs and is the normal
 developer backend. `openstack-dev` uses the staging OpenStack project. If
 Garden cannot provision a worker and the user authorizes a cloud attempt, use
-`openstack-dev` with the same system and test; record that it is staging, not
-the production CI project. The `openstack` backend uses CI credentials and
-must not be used as an unapproved fallback. Garden and OpenStack provide
-similar test systems, but they are not identical environments, so a Garden
-pass does not by itself prove the test passes in CI.
+the backend they explicitly name; if they do not name one, use `openstack-dev`
+with the same system and test, and record that it is staging. The `openstack`
+backend uses CI credentials and requires explicit user authorization. Garden
+and OpenStack provide similar test systems, but they are not identical
+environments, so a Garden pass does not by itself prove the test passes in CI.
 
 Other configured backends may be needed for specialized suites, such as
 nested-VM tests. Follow that suite's configuration in `spread.yaml`; do not
@@ -340,7 +349,8 @@ Debug output for garden:<system>:<test> :
 -----
 <debug section output — extra diagnostic info>
 -----
-Starting shell to debug...
+Debug socket session ready. Use `spread exec -- <command>` to run commands,
+then `spread stop` to continue.
 ```
 
 Capture as much of the error and debug output as possible to avoid re-runs.
@@ -352,10 +362,13 @@ test or product code. Use the same system and relevant environment as the
 reported failure when available. For an OpenStack CI failure, reproduce locally
 on `garden` with the same system and test; this is the expected local backend
 substitution, and must be recorded as a condition difference. This baseline
-run must use `-debug`.
+run must pause on failure: use `-debug-socket` for remote inspection or
+`-debug` for an interactive terminal.
 
 Record whether the run reproduces the same failed phase, command, exit status,
-and symptom. Keep the debug shell open and collect evidence when it reproduces.
+and symptom. Keep the debug session paused and collect evidence when it
+reproduces; for remote inspection, use `spread exec -- COMMAND` and resume with
+`spread stop`.
 Do not edit code based only on the original CI log when a local reproduction is
 available.
 
@@ -366,10 +379,10 @@ whether the VM was fresh or reused. These conditions define the verification
 run.
 
 For the first reproduction invocation, use `-repeat 3` on a fresh worker to
-check for an intermittent failure. For report-based failures, use
-`./run-spread -d -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH`; omit `-d` when
-the checked-out local or branch source change must be built. Do not claim a
-fix from a single passing run if the original failure was intermittent.
+check for an intermittent failure. If the CI job used a prebuilt master snap,
+use `./run-spread -d -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH`; omit `-d`
+when the checked-out local or branch source change must be built. Do not claim
+a fix from a single passing run if the original failure was intermittent.
 
 If a run fails for a clearly unrelated transient problem before reaching the
 behavior under test (for example, a store download stalls or a worker fails to
@@ -387,17 +400,44 @@ and the same test subsequently passed with the patch.
 
 ## Debug a failure
 
-Keep the spread command running when it prints `Starting shell to debug...`.
-The shell belongs to that same terminal session; do not start another spread
-process or exit the shell before collecting evidence.
+Keep the Spread process running when it pauses on failure. For `-debug`, the
+interactive shell belongs to that terminal session. For `-debug-socket`, use
+`spread exec -- COMMAND` from the project directory to inspect the failed task,
+then run `spread stop` to resume the run. Do not start another Spread process
+or stop the paused run before collecting evidence.
+
+For agent-driven or headless remote debugging, start Spread with
+`-debug-socket`. When a task fails, Spread pauses and creates `.spread.socket`
+in the project directory. Keep the Spread process running and issue focused
+diagnostics from that directory with `spread exec -- 'COMMAND'`. For example:
+
+For example, through snapd's wrapper:
+
+```bash
+./run-spread -d -- -debug-socket BACKEND:SYSTEM:TEST_PATH
+spread exec -- 'journalctl -u snapd --no-pager -n 100'
+spread exec -- 'pwd'
+spread stop
+```
+
+Each `spread exec` uses a separate SSH command in the failed task's working
+directory and environment, and returns output and exit status directly; it
+does not share process state with the task. Use `spread stop` after collecting
+evidence so Spread can continue with restore and cleanup. The socket is local
+to the project directory and exists only while a debug-socket session is
+active. Use `-debug` for a human-operated interactive shell, or `-shell` when
+an interactive shell is needed before task execution; `-debug-socket` pauses
+only after a task error.
 
 1. Read the complete failed command and its output before running commands.
 2. Identify the failed phase and the exact assertion or command that failed.
-3. Use the live shell to test the smallest plausible root-cause hypothesis.
+3. Use `spread exec` or the interactive shell to test the smallest plausible
+   root-cause hypothesis.
 4. Collect enough state to distinguish a product bug, test bug, dependency
    failure, image problem, or infrastructure issue.
-5. Exit the shell only after the evidence needed for a proposed solution has
-   been captured. Spread will then continue with restore and cleanup.
+5. Resume the run with `spread stop` or exit the interactive shell only after
+   the evidence needed for a proposed solution has been captured. Spread will
+   then continue with restore and cleanup.
 
 Use the failed phase to focus the investigation:
 
@@ -502,15 +542,16 @@ Key sections: `environment:` (global vars), `backends:` (garden/openstack/qemu c
 
 ## Rules
 
-- Always use `-debug` to avoid re-runs on failure
+- Always pause on failure: use `-debug-socket` for remote inspection or
+  `-debug` when an interactive terminal shell is needed.
 - Reproduce the original failure before editing or claiming a fix
 - Verify the fix under the same recorded conditions as the reproduction
-- Use `-d` for report-based failures; omit it when reproducing a local/branch source change
+- Use `-d` when the CI job used a prebuilt master snap; omit it when reproducing a local/branch source change
 - Use `NO_REBUILD=1` only for a verified matching local artifact
 - Never run `./run-spread` without a test path
 - Retry once on a fresh worker after a clearly unrelated transient failure; stop if it repeats
-- Use `garden` for normal local tests; if Garden allocation fails, use `openstack-dev` only with user authorization
-- Do not use the production `openstack` backend as an unapproved fallback
+- Use `garden` for normal local tests; for an authorized cloud attempt, use the backend the user names, or `openstack-dev` if they do not name one
+- Do not use the production `openstack` backend without explicit user authorization
 - Max 4 parallel subagent tests (RAM)
 - When unsure if suite needs snap, check the suite and task configuration before running
 - Verify `built-snap/snapd_*.snap.keep` exists and matches the intended source before using `NO_REBUILD=1`
