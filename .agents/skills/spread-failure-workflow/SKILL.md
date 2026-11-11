@@ -40,12 +40,12 @@ not trigger CI, write to GitHub, or upload CI data.
 ## Workflow session directory
 
 From the snapd repository root, create one unique session directory in the
-project's ignored `.log` directory at the start of the workflow, for example:
+project's ignored `.logs` directory at the start of the workflow, for example:
 
 ```bash
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-mkdir -p "$PROJECT_ROOT/.log"
-SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.log/spread-failure-workflow-XXXXXX")"
+mkdir -p "$PROJECT_ROOT/.logs"
+SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.logs/spread-failure-workflow-XXXXXX")"
 printf '%s\n' "$SESSION_DIR"
 ```
 
