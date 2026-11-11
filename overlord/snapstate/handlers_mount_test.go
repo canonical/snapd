@@ -196,10 +196,9 @@ func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnap
 		expectedIdp = idp
 	}
 
+	validatedIntegrityDataCalls := 0
 	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
-		if opts.dmverityDisabled {
-			c.Fatalf("unexpected call to ValidatedIntegrityData")
-		}
+		validatedIntegrityDataCalls++
 		c.Assert(snapID, Equals, "snap-id")
 		c.Assert(rev, Equals, snap.R(33))
 		// make sure the state is locked
@@ -243,6 +242,12 @@ func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnap
 	s.state.Lock()
 
 	c.Assert(osutil.FileExists(testSnap), Equals, true)
+
+	if opts.dmverityDisabled {
+		c.Check(validatedIntegrityDataCalls, Equals, 0)
+	} else {
+		c.Check(validatedIntegrityDataCalls, Equals, 1)
+	}
 
 	if opts.expectedErr != "" {
 		c.Check(chg.Err(), ErrorMatches, opts.expectedErr)
