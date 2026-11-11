@@ -611,7 +611,7 @@ func (s *infoSuite) TestMaybePrintBase(c *check.C) {
 
 	// no verbose -> no build-base
 	snap.SetVerbose(iw, false)
-	snap.MaybePrintBase(iw)
+	snap.MaybePrintBuildBase(iw)
 	c.Check(buf.String(), check.Equals, "")
 }
 
