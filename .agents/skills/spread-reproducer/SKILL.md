@@ -1,109 +1,102 @@
 ---
 name: spread-reproducer
-description: Investigate and reproduce intermittent snapd Spread failures from the canonical/snapd-testing-jobs nightly test predictor report. Use standalone or as the evidence and reproduction stage of spread-failure-workflow.
-argument-hint: "[report run URL or ID] [test path]"
+description: Investigate and reproduce intermittent snapd Spread failures from supplied GitHub Actions job URLs. Use standalone or as the evidence and reproduction stage of spread-failure-workflow.
+argument-hint: "[GitHub Actions job URL(s)] [test path]"
 metadata:
   project: snapd
   task-type: test-investigation
   execution-time: slow
 ---
 
-# Reproduce a reported Spread failure
+# Reproduce a Spread failure from CI jobs
 
-Use this workflow to investigate entries from the
-[`nightly-tests-report.yaml`](https://github.com/canonical/snapd-testing-jobs/actions/workflows/nightly-tests-report.yaml)
-report. Use the `spread-runner` skill for the mechanics and safety rules of
-running and debugging Spread. This skill owns report selection, CI evidence
-collection, reproduction attempts, and prior-test correlation; it does not
-replace the shared runner guidance. If the evidence identifies a test defect,
-hand the completed reproduction report to `spread-fixer` for the focused
-test change. For an end-to-end run, reproduce, fix, and verify flow, use
+Use this workflow to investigate failures from supplied GitHub Actions job
+URLs. Use the `spread-runner` skill for the mechanics and safety rules of
+running and debugging Spread. This skill owns CI evidence collection,
+reproduction attempts, and prior-test correlation; it does not replace the
+shared runner guidance. If the evidence identifies a test defect, hand the
+completed reproduction handoff to `spread-fixer` for the focused test change.
+For an end-to-end run, reproduce, fix, and verify flow, use
 `spread-failure-workflow`, which coordinates these stages.
 
 ## Inputs
 
-Accept a report run URL or ID and, when provided, a test path. If either is
-missing, list the recent report runs or candidate report rows and ask the user
-to select one. Never silently choose a reported failure when several match.
+Accept one or more GitHub Actions job URLs and, when needed, the test path to
+investigate. If no job URLs are supplied, ask for them; do not query GitHub for
+recent runs. If the supplied jobs contain failures for multiple tests and no
+test path was specified, ask the user which test to investigate.
 
 Record these fields before running anything:
 
-- report run ID and scenario
-- phase, backend, system, test path, and variant
-- predicted success percentage
-- failed snapd run IDs and job IDs from the report history
+- phase, backend, system, test path, and variant from available evidence
+- scenario and snapd run IDs/job IDs from the supplied URLs
 
-Use the phase from the report. A preparing or restoring failure is not
-equivalent to an executing failure.
+Use the phase shown by the job log and matching result rows. A preparing or
+restoring failure is not equivalent to an executing failure.
 
-## 1. Read the report
+## Allowed actions and CI access boundary
 
-Prerequisites are `gh`, `jq`, `curl`, GitHub authentication with access to
-`canonical/snapd`, and network access to the test predictor. Check them first;
-do not trigger a new report workflow unless the user explicitly requests it.
+This skill may inspect the workspace, analyze the selected test and its
+downloaded evidence, and run local reproduction commands through
+`spread-runner`. It may read existing CI evidence only by executing the bundled
+[CI log fetcher](../../../tests/utils/spread-log/fetch_spread_ci_logs.py). Do not use `gh`, `curl`,
+browser/network tools, or another script for CI access. Do not trigger CI,
+write to GitHub, or upload CI data. User-pasted logs may be read directly.
 
-List recent report runs:
-
-```bash
-gh run list \
-    --repo canonical/snapd-testing-jobs \
-    --workflow nightly-tests-report.yaml \
-    --limit 10 \
-    --json databaseId,displayTitle,createdAt,conclusion,event,url
-```
-
-Download the selected run's Markdown reports into a temporary directory:
+The fetcher requires `gh` authenticated for the relevant Canonical repository.
+From the snapd repository root, create one unique directory in the project's
+ignored `.log` directory at the start of the workflow and reuse it for all
+workflow outputs:
 
 ```bash
-report_dir=$(mktemp -d)
-gh run download REPORT_RUN_ID \
-    --repo canonical/snapd-testing-jobs \
-    --pattern 'test-predictor-*-report' \
-    --dir "$report_dir"
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+mkdir -p "$PROJECT_ROOT/.log"
+SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.log/spread-failure-workflow-XXXXXX")"
+printf '%s\n' "$SESSION_DIR"
 ```
 
-Read both failing and flaky reports, including the `being-fixed` files. Do not
-investigate a skipped or actively assigned entry without noting that status.
-The history links target `canonical/snapd` and encode the source run and job
-IDs.
+Pass `--session-dir "$SESSION_DIR"` on every fetcher invocation. Each
+invocation writes logs, run metadata, and result artifacts to a unique
+subdirectory beneath that shared directory. Keep analysis notes and the
+default reproduction handoff in the same directory. Do not use `/tmp`, create
+another temporary directory, or remove the session directory while the
+workflow is using it.
 
-For the selected row, retrieve uncapped structured history from the predictor
-rather than parsing status icons from Markdown:
+## 1. Fetch CI job logs
+
+If direct job URLs are supplied, fetch no more than the three most recent
+failures together. When the supplied URLs are chronological, use the final
+three; if their order is unclear, ask which failures are the latest rather
+than downloading all of them:
 
 ```bash
-curl --fail --show-error --silent --get \
-    --data-urlencode 'name=TEST_PATH' \
-    --data-urlencode 'verb=PHASE' \
-    --data-urlencode 'backend=BACKEND' \
-    --data-urlencode 'system=SYSTEM' \
-    --data-urlencode 'scenario=SCENARIO' \
-    'http://test-predictor.snapd.canonical.com:5000/predict-with-history'
+python3 tests/utils/spread-log/fetch_spread_ci_logs.py \
+    --session-dir "$SESSION_DIR" \
+    --job-url 'JOB_URL_1' 'JOB_URL_2'
 ```
 
-Preserve chronological order. Deduplicate only adjacent entries with the same
-`run_id` and `job_id`, matching the report generator. Keep failed occurrences
-with non-null IDs as the primary evidence set. If structured history and the
-report disagree, state the discrepancy and prefer the current structured
-response.
+Read the job logs and available result artifacts from the printed output
+directory. Match result rows to the supplied backend, system, test, phase, and
+variant. A job log establishes only that job's evidence; do not search related
+workflow runs unless the user asks for that broader investigation.
 
 ## 2. Collect original failure evidence
 
 For every distinct failed `(run_id, job_id)` pair:
 
-1. Inspect the job metadata and log with `gh run view RUN_ID --repo
-   canonical/snapd --job JOB_ID --log`.
+1. Inspect the downloaded job log and run metadata.
 2. Record the snapd commit, run attempt, workflow inputs, exact failed command,
    exit status, phase, symptom, and the machine name shown in parentheses on
    the log's task lines.
-3. Download that run's `spread-results-RUN_ID-*` artifacts into a separate
-   temporary directory. There may be several group artifacts; inspect all
-   `results.json` files and select rows matching the report backend, system,
-   phase, test, and variant.
+3. Inspect the downloaded `spread-results-RUN_ID-*` artifacts. There may be
+   several group artifacts; inspect all `results.json` files and select rows
+   matching the selected backend, system, phase, test, and variant. If the
+   fetcher reports that results are unavailable, record that limitation.
 4. Confirm that separate failures have the same signature before combining
    them. Analyze differing signatures separately.
 
-Do not rely on a report probability alone. The original log establishes the
-failure signature. Use parenthesized machine names in linked job logs to
+The original log establishes the failure signature. Use parenthesized machine
+names in linked job logs to
 reconstruct same-machine execution order, and cross-check it against
 `results.json` where available.
 
@@ -160,52 +153,35 @@ task. When successful target occurrences are available, compare every
 predecessor against them and report both `failures preceded / failures
 inspected` and `successes preceded / successes inspected` for each candidate.
 
-The predictor dependency API can corroborate repeated co-failures:
-
-```bash
-curl --fail --show-error --silent --get \
-    --data-urlencode 'test=TEST_PATH' \
-    --data-urlencode 'backend=BACKEND' \
-    --data-urlencode 'system=SYSTEM' \
-    --data-urlencode 'scenario=SCENARIO' \
-    'http://test-predictor.snapd.canonical.com:5000/dependencies/fail-given-fail'
-```
-
-Treat this only as corroboration: it groups same-run failures and does not
-prove that the other test ran first or caused the target failure. If artifacts
-have expired or lack `results.json`, extract executed test order from the
-parenthesized machine names in each linked job log and clearly label the
-ordering evidence as log-derived. Never infer same-machine order from
-timestamps alone when machine identity is missing.
+If artifacts have expired or lack `results.json`, extract executed test order
+from the parenthesized machine names in each downloaded job log and clearly
+label the ordering evidence as log-derived. Never infer same-machine order
+from timestamps alone when machine identity is missing.
 
 ## 4. Reproduce the target alone
 
 Recreate the original source revision and conditions before testing a
 predecessor hypothesis. Do not switch or clean a dirty user checkout. If the
-reported commit differs from the current checkout, use a temporary Git
-worktree at the reported commit.
+job's commit differs from the current checkout, use a temporary Git worktree
+at that commit.
 
-Follow `spread-runner` and start with a fresh local `garden` QEMU VM, `-debug`,
-the same system, test, variant, relevant environment, and artifact build
-method. When the report's backend is `openstack`, using `garden` is the
-expected local substitution because OpenStack is reserved for CI. Record this
-backend difference; a Garden reproduction is not an identical OpenStack
-environment.
+Follow `spread-runner` and normally start with a fresh local `garden` QEMU VM,
+`-debug-socket` for remote inspection, the same system, test, variant, relevant
+environment, and artifact build method. If the user explicitly requests
+`openstack`, or the selector specifies it, use that backend. Record backend
+differences; a Garden reproduction is not an identical OpenStack environment.
 
 If Garden fails before the test starts and the user authorizes a cloud run,
-retry the same selector on `openstack-dev` when that staging backend is
-configured. Record that it uses the staging project and is not the production
-CI environment. Do not switch to production `openstack` without explicit
-authorization.
+use the backend they name. If they do not name one, use `openstack-dev` when
+configured and record that it uses the staging project; do not switch to
+production `openstack` without explicit authorization.
 
-For a failure selected from a report, use `./run-spread -d -- <Spread args>` so
-the test uses a prebuilt snapd snap rather than rebuilding from the current
-checkout. This downloads the latest successful master build, not necessarily
-the snapd revision used by the report; record that difference. If the supplied
-GitHub job is tied to a local or branch source change, omit `-d` so
-`run-spread` builds the snap from the matching checkout. Do not use
-`NO_REBUILD=1` for a report run unless the existing local artifact is verified
-to be the intended build.
+Use the job's workflow inputs and logs to select the snapd artifact. If the job
+uses a prebuilt master snap, use `./run-spread -d -- <Spread args>` and record
+that this downloads the latest successful master build, which may differ from
+the job's artifact. If the job builds snapd from its checked-out source, use a
+worktree at that commit and omit `-d`. Do not use `NO_REBUILD=1` unless the
+existing local artifact is verified to be the intended build.
 
 When reproducing a CI job, also mirror its caller workflow's `spread-env`,
 package artifacts, and snap artifact selection using the CI-scenario table in
@@ -217,11 +193,11 @@ The first reproduction invocation must use Spread's native repeat mode with
 three repetitions on a fresh machine:
 
 ```bash
-# Report-based failure:
-./run-spread -d -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH
+# CI job that uses a prebuilt master snap:
+./run-spread -d -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 
-# Failure tied to local/branch source changes:
-./run-spread -- -debug -repeat 3 BACKEND:SYSTEM:TEST_PATH
+# CI job that builds snapd from its checked-out source:
+./run-spread -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 ```
 
 Preserve all required environment assignments and the variant from the
@@ -230,8 +206,9 @@ additional repetitions after the initial execution, for four executions total
 on the same worker; it is not equivalent to three fresh-machine attempts.
 Record which repetition failed and inspect Spread output or `results.json` to
 determine whether the same instance was retained and whether prepare and
-restore ran between repetitions. Keep the debug shell open on the first
-matching failure.
+restore ran between repetitions. Keep the debug session paused on the first
+matching failure, inspect it with `spread exec -- COMMAND`, and then use
+`spread stop` to let the repetitions continue.
 
 If all three repetitions pass, do not conclude that an intermittent failure
 is absent. When the report history or failure rate warrants further
@@ -248,8 +225,8 @@ and artifact mode. Record the retry as an infrastructure retry. If the same
 blocker recurs, stop and report it rather than looping.
 
 Never hide Spread output in a shell retry loop. Run attempts individually so
-the interactive debug shell and complete output remain available. Five valid
-attempts is a bounded default, not proof that an intermittent issue is absent.
+the debug pause and complete output remain available. Five valid attempts is a
+bounded default, not proof that an intermittent issue is absent.
 If observed history suggests a lower failure rate, state that the budget is
 insufficient and calculate a larger proposed budget. Obtain user approval
 before materially exceeding five slow attempts.
@@ -277,7 +254,7 @@ environment from the CI evidence. Use one worker and Spread's `-order` flag
 so the requested task order is explicit:
 
 ```bash
-./run-spread -d -- -debug -workers 1 -order \
+./run-spread -d -- -debug-socket -workers 1 -order \
     BACKEND:SYSTEM:PREDECESSOR_1 \
     BACKEND:SYSTEM:PREDECESSOR_2 \
     BACKEND:SYSTEM:TARGET
@@ -320,7 +297,7 @@ Do not batch unrelated candidates before the target: that cannot identify
 which test or ordered interaction changed the state. Do not edit the product
 or test until a baseline or sequence reproduces the original signature.
 
-When a sequence reproduces, use the debug shell to compare state after its
+When a sequence reproduces, use `spread exec` to compare state after its
 predecessors and at target failure. Focus on resources those tests own:
 services, mounts, snaps, users, files, environment, firewall rules, devices,
 and nested VMs. Then trace the relevant `restore` sections and shared helpers.
@@ -329,8 +306,7 @@ and nested VMs. Then trace the relevant `restore` sections and shared helpers.
 
 Create the report before the first local attempt and update it after every
 attempt so evidence survives a lost terminal or context change. Unless the
-user provides a path, write it under
-`.agents/reproduction-reports/<UTC-date>-<test-slug>.md` in the snapd checkout.
+user provides a path, write it to `$SESSION_DIR/reproduction-report.md`.
 Treat it as an investigation artifact and do not commit it unless requested.
 
 The report must be self-contained and start with one of these statuses:
@@ -349,7 +325,7 @@ Status: <status>
 Updated: <UTC timestamp>
 
 ## Reported failure
-- CI source (report or job log): <URL or reference>
+- CI job URLs or pasted job log: <URL or reference>
 - Snapd runs/jobs: <links>
 - Scenario/backend/system/phase/variant: <values>
 - Original signature: <failed command, exit status, decisive output>
@@ -394,7 +370,7 @@ same test again.”
 
 Report:
 
-- selected report row and original failed run/job links
+- supplied job URLs and original failed run/job links
 - original failure signature and number of matching occurrences
 - ordered tests executed on the same named machine before each failure,
   including the machine name from the log

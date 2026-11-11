@@ -48,7 +48,8 @@ conditions: commit, test path, backend, system, image or snap revision,
 environment, flags, artifact source, and fresh or reused machine state.
 
 Follow `spread-runner` for building or obtaining the snap, selecting the
-runner, using `-debug`, and collecting evidence. Do not change unrelated
+runner, using `-debug-socket` for remote inspection (or `-debug` for an
+interactive terminal), and collecting evidence. Do not change unrelated
 conditions just to make a local run convenient. If the baseline cannot be
 reproduced, stop before patching unless the report contains independent,
 decisive evidence for the test defect; explain the limitation and keep any
@@ -59,6 +60,11 @@ proposed change explicitly unverified.
 Inspect the failing test's `task.yaml`, scripts, and shared helpers, along
 with the relevant debug-shell state and logs. Verify that the observed behavior
 is a test defect, not merely a symptom of a product or environment problem.
+With `-debug-socket`, keep the run paused and use as many focused
+`spread exec -- 'COMMAND'` invocations as needed to inspect the worker, test
+hypotheses, and perform any necessary remote worker actions. Make source-code
+changes in the checkout as usual. Once investigation and remote actions are
+complete, run `spread stop` to resume Spread and allow restore and cleanup.
 
 Make the smallest change that corrects the test's expectation or behavior.
 Preserve meaningful coverage: do not weaken or remove an assertion, add

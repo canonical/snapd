@@ -1,7 +1,7 @@
 ---
 name: spread-failure-workflow
-description: Run, reproduce, diagnose, fix, and verify a failing snapd Spread test end to end. Use when given a BACKEND:SYSTEM:TEST_PATH and optionally a GitHub Actions job log or nightly test report URL.
-argument-hint: "BACKEND:SYSTEM:TEST_PATH [GitHub run/job URL or report URL]"
+description: Run, reproduce, diagnose, fix, and verify a failing snapd Spread test end to end. Use when given a BACKEND:SYSTEM:TEST_PATH and optionally GitHub Actions job URL(s).
+argument-hint: "BACKEND:SYSTEM:TEST_PATH [GitHub job URL(s)]"
 metadata:
   project: snapd
   task-type: spread-failure-resolution
@@ -22,12 +22,42 @@ or responsible layer remains genuinely ambiguous.
 This skill coordinates three specialized skills:
 
 - `spread-runner` owns test execution and live debug-shell mechanics.
-- `spread-reproducer` owns nightly test predictor reports, CI evidence, and
-  reproduction handoffs.
+- `spread-reproducer` owns CI job evidence and reproduction handoffs.
 - `spread-fixer` owns focused fixes to Spread tests and their helper code.
 
 Follow their detailed procedures at the corresponding stage. Do not replace
 their safety rules or duplicate their detailed commands here.
+
+## Allowed actions and CI access boundary
+
+This skill may inspect and change the local checkout as required to reproduce
+and fix the failure, and may run local tests using `spread-runner`. It may read
+existing CI evidence only from user-pasted logs or by executing the bundled
+[CI log fetcher](../../../tests/utils/spread-log/fetch_spread_ci_logs.py). Do not
+use `gh`, `curl`, browser/network tools, or another script for CI access. Do
+not trigger CI, write to GitHub, or upload CI data.
+
+## Workflow session directory
+
+From the snapd repository root, create one unique session directory in the
+project's ignored `.log` directory at the start of the workflow, for example:
+
+```bash
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+mkdir -p "$PROJECT_ROOT/.log"
+SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.log/spread-failure-workflow-XXXXXX")"
+printf '%s\n' "$SESSION_DIR"
+```
+
+Keep its absolute path for the entire workflow. Store fetched logs, result
+artifacts, run metadata, analysis notes, attempt evidence, and the default
+reproduction handoff in this directory (the fetcher may create unique
+subdirectories beneath it). Pass `--session-dir "$SESSION_DIR"` to every
+fetcher invocation. Keep all workflow logs, artifacts, notes, and handoffs
+inside this session directory; do not use `/tmp` or create another temporary
+directory for another stage. If the user supplies an explicit handoff path,
+honor it. Do not remove the session directory while the workflow is running;
+include its path in the final report.
 
 ## Inputs
 
@@ -45,43 +75,42 @@ garden:ubuntu-24.04-64:tests/main/snap-mgmt
 
 An optional second input can be:
 
-- a GitHub Actions run or job URL for the failing test
+- one or more GitHub Actions job URLs for the failing test
 - a pasted GitHub job log, with its repository, run ID, and job ID if available
-- a testing-report run URL or ID, such as a `canonical/snapd-testing-jobs`
-  nightly predictor report
 
 Use a supplied source to understand the failure and find relevant executions.
 The system and test in the selector must match the intended target. Normally,
-local runs use the `garden` backend, which provisions local QEMU VMs; `openstack`
-is reserved for CI. If Garden fails before the test starts and the user
-authorizes a cloud attempt, use configured `openstack-dev` with the same system
-and test, and record that it uses the staging project. Do not use production
-`openstack` as an unapproved fallback or trigger a new CI run unless the user
-explicitly requests it. Reading existing CI reports and job logs for evidence
-is allowed. For other backend or system mismatches, explain the difference and
-ask which target to investigate instead of silently switching. If the selector
-is incomplete or ambiguous, ask for clarification.
+local runs use the `garden` backend, which provisions local QEMU VMs. If Garden
+does not reach the behavior under test and the user explicitly requests
+`openstack`, use the configured `openstack` backend with the same system and
+test. Otherwise, a user-authorized cloud attempt uses configured
+`openstack-dev`; record that it uses the staging project. Never switch to
+production `openstack` without explicit user authorization or trigger a new CI
+run unless the user explicitly requests it. For other backend or system
+mismatches, explain the difference and ask which target to investigate instead
+of silently switching.
+If the selector is incomplete or ambiguous, ask for clarification.
 
 ## 1. Collect and summarize prior CI evidence
 
-If a nightly predictor report URL or ID is supplied, use
-`spread-reproducer` to inspect the report and its structured test history.
-Select entries matching the supplied test, backend, and system. Inspect the
-relevant failing and flaky rows, phases, variants, run/job links, and available
-`results.json` artifacts. For each linked failed execution, use the
-parenthesized machine name in its job log to reconstruct the ordered test
-sequence on that same machine before the failure; correlate with result
-artifacts when available. Report how many matching failed and successful
-executions were found and what conditions they used. Do not conflate prepare,
-execute, and restore failures.
+If direct GitHub Actions job URLs are supplied, retrieve no more than the
+three most recent failures and their available Spread result artifacts in one
+fetcher invocation. When the supplied URLs are chronological, use the final
+three; if their order is unclear, ask which failures are the latest instead
+of downloading all of them.
+The fetcher stores this invocation's files in a unique subdirectory beneath
+the workflow session directory and prints its path:
 
-If a direct GitHub Actions run or job URL/log is supplied, use `gh` to inspect
-the owning run, job metadata, log, and available Spread result artifacts.
-Match result rows to the exact backend, system, test, phase, and variant.
-A direct job log establishes only that job's evidence. Search related workflow
-runs only when the workflow and test inputs can be matched reliably; do not
-claim an exhaustive history unless the report or artifacts provide it. Never
-trigger a CI workflow unless the user explicitly asks.
+```bash
+python3 tests/utils/spread-log/fetch_spread_ci_logs.py \
+    --session-dir "$SESSION_DIR" \
+    --job-url 'JOB_URL_1' 'JOB_URL_2'
+```
+
+Use that output directory when inspecting the logs and result artifacts. Match
+result rows to the exact backend, system, test, phase, and variant. A direct
+job log establishes only that job's evidence. Do not search related workflow
+runs unless the user asks for that broader investigation.
 
 If no CI source is supplied, record the user's failure description and
 continue with a local baseline. Do not invent CI history.
@@ -95,19 +124,20 @@ final output.
 
 Use `spread-runner` to check suite requirements and understand how the selected
 snapd, Ubuntu Core, or nested system is prepared before running the supplied
-system and test with debug enabled. Use Garden locally, including when
+system and test with a failure pause enabled. Prefer `-debug-socket` for remote
+agent-driven inspection; use `-debug` only when an interactive terminal shell
+is needed. Use Garden locally, including when
 reproducing an OpenStack CI failure, and preserve relevant test arguments and
 environment from the CI evidence. For nested tests, distinguish the outer
 Spread host from the guest under test. Record Garden-versus-OpenStack as a
 condition difference; do not claim the environments are identical.
 
-Choose the snapd artifact from the failure source: for a report-based failure,
-use `./run-spread -d -- <Spread args>` to download a prebuilt snap; for a GitHub
-job tied to a local or branch source change, omit `-d` so the current checkout is built.
-Record the artifact's source and revision. `-d` downloads the latest successful
-master build and may not match the report's source commit. Use
-`NO_REBUILD=1` only when the existing local artifact is verified to match the
-intended source.
+Choose the snapd artifact from the supplied job's workflow inputs and logs. If
+the job uses a prebuilt master snap, use `./run-spread -d -- <Spread args>` and
+record that `-d` downloads the latest successful master build, which may differ
+from the job's artifact. If the job builds snapd from its checked-out source,
+use a worktree at that commit and omit `-d`. Use `NO_REBUILD=1` only when the
+existing local artifact is verified to match the intended source.
 
 For CI scenarios (`generic`, `deb`, `master`, or `features`), preserve the
 caller workflow's `spread-env`, package artifacts, and snap artifact
@@ -115,19 +145,19 @@ selection. Use the scenario guide in `spread-runner`; the workflow's
 `scenario` value is a reporting label, not an environment variable to export
 locally.
 
-Create a reproduction handoff under
-`.agents/reproduction-reports/<UTC-date>-<test-slug>.md` before repeated or
-slow attempts, unless the user provides another path. Follow
-`spread-reproducer` for report-based evidence, bounded intermittent retries,
-and predecessor contamination analysis. Use fresh or reused machines
-consistently with the baseline conditions. Start the first reproduction
-invocation with `-repeat 3` on a fresh worker, preserving the selected variant
-and artifact source.
+Create the default reproduction handoff at
+`$SESSION_DIR/reproduction-report.md` before repeated or slow attempts, unless
+the user provides another path. Follow `spread-reproducer` for CI job evidence,
+bounded intermittent retries, and predecessor contamination analysis. Use
+fresh or reused machines consistently with the baseline conditions. Start the
+first reproduction invocation with `-repeat 3` on a fresh worker, preserving
+the selected variant and artifact source.
 
 Reproduction must match the original failure's phase, failed command, exit
-status, and symptom. Keep the debug shell open on a matching failure and
+status, and symptom. Keep the debug session paused on a matching failure and
 collect the minimal evidence needed to distinguish a test defect from a
-product, image, dependency, or infrastructure problem.
+product, image, dependency, or infrastructure problem. For remote inspection,
+use `spread exec -- COMMAND` and resume with `spread stop`.
 
 If the failure does not reproduce, or execution is blocked before reaching the
 behavior under test, do not patch speculatively. Record attempts and blockers
