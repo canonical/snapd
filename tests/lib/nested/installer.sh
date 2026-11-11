@@ -366,13 +366,11 @@ nested_installed_disk_is_ready() {
 nested_restore_installer_vm_params() {
     local saved_keep="$1"
     local saved_image="$2"
-    local saved_network="$3"
-    local saved_cd="$4"
-    local saved_no_reexec="$5"
+    local saved_cd="$3"
+    local saved_no_reexec="$4"
 
     NESTED_KEEP_FIRMWARE_STATE="$saved_keep"
     NESTED_PARAM_IMAGE="$saved_image"
-    NESTED_PARAM_NETWORK="$saved_network"
     NESTED_PARAM_CD="$saved_cd"
     NESTED_NO_REEXEC_ON_FAILURE="$saved_no_reexec"
 }
@@ -384,7 +382,6 @@ nested_start_desktop_qemu() {
     local seed="${4:-}"
     local saved_keep="${NESTED_KEEP_FIRMWARE_STATE-}"
     local saved_image="${NESTED_PARAM_IMAGE-}"
-    local saved_network="${NESTED_PARAM_NETWORK-}"
     local saved_cd="${NESTED_PARAM_CD-}"
     local saved_no_reexec="${NESTED_NO_REEXEC_ON_FAILURE-}"
     local block_opts status
@@ -403,8 +400,6 @@ nested_start_desktop_qemu() {
         NESTED_PARAM_CD=
         NESTED_PARAM_IMAGE="-drive file=${disk},if=none,format=raw,id=boot-disk -device virtio-blk-pci,drive=boot-disk,bootindex=1,write-cache=on,${block_opts}"
     fi
-    # bootindex=-1 keeps firmware from booting the NIC ahead of the installer CD.
-    NESTED_PARAM_NETWORK="-netdev user,id=netdev1,hostfwd=tcp::${NESTED_SSH_PORT}-:22 -device virtio-net-pci,netdev=netdev1,bootindex=-1,romfile="
     NESTED_NO_REEXEC_ON_FAILURE=1
 
     if nested_create_vm_service "$disk"; then
@@ -412,7 +407,7 @@ nested_start_desktop_qemu() {
     else
         status=$?
     fi
-    nested_restore_installer_vm_params "$saved_keep" "$saved_image" "$saved_network" "$saved_cd" "$saved_no_reexec"
+    nested_restore_installer_vm_params "$saved_keep" "$saved_image" "$saved_cd" "$saved_no_reexec"
     return "$status"
 }
 
