@@ -45,13 +45,13 @@ write to GitHub, or upload CI data. User-pasted logs may be read directly.
 
 The fetcher requires `gh` authenticated for the relevant Canonical repository.
 From the snapd repository root, create one unique directory in the project's
-ignored `.log` directory at the start of the workflow and reuse it for all
+ignored `.logs` directory at the start of the workflow and reuse it for all
 workflow outputs:
 
 ```bash
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-mkdir -p "$PROJECT_ROOT/.log"
-SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.log/spread-failure-workflow-XXXXXX")"
+mkdir -p "$PROJECT_ROOT/.logs"
+SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.logs/spread-failure-workflow-XXXXXX")"
 printf '%s\n' "$SESSION_DIR"
 ```
 

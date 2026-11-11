@@ -19,9 +19,15 @@ runner guidance.
 
 ## Run spread tests
 
-Command: `./run-spread [spread-flags] <backend>:<system>:<test-path>`
+Command: `./run-spread [wrapper-options] -- [spread-flags] <backend>:<system>:<test-path>`
 
 Tests take 5-15 minutes each. Maximize information per run.
+
+Use `-s NAME` (or `--scenario NAME`) to pass the assignments in
+`tests/scenarios/NAME` to the Spread process. Scenario values override inherited
+environment values with the same names; other environment variables are
+preserved. `./run-spread --help` lists the supported scenario names. For
+example, `-s snapd_snap` passes `SPREAD_SNAP_REEXEC=1`.
 
 Choose the snapd artifact based on what is being reproduced:
 
@@ -37,6 +43,8 @@ Choose the snapd artifact based on what is being reproduced:
   report's source commit. Record the downloaded build and any source mismatch.
 - Put Spread flags and the selector after `--` when using `run-spread` options,
   for example: `./run-spread -d -- -debug-socket BACKEND:SYSTEM:TEST_PATH`.
+- Put the scenario name before `--`, for example:
+  `./run-spread -d -s snapd_snap -- -repeat 3 BACKEND:SYSTEM:TEST_PATH`.
 - Use `NO_REBUILD=1` only when an existing local snap is known to match the
   intended source; it may be stale.
 
