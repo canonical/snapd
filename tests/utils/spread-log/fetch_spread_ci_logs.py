@@ -70,7 +70,7 @@ def run_gh_to_file(args: list[str], destination: Path) -> None:
 
 
 def create_output_dir(run_id: str, session_dir: Path | None = None) -> Path:
-    parent = Path.cwd() / ".log"
+    parent = Path.cwd() / ".logs"
     if session_dir is not None:
         if not session_dir.is_dir():
             raise RuntimeError(
@@ -106,10 +106,10 @@ def fetch_job(
     return log_path
 
 
-def fetch_results(output_dir: Path, run_ids: set[str]) -> list[dict]:
+def fetch_artifacts(output_dir: Path, run_ids: set[str]) -> list[dict]:
     outcomes = []
     for run_id in sorted(run_ids):
-        destination = output_dir / "results" / f"run-{run_id}"
+        destination = output_dir / "artifacts" / f"run-{run_id}"
         destination.mkdir(parents=True)
         args = [
             "run",
@@ -117,14 +117,18 @@ def fetch_results(output_dir: Path, run_ids: set[str]) -> list[dict]:
             run_id,
             "--repo",
             SNAPD_REPO,
-            "--pattern",
-            f"spread-results-{run_id}-*",
             "--dir",
             str(destination),
         ]
         try:
             details = run_gh(args)
-            outcomes.append({"run_id": run_id, "status": "downloaded"})
+            outcomes.append(
+                {
+                    "run_id": run_id,
+                    "status": "downloaded",
+                    "directory": str(destination),
+                }
+            )
             if details.strip():
                 print(details.strip())
         except RuntimeError as error:
@@ -134,7 +138,10 @@ def fetch_results(output_dir: Path, run_ids: set[str]) -> list[dict]:
                 "error": str(error),
             }
             outcomes.append(outcome)
-            print(f"Warning: Spread result artifacts unavailable for run {run_id}: {error}", file=sys.stderr)
+            print(
+                f"Warning: CI artifacts unavailable for run {run_id}: {error}",
+                file=sys.stderr,
+            )
     return outcomes
 
 
@@ -172,12 +179,12 @@ def fetch_direct_jobs(args: argparse.Namespace) -> int:
         log_records.append(
             {"run_id": run_id, "job_id": job_id, "log": str(path)}
         )
-    artifacts = fetch_results(output_dir, run_ids)
+    artifacts = fetch_artifacts(output_dir, run_ids)
     (output_dir / "manifest.json").write_text(
         json.dumps(
             {
                 "jobs": log_records,
-                "result_artifacts": artifacts,
+                "artifacts": artifacts,
             },
             indent=2,
         )
@@ -190,8 +197,8 @@ def fetch_direct_jobs(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Download Spread CI logs and result artifacts for snapd GitHub "
-            "Actions job URLs. By default, output is stored in .log under "
+            "Download Spread CI logs and all run artifacts for snapd GitHub "
+            "Actions job URLs. By default, output is stored in .logs under "
             "the current working directory."
         )
     )

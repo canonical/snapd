@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fetch_spread_ci_logs import (  # noqa: E402
     build_parser,
     create_output_dir,
+    fetch_artifacts,
     fetch_direct_jobs,
     parse_job_url,
 )
@@ -49,12 +50,14 @@ class FetchSpreadCILogsTests(unittest.TestCase):
         args = build_parser().parse_args(
             [
                 "--session-dir",
-                "/tmp/spread-failure-workflow",
+                "/workspace/.logs/spread-failure-workflow",
                 "--job-url",
                 "https://github.com/canonical/snapd/actions/runs/123/job/456",
             ]
         )
-        self.assertEqual(args.session_dir, Path("/tmp/spread-failure-workflow"))
+        self.assertEqual(
+            args.session_dir, Path("/workspace/.logs/spread-failure-workflow")
+        )
 
     def test_create_output_dir_under_session_dir(self):
         with tempfile.TemporaryDirectory() as session_dir:
@@ -66,13 +69,13 @@ class FetchSpreadCILogsTests(unittest.TestCase):
             self.assertTrue(output_dir.is_dir())
             self.assertTrue(second_output_dir.is_dir())
 
-    def test_create_output_dir_defaults_to_workspace_log_dir(self):
+    def test_create_output_dir_defaults_to_workspace_logs_dir(self):
         with tempfile.TemporaryDirectory() as workspace:
             with patch(
                 "fetch_spread_ci_logs.Path.cwd", return_value=Path(workspace)
             ):
                 output_dir = create_output_dir("123")
-            self.assertEqual(output_dir.parent, Path(workspace) / ".log")
+            self.assertEqual(output_dir.parent, Path(workspace) / ".logs")
             self.assertTrue(output_dir.is_dir())
 
     def test_create_output_dir_requires_existing_session_dir(self):
@@ -98,13 +101,37 @@ class FetchSpreadCILogsTests(unittest.TestCase):
             with (
                 patch("fetch_spread_ci_logs.run_gh", return_value="{}"),
                 patch("fetch_spread_ci_logs.run_gh_to_file") as fetch_log,
-                patch("fetch_spread_ci_logs.fetch_results", return_value=[]),
+                patch("fetch_spread_ci_logs.fetch_artifacts", return_value=[]),
             ):
                 self.assertEqual(fetch_direct_jobs(args), 0)
             fetch_log.assert_called_once()
             gh_args = fetch_log.call_args.args[0]
             self.assertIn("--job", gh_args)
             self.assertIn("129383722199", gh_args)
+
+    def test_fetch_artifacts_downloads_every_run_artifact(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch("fetch_spread_ci_logs.run_gh", return_value="") as run_gh:
+                outcomes = fetch_artifacts(Path(output_dir), {"123"})
+
+            destination = Path(output_dir) / "artifacts" / "run-123"
+            self.assertEqual(
+                outcomes,
+                [
+                    {
+                        "run_id": "123",
+                        "status": "downloaded",
+                        "directory": str(destination),
+                    }
+                ],
+            )
+            args = run_gh.call_args.args[0]
+            self.assertEqual(
+                args[:5],
+                ["run", "download", "123", "--repo", "canonical/snapd"],
+            )
+            self.assertNotIn("--pattern", args)
+            self.assertEqual(Path(args[-1]), destination)
 
 
 if __name__ == "__main__":
