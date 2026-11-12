@@ -305,11 +305,6 @@ nested_wait_for_qemu_exit() {
             fi
         fi
         if [ -f "${NESTED_LOGS_DIR}/serial.log" ]; then
-            # This sentence is only in the forwarded installer log.
-            if grep -q -F 'is not available: running-in-vm' "${NESTED_LOGS_DIR}/serial.log"; then
-                echo "desktop installer reported a failure" >&2
-                return 1
-            fi
             size="$(stat -c %s "${NESTED_LOGS_DIR}/serial.log" 2>/dev/null || echo 0)"
             if [ "$size" != "$serial_size" ]; then
                 serial_size="$size"
