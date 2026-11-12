@@ -23,7 +23,7 @@ details: |
     After the installer powers off, boot the same disk with the OVMF variables and TPM state
     kept. Check that snapd reports storage encryption as active.
 
-    The image URL can be replaced with NESTED_UBUNTU_DESKTOP_ISO_URL, and
+    The image URL can be replaced with NESTED_UBUNTU_ISO_URL, and
     the autoinstall source id with NESTED_DESKTOP_SOURCE_ID.
 
 systems:

@@ -9,8 +9,8 @@
 # again with the OVMF variables and TPM state kept.
 
 nested_desktop_iso_url() {
-    if [ -n "${NESTED_UBUNTU_DESKTOP_ISO_URL:-}" ]; then
-        printf '%s\n' "$NESTED_UBUNTU_DESKTOP_ISO_URL"
+    if [ -n "${NESTED_UBUNTU_ISO_URL:-}" ]; then
+        printf '%s\n' "$NESTED_UBUNTU_ISO_URL"
         return 0
     fi
 
