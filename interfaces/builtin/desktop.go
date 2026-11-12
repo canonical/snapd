@@ -481,7 +481,7 @@ dbus (send)
       path=/{,org/freedesktop/portal/}inputmethod
       interface=org.fcitx.Fcitx.InputMethod1
       member={CreateInputContext,Version}
-      peer=(name=org.freedesktop.portal.Fcitx),
+      peer=(label=unconfined),
 
 dbus (send, receive)
       bus=session
