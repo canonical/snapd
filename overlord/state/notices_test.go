@@ -403,6 +403,73 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 	c.Assert(newLastRepeated.After(lastRepeated), Equals, true)
 }
 
+func (s *noticesSuite) TestAddNoticeForExistingExpiredNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	userID := uint32(123)
+	key := "baz"
+	opt := &state.AddNoticeOptions{
+		Time:        time.Now(),
+		ExpireAfter: time.Microsecond,
+	}
+
+	id1, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, opt)
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+
+	time.Sleep(3 * time.Microsecond)
+	timestamp := time.Now()
+	c.Assert(notice1.Expired(timestamp), Equals, true)
+
+	opt2 := &state.AddNoticeOptions{
+		Time: timestamp,
+	}
+	id2, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, opt2)
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+
+	c.Assert(id1, Not(Equals), id2)
+	c.Assert(st.Notice(id1), IsNil)
+}
+
+func (s *noticesSuite) TestAddNoticeBackdatedForExistingExpiredNotice(c *C) {
+	now := time.Now().UTC()
+	restore := state.MockTime(now)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t0 := now.Add(-8 * 24 * time.Hour)
+
+	_, err := st.AddNotice(nil, state.ChangeUpdateNotice, "A",
+		&state.AddNoticeOptions{Time: t0, ExpireAfter: 7 * 24 * time.Hour})
+	c.Assert(err, IsNil)
+	_, err = st.AddNotice(nil, state.ChangeUpdateNotice, "B",
+		&state.AddNoticeOptions{Time: t0, ExpireAfter: 28 * 24 * time.Hour})
+	c.Assert(err, IsNil)
+	// Backdated reoccurrence should not repeat A.
+	t1 := now.Add(-6 * 24 * time.Hour)
+	id, err := st.AddNotice(nil, state.ChangeUpdateNotice, "A",
+		&state.AddNoticeOptions{Time: t1, ExpireAfter: 7 * 24 * time.Hour, RepeatAfter: 72 * time.Hour})
+	c.Assert(err, IsNil)
+	// Notice gets t1, not the stale t0.
+	c.Check(st.Notice(id).LastRepeated().Equal(t1), Equals, true)
+
+	ns := st.Notices(nil)
+	c.Assert(ns, HasLen, 2)
+	seen := map[time.Time]bool{}
+	for _, n := range ns {
+		seen[n.LastRepeated()] = true
+	}
+	c.Check(seen, HasLen, 2)
+}
+
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 	st := state.New(nil)
 

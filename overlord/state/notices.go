@@ -404,6 +404,11 @@ type AddNoticeOptions struct {
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
 
+	// ExpireAfter defines how long after this notice was last occurred before
+	// it expires. If zero, a default expiration will be used. A notice's
+	// expireAfter value is fixed at first occurrence.
+	ExpireAfter time.Duration
+
 	// Time, if set, overrides time.Now() as the notice occurrence time.
 	Time time.Time
 }
@@ -423,24 +428,39 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := options.Time
-	if now.IsZero() {
-		now = s.NextNoticeTimestamp()
+	timestamp := options.Time
+	// now is used for the expiration check.
+	var now time.Time
+	if timestamp.IsZero() {
+		timestamp = s.NextNoticeTimestamp()
+		now = timestamp
+	} else {
+		now = timeNow()
+		// Use the last notice timestamp if it is later than time.Now().
+		if t := s.getLastNoticeTimestamp(); !t.Before(now) {
+			now = t
+		}
 	}
-	now = now.UTC()
+	timestamp = timestamp.UTC()
+
+	expireAfter := options.ExpireAfter
+	if expireAfter == 0 {
+		expireAfter = defaultNoticeExpireAfter
+	}
+
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
-	if !ok {
-		// First occurrence of this notice userID+type+key
+	if !ok || notice.Expired(now) {
+		// First non-expired occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, timestamp, options.Data, options.RepeatAfter, expireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(timestamp, options.Data, options.RepeatAfter)
 		s.notices[uniqueKey] = notice
 	}
 
@@ -563,7 +583,7 @@ func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := time.Now()
+	now := timeNow()
 	var toRemove []noticeKey
 	var notices []*Notice
 	for k, n := range s.notices {
@@ -635,7 +655,7 @@ func (s *State) flattenNotices() []*Notice {
 // filterNotices returns the list of notices that match the filter (if any),
 // without sorting them. The caller must hold the noticesMu for reading.
 func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
-	now := time.Now()
+	now := timeNow()
 	var notices []*Notice
 	for _, n := range s.notices {
 		if n.Expired(now) || !filter.matches(n) {
@@ -653,7 +673,7 @@ func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 func (s *State) unflattenNotices(flat []*Notice) {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
-	now := time.Now()
+	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
 		if n.Expired(now) {
@@ -724,7 +744,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// not yet been added to the notices map. Therefore, if the current
 		// time is after the BeforeOrAt filter, we know there can be no new
 		// notices which match the filter.
-		now := time.Now()
+		now := timeNow()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
 		}
