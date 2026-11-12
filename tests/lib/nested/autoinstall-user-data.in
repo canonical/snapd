@@ -55,17 +55,19 @@ runcmd:
         if "NEEDS_CONFIRMATION" not in body:
             time.sleep(2)
             continue
-        for url in ("/meta/confirm?tty=%22autoinstall%22", "/meta/confirm?tty=autoinstall"):
-            try:
-                code, out = request("POST", url)
-            except Exception as exc:
-                print("nested-autoinstall-confirm-error", exc, flush=True)
-                continue
-            print("nested-autoinstall-confirm-http", code, url, flush=True)
-            print(out, flush=True)
-            if code == 200:
-                print("nested-autoinstall-confirmed", flush=True)
-                raise SystemExit(0)
+        # Subiquity JSON-encodes query values, so tty is the JSON string "autoinstall".
+        url = "/meta/confirm?tty=%22autoinstall%22"
+        try:
+            code, out = request("POST", url)
+        except Exception as exc:
+            print("nested-autoinstall-confirm-error", exc, flush=True)
+            time.sleep(2)
+            continue
+        print("nested-autoinstall-confirm-http", code, url, flush=True)
+        print(out, flush=True)
+        if code == 200:
+            print("nested-autoinstall-confirmed", flush=True)
+            raise SystemExit(0)
         time.sleep(2)
     print("nested-autoinstall-confirm-timeout", flush=True)
     raise SystemExit(1)
