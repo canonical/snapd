@@ -28,7 +28,7 @@ import (
 )
 
 func init() {
-	// The listed validation statuses are independent alternatives: including "starred" does not imply "verified".
+	// This is a comma-separated allowlist. Each validation status is independent; "starred" does not imply "verified".
 	supportedConfigurations["core.system.security.required-publisher-validations"] = true
 }
 
