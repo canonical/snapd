@@ -55,8 +55,8 @@ type MessageExchangeResponse struct {
 	// Request messages with their acknowledgement tokens.
 	Messages []MessageWithToken `json:"messages"`
 
-	// Total unacknowledged messages in the device's queue.
-	TotalPendingMessages int `json:"total-pending-messages"`
+	// Whether the device's queue has unacknowledged messages.
+	HasPendingMessages bool `json:"has-pending-messages"`
 }
 
 // messageQueueError contains error responses from the message queue.
