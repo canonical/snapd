@@ -11,6 +11,7 @@ get:
     container role. The response includes properties of each structure,
     including encryption-related details.
   operationId: getSystemVolumes
+  security: []
   parameters:
     - name: container-role
       in: query
