@@ -191,9 +191,9 @@ type SnapSetup struct {
 	// components, and not the snap itself.
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 
-	// IntegrityDownloadInfos lists the integrity data variants available for
+	// IntegrityDataDownloadInfos lists the integrity data variants available for
 	// download for this snap.
-	IntegrityDownloadInfos []snap.IntegrityDownloadInfo `json:"integrity-download-infos,omitempty"`
+	IntegrityDataDownloadInfos []snap.IntegrityDataDownloadInfo `json:"integrity-data-download-infos,omitempty"`
 }
 
 func (snapsup *SnapSetup) InstanceName() naming.InstanceName {

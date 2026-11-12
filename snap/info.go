@@ -419,10 +419,10 @@ type Info struct {
 	// Categories this snap is in.
 	Categories []CategoryInfo
 
-	// IntegrityDownloadInfos lists the integrity data variants available for
+	// IntegrityDataDownloadInfos lists the integrity data variants available for
 	// download for this snap.
 	// This information is ephemeral, available only from the store.
-	IntegrityDownloadInfos []IntegrityDownloadInfo
+	IntegrityDataDownloadInfos []IntegrityDataDownloadInfo
 
 	// UbuntuCoreTracks comes from snap.yaml snapd-info.ubuntu-core-tracks; nil if omitted or empty.
 	UbuntuCoreTracks UbuntuCoreTracks
@@ -2175,9 +2175,9 @@ type RefreshFailuresInfo struct {
 	LastFailureSeverity RefreshFailureSeverity `json:"last-failure-severity,omitempty"`
 }
 
-// IntegrityDownloadInfo contains the information to download one integrity
+// IntegrityDataDownloadInfo contains the information to download one integrity
 // data variant of a snap.
-type IntegrityDownloadInfo struct {
+type IntegrityDataDownloadInfo struct {
 	integrity.IntegrityDataParams `json:"params"`
 
 	DownloadInfo `json:"download-info,omitempty"`

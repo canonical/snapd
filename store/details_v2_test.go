@@ -396,7 +396,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		SystemUsernames: map[string]*snap.SystemUsernameInfo{},
 		OriginalLinks:   map[string][]string{},
 		LegacyAliases:   map[string]*snap.AppInfo{},
-		IntegrityDownloadInfos: []snap.IntegrityDownloadInfo{
+		IntegrityDataDownloadInfos: []snap.IntegrityDataDownloadInfo{
 			{
 				IntegrityDataParams: integrity.IntegrityDataParams{
 					Type:          "dm-verity",

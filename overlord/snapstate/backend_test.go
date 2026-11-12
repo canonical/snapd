@@ -473,7 +473,7 @@ func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 			},
 		}
 	case "channel-with-integrity-data":
-		info.IntegrityDownloadInfos = []snap.IntegrityDownloadInfo{
+		info.IntegrityDataDownloadInfos = []snap.IntegrityDataDownloadInfo{
 			{
 				IntegrityDataParams: integrity.IntegrityDataParams{
 					Version:       1,
