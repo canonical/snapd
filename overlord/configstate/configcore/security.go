@@ -28,7 +28,7 @@ import (
 )
 
 func init() {
-	// 'required-publisher-validations' restricts snaps to specific publisher validation statuses
+	// The listed validation statuses are independent alternatives: including "starred" does not imply "verified".
 	supportedConfigurations["core.system.security.required-publisher-validations"] = true
 }
 

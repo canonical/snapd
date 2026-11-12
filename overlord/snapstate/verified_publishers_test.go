@@ -20,11 +20,14 @@
 package snapstate_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	snapstatetest "github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -39,6 +42,12 @@ func (s *verifiedPublishersSuite) SetUpTest(c *C) {
 }
 
 func (s *verifiedPublishersSuite) makeSnapsup(snapName, snapID string, publisher snap.StoreAccount) *snapstate.SnapSetup {
+	oldPublisherStoreAccount := snapstate.PublisherStoreAccount
+	snapstate.PublisherStoreAccount = func(_ *state.State, _ string) (snap.StoreAccount, error) {
+		return publisher, nil
+	}
+	s.AddCleanup(func() { snapstate.PublisherStoreAccount = oldPublisherStoreAccount })
+
 	return &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
@@ -46,6 +55,45 @@ func (s *verifiedPublishersSuite) makeSnapsup(snapName, snapID string, publisher
 		},
 		Publisher: publisher,
 	}
+}
+
+func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersUsesPublisherAssertion(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	unverified := snap.StoreAccount{ID: "developer", Validation: "unproven"}
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", unverified)
+	snapstate.PublisherStoreAccount = func(_ *state.State, _ string) (snap.StoreAccount, error) {
+		return snap.StoreAccount{ID: "developer", Validation: "verified"}, nil
+	}
+
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
+	c.Assert(err, IsNil)
+}
+
+func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersFailsWhenPublisherAssertionIsUnavailable(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID: "developer", Validation: "verified",
+	})
+	snapstate.PublisherStoreAccount = func(_ *state.State, _ string) (snap.StoreAccount, error) {
+		return snap.StoreAccount{}, errors.New("account assertion unavailable")
+	}
+
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
+	c.Assert(err, ErrorMatches, `cannot determine publisher validation for snap "some-snap": account assertion unavailable`)
 }
 
 // TestRequireVerifiedPublishersDefault verifies that with no policy configured all snaps pass publisher validation.

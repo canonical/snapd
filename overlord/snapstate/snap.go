@@ -833,12 +833,7 @@ func checkPublisherValidation(validationsStr string, publisher snap.StoreAccount
 	validations := strings.Split(validationsStr, ",")
 	for _, v := range validations {
 		v = strings.TrimSpace(v)
-		// The store's "verified" status is exposed as a boolean by StoreAccount;
-		// other validation types are represented by their string value.
-		if v == "verified" && publisher.IsVerified() {
-			return true
-		}
-		if publisher.Validation != "" && v == publisher.Validation {
+		if publisher.HasValidation(v) {
 			return true
 		}
 	}
@@ -863,17 +858,21 @@ func CheckVerifiedPublisher(st *state.State, snapsup *SnapSetup) error {
 		return nil
 	}
 
-	publisher := snapsup.Publisher
-	if snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" && PublisherStoreAccount != nil {
-		if pub, err := PublisherStoreAccount(st, snapsup.SideInfo.SnapID); err == nil {
-			publisher = pub
-		}
+	if snapsup.SideInfo == nil || snapsup.SideInfo.SnapID == "" {
+		return fmt.Errorf("internal error: publisher validation requested without a snap ID")
+	}
+	if PublisherStoreAccount == nil {
+		return fmt.Errorf("internal error: publisher assertion lookup is unavailable")
+	}
+	publisher, err := PublisherStoreAccount(st, snapsup.SideInfo.SnapID)
+	if err != nil {
+		return fmt.Errorf("cannot determine publisher validation for snap %q: %v", snapsup.InstanceName(), err)
 	}
 
 	// installed snaps are unaffected if validation drops on refresh
 	if !checkPublisherValidation(validationsStr, publisher) {
 		var snapst SnapState
-		if err := Get(st, snapsup.InstanceName(), &snapst); err == nil && snapst.IsInstalled() {
+		if err := Get(st, snapsup.InstanceName().String(), &snapst); err == nil && snapst.IsInstalled() {
 			return fmt.Errorf("cannot update snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
 		}
 		return fmt.Errorf("cannot install snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
@@ -1133,11 +1132,14 @@ func CheckInstalledSnapsPublisherValidation(st *state.State) {
 			continue
 		}
 
-		publisher := info.Publisher
-		if info.SnapID != "" && PublisherStoreAccount != nil {
-			if pub, err := PublisherStoreAccount(st, info.SnapID); err == nil {
-				publisher = pub
-			}
+		if PublisherStoreAccount == nil {
+			st.Warnf("cannot determine publisher validation for snap %q: publisher assertion lookup is unavailable", instanceName)
+			continue
+		}
+		publisher, err := PublisherStoreAccount(st, info.SnapID)
+		if err != nil {
+			st.Warnf("cannot determine publisher validation for snap %q: %v", instanceName, err)
+			continue
 		}
 
 		if !checkPublisherValidation(validationsStr, publisher) {
