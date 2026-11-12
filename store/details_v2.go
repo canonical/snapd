@@ -371,7 +371,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 
 	addCategories(info, d.Categories)
 
-	if err := addIntegrityDownloadInfos(info, d.IntegrityData); err != nil {
+	if err := addIntegrityDataDownloadInfos(info, d.IntegrityData); err != nil {
 		return nil, err
 	}
 
@@ -417,19 +417,19 @@ func addComponents(info *snap.Info, resources []storeResource) {
 	}
 }
 
-func addIntegrityDownloadInfos(info *snap.Info, integrityData []storeIntegrity) error {
+func addIntegrityDataDownloadInfos(info *snap.Info, integrityData []storeIntegrity) error {
 	if len(integrityData) == 0 {
 		return nil
 	}
 
-	downloadInfos := make([]snap.IntegrityDownloadInfo, 0, len(integrityData))
+	downloadInfos := make([]snap.IntegrityDataDownloadInfo, 0, len(integrityData))
 	for _, i := range integrityData {
 		version, err := strconv.ParseUint(i.Version, 10, 32)
 		if err != nil {
 			return err
 		}
 
-		downloadInfos = append(downloadInfos, snap.IntegrityDownloadInfo{
+		downloadInfos = append(downloadInfos, snap.IntegrityDataDownloadInfo{
 			IntegrityDataParams: integrity.IntegrityDataParams{
 				Type:          i.Type,
 				Version:       uint(version),
@@ -447,7 +447,7 @@ func addIntegrityDownloadInfos(info *snap.Info, integrityData []storeIntegrity) 
 		})
 	}
 
-	info.IntegrityDownloadInfos = downloadInfos
+	info.IntegrityDataDownloadInfos = downloadInfos
 
 	return nil
 }
