@@ -257,10 +257,15 @@ func isVolumeEMMC(vol *Volume) bool {
 	return vol.Schema == schemaEMMC
 }
 
+func isVolumeUFS(vol *Volume) bool {
+	return vol.Schema == schemaUFS
+}
+
 // isHardwareBootAreaVolume returns true if the structures of the volume are
-// pre-existing hardware areas (eMMC boot partitions) rather than partitions.
+// pre-existing hardware areas (eMMC boot partitions, UFS boot logical units)
+// rather than partitions.
 func isHardwareBootAreaVolume(vol *Volume) bool {
-	return isVolumeEMMC(vol)
+	return isVolumeEMMC(vol) || isVolumeUFS(vol)
 }
 
 func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume *Volume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {

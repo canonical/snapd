@@ -158,15 +158,19 @@ func ruleValidateVolume(vol *Volume, hasModes bool) error {
 }
 
 func ruleValidateHardwareBootAreaVolume(vol *Volume) error {
-	// Only content, schema and name can be set currently for eMMC
+	schemaName := "eMMC"
+	if vol.Schema == schemaUFS {
+		schemaName = "UFS"
+	}
+	// Only content, schema and name can be set currently for eMMC and UFS
 	if vol.Bootloader != "" {
-		return fmt.Errorf(`cannot set "bootloader" for eMMC schemas`)
+		return fmt.Errorf(`cannot set "bootloader" for %s schemas`, schemaName)
 	}
 	if vol.ID != "" {
-		return fmt.Errorf(`cannot set "id" for eMMC schemas`)
+		return fmt.Errorf(`cannot set "id" for %s schemas`, schemaName)
 	}
 	if len(vol.Partial) != 0 {
-		return fmt.Errorf(`cannot set "partial" content for eMMC schemas`)
+		return fmt.Errorf(`cannot set "partial" content for %s schemas`, schemaName)
 	}
 	return nil
 }
@@ -176,6 +180,8 @@ func validateHardwareBootAreaStructureName(vs *VolumeStructure) error {
 	switch vs.EnclosingVolume.Schema {
 	case schemaEMMC:
 		validNames = validEMMCVolumeNames
+	case schemaUFS:
+		validNames = validUFSVolumeNames
 	default:
 		return nil
 	}
@@ -220,6 +226,10 @@ var (
 
 	// valid names for volumes under an eMMC schema
 	validEMMCVolumeNames = []string{"boot0", "boot1"}
+
+	// valid names for volumes under a UFS schema, after the JEDEC boot
+	// logical unit roles (bBootLunID 01h and 02h)
+	validUFSVolumeNames = []string{"boot-lu-a", "boot-lu-b"}
 )
 
 func validateReservedLabels(vs *VolumeStructure, reservedLabels []string) error {
