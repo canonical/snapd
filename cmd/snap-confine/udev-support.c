@@ -187,11 +187,16 @@ static void sc_udev_setup_acls_common(sc_device_cgroup *cgroup) {
 }
 
 static char *sc_security_to_udev_tag(const char *security_tag) {
-    char *udev_tag = sc_strdup(security_tag);
-    for (char *c = strchr(udev_tag, '.'); c != NULL; c = strchr(c, '.')) {
-        *c = '_';
+    char udev_tag[PATH_MAX] = {0};
+
+    for (const char *cursor = security_tag; *cursor != '\0'; ++cursor) {
+        if (*cursor == '+') {
+            sc_string_append_char_pair(udev_tag, sizeof udev_tag, '_', '_');
+        } else {
+            sc_string_append_char(udev_tag, sizeof udev_tag, *cursor == '.' ? '_' : *cursor);
+        }
     }
-    return udev_tag;
+    return sc_strdup(udev_tag);
 }
 
 static void sc_cleanup_udev(struct udev **udev) {
@@ -252,8 +257,8 @@ void sc_setup_device_cgroup(const char *security_tag, sc_device_cgroup_mode mode
 
     /* Derive the udev tag from the snap security tag.
      *
-     * Because udev does not allow for dots in tag names, those are replaced by
-     * underscores in snapd. We just match that behavior. */
+     * Match snapd's encoding: dots become single underscores and plus signs
+     * become double underscores. */
     char *udev_tag SC_CLEANUP(sc_cleanup_string) = NULL;
     udev_tag = sc_security_to_udev_tag(security_tag);
 
