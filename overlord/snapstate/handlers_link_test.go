@@ -21,9 +21,11 @@ package snapstate_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -2672,6 +2674,116 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+}
+
+func (s *linkSnapSuite) testRetryUndoUnlinkModelBase(c *C, failOp, stage string) {
+	r := snapstatetest.MockDeviceModel(ModelWithBase("some-base"))
+	defer r()
+
+	fail := true
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if fail && op.op == failOp {
+			return errors.New("temporary failure")
+		}
+		return nil
+	}
+
+	s.state.Lock()
+	si1 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(2)}
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+		Active:   true,
+		SnapType: "base",
+	})
+	t := s.state.NewTask("unlink-current-snap", "unlink model base")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si2, Type: snap.TypeBase})
+	chg := s.state.NewChange("sample", "test rollback")
+	chg.AddTask(t)
+	failing := s.state.NewTask("error-trigger", "fail after unlink")
+	failing.WaitFor(t)
+	chg.AddTask(failing)
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	c.Assert(t.Status(), Equals, state.UndoingStatus)
+	c.Check(t.AtTime().IsZero(), Equals, false)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-base", &snapst), IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(chg.IsReady(), Equals, false)
+	c.Check(strings.Join(t.Log(), "\n"), Matches, fmt.Sprintf(`(?s).*cannot restore model base "some-base" during %s, will retry in 3 mins: temporary failure.*`, stage))
+
+	// Once the failure clears, the retry must restore the old revision.
+	fail = false
+	t.At(time.Time{})
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(snapstate.Get(s.state, "some-base", &snapst), IsNil)
+	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(1))
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *linkSnapSuite) TestUndoUnlinkModelBaseRetriesLinkError(c *C) {
+	s.testRetryUndoUnlinkModelBase(c, "link-snap", "linking the previous revision")
+}
+
+func (s *linkSnapSuite) TestUndoUnlinkModelBaseRetriesBootError(c *C) {
+	s.testRetryUndoUnlinkModelBase(c, "maybe-set-next-boot", "restoring next boot")
+}
+
+func (s *linkSnapSuite) testUndoUnlinkBaseLinkErrorIsTerminal(c *C, modelBase string, revert bool) {
+	r := snapstatetest.MockDeviceModel(ModelWithBase(modelBase))
+	defer r()
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "some-base/1")
+
+	s.state.Lock()
+	si1 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(2)}
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si1}),
+		Current:  si1.Revision,
+		Active:   true,
+		SnapType: "base",
+	})
+	t := s.state.NewTask("unlink-current-snap", "unlink base")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si2, Type: snap.TypeBase, Flags: snapstate.Flags{Revert: revert}})
+	chg := s.state.NewChange("sample", "test rollback")
+	chg.AddTask(t)
+	failing := s.state.NewTask("error-trigger", "fail after unlink")
+	failing.WaitFor(t)
+	chg.AddTask(failing)
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-base", &snapst), IsNil)
+	c.Check(snapst.Active, Equals, false)
+}
+
+func (s *linkSnapSuite) TestUndoUnlinkNonModelBaseLinkErrorIsTerminal(c *C) {
+	s.testUndoUnlinkBaseLinkErrorIsTerminal(c, "core18", false)
+}
+
+func (s *linkSnapSuite) TestUndoUnlinkModelBaseRevertLinkErrorIsTerminal(c *C) {
+	// the migration undo in a revert is not safe to repeat, so no retry
+	s.testUndoUnlinkBaseLinkErrorIsTerminal(c, "some-base", true)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapCoreClassic(c *C) {
