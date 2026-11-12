@@ -21,6 +21,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -653,9 +655,21 @@ func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 func (s *State) unflattenNotices(flat []*Notice) {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
-	now := time.Now()
+	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
+		if n.firstOccurred.IsZero() {
+			logger.Noticef("%s skipped due to invalid first-occurred time: %v", n.String(), n.firstOccurred)
+			continue
+		}
+		if n.lastOccurred.IsZero() {
+			logger.Noticef("%s skipped due to invalid last-occurred time: %v", n.String(), n.lastOccurred)
+			continue
+		}
+		if n.lastRepeated.IsZero() {
+			logger.Noticef("%s skipped due to invalid last-repeated time: %v", n.String(), n.lastRepeated)
+			continue
+		}
 		if n.Expired(now) {
 			continue
 		}
