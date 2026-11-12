@@ -1158,6 +1158,18 @@ func validateVolumeAssignments(volassigns []*VolumeAssignment, volumes map[strin
 		}
 	}
 
+	// UFS volumes are located through the UFS device they are assigned to,
+	// so they need volume-assignments. A variant that does not assign a UFS
+	// volume leaves it out of the volumes of the device, like any other
+	// volume.
+	if len(volassigns) == 0 {
+		for name, vol := range volumes {
+			if vol.Schema == schemaUFS {
+				return fmt.Errorf("volume %q with schema %q requires volume-assignments", name, vol.Schema)
+			}
+		}
+	}
+
 	// ensure no two variants are identical in terms of contents, as we
 	// can only do matching based on the first correct we find.
 	checker := make(map[string][]*VolumeAssignment, len(volassigns))

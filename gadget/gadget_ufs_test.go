@@ -334,3 +334,52 @@ func (s *gadgetYamlUFSSuite) TestReadGadgetYamlHappy(c *C) {
 
 	c.Check(ginfo, DeepEquals, expected)
 }
+
+func (s *gadgetYamlUFSSuite) TestReadGadgetYamlUFSRequiresAssignment(c *C) {
+	const volumes = `
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+  my-ufs:
+    schema: ufs
+    structure:
+      - name: boot-lu-a
+        content:
+          - image: bootlu-a-filename
+`
+	for _, tc := range []struct {
+		assignments string
+		err         string
+	}{{
+		assignments: "",
+		err:         `volume "my-ufs" with schema "ufs" requires volume-assignments`,
+	}, {
+		// a variant for a device without UFS can leave the UFS volume out
+		assignments: `
+volume-assignments:
+  - assignment-name: emmc-device
+    assignment:
+      volumename:
+        device: /dev/disk/by-path/platform-11230000.mmc
+  - assignment-name: ufs-device
+    assignment:
+      volumename:
+        device: /dev/disk/by-path/platform-ufshci-scsi-0:0:0:2
+      my-ufs:
+        device: /dev/disk/by-path/platform-ufshci-scsi-0:0:0:2
+`,
+	}, {
+		assignments: "\n" + ufsVolumeAssignments,
+	}} {
+		err := os.WriteFile(s.gadgetYamlPath, []byte(volumes+tc.assignments), 0644)
+		c.Assert(err, IsNil)
+
+		_, err = gadget.ReadInfo(s.dir, coreMod)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
+}
