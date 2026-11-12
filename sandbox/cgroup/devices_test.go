@@ -221,7 +221,7 @@ func (s *devicesSuite) TestFindActiveDeviceMediationV2(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
-	restoreFind := cgroup.MockFindDeviceMapsForSnap(func(snapName string) ([]string, error) {
+	restoreFind := cgroup.MockFindActiveDeviceMapTagsForSnap(func(snapName string) ([]string, error) {
 		c.Check(snapName, Equals, "mysnap")
 		return []string{"snap.mysnap.app1", "snap.mysnap.app2"}, nil
 	})
