@@ -540,6 +540,34 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 	c.Assert(newLastRepeated.After(lastRepeated), Equals, true)
 }
 
+func (s *noticesSuite) TestAddNoticeForExistingExpiredNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	userID := uint32(123)
+	key := "baz"
+	restore := state.MockNextNoticeTimestamp(time.Now())
+	id1, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key,
+		&state.AddNoticeOptions{ExpireAfter: time.Microsecond})
+	restore()
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+
+	time.Sleep(3 * time.Microsecond)
+	timestamp := time.Now()
+	c.Assert(notice1.Expired(timestamp), Equals, true)
+
+	id2, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, nil)
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+
+	c.Assert(id1, Not(Equals), id2)
+	c.Assert(st.Notice(id1), IsNil)
+}
+
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
 	st := state.New(nil)
 

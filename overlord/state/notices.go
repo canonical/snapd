@@ -426,6 +426,11 @@ type AddNoticeOptions struct {
 	// RepeatAfter defines how long after this notice was last repeated we
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
+
+	// ExpireAfter defines how long after this notice was last occurred before
+	// it expires. If zero, a default expiration will be used. A notice's
+	// expireAfter value is fixed at first occurrence.
+	ExpireAfter time.Duration
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -444,14 +449,18 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	defer s.noticesMu.Unlock()
 
 	now := s.NextNoticeTimestamp().UTC()
+	expireAfter := options.ExpireAfter
+	if expireAfter == 0 {
+		expireAfter = defaultNoticeExpireAfter
+	}
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
 	notice, ok := s.notices[uniqueKey]
-	if !ok {
-		// First occurrence of this notice userID+type+key
+	if !ok || notice.Expired(now) {
+		// First non-expired occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, expireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
@@ -579,7 +588,7 @@ func (s *State) DrainNotices(filter *NoticeFilter) []*Notice {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := time.Now()
+	now := timeNow()
 	var toRemove []noticeKey
 	var notices []*Notice
 	for k, n := range s.notices {
@@ -651,7 +660,7 @@ func (s *State) flattenNotices() []*Notice {
 // filterNotices returns the list of notices that match the filter (if any),
 // without sorting them. The caller must hold the noticesMu for reading.
 func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
-	now := time.Now()
+	now := timeNow()
 	var notices []*Notice
 	for _, n := range s.notices {
 		if n.Expired(now) || !filter.matches(n) {
@@ -752,7 +761,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// not yet been added to the notices map. Therefore, if the current
 		// time is after the BeforeOrAt filter, we know there can be no new
 		// notices which match the filter.
-		now := time.Now()
+		now := timeNow()
 		if !filter.futureNoticesPossible(now) {
 			return nil, nil
 		}
