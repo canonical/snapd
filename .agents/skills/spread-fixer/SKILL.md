@@ -60,11 +60,12 @@ proposed change explicitly unverified.
 Inspect the failing test's `task.yaml`, scripts, and shared helpers, along
 with the relevant debug-shell state and logs. Verify that the observed behavior
 is a test defect, not merely a symptom of a product or environment problem.
-With `-debug-socket`, keep the run paused and use as many focused
-`spread exec -- 'COMMAND'` invocations as needed to inspect the worker, test
-hypotheses, and perform any necessary remote worker actions. Make source-code
-changes in the checkout as usual. Once investigation and remote actions are
-complete, run `spread stop` to resume Spread and allow restore and cleanup.
+With `-debug-socket`, keep the run paused. Use the socket path from Spread's
+ready message with as many focused `spread exec SOCKET -- 'COMMAND'`
+invocations as needed to inspect the worker, test hypotheses, and perform any
+necessary remote worker actions. Make source-code changes in the checkout as
+usual. Once investigation and remote actions are complete, run
+`spread stop SOCKET` to resume Spread and allow restore and cleanup.
 
 Make the smallest change that corrects the test's expectation or behavior.
 Preserve meaningful coverage: do not weaken or remove an assertion, add
