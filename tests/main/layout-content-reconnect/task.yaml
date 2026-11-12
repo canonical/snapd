@@ -1,0 +1,59 @@
+summary: Verify that layout binds sourced from content mounts follow content changes
+
+details: |
+    Verify that a layout whose source lives inside a content interface mount
+    target is re-made when the content connection is established or when the
+    content provider is refreshed.
+
+    Bind mounts capture the underlying filesystem object at bind time. A snap
+    that is launched before its content plug is connected records a layout
+    bind of whatever the source path resolved to at the time — for snaps
+    carrying layout source stub directories (required by pack validation with
+    core26 and later bases) this is an empty directory. Connecting the content
+    afterwards must re-create the layout bind, otherwise the snap keeps
+    seeing an empty layout target. Similarly, refreshing the content provider
+    must re-create the layout bind so that it does not stay pinned to the old
+    provider revision.
+
+    This scenario is like a desktop snap using the gnome extension being
+    launched before the gnome runtime content snap is connected, which made
+    firefox 160 (core26) fail at startup because the glycin image loaders
+    were missing: "Could not spawn /usr/libexec/glycin-loaders/2+/glycin-image-rs".
+
+prepare: |
+    snap install core24 || true
+
+    snap remove --purge test-snapd-layout-reconnect-consumer || true
+    snap remove --purge test-snapd-layout-reconnect-provider || true
+
+restore: |
+    snap remove --purge test-snapd-layout-reconnect-consumer || true
+    snap remove --purge test-snapd-layout-reconnect-provider || true
+
+execute: |
+    echo "Install the consumer before the provider, the plug is not connected"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout-reconnect-consumer
+    snap connections test-snapd-layout-reconnect-consumer | NOMATCH "test-snapd-layout-reconnect-provider:content"
+
+    echo "Running the consumer records a layout bind of the unconnected source"
+    test-snapd-layout-reconnect-consumer.app | MATCH "no canary"
+
+    echo "Install the provider and connect the plug"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout-reconnect-provider-v1
+    snap connect test-snapd-layout-reconnect-consumer:content test-snapd-layout-reconnect-provider:content || true
+    snap connections test-snapd-layout-reconnect-consumer | MATCH "test-snapd-layout-reconnect-provider:content"
+
+    echo "The layout now shows the connected content"
+    test-snapd-layout-reconnect-consumer.app | MATCH "hello from provider V1"
+
+    echo "Refresh the provider, the layout must follow the new revision"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout-reconnect-provider-v2
+    test-snapd-layout-reconnect-consumer.app | MATCH "hello from provider V2"
+
+    echo "Disconnect the plug, the layout no longer shows content"
+    snap disconnect test-snapd-layout-reconnect-consumer:content test-snapd-layout-reconnect-provider:content
+    test-snapd-layout-reconnect-consumer.app | MATCH "no canary"
+
+    echo "Re-connect the plug, the layout shows content again"
+    snap connect test-snapd-layout-reconnect-consumer:content test-snapd-layout-reconnect-provider:content
+    test-snapd-layout-reconnect-consumer.app | MATCH "hello from provider V2"
