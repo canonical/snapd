@@ -24,7 +24,7 @@ details: |
     kept. Check that snapd reports storage encryption as active.
 
     The image URL can be replaced with NESTED_UBUNTU_ISO_URL, and
-    the autoinstall source id with NESTED_DESKTOP_SOURCE_ID.
+    the autoinstall source id with NESTED_SOURCE_ID.
 
 systems:
     - ubuntu-26.04-64
@@ -40,8 +40,8 @@ environment:
     # 8192 MB is refused on the shared.medium workers.
     NESTED_MEM: 4096
     NESTED_CPUS: 4
-    NESTED_DESKTOP_SNAPD/iso: iso
-    NESTED_DESKTOP_SNAPD/branch: branch
+    NESTED_SNAPD/iso: iso
+    NESTED_SNAPD/branch: branch
 
 debug: |
     tests.nested get serial-log || true

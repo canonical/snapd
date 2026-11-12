@@ -80,7 +80,7 @@ nested_autoinstall_snippet() {
 }
 
 nested_live_snapd_setup() {
-    case "${NESTED_DESKTOP_SNAPD}" in
+    case "${NESTED_SNAPD}" in
         iso)
             cat <<'EOF'
     if printf '%s\n' '[Service]' 'Environment=SNAPPY_TESTING=1' | systemctl edit snapd.service --stdin --drop-in=99-nested-testing.conf && systemctl restart snapd.socket snapd.service; then
@@ -126,7 +126,7 @@ EOF
 EOF
             ;;
         *)
-            echo "cannot use desktop snapd ${NESTED_DESKTOP_SNAPD}" >&2
+            echo "cannot use desktop snapd ${NESTED_SNAPD}" >&2
             return 1
             ;;
     esac
@@ -159,7 +159,7 @@ nested_write_autoinstall_seed_image() {
     local user_data="$2"
     local meta_data="$3"
     local snap tmp
-    if [ "$NESTED_DESKTOP_SNAPD" != "branch" ]; then
+    if [ "$NESTED_SNAPD" != "branch" ]; then
         if ! cloud-localds "$seed" "$user_data" "$meta_data" >&2; then
             echo "cannot create autoinstall seed ${seed}" >&2
             return 1
@@ -194,7 +194,7 @@ nested_render_autoinstall_user_data() {
         echo "cannot hash the autoinstall password" >&2
         return 1
     fi
-    source_id="$NESTED_DESKTOP_SOURCE_ID"
+    source_id="$NESTED_SOURCE_ID"
     proxy="$(nested_guest_proxy)"
     if ! storage="$(nested_autoinstall_snippet)"; then
         return 1
