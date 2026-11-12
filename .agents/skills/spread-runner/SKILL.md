@@ -126,13 +126,18 @@ even if setup or execution fails.
 `-debug` pauses at the failure with an interactive shell on that same worker
 and environment before cleanup continues. For agent-driven or headless remote
 debugging, use `-debug-socket` instead. It pauses without opening a terminal and
-creates `.spread.socket` in the project directory. While the Spread process is
-paused, run `spread exec -- COMMAND` from that directory to execute a command in
-the failed task's directory and environment; run `spread stop` when evidence
-collection is complete so Spread can continue with restore. Each `spread exec`
-uses a separate remote command and does not share process state with the task.
-The socket commands are separate from task `debug` or `debug-each` scripts,
-which can emit diagnostics on failure.
+creates a socket named `.spread-<jobid>-<machine>.socket` in the project
+directory. After creating it, Spread prints the exact path in its ready
+message. While the Spread process is paused, use that path with
+`spread exec SOCKET -- COMMAND` to execute a command in the failed task's
+directory and environment; run `spread stop SOCKET` when evidence collection
+is complete so Spread can continue with restore. Each run and machine has its
+own socket, so multiple debug sessions can be active concurrently. Each
+`spread exec` uses a separate remote command and does not share process state
+with the task. An abruptly killed Spread process can leave its socket file
+behind; a leftover socket file does not by itself indicate a live session. The
+socket commands are separate from task `debug` or `debug-each` scripts, which
+can emit diagnostics on failure.
 
 Tasks are normally ordered randomly. Spread logs a seed that can help replay
 the order, but with multiple workers task assignment can vary due to scheduling.
@@ -357,8 +362,9 @@ Debug output for garden:<system>:<test> :
 -----
 <debug section output — extra diagnostic info>
 -----
-Debug socket session ready. Use `spread exec -- <command>` to run commands,
-then `spread stop` to continue.
+Debug socket session ready at ".spread-<jobid>-<machine>.socket". Use
+`spread exec <socket> -- <command>` to run commands, then
+`spread stop <socket>` to continue.
 ```
 
 Capture as much of the error and debug output as possible to avoid re-runs.
@@ -375,8 +381,8 @@ run must pause on failure: use `-debug-socket` for remote inspection or
 
 Record whether the run reproduces the same failed phase, command, exit status,
 and symptom. Keep the debug session paused and collect evidence when it
-reproduces; for remote inspection, use `spread exec -- COMMAND` and resume with
-`spread stop`.
+reproduces; use the socket path from Spread's ready message with
+`spread exec SOCKET -- COMMAND`, then resume with `spread stop SOCKET`.
 Do not edit code based only on the original CI log when a local reproduction is
 available.
 
@@ -409,31 +415,36 @@ and the same test subsequently passed with the patch.
 ## Debug a failure
 
 Keep the Spread process running when it pauses on failure. For `-debug`, the
-interactive shell belongs to that terminal session. For `-debug-socket`, use
-`spread exec -- COMMAND` from the project directory to inspect the failed task,
-then run `spread stop` to resume the run. Do not start another Spread process
-or stop the paused run before collecting evidence.
+interactive shell belongs to that terminal session. For `-debug-socket`, copy
+the socket path from Spread's ready message and use
+`spread exec SOCKET -- COMMAND` from the project directory to inspect the
+failed task, then run `spread stop SOCKET` to resume the run. Do not stop the
+paused run before collecting evidence.
 
 For agent-driven or headless remote debugging, start Spread with
-`-debug-socket`. When a task fails, Spread pauses and creates `.spread.socket`
-in the project directory. Keep the Spread process running and issue focused
-diagnostics from that directory with `spread exec -- 'COMMAND'`. For example:
+`-debug-socket`. When a task fails, Spread pauses and creates a per-run,
+per-machine socket named `.spread-<jobid>-<machine>.socket` in the project
+directory. Its ready message includes the exact socket path. Keep the Spread
+process running and issue focused diagnostics from that directory with
+`spread exec SOCKET -- 'COMMAND'`. For example, replace `SOCKET` below with the
+path printed in the ready message:
 
 For example, through snapd's wrapper:
 
 ```bash
 ./run-spread -d -- -debug-socket BACKEND:SYSTEM:TEST_PATH
-spread exec -- 'journalctl -u snapd --no-pager -n 100'
-spread exec -- 'pwd'
-spread stop
+spread exec SOCKET -- 'journalctl -u snapd --no-pager -n 100'
+spread exec SOCKET -- 'pwd'
+spread stop SOCKET
 ```
 
 Each `spread exec` uses a separate SSH command in the failed task's working
 directory and environment, and returns output and exit status directly; it
-does not share process state with the task. Use `spread stop` after collecting
-evidence so Spread can continue with restore and cleanup. The socket is local
-to the project directory and exists only while a debug-socket session is
-active. Use `-debug` for a human-operated interactive shell, or `-shell` when
+does not share process state with the task. Use `spread stop SOCKET` after
+collecting evidence so Spread can continue with restore and cleanup. The socket
+is local to the project directory; abruptly killed runs may leave socket files
+behind, and multiple debug-socket sessions can be active concurrently. Use
+`-debug` for a human-operated interactive shell, or `-shell` when
 an interactive shell is needed before task execution; `-debug-socket` pauses
 only after a task error.
 
@@ -443,7 +454,7 @@ only after a task error.
    root-cause hypothesis.
 4. Collect enough state to distinguish a product bug, test bug, dependency
    failure, image problem, or infrastructure issue.
-5. Resume the run with `spread stop` or exit the interactive shell only after
+5. Resume the run with `spread stop SOCKET` or exit the interactive shell only after
    the evidence needed for a proposed solution has been captured. Spread will
    then continue with restore and cleanup.
 

@@ -94,7 +94,8 @@ When fixtures must be created or refreshed:
   is needed in place of the execute step to inspect or prepare test state
   proactively. Use `-debug-socket` for remote inspection when execute should
   run normally and pause only after a failure, preserving generated output and
-  failed state. Use `spread exec -- COMMAND` to inspect and `spread stop` to
+  failed state. Use the socket path from Spread's ready message with
+  `spread exec SOCKET -- COMMAND` to inspect and `spread stop SOCKET` to
   resume; use `-debug` when a human-operated terminal shell is needed.
 2. Inspect every difference against the old fixture and acceptance criteria.
 3. Add or update fixtures only after the differences are understood.
@@ -119,8 +120,8 @@ while an evidence-based next action is available:
 1. Identify the failed phase, command, exit status, and first relevant error.
 2. Keep the Spread debug session paused and inspect the failed worker's live
   state, generated files, logs, and commands needed to explain the failure.
-  For remote inspection, use `spread exec -- COMMAND` and resume with
-  `spread stop`.
+  For remote inspection, use the socket path from Spread's ready message with
+  `spread exec SOCKET -- COMMAND` and resume with `spread stop SOCKET`.
   If diagnosis must happen before execute, rerun with `-shell` and perform the
   execute commands selectively. Use downloaded artifacts when a live shell is
   unavailable or persistent evidence is specifically required.

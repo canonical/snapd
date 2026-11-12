@@ -203,6 +203,14 @@ three repetitions on a fresh machine:
 ./run-spread -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 ```
 
+After creating the socket, Spread prints a ready message that includes its
+exact path, in the form `.spread-<jobid>-<machine>.socket`. Use that path with
+`spread exec SOCKET -- COMMAND` to inspect the failed task, then
+`spread stop SOCKET` to resume it. Each run and machine has its own socket, so
+multiple debug sessions can be active concurrently; select the path printed for
+the target failure. An abruptly killed Spread process can leave its socket file
+behind, so a leftover socket file does not by itself indicate a live session.
+
 Preserve all required environment assignments and the variant from the
 original failure in the real command. Spread's `-repeat 3` means three
 additional repetitions after the initial execution, for four executions total
@@ -210,8 +218,8 @@ on the same worker; it is not equivalent to three fresh-machine attempts.
 Record which repetition failed and inspect Spread output or `results.json` to
 determine whether the same instance was retained and whether prepare and
 restore ran between repetitions. Keep the debug session paused on the first
-matching failure, inspect it with `spread exec -- COMMAND`, and then use
-`spread stop` to let the repetitions continue.
+matching failure, inspect it using the printed socket path, and stop that
+session to let the repetitions continue.
 
 If all three repetitions pass, do not conclude that an intermittent failure
 is absent. When the report history or failure rate warrants further

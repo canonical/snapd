@@ -166,7 +166,8 @@ Reproduction must match the original failure's phase, failed command, exit
 status, and symptom. Keep the debug session paused on a matching failure and
 collect the minimal evidence needed to distinguish a test defect from a
 product, image, dependency, or infrastructure problem. For remote inspection,
-use `spread exec -- COMMAND` and resume with `spread stop`.
+use the socket path from Spread's ready message with
+`spread exec SOCKET -- COMMAND`, then resume with `spread stop SOCKET`.
 
 If the failure does not reproduce, or execution is blocked before reaching the
 behavior under test, do not patch speculatively. Record attempts and blockers
