@@ -65,9 +65,9 @@ workflow is using it.
 ## 1. Fetch CI job logs
 
 If direct job URLs are supplied, fetch no more than the three most recent
-failures together. When the supplied URLs are chronological, use the final
-three; if their order is unclear, ask which failures are the latest rather
-than downloading all of them:
+failures together, including all available artifacts for those runs. When the
+supplied URLs are chronological, use the final three; if their order is
+unclear, ask which failures are the latest rather than downloading all of them:
 
 ```bash
 python3 tests/utils/spread-log/fetch_spread_ci_logs.py \
@@ -75,7 +75,7 @@ python3 tests/utils/spread-log/fetch_spread_ci_logs.py \
     --job-url 'JOB_URL_1' 'JOB_URL_2'
 ```
 
-Read the job logs and available result artifacts from the printed output
+Read the job logs and downloaded run artifacts from the printed output
 directory. Match result rows to the supplied backend, system, test, phase, and
 variant. A job log establishes only that job's evidence; do not search related
 workflow runs unless the user asks for that broader investigation.
@@ -88,10 +88,11 @@ For every distinct failed `(run_id, job_id)` pair:
 2. Record the snapd commit, run attempt, workflow inputs, exact failed command,
    exit status, phase, symptom, and the machine name shown in parentheses on
    the log's task lines.
-3. Inspect the downloaded `spread-results-RUN_ID-*` artifacts. There may be
-   several group artifacts; inspect all `results.json` files and select rows
-   matching the selected backend, system, phase, test, and variant. If the
-   fetcher reports that results are unavailable, record that limitation.
+3. Inspect the downloaded `spread-logs-*` and `spread-results-RUN_ID-*`
+   artifacts. Use debug logs for the failure details and inspect all
+   `results.json` files, selecting rows matching the backend, system, phase,
+   test, and variant. If artifacts or results are unavailable, record that
+   limitation.
 4. Confirm that separate failures have the same signature before combining
    them. Analyze differing signatures separately.
 
@@ -161,9 +162,11 @@ from timestamps alone when machine identity is missing.
 ## 4. Reproduce the target alone
 
 Recreate the original source revision and conditions before testing a
-predecessor hypothesis. Do not switch or clean a dirty user checkout. If the
-job's commit differs from the current checkout, use a temporary Git worktree
-at that commit.
+predecessor hypothesis. Do not switch or clean a dirty user checkout. Keep
+implementation changes on the current branch; do not switch branches or commit
+unless the user's initial request explicitly asks. If the job's commit differs
+from the current checkout, a temporary Git worktree may be used for historical
+reproduction only; do not apply the fix there.
 
 Follow `spread-runner` and normally start with a fresh local `garden` QEMU VM,
 `-debug-socket` for remote inspection, the same system, test, variant, relevant

@@ -58,6 +58,8 @@ inside this session directory; do not use `/tmp` or create another temporary
 directory for another stage. If the user supplies an explicit handoff path,
 honor it. Do not remove the session directory while the workflow is running;
 include its path in the final report.
+The repository's Spread exclusion list must keep `.logs` out of worker
+archives, so fetched artifacts are not retransmitted to test machines.
 
 ## Inputs
 
@@ -94,10 +96,11 @@ If the selector is incomplete or ambiguous, ask for clarification.
 ## 1. Collect and summarize prior CI evidence
 
 If direct GitHub Actions job URLs are supplied, retrieve no more than the
-three most recent failures and their available Spread result artifacts in one
-fetcher invocation. When the supplied URLs are chronological, use the final
-three; if their order is unclear, ask which failures are the latest instead
-of downloading all of them.
+three most recent failures and all available artifacts for their runs in one
+fetcher invocation. This includes Spread debug logs, result JSON, and other
+run artifacts. When the supplied URLs are chronological, use the final three;
+if their order is unclear, ask which failures are the latest instead of
+downloading all of them.
 The fetcher stores this invocation's files in a unique subdirectory beneath
 the workflow session directory and prints its path:
 
@@ -107,10 +110,10 @@ python3 tests/utils/spread-log/fetch_spread_ci_logs.py \
     --job-url 'JOB_URL_1' 'JOB_URL_2'
 ```
 
-Use that output directory when inspecting the logs and result artifacts. Match
-result rows to the exact backend, system, test, phase, and variant. A direct
-job log establishes only that job's evidence. Do not search related workflow
-runs unless the user asks for that broader investigation.
+Use that output directory when inspecting the job logs and downloaded run
+artifacts. Match result rows to the exact backend, system, test, phase, and
+variant. A direct job log establishes only that job's evidence. Do not search
+related workflow runs unless the user asks for that broader investigation.
 
 If no CI source is supplied, record the user's failure description and
 continue with a local baseline. Do not invent CI history.
@@ -119,6 +122,9 @@ Before any local test run, record the current commit and dirty state, the
 selected test, and the available CI source evidence. Do not clean, switch, or
 overwrite a dirty user checkout. Redact credentials and tokens in notes and
 final output.
+Keep fixes on the branch active when the workflow starts. Do not switch
+branches or commit unless the user's initial request explicitly asks. A
+separate worktree for historical reproduction must not be used for the fix.
 
 ## 2. Run the baseline and reproduce
 
@@ -126,11 +132,13 @@ Use `spread-runner` to check suite requirements and understand how the selected
 snapd, Ubuntu Core, or nested system is prepared before running the supplied
 system and test with a failure pause enabled. Prefer `-debug-socket` for remote
 agent-driven inspection; use `-debug` only when an interactive terminal shell
-is needed. Use Garden locally, including when
-reproducing an OpenStack CI failure, and preserve relevant test arguments and
-environment from the CI evidence. For nested tests, distinguish the outer
-Spread host from the guest under test. Record Garden-versus-OpenStack as a
-condition difference; do not claim the environments are identical.
+is needed. Use Garden for a local baseline by default. If the supplied selector
+or the user explicitly requests OpenStack, reproduce on OpenStack instead of
+substituting Garden. Preserve relevant test arguments and environment from the
+CI evidence. For nested tests, distinguish the outer Spread host from the
+guest under test. When a preliminary Garden run is used, record the
+Garden-versus-OpenStack difference and do not claim the environments are
+identical.
 
 Choose the snapd artifact from the supplied job's workflow inputs and logs. If
 the job uses a prebuilt master snap, use `./run-spread -d -- <Spread args>` and
@@ -143,7 +151,8 @@ For CI scenarios (`generic`, `deb`, `master`, or `features`), preserve the
 caller workflow's `spread-env`, package artifacts, and snap artifact
 selection. Use the scenario guide in `spread-runner`; the workflow's
 `scenario` value is a reporting label, not an environment variable to export
-locally.
+locally. For a `deb` reproduction, pass `-s snapd_deb` before `--` so the
+scenario environment is applied to the supplied backend and system.
 
 Create the default reproduction handoff at
 `$SESSION_DIR/reproduction-report.md` before repeated or slow attempts, unless
