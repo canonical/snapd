@@ -142,8 +142,8 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 }
 
 func ruleValidateVolume(vol *Volume, hasModes bool) error {
-	if vol.Schema == schemaEMMC {
-		if err := ruleValidateEMMCVolume(vol); err != nil {
+	if isHardwareBootAreaVolume(vol) {
+		if err := ruleValidateHardwareBootAreaVolume(vol); err != nil {
 			return err
 		}
 	}
@@ -157,7 +157,7 @@ func ruleValidateVolume(vol *Volume, hasModes bool) error {
 	return nil
 }
 
-func ruleValidateEMMCVolume(vol *Volume) error {
+func ruleValidateHardwareBootAreaVolume(vol *Volume) error {
 	// Only content, schema and name can be set currently for eMMC
 	if vol.Bootloader != "" {
 		return fmt.Errorf(`cannot set "bootloader" for eMMC schemas`)
@@ -171,12 +171,16 @@ func ruleValidateEMMCVolume(vol *Volume) error {
 	return nil
 }
 
-func validateEMMCStructureName(vs *VolumeStructure) error {
-	if vs.EnclosingVolume.Schema != schemaEMMC {
+func validateHardwareBootAreaStructureName(vs *VolumeStructure) error {
+	var validNames []string
+	switch vs.EnclosingVolume.Schema {
+	case schemaEMMC:
+		validNames = validEMMCVolumeNames
+	default:
 		return nil
 	}
-	if !strutil.ListContains(validEMMCVolumeNames, vs.Name) {
-		return fmt.Errorf("cannot use %q as emmc name, only %q is allowed", vs.Name, validEMMCVolumeNames)
+	if !strutil.ListContains(validNames, vs.Name) {
+		return fmt.Errorf("cannot use %q as %s name, only %q is allowed", vs.Name, vs.EnclosingVolume.Schema, validNames)
 	}
 	return nil
 }
@@ -191,7 +195,7 @@ func ruleValidateVolumeStructure(vs *VolumeStructure, hasModes bool) error {
 	if err := validateReservedLabels(vs, reservedLabels); err != nil {
 		return err
 	}
-	if err := validateEMMCStructureName(vs); err != nil {
+	if err := validateHardwareBootAreaStructureName(vs); err != nil {
 		return err
 	}
 	return nil

@@ -1603,7 +1603,7 @@ func isMBR(vs *VolumeStructure) bool {
 func validateCrossVolumeStructure(vol *Volume) error {
 	// eMMC have no traditional volumes, instead eMMC has the concept
 	// of hardware partitions that act like separate disks.
-	if vol.Schema == schemaEMMC {
+	if isHardwareBootAreaVolume(vol) {
 		return nil
 	}
 
@@ -1664,8 +1664,8 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 
 func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent) error {
 	switch {
-	case vol.Schema == schemaEMMC:
-		return validateEMMCContent
+	case isHardwareBootAreaVolume(vol):
+		return validateHardwareBootAreaContent
 	case vs.HasFilesystem():
 		return validateFilesystemContent
 	default:
@@ -1675,11 +1675,11 @@ func contentCheckerCreate(vs *VolumeStructure, vol *Volume) func(*VolumeContent)
 	}
 }
 
-// For emmc volume structures, we do not allow anything but
+// For hardware boot area volume structures, we do not allow anything but
 // content and name
-func validateEMMCVolumeStructure(vs *VolumeStructure) error {
+func validateHardwareBootAreaVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	fielderr := func(field string) error {
-		return fmt.Errorf("%q not allowed for emmc volume structures", field)
+		return fmt.Errorf("%q not allowed for %s volume structures", field, vol.Schema)
 	}
 
 	if vs.Size != 0 {
@@ -1711,7 +1711,7 @@ func validateEMMCVolumeStructure(vs *VolumeStructure) error {
 	}
 
 	for i, c := range vs.Content {
-		if err := validateEMMCContent(&c); err != nil {
+		if err := validateHardwareBootAreaContent(&c); err != nil {
 			return fmt.Errorf("invalid content #%v: %v", i, err)
 		}
 	}
@@ -1719,8 +1719,8 @@ func validateEMMCVolumeStructure(vs *VolumeStructure) error {
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if isVolumeEMMC(vol) {
-		return validateEMMCVolumeStructure(vs)
+	if isHardwareBootAreaVolume(vol) {
+		return validateHardwareBootAreaVolumeStructure(vs, vol)
 	}
 	if !vs.hasPartialSize() {
 		if vs.Size == 0 {
@@ -1764,10 +1764,10 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	return nil
 }
 
-func validateStructureTypeEMMC(s string) error {
-	// for eMMC we don't support the type being set
+func validateStructureTypeHardwareBootArea(s string, vol *Volume) error {
+	// for hardware boot areas we don't support the type being set
 	if s != "" {
-		return errors.New(`type is not supported for "emmc" schema`)
+		return fmt.Errorf("type is not supported for %q schema", vol.Schema)
 	}
 	return nil
 }
@@ -1783,9 +1783,9 @@ func validateStructureType(s string, vol *Volume) error {
 	// Hybrid ID is 2 hex digits of MBR type, followed by 36 GUUID
 	// example: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
 
-	// eMMC volumes we treat differently
-	if vol.Schema == schemaEMMC {
-		return validateStructureTypeEMMC(s)
+	// hardware boot area volumes we treat differently
+	if isHardwareBootAreaVolume(vol) {
+		return validateStructureTypeHardwareBootArea(s, vol)
 	}
 
 	if s == "" {
@@ -1922,7 +1922,7 @@ func validateBareContent(vc *VolumeContent) error {
 	return nil
 }
 
-func validateEMMCContent(vc *VolumeContent) error {
+func validateHardwareBootAreaContent(vc *VolumeContent) error {
 	if vc.Offset != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot specify size or offset for content")
 	}
