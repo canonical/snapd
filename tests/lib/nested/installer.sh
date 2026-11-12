@@ -10,7 +10,7 @@
 
 nested_desktop_iso_url() {
     if [ -n "${NESTED_UBUNTU_ISO_URL:-}" ]; then
-        printf '%s\n' "$NESTED_UBUNTU_ISO_URL"
+        printf '%s' "$NESTED_UBUNTU_ISO_URL"
         return 0
     fi
 
@@ -24,7 +24,7 @@ nested_desktop_iso_url() {
             return 1
             ;;
     esac
-    printf 'https://cdimage.ubuntu.com/ubuntu/%s/daily-live/current/%s-desktop-amd64.iso\n' \
+    printf 'https://cdimage.ubuntu.com/ubuntu/%s/daily-live/current/%s-desktop-amd64.iso' \
         "$codename" "$codename"
 }
 
@@ -42,7 +42,7 @@ nested_download_desktop_iso() {
         echo "cannot download daily desktop image ${url}" >&2
         return 1
     fi
-    printf '%s\n' "$dest"
+    printf '%s' "$dest"
 }
 
 nested_create_installer_disk() {
@@ -53,7 +53,7 @@ nested_create_installer_disk() {
         echo "cannot create installer disk ${disk}" >&2
         return 1
     fi
-    printf '%s\n' "$disk"
+    printf '%s' "$disk"
 }
 
 nested_guest_proxy() {
@@ -61,7 +61,7 @@ nested_guest_proxy() {
     if [ -z "$proxy" ]; then
         return 0
     fi
-    printf '%s\n' "$proxy"
+    printf '%s' "$proxy"
 }
 
 nested_autoinstall_snippet() {
@@ -151,7 +151,7 @@ nested_branch_snapd_snap() {
         return 1
     fi
     cp "$snap" "$NESTED_ASSETS_DIR/snapd.snap"
-    printf '%s\n' "$NESTED_ASSETS_DIR/snapd.snap"
+    printf '%s' "$NESTED_ASSETS_DIR/snapd.snap"
 }
 
 nested_write_autoinstall_seed_image() {
@@ -226,7 +226,7 @@ nested_render_autoinstall_user_data() {
     document="${document/@LIVE_SNAPD_SETUP@/${live_snapd_setup}}"
     document="${document/@PROXY_LINE@/${proxy_line}}"
     document="${document/@STORAGE@/${storage}}"
-    printf '%s\n' "$document"
+    printf '%s' "$document"
 }
 
 nested_create_autoinstall_seed() {
@@ -247,7 +247,7 @@ nested_create_autoinstall_seed() {
     if ! nested_write_autoinstall_seed_image "$seed" "$user_data" "$meta_data"; then
         return 1
     fi
-    printf '%s\n' "$seed"
+    printf '%s' "$seed"
 }
 
 nested_remove_vm_unit() {
