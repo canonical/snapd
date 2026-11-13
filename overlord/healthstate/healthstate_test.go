@@ -253,3 +253,99 @@ func (s *healthSuite) TestSetFromHookContextEmpty(c *check.C) {
 	// no health in the context -> no health in state
 	c.Check(s.state.Get("health", &hs), testutil.ErrorIs, state.ErrNoState)
 }
+
+func (s *healthSuite) TestSetFromHookContextUnsetRevisionUsesCurrent(c *check.C) {
+	ctx, err := hookstate.NewContext(nil, s.state, &hookstate.HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, check.IsNil)
+
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	ctx.Set("health", &healthstate.HealthState{Status: healthstate.OkayStatus})
+	c.Assert(healthstate.SetFromHookContext(ctx), check.IsNil)
+
+	health, err := healthstate.Get(s.state, "test-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(health, check.DeepEquals, &healthstate.HealthState{Revision: snap.R(42), Status: healthstate.OkayStatus})
+}
+
+func (s *healthSuite) TestGetAndAllOmitStaleRevisions(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("health", map[string]*healthstate.HealthState{
+		// current revision
+		"test-snap": {Revision: snap.R(42), Status: healthstate.OkayStatus},
+		// revision is not current (e.g. refresh was undone)
+		"other-snap": {Revision: snap.R(7), Status: healthstate.UnknownStatus},
+		// snap is not installed
+		"gone-snap": {Revision: snap.R(1), Status: healthstate.UnknownStatus},
+		// no revision recorded
+		"norev-snap": {Status: healthstate.WaitingStatus},
+	})
+	sideInfo := &snap.SideInfo{RealName: "other-snap", Revision: snap.R(6)}
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
+		Current:  snap.R(6),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	all, err := healthstate.All(s.state)
+	c.Assert(err, check.IsNil)
+	c.Check(all, check.DeepEquals, map[string]*healthstate.HealthState{
+		"test-snap":  {Revision: snap.R(42), Status: healthstate.OkayStatus},
+		"norev-snap": {Status: healthstate.WaitingStatus},
+	})
+
+	for name, expected := range map[string]*healthstate.HealthState{
+		"test-snap":  {Revision: snap.R(42), Status: healthstate.OkayStatus},
+		"other-snap": nil,
+		"gone-snap":  nil,
+		"norev-snap": {Status: healthstate.WaitingStatus},
+	} {
+		health, err := healthstate.Get(s.state, name)
+		c.Assert(err, check.IsNil)
+		c.Check(health, check.DeepEquals, expected, check.Commentf("%s", name))
+	}
+}
+
+func (s *healthSuite) TestGetAndAllOmitHealthOfReusedLocalRevision(c *check.C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// a failed refresh to local revision x2 was undone, then another
+	// local build was installed and got x2 again
+	failedAt := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	linkedAt := failedAt.Add(time.Hour)
+	s.state.Set("health", map[string]*healthstate.HealthState{
+		"local-snap": {Revision: snap.R(-2), Timestamp: failedAt, Status: healthstate.UnknownStatus, Code: "snapd-hook-failed"},
+		// recorded after the current revision was linked
+		"fresh-snap": {Revision: snap.R(-2), Timestamp: linkedAt.Add(time.Minute), Status: healthstate.OkayStatus},
+	})
+	for _, name := range []string{"local-snap", "fresh-snap"} {
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+				{RealName: name, Revision: snap.R(-1)},
+				{RealName: name, Revision: snap.R(-2)},
+			}),
+			Current:         snap.R(-2),
+			Active:          true,
+			SnapType:        "app",
+			LastRefreshTime: &linkedAt,
+		})
+	}
+
+	health, err := healthstate.Get(s.state, "local-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(health, check.IsNil)
+
+	health, err = healthstate.Get(s.state, "fresh-snap")
+	c.Assert(err, check.IsNil)
+	c.Check(health, check.NotNil)
+
+	all, err := healthstate.All(s.state)
+	c.Assert(err, check.IsNil)
+	c.Check(all["local-snap"], check.IsNil)
+	c.Check(all["fresh-snap"], check.NotNil)
+}

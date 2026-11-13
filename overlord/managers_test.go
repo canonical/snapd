@@ -80,6 +80,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	fdestatebackend "github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/healthstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -884,6 +885,73 @@ hooks:
 	for _, d := range snapdirs {
 		c.Check(filepath.Base(d), Not(Equals), "foo")
 	}
+}
+
+func (s *mgrsSuite) TestLocalRefreshUndoFailingCheckHealth(c *C) {
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+hooks:
+  check-health:
+`
+	checkHealthFails := false
+	defer hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		if ctx.HookName() != "check-health" {
+			return nil, nil
+		}
+		if checkHealthFails {
+			return nil, errors.New("check-health failed")
+		}
+		_, _, _, err := ctlcmd.Run(ctx, []string{"set-health", "okay"}, 0, nil)
+		c.Assert(err, IsNil)
+		return nil, nil
+	})()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	install := func(version string) *state.Change {
+		snapPath := makeTestSnap(c, snapYamlContent+"version: "+version)
+		ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", "", snapstate.Flags{DevMode: true}, nil)
+		c.Assert(err, IsNil)
+		chg := st.NewChange("install-snap", "...")
+		chg.AddAll(ts)
+
+		st.Unlock()
+		err = s.o.Settle(settleTimeout)
+		st.Lock()
+		c.Assert(err, IsNil)
+		return chg
+	}
+
+	chg := install("1.0")
+	c.Assert(chg.Err(), IsNil)
+
+	health, err := healthstate.Get(st, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(health, NotNil)
+	c.Check(health.Revision, Equals, snap.R("x1"))
+	c.Check(health.Status, Equals, healthstate.OkayStatus)
+
+	// refresh to x2 with a failing check-health hook, which undoes the refresh
+	checkHealthFails = true
+	chg = install("2.0")
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*check-health failed.*`)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, "foo", &snapst), IsNil)
+	c.Assert(snapst.Current, Equals, snap.R("x1"))
+
+	// the health recorded for the undone revision is not reported
+	health, err = healthstate.Get(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(health, IsNil)
+	all, err := healthstate.All(st)
+	c.Assert(err, IsNil)
+	c.Check(all, HasLen, 0)
 }
 
 func (s *mgrsSuite) TestHappyRemove(c *C) {
