@@ -61,6 +61,7 @@ static void replace_slashes_with_NUL(char *path, size_t len) {
     }
 }
 
+#ifdef NVIDIA_MULTIARCH
 // A variant of unsetenv that is compatible with GDestroyNotify
 static void my_unsetenv(const char *k) { unsetenv(k); }
 
@@ -80,6 +81,7 @@ static void sc_test_touch(const char *dir, const char *name) {
     g_assert_true(g_file_set_contents(path, "", 0, NULL));
     g_free(path);
 }
+#endif  // ifdef NVIDIA_MULTIARCH
 
 static void test_get_nextpath__typical(void) {
     char path[] = "/some/path";
@@ -359,6 +361,7 @@ static void test_sc_is_mount_point(void) {
     g_assert_false(sc_is_mount_point("/non-existent-path-used-by-mount-support-test"));
 }
 
+#ifdef NVIDIA_MULTIARCH
 static void test_sc_mount_nvidia_is_driver_in_dir__no_driver(void) {
     char *dir = g_dir_make_tmp("snap-confine-nvidia-test-XXXXXX", NULL);
     g_assert_nonnull(dir);
@@ -415,6 +418,7 @@ static void test_sc_mount_nvidia_is_driver_in_dir__no_matching_library(void) {
 
     g_assert_cmpint(sc_mount_nvidia_is_driver_in_dir(dir), ==, 0);
 }
+#endif  // ifdef NVIDIA_MULTIARCH
 
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/get_nextpath/typical", test_get_nextpath__typical);
@@ -434,10 +438,11 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/missing_destination",
                     test_maybe_bind_mount_managed_ca_certs_dir__missing_destination);
     g_test_add_func("/mount/sc_is_mount_point", test_sc_is_mount_point);
+#ifdef NVIDIA_MULTIARCH
     g_test_add_func("/mount/nvidia/is_driver_in_dir/no_driver", test_sc_mount_nvidia_is_driver_in_dir__no_driver);
     g_test_add_func("/mount/nvidia/is_driver_in_dir/glcore", test_sc_mount_nvidia_is_driver_in_dir__glcore);
-    g_test_add_func("/mount/nvidia/is_driver_in_dir/compute_only",
-        test_sc_mount_nvidia_is_driver_in_dir__compute_only);
+    g_test_add_func("/mount/nvidia/is_driver_in_dir/compute_only", test_sc_mount_nvidia_is_driver_in_dir__compute_only);
     g_test_add_func("/mount/nvidia/is_driver_in_dir/no_matching_library",
-        test_sc_mount_nvidia_is_driver_in_dir__no_matching_library);
+                    test_sc_mount_nvidia_is_driver_in_dir__no_matching_library);
+#endif  // ifdef NVIDIA_MULTIARCH
 }
