@@ -9,37 +9,28 @@ details: |
 
 systems:
     - ubuntu-18.04-64
-    - ubuntu-20.04-64
-    - ubuntu-22.04-64
-    - ubuntu-24.04-64
-    - ubuntu-26.04-64
+    - ubuntu-2*.04-64
 
 environment:
     DRIVER_FLAVOR/compute: compute
     DRIVER_FLAVOR/full: full
+    DRIVER_FILE: /var/lib/nvidia-version-file
 
 prepare: |
     apt-get update
+    # Pick the newest driver version available on this system.
+    PACKAGE_VERSION="$(apt-cache pkgnames libnvidia-compute- | grep -v server |
+        cut -d"-" -f3 | sort -nr | head -n1)"
+    if [ -z "$PACKAGE_VERSION" ]; then
+        echo "no libnvidia-compute-<N> package available"
+        exit 1
+    fi
     case "$DRIVER_FLAVOR" in
         compute)
-            # Pick the newest driver version available on this system.
-            PACKAGE_VERSION="$(apt-cache pkgnames libnvidia-compute- |
-                sed -e 's/^libnvidia-compute-//' | grep -Ex '[0-9]+' | sort -n | tail -n1)"
-            if [ -z "$PACKAGE_VERSION" ]; then
-                echo "no libnvidia-compute-<N> package available, skipping"
-                exit 0
-            fi
             PACKAGES=("libnvidia-compute-$PACKAGE_VERSION")
             ;;
         full)
-            # Pick the newest driver version available on this system.
-            PACKAGE_VERSION="$(apt-cache pkgnames libnvidia-gl- |
-                sed -e 's/^libnvidia-gl-//' | grep -Ex '[0-9]+' | sort -n | tail -n1)"
-            if [ -z "$PACKAGE_VERSION" ]; then
-                echo "no libnvidia-gl-<N> package available, skipping"
-                exit 0
-            fi
-            # for 20.04, libnvidia-gl does not depend on libnividia-compute
+            # For 20.04, libnvidia-gl does not depend on libnvidia-compute,
             # so need to manually install both.
             PACKAGES=("libnvidia-compute-$PACKAGE_VERSION" "libnvidia-gl-$PACKAGE_VERSION")
             ;;
@@ -49,53 +40,34 @@ prepare: |
             ;;
     esac
 
+    # The packages are available for all the systems in the test.
+    # If installation fails, exit with error.
     if ! apt-get install -y "${PACKAGES[@]}"; then
-        echo "cannot install ${PACKAGES[*]}, skipping"
-        exit 0
+        echo "cannot install ${PACKAGES[*]}"
+        exit 1
     fi
 
     # Look at libcuda.so.*.* to get the exact version of the driver.
-    # It should be present for both full and compute-only driver installs.
+    # It is present for both full and compute-only driver installs.
     DRIVER_VERSION="$(find /usr/lib/x86_64-linux-gnu/ -name 'libcuda.so.*.*' | sed -e 's,.*/libcuda\.so\.,,')"
     test -n "$DRIVER_VERSION"
+    echo "$DRIVER_VERSION" >"$DRIVER_FILE"
 
-    mkdir -p /tmp/sys-module/nvidia
-    tests.cleanup defer rm -rf /tmp/sys-module
-    echo "$DRIVER_VERSION" >/tmp/sys-module/nvidia/version
-    # mock /sys/module we need to recreate /sys/module/apparmor
-    mkdir -p /tmp/sys-module-apparmor
-    tests.cleanup defer rmdir /tmp/sys-module-apparmor
-    mount -o bind /sys/module/apparmor /tmp/sys-module-apparmor
-    tests.cleanup defer umount /tmp/sys-module-apparmor
-    mkdir -p /tmp/sys-module/apparmor
-
-    mount -o bind /tmp/sys-module/ /sys/module
-    # and recreate apparmor directory
-    mount -o bind /tmp/sys-module-apparmor /sys/module/apparmor
-    tests.cleanup defer umount -R /sys/module
-
-    snap pack test-nvidia-exposure
-    snap install --dangerous test-nvidia-exposure_*.snap
-
-    # Marker so the execute phase knows this flavor was actually set up.
-    touch run-this-flavor
-    tests.cleanup defer rm -f run-this-flavor
+    "$TESTSTOOLS"/snaps-state install-local test-nvidia-exposure
 
 restore: |
     snap remove --purge test-nvidia-exposure 2>/dev/null || true
+
     # Remove the userspace libraries installed by this test.
     apt-get purge -y 'libnvidia-*' 2>/dev/null || true
-    rm -f test-nvidia-exposure_*.snap
+
+    rm -f "$DRIVER_FILE"
 
 debug: |
     dpkg -l 'libnvidia-*' 2>/dev/null || true
 
 execute: |
-    if [ ! -f run-this-flavor ]; then
-        echo "skipping $DRIVER_FLAVOR (no usable driver package)"
-        exit 0
-    fi
-
+    export SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE="$DRIVER_FILE"
     case "$DRIVER_FLAVOR" in
         compute)
             # libcuda is present, but the GL libraries shipped by
