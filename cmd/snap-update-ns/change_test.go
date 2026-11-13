@@ -21,8 +21,11 @@ package main_test
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -3174,4 +3177,239 @@ func (s *changeSuite) TestSyntheticNeededByUsesDefaultMountEntryID(c *C) {
 	c.Check(synth, HasLen, 1)
 	// XSnapdEntryID defaults to entry target directory if x-snapd.id is unset
 	c.Check(synth[0].Entry.XSnapdNeededBy(), Equals, "/usr/share/target")
+}
+
+// Tests for bind entries whose source resolves through another mount entry,
+// e.g. a layout whose source lives under a content interface mount target.
+
+const (
+	staleContentRev33 = "/snap/provider/33"
+	staleContentRev35 = "/snap/provider/35"
+	staleContentDir   = "/snap/consumer/9181/gnome-platform"
+	staleLayoutName   = staleContentDir + "/usr/libexec/glycin-loaders"
+	staleLayoutDir    = "/usr/libexec/glycin-loaders"
+)
+
+func staleContentEntry(rev string) osutil.MountEntry {
+	return osutil.MountEntry{Name: rev, Dir: staleContentDir, Type: "none", Options: []string{"bind", "ro"}}
+}
+
+func staleLayoutEntry() osutil.MountEntry {
+	return osutil.MountEntry{Name: staleLayoutName, Dir: staleLayoutDir, Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}
+}
+
+type dependencySuite struct {
+	testutil.BaseTest
+}
+
+var _ = Suite(&dependencySuite{})
+
+// changeSummary renders changes as a sorted multiset of "action dir" strings.
+func changeSummary(changes []*update.Change) []string {
+	out := make([]string, 0, len(changes))
+	for _, ch := range changes {
+		out = append(out, fmt.Sprintf("%s %s", ch.Action, ch.Entry.Dir))
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Adding a content interface mount must re-create bind entries sourced from
+// under the content mount point, otherwise they keep serving whatever was
+// bound when the source path resolved without the content mount.
+func (s *dependencySuite) TestNeededChangesContentAddedRemakesLayout(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{staleLayoutEntry()}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"mount " + staleContentDir,
+		"mount " + staleLayoutDir,
+		"unmount " + staleLayoutDir,
+	})
+}
+
+// Removing the content interface mount must also re-create the bind entry, so
+// that the namespace ends up in the same state as a fresh bootstrap.
+func (s *dependencySuite) TestNeededChangesContentRemovedRemakesLayout(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{staleLayoutEntry()}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"mount " + staleLayoutDir,
+		"unmount " + staleContentDir,
+		"unmount " + staleLayoutDir,
+	})
+}
+
+// A change of the source revision of the content mount must re-create bind
+// entries sourced from under it, which would otherwise stay pinned to the old
+// provider revision.
+func (s *dependencySuite) TestNeededChangesContentRevisionChangedRemakesLayout(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev35), staleLayoutEntry()}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"mount " + staleContentDir,
+		"mount " + staleLayoutDir,
+		"unmount " + staleContentDir,
+		"unmount " + staleLayoutDir,
+	})
+}
+
+// Identical profiles with matching backing produce no changes.
+func (s *dependencySuite) TestNeededChangesIdenticalProfilesBackingMatches(c *C) {
+	restore := update.MockNeededChangesBackingMatches(func(osutil.MountEntry) bool { return true })
+	defer restore()
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"keep " + staleContentDir,
+		"keep " + staleLayoutDir,
+	})
+}
+
+// A bind entry recorded while its content mount was absent (e.g. bound to an
+// empty stub directory) is detected by comparing the backing of the source
+// path with the actual destination and is re-created.
+func (s *dependencySuite) TestNeededChangesStaleBackingRemade(c *C) {
+	restore := update.MockNeededChangesBackingMatches(func(entry osutil.MountEntry) bool {
+		return entry.Name != staleLayoutName
+	})
+	defer restore()
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"keep " + staleContentDir,
+		"mount " + staleLayoutDir,
+		"unmount " + staleLayoutDir,
+	})
+}
+
+// Binds sourced from paths that merely share a prefix with the changed mount
+// point must not be affected, and must not even be stat-checked.
+func (s *dependencySuite) TestNeededChangesSiblingSourceNotAffected(c *C) {
+	restore := update.MockNeededChangesBackingMatches(func(osutil.MountEntry) bool {
+		c.Errorf("backing check must not run for entries without a source dependency")
+		return false
+	})
+	defer restore()
+	sibling := osutil.MountEntry{Name: "/snap/x/gnome-platform-other/file", Dir: "/dst/other", Type: "none", Options: []string{"bind"}}
+	under := osutil.MountEntry{Name: "/snap/x/gnome-platform/file", Dir: "/dst/under", Type: "none", Options: []string{"bind"}}
+	content := osutil.MountEntry{Name: staleContentRev33, Dir: "/snap/x/gnome-platform", Type: "none", Options: []string{"bind", "ro"}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{sibling, under}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{content, under, sibling}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"keep /dst/other",
+		"mount /dst/under",
+		"mount /snap/x/gnome-platform",
+		"unmount /dst/under",
+	})
+}
+
+// Remaking an entry cascades both to binds sourced from under it and to
+// entries mounted inside it.
+func (s *dependencySuite) TestNeededChangesCascade(c *C) {
+	contentA := func(rev string) osutil.MountEntry {
+		return osutil.MountEntry{Name: rev, Dir: "/mnt/a", Type: "none", Options: []string{"bind", "ro"}}
+	}
+	layoutB := osutil.MountEntry{Name: "/mnt/a/b", Dir: "/mnt/b", Type: "none", Options: []string{"rbind", "x-snapd.origin=layout"}}
+	layoutC := osutil.MountEntry{Name: "/mnt/b/c", Dir: "/mnt/c", Type: "none", Options: []string{"rbind", "x-snapd.origin=layout"}}
+	nestedD := osutil.MountEntry{Name: "/mnt/other", Dir: "/mnt/a/sub", Type: "none", Options: []string{"bind"}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{contentA("s1"), layoutB, layoutC, nestedD}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{contentA("s2"), layoutB, layoutC, nestedD}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"mount /mnt/a",
+		"mount /mnt/a/sub",
+		"mount /mnt/b",
+		"mount /mnt/c",
+		"unmount /mnt/a",
+		"unmount /mnt/a/sub",
+		"unmount /mnt/b",
+		"unmount /mnt/c",
+	})
+}
+
+// Without a mocked backing check, non-existent paths are conservatively
+// treated as matching, so a stat failure cannot cause mount churn.
+func (s *dependencySuite) TestNeededChangesDefaultHookMissingPathsNoChurn(c *C) {
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{staleContentEntry(staleContentRev33), staleLayoutEntry()}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"keep " + staleContentDir,
+		"keep " + staleLayoutDir,
+	})
+}
+
+// The default backing check compares device and inode numbers of real paths.
+func (s *dependencySuite) TestDefaultBackingCheckRealPaths(c *C) {
+	root := c.MkDir()
+	dirA := filepath.Join(root, "a")
+	dirB := filepath.Join(root, "b")
+	c.Assert(os.Mkdir(dirA, 0755), IsNil)
+	c.Assert(os.Mkdir(dirB, 0755), IsNil)
+
+	// A self-bind (source equal to destination) always matches.
+	c.Assert(update.NeededChanges(
+		&osutil.MountProfile{Entries: []osutil.MountEntry{{Name: dirA, Dir: dirA, Type: "none", Options: []string{"bind"}}}},
+		&osutil.MountProfile{Entries: []osutil.MountEntry{{Name: dirA, Dir: dirA, Type: "none", Options: []string{"bind"}}}},
+	), HasLen, 1)
+
+	// Two different directories do not match, so an entry that is otherwise
+	// kept is re-created.
+	under := osutil.MountEntry{Name: dirA, Dir: dirB, Type: "none", Options: []string{"bind"}}
+	parent := osutil.MountEntry{Name: "tmpfs", Dir: root, Type: "tmpfs"}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{parent, under}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{parent, under}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"keep " + root,
+		"mount " + dirB,
+		"unmount " + dirB,
+	})
+}
+
+// An entry whose mount point is shared with another entry (e.g. a writable
+// mimic tmpfs mounted over the bind created for a layout) cannot be verified
+// by stat'ing the destination, which reports the top-most mount. It must be
+// kept rather than re-made on every update.
+func (s *dependencySuite) TestNeededChangesStackedMountNotRemade(c *C) {
+	restore := update.MockNeededChangesBackingMatches(func(osutil.MountEntry) bool { return false })
+	defer restore()
+	content := osutil.MountEntry{Name: "/snap/provider/1", Dir: "/snap/consumer/gnome-platform", Type: "none", Options: []string{"bind", "ro"}}
+	layoutA := osutil.MountEntry{Name: "/snap/consumer/gnome-platform/usr/share/foo", Dir: "/usr/share/foo", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}
+	mimic := osutil.MountEntry{Name: "tmpfs", Dir: "/usr/share/foo", Type: "tmpfs", Options: []string{"x-snapd.synthetic", osutil.XSnapdNeededBy("/usr/share/foo/bar"), "mode=0755"}}
+	layoutB := osutil.MountEntry{Name: "/snap/consumer/x1/bar", Dir: "/usr/share/foo/bar", Type: "none", Options: []string{"rbind", "rw", "x-snapd.origin=layout"}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{content, layoutA, mimic, layoutB}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{content, layoutA, layoutB}}
+	changes := update.NeededChanges(current, desired)
+	// The stacked layout bind must not be re-made even though stat'ing its
+	// destination would report the mimic tmpfs. The mimic machinery itself
+	// re-making the tmpfs and the nested layout is pre-existing behavior.
+	for _, ch := range changes {
+		if ch.Action != update.Keep && ch.Entry.Dir == "/usr/share/foo" && ch.Entry.Type == "none" {
+			c.Fatalf("layout bind at stacked mount point was re-made: %v", ch)
+		}
+	}
+}
+
+// An entry whose source path lies strictly below its own destination (like
+// the desktop interface document portal bind) must not be stat-checked: the
+// source would resolve through the destination mount itself.
+func (s *dependencySuite) TestNeededChangesSourceBelowOwnDestinationKept(c *C) {
+	restore := update.MockNeededChangesBackingMatches(func(osutil.MountEntry) bool { return false })
+	defer restore()
+	root := osutil.MountEntry{Name: "tmpfs", Dir: "/run/user/1000", Type: "tmpfs"}
+	doc := osutil.MountEntry{Name: "/run/user/1000/doc/by-app/snap.test", Dir: "/run/user/1000/doc", Type: "none", Options: []string{"bind", "rw"}}
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{root, doc}}
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{root, doc}}
+	changes := update.NeededChanges(current, desired)
+	c.Assert(changeSummary(changes), DeepEquals, []string{
+		"keep /run/user/1000",
+		"keep /run/user/1000/doc",
+	})
 }

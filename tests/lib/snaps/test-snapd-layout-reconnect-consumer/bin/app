@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ -f /srv/test-layout-reconnect/canary.txt ]; then
+    cat /srv/test-layout-reconnect/canary.txt
+else
+    echo "no canary"
+fi

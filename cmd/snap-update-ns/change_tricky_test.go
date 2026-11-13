@@ -69,36 +69,30 @@ func (s *changeSuite) TestContentLayout2InitiallyConnectedThenDisconnected(c *C)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// The change plan is to do detach the content entry.
+	// The change plan is to detach the content entry and to re-make the layout
+	// entry, as the layout is sourced from the content mount point. The layout
+	// is re-created from the now unconnected source directory, which yields the
+	// same state as a fresh bootstrap would. This keeps the layout from pinning
+	// the detached content mount, which was the case historically and is
+	// tracked as https://warthogs.atlassian.net/browse/SNAPDENG-31645
 	//
-	// Detached entries are first isolated from mount propagation. So the bug
-	// here is that the mount entry propagated to the layout during initial
-	// construction sticks around and is not updated. This is a bug.
-	// This is tracked as https://warthogs.atlassian.net/browse/SNAPDENG-31645
-	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
-	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
-	// total 1
-	// -rw-rw-r-- 1 root root 46 Aug 30 09:36 hidden
-	// root@wyzima:/# ls -l /usr/share/secureboot/potato
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	//
-	// Note that the order of entries is back to front. There is another bug
-	// here, although it is not visible from the change plan alone. The reverse
-	// order of mount entries listed here is actually stored as the new current
-	// mount profile. This is tracked as
-	// https://warthogs.atlassian.net/browse/SNAPDENG-31644
+	// Note that the order of entries is back to front.
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[4]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[4])},
 		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
 		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
+		{Action: "mount", Entry: desired.Entries[0]},
 	})
 
-	// The actual entry for clarity.
+	// The actual entries for clarity.
+	c.Assert(changes[0].Entry, DeepEquals, osutil.MountEntry{
+		Name:    "/snap/test-snapd-layout/x2/attached-content",
+		Dir:     "/usr/share/secureboot/potato",
+		Type:    "none",
+		Options: []string{"rbind", "rw", "x-snapd.origin=layout", "x-snapd.detach"},
+	})
 	c.Assert(changes[1].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
 		Dir:     "/snap/test-snapd-layout/x2/attached-content",
@@ -115,43 +109,33 @@ func (s *changeSuite) TestContentLayout3InitiallyConnectedThenDisconnectedAndRec
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// In theory we should get back to the initial state but the reality is
-	// much more complicated. The change looks good on paper but the
-	// propagation that is not taken into account makes the actual mount
-	// namespace incorrect. The content connection is new and correct but the layout
-	// is still the same and was not propagated.
-	//
-	// zyga@wyzima:/run/snapd/ns$ sudo nsenter -mtest-snapd-layout.mnt
-	// root@wyzima:/# ls -l /usr/share/secureboot/potato
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	// root@wyzima:/# ls -l /snap/test-snapd-layout/x2/attached-content/
-	// total 1
-	// -rw-rw-r-- 1 root root 22 Aug 30 09:36 canary.txt
-	// drwxrwxr-x 2 root root 32 Aug 30 09:36 meta
-	//
-	// Yes, but:
-	//
-	// root@wyzima:/# cat /proc/self/mountinfo  | grep attached
-	// 212 945 7:12 / /snap/test-snapd-layout/x2/attached-content ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
-	//
-	// root@wyzima:/# cat /proc/self/mountinfo  | grep potato
-	// 572 598 7:12 / /usr/share/secureboot/potato ro,relatime master:34 - squashfs /dev/loop12 ro,errors=continue,threads=single
+	// Since the layout entry is sourced from the content mount point, it is
+	// re-made when the content connection is (re-)established. The namespace
+	// returns to the initial state, which was not the case historically, as
+	// the layout entry was kept and kept pinning whatever it was bound to.
+	// This is tracked as https://warthogs.atlassian.net/browse/SNAPDENG-31645
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[3]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
 		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
 		{Action: "mount", Entry: desired.Entries[1]},
+		{Action: "mount", Entry: desired.Entries[0]},
 	})
 
-	// The actual entry for clarity.
+	// The actual entries for clarity. The content is mounted first and only
+	// then the layout is constructed from it.
 	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
 		Name:    "/snap/test-snapd-content/x1",
 		Dir:     "/snap/test-snapd-layout/x2/attached-content",
 		Type:    "none",
 		Options: []string{"bind", "ro"},
+	})
+	c.Assert(changes[5].Entry, DeepEquals, osutil.MountEntry{
+		Name:    "/snap/test-snapd-layout/x2/attached-content",
+		Dir:     "/usr/share/secureboot/potato",
+		Type:    "none",
+		Options: []string{"rbind", "rw", "x-snapd.origin=layout"},
 	})
 }
 
@@ -163,20 +147,20 @@ func (s *changeSuite) TestContentLayout4InitiallyDisconnectedThenConnected(c *C)
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
+	// This is the layout-poisoning scenario: the layout entry was created while
+	// the content was not connected, so it replicates whatever the source path
+	// resolved to at that time. Connecting the content must re-make the layout
+	// entry so that it picks up the connected content. Historically the layout
+	// entry was kept and the poisoning persisted until the namespace was
+	// discarded. This is tracked as
+	// https://warthogs.atlassian.net/browse/SNAPDENG-31645
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[3]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
 		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
 		{Action: "mount", Entry: desired.Entries[1]},
-	})
-
-	// The actual entry for clarity.
-	c.Assert(changes[4].Entry, DeepEquals, osutil.MountEntry{
-		Name:    "/snap/test-snapd-content/x1",
-		Dir:     "/snap/test-snapd-layout/x2/attached-content",
-		Type:    "none",
-		Options: []string{"bind", "ro"},
+		{Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
@@ -188,14 +172,19 @@ func (s *changeSuite) TestContentLayout5InitiallyConnectedThenContentRefreshed(c
 	changes := update.NeededChanges(current, desired)
 	showCurrentDesiredAndChanges(c, current, desired, changes)
 
-	// This test shows similar behavior to -2- test - the layout stays propagated.
+	// When the content provider is refreshed, the layout entry is re-made as
+	// well, so that the layout does not stay pinned to the old provider
+	// revision. Historically the layout stayed propagated to the old content
+	// mount. This is tracked as
+	// https://warthogs.atlassian.net/browse/SNAPDENG-31645
 	c.Assert(changes, DeepEquals, []*update.Change{
-		{Action: "keep", Entry: current.Entries[4]},
+		{Action: "unmount", Entry: withDetachOption(current.Entries[4])},
 		{Action: "unmount", Entry: withDetachOption(current.Entries[3])},
 		{Action: "keep", Entry: current.Entries[2]},
 		{Action: "keep", Entry: current.Entries[1]},
 		{Action: "keep", Entry: current.Entries[0]},
 		{Action: "mount", Entry: desired.Entries[1]},
+		{Action: "mount", Entry: desired.Entries[0]},
 	})
 }
 
