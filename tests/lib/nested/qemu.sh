@@ -240,8 +240,17 @@ nested_create_vm_service() {
 
     rm -rf "${NESTED_ASSETS_DIR}"/qemu-creds
     mkdir -p "${NESTED_ASSETS_DIR}"/qemu-creds
-    if [ "${NESTED_FDE_PASSWORD+set}" = set ]; then
-        echo -n "${NESTED_FDE_PASSWORD}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+    if [ "${NESTED_FDE_PASSPRHASE+set}" = set ]; then
+        echo -n "${NESTED_FDE_PASSPHRASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+        echo -n "${NESTED_FDE_PASSPHRASE}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.passphrase"
+    fi
+    if [ "${NESTED_FDE_RECOVERYKEY+set}" = set ]; then
+        echo -n "${NESTED_FDE_RECOVERYKEY}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+        echo -n "${NESTED_FDE_RECOVERYKEY}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.passphrase"
+    fi
+    if [ "${NESTED_FDE_PIN+set}" = set ]; then
+        echo -n "${NESTED_FDE_PIN}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+        echo -n "${NESTED_FDE_PIN}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.pin"
     fi
 
     # ensure we have a log dir

@@ -61,6 +61,7 @@ var (
 	sbCheckPassphraseEntropy          = sb.CheckPassphraseEntropy
 	disksDevlinks                     = disks.Devlinks
 	sbNewActivateContext              = sb.NewActivateContext
+	sbNewAutoAuthRequestor            = sb.NewAutoAuthRequestor
 
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
 	sbKeyDataChangePIN        = (*sb.KeyData).ChangePIN
@@ -342,7 +343,11 @@ func (a *activateContextImpl) State() *ActivateState {
 //   - an auth requestor
 //   - 3 passphrase/pin tries
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
-	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(NewSystemdAuthRequestor()), sbWithPassphraseTries(3), sbWithPINTries(3))
+	requestor, err := sbNewAutoAuthRequestor(os.Stderr, &authRequesterStringer{}, "ubuntu-fde")
+	if err != nil {
+		return nil, err
+	}
+	context, err := sbNewActivateContext(ctx, nil, sbWithAuthRequestor(requestor), sbWithPassphraseTries(3), sbWithPINTries(3))
 	if err != nil {
 		return nil, err
 	}

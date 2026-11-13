@@ -87,9 +87,11 @@ nested_vm_clear_uefi() {
 
 nested_vm_set_passphrase() {
     echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.passphrase"
 }
 
 nested_vm_set_recovery_key() {
     echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.recoverykey"
 }
 

@@ -141,7 +141,7 @@ create_vm() {
             ;;
     esac
 
-    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_FDE_PASSWORD
+    local NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_FDE_PASSPHRASE NESTED_FDE_PIN NESTED_FDE_RECOVERYKEY
     while [ $# -gt 0 ]; do
         case "$1" in
             --param-cdrom)
@@ -165,7 +165,15 @@ create_vm() {
                 shift
                 ;;
             --passphrase)
-                NESTED_FDE_PASSWORD="$2"
+                NESTED_FDE_PASSPRHASE="$2"
+                shift 2
+                ;;
+            --pin)
+                NESTED_FDE_PIN="$2"
+                shift 2
+                ;;
+            --recoverykey)
+                NESTED_FDE_RECOVERYKEY="$2"
                 shift 2
                 ;;
             *)
@@ -175,9 +183,9 @@ create_vm() {
         esac
     done
 
-    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_FDE_PASSWORD
+    export NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_FDE_PASSPHRASE NESTED_FDE_PIN NESTED_FDE_RECOVERYKEY
     "$action"
-    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_FDE_PASSWORD
+    unset NESTED_PARAM_CD NESTED_CPUS NESTED_MEM NESTED_PARAM_EXTRA NESTED_KEEP_FIRMWARE_STATE NESTED_FDE_PASSPHRASE NESTED_FDE_PIN NESTED_FDE_RECOVERYKEY
 }
 
 setup_vm() {
