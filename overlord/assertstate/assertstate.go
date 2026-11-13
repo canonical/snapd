@@ -81,7 +81,7 @@ func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertions
 
 	snapStates, err := snapstate.All(s)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx, opts)
@@ -627,16 +627,6 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 	err = FetchAllValidationSets(s, userID, opts)
 	if err != nil {
 		return err
-	}
-
-	monitorModeSets := make(map[string]*ValidationSetTracking)
-	enforceModeSets := make(map[string]*ValidationSetTracking)
-	for vk, vset := range vsets {
-		if vset.Mode == Monitor {
-			monitorModeSets[vk] = vset
-		} else {
-			enforceModeSets[vk] = vset
-		}
 	}
 
 	// update validation set tracking state
