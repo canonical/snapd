@@ -468,6 +468,22 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 	// filesystem as the final one so we can atomically switch the folders.
 	destDir = strings.TrimSuffix(destDir, "/")
 	targetDir := destDir + "_tmp"
+
+	if mode == RegenerateMode {
+		// Let's make sure that the directory exists in the first place
+		exists, isDir, err := osutil.DirExists(destDir)
+		if err != nil {
+			return err
+		}
+		if exists && !isDir {
+			return fmt.Errorf("cannot regenerate kernel drivers tree %q: not a directory", destDir)
+		}
+		if !exists {
+			// The kernel revision directory does not exist at all, we'll treat
+			// it like a new install
+			mode = KernelInstallMode
+		}
+	}
 	if mode == KernelInstallMode {
 		targetDir = destDir
 		exists, isDir, _ := osutil.DirExists(targetDir)
@@ -496,7 +512,10 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 	}()
 
-	// Create drivers tree
+	// Create drivers tree. Note, most of the time the kernel will have modules,
+	// but the odd case where it does not is still technically possible. In such
+	// scenario components with modules are unsupported.
+	hasModules := true
 	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
 	if err == nil {
 		if err := createModulesSubtree(kMntPts, targetDir,
@@ -505,6 +524,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 		}
 	} else {
 		logger.Debugf("no modules found in %q", kMntPts.Current)
+		hasModules = false
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")
@@ -548,14 +568,16 @@ func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMount
 			return fmt.Errorf("while swapping %q <-> %q: %w", oldFwUpdates, updateFwDir, err)
 		}
 
-		newMods := filepath.Join(targetDir, "lib", "modules", kversion)
-		oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
-		if err := osutil.SwapDirs(oldMods, newMods); err != nil {
-			// Undo firmware swap
-			if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
-				logger.Noticef("while reverting modules swap: %v", err)
+		if hasModules {
+			newMods := filepath.Join(targetDir, "lib", "modules", kversion)
+			oldMods := filepath.Join(oldRoot, "lib", "modules", kversion)
+			if err := osutil.SwapDirs(oldMods, newMods); err != nil {
+				// Undo firmware swap
+				if err := osutil.SwapDirs(oldFwUpdates, updateFwDir); err != nil {
+					logger.Noticef("while reverting modules swap: %v", err)
+				}
+				return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
 			}
-			return fmt.Errorf("while swapping %q <-> %q: %w", newMods, oldMods, err)
 		}
 
 		// Make sure that changes are written
