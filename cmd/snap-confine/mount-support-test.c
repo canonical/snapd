@@ -22,6 +22,8 @@
 #include "mount-support-nvidia.h"
 #include "mount-support.c"
 
+#include "../libsnap-confine-private/test-utils.h"
+
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <sched.h>
@@ -337,6 +339,85 @@ static void test_sc_is_mount_point(void) {
     g_assert_false(sc_is_mount_point("/non-existent-path-used-by-mount-support-test"));
 }
 
+#ifdef NVIDIA_MULTIARCH
+// A variant of unsetenv that is compatible with GDestroyNotify
+static void my_unsetenv(const char *k) { unsetenv(k); }
+
+// Write the given version into <dir>/version and point
+// SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE at it.
+static void sc_test_set_nvidia_driver_version(const char *dir, const char *version) {
+    char *version_file = g_build_filename(dir, "version", NULL);
+    g_assert_true(g_file_set_contents(version_file, version, -1, NULL));
+    g_assert_cmpint(setenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE", version_file, 1), ==, 0);
+    g_test_queue_destroy((GDestroyNotify)my_unsetenv, "SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
+    g_free(version_file);
+}
+
+// Create an empty regular file under dir, used as the canary library file.
+static void sc_test_touch(const char *dir, const char *name) {
+    char *path = g_build_filename(dir, name, NULL);
+    g_assert_true(g_file_set_contents(path, "", 0, NULL));
+    g_free(path);
+}
+
+static void test_sc_mount_nvidia_is_driver_in_dir__no_driver(void) {
+    char *dir = g_dir_make_tmp("snap-confine-nvidia-test-XXXXXX", NULL);
+    g_assert_nonnull(dir);
+    g_test_queue_free(dir);
+    g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, dir);
+
+    // Point at a version file inside dir that is never created:
+    // sc_probe_nvidia_driver() sees ENOENT and leaves version.major == 0, so
+    // the function reports the driver as absent.
+    char *version_file = g_build_filename(dir, "version", NULL);
+    g_assert_cmpint(setenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE", version_file, 1), ==, 0);
+    g_test_queue_destroy((GDestroyNotify)my_unsetenv, "SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
+    g_free(version_file);
+
+    g_assert_cmpint(sc_mount_nvidia_is_driver_in_dir(dir), ==, 0);
+}
+
+static void test_sc_mount_nvidia_is_driver_in_dir__glcore(void) {
+    char *dir = g_dir_make_tmp("snap-confine-nvidia-test-XXXXXX", NULL);
+    g_assert_nonnull(dir);
+    g_test_queue_free(dir);
+    g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, dir);
+
+    sc_test_set_nvidia_driver_version(dir, "580.178.04\n");
+
+    // A full driver ships libnvidia-glcore.so.<version>.
+    sc_test_touch(dir, "libnvidia-glcore.so.580.178.04");
+
+    g_assert_cmpint(sc_mount_nvidia_is_driver_in_dir(dir), ==, 1);
+}
+
+static void test_sc_mount_nvidia_is_driver_in_dir__compute_only(void) {
+    char *dir = g_dir_make_tmp("snap-confine-nvidia-test-XXXXXX", NULL);
+    g_assert_nonnull(dir);
+    g_test_queue_free(dir);
+    g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, dir);
+
+    sc_test_set_nvidia_driver_version(dir, "580.178.04\n");
+
+    // A compute-only driver ships libcuda.so.<version> but not
+    // libnvidia-glcore.so.<version>.
+    sc_test_touch(dir, "libcuda.so.580.178.04");
+
+    g_assert_cmpint(sc_mount_nvidia_is_driver_in_dir(dir), ==, 1);
+}
+
+static void test_sc_mount_nvidia_is_driver_in_dir__no_matching_library(void) {
+    char *dir = g_dir_make_tmp("snap-confine-nvidia-test-XXXXXX", NULL);
+    g_assert_nonnull(dir);
+    g_test_queue_free(dir);
+    g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, dir);
+
+    sc_test_set_nvidia_driver_version(dir, "580.178.04\n");
+
+    g_assert_cmpint(sc_mount_nvidia_is_driver_in_dir(dir), ==, 0);
+}
+#endif  // ifdef NVIDIA_MULTIARCH
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/get_nextpath/typical", test_get_nextpath__typical);
     g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
@@ -355,4 +436,11 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/maybe_bind_mount_managed_ca_certs_dir/missing_destination",
                     test_maybe_bind_mount_managed_ca_certs_dir__missing_destination);
     g_test_add_func("/mount/sc_is_mount_point", test_sc_is_mount_point);
+#ifdef NVIDIA_MULTIARCH
+    g_test_add_func("/mount/nvidia/is_driver_in_dir/no_driver", test_sc_mount_nvidia_is_driver_in_dir__no_driver);
+    g_test_add_func("/mount/nvidia/is_driver_in_dir/glcore", test_sc_mount_nvidia_is_driver_in_dir__glcore);
+    g_test_add_func("/mount/nvidia/is_driver_in_dir/compute_only", test_sc_mount_nvidia_is_driver_in_dir__compute_only);
+    g_test_add_func("/mount/nvidia/is_driver_in_dir/no_matching_library",
+                    test_sc_mount_nvidia_is_driver_in_dir__no_matching_library);
+#endif  // ifdef NVIDIA_MULTIARCH
 }

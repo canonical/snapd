@@ -466,6 +466,16 @@ static int sc_mount_nvidia_is_driver_in_dir(const char *dir) {
         debug("nvidia library detected at path %s", driver_path);
         return 1;
     }
+
+    // libnvidia-glcore.so is not present in compute-only driver installs.
+    // Probe if "libcuda.so" is found in directory dir.
+    sc_must_snprintf(driver_path, sizeof driver_path, "%s/libcuda.so.%s", dir, version.raw);
+
+    debug("looking for nvidia canary file %s", driver_path);
+    if (access(driver_path, F_OK) == 0) {
+        debug("nvidia library detected at path %s", driver_path);
+        return 1;
+    }
     return 0;
 }
 

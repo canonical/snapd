@@ -1,0 +1,21 @@
+#!/bin/bash -eux
+
+libdir=/var/lib/snapd/lib/gl
+
+echo "SNAP_LIBRARY_PATH=${SNAP_LIBRARY_PATH:-}"
+
+forbid() {
+    local matches
+    matches="$(compgen -G "$libdir/$1" || true)"
+    if [ -n "$matches" ]; then
+        echo "UNEXPECTED: $libdir/$1 -> $matches"
+        ls -la "$libdir" || true
+        exit 1
+    fi
+    echo "absent as expected: $libdir/$1"
+}
+
+while [ "$#" -gt 0 ]; do
+    forbid "$1"
+    shift
+done
