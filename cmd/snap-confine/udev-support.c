@@ -34,6 +34,7 @@
 #include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
 #include "../libsnap-confine-private/device-cgroup-support.h"
+#include "../libsnap-confine-private/locking.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
@@ -256,6 +257,16 @@ void sc_setup_device_cgroup(const char *security_tag, sc_device_cgroup_mode mode
      * underscores in snapd. We just match that behavior. */
     char *udev_tag SC_CLEANUP(sc_cleanup_string) = NULL;
     udev_tag = sc_security_to_udev_tag(security_tag);
+
+    /* On cgroup v2, acquire the per-security-tag device cgroup lock before
+     * enumerating udev to synchronize map mutations between snap-confine and
+     * snap-device-helper. The lock is released when this function returns (via
+     * SC_CLEANUP on devcgroup_lock_fd).
+     * On cgroup v1, there is no BPF map and no lock is needed. */
+    int devcgroup_lock_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    if (sc_cgroup_is_v2()) {
+        devcgroup_lock_fd = sc_lock_devcgroup(security_tag);
+    }
 
     /* Use udev APIs to talk to udev-the-daemon to determine the list of
      * "devices" with that tag assigned. The list may be empty, in which case
