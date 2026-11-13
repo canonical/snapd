@@ -228,9 +228,10 @@ nested_create_vm_service() {
     else
         PARAM_IMAGE="-drive file=$CURRENT_IMAGE,cache=none,format=raw,id=disk1,if=none -device ide-hd,drive=disk1"
     fi
-    PARAM_IMAGE="$PARAM_IMAGE,${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}"
+    # NESTED_PARAM_IMAGE replaces the disk argument, including block sizes.
+    PARAM_IMAGE="${NESTED_PARAM_IMAGE:-${PARAM_IMAGE},${PARAM_PHYS_BLOCK_SIZE},${PARAM_LOGI_BLOCK_SIZE}}"
 
-    if nested_is_core_20_system; then
+    if nested_is_core_20_system && [ -z "${NESTED_NO_REEXEC_ON_FAILURE:-}" ]; then
         # This is to deal with the following qemu error which occurs using q35 machines in focal
         # Error -> Code=qemu-system-x86_64: /build/qemu-rbeYHu/qemu-4.2/include/hw/core/cpu.h:633: cpu_asidx_from_attrs: Assertion `ret < cpu->num_ases && ret >= 0' failed
         # It is reproducible on an Intel machine without unrestricted mode support, the failure is most likely due to the guest entering an invalid state for Intel VT
