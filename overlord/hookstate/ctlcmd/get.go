@@ -84,6 +84,15 @@ If multiple option names are provided, a document is returned:
         "password": "..."
     }
 
+If no option names are provided, the whole configuration document is
+returned, even when only a single option is set:
+
+    $ snapctl get
+    {
+        "username": "frank",
+        "password": "..."
+    }
+
 Nested values may be retrieved via a dotted path:
 
     $ snapctl get author.name
@@ -182,10 +191,6 @@ func (c *getCommand) printPatch(patch any) error {
 }
 
 func (c *getCommand) Execute(args []string) error {
-	if len(c.Positional.Keys) == 0 && c.Positional.PlugOrSlotSpec == "" {
-		return errors.New(i18n.G("get which option?"))
-	}
-
 	context, err := c.ensureContext()
 	if err != nil {
 		return err
@@ -215,14 +220,20 @@ func (c *getCommand) Execute(args []string) error {
 		return fmt.Errorf(`cannot use --with with non-confdb read (missing --view)`)
 	}
 
-	if strings.Contains(c.Positional.PlugOrSlotSpec, ":") {
-		parts := strings.SplitN(c.Positional.PlugOrSlotSpec, ":", 2)
-		snap, name := parts[0], parts[1]
+	snapName, name, isPlugOrSlot := strings.Cut(c.Positional.PlugOrSlotSpec, ":")
+
+	// --view always reads through a confdb view referenced by a plug, so it
+	// requires a plug spec.
+	if c.View && !isPlugOrSlot {
+		return errors.New(i18n.G("cannot use --view without <:plug> argument"))
+	}
+
+	if isPlugOrSlot {
 		if name == "" {
 			return fmt.Errorf("plug or slot name not provided")
 		}
-		if snap != "" {
-			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, parts[1])
+		if snapName != "" {
+			return fmt.Errorf(`"snapctl get %s" not supported, use "snapctl get :%s" instead`, c.Positional.PlugOrSlotSpec, name)
 		}
 
 		if c.View {
@@ -247,9 +258,12 @@ func (c *getCommand) Execute(args []string) error {
 		return c.getInterfaceSetting(context, name)
 	}
 
-	// PlugOrSlotSpec is actually a configuration key.
-	c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
-	c.Positional.PlugOrSlotSpec = ""
+	// PlugOrSlotSpec is actually a configuration key, unless it is empty
+	// in which case the whole configuration document is requested.
+	if c.Positional.PlugOrSlotSpec != "" {
+		c.Positional.Keys = append([]string{c.Positional.PlugOrSlotSpec}, c.Positional.Keys[0:]...)
+		c.Positional.PlugOrSlotSpec = ""
+	}
 
 	return c.getConfigSetting(context)
 }
@@ -262,6 +276,19 @@ func (c *getCommand) getConfigSetting(context *hookstate.Context) error {
 	context.Lock()
 	transaction := configstate.ContextTransaction(context)
 	context.Unlock()
+
+	if len(c.Positional.Keys) == 0 {
+		// No keys requested: return the whole configuration document.
+		var value any
+		if err := transaction.Get(c.context().InstanceName().String(), "", &value); err != nil {
+			if config.IsNoOption(err) {
+				value = map[string]any{}
+			} else {
+				return err
+			}
+		}
+		return c.printPatch(value)
+	}
 
 	return c.printValues(func(key string) (any, bool, error) {
 		var value any

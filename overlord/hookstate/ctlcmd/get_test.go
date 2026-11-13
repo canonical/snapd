@@ -90,9 +90,6 @@ func (s *getSuite) SetUpTest(c *C) {
 var getTests = []struct {
 	args, stdout, error string
 }{{
-	args:  "get",
-	error: ".*get which option.*",
-}, {
 	args:  "get --plug key",
 	error: "cannot use --plug or --slot without <snap>:<plug|slot> argument",
 }, {
@@ -104,6 +101,9 @@ var getTests = []struct {
 }, {
 	args:  "get :foo bar",
 	error: ".*interface attributes can only be read during the execution of interface hooks.*",
+}, {
+	args:  "get mysnap:myplug bar",
+	error: `"snapctl get mysnap:myplug" not supported, use "snapctl get :myplug" instead`,
 }, {
 	args:   "get test-key1",
 	stdout: "test-value1\n",
@@ -131,6 +131,22 @@ var getTests = []struct {
 }, {
 	args:   "get test-key1 test-key2",
 	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}, {
+	args:   "get",
+	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}, {
+	args:   "get -d",
+	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}, {
+	args:   "get -t",
+	stdout: "{\n\t\"test-key1\": \"test-value1\",\n\t\"test-key2\": 2\n}\n",
+}, {
+	// --view reads through a confdb view and needs a plug spec
+	args:  "get --view",
+	error: "cannot use --view without <:plug> argument",
+}, {
+	args:  "get --view test-key1",
+	error: "cannot use --view without <:plug> argument",
 }}
 
 func (s *getSuite) TestGetTests(c *C) {
@@ -275,6 +291,62 @@ func (s *getSuite) TestGetRegularUser(c *C) {
 func (s *getSuite) TestCommandWithoutContext(c *C) {
 	_, _, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "get"\) from outside of a snap`)
+}
+
+func (s *getSuite) TestGetRootDocumentEmpty(c *C) {
+	state := state.New(nil)
+	state.Lock()
+
+	snapJSON := json.RawMessage(`{}`)
+	state.Set("snaps", map[string]*json.RawMessage{"test-snap": &snapJSON})
+
+	task := state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+	mockHandler := hooktest.NewMockHandler()
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	state.Unlock()
+
+	stdout, stderr, _, err := ctlcmd.Run(mockContext, []string{"get"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(string(stdout), Equals, "{}\n")
+	c.Assert(string(stderr), Equals, "")
+
+	// -t must not turn the empty document into "null"
+	stdout, stderr, _, err = ctlcmd.Run(mockContext, []string{"get", "-t"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(string(stdout), Equals, "{}\n")
+	c.Assert(string(stderr), Equals, "")
+}
+
+func (s *getSuite) TestGetRootDocumentSingleKey(c *C) {
+	state := state.New(nil)
+	state.Lock()
+
+	snapJSON := json.RawMessage(`{}`)
+	state.Set("snaps", map[string]*json.RawMessage{"test-snap": &snapJSON})
+
+	task := state.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+
+	// Initialize configuration with a single key
+	tr := config.NewTransaction(state)
+	tr.Set("test-snap", "only-key", "only-value")
+	tr.Commit()
+
+	mockHandler := hooktest.NewMockHandler()
+	mockContext, err := hookstate.NewContext(task, task.State(), setup, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	state.Unlock()
+
+	// 'snapctl get' with no keys returns a document, not the bare value
+	stdout, stderr, _, err := ctlcmd.Run(mockContext, []string{"get"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(string(stdout), Equals, "{\n\t\"only-key\": \"only-value\"\n}\n")
+	c.Assert(string(stderr), Equals, "")
 }
 
 func (s *setSuite) TestNull(c *C) {
