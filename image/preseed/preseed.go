@@ -61,6 +61,10 @@ type CoreOptions struct {
 	SysfsOverlay string
 }
 
+// ClassicOptions provides optional options for classic and hybrid preseeding.
+type ClassicOptions struct {
+}
+
 // preseedCoreOptions holds internal preseeding options for the core case
 type preseedCoreOptions struct {
 	// input options
