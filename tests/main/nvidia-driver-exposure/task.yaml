@@ -14,7 +14,7 @@ systems:
 environment:
     DRIVER_FLAVOR/compute: compute
     DRIVER_FLAVOR/full: full
-    DRIVER_FILE: /var/lib/nvidia-version-file
+    SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE: /var/lib/nvidia-version-file
 
 prepare: |
     apt-get update
@@ -51,7 +51,7 @@ prepare: |
     # It is present for both full and compute-only driver installs.
     DRIVER_VERSION="$(find /usr/lib/x86_64-linux-gnu/ -name 'libcuda.so.*.*' | sed -e 's,.*/libcuda\.so\.,,')"
     test -n "$DRIVER_VERSION"
-    echo "$DRIVER_VERSION" >"$DRIVER_FILE"
+    echo "$DRIVER_VERSION" >"$SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE"
 
     "$TESTSTOOLS"/snaps-state install-local test-nvidia-exposure
 
@@ -61,13 +61,11 @@ restore: |
     # Remove the userspace libraries installed by this test.
     apt-get purge -y 'libnvidia-*' 2>/dev/null || true
 
-    rm -f "$DRIVER_FILE"
-
 debug: |
     dpkg -l 'libnvidia-*' 2>/dev/null || true
 
 execute: |
-    export SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE="$DRIVER_FILE"
+    # export SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE="$DRIVER_FILE"
     case "$DRIVER_FLAVOR" in
         compute)
             # libcuda is present, but the GL libraries shipped by
