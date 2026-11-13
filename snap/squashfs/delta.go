@@ -31,18 +31,29 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/squashfs/blockplan"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-// This file implements the support for snap deltas. Currently two formats are
+// This file implements the support for snap deltas. Currently three formats are
 // supported:
 //
 // - plain xdelta3 diff file on the compressed snaps
 // - xdelta3 diff on an uncompressed representation of the snap files defined
 //   by squashfs-tools called pseudo-files
+// - a plan of instructions over the source snap's own compressed blocks,
+//   implemented in the snap/squashfs/blockplan package
+//
+// The first two are implemented in this file. What the third needs from it is
+// its name, its place in the order of preference, and a case in the dispatch
+// below: delta files are told apart by their first four bytes, so recognising
+// another format is a new case rather than a new field. Its trade-offs are in
+// that package's documentation; the short of it is that it does not rebuild the
+// target with mksquashfs, so applying it does not recompress the whole snap.
 //
 // The format supporting pseudo-files has files with a header preceding the
 // xdelta3 information. This header is padded to 'deltaHeaderSize' size to
@@ -79,6 +90,10 @@ const (
 	// number represent format and tools versions respectively, and could
 	// use intervals in the future.
 	snapDeltaFormatXdelta3 = "snap-1-1-xdelta3"
+	// The block plan format's name comes from the package that implements
+	// it, so the label negotiated with the store cannot drift from the
+	// deltas that are actually produced and consumed.
+	snapDeltaFormatBlockPlan = blockplan.Format
 )
 
 const (
@@ -261,7 +276,11 @@ type DeltaFormatOpts struct {
 func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
 	var formats []string
 	if opts.WithSnapDeltaFormat {
-		formats = append(formats, snapDeltaFormatXdelta3)
+		// The block plan comes first: on the pairs it was measured
+		// against it is the smallest of the three and by far the
+		// cheapest to apply, and where it cannot be used at all it is
+		// refused at generation time, so the store never offers one.
+		formats = append(formats, snapDeltaFormatBlockPlan, snapDeltaFormatXdelta3)
 	}
 	formats = append(formats, xdelta3Format)
 	return formats
@@ -282,18 +301,173 @@ func growSnapToMinSize(path string, minSize int64) error {
 	return nil
 }
 
+// GenerateDeltaOpts tunes generation. Nil, or a zero value, is what a caller
+// with no opinion passes and is what snapd itself uses.
+//
+// Everything here is read by the snap-2-1-hdiffz format alone: the two xdelta3
+// formats have nothing to tune, so passing any of it alongside one of them is
+// refused rather than ignored. Refusing matters because the failure it prevents
+// is silent -- a sweep that believes it measured a window ratio, on a format
+// that has no windows.
+type GenerateDeltaOpts struct {
+	// Jobs is how many blocks the compressor may work on at once. Zero or
+	// less means every core, which is the right default for generation: it
+	// happens where snaps are built or published rather than on a device, so
+	// there is no memory budget to trade speed against.
+	Jobs int
+
+	// MaxRunUSize caps the plaintext one patch run reconstructs, and so caps
+	// what applying the delta will demand in memory. Zero takes the format's
+	// measured default of 8 MiB. Lowering it is how a delta is made for a
+	// device with a tighter ceiling than that, at the cost of a larger delta.
+	MaxRunUSize int
+
+	// NoVerify skips the pass that applies the finished delta and compares
+	// the result with the target. Generation verifies by default, which is
+	// what keeps a delta nothing can apply from being published, and this is
+	// here for a measurement that does not want to pay twice.
+	NoVerify bool
+
+	// NoPatchRuns ships every changed block as a literal and NoPathMatch
+	// anchors runs by source offset alone. Each turns off one half of the
+	// size optimisation, so a measurement can attribute what it buys; both
+	// produce a correct delta, just a larger one.
+	NoPatchRuns bool
+	NoPathMatch bool
+
+	// Tuning overrides the patch-run cost model. Nil takes the measured
+	// defaults; a caller moving one knob starts from
+	// blockplan.DefaultPatchRunTuning so the rest keep their settings.
+	Tuning *blockplan.PatchRunTuning
+
+	// HdiffzArgs are extra hdiffz options, merged over the built-in diff
+	// tuning. blockplan.ParseHdiffzArgs turns a command line's worth of them
+	// into this.
+	HdiffzArgs []string
+
+	// RunLog receives one line per patch run considered, and Report a summary
+	// of the finished delta. Both are nil in normal use, where what little is
+	// worth saying goes to the debug log instead.
+	RunLog io.Writer
+	Report io.Writer
+}
+
+// tunesBlockPlan reports whether anything only the block plan reads is set, so
+// that the other formats can refuse it instead of dropping it on the floor.
+func (o *GenerateDeltaOpts) tunesBlockPlan() bool {
+	if o == nil {
+		return false
+	}
+	return o.Jobs != 0 || o.MaxRunUSize != 0 || o.NoVerify || o.NoPatchRuns ||
+		o.NoPathMatch || o.Tuning != nil || len(o.HdiffzArgs) != 0 ||
+		o.RunLog != nil || o.Report != nil
+}
+
+// ApplyDeltaOpts is how a caller with a memory budget bounds an apply. Nil, or
+// a zero value, takes the defaults: every core, and whatever the delta asks for.
+//
+// As with generation, all of it is read by the snap-2-1-hdiffz format alone.
+// The two xdelta3 formats hand the work to xdelta3 and mksquashfs, whose
+// resource use this package does not mediate.
+type ApplyDeltaOpts struct {
+	// Jobs is how many blocks the compressor may work on at once. Zero or
+	// less means every core. Each job holds its own encoder state and block
+	// buffers, so this is the term of an apply's memory demand that scales
+	// with the machine rather than with the delta -- lowering it is how an
+	// apply is kept off every core of a device that has other work to do.
+	Jobs int
+
+	// MaxRunUSize is the largest patch run this apply will accept. A delta
+	// whose runs need more is refused before anything is read, written or
+	// forked, which is what lets a device fall back to a full download rather
+	// than discover the cost partway through assembling an image. Zero
+	// accepts whatever the delta asks for.
+	MaxRunUSize int
+
+	// Report receives a summary of what the apply cost, including its peak
+	// resident size and peak scratch -- the two numbers the settings above
+	// are there to bound. Nil in normal use.
+	Report io.Writer
+}
+
+// appliesBlockPlan reports whether anything only the block plan reads is set.
+func (o *ApplyDeltaOpts) appliesBlockPlan() bool {
+	if o == nil {
+		return false
+	}
+	return o.Jobs != 0 || o.MaxRunUSize != 0 || o.Report != nil
+}
+
+// errDeltaOptsNotBlockPlan refuses options the named format cannot honour.
+// Dropping them silently is the failure worth preventing: a measurement that
+// believes it bounded an apply, on a format whose cost this package does not
+// mediate at all.
+func errDeltaOptsNotBlockPlan(format string) error {
+	return fmt.Errorf("delta format %q takes no options, they are read by %s alone",
+		format, snapDeltaFormatBlockPlan)
+}
+
 // GenerateDelta creates a delta file called delta from sourceSnap and
-// targetSnap, using deltaFormat.
-func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat string) error {
+// targetSnap, using deltaFormat. opts may be nil, and is read by
+// snap-2-1-hdiffz alone.
+func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat string, opts *GenerateDeltaOpts) error {
+	if deltaFormat != snapDeltaFormatBlockPlan && opts.tunesBlockPlan() {
+		return errDeltaOptsNotBlockPlan(deltaFormat)
+	}
 	switch deltaFormat {
 	case xdelta3Format:
 		// Plain xdelta3 on compressed files
 		return generatePlainXdelta3Delta(ctx, sourceSnap, targetSnap, delta)
 	case snapDeltaFormatXdelta3:
 		return generateSnapDelta(ctx, sourceSnap, targetSnap, delta)
+	case snapDeltaFormatBlockPlan:
+		return generateBlockPlanDelta(ctx, sourceSnap, targetSnap, delta, opts)
 	default:
 		return fmt.Errorf("unsupported delta format %q", deltaFormat)
 	}
+}
+
+// generateBlockPlanDelta generates a snap-2-1-hdiffz delta, which describes the
+// target as a plan over the source's compressed blocks.
+//
+// It generates with verification unless the caller turns that off: the finished
+// delta is applied by the same code the device will run and the result compared
+// with the target image, and a delta that does not reproduce it is not kept.
+// That doubles the cost of generating one, which is affordable here because
+// generation happens where snaps are built or published rather than on a device
+// -- and it is the check that keeps a delta nothing can apply from ever being
+// published.
+func generateBlockPlanDelta(ctx context.Context, sourceSnap, targetSnap, delta string, opts *GenerateDeltaOpts) error {
+	if opts == nil {
+		opts = &GenerateDeltaOpts{}
+	}
+	// Generate removes the delta file itself if it cannot finish it, so
+	// there is nothing to clean up here.
+	stats, err := blockplan.Generate(ctx, sourceSnap, targetSnap, delta,
+		&blockplan.GenerateOpts{
+			Jobs:        opts.Jobs,
+			MaxRunUSize: opts.MaxRunUSize,
+			Verify:      !opts.NoVerify,
+			NoPatchRuns: opts.NoPatchRuns,
+			NoPathMatch: opts.NoPathMatch,
+			Tuning:      opts.Tuning,
+			HdiffzArgs:  opts.HdiffzArgs,
+			RunLog:      opts.RunLog,
+		})
+	if err != nil {
+		return err
+	}
+	if opts.Report != nil {
+		blockplan.WriteGenerateReport(opts.Report, stats, sourceSnap, targetSnap, !opts.NoVerify)
+	}
+	logger.Debugf("generated %s delta: %d bytes describing %d instructions "+
+		"(%d copies, %d literals, %d patch runs), %d of %d target bytes copied verbatim, "+
+		"%d of %d uncompressed bytes reused, in %v",
+		snapDeltaFormatBlockPlan, stats.DeltaSize, stats.Instructions,
+		stats.Copies, stats.Literals, stats.PatchRuns,
+		stats.CopiedBytes, stats.TargetDataBytes, stats.ReusedUBytes, stats.TargetUBytes,
+		stats.Elapsed.Round(time.Millisecond))
+	return nil
 }
 
 func generateSnapDelta(ctx context.Context, sourceSnap, targetSnap, delta string) error {
@@ -328,8 +502,13 @@ func generateSnapDelta(ctx context.Context, sourceSnap, targetSnap, delta string
 	return nil
 }
 
-// ApplyDelta uses sourceSnap and delta files to generate targetSnap.
-func ApplyDelta(ctx context.Context, sourceSnap, delta, targetSnap string) error {
+// ApplyDelta uses sourceSnap and delta files to generate targetSnap. The format
+// is read out of the delta rather than passed in, so a caller never has to know
+// which one it received.
+//
+// opts may be nil, which takes the default threading and memory strategy
+// documented on applyBlockPlanDelta below; it is read by snap-2-1-hdiffz alone.
+func ApplyDelta(ctx context.Context, sourceSnap, delta, targetSnap string, opts *ApplyDeltaOpts) error {
 	deltaFile, err := os.Open(delta)
 	if err != nil {
 		return fmt.Errorf("cannot open delta: %w", err)
@@ -350,6 +529,9 @@ func ApplyDelta(ctx context.Context, sourceSnap, delta, targetSnap string) error
 	switch magic {
 	case xdelta3MagicNumber:
 		logger.Debugf("plain xdelta3 detected")
+		if opts.appliesBlockPlan() {
+			return errDeltaOptsNotBlockPlan(xdelta3Format)
+		}
 		return applyPlainXdelta3Delta(ctx, sourceSnap, delta, targetSnap)
 	case deltaMagicNumber:
 		if n < deltaHeaderSize {
@@ -359,10 +541,63 @@ func ApplyDelta(ctx context.Context, sourceSnap, delta, targetSnap string) error
 		if err := binary.Read(bytes.NewReader(buf), binary.LittleEndian, hdr); err != nil {
 			return fmt.Errorf("cannot decode header: %w", err)
 		}
+		if opts.appliesBlockPlan() {
+			return errDeltaOptsNotBlockPlan(snapDeltaFormatXdelta3)
+		}
 		return applySnapDelta(ctx, sourceSnap, targetSnap, deltaFile, hdr)
+	case blockplan.Magic:
+		logger.Debugf("block plan detected")
+		return applyBlockPlanDelta(ctx, sourceSnap, targetSnap, deltaFile, opts)
 	default:
 		return fmt.Errorf("unknown delta file format")
 	}
+}
+
+// applyBlockPlanDelta applies a snap-2-1-hdiffz delta.
+//
+// The block plan's header is part of its own stream rather than a wrapper around
+// somebody else's, so deltaFile is rewound: the bytes read to find the magic
+// number above are bytes the format still needs to parse.
+//
+// A nil opts applies with the format's default threading and memory strategy:
+// the compressor gets one job per core, and whatever peak memory the delta asks
+// for is accepted. Both are deliberate defaults rather than the absence of a
+// decision. Nothing in this package knows the memory budget of the machine it
+// is running on, so a caller that does sets Jobs and MaxRunUSize; the applier
+// then refuses a delta it cannot afford before reading, writing or forking
+// anything, which is a far better outcome than failing partway through
+// assembling an image. Taking the defaults is nonetheless safe because the run
+// cap is bounded by the delta rather than by the image: deltas generated by
+// this package cap a patch run at 8 MiB, and a run's plaintext plus its source
+// window are the only large things an apply holds at once.
+func applyBlockPlanDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, opts *ApplyDeltaOpts) error {
+	if opts == nil {
+		opts = &ApplyDeltaOpts{}
+	}
+	if _, err := deltaFile.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("cannot rewind delta: %w", err)
+	}
+	// Nothing to pad afterwards, unlike the pseudo-file format: the plan
+	// reproduces the target file byte for byte, whatever padding it carries
+	// included, and checks the result against a digest before returning.
+	t0 := time.Now()
+	stats, err := blockplan.ApplyToFile(ctx, sourceSnap, deltaFile, targetSnap,
+		&blockplan.ApplyOpts{
+			Jobs:        opts.Jobs,
+			MaxRunUSize: opts.MaxRunUSize,
+		})
+	if err != nil {
+		return err
+	}
+	if opts.Report != nil {
+		blockplan.WriteApplyReport(opts.Report, stats, time.Since(t0))
+	}
+	logger.Debugf("applied %s delta: %d instructions (%d copies, %d literals, %d patch runs), "+
+		"compressed %d bytes in %d blocks, read back %d bytes of source, peak scratch %d bytes",
+		snapDeltaFormatBlockPlan, stats.Instructions,
+		stats.Copies, stats.Literals, stats.PatchRuns,
+		stats.UCompressedBytes, stats.BlocksCompressed, stats.WindowUBytes, stats.PeakScratchBytes)
+	return nil
 }
 
 func applySnapDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFile *os.File, hdr *SnapDeltaHeader) error {

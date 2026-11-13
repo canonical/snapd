@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -60,9 +61,11 @@ func (s *DeltaTestSuite) TestSupportedDeltaFormats(c *C) {
 		squashfs.DeltaFormatOpts{WithSnapDeltaFormat: false}), DeepEquals,
 		[]string{"xdelta3"})
 
+	// The order is the order of preference the store negotiates with, so
+	// the block plan being first is the assertion that matters here.
 	c.Assert(squashfs.SupportedDeltaFormats(
 		squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true}), DeepEquals,
-		[]string{"snap-1-1-xdelta3", "xdelta3"})
+		[]string{"snap-2-1-hdiffz", "snap-1-1-xdelta3", "xdelta3"})
 }
 
 func (s *DeltaTestSuite) TestCompIdToMksquashfsArgs(c *C) {
@@ -348,7 +351,7 @@ func (s *DeltaTestSuite) createDeltaFile(c *C, name string, timestamp uint32, co
 }
 
 func (s *DeltaTestSuite) TestGenerateDeltaUnsupportedFormat(c *C) {
-	err := squashfs.GenerateDelta(context.Background(), "s", "t", "d", "unsupported-format")
+	err := squashfs.GenerateDelta(context.Background(), "s", "t", "d", "unsupported-format", nil)
 	c.Assert(err, ErrorMatches, `unsupported delta format "unsupported-format"`)
 }
 
@@ -369,7 +372,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaPlainSuccess(c *C) {
 	})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "diff.xdelta3", "xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "diff.xdelta3", "xdelta3", nil)
 	c.Assert(err, IsNil)
 }
 
@@ -425,7 +428,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Success(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, IsNil)
 
 	// Verify the delta file header was written correctly
@@ -481,7 +484,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3Cancelled(c *C) {
 	}()
 
 	// Execute
-	err := squashfs.GenerateDelta(ctx, src, dst, deltaPath, "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(ctx, src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "calculation cancelled")
 }
 
@@ -503,7 +506,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3NoUnsquashfsCmd(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, "out.delta", "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, "out.delta", "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "cannot find unsquashfs: not found")
 }
 
@@ -517,7 +520,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3PipeSetupError(c *C) {
 	})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, deltaPath, "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "cannot set-up pipes")
 
 	// Check delta file was removed
@@ -528,7 +531,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetOpenError(c *C) {
 	src := s.createMockSnap(c, "source.snap", 1000, 1, 0)
 	dst := filepath.Join(dirs.GlobalRootDir, "non-existent.snap")
 
-	err := squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "cannot open target: .* no such file or directory")
 }
 
@@ -539,7 +542,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetReadError(c *C) {
 	err := os.WriteFile(dst, []byte("too short"), 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", "snap-1-1-xdelta3")
+	err = squashfs.GenerateDelta(context.Background(), src, dst, "out.delta", "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "while reading target superblock: unexpected EOF")
 }
 
@@ -550,7 +553,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaCreateOutputFileError(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "cannot create delta file: .* no such file or directory")
 }
 
@@ -573,7 +576,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaUnsuportedSquashfsVersion(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
+	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "unexpected squashfs version 4.1")
 }
 
@@ -595,7 +598,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaBadTargetHeader(c *C) {
 	// Use a path that is impossible to create (directory doesn't exist)
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "no-such-dir", "out.delta")
 
-	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
+	err = squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "target is not a squashfs")
 }
 
@@ -623,7 +626,7 @@ func (s *DeltaTestSuite) TestApplyDeltaPlainSuccess(c *C) {
 	})()
 
 	// Execute
-	err = squashfs.ApplyDelta(context.Background(), "source.snap", xdelta3DiffPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", xdelta3DiffPath, "target.snap", nil)
 	c.Assert(err, IsNil)
 }
 
@@ -679,7 +682,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Success(c *C) {
 			return os.WriteFile("target.snap", make([]byte, squashfs.MinimumSnapSize), 0644)
 		})()
 
-	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap", nil)
 	c.Assert(err, IsNil)
 }
 
@@ -711,7 +714,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3Cancelled(c *C) {
 		cancel()
 	}()
 
-	err = squashfs.ApplyDelta(ctx, sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(ctx, sourceSnap, deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches, "calculation cancelled")
 }
 
@@ -777,7 +780,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3DeltaWriter(c *C) {
 		})()
 
 	// Execute
-	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap", nil)
 	c.Assert(err, IsNil)
 }
 
@@ -786,7 +789,7 @@ func (s *DeltaTestSuite) TestApplyDeltaShortFile(c *C) {
 	err := os.WriteFile(deltaPath, []byte{0x01, 0x02}, 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches, "delta file does not contain a header")
 }
 
@@ -796,7 +799,7 @@ func (s *DeltaTestSuite) TestApplyDeltaUnknownMagic(c *C) {
 	err := os.WriteFile(deltaPath, []byte{0xDE, 0xAD, 0xBE, 0xEF}, 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches, "unknown delta file format")
 }
 
@@ -821,7 +824,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3VersionMismatch(c *C) {
 	err := os.WriteFile(path, buf.Bytes(), 0644)
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta(context.Background(), "source.snap", path, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", path, "target.snap", nil)
 	c.Assert(err, ErrorMatches, `incompatible version 2.0`)
 }
 
@@ -835,7 +838,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3UnsupportedTool(c *C) {
 	f.Close()
 	c.Assert(err, IsNil)
 
-	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches, "unsupported delta tool 99")
 }
 
@@ -843,7 +846,7 @@ func (s *DeltaTestSuite) TestApplyDeltaInvalidCompressionInHeader(c *C) {
 	// Compression ID 99 is unknown
 	deltaPath := s.createDeltaFile(c, "bad-comp.delta", 1234, 99, 0x0040)
 
-	err := squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
+	err := squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches,
 		"bad compression id from delta header: unknown compression id: 99")
 }
@@ -852,7 +855,7 @@ func (s *DeltaTestSuite) TestApplyDeltaInvalidFlagsInHeader(c *C) {
 	// flagCheck (0x0004) triggers an error in superBlockFlagsToMksquashfsArgs
 	deltaPath := s.createDeltaFile(c, "bad-flags.delta", 1234, 1, 0x0004)
 
-	err := squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap")
+	err := squashfs.ApplyDelta(context.Background(), "source.snap", deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches,
 		"bad flags from delta header: unexpected value in superblock flags")
 }
@@ -864,7 +867,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaTargetUnsupportedCompressionOptions(c 
 
 	deltaPath := filepath.Join(dirs.GlobalRootDir, "out.delta")
 
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "compression options section present in target, which is unsupported")
 }
 
@@ -897,7 +900,7 @@ func (s *DeltaTestSuite) TestGenerateDeltaSnapXdelta3RunManyError(c *C) {
 		})()
 
 	// Execute
-	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3")
+	err := squashfs.GenerateDelta(context.Background(), src, dst, deltaPath, "snap-1-1-xdelta3", nil)
 	c.Assert(err, ErrorMatches, "pipeline execution failed")
 
 	// The captured temp directory should no longer exist
@@ -929,7 +932,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3PadsToMinSize(c *C) {
 			return os.WriteFile(targetSnap, make([]byte, 4096), 0644)
 		})()
 
-	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, targetSnap)
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, targetSnap, nil)
 	c.Assert(err, IsNil)
 
 	fi, err := os.Stat(targetSnap)
@@ -959,7 +962,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3NoPadIfLargeEnough(c *C) {
 			return os.WriteFile(targetSnap, make([]byte, largeSize), 0644)
 		})()
 
-	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, targetSnap)
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, targetSnap, nil)
 	c.Assert(err, IsNil)
 
 	fi, err := os.Stat(targetSnap)
@@ -997,7 +1000,7 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3RunManyError(c *C) {
 		})()
 
 	// Execute
-	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap")
+	err = squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath, "target.snap", nil)
 	c.Assert(err, ErrorMatches, "apply pipeline failed")
 
 	// The captured temp directory should no longer exist
@@ -1005,4 +1008,158 @@ func (s *DeltaTestSuite) TestApplyDeltaSnapXdelta3RunManyError(c *C) {
 	_, err = os.Stat(capturedTempDir)
 	c.Check(os.IsNotExist(err), Equals, true,
 		Commentf("Temp dir %s was not cleaned up during ApplyDelta failure", capturedTempDir))
+}
+
+// buildSnapForBlockPlan builds a real snap with mksquashfs, the way snap pack
+// does. The block plan format is a plan over the blocks a real mksquashfs wrote,
+// so unlike the tests above it cannot be driven with a mock superblock.
+func (s *DeltaTestSuite) buildSnapForBlockPlan(c *C, name string, extra func(dir string)) string {
+	dir := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(dir, "meta"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir, "meta", "snap.yaml"),
+		[]byte("name: delta-test\nversion: 1\n"), 0644), IsNil)
+	// Several blocks worth of content, so that a delta between two of these
+	// has both blocks to copy and blocks to rebuild.
+	var text bytes.Buffer
+	for i := 0; i < 20000; i++ {
+		text.WriteString("a line of text that compresses well, number ")
+		text.WriteString(strconv.Itoa(i))
+		text.WriteByte('\n')
+	}
+	c.Assert(os.WriteFile(filepath.Join(dir, "data.txt"), text.Bytes(), 0644), IsNil)
+	// And enough incompressible content that the built image is comfortably
+	// past MinimumSnapSize: a snap small enough to have been padded up to
+	// that size is refused, which the test below covers.
+	blob := make([]byte, 400*1024)
+	x := uint32(1)
+	for i := range blob {
+		x = x*1664525 + 1013904223
+		blob[i] = byte(x >> 24)
+	}
+	c.Assert(os.WriteFile(filepath.Join(dir, "blob.bin"), blob, 0644), IsNil)
+	if extra != nil {
+		extra(dir)
+	}
+	path := filepath.Join(c.MkDir(), name)
+	c.Assert(squashfs.New(path).Build(dir, nil), IsNil)
+	return path
+}
+
+// TestGenerateAndApplyDeltaBlockPlan is the wiring test for snap-2-1-hdiffz: the
+// format the store negotiates has to reach the package that implements it, the
+// delta it writes has to be recognised on the way back by its magic alone, and
+// what comes out has to be the target snap and not merely a working one. The
+// format's own behaviour is tested in snap/squashfs/blockplan.
+func (s *DeltaTestSuite) TestGenerateAndApplyDeltaBlockPlan(c *C) {
+	for _, tool := range []string{"mksquashfs", "xz", "hdiffz", "hpatchz"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			c.Skip("need " + tool + " to build and patch real images")
+		}
+	}
+	source := s.buildSnapForBlockPlan(c, "source.snap", nil)
+	target := s.buildSnapForBlockPlan(c, "target.snap", func(dir string) {
+		c.Assert(os.WriteFile(filepath.Join(dir, "added.txt"),
+			[]byte("a file the source revision does not have\n"), 0644), IsNil)
+	})
+
+	deltaPath := filepath.Join(c.MkDir(), "out.delta")
+	err := squashfs.GenerateDelta(context.Background(), source, target, deltaPath, "snap-2-1-hdiffz", nil)
+	c.Assert(err, IsNil)
+
+	magic := make([]byte, 4)
+	f, err := os.Open(deltaPath)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	_, err = io.ReadFull(f, magic)
+	c.Assert(err, IsNil)
+	// Magic "sqbp" -> 0x70627173, which is what ApplyDelta dispatches on.
+	c.Check(binary.LittleEndian.Uint32(magic), Equals, uint32(0x70627173))
+
+	rebuiltPath := filepath.Join(c.MkDir(), "rebuilt.snap")
+	err = squashfs.ApplyDelta(context.Background(), source, deltaPath, rebuiltPath, nil)
+	c.Assert(err, IsNil)
+
+	rebuilt, err := os.ReadFile(rebuiltPath)
+	c.Assert(err, IsNil)
+	want, err := os.ReadFile(target)
+	c.Assert(err, IsNil)
+	c.Check(bytes.Equal(rebuilt, want), Equals, true,
+		Commentf("the delta rebuilt %d bytes, the target is %d", len(rebuilt), len(want)))
+}
+
+// TestGenerateDeltaBlockPlanRefusesPaddedSnap covers the boundary that padding a
+// snap to MinimumSnapSize creates: such a file is longer than its own superblock
+// accounts for, and this format describes an image byte for byte or not at all.
+// The refusal is the intended outcome -- the caller falls back to the format
+// below, and for a snap this small a delta is not worth having anyway.
+func (s *DeltaTestSuite) TestGenerateDeltaBlockPlanRefusesPaddedSnap(c *C) {
+	if _, err := exec.LookPath("mksquashfs"); err != nil {
+		c.Skip("need mksquashfs to build real images")
+	}
+	dir := c.MkDir()
+	c.Assert(os.WriteFile(filepath.Join(dir, "small.txt"), []byte("small\n"), 0644), IsNil)
+	tiny := filepath.Join(c.MkDir(), "tiny.snap")
+	c.Assert(squashfs.New(tiny).Build(dir, nil), IsNil)
+	fi, err := os.Stat(tiny)
+	c.Assert(err, IsNil)
+	c.Assert(fi.Size(), Equals, squashfs.MinimumSnapSize,
+		Commentf("the fixture was not padded, so it proves nothing"))
+
+	err = squashfs.GenerateDelta(context.Background(), tiny, tiny,
+		filepath.Join(c.MkDir(), "out.delta"), "snap-2-1-hdiffz", nil)
+	c.Check(err, ErrorMatches, `source .*: image is 16384 bytes, but \d+ bytes used pads to \d+`)
+}
+
+// TestApplyDeltaBlockPlanMagic holds the dispatch itself: a delta carrying the
+// block plan's magic must be handed to the block plan applier, whatever it then
+// makes of it. Getting this wrong would report a supported format as unknown.
+func (s *DeltaTestSuite) TestApplyDeltaBlockPlanMagic(c *C) {
+	sourceSnap := filepath.Join(dirs.GlobalRootDir, "source.snap")
+	c.Assert(os.WriteFile(sourceSnap, []byte("mock source"), 0644), IsNil)
+
+	// A whole header's worth of bytes, with the magic and nothing else, so
+	// the error can only come from the block plan's own header check.
+	header := make([]byte, 128)
+	binary.LittleEndian.PutUint32(header, 0x70627173)
+	deltaPath := filepath.Join(dirs.GlobalRootDir, "blockplan.delta")
+	c.Assert(os.WriteFile(deltaPath, header, 0644), IsNil)
+
+	err := squashfs.ApplyDelta(context.Background(), sourceSnap, deltaPath,
+		filepath.Join(dirs.GlobalRootDir, "target.snap"), nil)
+	c.Check(err, ErrorMatches, `unsupported block-plan format version 0`)
+}
+
+// TestGenerateDeltaOptsRefusedOnOtherFormats holds the package-level half of the
+// rule the command line also enforces: options only the block plan reads are
+// refused by the other formats rather than dropped. Dropping them is the silent
+// failure worth preventing -- a caller that believes it bounded an apply, on a
+// format whose cost this package does not mediate.
+func (s *DeltaTestSuite) TestGenerateDeltaOptsRefusedOnOtherFormats(c *C) {
+	for _, format := range []string{"xdelta3", "snap-1-1-xdelta3"} {
+		err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "out.delta",
+			format, &squashfs.GenerateDeltaOpts{MaxRunUSize: 1 << 20})
+		c.Check(err, ErrorMatches,
+			`delta format "`+format+`" takes no options, they are read by snap-2-1-hdiffz alone`)
+	}
+	// A zero value carries no opinion, so it is not a refusal.
+	err := squashfs.GenerateDelta(context.Background(), "source.snap", "target.snap", "out.delta",
+		"unsupported-format", &squashfs.GenerateDeltaOpts{})
+	c.Check(err, ErrorMatches, `unsupported delta format "unsupported-format"`)
+}
+
+// TestApplyDeltaOptsRefusedOnOtherFormats is the same rule on the apply side,
+// where the format comes from the delta rather than from the caller.
+func (s *DeltaTestSuite) TestApplyDeltaOptsRefusedOnOtherFormats(c *C) {
+	sourceSnap := filepath.Join(dirs.GlobalRootDir, "source.snap")
+	c.Assert(os.WriteFile(sourceSnap, []byte("mock source"), 0644), IsNil)
+
+	plain := filepath.Join(dirs.GlobalRootDir, "plain.xdelta3")
+	header := make([]byte, 32)
+	binary.LittleEndian.PutUint32(header, 0x00c4c3d6)
+	c.Assert(os.WriteFile(plain, header, 0644), IsNil)
+
+	err := squashfs.ApplyDelta(context.Background(), sourceSnap, plain,
+		filepath.Join(dirs.GlobalRootDir, "target.snap"), &squashfs.ApplyDeltaOpts{Jobs: 2})
+	c.Check(err, ErrorMatches,
+		`delta format "xdelta3" takes no options, they are read by snap-2-1-hdiffz alone`)
 }
