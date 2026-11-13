@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -84,6 +85,8 @@ func (params *IntegrityDataParams) crossCheck(vsb *dmverity.VeritySuperblock) er
 
 const dmVerityFileSuffix = ".dmverity"
 
+var validHexDigest = regexp.MustCompile(`^[0-9a-f]+$`)
+
 func integrityFilePathPrefix(snapPath string) string {
 	return strings.TrimSuffix(snapPath, ".snap") + "_"
 }
@@ -136,9 +139,9 @@ func FindIntegrityFilesForSnap(snapPath string) ([]string, error) {
 	var files []string
 	for _, match := range matches {
 		digest := strings.TrimSuffix(strings.TrimPrefix(match, prefix), dmVerityFileSuffix)
-		// digests never contain "_", if a match does then it belongs to another
-		// snap instance e.g. foo_1_2_<digest>.dmverity for snap foo_1
-		if strings.Contains(digest, "_") {
+		// digests are hex-encoded, anything else (e.g. "_") means the match could
+		// be for another snap e.g. foo_1_2_<digest>.dmverity for snap foo_1
+		if !validHexDigest.MatchString(digest) {
 			continue
 		}
 		files = append(files, match)

@@ -349,6 +349,8 @@ func (s *IntegrityTestSuite) TestFindIntegrityFilesForSnap(c *C) {
 		"foo_1_bbb.dmverity",
 		"foo_10_ccc.dmverity",
 		"bar_1_aaa.dmverity",
+		// not hex-encoded
+		"foo_1_xyz.dmverity",
 		// instance foo_1 revision 2 must not match snap foo revision 1
 		"foo_1_2.snap",
 		"foo_1_2_ddd.dmverity",
