@@ -23,6 +23,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/snap"
@@ -79,6 +80,17 @@ func (s *OpenvSwitchSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
 		"openvswitch": true,
 	})
+}
+
+func (s *OpenvSwitchSupportInterfaceSuite) TestAppArmorSpec(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/var/tmp/doca_mlx5_hws* rw,")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/var/tmp/dpdk_net_mlx5_* rw,")
+	c.Assert(spec.SnippetForTag("snap.other.app"), testutil.Contains, "/sys/kernel/iommu_groups/{,**} r,")
 }
 
 func (s *OpenvSwitchSupportInterfaceSuite) TestInterfaces(c *C) {
