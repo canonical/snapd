@@ -251,6 +251,7 @@ const u2fDevicesConnectedPlugAppArmor = `
 /run/udev/data/c14:[0-9]* r,
 /sys/devices/**/i2c*/**/report_descriptor r,
 /sys/devices/**/usb*/**/report_descriptor r,
+/sys/devices/virtual/**/report_descriptor r,
 `
 
 type u2fDevicesInterface struct {
