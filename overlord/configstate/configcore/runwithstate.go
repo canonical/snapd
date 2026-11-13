@@ -64,6 +64,9 @@ func init() {
 	// disk-reservation.size
 	addWithStateHandler(validateDiskSpaceReservation, nil, validateOnly)
 
+	// device.allow-unregister
+	addWithStateHandler(validateDeviceAllowUnregister, nil, validateOnly)
+
 	// legacy experimental disk space flags
 	addWithStateHandler(nil, handleLegacyDiskSpaceFeatures, nil)
 

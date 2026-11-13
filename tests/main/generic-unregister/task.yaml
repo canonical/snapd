@@ -43,6 +43,8 @@ execute: |
     keyfile=(/var/lib/snapd/device/private-keys-v1/*)
     test -f "${keyfile[0]}"
 
+    snap set system device.allow-unregister=true
+
     echo "{\"action\":\"forget\",\"no-registration-until-reboot\":${UNTIL_REBOOT}}" | snap debug api -X POST -H 'Content-Type: application/json' /v2/model/serial
 
     snap model --serial 2>&1|MATCH "error: device not registered yet"

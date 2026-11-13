@@ -244,8 +244,13 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappy(c *C) {
 	// check that keypair manager is under device
 	c.Check(osutil.IsDirectory(filepath.Join(dirs.SnapDeviceDir, "private-keys-v1")), Equals, true)
 
-	// cannot unregister
-	c.Check(s.mgr.Unregister(nil), ErrorMatches, `cannot currently unregister device if not classic or model brand is not generic or canonical`)
+	c.Check(s.mgr.Unregister(nil), ErrorMatches, `cannot unregister device unless device.allow-unregister is set to true`)
+
+	// string form, as from snap set -s, is accepted too
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "device.allow-unregister", "true"), IsNil)
+	tr.Commit()
+	c.Check(s.mgr.Unregister(nil), IsNil)
 }
 
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyWithProxy(c *C) {
@@ -2644,6 +2649,10 @@ func (s *deviceMgrSerialSuite) testFullDeviceUnregisterReregisterClassicGeneric(
 	// mock having a store session
 	device.SessionMacaroon = "session-macaroon"
 	devicestatetest.SetDevice(s.state, device)
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "device.allow-unregister", true), IsNil)
+	tr.Commit()
 
 	err = s.mgr.Unregister(opts)
 	c.Assert(err, IsNil)

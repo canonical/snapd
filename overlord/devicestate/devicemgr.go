@@ -2391,8 +2391,13 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 	if err != nil {
 		return err
 	}
-	if !release.OnClassic || (device.Brand != "generic" && device.Brand != "canonical") {
-		return fmt.Errorf("cannot currently unregister device if not classic or model brand is not generic or canonical")
+	tr := config.NewTransaction(m.state)
+	var allowUnregister any
+	if err := tr.GetMaybe("core", "device.allow-unregister", &allowUnregister); err != nil {
+		return err
+	}
+	if allowUnregister != true && allowUnregister != "true" {
+		return fmt.Errorf("cannot unregister device unless device.allow-unregister is set to true")
 	}
 
 	if opts == nil {
