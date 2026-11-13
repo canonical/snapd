@@ -16277,7 +16277,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		Sequence:        seq,
 		Current:         currentSI.Revision,
@@ -16529,7 +16529,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, naming.InstanceName(snapName), &snapst)
+	err = snapstate.Get(s.state, snapName, &snapst)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.LastRefreshTime, NotNil)
@@ -16542,7 +16542,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	for i, comp := range components {
 		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
 			SideInfo: &snap.ComponentSideInfo{
-				Component: naming.NewComponentRef(naming.SnapName(snapName), comp),
+				Component: naming.NewComponentRef(snapName, comp),
 				Revision:  snap.R(i + 2),
 			},
 			CompType: componentNameToType(c, comp),
@@ -16669,7 +16669,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsBackToPrevRevisionAlreadyPres
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		Sequence:        seq,
 		Current:         currentSI.Revision,
@@ -16752,7 +16752,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsBackToPrevRevisionAlreadyPres
 	c.Check(snapsup.PreUpdateKernelModuleComponents, DeepEquals, currentKmodComps)
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, naming.InstanceName(snapName), &snapst)
+	err = snapstate.Get(s.state, snapName, &snapst)
 	c.Assert(err, IsNil)
 
 	if undo {
@@ -16849,7 +16849,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		Sequence:        seq,
 		Current:         currentSI.Revision,
@@ -17073,7 +17073,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAddComponen
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, naming.InstanceName(snapName), &snapst)
+	err = snapstate.Get(s.state, snapName, &snapst)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.LastRefreshTime, NotNil)
@@ -18026,7 +18026,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		Sequence:        currentSeq,
 		Current:         si.Revision,
@@ -18364,7 +18364,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, naming.InstanceName(snapName), &snapst)
+	err = snapstate.Get(s.state, snapName, &snapst)
 	c.Assert(err, IsNil)
 
 	if !undo {
@@ -19155,7 +19155,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 	})
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, naming.InstanceName(instanceName), &snapst)
+	err := snapstate.Get(s.state, instanceName, &snapst)
 	c.Assert(err, IsNil)
 
 	bl := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
@@ -19425,7 +19425,7 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsFromPathBackToInstalledRevisi
 	checkComponentSetupTasks(c, ts, compsups, "prepare-component")
 
 	// verify the new system state
-	err = snapstate.Get(s.state, naming.InstanceName(instanceName), &snapst)
+	err = snapstate.Get(s.state, instanceName, &snapst)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.LastRefreshTime, NotNil)

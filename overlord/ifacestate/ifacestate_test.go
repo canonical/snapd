@@ -4377,12 +4377,12 @@ slots:
 
 	// Alter the state of producer and consumer snaps to get new revisions.
 	s.state.Lock()
-	for _, snapName := range []string{"producer", "consumer"} {
-		snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	for _, instanceName := range []naming.InstanceName{"producer", "consumer"} {
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Active: true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-				{Revision: snap.R(1), RealName: snapName},
-				{Revision: snap.R(2), RealName: snapName},
+				{Revision: snap.R(1), RealName: instanceName.SnapName().String()},
+				{Revision: snap.R(2), RealName: instanceName.SnapName().String()},
 			}),
 			Current:  snap.R(2),
 			SnapType: string("app"),

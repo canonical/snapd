@@ -2733,7 +2733,7 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 						comp22si, snap.StandardComponent),
 				}),
 		})
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:   true,
 		Sequence: seq,
 		Current:  snap.R(1),

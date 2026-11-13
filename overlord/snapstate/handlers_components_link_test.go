@@ -330,7 +330,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
 	ts := s.state.NewTask("nop", "first task")
 	t := s.state.NewTask("unlink-current-component", "task desc")
 	t.WaitFor(ts)
-	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
+	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	ts.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	ts.Set("snap-setup", ssu)
@@ -366,7 +366,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
 	})
 	// state is modified as expected
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, naming.InstanceName(snapName), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
 	c.Assert(snapst.CurrentComponentSideInfo(cref), IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
@@ -480,7 +480,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkComponent(c *C) {
 	comps := []*sequence.ComponentState{
 		sequence.NewComponentState(csi, snap.StandardComponent),
 	}
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: false,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -507,7 +507,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkComponent(c *C) {
 		SnapID: "some-snap-id"}
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	comps := []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: false,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -548,7 +548,7 @@ func (s *linkCompSnapSuite) TestUndoUnlinkComponentAfterSnapRevisionDiscarded(c 
 	currentSI := &snap.SideInfo{RealName: snapName, Revision: currentSnapRev, SnapID: "some-snap-id"}
 	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
 	comps := []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:   true,
 		SnapType: "app",
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
@@ -602,7 +602,7 @@ func (s *linkCompSnapSuite) TestUndoUnlinkComponentAfterSnapRevisionDiscarded(c 
 
 	// discard-snap really ran and removed the old revision from the sequence
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, naming.InstanceName(snapName), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
 	c.Check(snapst.Sequence.LastIndex(oldSnapRev), Equals, -1)
 	c.Check(snapst.Current, Equals, currentSnapRev)
 

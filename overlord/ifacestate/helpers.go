@@ -821,10 +821,10 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 	}
 
 	task := gc.task
-	snapName := gc.instanceName
+	instanceName := gc.instanceName
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(gc.st, naming.InstanceName(snapName), &snapst); err != nil {
+	if err := snapstate.Get(gc.st, naming.InstanceName(instanceName), &snapst); err != nil {
 		return err
 	}
 
@@ -851,10 +851,10 @@ func (gc *gadgetConnect) addGadgetConnections(newconns map[string]*interfaces.Co
 	for _, gconn := range gconns {
 		var plugSnapName, slotSnapName string
 		if gconn.Plug.SnapID == snapID {
-			plugSnapName = snapName
+			plugSnapName = instanceName
 		}
 		if gconn.Slot.SnapID == snapID {
-			slotSnapName = snapName
+			slotSnapName = instanceName
 		}
 
 		if plugSnapName == "" && slotSnapName == "" {

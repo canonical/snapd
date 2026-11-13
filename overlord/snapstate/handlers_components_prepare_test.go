@@ -109,7 +109,7 @@ func (s *prepareSnapSuite) TestDoPrepareComponentAlreadyPresent(c *C) {
 			}),
 		Current: si.Revision,
 	}
-	snapstate.Set(s.state, naming.InstanceName(snapName), snapst)
+	snapstate.Set(s.state, snapName, snapst)
 
 	t := s.state.NewTask("prepare-component", "task desc")
 	cref := naming.NewComponentRef(snapName, compName)

@@ -991,7 +991,7 @@ func (s *targetTestSuite) TestUpdateComponents(c *C) {
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: channel,
 		Sequence:        seq,
@@ -1062,7 +1062,7 @@ func (s *targetTestSuite) TestUpdateComponentsSameComponentRevision(c *C) {
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: channel,
 		Sequence:        seq,
@@ -1139,7 +1139,7 @@ version: 1.0
 		CompType: snap.StandardComponent,
 	})
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: channel,
 		Sequence:        seq,
@@ -1190,7 +1190,7 @@ func (s *targetTestSuite) TestPathUpdateGoalExplicitRevisionAlwaysUpdates(c *C) 
 	)
 
 	rev := snap.R(7)
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: trackedChannel,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
@@ -1284,7 +1284,7 @@ version: 1.0
 		CompType: snap.StandardComponent,
 	})
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: channel,
 		Sequence:        seq,
@@ -1364,7 +1364,7 @@ version: 1.0
 		CompType: snap.StandardComponent,
 	})
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:   true,
 		Sequence: seq,
 		Current:  snap.R(7),
@@ -1436,7 +1436,7 @@ version: 1.0
 		Revision: snap.R(7),
 	}})
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:   true,
 		Sequence: seq,
 		Current:  snap.R(7),
@@ -1749,7 +1749,7 @@ func (s *targetTestSuite) TestUpdateWithComponentsDiskSpace(c *C) {
 		}, nil
 	}))
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: channel,
 		Sequence:        seq,
@@ -1838,7 +1838,7 @@ version: 1.0
 `
 	)
 
-	snapstate.Set(s.state, naming.InstanceName(snapName), &snapstate.SnapState{
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 			RealName: snapName,
