@@ -1045,8 +1045,8 @@ func (aks *accountKeySuite) TestDecodeConstraintsInvalid(c *C) {
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{constr, " x\n", "assertions constraints must be a list of maps"}, {constr, "\n  - foo\n", "assertions constraints must be a list of maps"},
 		{constr, "\n  -\n    headers: x\n", `"headers" constraint must be a map`},
-		{constr, "\n  -\n    header:\n      t: x\n", `"headers" constraint mandatory in asserions constraints`},
-		{constr, "\n  -\n    headers:\n      t: x\n", "type header constraint mandatory in asserions constraints"},
+		{constr, "\n  -\n    header:\n      t: x\n", `"headers" constraint mandatory in assertions constraints`},
+		{constr, "\n  -\n    headers:\n      t: x\n", "type header constraint mandatory in assertions constraints"},
 		{constr, "\n  -\n    headers:\n      type:\n        - foo\n", "type header constraint must be a string"},
 		{constr, "\n  -\n    headers:\n      type: preseed|model\n", "type header constraint must be a precise string and not a regexp"},
 		{constr, "\n  -\n    headers:\n      type: foo\n      model: $X\n", `cannot compile headers constraint: cannot compile "model" constraint "\$X": no \$OP\(\) or \$REF constraints supported`},
