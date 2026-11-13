@@ -87,6 +87,23 @@ version: 1.0`))
 	c.Check(info.SnapProvenance, Equals, "delegated-prov")
 }
 
+func (s *InfoSnapYamlTestSuite) TestBuildBase(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`name: pc-kernel
+version: 1.0
+type: kernel
+build-base: core24`))
+	c.Assert(err, IsNil)
+	c.Check(info.Type(), Equals, snap.TypeKernel)
+	c.Check(info.Base, Equals, "")
+	c.Check(info.BuildBase, Equals, "core24")
+
+	info, err = snap.InfoFromSnapYaml([]byte(`name: pc-kernel
+version: 1.0
+type: kernel`))
+	c.Assert(err, IsNil)
+	c.Check(info.BuildBase, Equals, "")
+}
+
 func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte("random-crap"))
 	c.Assert(err, ErrorMatches, "(?m)cannot parse snap.yaml:.*")

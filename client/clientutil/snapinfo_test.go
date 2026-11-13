@@ -62,7 +62,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 			DisplayName: "Thingy Inc.",
 			Validation:  "unproven",
 		},
-		Base: "core18",
+		Base:      "core18",
+		BuildBase: "core22",
 		SideInfo: snap.SideInfo{
 			RealName:          "the-snap",
 			SnapID:            "snapidid",
@@ -151,6 +152,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	// check some values
 	c.Check(ci.Name, Equals, "the-snap_insta")
 	c.Check(ci.Type, Equals, "app")
+	c.Check(ci.Base, Equals, "core18")
+	c.Check(ci.BuildBase, Equals, "core22")
 	c.Check(ci.ID, Equals, si.ID())
 	c.Check(ci.Revision, Equals, snap.R(99))
 	c.Check(ci.Version, Equals, "v1")

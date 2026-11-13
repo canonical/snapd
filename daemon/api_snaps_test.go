@@ -1645,6 +1645,32 @@ func (s *snapsSuite) TestSnapInfoReturnsRefreshFailures(c *check.C) {
 	c.Check(snapInfo.RefreshFailures, check.DeepEquals, expectedRefreshFailures)
 }
 
+func (s *snapsSuite) TestSnapInfoReturnsKernelBuildBase(c *check.C) {
+	s.expectSnapsNameReadAccess()
+	d := s.daemon(c)
+	s.mkInstalledInState(c, d, "pc-kernel", "canonical", "v1", snap.R(5), true, `type: kernel
+build-base: core24
+`)
+
+	req, err := http.NewRequest("GET", "/v2/snaps/pc-kernel", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+	c.Assert(rsp.Result, check.FitsTypeOf, &client.Snap{})
+	snapInfo := rsp.Result.(*client.Snap)
+	c.Check(snapInfo.Type, check.Equals, string(snap.TypeKernel))
+	c.Check(snapInfo.Base, check.Equals, "")
+	c.Check(snapInfo.BuildBase, check.Equals, "core24")
+
+	encoded, err := json.Marshal(snapInfo)
+	c.Assert(err, check.IsNil)
+	var wire map[string]any
+	c.Assert(json.Unmarshal(encoded, &wire), check.IsNil)
+	c.Check(wire["build-base"], check.Equals, "core24")
+	_, hasBase := wire["base"]
+	c.Check(hasBase, check.Equals, false)
+}
+
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 	media := snap.MediaInfos{
 		{

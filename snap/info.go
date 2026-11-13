@@ -361,6 +361,7 @@ type Info struct {
 	License          string
 	Epoch            Epoch
 	Base             string
+	BuildBase        string
 	Confinement      ConfinementType
 	Grade            GradeType
 	Apps             map[string]*AppInfo

@@ -68,6 +68,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info, decorator StatusDecorator) (*cl
 		Summary:     snapInfo.Summary(),
 		Type:        string(snapInfo.Type()),
 		Base:        snapInfo.Base,
+		BuildBase:   snapInfo.BuildBase,
 		Version:     snapInfo.Version,
 		Channel:     snapInfo.Channel,
 		Private:     snapInfo.Private,

@@ -14,6 +14,11 @@ properties:
     type: string
     description: The base snap this snap is built on.
     example: core20
+  build-base:
+    type: string
+    description: |-
+      The build environment base used for building the snap.
+    example: core24
   channel:
     type: string
     description: The default channel for this snap.

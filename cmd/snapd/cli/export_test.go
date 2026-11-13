@@ -153,6 +153,7 @@ var (
 	MaybePrintBuildDate         = (*infoWriter).maybePrintBuildDate
 	MaybePrintLinks             = (*infoWriter).maybePrintLinks
 	MaybePrintBase              = (*infoWriter).maybePrintBase
+	MaybePrintBuildBase         = (*infoWriter).maybePrintBuildBase
 	MaybePrintPath              = (*infoWriter).maybePrintPath
 	MaybePrintSum               = (*infoWriter).maybePrintSum
 	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey

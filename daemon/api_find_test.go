@@ -371,6 +371,38 @@ func (s *findSuite) TestFindOne(c *check.C) {
 	c.Check(m["revision"], check.Equals, "42")
 }
 
+func (s *findSuite) TestFindOneKernelBuildBase(c *check.C) {
+	s.daemon(c)
+
+	for _, buildBase := range []string{"core24", ""} {
+		s.rsnaps = []*snap.Info{{
+			SideInfo: snap.SideInfo{
+				RealName: "pc-kernel",
+				Revision: snap.R(5),
+			},
+			SnapType:  snap.TypeKernel,
+			BuildBase: buildBase,
+		}}
+
+		req, err := http.NewRequest("GET", "/v2/find?name=pc-kernel", nil)
+		c.Assert(err, check.IsNil)
+		rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+		snaps := snapList(rsp.Result)
+		c.Assert(snaps, check.HasLen, 1)
+		c.Check(snaps[0]["name"], check.Equals, "pc-kernel")
+		c.Check(snaps[0]["type"], check.Equals, "kernel")
+		c.Check(snaps[0]["revision"], check.Equals, "5")
+		value, hasBuildBase := snaps[0]["build-base"]
+		c.Check(hasBuildBase, check.Equals, buildBase != "")
+		if hasBuildBase {
+			c.Check(value, check.Equals, buildBase)
+		}
+		_, hasBase := snaps[0]["base"]
+		c.Check(hasBase, check.Equals, false)
+	}
+}
+
 func (s *findSuite) TestFindOneNotFound(c *check.C) {
 	s.daemon(c)
 
