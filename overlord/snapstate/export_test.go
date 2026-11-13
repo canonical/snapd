@@ -707,3 +707,7 @@ func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.
 func MockIntegrityLookupDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
 	return testutil.Mock(&integrityLookupDataAndCrossCheck, f)
 }
+
+func MockDmverityEnabledForTesting(f func() bool) (restore func()) {
+	return testutil.Mock(&dmverityEnabledForTesting, f)
+}

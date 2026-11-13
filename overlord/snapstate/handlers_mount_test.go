@@ -176,6 +176,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 }
 
 type doMountSnapWithIntegrityDataOpts struct {
+	dmverityDisabled   bool
 	integrityLookupErr error
 	expectedErr        string
 }
@@ -184,16 +185,20 @@ func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnap
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
+	s.AddCleanup(snapstate.MockDmverityEnabledForTesting(func() bool { return !opts.dmverityDisabled }))
+
 	idp := integrity.IntegrityDataParams{
 		Type:   "dm-verity",
 		Digest: "some-digest",
 	}
 	var expectedIdp integrity.IntegrityDataParams
-	if opts.integrityLookupErr == nil {
+	if opts.integrityLookupErr == nil && !opts.dmverityDisabled {
 		expectedIdp = idp
 	}
 
+	validatedIntegrityDataCalls := 0
 	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		validatedIntegrityDataCalls++
 		c.Assert(snapID, Equals, "snap-id")
 		c.Assert(rev, Equals, snap.R(33))
 		// make sure the state is locked
@@ -238,6 +243,12 @@ func (s *mountSnapSuite) testDoMountSnapWithIntegrityData(c *C, opts doMountSnap
 
 	c.Assert(osutil.FileExists(testSnap), Equals, true)
 
+	if opts.dmverityDisabled {
+		c.Check(validatedIntegrityDataCalls, Equals, 0)
+	} else {
+		c.Check(validatedIntegrityDataCalls, Equals, 1)
+	}
+
 	if opts.expectedErr != "" {
 		c.Check(chg.Err(), ErrorMatches, opts.expectedErr)
 		c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -278,13 +289,21 @@ func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataNotExist(c *C) {
 func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataInvalid(c *C) {
 	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
 		integrityLookupErr: fmt.Errorf("unexpected dm-verity hash"),
-		expectedErr:        `(?s).*cannot validate integrity data for snap "foo": unexpected dm-verity hash.*`,
+		expectedErr:        `(?s).*cannot validate integrity data for snap-id "snap-id" \(revision 33\): unexpected dm-verity hash.*`,
+	})
+}
+
+func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataDmverityDisabled(c *C) {
+	s.testDoMountSnapWithIntegrityData(c, doMountSnapWithIntegrityDataOpts{
+		dmverityDisabled: true,
 	})
 }
 
 func (s *mountSnapSuite) TestDoMountSnapWithIntegrityDataError(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
+
+	s.AddCleanup(snapstate.MockDmverityEnabledForTesting(func() bool { return true }))
 
 	restore := snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
 		return nil, fmt.Errorf("boom")
