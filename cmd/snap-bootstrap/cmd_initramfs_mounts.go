@@ -525,12 +525,22 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
+	var bootAssets boot.BootAssets
+	var encryptionSetup *boot.EncryptionSetup
+
+	// The trustedInstallObserver instance can be nil for
+	// non-encrypted installations.
+	if trustedInstallObserver != nil {
+		bootAssets = trustedInstallObserver.BootAssets()
+		encryptionSetup = trustedInstallObserver.EncryptionSetup()
+	}
+
 	// TODO provision TPM
 	if err := bootMakeRunnableStandaloneSystem(
 		model,
 		bootWith,
-		trustedInstallObserver.BootAssets(),
-		trustedInstallObserver.EncryptionSetup()); err != nil {
+		bootAssets,
+		encryptionSetup); err != nil {
 		return err
 	}
 
