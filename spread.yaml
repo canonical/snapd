@@ -845,6 +845,7 @@ artifacts:
 
 exclude:
     - .git
+    - .logs
     - cmd/snap/snap
     - cmd/snapd/snapd
     - cmd/snapctl/snapctl
