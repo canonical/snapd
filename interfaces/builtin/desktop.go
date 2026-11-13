@@ -476,12 +476,13 @@ dbus (send, receive)
       peer=(label=unconfined),
 
 # Allow access to the Fcitx portal, supported by fcitx/fcitx5
+# Cannot match by name because im module may use unique name to send dbus message
 dbus (send)
       bus=session
       path=/{,org/freedesktop/portal/}inputmethod
       interface=org.fcitx.Fcitx.InputMethod1
       member={CreateInputContext,Version}
-      peer=(name=org.freedesktop.portal.Fcitx),
+      peer=(label=unconfined),
 
 dbus (send, receive)
       bus=session
