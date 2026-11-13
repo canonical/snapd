@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -98,6 +99,9 @@ type finishStepOpts struct {
 	optionalContainers     *seed.OptionalContainers
 	volumesAuth            *device.VolumesAuthOptions
 	extraSnapdKCmdlineArgs map[string]string
+	// nonGrubBootloader uses a bootloader without trusted or managed
+	// assets, like u-boot, piboot or lk
+	nonGrubBootloader bool
 }
 
 func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
@@ -337,6 +341,17 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		c.Fatal("explicitly setting hasRecoveryKey is only supported with encrypted")
 	}
 
+	if opts.nonGrubBootloader && opts.encrypted {
+		c.Fatal("explicitly setting nonGrubBootloader is only supported without encryption")
+	}
+
+	var nonGrubBl *bootloadertest.MockRecoveryAwareBootloader
+	if opts.nonGrubBootloader {
+		nonGrubBl = bootloadertest.Mock("mock", c.MkDir()).RecoveryAware()
+		bootloader.Force(nonGrubBl)
+		s.AddCleanup(func() { bootloader.Force(nil) })
+	}
+
 	// The installer API is used on classic images only for the moment
 	restore := release.MockOnClassic(true)
 	s.AddCleanup(restore)
@@ -421,6 +436,10 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			c.Check(action, Equals, gadget.ChangeApply)
 		} else {
 			c.Check(encSetupData, IsNil)
+		}
+		if opts.nonGrubBootloader {
+			// no assets to observe
+			c.Check(observer, IsNil)
 		}
 		modulesComps := []install.KernelModulesComponentInfo{}
 		if opts.hasKernelModsComps {
@@ -704,19 +723,24 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	if opts.installClassic {
 		snapdVarDir = "mnt/ubuntu-data/var/lib/snapd"
 	}
-	expectedFiles := []string{
-		filepath.Join(seedDir, "EFI/ubuntu/grub.cfg"),
-		filepath.Join(seedDir, "EFI/ubuntu/grubenv"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/grub.cfg"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/grubenv"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_1.snap/kernel.efi"),
-		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"),
+	var expectedFiles []string
+	if !opts.nonGrubBootloader {
+		expectedFiles = append(expectedFiles,
+			filepath.Join(seedDir, "EFI/ubuntu/grub.cfg"),
+			filepath.Join(seedDir, "EFI/ubuntu/grubenv"),
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/grub.cfg"),
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/grubenv"),
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_1.snap/kernel.efi"),
+			filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/EFI/ubuntu/kernel.efi"),
+		)
+	}
+	expectedFiles = append(expectedFiles,
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-boot/device/model"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "modeenv"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/core24_1.snap"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc_1.snap"),
 		filepath.Join(dirs.RunDir, snapdVarDir, "snaps/pc-kernel_1.snap"),
-	}
+	)
 	if opts.encrypted {
 		expectedFiles = append(expectedFiles, dirs.RunDir,
 			filepath.Join(dirs.RunDir, snapdVarDir, "device/fde/marker"),
@@ -737,14 +761,24 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	for _, f := range expectedFiles {
 		c.Check(f, testutil.FilePresent)
 	}
-	seedGrubCfg := filepath.Join(seedDir, "EFI/ubuntu/grub.cfg")
-	seedGrubCfgData, err := os.ReadFile(seedGrubCfg)
-	c.Assert(err, IsNil)
-	if model.HybridClassic() {
-		c.Check(string(seedGrubCfgData), testutil.Contains, `if [ "$snapd_recovery_mode" != "run" ]; then`)
-		c.Check(string(seedGrubCfgData), Not(testutil.Contains), `menuentry "Recover using`)
+	if opts.nonGrubBootloader {
+		// the system was made runnable with the non-grub bootloader
+		c.Check(nonGrubBl.BootVars["snap_kernel"], Equals, "pc-kernel_1.snap")
+
+		modeenv, err := boot.ReadModeenv(boot.InstallHostWritableDir(model))
+		c.Assert(err, IsNil)
+		c.Check(modeenv.CurrentTrustedBootAssets, HasLen, 0)
+		c.Check(modeenv.CurrentTrustedRecoveryBootAssets, HasLen, 0)
 	} else {
-		c.Check(string(seedGrubCfgData), testutil.Contains, `menuentry "Recover using`)
+		seedGrubCfg := filepath.Join(seedDir, "EFI/ubuntu/grub.cfg")
+		seedGrubCfgData, err := os.ReadFile(seedGrubCfg)
+		c.Assert(err, IsNil)
+		if model.HybridClassic() {
+			c.Check(string(seedGrubCfgData), testutil.Contains, `if [ "$snapd_recovery_mode" != "run" ]; then`)
+			c.Check(string(seedGrubCfgData), Not(testutil.Contains), `menuentry "Recover using`)
+		} else {
+			c.Check(string(seedGrubCfgData), testutil.Contains, `menuentry "Recover using`)
+		}
 	}
 
 	if opts.hasRecoveryKey {
@@ -809,6 +843,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionWithKMods
 		encrypted: false, installClassic: true, hasKernelModsComps: true})
 }
 
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionNonGrubHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted: false, installClassic: true, nonGrubBootloader: true})
+}
+
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithPassphraseAuthHappy(c *C) {
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true, volumesAuth: volumesAuth})
@@ -828,6 +867,11 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionPartialHapp
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: false, installClassic: false})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionNonGrubHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted: false, installClassic: false, nonGrubBootloader: true})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
