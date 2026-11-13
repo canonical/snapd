@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -278,6 +279,54 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 		"repeat-after":   "1h0m0s",
 		"expire-after":   "168h0m0s",
 	})
+}
+
+func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	ts := now.Add(-10 * time.Hour).UTC().Format(time.RFC3339)
+
+	// One valid notice, notices missing each of the three timestamps.
+	stateJSON := fmt.Sprintf(`{
+		"data": {}, "changes": {}, "tasks": {},
+		"notices": [
+			{"id": "1", "type": "change-update", "key": "valid",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "2", "type": "change-update", "key": "no-first-occurred",
+			 "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "3", "type": "change-update", "key": "no-last-occurred",
+			 "first-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "4", "type": "change-update", "key": "no-last-repeated",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "5", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "9h0m0s",
+			 "last-data": {"show-after": "16h", "last-shown": %[1]q}}
+		],
+		"last-change-id": 0, "last-task-id": 0, "last-lane-id": 0, "last-notice-id": 0
+	}`, ts)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal([]byte(stateJSON), st)
+	c.Assert(err, IsNil)
+	st.Unlock()
+
+	// Only the valid notice is kept.
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Key(), Equals, "valid")
+
+	// Each invalid timestamp is logged.
+	logs := logBuf.String()
+
+	c.Check(logs, Matches, `(?s).*Notice 2 \(public:change-update:no-first-occurred\) skipped due to invalid first-occurred time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 3 \(public:change-update:no-last-occurred\) skipped due to invalid last-occurred time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 4 \(public:change-update:no-last-repeated\) skipped due to invalid last-repeated time.*`)
 }
 
 func (s *noticesSuite) TestString(c *C) {
