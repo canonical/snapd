@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ apps:
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "storage-framework-service")
+	c.Check(s.iface.Name(), Equals, naming.Interface("storage-framework-service"))
 }
 
 func (s *StorageFrameworkServiceInterfaceSuite) TestAppArmorConnectedPlug(c *C) {

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // https://www.kernel.org/doc/html/latest/driver-api/uio-howto.html
@@ -47,8 +48,8 @@ const uioBaseDeclarationSlots = `
 
 type uioInterface struct{}
 
-func (iface *uioInterface) Name() string {
-	return "uio"
+func (iface *uioInterface) Name() naming.Interface {
+	return naming.Interface("uio")
 }
 
 func (iface *uioInterface) StaticInfo() interfaces.StaticInfo {

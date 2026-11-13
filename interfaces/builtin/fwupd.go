@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const fwupdSummary = `allows operating as the fwupd service`
@@ -395,8 +396,8 @@ bind
 type fwupdInterface struct{}
 
 // Name of the fwupdInterface
-func (iface *fwupdInterface) Name() string {
-	return "fwupd"
+func (iface *fwupdInterface) Name() naming.Interface {
+	return naming.Interface("fwupd")
 }
 
 func (iface *fwupdInterface) StaticInfo() interfaces.StaticInfo {

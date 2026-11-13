@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // The desktop-legacy and unity7 interfaces denies access to the contents of the .desktop files
@@ -83,8 +84,8 @@ dbus (send)
     peer=(label=unconfined),
 `
 
-func (iface *desktopLaunchInterface) Name() string {
-	return "desktop-launch"
+func (iface *desktopLaunchInterface) Name() naming.Interface {
+	return naming.Interface("desktop-launch")
 }
 
 func (iface *desktopLaunchInterface) StaticInfo() interfaces.StaticInfo {

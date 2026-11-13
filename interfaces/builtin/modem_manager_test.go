@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -74,7 +75,7 @@ func (s *ModemManagerInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *ModemManagerInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "modem-manager")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("modem-manager"))
 }
 
 // The label glob when all apps are bound to the modem-manager slot

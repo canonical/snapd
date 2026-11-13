@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -102,7 +103,7 @@ func (s *CustomDeviceInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CustomDeviceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "custom-device")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("custom-device"))
 }
 
 func (s *CustomDeviceInterfaceSuite) TestSanitizePlug(c *C) {

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces/prompting"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -39,7 +40,7 @@ type (
 	RequestMapEntry    = requestMapEntry
 )
 
-func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface string, path string, outstandingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
+func NewPrompt(id prompting.IDType, timestamp time.Time, snap string, iface naming.Interface, path string, outstandingPermissions []string, availablePermissions []string, originalPermissions []string) *Prompt {
 	constraints := &promptConstraints{
 		path:                   path,
 		outstandingPermissions: outstandingPermissions,

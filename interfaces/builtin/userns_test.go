@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,7 +67,7 @@ func (s *UserNSInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *UserNSInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "userns")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("userns"))
 }
 
 func (s *UserNSInterfaceSuite) TestSanitizePlug(c *C) {

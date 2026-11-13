@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ slots:
 }
 
 func (s *RemoteprocInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "remoteproc")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("remoteproc"))
 }
 
 func (s *RemoteprocInterfaceSuite) TestSanitizeSlot(c *C) {

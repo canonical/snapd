@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ slots:
 }
 
 func (s *loginSessionControlSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "login-session-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("login-session-control"))
 }
 
 func (s *loginSessionControlSuite) TestSanitizeSlot(c *C) {

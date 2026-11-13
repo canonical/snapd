@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -182,7 +183,7 @@ apps:
 }
 
 func (s *Pkcs11InterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "pkcs11")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("pkcs11"))
 }
 
 func (s *Pkcs11InterfaceSuite) TestSecCompPermanentSlot(c *C) {

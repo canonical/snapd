@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -84,7 +85,7 @@ func (s *PulseAudioInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *PulseAudioInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "pulseaudio")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("pulseaudio"))
 }
 
 func (s *PulseAudioInterfaceSuite) TestSanitizeSlot(c *C) {

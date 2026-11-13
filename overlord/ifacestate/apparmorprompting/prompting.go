@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/notices"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify/listener"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -52,13 +53,13 @@ type listenerBackend interface {
 // A Manager holds outstanding prompts and mediates their replies, further it
 // stores and applies persistent rules.
 type Manager interface {
-	Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error)
+	Ask(uid uint32, iface naming.Interface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error)
 	Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
 	HandleReply(userID uint32, promptID prompting.IDType, replyConstraintsJSON prompting.ConstraintsJSON, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
-	Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
-	AddRule(userID uint32, snap string, iface string, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error)
-	RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error)
+	Rules(userID uint32, snap string, iface naming.Interface) ([]*requestrules.Rule, error)
+	AddRule(userID uint32, snap string, iface naming.Interface, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error)
+	RemoveRules(userID uint32, snap string, iface naming.Interface) ([]*requestrules.Rule, error)
 	RuleWithID(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
 	PatchRule(userID uint32, ruleID prompting.IDType, constraintsPatchJSON prompting.ConstraintsJSON) (*requestrules.Rule, error)
 	RemoveRule(userID uint32, ruleID prompting.IDType) (*requestrules.Rule, error)
@@ -260,7 +261,7 @@ func (m *InterfacesRequestsManager) handleRequest(req *prompting.Request) error 
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(req.UID, req.Snap, req.Interface, req.Path, req.Permissions)
+	allowedPerms, matchedDenyRule, outstandingPerms, err := m.rules.IsRequestAllowed(req.UID, req.Snap, naming.Interface(req.Interface), req.Path, req.Permissions)
 	if err != nil || matchedDenyRule || len(outstandingPerms) == 0 {
 		switch {
 		case err != nil:
@@ -340,7 +341,7 @@ func (m *InterfacesRequestsManager) disconnect() error {
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
 // all available permissions for the given interface.
-func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
+func (m *InterfacesRequestsManager) Ask(uid uint32, iface naming.Interface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
 	replyChan := make(chan []string)
 
 	reply := func(allowedPerms []string) error {
@@ -504,7 +505,7 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	var newRule *requestrules.Rule
 	if lifespan != prompting.LifespanSingle {
 		// Check that adding the rule doesn't conflict with other rules
-		newRule, err = m.rules.AddRule(userID, prompt.Snap, prompt.Interface, constraints)
+		newRule, err = m.rules.AddRule(userID, prompt.Snap, naming.Interface(prompt.Interface), constraints)
 		if err != nil {
 			// Rule conflicts with existing rule (at least one identical pattern
 			// variant and permission). This should be considered a bad reply,
@@ -553,7 +554,7 @@ func (m *InterfacesRequestsManager) applyRuleToOutstandingPrompts(rule *requestr
 
 // Rules returns all rules for the user with the given user ID and,
 // optionally, only those for the given snap and/or interface.
-func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface naming.Interface) ([]*requestrules.Rule, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
@@ -575,7 +576,7 @@ func (m *InterfacesRequestsManager) Rules(userID uint32, snap string, iface stri
 
 // AddRule creates a new rule with the given contents and then checks it against
 // outstanding prompts, resolving any prompts which it satisfies.
-func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface string, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface naming.Interface, constraintsJSON prompting.ConstraintsJSON) (*requestrules.Rule, error) {
 	<-m.prompts.Ready()
 
 	m.lock.Lock()
@@ -596,7 +597,7 @@ func (m *InterfacesRequestsManager) AddRule(userID uint32, snap string, iface st
 
 // RemoveRules removes all rules for the user with the given user ID and the
 // given snap and/or interface. Snap and iface can't both be unspecified.
-func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface string) ([]*requestrules.Rule, error) {
+func (m *InterfacesRequestsManager) RemoveRules(userID uint32, snap string, iface naming.Interface) ([]*requestrules.Rule, error) {
 	<-m.prompts.Ready()
 
 	// The lock need only be held for reading, since no synchronization is

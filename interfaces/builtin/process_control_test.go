@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *ProcessControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *ProcessControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "process-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("process-control"))
 }
 
 func (s *ProcessControlInterfaceSuite) TestSanitizeSlot(c *C) {

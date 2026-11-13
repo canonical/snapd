@@ -129,8 +129,8 @@ type qualcomIPCRouterInterface struct {
 	commonInterface
 }
 
-func (iface *qualcomIPCRouterInterface) Name() string {
-	return "qualcomm-ipc-router"
+func (iface *qualcomIPCRouterInterface) Name() naming.Interface {
+	return naming.Interface("qualcomm-ipc-router")
 }
 
 func (iface *qualcomIPCRouterInterface) StaticInfo() interfaces.StaticInfo {

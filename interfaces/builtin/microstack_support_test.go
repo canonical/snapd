@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *microStackSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *microStackSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "microstack-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("microstack-support"))
 }
 
 func (s *microStackSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {

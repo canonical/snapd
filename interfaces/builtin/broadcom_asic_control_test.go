@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ apps:
 }
 
 func (s *BroadcomAsicControlSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "broadcom-asic-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("broadcom-asic-control"))
 }
 
 func (s *BroadcomAsicControlSuite) TestSanitizeSlot(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const networkManagerObserveBaseDeclarationSlots = `
@@ -181,8 +182,8 @@ dbus (receive)
 
 type networkManagerObserveInterface struct{}
 
-func (iface *networkManagerObserveInterface) Name() string {
-	return "network-manager-observe"
+func (iface *networkManagerObserveInterface) Name() naming.Interface {
+	return naming.Interface("network-manager-observe")
 }
 
 func (iface *networkManagerObserveInterface) StaticInfo() interfaces.StaticInfo {

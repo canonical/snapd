@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -62,7 +63,7 @@ slots:
 }
 
 func (s *HomeInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "home")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("home"))
 }
 
 func (s *HomeInterfaceSuite) TestSanitizeSlot(c *C) {

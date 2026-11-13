@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -84,7 +85,7 @@ apps:
 }
 
 func (s *MirInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "mir")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("mir"))
 }
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {

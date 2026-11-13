@@ -1602,7 +1602,7 @@ slots:
 	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.InstanceName().String(), Equals, "producer")
-	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(string(candidateSlots[0].Interface), Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 	c.Assert(arities, HasLen, 1)
 	c.Check(arities[0].SlotsPerPlugAny(), Equals, false)
@@ -1610,7 +1610,7 @@ slots:
 	candidatePlugs := repo.AutoConnectCandidatePlugs("producer", "auto", policyCheck)
 	c.Assert(candidatePlugs, HasLen, 1)
 	c.Check(candidatePlugs[0].Snap.InstanceName().String(), Equals, "consumer")
-	c.Check(candidatePlugs[0].Interface, Equals, "auto")
+	c.Check(string(candidatePlugs[0].Interface), Equals, "auto")
 	c.Check(candidatePlugs[0].Name, Equals, "auto")
 }
 
@@ -1661,7 +1661,7 @@ plugs:
 	candidateSlots, arities := repo.AutoConnectCandidateSlots("consumer1", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.InstanceName().String(), Equals, "producer")
-	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(string(candidateSlots[0].Interface), Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 	c.Assert(arities, HasLen, 1)
 	c.Check(arities[0].SlotsPerPlugAny(), Equals, false)
@@ -1669,7 +1669,7 @@ plugs:
 	candidateSlots, arities = repo.AutoConnectCandidateSlots("consumer2", "auto", policyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.InstanceName().String(), Equals, "producer")
-	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(string(candidateSlots[0].Interface), Equals, "auto")
 	c.Check(candidateSlots[0].Name, Equals, "auto")
 	c.Assert(arities, HasLen, 1)
 	c.Check(arities[0].SlotsPerPlugAny(), Equals, true)
@@ -1725,7 +1725,7 @@ plugs:
 	c.Assert(candidateSlots, HasLen, 2)
 	c.Assert(arities, HasLen, 2)
 	for i, candSlot := range candidateSlots {
-		c.Check(candSlot.Interface, Equals, "auto")
+		c.Check(string(candSlot.Interface), Equals, "auto")
 		c.Check(candSlot.Name, Equals, "auto")
 		producerName := candSlot.Snap.InstanceName().String()
 		// SideArities match

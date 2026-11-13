@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ apps:
 }
 
 func (s *RosSnapdSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ros-snapd-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ros-snapd-support"))
 }
 
 func (s *RosSnapdSupportInterfaceSuite) TestSanitizeSlot(c *C) {

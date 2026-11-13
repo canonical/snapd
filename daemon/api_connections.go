@@ -151,7 +151,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		if !filter.plugOrConnectedSlotMatches(&cref.PlugRef, nil) && !filter.slotOrConnectedPlugMatches(&cref.SlotRef, nil) {
 			continue
 		}
-		if !filter.ifaceMatches(cstate.Interface) {
+		if !filter.ifaceMatches(cstate.Interface.String()) {
 			continue
 		}
 		plugRef := interfaces.PlugRef{Snap: cref.PlugRef.Snap, Name: cref.PlugRef.Name}
@@ -164,7 +164,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 			Plug:      plugRef,
 			Manual:    !cstate.Auto,
 			Gadget:    cstate.ByGadget,
-			Interface: cstate.Interface,
+			Interface: cstate.Interface.String(),
 			PlugAttrs: mergeAttrs(cstate.StaticPlugAttrs, cstate.DynamicPlugAttrs),
 			SlotAttrs: mergeAttrs(cstate.StaticSlotAttrs, cstate.DynamicSlotAttrs),
 		}
@@ -186,7 +186,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		if !connected && filter.connected {
 			continue
 		}
-		if !filter.ifaceMatches(plug.Interface) || !filter.plugOrConnectedSlotMatches(&plugRef, connectedSlots) {
+		if !filter.ifaceMatches(string(plug.Interface)) || !filter.plugOrConnectedSlotMatches(&plugRef, connectedSlots) {
 			continue
 		}
 		var apps []string
@@ -197,7 +197,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		pj := &plugJSON{
 			Snap:        plugRef.Snap,
 			Name:        plugRef.Name,
-			Interface:   plug.Interface,
+			Interface:   string(plug.Interface),
 			Attrs:       plug.Attrs,
 			Apps:        apps,
 			Label:       plug.Label,
@@ -211,7 +211,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		if !connected && filter.connected {
 			continue
 		}
-		if !filter.ifaceMatches(slot.Interface) || !filter.slotOrConnectedPlugMatches(&slotRef, connectedPlugs) {
+		if !filter.ifaceMatches(string(slot.Interface)) || !filter.slotOrConnectedPlugMatches(&slotRef, connectedPlugs) {
 			continue
 		}
 		var apps []string
@@ -222,7 +222,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		sj := &slotJSON{
 			Snap:        slotRef.Snap,
 			Name:        slotRef.Name,
-			Interface:   slot.Interface,
+			Interface:   string(slot.Interface),
 			Attrs:       slot.Attrs,
 			Apps:        apps,
 			Label:       slot.Label,

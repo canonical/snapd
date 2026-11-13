@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -100,7 +101,7 @@ func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "greengrass-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("greengrass-support"))
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestSanitizeSlot(c *C) {

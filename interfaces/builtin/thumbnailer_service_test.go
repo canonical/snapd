@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -76,7 +77,7 @@ apps:
 }
 
 func (s *ThumbnailerServiceInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "thumbnailer-service")
+	c.Check(s.iface.Name(), Equals, naming.Interface("thumbnailer-service"))
 }
 
 func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const waylandSummary = `allows access to compositors supporting wayland protocol`
@@ -126,8 +127,8 @@ unix (send, receive) type=stream peer=(label=###SLOT_SECURITY_TAGS###),
 
 type waylandInterface struct{}
 
-func (iface *waylandInterface) Name() string {
-	return "wayland"
+func (iface *waylandInterface) Name() naming.Interface {
+	return naming.Interface("wayland")
 }
 
 func (iface *waylandInterface) StaticInfo() interfaces.StaticInfo {

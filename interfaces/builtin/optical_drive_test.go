@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -91,7 +92,7 @@ func (s *OpticalDriveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *OpticalDriveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "optical-drive")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("optical-drive"))
 }
 
 func (s *OpticalDriveInterfaceSuite) TestSanitizeSlot(c *C) {

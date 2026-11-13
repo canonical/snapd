@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *MultipassSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *MultipassSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "multipass-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("multipass-support"))
 }
 
 func (s *MultipassSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {

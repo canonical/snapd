@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -364,8 +365,8 @@ ptrace PTRACE_CONT
 
 type browserSupportInterface struct{}
 
-func (iface *browserSupportInterface) Name() string {
-	return "browser-support"
+func (iface *browserSupportInterface) Name() naming.Interface {
+	return naming.Interface("browser-support")
 }
 
 func (iface *browserSupportInterface) StaticInfo() interfaces.StaticInfo {

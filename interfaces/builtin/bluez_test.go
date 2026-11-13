@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -116,7 +117,7 @@ func (s *BluezInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *BluezInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "bluez")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("bluez"))
 }
 
 func (s *BluezInterfaceSuite) TestAppArmorSpec(c *C) {

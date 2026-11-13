@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testtime"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -1668,7 +1669,7 @@ func (s *requestpromptsSuite) testHandleNewRuleNonMatches(c *C, requestedPath, m
 
 	user := s.defaultUser
 	snap := "nextcloud"
-	iface := "home"
+	iface := naming.Interface("home")
 	metadata := &prompting.Metadata{
 		User:      user,
 		Snap:      snap,
@@ -1710,7 +1711,7 @@ func (s *requestpromptsSuite) testHandleNewRuleNonMatches(c *C, requestedPath, m
 
 	otherUser := user + 1
 	otherSnap := "ldx"
-	otherInterface := "system-files"
+	otherInterface := naming.Interface("system-files")
 	otherPattern, err := patterns.ParsePathPattern(nonMatchingPattern)
 	c.Assert(err, IsNil)
 	otherConstraints := &prompting.RuleConstraints{

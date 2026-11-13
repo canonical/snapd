@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -63,7 +64,7 @@ apps:
 }
 
 func (s *MprisInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "mpris")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("mpris"))
 }
 
 func (s *MprisInterfaceSuite) TestGetName(c *C) {

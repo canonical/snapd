@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const pulseaudioSummary = `allows operating as or interacting with the pulseaudio service`
@@ -142,8 +143,8 @@ socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
 
 type pulseAudioInterface struct{}
 
-func (iface *pulseAudioInterface) Name() string {
-	return "pulseaudio"
+func (iface *pulseAudioInterface) Name() naming.Interface {
+	return naming.Interface("pulseaudio")
 }
 
 func (iface *pulseAudioInterface) StaticInfo() interfaces.StaticInfo {

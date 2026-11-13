@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -91,7 +92,7 @@ func (s *GpioChardevInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *GpioChardevInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio-chardev")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gpio-chardev"))
 }
 
 func (s *GpioChardevInterfaceSuite) TestSanitizeSlot(c *C) {

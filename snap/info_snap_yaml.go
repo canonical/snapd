@@ -30,6 +30,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -440,7 +441,7 @@ func setPlugsFromSnapYaml(y snapYaml, snap *Info) error {
 		snap.Plugs[name] = &PlugInfo{
 			Snap:      snap,
 			Name:      name,
-			Interface: iface,
+			Interface: naming.Interface(iface),
 			Attrs:     attrs,
 			Label:     label,
 		}
@@ -461,7 +462,7 @@ func setSlotsFromSnapYaml(y snapYaml, snap *Info) error {
 		snap.Slots[name] = &SlotInfo{
 			Snap:      snap,
 			Name:      name,
-			Interface: iface,
+			Interface: naming.Interface(iface),
 			Attrs:     attrs,
 			Label:     label,
 		}
@@ -536,7 +537,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 				plug = &PlugInfo{
 					Snap:      snap,
 					Name:      plugName,
-					Interface: plugName,
+					Interface: naming.Interface(plugName),
 					Apps:      make(map[string]*AppInfo),
 				}
 				snap.Plugs[plugName] = plug
@@ -552,7 +553,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 				slot = &SlotInfo{
 					Snap:      snap,
 					Name:      slotName,
-					Interface: slotName,
+					Interface: naming.Interface(slotName),
 					Apps:      make(map[string]*AppInfo),
 				}
 				snap.Slots[slotName] = slot
@@ -632,7 +633,7 @@ func bindSlotsToHook(hook *HookInfo, slotNames []string, snap *Info, strk *scope
 			slot = &SlotInfo{
 				Snap:      snap,
 				Name:      slotName,
-				Interface: slotName,
+				Interface: naming.Interface(slotName),
 			}
 			snap.Slots[slotName] = slot
 		}
@@ -652,7 +653,7 @@ func bindPlugsToHook(hook *HookInfo, plugNames []string, snap *Info, strk *scope
 			plug = &PlugInfo{
 				Snap:      snap,
 				Name:      plugName,
-				Interface: plugName,
+				Interface: naming.Interface(plugName),
 			}
 			snap.Plugs[plugName] = plug
 		}

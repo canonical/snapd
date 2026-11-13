@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const storageFrameworkServiceSummary = `allows operating as or interacting with the Storage Framework`
@@ -114,8 +115,8 @@ bind
 
 type storageFrameworkServiceInterface struct{}
 
-func (iface *storageFrameworkServiceInterface) Name() string {
-	return "storage-framework-service"
+func (iface *storageFrameworkServiceInterface) Name() naming.Interface {
+	return naming.Interface("storage-framework-service")
 }
 
 func (iface *storageFrameworkServiceInterface) StaticInfo() interfaces.StaticInfo {

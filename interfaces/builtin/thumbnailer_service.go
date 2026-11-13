@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const thumbnailerServiceSummary = `allows operating as or interacting with the Thumbnailer service`
@@ -99,8 +100,8 @@ dbus (send)
 
 type thumbnailerServiceInterface struct{}
 
-func (iface *thumbnailerServiceInterface) Name() string {
-	return "thumbnailer-service"
+func (iface *thumbnailerServiceInterface) Name() naming.Interface {
+	return naming.Interface("thumbnailer-service")
 }
 
 func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {

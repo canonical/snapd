@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -132,7 +133,7 @@ apps:
 // TODO: add test for permanent slot when we have hook support.
 
 func (s *BoolFileInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "bool-file")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("bool-file"))
 }
 
 func (s *BoolFileInterfaceSuite) TestSanitizeSlot(c *C) {

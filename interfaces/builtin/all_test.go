@@ -456,14 +456,14 @@ var appArmorUnconfinedSlots = map[string]bool{}
 func (s *AllSuite) TestAppArmorUnconfinedPlugs(c *C) {
 	all := builtin.Interfaces()
 	for _, iface := range all {
-		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, appArmorUnconfinedPlugs[iface.Name()])
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, appArmorUnconfinedPlugs[iface.Name().String()])
 	}
 }
 
 func (s *AllSuite) TestAppArmorUnconfinedSlots(c *C) {
 	all := builtin.Interfaces()
 	for _, iface := range all {
-		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, appArmorUnconfinedSlots[iface.Name()])
+		c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedSlots, Equals, appArmorUnconfinedSlots[iface.Name().String()])
 	}
 }
 
@@ -491,7 +491,7 @@ func (s *AllSuite) TestDefinedConflictingConnectedInterfaces(c *C) {
 			// Interfaces embedding commonInterface return nil (no
 			// conflict); only record actual conflicting relations.
 			if conflicts := iface.ConflictsWithOtherConnectedInterfaces(); conflicts != nil {
-				found[i.Name()] = conflicts
+				found[i.Name().String()] = conflicts
 			}
 		}
 	}

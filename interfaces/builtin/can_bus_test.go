@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ func (s *CanBusInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CanBusInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "can-bus")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("can-bus"))
 }
 
 func (s *CanBusInterfaceSuite) TestSanitizeSlot(c *C) {

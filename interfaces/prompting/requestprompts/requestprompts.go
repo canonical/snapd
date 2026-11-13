@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -70,7 +71,7 @@ type Prompt struct {
 	Snap        string
 	PID         int32
 	Cgroup      string
-	Interface   string
+	Interface   naming.Interface
 	Constraints *promptConstraints
 	requests    []*prompting.Request
 }
@@ -99,7 +100,7 @@ func (p *Prompt) MarshalJSON() ([]byte, error) {
 		Snap:        p.Snap,
 		PID:         p.PID,
 		Cgroup:      p.Cgroup,
-		Interface:   p.Interface,
+		Interface:   p.Interface.String(),
 		Constraints: constraintsJSON,
 	}
 	return json.Marshal(toMarshal)
@@ -222,7 +223,7 @@ func (pc *promptConstraints) MarshalJSON() ([]byte, error) {
 
 // marshalForInterface marshals the prompt constraints into JSON with fields
 // corresponding to the given interface.
-func (pc *promptConstraints) marshalForInterface(iface string) ([]byte, error) {
+func (pc *promptConstraints) marshalForInterface(iface naming.Interface) ([]byte, error) {
 	switch iface {
 	case "home":
 		constraintsJSON := &promptConstraintsJSONHome{

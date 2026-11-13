@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -122,7 +123,7 @@ apps:
 }
 
 func (s *polkitInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "polkit")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("polkit"))
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugAppArmorPolkitPolicy(c *C) {

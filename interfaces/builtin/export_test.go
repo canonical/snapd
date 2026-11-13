@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -65,18 +66,21 @@ func MprisGetName(iface interfaces.Interface, attribs map[string]any) (string, e
 // MockInterfaces replaces the set of known interfaces and returns a restore function.
 func MockInterfaces(ifaces map[string]interfaces.Interface) (restore func()) {
 	old := allInterfaces
-	allInterfaces = ifaces
+	allInterfaces = make(map[naming.Interface]interfaces.Interface, len(ifaces))
+	for name, iface := range ifaces {
+		allInterfaces[naming.Interface(name)] = iface
+	}
 	return func() { allInterfaces = old }
 }
 
 // Interface returns the interface with the given name (or nil).
 func Interface(name string) interfaces.Interface {
-	return allInterfaces[name]
+	return allInterfaces[naming.Interface(name)]
 }
 
 // MustInterface returns the interface with the given name or panics.
 func MustInterface(name string) interfaces.Interface {
-	if iface, ok := allInterfaces[name]; ok {
+	if iface, ok := allInterfaces[naming.Interface(name)]; ok {
 		return iface
 	}
 	panic(fmt.Errorf("cannot find interface with name %q", name))

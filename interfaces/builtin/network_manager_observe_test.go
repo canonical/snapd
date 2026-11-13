@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -72,7 +73,7 @@ func (s *NetworkManagerObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *NetworkManagerObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "network-manager-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("network-manager-observe"))
 }
 
 func (s *NetworkManagerObserveInterfaceSuite) TestSanitizeSlot(c *C) {

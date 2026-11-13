@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *ClassicSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *ClassicSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "classic-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("classic-support"))
 }
 
 func (s *ClassicSupportInterfaceSuite) TestSanitizeSlot(c *C) {

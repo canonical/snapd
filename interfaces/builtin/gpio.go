@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const gpioSummary = `allows access to specific GPIO pin`
@@ -48,12 +49,12 @@ type gpioInterface struct{}
 
 // String returns the same value as Name().
 func (iface *gpioInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Name of the gpioInterface
-func (iface *gpioInterface) Name() string {
-	return "gpio"
+func (iface *gpioInterface) Name() naming.Interface {
+	return naming.Interface("gpio")
 }
 
 func (iface *gpioInterface) StaticInfo() interfaces.StaticInfo {

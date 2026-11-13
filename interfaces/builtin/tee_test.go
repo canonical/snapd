@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *TeeInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *TeeInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "tee")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("tee"))
 }
 
 func (s *TeeInterfaceSuite) TestSanitizeSlot(c *C) {

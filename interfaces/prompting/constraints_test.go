@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -99,7 +100,7 @@ func (s *constraintsSuite) TestDirectUnmarshal(c *C) {
 
 func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsHappy(c *C) {
 	for _, testCase := range []struct {
-		iface               string
+		iface               naming.Interface
 		constraintsJSON     prompting.ConstraintsJSON
 		isPatch             bool
 		expected            prompting.InterfaceSpecificConstraints
@@ -213,7 +214,7 @@ func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsHappy(c *C) {
 
 func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsUnhappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		isPatch         bool
 		expectedErr     string
@@ -249,7 +250,7 @@ func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsUnhappy(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		expected        *prompting.Constraints
 		expectedPattern *patterns.PathPattern
@@ -321,7 +322,7 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalConstraintsUnhappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		expectedErr     string
 	}{
@@ -651,7 +652,7 @@ func joinErrorsUnordered(errs ...string) string {
 
 func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		expected        *prompting.RuleConstraints
 		expectedPattern *patterns.PathPattern
@@ -729,7 +730,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalRuleConstraintsUnhappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		expectedErr     string
 	}{
@@ -1055,7 +1056,7 @@ func (s *constraintsSuite) TestRuleConstraintsPruneExpired(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalReplyConstraintsHappy(c *C) {
 	for _, testCase := range []struct {
-		iface       string
+		iface       naming.Interface
 		outcome     prompting.OutcomeType
 		lifespan    prompting.LifespanType
 		duration    string
@@ -1160,7 +1161,7 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraintsHappy(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalReplyConstraintsUnhappy(c *C) {
 	for _, testCase := range []struct {
-		iface       string
+		iface       naming.Interface
 		outcome     prompting.OutcomeType
 		lifespan    prompting.LifespanType
 		duration    string
@@ -1254,7 +1255,7 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraintsUnhappy(c *C) {
 			errStr: `invalid permissions for audio-record interface: "read", "write", "create", "execute"`,
 		},
 	} {
-		iface := "home"
+		iface := naming.Interface("home")
 		if testCase.iface != "" {
 			iface = testCase.iface
 		}
@@ -1274,7 +1275,7 @@ func (s *constraintsSuite) TestUnmarshalReplyConstraintsUnhappy(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		expected        *prompting.RuleConstraintsPatch
 	}{
@@ -1388,7 +1389,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 
 func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchUnhappy(c *C) {
 	for _, testCase := range []struct {
-		iface           string
+		iface           naming.Interface
 		constraintsJSON prompting.ConstraintsJSON
 		expectedErr     string
 	}{
@@ -2286,9 +2287,9 @@ func constructAppArmorPermissionsMaps() []map[string]map[string]notify.AppArmorP
 	// interfaceFilePermissionsMaps
 	filePermissionsMaps := make(map[string]map[string]notify.AppArmorPermission)
 	for iface, permsMap := range prompting.InterfaceFilePermissionsMaps {
-		filePermissionsMaps[iface] = make(map[string]notify.AppArmorPermission, len(permsMap))
+		filePermissionsMaps[iface.String()] = make(map[string]notify.AppArmorPermission, len(permsMap))
 		for perm, val := range permsMap {
-			filePermissionsMaps[iface][perm] = val
+			filePermissionsMaps[iface.String()][perm] = val
 		}
 	}
 	permissionsMaps = append(permissionsMaps, filePermissionsMaps)
@@ -2344,6 +2345,7 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	// interface's permissions map.
 	// Also, check that each priority only occurs once.
 	for iface, perms := range prompting.InterfacePermissionsAvailable {
+		ifaceStr := iface.String()
 		availablePerms, err := prompting.AvailablePermissions(iface)
 		c.Check(err, IsNil, Commentf("interface from interfacePermissionsAvailable not found by AvailablePermissions: %s", iface))
 		c.Check(perms, Not(HasLen), 0, Commentf("interface has no available permissions: %s", iface))
@@ -2351,7 +2353,7 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 		found := false
 		// Interface should either be in a permission map...
 		for _, permsMaps := range permissionsMaps {
-			pMap, exists := permsMaps[iface]
+			pMap, exists := permsMaps[ifaceStr]
 			if !exists {
 				continue
 			}
@@ -2365,7 +2367,7 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 			}
 		}
 		// ...or be a non-AppArmor interface
-		if strutil.ListContains(prompting.NonAppArmorInterfaces, iface) {
+		if strutil.ListContains(prompting.NonAppArmorInterfaces, ifaceStr) {
 			c.Check(found, Equals, false, Commentf("interface found in more than one map of interface permissions maps: %s", iface))
 			found = true
 		}
@@ -2377,7 +2379,7 @@ func (s *constraintsSuite) TestInterfacesAndPermissionsCompleteness(c *C) {
 	// interfacePermissionsAvailable.
 	for _, permsMap := range permissionsMaps {
 		for iface := range permsMap {
-			_, ok := prompting.InterfacePermissionsAvailable[iface]
+			_, ok := prompting.InterfacePermissionsAvailable[naming.Interface(iface)]
 			c.Check(ok, Equals, true, Commentf("interface missing from interfacePermissionsAvailable: %s", iface))
 		}
 	}
@@ -2410,7 +2412,7 @@ func (s *constraintsSuite) TestAvailablePermissions(c *C) {
 
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
-		iface string
+		iface naming.Interface
 		perms notify.AppArmorPermission
 		list  []string
 	}{
@@ -2479,7 +2481,7 @@ func (p fakeAaPerm) String() string {
 
 func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy(c *C) {
 	for _, testCase := range []struct {
-		iface  string
+		iface  naming.Interface
 		perms  notify.AppArmorPermission
 		errStr string
 	}{
@@ -2504,7 +2506,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 		c.Check(err, ErrorMatches, testCase.errStr)
 	}
 	for _, testCase := range []struct {
-		iface    string
+		iface    naming.Interface
 		perms    notify.AppArmorPermission
 		abstract []string
 		errStr   string
@@ -2539,7 +2541,7 @@ func (s *constraintsSuite) TestAbstractPermissionsFromAppArmorPermissionsUnhappy
 
 func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *C) {
 	cases := []struct {
-		iface string
+		iface naming.Interface
 		list  []string
 		perms notify.AppArmorPermission
 	}{
@@ -2595,7 +2597,7 @@ func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsHappy(c *
 
 func (s *constraintsSuite) TestAbstractPermissionsToAppArmorPermissionsUnhappy(c *C) {
 	cases := []struct {
-		iface  string
+		iface  naming.Interface
 		perms  []string
 		errStr string
 	}{

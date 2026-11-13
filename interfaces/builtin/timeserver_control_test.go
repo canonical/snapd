@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ slots:
 }
 
 func (s *TimeserverControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "timeserver-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("timeserver-control"))
 }
 
 func (s *TimeserverControlInterfaceSuite) TestStaticInfo(c *C) {

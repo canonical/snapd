@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *nomadSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *nomadSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "nomad-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("nomad-support"))
 }
 
 func (s *nomadSupportInterfaceSuite) TestSanitizeSlot(c *C) {

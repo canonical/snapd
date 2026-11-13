@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const ubuntuDownloadManagerSummary = `allows operating as or interacting with the Ubuntu download manager`
@@ -197,8 +198,8 @@ owner @{HOME}/snap/###PLUG_NAME###/common/Downloads/**  rwk,
 
 type ubuntuDownloadManagerInterface struct{}
 
-func (iface *ubuntuDownloadManagerInterface) Name() string {
-	return "ubuntu-download-manager"
+func (iface *ubuntuDownloadManagerInterface) Name() naming.Interface {
+	return naming.Interface("ubuntu-download-manager")
 }
 
 func (iface *ubuntuDownloadManagerInterface) StaticInfo() interfaces.StaticInfo {
@@ -209,7 +210,7 @@ func (iface *ubuntuDownloadManagerInterface) StaticInfo() interfaces.StaticInfo 
 }
 
 func (iface *ubuntuDownloadManagerInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 func (iface *ubuntuDownloadManagerInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

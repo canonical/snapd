@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *rosOptDataInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *rosOptDataInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ros-opt-data")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ros-opt-data"))
 }
 
 func (s *rosOptDataInterfaceSuite) TestSanitizeSlot(c *C) {

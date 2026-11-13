@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,7 +50,7 @@ var _ = Suite(&LibvirtInterfaceSuite{
 })
 
 func (s *LibvirtInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "libvirt")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("libvirt"))
 }
 
 func (s *LibvirtInterfaceSuite) TestSanitizePlug(c *C) {

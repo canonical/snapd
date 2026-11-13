@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -91,7 +92,7 @@ apps:
 }
 
 func (s *uioInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "uio")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("uio"))
 }
 
 func (s *uioInterfaceSuite) TestSanitizeSlot(c *C) {

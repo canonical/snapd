@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -421,7 +422,7 @@ apps:
 }
 
 func (s *SerialPortInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "serial-port")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("serial-port"))
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {

@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -59,7 +60,7 @@ type Rule struct {
 	Timestamp   time.Time                  `json:"timestamp"`
 	User        uint32                     `json:"user"`
 	Snap        string                     `json:"snap"`
-	Interface   string                     `json:"interface"`
+	Interface   naming.Interface           `json:"interface"`
 	Constraints *prompting.RuleConstraints `json:"constraints"`
 }
 
@@ -76,7 +77,7 @@ func (rule *Rule) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &intermediate); err != nil {
 		return err
 	}
-	constraints, err := prompting.UnmarshalRuleConstraints(intermediate.Interface, intermediate.Constraints)
+	constraints, err := prompting.UnmarshalRuleConstraints(naming.Interface(intermediate.Interface), intermediate.Constraints)
 	if err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func (rule *Rule) UnmarshalJSON(data []byte) error {
 	rule.Timestamp = intermediate.Timestamp
 	rule.User = intermediate.User
 	rule.Snap = intermediate.Snap
-	rule.Interface = intermediate.Interface
+	rule.Interface = naming.Interface(intermediate.Interface)
 	rule.Constraints = constraints
 	return nil
 }
@@ -149,7 +150,7 @@ type interfaceDB struct {
 // interface for the snap associated with the snap DB.
 type snapDB struct {
 	// snapDB contains a map from interface to interfaceDB for a particular snap
-	PerInterface map[string]*interfaceDB
+	PerInterface map[naming.Interface]*interfaceDB
 }
 
 // userDB stores a map from snap name to the DB of rules pertaining to that
@@ -365,7 +366,7 @@ func (rdb *RuleDB) save() error {
 // indicating whether it exists. If an error occurs, returns it.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) lookupRuleByPathPattern(user uint32, snap string, iface string, constraints *prompting.RuleConstraints) (*Rule, bool, error) {
+func (rdb *RuleDB) lookupRuleByPathPattern(user uint32, snap string, iface naming.Interface, constraints *prompting.RuleConstraints) (*Rule, bool, error) {
 	interfaceDB := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
 	if interfaceDB == nil {
 		return nil, false, nil
@@ -864,7 +865,7 @@ func joinInternalErrors(errs []error) error {
 // given user, snap, interface, and permission, if it exists, or nil if not.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
+func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap string, iface naming.Interface, permission string) *permissionDB {
 	interfaceRules := rdb.interfaceDBForUserSnapInterface(user, snap, iface)
 	if interfaceRules == nil {
 		return nil
@@ -880,7 +881,7 @@ func (rdb *RuleDB) permissionDBForUserSnapInterfacePermission(user uint32, snap 
 // snap, and interface, if it exists, or nil if not.
 //
 // The caller must ensure that the database lock is held.
-func (rdb *RuleDB) interfaceDBForUserSnapInterface(user uint32, snap string, iface string) *interfaceDB {
+func (rdb *RuleDB) interfaceDBForUserSnapInterface(user uint32, snap string, iface naming.Interface) *interfaceDB {
 	userRules := rdb.perUser[user]
 	if userRules == nil {
 		return nil
@@ -901,7 +902,7 @@ func (rdb *RuleDB) interfaceDBForUserSnapInterface(user uint32, snap string, ifa
 // does not yet exist.
 //
 // The caller must ensure that the database lock is held for writing.
-func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32, snap string, iface string, permission string) *permissionDB {
+func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32, snap string, iface naming.Interface, permission string) *permissionDB {
 	userSnaps := rdb.perUser[user]
 	if userSnaps == nil {
 		userSnaps = &userDB{
@@ -912,7 +913,7 @@ func (rdb *RuleDB) ensurePermissionDBForUserSnapInterfacePermission(user uint32,
 	snapInterfaces := userSnaps.PerSnap[snap]
 	if snapInterfaces == nil {
 		snapInterfaces = &snapDB{
-			PerInterface: make(map[string]*interfaceDB),
+			PerInterface: make(map[naming.Interface]*interfaceDB),
 		}
 		userSnaps.PerSnap[snap] = snapInterfaces
 	}
@@ -1025,7 +1026,7 @@ func (rdb *RuleDB) readOrAssignUserSessionID(user uint32) (userSessionID prompti
 // Creates a rule with the given information and adds it to the rule database.
 // If any of the given parameters are invalid, returns an error. Otherwise,
 // returns the newly-added rule, and saves the database to disk.
-func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *prompting.Constraints) (*Rule, error) {
+func (rdb *RuleDB) AddRule(user uint32, snap string, iface naming.Interface, constraints *prompting.Constraints) (*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 
@@ -1064,7 +1065,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 // constraints are converted to rule constraints at the given point in time.
 //
 // The caller is expected to validate the constraints and interface.
-func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, at prompting.At) *Rule {
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface naming.Interface, constraints *prompting.Constraints, at prompting.At) *Rule {
 	ruleConstraints := constraints.ToRuleConstraints(at)
 
 	newRule := Rule{
@@ -1085,7 +1086,7 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 // allowedPerms. If any permissions are denied, then returns anyDenied as true.
 // If any of the given permissions were not matched by an existing rule, then
 // they are returned as outstandingPerms. If an error occurred, returns it.
-func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
+func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface naming.Interface, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
 	allowedPerms = make([]string, 0, len(permissions))
 	outstandingPerms = make([]string, 0, len(permissions))
 	currSession, err := ReadOrAssignUserSessionID(rdb, user)
@@ -1123,7 +1124,7 @@ var isPathPermAllowed = (*RuleDB).isPathPermAllowed
 // at the given point in time.
 //
 // If no rule applies, returns prompting_errors.ErrNoMatchingRule.
-func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface string, path string, permission string, at prompting.At) (bool, error) {
+func (rdb *RuleDB) isPathPermAllowed(user uint32, snap string, iface naming.Interface, path string, permission string, at prompting.At) (bool, error) {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	permissionMap := rdb.permissionDBForUserSnapInterfacePermission(user, snap, iface, permission)
@@ -1230,7 +1231,7 @@ func (rdb *RuleDB) RulesForSnap(user uint32, snap string) []*Rule {
 
 // RulesForInterface returns all rules which apply to the given user and
 // interface.
-func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
+func (rdb *RuleDB) RulesForInterface(user uint32, iface naming.Interface) []*Rule {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	ruleFilter := func(rule *Rule) bool {
@@ -1241,7 +1242,7 @@ func (rdb *RuleDB) RulesForInterface(user uint32, iface string) []*Rule {
 
 // RulesForSnapInterface returns all rules which apply to the given user, snap,
 // and interface.
-func (rdb *RuleDB) RulesForSnapInterface(user uint32, snap string, iface string) []*Rule {
+func (rdb *RuleDB) RulesForSnapInterface(user uint32, snap string, iface naming.Interface) []*Rule {
 	rdb.mutex.RLock()
 	defer rdb.mutex.RUnlock()
 	ruleFilter := func(rule *Rule) bool {
@@ -1364,7 +1365,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 
 // RemoveRulesForInterface removes all rules pertaining to the given interface
 // for the user with the given user ID.
-func (rdb *RuleDB) RemoveRulesForInterface(user uint32, iface string) ([]*Rule, error) {
+func (rdb *RuleDB) RemoveRulesForInterface(user uint32, iface naming.Interface) ([]*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	ruleFilter := func(rule *Rule) bool {
@@ -1379,7 +1380,7 @@ func (rdb *RuleDB) RemoveRulesForInterface(user uint32, iface string) ([]*Rule, 
 
 // RemoveRulesForSnapInterface removes all rules pertaining to the given snap
 // and interface for the user with the given user ID.
-func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface string) ([]*Rule, error) {
+func (rdb *RuleDB) RemoveRulesForSnapInterface(user uint32, snap string, iface naming.Interface) ([]*Rule, error) {
 	rdb.mutex.Lock()
 	defer rdb.mutex.Unlock()
 	ruleFilter := func(rule *Rule) bool {

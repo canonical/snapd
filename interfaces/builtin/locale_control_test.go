@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ apps:
 }
 
 func (s *LocaleControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "locale-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("locale-control"))
 }
 
 func (s *LocaleControlInterfaceSuite) TestSanitizeSlot(c *C) {

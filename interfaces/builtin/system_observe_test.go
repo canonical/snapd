@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -70,7 +71,7 @@ func (s *SystemObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *SystemObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("system-observe"))
 }
 
 func (s *SystemObserveInterfaceSuite) TestSanitizeSlot(c *C) {

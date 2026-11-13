@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const dbusSummary = `allows owning a specific name on DBus`
@@ -224,8 +225,8 @@ func (iface *dbusInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) 
 	return errParallelInstancesUniqueResourceOwner
 }
 
-func (iface *dbusInterface) Name() string {
-	return "dbus"
+func (iface *dbusInterface) Name() naming.Interface {
+	return naming.Interface("dbus")
 }
 
 func (iface *dbusInterface) StaticInfo() interfaces.StaticInfo {

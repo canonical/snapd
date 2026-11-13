@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -70,7 +71,7 @@ slots:
 }
 
 func (s *personalFilesInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "personal-files")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("personal-files"))
 }
 
 func (s *personalFilesInterfaceSuite) TestConnectedPlugAppArmorHappy(c *C) {

@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -66,23 +67,23 @@ type hotplugSuite struct {
 
 type hotplugTasksWitness struct {
 	seenHooks              map[string]string
-	seenHotplugRemoveKeys  map[snap.HotplugKey]string
-	seenHotplugConnectKeys map[snap.HotplugKey]string
-	seenHotplugUpdateKeys  map[snap.HotplugKey]string
-	seenHotplugAddKeys     map[snap.HotplugKey]string
+	seenHotplugRemoveKeys  map[snap.HotplugKey]naming.Interface
+	seenHotplugConnectKeys map[snap.HotplugKey]naming.Interface
+	seenHotplugUpdateKeys  map[snap.HotplugKey]naming.Interface
+	seenHotplugAddKeys     map[snap.HotplugKey]naming.Interface
 	seenTasks              map[string]int
-	hotplugDisconnects     map[snap.HotplugKey]string
+	hotplugDisconnects     map[snap.HotplugKey]naming.Interface
 	connects               []string
 	disconnects            []string
 }
 
 func (w *hotplugTasksWitness) checkTasks(c *C, st *state.State) {
 	w.seenTasks = make(map[string]int)
-	w.seenHotplugRemoveKeys = make(map[snap.HotplugKey]string)
-	w.seenHotplugConnectKeys = make(map[snap.HotplugKey]string)
-	w.seenHotplugUpdateKeys = make(map[snap.HotplugKey]string)
-	w.seenHotplugAddKeys = make(map[snap.HotplugKey]string)
-	w.hotplugDisconnects = make(map[snap.HotplugKey]string)
+	w.seenHotplugRemoveKeys = make(map[snap.HotplugKey]naming.Interface)
+	w.seenHotplugConnectKeys = make(map[snap.HotplugKey]naming.Interface)
+	w.seenHotplugUpdateKeys = make(map[snap.HotplugKey]naming.Interface)
+	w.seenHotplugAddKeys = make(map[snap.HotplugKey]naming.Interface)
+	w.hotplugDisconnects = make(map[snap.HotplugKey]naming.Interface)
 	w.seenHooks = make(map[string]string)
 	for _, t := range st.Tasks() {
 		c.Check(t.Status(), Equals, state.DoneStatus)
@@ -281,7 +282,7 @@ func testHotplugTaskAttrs(c *C, t *state.Task, ifaceName, hotplugKey string) {
 	iface, key, err := ifacestate.GetHotplugAttrs(t)
 	c.Assert(err, IsNil)
 	c.Assert(key, Equals, snap.HotplugKey(hotplugKey))
-	c.Assert(iface, Equals, ifaceName)
+	c.Assert(iface, Equals, naming.Interface(ifaceName))
 }
 
 func testByHotplugTaskFlag(c *C, t *state.Task) {
@@ -306,8 +307,8 @@ func (s *hotplugSuite) TestHotplugAddBasic(c *C) {
 	var hp hotplugTasksWitness
 	hp.checkTasks(c, st)
 	c.Check(hp.seenTasks, DeepEquals, map[string]int{"hotplug-seq-wait": 2, "hotplug-add-slot": 2, "hotplug-connect": 2})
-	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a", "key-2": "test-b"})
 	c.Check(hp.seenHooks, HasLen, 0)
 	c.Check(hp.connects, HasLen, 0)
 
@@ -413,11 +414,11 @@ func (s *hotplugSuite) TestHotplugAddWithDefaultKey(c *C) {
 	c.Check(hp.seenHooks, HasLen, 0)
 	c.Check(hp.connects, HasLen, 0)
 	testIfaceDkey := keyHelper("ID_VENDOR_ID\x00vendor\x00ID_MODEL_ID\x00model\x00ID_SERIAL_SHORT\x00serial\x00")
-	c.Assert(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{
+	c.Assert(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{
 		"key-1":       "test-a",
 		"key-2":       "test-b",
 		testIfaceDkey: "test-d"})
-	c.Assert(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{
+	c.Assert(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{
 		"key-1":       "test-a",
 		"key-2":       "test-b",
 		testIfaceDkey: "test-d"})
@@ -466,8 +467,8 @@ func (s *hotplugSuite) TestHotplugAddWithAutoconnect(c *C) {
 	hp.checkTasks(c, st)
 	c.Check(hp.seenTasks, DeepEquals, map[string]int{"hotplug-seq-wait": 2, "hotplug-add-slot": 2, "hotplug-connect": 2, "connect": 1})
 	c.Check(hp.seenHooks, DeepEquals, map[string]string{"prepare-plug-plug": "consumer", "connect-plug-plug": "consumer"})
-	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a", "key-2": "test-b"})
 	c.Check(hp.connects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 
 	// make sure slots have been created in the repo
@@ -559,8 +560,8 @@ func (s *hotplugSuite) TestHotplugRemove(c *C) {
 	var hp hotplugTasksWitness
 	hp.checkTasks(c, st)
 	c.Check(hp.seenHooks, DeepEquals, map[string]string{"disconnect-plug-plug": "consumer"})
-	c.Check(hp.seenHotplugRemoveKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
-	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
+	c.Check(hp.seenHotplugRemoveKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a"})
+	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a"})
 	c.Check(hp.seenTasks, DeepEquals, map[string]int{"hotplug-seq-wait": 1, "hotplug-disconnect": 1, "disconnect": 1, "hotplug-remove-slot": 1})
 	c.Check(hp.disconnects, DeepEquals, []string{"consumer:plug core:hotplugslot"})
 
@@ -743,10 +744,10 @@ func (s *hotplugSuite) TestHotplugDeviceUpdate(c *C) {
 		"disconnect-plug-plug": "consumer",
 		"prepare-plug-plug":    "consumer",
 		"connect-plug-plug":    "consumer"})
-	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
-	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a", "key-2": "test-b"})
-	c.Check(hp.seenHotplugUpdateKeys, DeepEquals, map[snap.HotplugKey]string{"key-1": "test-a"})
+	c.Check(hp.hotplugDisconnects, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a"})
+	c.Check(hp.seenHotplugAddKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugConnectKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a", "key-2": "test-b"})
+	c.Check(hp.seenHotplugUpdateKeys, DeepEquals, map[snap.HotplugKey]naming.Interface{"key-1": "test-a"})
 	c.Check(hp.connects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 	c.Check(hp.disconnects, DeepEquals, []string{"consumer:plug core:hotplugslot-a"})
 

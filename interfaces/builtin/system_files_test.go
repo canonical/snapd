@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -68,7 +69,7 @@ slots:
 }
 
 func (s *systemFilesInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-files")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("system-files"))
 }
 
 func (s *systemFilesInterfaceSuite) TestConnectedPlugAppArmor(c *C) {

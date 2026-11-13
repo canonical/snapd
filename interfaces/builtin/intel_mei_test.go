@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *IntelMEISuite) SetUpTest(c *C) {
 }
 
 func (s *IntelMEISuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "intel-mei")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("intel-mei"))
 }
 
 func (s *IntelMEISuite) TestSanitizeSlot(c *C) {

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -75,7 +76,7 @@ func (s *QrtrInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *QrtrInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "qualcomm-ipc-router")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("qualcomm-ipc-router"))
 }
 
 func (s *QrtrInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -336,7 +337,7 @@ apps:
 }
 
 func (s *QrtrInterfaceCompatSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "qualcomm-ipc-router")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("qualcomm-ipc-router"))
 }
 
 func (s *QrtrInterfaceCompatSuite) TestSanitizeSlot(c *C) {

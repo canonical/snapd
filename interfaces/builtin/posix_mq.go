@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -103,8 +104,8 @@ func (iface *posixMQInterface) StaticInfo() interfaces.StaticInfo {
 	}
 }
 
-func (iface *posixMQInterface) Name() string {
-	return "posix-mq"
+func (iface *posixMQInterface) Name() naming.Interface {
+	return naming.Interface("posix-mq")
 }
 
 func (iface *posixMQInterface) checkPosixMQAppArmorSupport() error {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ slots:
 }
 
 func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "removable-media")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("removable-media"))
 }
 
 func (s *RemovableMediaInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ slots:
 }
 
 func (s *DcdbasControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "dcdbas-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("dcdbas-control"))
 }
 
 func (s *DcdbasControlInterfaceSuite) TestSanitizeSlot(c *C) {

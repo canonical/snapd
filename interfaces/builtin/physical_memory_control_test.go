@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *PhysicalMemoryControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "physical-memory-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("physical-memory-control"))
 }
 
 func (s *PhysicalMemoryControlInterfaceSuite) TestSanitizeSlot(c *C) {

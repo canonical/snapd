@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const unity8PimCommonPermanentSlotAppArmor = `
@@ -112,8 +113,8 @@ type unity8PimCommonInterface struct {
 	connectedPlugAppArmor string
 }
 
-func (iface *unity8PimCommonInterface) Name() string {
-	return iface.name
+func (iface *unity8PimCommonInterface) Name() naming.Interface {
+	return naming.Interface(iface.name)
 }
 
 func (iface *unity8PimCommonInterface) StaticInfo() interfaces.StaticInfo {

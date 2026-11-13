@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const avahiObserveSummary = `allows discovery on a local network via the mDNS/DNS-SD protocol suite`
@@ -414,8 +415,8 @@ dbus (receive)
 
 type avahiObserveInterface struct{}
 
-func (iface *avahiObserveInterface) Name() string {
-	return "avahi-observe"
+func (iface *avahiObserveInterface) Name() naming.Interface {
+	return naming.Interface("avahi-observe")
 }
 
 func (iface *avahiObserveInterface) StaticInfo() interfaces.StaticInfo {

@@ -149,8 +149,8 @@ func (m *InterfaceManager) hotplugDeviceAdded(devinfo *hotplug.HotplugDeviceInfo
 	gadgetSlotsByInterface := make(map[string][]*snap.SlotInfo)
 	if gadget != nil {
 		for _, gadgetSlot := range gadget.Slots {
-			if _, ok := hotplugIfaces[gadgetSlot.Interface]; ok {
-				gadgetSlotsByInterface[gadgetSlot.Interface] = append(gadgetSlotsByInterface[gadgetSlot.Interface], gadgetSlot)
+			if _, ok := hotplugIfaces[string(gadgetSlot.Interface)]; ok {
+				gadgetSlotsByInterface[string(gadgetSlot.Interface)] = append(gadgetSlotsByInterface[string(gadgetSlot.Interface)], gadgetSlot)
 			}
 		}
 	}
@@ -161,7 +161,7 @@ InterfacesLoop:
 		hotplugHandler := iface.(hotplug.Definer)
 
 		// ignore device that is already handled by a gadget slot
-		if gadgetSlots, ok := gadgetSlotsByInterface[iface.Name()]; ok {
+		if gadgetSlots, ok := gadgetSlotsByInterface[iface.Name().String()]; ok {
 			for _, gslot := range gadgetSlots {
 				if pred, ok := iface.(hotplug.HandledByGadgetPredicate); ok {
 					if pred.HandledByGadget(devinfo, gslot) {
@@ -266,7 +266,7 @@ func (m *InterfaceManager) hotplugDeviceRemoved(devinfo *hotplug.HotplugDeviceIn
 	for _, dev := range devs {
 		hotplugKey := dev.hotplugKey
 		ifaceName := dev.ifaceName
-		slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+		slot, err := m.repo.SlotForHotplugKey(naming.Interface(ifaceName), hotplugKey)
 		if err != nil {
 			logger.Noticef("internal error: cannot obtain slot for hotplug interface %q, hotplug key %q: %v", ifaceName, hotplugKey, err)
 			continue
@@ -436,7 +436,7 @@ func hotplugSlotName(hotplugKey snap.HotplugKey, systemSnapInstanceName naming.I
 }
 
 // updateDevice creates tasks to disconnect slots of given device and update the slot in the repository.
-func updateDevice(st *state.State, ifaceName string, hotplugKey snap.HotplugKey, newAttrs map[string]any) *state.TaskSet {
+func updateDevice(st *state.State, ifaceName naming.Interface, hotplugKey snap.HotplugKey, newAttrs map[string]any) *state.TaskSet {
 	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %q, hotplug key %q", ifaceName, hotplugKey.ShortString()))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)
 
@@ -449,7 +449,7 @@ func updateDevice(st *state.State, ifaceName string, hotplugKey snap.HotplugKey,
 }
 
 // removeDevice creates tasks to disconnect slots of given device and remove affected slots.
-func removeDevice(st *state.State, ifaceName string, hotplugKey snap.HotplugKey) *state.TaskSet {
+func removeDevice(st *state.State, ifaceName naming.Interface, hotplugKey snap.HotplugKey) *state.TaskSet {
 	// hotplug-disconnect task will create hooks and disconnect the slot
 	hotplugDisconnect := st.NewTask("hotplug-disconnect", fmt.Sprintf("Disable connections of interface %q, hotplug key %q", ifaceName, hotplugKey.ShortString()))
 	setHotplugAttrs(hotplugDisconnect, ifaceName, hotplugKey)

@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -60,7 +61,7 @@ func (s *KernelModuleObserveInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *KernelModuleObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "kernel-module-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("kernel-module-observe"))
 }
 
 func (s *KernelModuleObserveInterfaceSuite) TestSanitizeSlot(c *C) {

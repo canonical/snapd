@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const serialPortSummary = `allows accessing a specific serial port`
@@ -48,8 +49,8 @@ const serialPortBaseDeclarationSlots = `
 type serialPortInterface struct{}
 
 // Name of the serial-port interface.
-func (iface *serialPortInterface) Name() string {
-	return "serial-port"
+func (iface *serialPortInterface) Name() naming.Interface {
+	return naming.Interface("serial-port")
 }
 
 func (iface *serialPortInterface) StaticInfo() interfaces.StaticInfo {
@@ -60,7 +61,7 @@ func (iface *serialPortInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *serialPortInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // Pattern to match allowed serial device nodes, path attributes will be

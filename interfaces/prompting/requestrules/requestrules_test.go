@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/interfaces/prompting/requestrules"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1047,7 +1048,7 @@ func (s *requestrulesSuite) TestReadOrAssignUserSessionIDConcurrent(c *C) {
 type addRuleContents struct {
 	User        uint32
 	Snap        string
-	Interface   string
+	Interface   naming.Interface
 	PathPattern string
 	Permissions []string
 	Outcome     prompting.OutcomeType
@@ -1613,7 +1614,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 
 		user := s.defaultUser
 		snap := "firefox"
-		iface := "home"
+		iface := naming.Interface("home")
 		pathPattern := mustParsePathPattern(c, "/path/to/foo/ba{r,z}/**")
 
 		// Add all the rules
@@ -1825,7 +1826,7 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 
 	user := s.defaultUser
 	snap := "firefox"
-	iface := "home"
+	iface := naming.Interface("home")
 
 	constraints1 := &prompting.Constraints{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
@@ -1912,7 +1913,7 @@ func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
 
 	user := uint32(1234)
 	snap := "firefox"
-	iface := "powerful"
+	iface := naming.Interface("powerful")
 	path := "/path/to/something"
 
 	for _, testCase := range []struct {
@@ -2013,7 +2014,7 @@ func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
 	} {
 		before := time.Now()
 
-		restore := requestrules.MockIsPathPermAllowed(func(r *requestrules.RuleDB, u uint32, s string, i string, p string, perm string, at prompting.At) (bool, error) {
+		restore := requestrules.MockIsPathPermAllowed(func(r *requestrules.RuleDB, u uint32, s string, i naming.Interface, p string, perm string, at prompting.At) (bool, error) {
 			c.Assert(r, Equals, rdb)
 			c.Assert(u, Equals, user)
 			c.Assert(s, Equals, snap)
@@ -2043,7 +2044,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
-	iface := "home"
+	iface := naming.Interface("home")
 	path := "/home/test/path/to/file.txt"
 	permission := "read"
 
@@ -2154,7 +2155,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedPrecedence(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
-	iface := "home"
+	iface := naming.Interface("home")
 	path := "/home/test/Documents/foo/bar/baz/file.txt"
 	permission := "read"
 
@@ -2223,7 +2224,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
-	iface := "home"
+	iface := naming.Interface("home")
 	path := "/home/test/Documents/foo/bar/baz/file.txt"
 	permission := "read"
 
@@ -2308,7 +2309,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
-	iface := "home"
+	iface := naming.Interface("home")
 	path := "/home/test/Documents/foo/bar/baz/file.txt"
 	permission := "read"
 

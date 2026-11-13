@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ apps:
 }
 
 func (s *UbuntuProControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ubuntu-pro-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ubuntu-pro-control"))
 }
 
 func (s *UbuntuProControlInterfaceSuite) TestSanitize(c *C) {

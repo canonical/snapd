@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -194,7 +195,7 @@ apps:
 }
 
 func (s *spiInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "spi")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("spi"))
 }
 
 func (s *spiInterfaceSuite) TestSanitizeSlot(c *C) {

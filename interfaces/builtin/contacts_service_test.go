@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ apps:
 }
 
 func (s *ContactsServiceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "contacts-service")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("contacts-service"))
 }
 
 func (s *ContactsServiceInterfaceSuite) TestSanitize(c *C) {

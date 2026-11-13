@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/strutil"
@@ -59,8 +60,8 @@ type userNSInterface struct {
 	commonInterface
 }
 
-func (iface *userNSInterface) Name() string {
-	return "userns"
+func (iface *userNSInterface) Name() naming.Interface {
+	return naming.Interface("userns")
 }
 
 func (iface *userNSInterface) userNSAppArmorSupported() (bool, error) {

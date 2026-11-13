@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -68,7 +69,7 @@ func (s *systemPackagesDocSuite) TearDownTest(c *C) {
 }
 
 func (s *systemPackagesDocSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-packages-doc")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("system-packages-doc"))
 }
 
 func (s *systemPackagesDocSuite) TestSanitizeSlot(c *C) {

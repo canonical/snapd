@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -75,7 +76,7 @@ func (s *KernelSchedExtControlInterfaceSuite) TestAutoConnect(c *C) {
 }
 
 func (s *KernelSchedExtControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "kernel-sched-ext-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("kernel-sched-ext-control"))
 }
 
 func (s *KernelSchedExtControlInterfaceSuite) TestSanitizeSlot(c *C) {

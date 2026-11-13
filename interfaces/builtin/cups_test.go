@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -81,7 +82,7 @@ func (s *cupsSuite) SetUpTest(c *C) {
 }
 
 func (s *cupsSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "cups")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("cups"))
 }
 
 func (s *cupsSuite) TestSanitizeSlot(c *C) {

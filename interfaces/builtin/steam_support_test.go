@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *SteamSupportInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *SteamSupportInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "steam-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("steam-support"))
 }
 
 func (s *SteamSupportInterfaceSuite) TestSanitizeSlot(c *C) {

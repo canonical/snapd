@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,7 +67,7 @@ func (s *RawUsbInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *RawUsbInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "raw-usb")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("raw-usb"))
 }
 
 func (s *RawUsbInterfaceSuite) TestSanitizeSlot(c *C) {

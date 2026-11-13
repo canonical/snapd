@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // evalSymlinks is either filepath.EvalSymlinks or a mocked function
@@ -126,8 +127,8 @@ var _ = interfaces.ParallelInstancesPlugDefiner(&commonInterface{})
 var _ = interfaces.ParallelInstancesSlotDefiner(&commonInterface{})
 
 // Name returns the interface name.
-func (iface *commonInterface) Name() string {
-	return iface.name
+func (iface *commonInterface) Name() naming.Interface {
+	return naming.Interface(iface.name)
 }
 
 // StaticInfo returns various meta-data about this interface.

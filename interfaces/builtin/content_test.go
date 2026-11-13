@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -52,7 +53,7 @@ var _ = Suite(&ContentSuite{
 })
 
 func (s *ContentSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "content")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("content"))
 }
 
 func (s *ContentSuite) TestSanitizeSlotSimple(c *C) {

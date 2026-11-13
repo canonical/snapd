@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -92,7 +93,7 @@ apps:
 }
 
 func (s *UPowerObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "upower-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("upower-observe"))
 }
 
 func (s *UPowerObserveInterfaceSuite) TestSanitizeSlot(c *C) {

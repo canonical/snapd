@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -68,7 +69,7 @@ func (s *Unity7InterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *Unity7InterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "unity7")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("unity7"))
 }
 
 func (s *Unity7InterfaceSuite) TestSanitizeSlot(c *C) {

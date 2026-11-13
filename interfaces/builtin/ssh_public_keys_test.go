@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *SshPublicKeysInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *SshPublicKeysInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ssh-public-keys")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ssh-public-keys"))
 }
 
 func (s *SshPublicKeysInterfaceSuite) TestSanitizeSlot(c *C) {

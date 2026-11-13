@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -88,7 +89,7 @@ func (s *OpenglDriverLibsInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "opengl-driver-libs")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("opengl-driver-libs"))
 }
 
 func (s *OpenglDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ func (s *GpioMemoryControlInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *GpioMemoryControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio-memory-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gpio-memory-control"))
 }
 
 func (s *GpioMemoryControlInterfaceSuite) TestSanitizeSlot(c *C) {

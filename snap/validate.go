@@ -729,7 +729,7 @@ func plugsSlotsInterfacesNames(info *Info) error {
 		if err := ValidatePlugName(plugName); err != nil {
 			return err
 		}
-		if err := ValidateInterfaceName(plug.Interface); err != nil {
+		if err := ValidateInterfaceName(string(plug.Interface)); err != nil {
 			return fmt.Errorf("invalid interface name %q for plug %q", plug.Interface, plugName)
 		}
 	}
@@ -737,7 +737,7 @@ func plugsSlotsInterfacesNames(info *Info) error {
 		if err := ValidateSlotName(slotName); err != nil {
 			return err
 		}
-		if err := ValidateInterfaceName(slot.Interface); err != nil {
+		if err := ValidateInterfaceName(string(slot.Interface)); err != nil {
 			return fmt.Errorf("invalid interface name %q for slot %q", slot.Interface, slotName)
 		}
 	}
@@ -1360,7 +1360,7 @@ type SimplePrereqTracker struct{}
 
 // InterfaceRepo can return all the known slots for an interface.
 type InterfaceRepo interface {
-	AllSlots(interfaceName string) []*SlotInfo
+	AllSlots(interfaceName naming.Interface) []*SlotInfo
 }
 
 // Add implements snapstate.PrereqTracker.
@@ -1387,7 +1387,7 @@ func contentIfaceAvailable(repo InterfaceRepo) map[string]bool {
 	if repo == nil {
 		return nil
 	}
-	contentSlots := repo.AllSlots("content")
+	contentSlots := repo.AllSlots(naming.Interface("content"))
 	avail := make(map[string]bool, len(contentSlots))
 	for _, slot := range contentSlots {
 		var contentTag string

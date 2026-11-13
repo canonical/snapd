@@ -1732,7 +1732,7 @@ func isSnapSlotAutoConnectAllowed(st *state.State, snapID string, slot *snap.Slo
 		return true, nil
 	}
 
-	option, err := getAllowOptionAsString(slot.Interface, tr)
+	option, err := getAllowOptionAsString(string(slot.Interface), tr)
 	if err != nil {
 		return false, err
 	}
@@ -2112,7 +2112,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
-	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	slot, err := m.repo.SlotForHotplugKey(naming.Interface(ifaceName), hotplugKey)
 	if err != nil {
 		return err
 	}
@@ -2122,7 +2122,7 @@ func (m *InterfaceManager) doHotplugConnect(task *state.Task, _ *tomb.Tomb) erro
 
 	// find old connections for slots of this device - note we can't ask the repository since we need
 	// to recreate old connections that are only remembered in the state.
-	connsForDevice := findConnsForHotplugKey(conns, ifaceName, hotplugKey)
+	connsForDevice := findConnsForHotplugKey(conns, naming.Interface(ifaceName), hotplugKey)
 
 	conflictError := func(retry *state.Retry, err error) error {
 		if retry != nil {
@@ -2229,7 +2229,7 @@ func (m *InterfaceManager) doHotplugUpdateSlot(task *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: cannot obtain hotplug slots: %v", err)
 	}
 
-	slot, err := m.repo.UpdateHotplugSlotAttrs(ifaceName, hotplugKey, attrs)
+	slot, err := m.repo.UpdateHotplugSlotAttrs(naming.Interface(ifaceName), hotplugKey, attrs)
 	if err != nil {
 		return err
 	}
@@ -2257,7 +2257,7 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
-	slot, err := m.repo.SlotForHotplugKey(ifaceName, hotplugKey)
+	slot, err := m.repo.SlotForHotplugKey(naming.Interface(ifaceName), hotplugKey)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot determine slots: %v", err)
 	}
@@ -2274,7 +2274,7 @@ func (m *InterfaceManager) doHotplugRemoveSlot(task *state.Task, _ *tomb.Tomb) e
 
 	// remove the slot from hotplug-slots in the state as long as there are no connections referencing it,
 	// including connection with hotplug-gone=true.
-	slotDef := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+	slotDef := findHotplugSlot(stateSlots, naming.Interface(ifaceName), hotplugKey)
 	if slotDef == nil {
 		return fmt.Errorf("internal error: cannot find hotplug slot for interface %s, hotplug key %q", ifaceName, hotplugKey)
 	}
@@ -2308,7 +2308,7 @@ func (m *InterfaceManager) doHotplugDisconnect(task *state.Task, _ *tomb.Tomb) e
 		return fmt.Errorf("internal error: cannot get hotplug task attributes: %s", err)
 	}
 
-	connections, err := m.repo.ConnectionsForHotplugKey(ifaceName, hotplugKey)
+	connections, err := m.repo.ConnectionsForHotplugKey(naming.Interface(ifaceName), hotplugKey)
 	if err != nil {
 		return err
 	}
@@ -2380,12 +2380,12 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error obtaining hotplug slots: %v", err.Error())
 	}
 
-	iface := m.repo.Interface(ifaceName)
+	iface := m.repo.Interface(naming.Interface(ifaceName))
 	if iface == nil {
 		return fmt.Errorf("internal error: cannot find interface %s", ifaceName)
 	}
 
-	slot := findHotplugSlot(stateSlots, ifaceName, hotplugKey)
+	slot := findHotplugSlot(stateSlots, naming.Interface(ifaceName), hotplugKey)
 
 	// if we know this slot already, restore / update it.
 	if slot != nil {
@@ -2396,7 +2396,7 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 				Name:       slot.Name,
 				Label:      proposedSlot.Label,
 				Snap:       systemSnap,
-				Interface:  ifaceName,
+				Interface: naming.Interface(ifaceName),
 				Attrs:      proposedSlot.Attrs,
 				HotplugKey: hotplugKey,
 			}
@@ -2414,12 +2414,12 @@ func (m *InterfaceManager) doHotplugAddSlot(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// New slot.
-	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), proposedSlot.Name, iface.Name(), &devinfo, m.repo, stateSlots)
+	slotName := hotplugSlotName(hotplugKey, systemSnap.InstanceName(), proposedSlot.Name, iface.Name().String(), &devinfo, m.repo, stateSlots)
 	newSlot := &snap.SlotInfo{
 		Name:       slotName,
 		Label:      proposedSlot.Label,
 		Snap:       systemSnap,
-		Interface:  iface.Name(),
+		Interface: naming.Interface(iface.Name()),
 		Attrs:      proposedSlot.Attrs,
 		HotplugKey: hotplugKey,
 	}

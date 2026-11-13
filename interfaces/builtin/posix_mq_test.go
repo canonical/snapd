@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -753,7 +754,7 @@ func (s *PosixMQInterfaceSuite) TestInvalidPerms3(c *C) {
 }
 
 func (s *PosixMQInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "posix-mq")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("posix-mq"))
 }
 
 func (s *PosixMQInterfaceSuite) TestNoAppArmor(c *C) {

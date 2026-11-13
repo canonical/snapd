@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const mprisSummary = `allows operating as an MPRIS player`
@@ -170,8 +171,8 @@ dbus (receive)
 
 type mprisInterface struct{}
 
-func (iface *mprisInterface) Name() string {
-	return "mpris"
+func (iface *mprisInterface) Name() naming.Interface {
+	return naming.Interface("mpris")
 }
 
 func (iface *mprisInterface) StaticInfo() interfaces.StaticInfo {

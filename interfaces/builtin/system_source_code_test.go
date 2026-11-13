@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *systemSourceCodeSuite) TearDownTest(c *C) {
 }
 
 func (s *systemSourceCodeSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "system-source-code")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("system-source-code"))
 }
 
 func (s *systemSourceCodeSuite) TestSanitizeSlot(c *C) {

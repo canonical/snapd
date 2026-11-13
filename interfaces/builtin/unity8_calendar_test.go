@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -66,7 +67,7 @@ apps:
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "unity8-calendar")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("unity8-calendar"))
 }
 
 func (s *Unity8CalendarInterfaceSuite) TestSanitizePlug(c *C) {

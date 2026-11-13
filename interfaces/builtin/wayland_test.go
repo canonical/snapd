@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -80,7 +81,7 @@ func (s *WaylandInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *WaylandInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "wayland")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("wayland"))
 }
 
 func (s *WaylandInterfaceSuite) TestSanitizeSlot(c *C) {

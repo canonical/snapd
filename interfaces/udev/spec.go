@@ -162,7 +162,7 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 	type definer interface {
 		UDevConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
-	ifname := iface.Name()
+	ifname := iface.Name().String()
 	if iface, ok := iface.(definer); ok {
 		tags, err := spec.appSet.SecurityTagsForConnectedPlug(plug)
 		if err != nil {
@@ -182,7 +182,7 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 	type definer interface {
 		UDevConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
-	ifname := iface.Name()
+	ifname := iface.Name().String()
 	if iface, ok := iface.(definer); ok {
 		tags, err := spec.appSet.SecurityTagsForConnectedSlot(slot)
 		if err != nil {
@@ -202,7 +202,7 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 	type definer interface {
 		UDevPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
-	ifname := iface.Name()
+	ifname := iface.Name().String()
 	if iface, ok := iface.(definer); ok {
 		tags, err := spec.appSet.SecurityTagsForPlug(plug)
 		if err != nil {
@@ -222,7 +222,7 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 	type definer interface {
 		UDevPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
-	ifname := iface.Name()
+	ifname := iface.Name().String()
 	if iface, ok := iface.(definer); ok {
 		tags, err := spec.appSet.SecurityTagsForSlot(slot)
 		if err != nil {

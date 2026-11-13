@@ -1598,7 +1598,7 @@ type testParallelInstancesPlugRejectingInterface struct {
 	ifacetest.TestInterface
 }
 
-func (t *testParallelInstancesPlugRejectingInterface) Name() string {
+func (t *testParallelInstancesPlugRejectingInterface) Name() naming.Interface {
 	return "pi-nok-plug-iface"
 }
 
@@ -1612,7 +1612,7 @@ type testParallelInstancesSlotRejectingInterface struct {
 	ifacetest.TestInterface
 }
 
-func (t *testParallelInstancesSlotRejectingInterface) Name() string {
+func (t *testParallelInstancesSlotRejectingInterface) Name() naming.Interface {
 	return "pi-nok-slot-iface"
 }
 
@@ -1626,7 +1626,7 @@ type testParallelInstancesSupportedInterface struct {
 	ifacetest.TestInterface
 }
 
-func (t *testParallelInstancesSupportedInterface) Name() string {
+func (t *testParallelInstancesSupportedInterface) Name() naming.Interface {
 	return "pi-ok-iface"
 }
 

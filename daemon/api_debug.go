@@ -373,7 +373,7 @@ func getFeatures(c *Command) Response {
 	ifaces := c.d.overlord.InterfaceManager().Repository().AllInterfaces()
 	inames := make([]string, 0, len(ifaces))
 	for _, iface := range ifaces {
-		inames = append(inames, iface.Name())
+		inames = append(inames, iface.Name().String())
 	}
 	changes := swfeats.KnownChangeKinds()
 

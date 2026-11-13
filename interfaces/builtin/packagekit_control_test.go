@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ apps:
 }
 
 func (s *PackageKitControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "packagekit-control")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("packagekit-control"))
 }
 
 func (s *PackageKitControlInterfaceSuite) TestSanitize(c *C) {

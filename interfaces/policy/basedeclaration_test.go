@@ -190,14 +190,14 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	}
 
 	for _, iface := range all {
-		if snowflakes[iface.Name()] {
+		if snowflakes[iface.Name().String()] {
 			continue
 		}
-		expected := autoconnect[iface.Name()]
-		comm := Commentf(iface.Name())
+		expected := autoconnect[iface.Name().String()]
+		comm := Commentf(iface.Name().String())
 
 		// check base declaration
-		cand := s.connectCand(c, iface.Name(), "", "")
+		cand := s.connectCand(c, iface.Name().String(), "", "")
 		arity, err := cand.CheckAutoConnect()
 		if expected {
 			c.Check(err, IsNil, comm)
@@ -219,18 +219,18 @@ func (s *baseDeclSuite) TestAutoConnectionImplicitSlotOnly(c *C) {
 	}
 
 	for _, iface := range all {
-		if !autoconnect[iface.Name()] {
+		if !autoconnect[iface.Name().String()] {
 			continue
 		}
-		comm := Commentf(iface.Name())
+		comm := Commentf(iface.Name().String())
 
 		// check base declaration
-		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+		cand := s.connectCand(c, iface.Name().String(), fmt.Sprintf(`name: snapd
 type: snapd
 version: 0
 slots:
   %s:
-`, iface.Name()), "")
+`, iface.Name().String()), "")
 		arity, err := cand.CheckAutoConnect()
 		c.Check(err, IsNil, comm)
 		c.Check(arity.SlotsPerPlugAny(), Equals, false)
@@ -253,7 +253,7 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	}
 
 	for _, iface := range all {
-		if snowflakes[iface.Name()] {
+		if snowflakes[iface.Name().String()] {
 			continue
 		}
 		c.Check(iface.AutoConnect(nil, nil), Equals, true)
@@ -784,11 +784,11 @@ plugs:
 		"hardware-observe":      true,
 	}
 	for _, iface := range all {
-		if !plugged[iface.Name()] {
+		if !plugged[iface.Name().String()] {
 			continue
 		}
 
-		cand := s.connectCand(c, iface.Name(), "", "")
+		cand := s.connectCand(c, iface.Name().String(), "", "")
 		cand.PlugSnapDeclaration = snapDecl
 		arity, err := cand.CheckAutoConnect()
 		c.Check(err, IsNil)
@@ -921,7 +921,7 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	all := builtin.Interfaces()
 
 	for _, iface := range all {
-		types, ok := slotInstallation[iface.Name()]
+		types, ok := slotInstallation[iface.Name().String()]
 		if !ok { // common ones, only core can install them,
 			types = []string{"core"}
 		}
@@ -936,9 +936,9 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 		}
 		for name, snapType := range snapTypeMap {
 			ok := strutil.ListContains(types, name)
-			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
+			ic := s.installSlotCand(c, iface.Name().String(), snapType, ``)
 			err := ic.Check()
-			comm := Commentf("%s by %s snap", iface.Name(), name)
+			comm := Commentf("%s by %s snap", iface.Name().String(), name)
 			if ok {
 				c.Check(err, IsNil, comm)
 			} else {
@@ -1139,7 +1139,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	}
 
 	for _, iface := range all {
-		types, ok := restrictedPlugInstallation[iface.Name()]
+		types, ok := restrictedPlugInstallation[iface.Name().String()]
 		// If plug installation is restricted to specific snap types we
 		// need to make sure this is really the case here. If that is not
 		// the case we continue as normal.
@@ -1150,9 +1150,9 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 			c.Assert(interfaces.StaticInfoOf(iface).AppArmorUnconfinedPlugs, Equals, false)
 			for name, snapType := range snapTypeMap {
 				ok := strutil.ListContains(types, name)
-				ic := s.installPlugCand(c, iface.Name(), snapType, ``)
+				ic := s.installPlugCand(c, iface.Name().String(), snapType, ``)
 				err := ic.Check()
-				comm := Commentf("%s by %s snap", iface.Name(), name)
+				comm := Commentf("%s by %s snap", iface.Name().String(), name)
 				if ok {
 					c.Check(err, IsNil, comm)
 				} else {
@@ -1160,10 +1160,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 				}
 			}
 		} else {
-			ic := s.installPlugCand(c, iface.Name(), snap.TypeApp, ``)
+			ic := s.installPlugCand(c, iface.Name().String(), snap.TypeApp, ``)
 			err := ic.Check()
-			comm := Commentf("%s", iface.Name())
-			if restricted[iface.Name()] {
+			comm := Commentf("%s", iface.Name().String())
+			if restricted[iface.Name().String()] {
 				c.Check(err, NotNil, comm)
 			} else {
 				c.Check(err, IsNil, comm)
@@ -1211,11 +1211,11 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	}
 
 	for _, iface := range all {
-		expected := !noconnect[iface.Name()]
-		comm := Commentf(iface.Name())
+		expected := !noconnect[iface.Name().String()]
+		comm := Commentf(iface.Name().String())
 
 		// check base declaration
-		cand := s.connectCand(c, iface.Name(), "", "")
+		cand := s.connectCand(c, iface.Name().String(), "", "")
 		err := cand.Check()
 
 		if expected {
@@ -1238,18 +1238,18 @@ func (s *baseDeclSuite) TestConnectionImplicitSlotOnly(c *C) {
 	}
 
 	for _, iface := range all {
-		if !autoconnect[iface.Name()] {
+		if !autoconnect[iface.Name().String()] {
 			continue
 		}
-		comm := Commentf(iface.Name())
+		comm := Commentf(iface.Name().String())
 
 		// check base declaration
-		cand := s.connectCand(c, iface.Name(), fmt.Sprintf(`name: snapd
+		cand := s.connectCand(c, iface.Name().String(), fmt.Sprintf(`name: snapd
 type: snapd
 version: 0
 slots:
   %s:
-`, iface.Name()), "")
+`, iface.Name().String()), "")
 		err := cand.Check()
 		c.Check(err, IsNil, comm)
 	}
@@ -1274,14 +1274,14 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	for _, onClassic := range []bool{true, false} {
 		release.OnClassic = onClassic
 		for _, iface := range all {
-			if !noconnect[iface.Name()] {
+			if !noconnect[iface.Name().String()] {
 				continue
 			}
 			expected := onClassic
-			comm := Commentf(iface.Name())
+			comm := Commentf(iface.Name().String())
 
 			// check base declaration
-			cand := s.connectCand(c, iface.Name(), "", "")
+			cand := s.connectCand(c, iface.Name().String(), "", "")
 			err := cand.Check()
 
 			if expected {
@@ -1327,10 +1327,10 @@ func (s *baseDeclSuite) TestConnectionImplicitOnClassicOrAppSnap(c *C) {
 	}
 
 	for _, iface := range all {
-		if !ifaces[iface.Name()] {
+		if !ifaces[iface.Name().String()] {
 			continue
 		}
-		comm := Commentf(iface.Name())
+		comm := Commentf(iface.Name().String())
 
 		// verify the interface is setup as expected wrt
 		// implicitOnCore, implicitOnClassic, no plugs and has
@@ -1367,7 +1367,7 @@ version: 0
 type: %s
 slots:
   %s:
-`, snapType, iface.Name())
+`, snapType, iface.Name().String())
 
 				// XXX: eventually 'onClassic && !implicit' but
 				// the current declaration allows connection on
@@ -1376,7 +1376,7 @@ slots:
 				expected := onClassic
 
 				// check base declaration
-				cand := s.connectCand(c, iface.Name(), slotYaml, "")
+				cand := s.connectCand(c, iface.Name().String(), slotYaml, "")
 				err := cand.Check()
 
 				if expected {
@@ -1474,12 +1474,12 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		plugRule := s.baseDecl.PlugRule(iface.Name())
 		slotRule := s.baseDecl.SlotRule(iface.Name())
 		if plugRule == nil && slotRule == nil {
-			c.Logf("%s is not considered in the base declaration", iface.Name())
+			c.Logf("%s is not considered in the base declaration", iface.Name().String())
 			c.Fail()
 		}
 		if plugRule != nil && slotRule != nil {
-			if !bothSides[iface.Name()] {
-				c.Logf("%s have both a base declaration slot rule and plug rule, make sure that's intended and correct", iface.Name())
+			if !bothSides[iface.Name().String()] {
+				c.Logf("%s have both a base declaration slot rule and plug rule, make sure that's intended and correct", iface.Name().String())
 				c.Fail()
 			}
 		}

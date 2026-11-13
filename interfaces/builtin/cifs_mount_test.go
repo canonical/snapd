@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ func (s *CifsMountInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CifsMountInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "cifs-mount")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("cifs-mount"))
 }
 
 func (s *CifsMountInterfaceSuite) TestSanitizeSlot(c *C) {

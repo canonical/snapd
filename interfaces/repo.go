@@ -37,9 +37,9 @@ import (
 type Repository struct {
 	// Protects the internals from concurrent access.
 	m      sync.Mutex
-	ifaces map[string]Interface
+	ifaces map[naming.Interface]Interface
 	// subset of ifaces that implement HotplugDeviceAdded method
-	hotplugIfaces map[string]Interface
+	hotplugIfaces map[naming.Interface]Interface
 	// indexed by [instanceName][plugName]
 	plugs map[naming.InstanceName]map[string]*snap.PlugInfo
 	slots map[naming.InstanceName]map[string]*snap.SlotInfo
@@ -52,7 +52,7 @@ type Repository struct {
 	appSets map[naming.InstanceName]*SnapAppSet
 	// indexed by [ifaceName1][ifaceName2] indicates that interface "ifaceName1"
 	// cannot be connected if interface "ifaceName2" already has a connection
-	conflictingConnectedInterfaces map[string]map[string]bool
+	conflictingConnectedInterfaces map[naming.Interface]map[naming.Interface]bool
 }
 
 // defaultIfaceDocURLTemplate is used as template for generating the default interface
@@ -62,14 +62,14 @@ const defaultIfaceDocURLTemplate = "https://snapcraft.io/docs/%s-interface"
 // NewRepository creates an empty plug repository.
 func NewRepository() *Repository {
 	repo := &Repository{
-		ifaces:                         make(map[string]Interface),
-		hotplugIfaces:                  make(map[string]Interface),
+		ifaces:                         make(map[naming.Interface]Interface),
+		hotplugIfaces:                  make(map[naming.Interface]Interface),
 		plugs:                          make(map[naming.InstanceName]map[string]*snap.PlugInfo),
 		slots:                          make(map[naming.InstanceName]map[string]*snap.SlotInfo),
 		slotPlugs:                      make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection),
 		plugSlots:                      make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection),
 		appSets:                        make(map[naming.InstanceName]*SnapAppSet),
-		conflictingConnectedInterfaces: make(map[string]map[string]bool),
+		conflictingConnectedInterfaces: make(map[naming.Interface]map[naming.Interface]bool),
 	}
 
 	return repo
@@ -77,18 +77,18 @@ func NewRepository() *Repository {
 
 func ResetRepository(repo *Repository) {
 	osutil.MustBeTestBinary("cannot use the ResetRepository method outside of tests")
-	repo.ifaces = make(map[string]Interface)
-	repo.hotplugIfaces = make(map[string]Interface)
+	repo.ifaces = make(map[naming.Interface]Interface)
+	repo.hotplugIfaces = make(map[naming.Interface]Interface)
 	repo.plugs = make(map[naming.InstanceName]map[string]*snap.PlugInfo)
 	repo.slots = make(map[naming.InstanceName]map[string]*snap.SlotInfo)
 	repo.slotPlugs = make(map[*snap.SlotInfo]map[*snap.PlugInfo]*Connection)
 	repo.plugSlots = make(map[*snap.PlugInfo]map[*snap.SlotInfo]*Connection)
 	repo.appSets = make(map[naming.InstanceName]*SnapAppSet)
-	repo.conflictingConnectedInterfaces = map[string]map[string]bool{}
+	repo.conflictingConnectedInterfaces = map[naming.Interface]map[naming.Interface]bool{}
 }
 
 // Interface returns an interface with a given name.
-func (r *Repository) Interface(interfaceName string) Interface {
+func (r *Repository) Interface(interfaceName naming.Interface) Interface {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -101,7 +101,7 @@ func (r *Repository) AddInterface(i Interface) error {
 	defer r.m.Unlock()
 
 	interfaceName := i.Name()
-	if err := snap.ValidateInterfaceName(interfaceName); err != nil {
+	if err := snap.ValidateInterfaceName(string(interfaceName)); err != nil {
 		return err
 	}
 	if _, ok := r.ifaces[interfaceName]; ok {
@@ -115,24 +115,24 @@ func (r *Repository) AddInterface(i Interface) error {
 
 	if iface, ok := i.(ConflictingConnectedInterfacesDefiner); ok {
 		for _, otherInterfaceName := range iface.ConflictsWithOtherConnectedInterfaces() {
-			if otherInterfaceName == interfaceName {
+			if otherInterfaceName == string(interfaceName) {
 				return fmt.Errorf("internal error: cannot define mutually exclusive connection relation for the %q interface with itself", interfaceName)
 			}
 
 			if r.conflictingConnectedInterfaces[interfaceName] == nil {
-				r.conflictingConnectedInterfaces[interfaceName] = make(map[string]bool)
+				r.conflictingConnectedInterfaces[interfaceName] = make(map[naming.Interface]bool)
 			}
-			if r.conflictingConnectedInterfaces[otherInterfaceName] == nil {
-				r.conflictingConnectedInterfaces[otherInterfaceName] = make(map[string]bool)
+			if r.conflictingConnectedInterfaces[naming.Interface(otherInterfaceName)] == nil {
+				r.conflictingConnectedInterfaces[naming.Interface(otherInterfaceName)] = make(map[naming.Interface]bool)
 			}
-			if r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] {
+			if r.conflictingConnectedInterfaces[interfaceName][naming.Interface(otherInterfaceName)] {
 				// mutually exclusive connection relation was already defined in one of the
 				// interfaces, to avoid ambiguity of having multiple ways of defining the
 				// relation, only allow one interface to define the relation.
 				return fmt.Errorf("internal error: mutually exclusive connection relation between %[1]q and %[2]q was already defined by %[2]q", interfaceName, otherInterfaceName)
 			}
-			r.conflictingConnectedInterfaces[interfaceName][otherInterfaceName] = true
-			r.conflictingConnectedInterfaces[otherInterfaceName][interfaceName] = true
+			r.conflictingConnectedInterfaces[interfaceName][naming.Interface(otherInterfaceName)] = true
+			r.conflictingConnectedInterfaces[naming.Interface(otherInterfaceName)][interfaceName] = true
 		}
 	}
 
@@ -159,7 +159,7 @@ func (r *Repository) AllHotplugInterfaces() map[string]Interface {
 
 	ifaces := make(map[string]Interface)
 	for _, iface := range r.hotplugIfaces {
-		ifaces[iface.Name()] = iface
+		ifaces[iface.Name().String()] = iface
 	}
 	return ifaces
 }
@@ -184,7 +184,7 @@ func (r *Repository) interfaceInfo(iface Interface, opts *InfoOptions) *Info {
 	si := StaticInfoOf(iface)
 	ifaceName := iface.Name()
 	ii := &Info{
-		Name:    ifaceName,
+		Name:    ifaceName.String(),
 		Summary: si.Summary,
 	}
 	if opts != nil && opts.Doc {
@@ -236,14 +236,14 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 		for _, plugMap := range r.slotPlugs {
 			for plug, conn := range plugMap {
 				if conn != nil {
-					connected[plug.Interface] = true
+					connected[plug.Interface.String()] = true
 				}
 			}
 		}
 		for _, slotMap := range r.plugSlots {
 			for slot, conn := range slotMap {
 				if conn != nil {
-					connected[slot.Interface] = true
+					connected[slot.Interface.String()] = true
 				}
 			}
 		}
@@ -253,7 +253,7 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 	var names []string
 	if opts == nil || len(opts.Names) == 0 {
 		for _, iface := range r.ifaces {
-			name := iface.Name()
+			name := iface.Name().String()
 			if connected == nil || connected[name] {
 				// Optionally filter out interfaces without connections.
 				names = append(names, name)
@@ -268,7 +268,7 @@ func (r *Repository) Info(opts *InfoOptions) []*Info {
 	// Query each interface we are interested in.
 	infos := make([]*Info, 0, len(names))
 	for _, name := range names {
-		if iface, ok := r.ifaces[name]; ok {
+		if iface, ok := r.ifaces[naming.Interface(name)]; ok {
 			if connected == nil || connected[name] {
 				infos = append(infos, r.interfaceInfo(iface, opts))
 			}
@@ -293,8 +293,8 @@ func (r *Repository) AddBackend(backend SecurityBackend) error {
 }
 
 // AllPlugs returns all plugs of the given interface.
-// If interfaceName is the empty string, all plugs are returned.
-func (r *Repository) AllPlugs(interfaceName string) []*snap.PlugInfo {
+// If interfaceName is empty, all plugs are returned.
+func (r *Repository) AllPlugs(interfaceName naming.Interface) []*snap.PlugInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -375,8 +375,8 @@ func (r *Repository) Connection(connRef *ConnRef) (*Connection, error) {
 }
 
 // AllSlots returns all slots of the given interface.
-// If interfaceName is the empty string, all slots are returned.
-func (r *Repository) AllSlots(interfaceName string) []*snap.SlotInfo {
+// If interfaceName is empty, all slots are returned.
+func (r *Repository) AllSlots(interfaceName naming.Interface) []*snap.SlotInfo {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -767,7 +767,7 @@ func (r *Repository) connected(instanceName naming.InstanceName, plugOrSlotName 
 }
 
 // ConnectionsForHotplugKey returns all hotplug connections for given interface name and hotplug key.
-func (r *Repository) ConnectionsForHotplugKey(ifaceName string, hotplugKey snap.HotplugKey) ([]*ConnRef, error) {
+func (r *Repository) ConnectionsForHotplugKey(ifaceName naming.Interface, hotplugKey snap.HotplugKey) ([]*ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -790,7 +790,7 @@ func (r *Repository) ConnectionsForHotplugKey(ifaceName string, hotplugKey snap.
 
 // SlotForHotplugKey returns a hotplug slot for given interface name and hotplug key or nil
 // if there is no slot.
-func (r *Repository) SlotForHotplugKey(ifaceName string, hotplugKey snap.HotplugKey) (*snap.SlotInfo, error) {
+func (r *Repository) SlotForHotplugKey(ifaceName naming.Interface, hotplugKey snap.HotplugKey) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -809,7 +809,7 @@ func (r *Repository) SlotForHotplugKey(ifaceName string, hotplugKey snap.Hotplug
 
 // UpdateHotplugSlotAttrs updates static attributes of hotplug slot associated with given hotplugkey, and returns the resulting
 // slot. Slots can only be updated if not connected to any plug.
-func (r *Repository) UpdateHotplugSlotAttrs(ifaceName string, hotplugKey snap.HotplugKey, staticAttrs map[string]any) (*snap.SlotInfo, error) {
+func (r *Repository) UpdateHotplugSlotAttrs(ifaceName naming.Interface, hotplugKey snap.HotplugKey, staticAttrs map[string]any) (*snap.SlotInfo, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 

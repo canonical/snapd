@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const modemManagerSummary = `allows operating as the ModemManager service`
@@ -1338,8 +1339,8 @@ LABEL="mm_candidate_end"
 
 type modemManagerInterface struct{}
 
-func (iface *modemManagerInterface) Name() string {
-	return "modem-manager"
+func (iface *modemManagerInterface) Name() naming.Interface {
+	return naming.Interface("modem-manager")
 }
 
 func (iface *modemManagerInterface) StaticInfo() interfaces.StaticInfo {

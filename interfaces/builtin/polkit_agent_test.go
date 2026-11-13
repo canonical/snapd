@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ apps:
 }
 
 func (s *PolkitAgentSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "polkit-agent")
+	c.Check(s.iface.Name(), Equals, naming.Interface("polkit-agent"))
 }
 
 func (s *PolkitAgentSuite) TestStaticInfo(c *C) {

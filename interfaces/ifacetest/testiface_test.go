@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type TestInterfaceSuite struct {
@@ -72,7 +73,7 @@ func (s *TestInterfaceSuite) SetUpTest(c *C) {
 
 // TestInterface has a working Name() function
 func (s *TestInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "test")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("test"))
 }
 
 func (s *TestInterfaceSuite) TestStaticInfo(c *C) {
@@ -188,7 +189,7 @@ func (s *TestInterfaceSuite) TestHotplugKeyError(c *C) {
 		},
 	}
 
-	c.Assert(iface.Name(), Equals, "test")
+	c.Assert(iface.Name(), Equals, naming.Interface("test"))
 
 	dev := &hotplug.HotplugDeviceInfo{}
 	key, err := iface.HotplugKey(dev)

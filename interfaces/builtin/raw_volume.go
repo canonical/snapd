@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const rawVolumeSummary = `allows read/write access to specific disk partition`
@@ -71,8 +72,8 @@ capability sys_admin,
 type rawVolumeInterface struct{}
 
 // Getter for the name of this interface
-func (iface *rawVolumeInterface) Name() string {
-	return "raw-volume"
+func (iface *rawVolumeInterface) Name() naming.Interface {
+	return naming.Interface("raw-volume")
 }
 
 func (iface *rawVolumeInterface) StaticInfo() interfaces.StaticInfo {
@@ -83,7 +84,7 @@ func (iface *rawVolumeInterface) StaticInfo() interfaces.StaticInfo {
 }
 
 func (iface *rawVolumeInterface) String() string {
-	return iface.Name()
+	return iface.Name().String()
 }
 
 // https://www.kernel.org/doc/Documentation/admin-guide/devices.txt

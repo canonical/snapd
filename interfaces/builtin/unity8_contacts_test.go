@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -68,7 +69,7 @@ apps:
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "unity8-contacts")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("unity8-contacts"))
 }
 
 func (s *Unity8ContactsInterfaceSuite) TestSanitizePlug(c *C) {

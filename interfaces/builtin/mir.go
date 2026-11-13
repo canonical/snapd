@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const mirSummary = `allows operating as the Mir server`
@@ -101,8 +102,8 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 
 type mirInterface struct{}
 
-func (iface *mirInterface) Name() string {
-	return "mir"
+func (iface *mirInterface) Name() naming.Interface {
+	return naming.Interface("mir")
 }
 
 func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {

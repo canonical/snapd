@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/apparmorprompting"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -421,11 +422,11 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 	}
 	snapName := securityTag.InstanceName()
 
-	if errorResp := validateSnapHasInterfaceConnection(c.d, snapName, postBody.Interface); errorResp != nil {
+	if errorResp := validateSnapHasInterfaceConnection(c.d, snapName, naming.Interface(postBody.Interface)); errorResp != nil {
 		return errorResp
 	}
 
-	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, postBody.Interface, snapName, postBody.PID, cgroupPath)
+	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, naming.Interface(postBody.Interface), snapName, postBody.PID, cgroupPath)
 	if err != nil {
 		return promptingError(err)
 	}
@@ -441,7 +442,7 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 // connected plug with the given interface. If the connections cannot be
 // retrieved or parsed or there is no such connection, then returns an error
 // response.
-func validateSnapHasInterfaceConnection(d *Daemon, snapName, iface string) Response {
+func validateSnapHasInterfaceConnection(d *Daemon, snapName string, iface naming.Interface) Response {
 	st := d.state
 	st.Lock()
 	defer st.Unlock()
@@ -572,7 +573,7 @@ func getRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	snap := query.Get("snap")
 	iface := query.Get("interface")
 
-	rules, err := getInterfaceManager(c).InterfacesRequestsManager().Rules(userID, snap, iface)
+	rules, err := getInterfaceManager(c).InterfacesRequestsManager().Rules(userID, snap, naming.Interface(iface))
 	if err != nil {
 		// Should be impossible, Rules() always returns nil error
 		return promptingError(err)
@@ -612,7 +613,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		if postBody.AddRule.Interface == "" {
 			return promptingError(prompting_errors.NewMissingFieldError("interface", `must have non-empty "interface" field`))
 		}
-		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints)
+		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, naming.Interface(postBody.AddRule.Interface), postBody.AddRule.Constraints)
 		if err != nil {
 			return promptingError(err)
 		}
@@ -627,7 +628,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 			// do so.
 			return BadRequest(`must include "snap" and/or "interface" field in "selector"`)
 		}
-		removedRules, err := getInterfaceManager(c).InterfacesRequestsManager().RemoveRules(userID, postBody.RemoveSelector.Snap, postBody.RemoveSelector.Interface)
+		removedRules, err := getInterfaceManager(c).InterfacesRequestsManager().RemoveRules(userID, postBody.RemoveSelector.Snap, naming.Interface(postBody.RemoveSelector.Interface))
 		if err != nil {
 			return promptingError(err)
 		}

@@ -205,7 +205,7 @@ func (s *helpersSuite) TestGetConns(c *C) {
 	for id, connState := range conns {
 		c.Assert(id, Equals, "APP:network CORE:network")
 		c.Assert(connState.Auto, Equals, true)
-		c.Assert(connState.Interface, Equals, "network")
+		c.Assert(connState.Interface, Equals, naming.Interface("network"))
 		c.Assert(connState.StaticSlotAttrs["number"], Equals, int64(78))
 	}
 }
@@ -243,18 +243,18 @@ func (s *helpersSuite) TestHotplugTaskHelpers(c *C) {
 
 	ifacestate.SetHotplugAttrs(t, "iface", "key")
 
-	var iface string
 	var key snap.HotplugKey
 	c.Assert(t.Get("hotplug-key", &key), IsNil)
 	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
 
-	c.Assert(t.Get("interface", &iface), IsNil)
-	c.Assert(iface, Equals, "iface")
+	var ifaceStr string
+	c.Assert(t.Get("interface", &ifaceStr), IsNil)
+	c.Assert(ifaceStr, Equals, "iface")
 
-	iface, key, err = ifacestate.GetHotplugAttrs(t)
-	c.Assert(err, IsNil)
+	iface, key, err2 := ifacestate.GetHotplugAttrs(t)
+	c.Assert(err2, IsNil)
 	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
-	c.Assert(iface, Equals, "iface")
+	c.Assert(iface, Equals, naming.Interface("iface"))
 }
 
 func (s *helpersSuite) TestHotplugSlotInfo(c *C) {

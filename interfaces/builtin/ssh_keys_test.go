@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,7 +62,7 @@ func (s *SshKeysInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *SshKeysInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ssh-keys")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ssh-keys"))
 }
 
 func (s *SshKeysInterfaceSuite) TestSanitizeSlot(c *C) {

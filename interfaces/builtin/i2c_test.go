@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -203,7 +204,7 @@ apps:
 }
 
 func (s *I2cInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "i2c")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("i2c"))
 }
 
 func (s *I2cInterfaceSuite) TestSanitizeCoreSnapSlot(c *C) {

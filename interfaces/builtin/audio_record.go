@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // The audio-record interface is the companion interface to the audio-playback
@@ -56,8 +57,8 @@ const audioRecordConnectedPlugAppArmor = `
 
 type audioRecordInterface struct{}
 
-func (iface *audioRecordInterface) Name() string {
-	return "audio-record"
+func (iface *audioRecordInterface) Name() naming.Interface {
+	return naming.Interface("audio-record")
 }
 
 func (iface *audioRecordInterface) StaticInfo() interfaces.StaticInfo {

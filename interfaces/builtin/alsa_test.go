@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *AlsaInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AlsaInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "alsa")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("alsa"))
 }
 
 func (s *AlsaInterfaceSuite) TestSanitizeSlot(c *C) {

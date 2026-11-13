@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -108,7 +109,7 @@ func (s *EglDriverLibsInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "egl-driver-libs")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("egl-driver-libs"))
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {

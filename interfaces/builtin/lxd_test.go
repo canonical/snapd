@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ func (s *LxdInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *LxdInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "lxd")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("lxd"))
 }
 
 func (s *LxdInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const mediaHubSummary = `allows operating as the media-hub service`
@@ -159,8 +160,8 @@ bind
 
 type mediaHubInterface struct{}
 
-func (iface *mediaHubInterface) Name() string {
-	return "media-hub"
+func (iface *mediaHubInterface) Name() naming.Interface {
+	return naming.Interface("media-hub")
 }
 
 func (iface *mediaHubInterface) StaticInfo() interfaces.StaticInfo {

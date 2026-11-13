@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,7 +64,7 @@ func (s *adbSupportSuite) SetUpTest(c *C) {
 }
 
 func (s *adbSupportSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "adb-support")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("adb-support"))
 }
 
 func (s *adbSupportSuite) TestSanitizeSlot(c *C) {

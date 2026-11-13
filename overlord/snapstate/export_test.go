@@ -332,7 +332,7 @@ func MockLocalInstallLastCleanup(t time.Time) (restore func()) {
 	}
 }
 
-func MockHasActiveConnection(fn func(st *state.State, iface string) (bool, error)) (restore func()) {
+func MockHasActiveConnection(fn func(st *state.State, iface naming.Interface) (bool, error)) (restore func()) {
 	old := HasActiveConnection
 	HasActiveConnection = fn
 	return func() {

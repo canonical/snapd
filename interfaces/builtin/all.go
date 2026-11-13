@@ -25,13 +25,14 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 func init() {
 	snap.SanitizePlugsSlots = SanitizePlugsSlots
 
 	// setup the ByName function using allInterfaces
-	interfaces.ByName = func(name string) (interfaces.Interface, error) {
+	interfaces.ByName = func(name naming.Interface) (interfaces.Interface, error) {
 		iface, ok := allInterfaces[name]
 		if !ok {
 			return nil, fmt.Errorf("interface %q not found", name)
@@ -41,7 +42,7 @@ func init() {
 }
 
 var (
-	allInterfaces map[string]interfaces.Interface
+	allInterfaces map[naming.Interface]interfaces.Interface
 )
 
 // Interfaces returns all of the built-in interfaces.
@@ -60,7 +61,7 @@ func registerIface(iface interfaces.Interface) {
 		panic(fmt.Errorf("cannot register duplicate interface %q", iface.Name()))
 	}
 	if allInterfaces == nil {
-		allInterfaces = make(map[string]interfaces.Interface)
+		allInterfaces = make(map[naming.Interface]interfaces.Interface)
 	}
 	allInterfaces[iface.Name()] = iface
 }

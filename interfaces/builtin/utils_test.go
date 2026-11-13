@@ -250,8 +250,8 @@ plugs:
 `
 	}
 
-	slot, _ := MockConnectedSlot(c, s.slotYaml, nil, iface.Name())
-	plug, _ := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, iface.Name())
+	slot, _ := MockConnectedSlot(c, s.slotYaml, nil, iface.Name().String())
+	plug, _ := MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, iface.Name().String())
 	securityTag := "snap." + opts.snapName + ".app2"
 	if opts.isInstance {
 		plug.AppSet().Info().InstanceKey = "instance"

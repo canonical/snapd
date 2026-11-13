@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -109,7 +110,7 @@ func (s *VulkanDriverLibsInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "vulkan-driver-libs")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("vulkan-driver-libs"))
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {

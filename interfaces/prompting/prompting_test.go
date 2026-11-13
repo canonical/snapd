@@ -35,6 +35,7 @@ import (
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -85,14 +86,14 @@ func (s *promptingSuite) TestNewRequestFromListenerSimple(c *C) {
 			notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
 		}
 
-		iface         = "home"
+		iface         = naming.Interface("home")
 		expectedPerms = []string{"read", "execute"}
 	)
 
 	restore := prompting.MockApparmorInterfaceForMetadataTag(func(tag string) (string, bool) {
 		switch tag {
 		case "tag2", "tag4":
-			return iface, true
+			return iface.String(), true
 		default:
 			return "", false
 		}
@@ -129,13 +130,13 @@ func (s *promptingSuite) TestNewRequestFromListenerSnapSelection(c *C) {
 			notify.FilePermission(0b0001): notify.MetadataTags{"tag4"},
 		}
 
-		iface = "home"
+		iface = naming.Interface("home")
 	)
 
 	restore := prompting.MockApparmorInterfaceForMetadataTag(func(tag string) (string, bool) {
 		switch tag {
 		case "tag2", "tag4":
-			return iface, true
+			return iface.String(), true
 		default:
 			return "", false
 		}
@@ -257,7 +258,7 @@ func (s *promptingSuite) TestNewRequestFromListenerInterfaceSelection(c *C) {
 
 		c.Assert(err, IsNil, Commentf("testCase %d: %+v", i, testCase))
 		c.Assert(result, NotNil, Commentf("testCase %d: %+v", i, testCase))
-		c.Check(result.Interface, Equals, testCase.expectedIface, Commentf("testCase %d: %+v", i, testCase))
+		c.Check(result.Interface, Equals, naming.Interface(testCase.expectedIface), Commentf("testCase %d: %+v", i, testCase))
 	}
 }
 
@@ -269,7 +270,7 @@ func (s *promptingSuite) TestNewRequestFromListenerReply(c *C) {
 		aaDeny  = uint32(0b00110110) // read, write, some higher bits
 		path    = "/home/test/foo"   // will cause "home" interface
 
-		iface = "home"
+		iface = naming.Interface("home")
 		perms = []string{"read", "write"}
 	)
 
@@ -500,7 +501,7 @@ func (s *promptingSuite) TestNewRequestFromListenerErrors(c *C) {
 
 func (s *promptingSuite) TestBuildListenerRequestKey(c *C) {
 	for _, testCase := range []struct {
-		iface    string
+		iface    naming.Interface
 		id       uint64
 		expected string
 	}{
@@ -516,7 +517,7 @@ func (s *promptingSuite) TestBuildListenerRequestKey(c *C) {
 func (s *promptingSuite) TestNewRequestFromAskSimple(c *C) {
 	const (
 		uid    uint32 = 1000
-		iface  string = "audio-record"
+		iface  naming.Interface = "audio-record"
 		snap   string = "firefox"
 		pid    int32  = 1234
 		cgroup string = "/some-cgroup"
@@ -555,7 +556,7 @@ func (s *promptingSuite) TestNewRequestFromAskErrors(c *C) {
 	// Ask for invalid interface
 	badIfaces := []string{"home", "camera", "foo"}
 	for _, iface := range badIfaces {
-		result, err := prompting.NewRequestFromAsk(uid, iface, snap, pid, cgroup, replyFunc)
+		result, err := prompting.NewRequestFromAsk(uid, naming.Interface(iface), snap, pid, cgroup, replyFunc)
 		c.Check(result, IsNil)
 		c.Check(err, ErrorMatches, fmt.Sprintf("invalid interface: %q", iface))
 		var unsupportedValueErr *prompting_errors.UnsupportedValueError
@@ -570,7 +571,7 @@ func (s *promptingSuite) TestNewRequestFromAskErrors(c *C) {
 func (s *promptingSuite) TestBuildAskRequestKey(c *C) {
 	for _, testCase := range []struct {
 		uid      uint32
-		iface    string
+		iface    naming.Interface
 		snap     string
 		pid      int32
 		expected string

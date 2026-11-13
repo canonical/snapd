@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -70,7 +71,7 @@ apps:
 }
 
 func (s *OfonoInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "ofono")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("ofono"))
 }
 
 // The label glob when all apps are bound to the ofono slot

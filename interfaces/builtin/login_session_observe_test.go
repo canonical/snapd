@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -65,7 +66,7 @@ func (s *LoginSessionObserveSuite) SetUpTest(c *C) {
 }
 
 func (s *LoginSessionObserveSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "login-session-observe")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("login-session-observe"))
 }
 
 func (s *LoginSessionObserveSuite) TestSanitizeSlot(c *C) {

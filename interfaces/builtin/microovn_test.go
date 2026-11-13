@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -62,7 +63,7 @@ func (s *MicroOVNInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *MicroOVNInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "microovn")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("microovn"))
 }
 
 func (s *MicroOVNInterfaceSuite) TestSanitizeSlot(c *C) {

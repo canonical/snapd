@@ -12303,9 +12303,9 @@ func (s *snapmgrTestSuite) testAutoRefreshRefreshInhibitNoticeRecorded(c *C, mar
 	defer restore()
 
 	var connCheckCalled int
-	restore = snapstate.MockHasActiveConnection(func(st *state.State, iface string) (bool, error) {
+	restore = snapstate.MockHasActiveConnection(func(st *state.State, iface naming.Interface) (bool, error) {
 		connCheckCalled++
-		c.Check(iface, Equals, "snap-refresh-observe")
+		c.Check(iface, Equals, naming.Interface("snap-refresh-observe"))
 		return markerInterfaceConnected, nil
 	})
 	defer restore()

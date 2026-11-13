@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,7 +65,7 @@ func (s *AutopilotInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *AutopilotInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "autopilot-introspection")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("autopilot-introspection"))
 }
 
 func (s *AutopilotInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -35,6 +35,7 @@ import (
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -888,7 +889,9 @@ type ifaceWithServiceSnippet struct {
 	snips []interfaces.PlugServicesSnippet
 }
 
-func (iface ifaceWithServiceSnippet) Name() string { return "iface-with-service-snippet" }
+func (iface ifaceWithServiceSnippet) Name() naming.Interface {
+	return naming.Interface("iface-with-service-snippet")
+}
 func (iface ifaceWithServiceSnippet) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	return false
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -114,7 +115,7 @@ slots:
 }
 
 func (s *GpioInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "gpio")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("gpio"))
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {

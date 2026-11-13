@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *FramebufferInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *FramebufferInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "framebuffer")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("framebuffer"))
 }
 
 func (s *FramebufferInterfaceSuite) TestSanitizeSlot(c *C) {

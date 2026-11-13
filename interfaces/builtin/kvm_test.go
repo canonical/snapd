@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -89,7 +90,7 @@ flags		: another cpu also without kvm support
 }
 
 func (s *kvmInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "kvm")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("kvm"))
 }
 
 func (s *kvmInterfaceSuite) TestSanitizeSlot(c *C) {

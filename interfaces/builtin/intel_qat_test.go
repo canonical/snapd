@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *intelQatSuite) SetUpTest(c *C) {
 }
 
 func (s *intelQatSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "intel-qat")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("intel-qat"))
 }
 
 func (s *intelQatSuite) TestUsedSecuritySystems(c *C) {

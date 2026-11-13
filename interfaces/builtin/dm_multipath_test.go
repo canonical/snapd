@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,7 +68,7 @@ func (s *dmMultipathInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *dmMultipathInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "dm-multipath")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("dm-multipath"))
 }
 
 func (s *dmMultipathInterfaceSuite) TestUsedSecuritySystems(c *C) {

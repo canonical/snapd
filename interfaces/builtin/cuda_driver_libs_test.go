@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -94,7 +95,7 @@ func (s *CudaDriverLibsInterfaceSuite) SetUpTest(c *C) {
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "cuda-driver-libs")
+	c.Assert(s.iface.Name(), Equals, naming.Interface("cuda-driver-libs"))
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestSanitizeSlot(c *C) {
