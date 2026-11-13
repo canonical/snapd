@@ -20,6 +20,7 @@ package cgroup_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/ebpf"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -221,7 +223,7 @@ func (s *devicesSuite) TestFindActiveDeviceMediationV2(c *C) {
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
-	restoreFind := cgroup.MockFindDeviceMapsForSnap(func(snapName string) ([]string, error) {
+	restoreFind := cgroup.MockFindActiveDeviceMapTagsForSnap(func(snapName string) ([]string, error) {
 		c.Check(snapName, Equals, "mysnap")
 		return []string{"snap.mysnap.app1", "snap.mysnap.app2"}, nil
 	})
@@ -230,4 +232,231 @@ func (s *devicesSuite) TestFindActiveDeviceMediationV2(c *C) {
 	tags, err := cgroup.FindActiveDeviceMediationForSnap("mysnap")
 	c.Assert(err, IsNil)
 	c.Check(tags, DeepEquals, []string{"snap.mysnap.app1", "snap.mysnap.app2"})
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV1(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	cgroupDir := filepath.Join(s.rootDir, "/sys/fs/cgroup/devices")
+	c.Assert(os.MkdirAll(filepath.Join(cgroupDir, "snap.mysnap.app1"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(cgroupDir, "snap.mysnap.app2"), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(cgroupDir, "snap.other.app1"), 0755), IsNil)
+	// A regular file should be ignored by the dir filter.
+	c.Assert(os.WriteFile(filepath.Join(cgroupDir, "snap.mysnap.ignored"), nil, 0644), IsNil)
+
+	err := cgroup.RemoveDeviceCgroupV1(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(cgroupDir, "snap.mysnap.app1"), testutil.FileAbsent)
+	c.Check(filepath.Join(cgroupDir, "snap.mysnap.app2"), testutil.FileAbsent)
+	// Other snaps are untouched.
+	c.Check(filepath.Join(cgroupDir, "snap.other.app1"), testutil.FilePresent)
+	// Non-directory entries are untouched.
+	c.Check(filepath.Join(cgroupDir, "snap.mysnap.ignored"), testutil.FilePresent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV1NoDir(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	err := cgroup.RemoveDeviceCgroupV1(naming.InstanceName("anything"))
+	c.Assert(err, IsNil)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV1EmptyDir(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	cgroupDir := filepath.Join(s.rootDir, "/sys/fs/cgroup/devices")
+	c.Assert(os.MkdirAll(cgroupDir, 0755), IsNil)
+	err := cgroup.RemoveDeviceCgroupV1(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupDispatchV1(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	cgroupDir := filepath.Join(s.rootDir, "/sys/fs/cgroup/devices")
+	c.Assert(os.MkdirAll(filepath.Join(cgroupDir, "snap.mysnap.app1"), 0755), IsNil)
+
+	err := cgroup.RemoveDeviceCgroup(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(cgroupDir, "snap.mysnap.app1"), testutil.FileAbsent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV1InstanceKey(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	cgroupDir := filepath.Join(s.rootDir, "/sys/fs/cgroup/devices")
+	instDir := filepath.Join(cgroupDir, "snap.mysnap_inst.app1")
+	baseDir := filepath.Join(cgroupDir, "snap.mysnap.app1")
+	c.Assert(os.MkdirAll(instDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(baseDir, 0755), IsNil)
+
+	// The instance-keyed prefix is "snap.mysnap_inst." which must not
+	// leak into the base snap "snap.mysnap.app1" entry.
+	err := cgroup.RemoveDeviceCgroup(naming.InstanceName("mysnap_inst"))
+	c.Assert(err, IsNil)
+	c.Check(instDir, testutil.FileAbsent)
+	c.Check(baseDir, testutil.FilePresent)
+
+	// The reverse direction: removing the base instance must not
+	// over-match the instance-keyed entry.
+	c.Assert(os.MkdirAll(instDir, 0755), IsNil)
+	err = cgroup.RemoveDeviceCgroup(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	c.Check(baseDir, testutil.FileAbsent)
+	c.Check(instDir, testutil.FilePresent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV1RemoveError(c *C) {
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	cgroupDir := filepath.Join(s.rootDir, "/sys/fs/cgroup/devices")
+	app1 := filepath.Join(cgroupDir, "snap.mysnap.app1")
+	app2 := filepath.Join(cgroupDir, "snap.mysnap.app2")
+	// Simulate that app1 has a child cgroup so os.Remove fails
+	c.Assert(os.MkdirAll(filepath.Join(app1, "inner"), 0755), IsNil)
+	c.Assert(os.MkdirAll(app2, 0755), IsNil)
+
+	err := cgroup.RemoveDeviceCgroupV1(naming.InstanceName("mysnap"))
+	c.Assert(err, NotNil)
+	// The failure is not busy: EBUSY cannot be produced on a plain
+	// filesystem
+	c.Check(err, ErrorMatches, "remove .*/sys/fs/cgroup/devices/snap.mysnap.app1: directory not empty")
+	// Best-effort: the empty second entry was still removed.
+	c.Check(app2, testutil.FileAbsent)
+	c.Check(app1, testutil.FilePresent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV2(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	tags := []string{"snap.mysnap.app1", "snap.mysnap.app2"}
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+	for _, tag := range tags {
+		c.Assert(os.WriteFile(ebpf.SecurityTagToBPFPath(tag), nil, 0644), IsNil)
+	}
+
+	err := cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	for _, tag := range tags {
+		c.Check(ebpf.SecurityTagToBPFPath(tag), testutil.FileAbsent)
+	}
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV2NoTags(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	// No SnapBPFFSDir created
+	err := cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV2EnumerateError(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	mockErr := errors.New("mock error")
+	restoreFind := cgroup.MockFindActiveDeviceMapPathsForSnap(func(snapName string) ([]string, error) {
+		c.Check(snapName, Equals, "mysnap")
+		return nil, mockErr
+	})
+	defer restoreFind()
+
+	err := cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap"))
+	c.Assert(err, NotNil)
+	c.Check(errors.Is(err, mockErr), Equals, true)
+	c.Check(err, ErrorMatches, `cannot enumerate device maps for snap "mysnap": mock error`)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV2MissingPin(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	restoreFind := cgroup.MockFindActiveDeviceMapPathsForSnap(func(string) ([]string, error) {
+		return []string{filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app1")}, nil
+	})
+	defer restoreFind()
+
+	// No pin file created; ENOENT is skipped, not an error.
+	err := cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV2ComponentHook(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+	// Pin file names keep the literal '+' (SecurityTagToBPFPath replaces
+	// dots only), so component hook pins match the +<component>_hook_<hook>
+	// suffix shape.
+	appPin := ebpf.SecurityTagToBPFPath("snap.mysnap.app1")
+	compHookPin := ebpf.SecurityTagToBPFPath("snap.mysnap+comp.hook.install")
+	instCompHookPin := ebpf.SecurityTagToBPFPath("snap.mysnap_inst+comp.hook.install")
+	c.Assert(os.WriteFile(appPin, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(compHookPin, nil, 0644), IsNil)
+	c.Assert(os.WriteFile(instCompHookPin, nil, 0644), IsNil)
+
+	err := cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	c.Check(appPin, testutil.FileAbsent)
+	c.Check(compHookPin, testutil.FileAbsent)
+	// The parallel instance's component hook pin is untouched.
+	c.Check(instCompHookPin, testutil.FilePresent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupV2InstanceKey(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+	// Create pins for both the base snap and a parallel instance; only the
+	// instance-keyed pin must be removed.
+	c.Assert(os.WriteFile(ebpf.SecurityTagToBPFPath("snap.mysnap.app1"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(ebpf.SecurityTagToBPFPath("snap.mysnap_inst.app1"), nil, 0644), IsNil)
+
+	err := cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap_inst"))
+	c.Assert(err, IsNil)
+	c.Check(ebpf.SecurityTagToBPFPath("snap.mysnap_inst.app1"), testutil.FileAbsent)
+	c.Check(ebpf.SecurityTagToBPFPath("snap.mysnap.app1"), testutil.FilePresent)
+
+	// The reverse direction: removing the base instance must not
+	// over-match the parallel instance's pin — the bare "snap_mysnap_"
+	// prefix would also match snap_mysnap_inst_app1, only the suffix
+	// grammar in the enumeration prevents it.
+	c.Assert(os.WriteFile(ebpf.SecurityTagToBPFPath("snap.mysnap_inst.app1"), nil, 0644), IsNil)
+	err = cgroup.RemoveDeviceCgroupV2(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	c.Check(ebpf.SecurityTagToBPFPath("snap.mysnap.app1"), testutil.FileAbsent)
+	c.Check(ebpf.SecurityTagToBPFPath("snap.mysnap_inst.app1"), testutil.FilePresent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupDispatchV2(c *C) {
+	restore := cgroup.MockVersion(cgroup.V2, nil)
+	defer restore()
+
+	c.Assert(os.MkdirAll(dirs.SnapBPFFSDir, 0755), IsNil)
+	c.Assert(os.WriteFile(ebpf.SecurityTagToBPFPath("snap.mysnap.app1"), nil, 0644), IsNil)
+
+	err := cgroup.RemoveDeviceCgroup(naming.InstanceName("mysnap"))
+	c.Assert(err, IsNil)
+	c.Check(ebpf.SecurityTagToBPFPath("snap.mysnap.app1"), testutil.FileAbsent)
+}
+
+func (s *devicesSuite) TestRemoveDeviceCgroupVersionError(c *C) {
+	mockErr := errors.New("mock error")
+	restore := cgroup.MockVersion(cgroup.Unknown, mockErr)
+	defer restore()
+
+	err := cgroup.RemoveDeviceCgroup(naming.InstanceName("mysnap"))
+	c.Assert(err, NotNil)
+	c.Check(errors.Is(err, mockErr), Equals, true)
+	c.Check(err, ErrorMatches, "cannot determine cgroup version: mock error")
 }
