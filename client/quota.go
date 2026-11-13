@@ -111,7 +111,10 @@ func (client *Client) EnsureQuota(groupName string, opts *EnsureQuotaOptions) (c
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return "", err
 	}
-	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	chgID, err := client.doAsync("POST", "/v2/quotas", nil, header, &body)
 
 	if err != nil {
 		return "", err
@@ -146,7 +149,10 @@ func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err e
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return "", err
 	}
-	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	chgID, err := client.doAsync("POST", "/v2/quotas", nil, header, &body)
 	if err != nil {
 		return "", fmt.Errorf("cannot remove quota group: %w", err)
 	}

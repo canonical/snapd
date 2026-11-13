@@ -67,7 +67,10 @@ func (client *Client) doUserAction(act *userAction, result any) error {
 		return err
 	}
 
-	_, err = client.doSync("POST", "/v2/users", nil, nil, bytes.NewReader(data), result)
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	_, err = client.doSync("POST", "/v2/users", nil, headers, bytes.NewReader(data), result)
 	return err
 }
 

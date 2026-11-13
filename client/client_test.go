@@ -60,6 +60,8 @@ type clientSuite struct {
 	status        int
 	contentLength int64
 
+	ignoreContentType bool
+
 	countingCloser *countingCloser
 }
 
@@ -82,6 +84,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	cs.doCalls = 0
 	cs.contentLength = 0
 	cs.countingCloser = nil
+	cs.ignoreContentType = false
 
 	dirs.SetRootDir(c.MkDir())
 	cs.AddCleanup(func() { dirs.SetRootDir("") })
@@ -100,6 +103,11 @@ func (n *countingCloser) Close() error {
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
+	if !cs.ignoreContentType && req.Body != nil {
+		if req.Header.Get("Content-Type") == "" {
+			panic("Content-Type not set")
+		}
+	}
 	cs.req = req
 	cs.reqs = append(cs.reqs, req)
 	body := cs.rsp
@@ -136,6 +144,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := io.NopCloser(strings.NewReader(""))
+	cs.ignoreContentType = true
 	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 200)
@@ -193,6 +202,7 @@ func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
 		// once even though there is an error
 		Retry: time.Duration(time.Second),
 	}
+	cs.ignoreContentType = true
 	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
 	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
 	c.Assert(cs.doCalls, Equals, 1)
@@ -206,6 +216,7 @@ func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
 		Retry:   time.Duration(-1),
 		Timeout: time.Duration(time.Minute),
 	}
+	cs.ignoreContentType = true
 	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
 	c.Check(err, ErrorMatches, "internal error: retry setting.*invalid")
 	c.Assert(cs.req, IsNil)
@@ -218,6 +229,7 @@ func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
 		Retry:   time.Duration(time.Millisecond),
 		Timeout: time.Duration(time.Second),
 	}
+	cs.ignoreContentType = true
 	_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
 	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
 	// best effort checking given that execution could be slow
@@ -240,6 +252,7 @@ func (cs *clientSuite) TestClientOnlyRetryAppropriateErrors(c *C) {
 		cs.doCalls = 0
 		cs.err = t.error
 
+		cs.ignoreContentType = true
 		_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
 		c.Check(err, ErrorMatches, fmt.Sprintf(".*%s", t.error.Error()))
 		c.Assert(cs.doCalls, Equals, 1)
@@ -251,6 +264,7 @@ func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	cs.status = 202
 	cs.rsp = `[1,2]`
 	reqBody := io.NopCloser(strings.NewReader(""))
+	cs.ignoreContentType = true
 	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 202)

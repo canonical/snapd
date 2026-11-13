@@ -768,7 +768,10 @@ func (client *Client) Debug(action string, params any, result any) error {
 		return err
 	}
 
-	_, err = client.doSync("POST", "/v2/debug", nil, nil, bytes.NewReader(body), result)
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	_, err = client.doSync("POST", "/v2/debug", nil, header, bytes.NewReader(body), result)
 	return err
 }
 
@@ -803,7 +806,10 @@ func (c *Client) MigrateSnapHome(snaps []string) (changeID string, err error) {
 		return "", err
 	}
 
-	return c.doAsync("POST", "/v2/debug", nil, nil, bytes.NewReader(body))
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return c.doAsync("POST", "/v2/debug", nil, header, bytes.NewReader(body))
 }
 
 // DebugRaw allows to make raw queries to the API with the intention of using it

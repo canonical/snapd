@@ -38,7 +38,10 @@ func (client *Client) CreateCohorts(snaps []string) (map[string]string, error) {
 
 	var cohorts map[string]string
 
-	if _, err := client.doSync("POST", "/v2/cohorts", nil, nil, bytes.NewReader(data), &cohorts); err != nil {
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	if _, err := client.doSync("POST", "/v2/cohorts", nil, headers, bytes.NewReader(data), &cohorts); err != nil {
 		return nil, fmt.Errorf("cannot create cohorts: %w", err)
 	}
 
