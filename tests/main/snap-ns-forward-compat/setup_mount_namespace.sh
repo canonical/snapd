@@ -32,6 +32,12 @@ setup_mount_namespace() {
         mount --make-rslave "$MOUNT_TMPDIR/$d"
     done
 
+    if [ -L /var/lib/snapd/pki/v1/merged ]; then
+        echo "Mount managed CA certificates over /etc/ssl/certs"
+        mount -o bind /var/lib/snapd/pki/v1/merged "$MOUNT_TMPDIR/etc/ssl/certs"
+        mount -o remount,bind,ro /var/lib/snapd/pki/v1/merged "$MOUNT_TMPDIR/etc/ssl/certs"
+    fi
+
     LIBEXECDIR=$(os.paths libexec-dir)
     mkdir -p "$MOUNT_TMPDIR/usr/lib/snapd"
     mount -o rbind "$LIBEXECDIR/snapd" "$MOUNT_TMPDIR/usr/lib/snapd"

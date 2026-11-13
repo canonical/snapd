@@ -210,7 +210,7 @@ func (e *ValidationSetsValidationError) Error() string {
 		for _, compName := range sortedStringKeys(vcerr.MissingComponents) {
 			writeMissingError(
 				&missingComps,
-				naming.NewComponentRef(snapName, compName).String(),
+				naming.NewComponentRef(naming.SnapName(snapName), compName).String(),
 				vcerr.MissingComponents[compName],
 			)
 		}
@@ -219,7 +219,7 @@ func (e *ValidationSetsValidationError) Error() string {
 			fmt.Fprintf(
 				&invalidComps,
 				"\n  - %s (invalid for sets %s)",
-				naming.NewComponentRef(snapName, compName).String(),
+				naming.NewComponentRef(naming.SnapName(snapName), compName).String(),
 				strings.Join(vcerr.InvalidComponents[compName], ","),
 			)
 		}
@@ -227,7 +227,7 @@ func (e *ValidationSetsValidationError) Error() string {
 		for _, compName := range sortedStringKeys(vcerr.WrongRevisionComponents) {
 			writeWrongRevisionError(
 				&wrongRevComps,
-				naming.NewComponentRef(snapName, compName).String(),
+				naming.NewComponentRef(naming.SnapName(snapName), compName).String(),
 				vcerr.WrongRevisionComponents[compName],
 			)
 		}
@@ -552,7 +552,7 @@ func (sc *snapConstraints) addComponent(compName string, comp asserts.Validation
 		presence:         comp.Presence,
 	}
 
-	compRef := naming.NewComponentRef(sc.name, compName)
+	compRef := naming.NewComponentRef(naming.SnapName(sc.name), compName)
 
 	cs := sc.componentConstraints[compName]
 	if cs == nil {

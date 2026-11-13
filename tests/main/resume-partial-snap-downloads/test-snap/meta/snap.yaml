@@ -1,0 +1,5 @@
+name: test-snap-resume
+version: 1.0
+base: core24
+summary: Test snap for download resume
+description: A test snap with padding data for resume testing

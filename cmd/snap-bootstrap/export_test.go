@@ -259,11 +259,11 @@ func MockOsGetenv(mock func(string) string) (restore func()) {
 	}
 }
 
-func MockLookupDmVerityDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
-	old := lookupDmVerityDataAndCrossCheck
-	lookupDmVerityDataAndCrossCheck = f
+func MockIntegrityLookupDataAndCrossCheck(f func(snapPath string, params *integrity.IntegrityDataParams) (string, error)) (restore func()) {
+	old := integrityLookupDataAndCrossCheck
+	integrityLookupDataAndCrossCheck = f
 	return func() {
-		lookupDmVerityDataAndCrossCheck = old
+		integrityLookupDataAndCrossCheck = old
 	}
 }
 

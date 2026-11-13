@@ -12,7 +12,8 @@
 +0:+1 / /run rw,nosuid,noexec,relatime shared:+1 - tmpfs tmpfs rw,size=VARIABLE,mode=755
 +0:+1 / /run/lock rw,nosuid,nodev,noexec,relatime shared:+1 - tmpfs tmpfs rw,size=VARIABLE
 +0:+1 / /run/rpc_pipefs rw,relatime shared:+1 - rpc_pipefs sunrpc rw
-+0:+1 / /run/user/0 rw,nosuid,nodev,relatime shared:+1 - tmpfs tmpfs rw,size=VARIABLE,mode=700
++0:-2 /snapd/ns /run/snapd/ns rw,nosuid,noexec,relatime - tmpfs tmpfs rw,size=VARIABLE,mode=755
++0:+3 / /run/user/0 rw,nosuid,nodev,relatime shared:15 - tmpfs tmpfs rw,size=VARIABLE,mode=700
 +1:-12 / /snap/core/1 ro,nodev,relatime shared:+1 - squashfs /dev/loop0 ro
 +0:+1 / /snap/core18/1 ro,nodev,relatime shared:+1 - squashfs /dev/loop1 ro
 +0:+1 / /snap/snapd/1 ro,nodev,relatime shared:+1 - squashfs /dev/loop2 ro

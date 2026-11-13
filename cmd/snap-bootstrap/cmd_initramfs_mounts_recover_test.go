@@ -3158,7 +3158,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyWithIntegrityA
 	cmd := testutil.MockCommand(c, "veritysetup", ``)
 	defer cmd.Restore()
 
-	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+	restore := main.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
 		return snapPath + ".verity", nil
 	})
 	defer restore()
@@ -3201,7 +3201,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeErrorWithIntegrityA
 	cmd := testutil.MockCommand(c, "veritysetup", ``)
 	defer cmd.Restore()
 
-	restore := main.MockLookupDmVerityDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
+	restore := main.MockIntegrityLookupDataAndCrossCheck(func(snapPath string, params *integrity.IntegrityDataParams) (string, error) {
 		return "", integrity.ErrUnexpectedDmVerityData
 	})
 	defer restore()

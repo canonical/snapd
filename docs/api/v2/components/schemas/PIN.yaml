@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: string
+title: PIN
+format: password
+minLength: 1
+maxLength: 256
+pattern: '^[0-9]+$'

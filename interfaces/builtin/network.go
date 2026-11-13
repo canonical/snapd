@@ -92,13 +92,12 @@ socket AF_CONN
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "network",
-		summary:                  networkSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     networkBaseDeclarationSlots,
-		connectedPlugAppArmor:    networkConnectedPlugAppArmor,
-		connectedPlugSecComp:     networkConnectedPlugSecComp,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "network",
+		summary:               networkSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  networkBaseDeclarationSlots,
+		connectedPlugAppArmor: networkConnectedPlugAppArmor,
+		connectedPlugSecComp:  networkConnectedPlugSecComp,
 	})
 }

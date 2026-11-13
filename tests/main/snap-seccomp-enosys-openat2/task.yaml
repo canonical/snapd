@@ -1,0 +1,38 @@
+summary: Ensure that snap-seccomp makes openat2 fail with ENOSYS
+
+details: |
+    The default seccomp template denies openat2 with ENOSYS (using the
+    ~ENOSYS:openat2 syntax) so that callers fall back to openat, which is
+    filtered by mode. Check that openat2 fails with ENOSYS and that plain
+    openat is still allowed.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test-openat2
+
+execute: |
+    # Run the helper without confinement first. The kernel itself may return
+    # ENOSYS for openat2 (older than 5.6) or an outer filter may interfere, in
+    # which case a confined ENOSYS says nothing about snap-seccomp.
+    /var/snap/test-snapd-sh/common/test-openat2 > unconfined.txt
+    cat unconfined.txt
+    if ! grep -q 'openat2: succeeded' unconfined.txt; then
+        echo "openat2 is not usable without confinement, nothing to check"
+        exit 0
+    fi
+
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-openat2" > output.txt
+    cat output.txt
+
+    MATCH 'openat2: ENOSYS' < output.txt
+    MATCH 'openat: succeeded' < output.txt

@@ -591,10 +591,12 @@ snaps:
 	restart.MockPending(st, restart.RestartUnset)
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
-	c.Assert(err, IsNil)
-	c.Assert(s.overlord.Stop(), IsNil)
-	c.Assert(err, IsNil)
 	st.Lock()
+	c.Assert(err, IsNil)
+	st.Unlock()
+	stopErr := s.overlord.Stop()
+	st.Lock()
+	c.Assert(stopErr, IsNil)
 
 	// Update the change pointer to the change in the new state
 	// otherwise we will be referring to the old one.

@@ -1,0 +1,28 @@
+#!/bin/bash
+set -euo pipefail
+
+sudo apt-get update
+
+# Preserve existing debian symlink because host system may be older than 26.04
+# and thus symlink debian to 16.04 instead of 26.04.
+original_debian=
+if [ -L debian ]; then
+    original_debian=$(readlink debian)
+elif [ -e debian ]; then
+    echo "cannot install build dependencies: debian is not a symlink" >&2
+    exit 1
+fi
+
+restore_debian() {
+    status=$?
+    rm -f -- debian
+    if [ -n "$original_debian" ]; then
+        ln -s "$original_debian" debian || status=1
+    fi
+    exit "$status"
+}
+trap restore_debian EXIT
+
+rm -f debian
+ln -s packaging/ubuntu-26.04 debian
+sudo apt-get build-dep -y .

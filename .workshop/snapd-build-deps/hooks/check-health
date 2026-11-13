@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+
+for tool in dbus-launch clang-format shellcheck golangci-lint; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        workshopctl set-health error "$tool not found on PATH"
+        exit 0
+    fi
+done
+
+if env AUTO_INSTALL=0 /project/run-checks --verify-tools; then
+    workshopctl set-health okay
+else
+    workshopctl set-health error "run-checks --verify-tools exited with error code $?"
+fi

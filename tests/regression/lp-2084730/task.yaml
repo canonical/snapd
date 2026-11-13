@@ -17,8 +17,6 @@ prepare: |
     mkdir -p /var/lib/snapd/inhibit
     touch "$INHIBITION_LOCK_FILE"
 
-    snap set core experimental.parallel-instances=true
-
 restore: |
     # release inhibition hint lock
     systemctl stop inhibition-file-locker.service
@@ -26,8 +24,6 @@ restore: |
     # Wait for refresh to finish to be able to remove the snap
     snap debug ensure-state-soon
     retry -n 10 sh -c "snap changes | NOMATCH Doing"
-
-    snap set core experimental.parallel-instances!
 
 execute: |
     systemd-run --unit inhibition-file-locker.service flock "$INHIBITION_LOCK_FILE" --command "sleep 10000"

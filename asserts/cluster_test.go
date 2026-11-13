@@ -122,17 +122,17 @@ func (cs *clusterSuite) TestDecodeOK(c *C) {
 	c.Check(subclusters[0].Devices, DeepEquals, []int{1, 2})
 	c.Assert(subclusters[0].Snaps, HasLen, 2)
 	c.Check(subclusters[0].Snaps[0].State, Equals, asserts.ClusterSnapStateClustered)
-	c.Check(subclusters[0].Snaps[0].Instance, Equals, "clustered-snap")
+	c.Check(subclusters[0].Snaps[0].Instance.String(), Equals, "clustered-snap")
 	c.Check(subclusters[0].Snaps[0].Channel, Equals, "stable")
 	c.Check(subclusters[0].Snaps[1].State, Equals, asserts.ClusterSnapStateEvacuated)
-	c.Check(subclusters[0].Snaps[1].Instance, Equals, "evacuated-snap")
+	c.Check(subclusters[0].Snaps[1].Instance.String(), Equals, "evacuated-snap")
 	c.Check(subclusters[0].Snaps[1].Channel, Equals, "edge")
 
 	c.Check(subclusters[1].Name, Equals, "additional-cluster")
 	c.Check(subclusters[1].Devices, DeepEquals, []int{2})
 	c.Assert(subclusters[1].Snaps, HasLen, 1)
 	c.Check(subclusters[1].Snaps[0].State, Equals, asserts.ClusterSnapStateRemoved)
-	c.Check(subclusters[1].Snaps[0].Instance, Equals, "removed-snap")
+	c.Check(subclusters[1].Snaps[0].Instance.String(), Equals, "removed-snap")
 	c.Check(subclusters[1].Snaps[0].Channel, Equals, "24/stable")
 }
 

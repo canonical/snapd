@@ -21,7 +21,6 @@ package builtin
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"sort"
 
@@ -188,7 +187,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     adbSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    adbSupportConnectedPlugAppArmor,
-		parallelInstancesPlugErr: errors.New("conflicting operations on the same USB devices"),
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

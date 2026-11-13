@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
@@ -724,7 +725,7 @@ func (s *servicectlSuite) TestQueuedCommands(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, nil, 0, nil)
+	installed, tts, err := snapstate.InstallMany(s.st, []naming.InstanceName{"one", "two"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 	c.Assert(tts, HasLen, 3)
@@ -777,7 +778,7 @@ func (s *servicectlSuite) testQueuedCommandsOrdering(c *C, hook string, singleTr
 	s.st.Lock()
 
 	chg := s.st.NewChange("install change", "install change")
-	installed, tts, err := snapstate.InstallMany(s.st, []string{"one", "two"}, nil, 0, &snapstate.Flags{Transaction: transaction})
+	installed, tts, err := snapstate.InstallMany(s.st, []naming.InstanceName{"one", "two"}, nil, 0, &snapstate.Flags{Transaction: transaction})
 	c.Assert(err, IsNil)
 	c.Check(installed, DeepEquals, []string{"one", "two"})
 	c.Assert(tts, HasLen, 3)
@@ -1086,7 +1087,7 @@ func (s *servicectlSuite) TestQueuedCommandsUpdateMany(c *C) {
 	s.st.Lock()
 
 	chg := s.st.NewChange("update many change", "update change")
-	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []string{"test-snap", "other-snap"}, nil, 0, nil)
+	installed, tts, err := snapstate.UpdateMany(context.Background(), s.st, []naming.InstanceName{"test-snap", "other-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	sort.Strings(installed)
 	c.Check(installed, DeepEquals, []string{"other-snap", "test-snap"})

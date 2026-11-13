@@ -103,12 +103,11 @@ func validateView(view string) error {
 func init() {
 	registerIface(&confdbInterface{
 		commonInterface: commonInterface{
-			name:                     "confdb",
-			summary:                  confdbSummary,
-			baseDeclarationPlugs:     confdbBaseDeclarationPlugs,
-			baseDeclarationSlots:     confdbBaseDeclarationSlots,
-			implicitOnClassic:        true,
-			implicitOnCore:           true,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			name:                 "confdb",
+			summary:              confdbSummary,
+			baseDeclarationPlugs: confdbBaseDeclarationPlugs,
+			baseDeclarationSlots: confdbBaseDeclarationSlots,
+			implicitOnClassic:    true,
+			implicitOnCore:       true,
 		}})
 }

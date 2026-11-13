@@ -6,10 +6,6 @@ details: |
     verifies that the layout requested by snap works and operates only on the
     data owned by given snap instance.
 
-prepare: |
-    echo "Ensure feature flags are enabled"
-    snap set system experimental.parallel-instances=true
-
 execute: |
     echo "Install the regular snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-layout

@@ -27,6 +27,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -115,4 +117,8 @@ func MockSystemdSdNotify(f func(notifyState string) error) (restore func()) {
 	return func() {
 		systemdSdNotify = old
 	}
+}
+
+func MockValidatedIntegrityData(f func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error)) (restore func()) {
+	return testutil.Mock(&snapstate.ValidatedIntegrityData, f)
 }

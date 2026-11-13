@@ -1308,7 +1308,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 		return nil, err
 	}
 	appSets := make([]*interfaces.SnapAppSet, 0, len(all))
-	seen := make(map[string]bool, len(all))
+	seen := make(map[naming.InstanceName]bool, len(all))
 	for instanceName, snapst := range all {
 		if snapst.Active {
 			snapInfo, err := snapst.CurrentInfo()
@@ -1333,7 +1333,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 				// profiles removed (already)
 				continue
 			}
-			snapInfo, err := snap.ReadInfo(instanceName, si)
+			snapInfo, err := snap.ReadInfo(naming.InstanceName(instanceName), si)
 			if err != nil {
 				logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 				continue
@@ -1372,7 +1372,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			return nil, err
 		}
 		instanceName := snapsup.InstanceName()
-		if seen[instanceName.String()] {
+		if seen[instanceName] {
 			continue
 		}
 
@@ -1393,8 +1393,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			continue
 		}
 
-		seen[instanceName.String()] = true
-		snapInfo, err := snap.ReadInfo(instanceName.String(), snapsup.SideInfo)
+		seen[instanceName] = true
+		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue
@@ -1426,7 +1426,7 @@ func resolveSnapIDToName(st *state.State, snapID string) (name string, err error
 	if err != nil {
 		return "", err
 	}
-	return decl.SnapName(), nil
+	return decl.SnapName().String(), nil
 }
 
 // SnapMapper offers APIs for re-mapping snap names in interfaces and the

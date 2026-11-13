@@ -179,9 +179,8 @@ func init() {
 			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:       false,
-			implicitPlugOnClassic:    true,
-			parallelInstancesPlugErr: errParallelInstancesSystemPlug,
+			implicitPlugOnCore:    false,
+			implicitPlugOnClassic: true,
 			// library-source filenames also use "_" to separate instance name, slot name and interface name
 			parallelInstancesSlotErr: errors.New("client-driver symlink cannot distinguish parallel instances"),
 		},

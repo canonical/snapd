@@ -469,6 +469,12 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 # Create the private tmp directory for snap-confine
 install -d -m 0700 /tmp/snap-private-tmp
 
+# Defer self-binds over live child mounts before %%service_add_post reloads units.
+if ! %{_libexecdir}/snapd/snap-mgmt --check-post-upgrade-mount-activation; then
+    install -d -m 0755 /run/snapd/packaging || exit 1
+    touch /run/snapd/packaging/prevent-mount-dir-activation || exit 1
+fi
+
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
@@ -482,6 +488,10 @@ if test ! -e %{snap_mount_dir} && test ! -e %{alt_snap_mount_dir} ; then
     mkdir -p -m 755 %{alt_snap_mount_dir} || :
 fi
 
+# var-lib-snapd-snap.mount and var-snap.mount are intentionally not enabled
+# or started here: ship them but leave enabling/starting (and, if needed,
+# migrating %{snap_mount_dir} to a symlink to %{alt_snap_mount_dir}) to the
+# user, same as classic snap support in general on this distro.
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
 %if %{with apparmor}
@@ -513,6 +523,16 @@ esac
 %systemd_user_preun %{systemd_user_services_list}
 if [ $1 -eq 0 ]; then
     %{_libexecdir}/snapd/snap-mgmt --purge || :
+
+    # var-lib-snapd-snap.mount, var-snap.mount: never auto-enabled (see
+    # systemd_services_list above), so %%service_del_preun above does not
+    # touch them. snap-mgmt --purge already unmounts them (after tearing
+    # down per-snap content mounts first); only stop/disable here to
+    # drop enablement symlinks for a user who opted in.
+    if [ -x /usr/bin/systemctl ]; then
+        systemctl stop var-lib-snapd-snap.mount var-snap.mount >/dev/null 2>&1 || :
+        systemctl --no-reload disable var-lib-snapd-snap.mount var-snap.mount >/dev/null 2>&1 || :
+    fi
 fi
 
 %postun
@@ -671,6 +691,8 @@ fi
 %{_unitdir}/snapd.socket
 %{_unitdir}/snapd.mounts.target
 %{_unitdir}/snapd.mounts-pre.target
+%{_unitdir}/var-lib-snapd-snap.mount
+%{_unitdir}/var-snap.mount
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
 %{_libexecdir}/snapd/snapd-tool-wrap

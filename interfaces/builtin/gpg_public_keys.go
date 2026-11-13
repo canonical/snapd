@@ -56,12 +56,11 @@ owner @{HOME}/.gnupg/pubring.kbx.lock rwk,
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "gpg-public-keys",
-		summary:                  gpgPublicKeysSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     gpgPublicKeysBaseDeclarationSlots,
-		connectedPlugAppArmor:    gpgPublicKeysConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "gpg-public-keys",
+		summary:               gpgPublicKeysSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  gpgPublicKeysBaseDeclarationSlots,
+		connectedPlugAppArmor: gpgPublicKeysConnectedPlugAppArmor,
 	})
 }

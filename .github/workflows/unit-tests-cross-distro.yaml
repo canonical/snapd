@@ -37,7 +37,7 @@ jobs:
         fedora:*)
             dnf upgrade -y
             dnf install -y rpmdevtools
-            dnf install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
+            dnf install -y $(rpmspec --with vendorized -q --buildrequires "./packaging/$distroname/snapd.spec")
             # TODO these are needed only by cmd/snap-seccomp unit tests, and
             # should be added to BuildRequires
             dnf install -y glibc-devel.i686 glibc-static.i686

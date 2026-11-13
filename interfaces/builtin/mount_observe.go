@@ -108,9 +108,8 @@ func init() {
 			implicitOnClassic:    true,
 			baseDeclarationSlots: mountObserveBaseDeclarationSlots,
 			// handled by AppArmorConnectedPlug
-			connectedPlugAppArmor:    "",
-			connectedPlugSecComp:     mountObserveConnectedPlugSecComp,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			connectedPlugAppArmor: "",
+			connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
 		},
 	})
 }

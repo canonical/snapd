@@ -275,5 +275,8 @@ func init() {
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
 		// affects the plug snap because of mount backend
 		affectsPlugOnRefresh: true,
+		// the X server owns the well-known socket /tmp/.X11-unix/X0; only one
+		// snap instance can hold it at a time.
+		parallelInstancesSlotErr: errParallelInstancesUniqueResourceOwner,
 	}})
 }

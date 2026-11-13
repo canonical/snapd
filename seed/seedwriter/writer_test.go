@@ -263,7 +263,7 @@ func (s *writerSuite) doFillMetaDownloadedSnap(c *C, w *seedwriter.Writer, sn *s
 	cinfos := s.AssertedComponentInfos(sn.SnapName().String())
 	seedComps := make(map[string]*seedwriter.SeedComponent, len(cinfos))
 	for _, cinfo := range cinfos {
-		cref := naming.NewComponentRef(sn.SnapName().String(), cinfo.Component.ComponentName)
+		cref := naming.NewComponentRef(sn.SnapName(), cinfo.Component.ComponentName)
 		seedComps[cinfo.Component.ComponentName] = &seedwriter.SeedComponent{
 			ComponentRef: cref,
 			Info:         cinfo,

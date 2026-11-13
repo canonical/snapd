@@ -7,6 +7,13 @@ rules:
   nestedlib:
     from:
       - tests/lib/nested.sh
+      - tests/lib/nested/.*
+    to: [tests/nested/]
+
+  nestedtools:
+    from:
+      - tests/lib/tools/repack-.*
+      - tests/lib/tools/image-generator
     to: [tests/nested/]
 
   assertions:

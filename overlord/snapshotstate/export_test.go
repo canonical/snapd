@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -73,7 +74,7 @@ func MockOsRemove(f func(string) error) (restore func()) {
 	return testutil.Mock(&osRemove, f)
 }
 
-func MockSnapstateAll(f func(*state.State) (map[string]*snapstate.SnapState, error)) (restore func()) {
+func MockSnapstateAll(f func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error)) (restore func()) {
 	return testutil.Mock(&snapstateAll, f)
 }
 

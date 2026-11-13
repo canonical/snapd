@@ -9,12 +9,6 @@ details: |
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
-prepare: |
-  snap set system experimental.parallel-instances=true
-
-restore: |
-  snap unset system experimental.parallel-instances
-
 execute: |
   snap install test-snap-with-components+one+two
 

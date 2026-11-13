@@ -524,8 +524,8 @@ func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
 			c.Check(len(cinfos), Equals, 0)
 			numCore++
 		case "required20":
-			cref1 := naming.NewComponentRef(si.SnapName().String(), "comp1")
-			cref2 := naming.NewComponentRef(si.SnapName().String(), "comp2")
+			cref1 := naming.NewComponentRef(si.SnapName(), "comp1")
+			cref2 := naming.NewComponentRef(si.SnapName(), "comp2")
 			c.Check(cinfos, DeepEquals, map[string]*snap.ComponentInfo{
 				"comp1": {
 					Component:           cref1,

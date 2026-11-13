@@ -51,3 +51,9 @@ func MockFeaturesSupportedCallbacks(f map[SnapdFeature]func() (bool, string)) (r
 	featuresSupportedCallbacks = f
 	return r
 }
+
+func MockFeaturesWIP(wip map[SnapdFeature]bool) (restore func()) {
+	r := testutil.Backup(&featuresWIP)
+	featuresWIP = wip
+	return r
+}

@@ -126,7 +126,7 @@ func (s *fetcherSuite) TestFetch(c *C) {
 		"snap-id": "snap-id-1",
 	})
 	c.Assert(err, IsNil)
-	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
+	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName().String(), Equals, "foo")
 }
 
 func (s *fetcherSuite) TestFetchCircularReference(c *C) {
@@ -193,7 +193,7 @@ func (s *fetcherSuite) TestSave(c *C) {
 		"snap-id": "snap-id-1",
 	})
 	c.Assert(err, IsNil)
-	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName(), Equals, "foo")
+	c.Check(snapDecl.(*asserts.SnapDeclaration).SnapName().String(), Equals, "foo")
 }
 
 func (s *fetcherSuite) prereqValidationSetAssertion(c *C) {
