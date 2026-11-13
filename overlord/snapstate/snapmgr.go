@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snapdenv"
@@ -191,6 +192,8 @@ type SnapSetup struct {
 	ComponentExclusiveOperation bool `json:"component-exclusive-operation,omitempty"`
 
 	// IntegrityDataInfo contains the integrity data to be used when mounting this snap.
+	//
+	// FIXME: This should be an array to support multiple integrity data entries.
 	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
 }
 
@@ -210,16 +213,16 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
-	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // MountDir returns the path to the directory where this snap would be mounted.
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName(), snapsup.Revision())
 }
 
 // BlobPath returns the path to the snap/squashfs file that backs the snap that
@@ -230,7 +233,7 @@ func (snapsup *SnapSetup) BlobPath() string {
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
 	}
-	return snap.MountFileInDir(blobDir, snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
 }
 
 // ComponentSetup holds the necessary component details to perform
@@ -280,7 +283,7 @@ func (compsu *ComponentSetup) Revision() snap.Revision {
 // custom location, this will be under dirs.SnapBlobDir.
 func (compsu *ComponentSetup) BlobPath(instanceName string) string {
 	if instanceName == "" {
-		instanceName = compsu.CompSideInfo.Component.SnapName
+		instanceName = compsu.CompSideInfo.Component.SnapName.String()
 	}
 
 	blobDir := compsu.DownloadBlobDir
@@ -626,7 +629,7 @@ var AutomaticSnapshot func(st *state.State, instanceName string) (ts *state.Task
 var AutomaticSnapshotExpiration func(st *state.State) (time.Duration, error)
 var EstimateSnapshotSize func(st *state.State, instanceName string, users []string) (uint64, error)
 
-func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
+func readInfo(name naming.InstanceName, si *snap.SideInfo, flags int) (*snap.Info, error) {
 	info, err := snapReadInfo(name, si)
 	if err != nil && flags&errorOnBroken != 0 {
 		return nil, err
@@ -635,11 +638,10 @@ func readInfo(name string, si *snap.SideInfo, flags int) (*snap.Info, error) {
 		logger.Noticef("cannot read snap info of snap %q at revision %s: %s", name, si.Revision, err)
 	}
 	if bse, ok := err.(snap.BrokenSnapError); ok {
-		_, instanceKey := snap.SplitInstanceName(name)
 		info = &snap.Info{
-			SuggestedName: name,
+			SuggestedName: name.SnapName().String(),
 			Broken:        bse.Broken(),
-			InstanceKey:   instanceKey,
+			InstanceKey:   name.InstanceKey(),
 		}
 		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
@@ -673,7 +675,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 		return nil, ErrNoCurrent
 	}
 
-	name := snap.InstanceName(cur.RealName, snapst.InstanceKey).String()
+	name := snap.InstanceName(cur.RealName, snapst.InstanceKey)
 	return readInfo(name, cur, withAuxStoreInfo)
 }
 
@@ -711,7 +713,7 @@ func (snapst *SnapState) ComponentInfosForRevision(rev snap.Revision) ([]*snap.C
 
 	revState := snapst.Sequence.Revisions[index]
 
-	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey).String()
+	instanceName := snap.InstanceName(revState.Snap.RealName, snapst.InstanceKey)
 	si, err := readInfo(instanceName, revState.Snap, withAuxStoreInfo)
 	if err != nil {
 		return nil, err
@@ -933,6 +935,12 @@ func (m *SnapManager) StartUp() error {
 		return fmt.Errorf("failed to generate cookies: %q", err)
 	}
 
+	// remove what the gate-auto-refresh-hook feature of an older snapd left
+	// behind. this must happen before the task runner resumes any tasks.
+	if err := cleanupGateAutoRefreshFeature(m.state); err != nil {
+		logger.Noticef("cannot clean up gate-auto-refresh leftovers: %v", err)
+	}
+
 	m.changeCallbackID = m.state.AddChangeStatusChangedHandler(func(chg *state.Change, old, new state.Status) {
 		// This handler records a refresh-inhibit notice when the set of inhibited snaps is changed.
 		processInhibitedAutoRefresh(chg, old, new)
@@ -948,9 +956,11 @@ func (m *SnapManager) StartUp() error {
 	return nil
 }
 
-// Stop implements StateStopper. It will unregister the change callback
-// handler from state.
+// Stop implements StateStopper. It will stop any background catalog refresh
+// and unregister the change callback handler from state.
 func (m *SnapManager) Stop() {
+	m.catalogRefresh.Stop()
+
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
@@ -962,9 +972,6 @@ func (m *SnapManager) Stop() {
 // that should not block daemon shutdown.
 //
 // TODO: remove this when Ensure gets the appropriate context from Overlord.
-//
-// Note: ShutDown needs to be a proper subset of Stop but currently it isn't.
-// This is acceptable for now as resolving the above TODO will remove ShutDown.
 func (m *SnapManager) ShutDown() {
 	m.catalogRefresh.ShutDown()
 }
@@ -1473,6 +1480,39 @@ func getSystemD() systemd.Systemd {
 	}
 }
 
+// maybeAppendIntegrityMountOptions appends integrity mount options to the given mount
+// options in-place if the snap has validated integrity data.
+func maybeAppendIntegrityMountOptions(st *state.State, mountOptions *systemd.MountUnitOptions, info *snap.Info) error {
+	// TODO: only mount with integrity data if on UC and model base snap
+	//       has validated integrity data.
+	if !info.Revision.Store() {
+		return nil
+	}
+
+	idp, err := ValidatedIntegrityData(st, info.SnapID, info.Revision)
+	// TODO: when policy for choosing the preferred integrity method is
+	//       implemented, not having integrity data should return an error
+	//       if enforced through some policy
+	if err != nil && !errors.Is(err, integrity.ErrNoIntegrityDataFoundInRevision) {
+		return err
+	}
+	if idp != nil {
+		if _, err := integrityLookupDataAndCrossCheck(info.MountFile(), idp); err != nil {
+			if errors.Is(err, integrity.ErrDmVerityDataNotFound) {
+				logger.Noticef("cannot find integrity data for snap %q: %v", info.InstanceName(), err)
+				return nil
+			}
+			return fmt.Errorf("cannot validate integrity data for snap %q: %w", info.InstanceName(), err)
+		}
+		integrityMountOpts, err := idp.MountOptions(info.MountFile())
+		if err != nil {
+			return err
+		}
+		mountOptions.Options = append(mountOptions.Options, integrityMountOpts...)
+	}
+	return nil
+}
+
 func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1524,6 +1564,10 @@ func (m *SnapManager) ensureMountsUpdatedAfterSeed(deviceCtx DeviceContext) erro
 			}
 
 			if err := sysd.ConfigureMountUnitOptions(mountOptions, "squashfs", startBeforeDriversLoad); err != nil {
+				return err
+			}
+
+			if err := maybeAppendIntegrityMountOptions(m.state, mountOptions, info); err != nil {
 				return err
 			}
 

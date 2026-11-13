@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -92,7 +93,7 @@ func allActiveSnapNames(st *state.State) ([]string, error) {
 	names := make([]string, 0, len(all))
 	for name, snapst := range all {
 		if snapst.Active {
-			names = append(names, name)
+			names = append(names, name.String())
 		}
 	}
 
@@ -393,7 +394,7 @@ func Save(st *state.State, instanceNames []string, users []string, options map[s
 		}
 
 		for _, name := range instanceNames {
-			if _, ok := installedSnaps[name]; !ok {
+			if _, ok := installedSnaps[naming.InstanceName(name)]; !ok {
 				return 0, nil, nil, &snap.NotInstalledError{Snap: name}
 			}
 		}
@@ -503,7 +504,7 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 
 	for _, summary := range summaries {
 		var current snap.Revision
-		if snapst, ok := all[summary.snap]; ok {
+		if snapst, ok := all[naming.InstanceName(summary.snap)]; ok {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
 				// how?

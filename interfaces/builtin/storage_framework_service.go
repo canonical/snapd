@@ -157,6 +157,13 @@ func (iface *storageFrameworkServiceInterface) AutoConnect(plug *snap.PlugInfo, 
 	return true
 }
 
+func (iface *storageFrameworkServiceInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the storage framework service owns the well-known bus name
+	// com.canonical.StorageFramework.Registry on the session bus; only one
+	// snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&storageFrameworkServiceInterface{})
 }

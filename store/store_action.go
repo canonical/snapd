@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // TODO: rename this type to something more general, since it is used for more
@@ -56,7 +57,7 @@ type RefreshOptions struct {
 // snap action: install/refresh
 
 type CurrentSnap struct {
-	InstanceName     string
+	InstanceName     naming.InstanceName
 	SnapID           string
 	Revision         snap.Revision
 	TrackingChannel  string
@@ -291,7 +292,7 @@ func (s *Store) SnapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 }
 
 func genInstanceKey(curSnap *CurrentSnap, salt string) (string, error) {
-	_, snapInstanceKey := snap.SplitInstanceName(curSnap.InstanceName)
+	snapInstanceKey := curSnap.InstanceName.InstanceKey()
 
 	if snapInstanceKey == "" {
 		return curSnap.SnapID, nil
@@ -370,7 +371,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			return nil, nil, err
 		}
 		curSnaps[instanceKey] = curSnap
-		instanceNameToKey[curSnap.InstanceName] = instanceKey
+		instanceNameToKey[curSnap.InstanceName.String()] = instanceKey
 
 		channel := curSnap.TrackingChannel
 		if channel == "" {
@@ -681,7 +682,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 					if channel == "" && a.Revision.Unset() {
 						channel = cur.TrackingChannel
 					}
-					refreshErrors[cur.InstanceName] = translateSnapActionError("refresh", channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
+					refreshErrors[cur.InstanceName.String()] = translateSnapActionError("refresh", channel, res.Error.Code, res.Error.Message, res.Error.Extra.Releases)
 					continue
 				}
 			}
@@ -714,10 +715,10 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			//   then we check if the snap's revision is in the list of blocked
 			//   revisions.
 			if !refreshes[res.InstanceKey].ResourceInstall && (currentSnapMatchesStoreSnap(cur, res.Snap) || findRev(rrev, cur.Block)) {
-				refreshErrors[cur.InstanceName] = ErrNoUpdateAvailable
+				refreshErrors[cur.InstanceName.String()] = ErrNoUpdateAvailable
 				continue
 			}
-			instanceName = cur.InstanceName
+			instanceName = cur.InstanceName.String()
 		} else if res.Result == "install" {
 			if action := installs[res.InstanceKey]; action != nil {
 				instanceName = action.InstanceName

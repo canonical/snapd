@@ -51,8 +51,10 @@ prepare: |
   INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
   cp "/var/lib/snapd/snaps/snapd_$INITIAL_REV.snap" snapd-pr.snap
 
-  snap set system experimental.parallel-instances=true
-  tests.cleanup defer snap unset system experimental.parallel-instances
+  if [ "$SNAPD_VERSION_UNDER_TEST" = "2.49.2" ] || [ "$SNAPD_VERSION_UNDER_TEST" = "stable" ]; then
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+  fi
 
   # keep around all the snapd snap revisions we will use in the test so that we
   # can always easily revert back to the one at the end of the test

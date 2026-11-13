@@ -102,12 +102,11 @@ dbus (send)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "packagekit-control",
-		summary:                  packageKitControlSummary,
-		implicitOnClassic:        true,
-		baseDeclarationPlugs:     packageKitControlBaseDeclarationPlugs,
-		baseDeclarationSlots:     packageKitControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    packageKitControlConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "packagekit-control",
+		summary:               packageKitControlSummary,
+		implicitOnClassic:     true,
+		baseDeclarationPlugs:  packageKitControlBaseDeclarationPlugs,
+		baseDeclarationSlots:  packageKitControlBaseDeclarationSlots,
+		connectedPlugAppArmor: packageKitControlConnectedPlugAppArmor,
 	})
 }

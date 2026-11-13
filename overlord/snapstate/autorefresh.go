@@ -118,6 +118,12 @@ func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
 	return rc.SnapSetup.Prereq
 }
 
+// ComponentSetups returns the components that are refreshed together with the
+// snap.
+func (rc *refreshCandidate) ComponentSetups() []ComponentSetup {
+	return rc.Components
+}
+
 func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
 	var snapst SnapState
 	if err := Get(st, rc.InstanceName().String(), &snapst); err != nil {

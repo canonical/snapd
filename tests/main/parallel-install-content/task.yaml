@@ -5,9 +5,6 @@ details: |
     connected, both sides using parallel installs.
 
 prepare: |
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap set system experimental.parallel-instances=null
-
     snap install core24
 
 execute: |

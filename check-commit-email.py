@@ -10,6 +10,7 @@
 # like a developer would do locally in which case this ends up checking all
 # commits locally - some day that may grow to be unwieldy but for now seems ok.
 
+import getpass
 import os
 import subprocess
 from email.utils import parseaddr
@@ -39,16 +40,28 @@ def get_commit_range():
         raise RuntimeError("expected two parents, but got {}".format(parents))
 
 
-def exception_invalid(maybeaddr: str) -> bool:
+# Addresses that parseaddr() cannot parse because the display name contains
+# brackets, so they show up as an empty address. Only GitHub bots use this
+# form; a human with a malformed commit head is still rejected.
+BOT_ADDRESSES = (
     # from commit d935048f4ee5f9a8cde640a760bf1fdb9409de7e
     # dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
-    if "+dependabot[bot]@users.noreply.github.com" in maybeaddr:
-        return True
-    return False
+    "+dependabot[bot]@users.noreply.github.com",
+    # commits pushed by the sync-master-to-fips workflow
+    # github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+    "+github-actions[bot]@users.noreply.github.com",
+)
+
+
+def exception_invalid(maybeaddr: str) -> bool:
+    return any(bot in maybeaddr for bot in BOT_ADDRESSES)
 
 
 if __name__ == "__main__":
     if not os.path.exists('.git'):
+        exit(0)
+    if getpass.getuser() == 'workshop' and os.getcwd() == '/project' and os.path.isfile('.git'):
+        # gitdir for git worktrees isn't accessible inside workshop
         exit(0)
     commitrange = get_commit_range()
     args = ["git", "log", "--format=format:%h,%ce%n%h,%ae"]

@@ -19,8 +19,6 @@
 
 package builtin
 
-import "errors"
-
 const firmwareUpdaterSupportSummary = `allows operating as the Firmware Updater`
 
 const firmwareUpdaterSupportBaseDeclarationPlugs = `
@@ -45,7 +43,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationPlugs:     firmwareUpdaterSupportBaseDeclarationPlugs,
 		baseDeclarationSlots:     firmwareUpdaterSupportBaseDeclarationSlots,
-		parallelInstancesPlugErr: errors.New("conflicting operations as the firmware updater"),
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	})
 }

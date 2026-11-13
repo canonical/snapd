@@ -8,12 +8,8 @@ details: |
 
 prepare: |
   "$TESTSTOOLS"/snaps-state install-local "test-snapd-tools"
+  "$TESTSTOOLS"/snaps-state install-local-as test-snapd-tools test-snapd-tools_foo
   "$TESTSTOOLS"/snaps-state install-local basic
-
-restore: |
-  snap unset system experimental.move-snap-home-dir
-  snap remove --purge basic
-  snap remove --purge test-snapd-tools
 
 execute: |
   echo "Check that migrate home doesn't work without setting the experimental flag"
@@ -26,19 +22,29 @@ execute: |
 
   echo "Check that migrate home migrates the data under SNAP_USER_DATA"
   snap set system experimental.move-snap-home-dir=true
+  tests.cleanup defer snap unset system experimental.move-snap-home-dir
 
   #shellcheck disable=SC2016
   test-snapd-tools.cmd sh -c 'echo foo > $HOME/foo'
+  #shellcheck disable=SC2016
+  test-snapd-tools_foo.cmd sh -c 'echo foo-instance > $HOME/foo'
   MATCH "foo" < "$HOME/snap/test-snapd-tools/current/foo"
+  MATCH "foo-instance" < "$HOME/snap/test-snapd-tools_foo/current/foo"
   not test -e "$HOME"/Snap
 
-  snap debug migrate-home test-snapd-tools basic
+  snap debug migrate-home test-snapd-tools test-snapd-tools_foo basic
 
   MATCH "foo" < "$HOME/Snap/test-snapd-tools/foo"
+  MATCH "foo-instance" < "$HOME/Snap/test-snapd-tools_foo/foo"
 
   echo "Check that the snap's environment variables and AppArmor rules are correct"
   test-snapd-tools.env | MATCH "HOME=$HOME/Snap/test-snapd-tools"
+  test-snapd-tools_foo.env | MATCH "HOME=$HOME/Snap/test-snapd-tools_foo"
 
+  echo "Check that both base snap and instance can write to their migrated homes"
   #shellcheck disable=SC2016
   test-snapd-tools.cmd sh -c 'echo "bar" > $HOME/bar'
   MATCH "bar" < "$HOME/Snap/test-snapd-tools/bar"
+  #shellcheck disable=SC2016
+  test-snapd-tools_foo.cmd sh -c 'echo "bar-instance" > $HOME/bar'
+  MATCH "bar-instance" < "$HOME/Snap/test-snapd-tools_foo/bar"

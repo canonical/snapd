@@ -113,6 +113,43 @@ The release process produces the following:
 
 *Note: documentation is produced separately from the [snap-docs repository](https://github.com/canonical/snap-docs)*
 
+#### Release output artifact build logs
+
+It can be important to know the exact versions of each dependency used to create a given snapd release package.
+
+For the snapd snap, all published snap builds are built on Launchpad under a particular entry in [Snap packages for Snappy Developers](https://launchpad.net/~snappy-dev/+snaps). For example:
+
+- The `latest/edge` channel is built from [snapd-master](https://launchpad.net/~snappy-dev/+snap/snapd-master)
+- Particular snapd releases are built from `release/2.XY` git branches, for example the [snapd 2.78 snap](https://launchpad.net/~snappy-dev/+snap/snapd-2.78)
+
+For each snap package in the list, there is "Latest builds" list which shows the snapd snap builds for each architecture.
+Each successful build has an associated `buildlog` file which records the `go version` used, along with the exact version of each dependency installed during the build.
+The Go dependencies are pulled in by the Go toolchain at build time and their versions can be found in the build log under "Obtaining dependencies".
+Similarly, the C dependency versions can be found under "Obtaining c-dependencies" in the build log.
+
+For the snapd .deb packages for Ubuntu, they are also built on Launchpad, under [snapd package in Ubuntu](https://launchpad.net/ubuntu/+source/snapd/).
+This page lists the snapd release currently available in each pocket (release, security, updates) for every supported Ubuntu release.
+Clicking on any of the listed snapd packages brings up that source package's page.
+For older snapd releases which have been superseded by newer snapd in a given release pocket, the particular source package page can be found directly at `https://launchpad.net/ubuntu/+source/snapd/<snapd-version>+ubuntu<release-version>`, for example https://launchpad.net/ubuntu/+source/snapd/2.72+ubuntu24.04.
+
+Ubuntu snapd .deb packages use vendored Go source dependencies, instead of Go libraries from the archives.
+The vendored dependencies can be found in the `vendor` directory within the source code tarball for the release, and `vendor/modules.txt` has the exact version of each vendored module used.
+Each source package page includes a "Builds" section with links to builds for each architecture, and each build has both a `buildlog` file and a `.buildinfo` file, the latter of which includes the exact versions of each build dependency from the archive, along with other relevant build information.
+
+Snapd security releases for ESM Ubuntu releases do not appear in this list, as they are not publicly accessible via Launchpad.
+The most recent snapd .deb package on ESM systems can be found by looking in https://esm.ubuntu.com/infra/ubuntu/dists/ or https://esm.ubuntu.com/infra-legacy/ubuntu/dists/, but the actual packages are restricted under https://esm.ubuntu.com/infra/ubuntu/pool/ or https://esm.ubuntu.com/infra-legacy/ubuntu/pool/ via login credentials.
+Once a release moves out of ESM and into Legacy, there may be newer snapd packages under `infra-legacy` than under `infra`.
+To retrieve the snapd ESM package information, for example:
+
+- xenial snapd ESM source package: `curl -L https://esm.ubuntu.com/infra/ubuntu/dists/xenial-infra-security/main/source/Sources.gz 2>/dev/null | gunzip | awk '/^Package: snapd$/,/^$/'`
+- xenial snapd ESM binary amd64 package: `curl -L https://esm.ubuntu.com/infra/ubuntu/dists/xenial-infra-security/main/binary-amd64/Packages.gz 2>/dev/null | gunzip | awk '/^Package: snapd$/,/^$/'`
+- xenial snapd ESM Legacy source package: `curl -L https://esm.ubuntu.com/infra-legacy/ubuntu/dists/xenial-infra-legacy-security/main/source/Sources.gz 2>/dev/null | gunzip | awk '/^Package: snapd$/,/^$/'`
+- xenial snapd ESM Legacy binary s390x package: `curl -L https://esm.ubuntu.com/infra-legacy/ubuntu/dists/xenial-infra-legacy-security/main/binary-s390x/Packages.gz 2>/dev/null | gunzip | awk '/^Package: snapd$/,/^$/'`
+- jammy snapd ESM source package: `curl -L https://esm.ubuntu.com/infra/ubuntu/dists/jammy-infra-security/main/source/Sources.gz 2>/dev/null | gunzip | awk '/^Package: snapd$/,/^$/'`
+- jammy snapd ESM binary arm64 package: `curl -L https://esm.ubuntu.com/infra/ubuntu/dists/jammy-infra-security/main/binary-arm64/Packages.gz 2>/dev/null | gunzip | awk '/^Package: snapd$/,/^$/'`
+
+For other non-Ubuntu packages, the package builds do not occur on Canonical infrastructure, and distros often rebuild an existing snapd package when a dependency changes, so we don't have a consistent way to track the dependencies used in each of those builds.
+
 ### Prerequisites
 
 The complete set of prerequisites for all release process steps is as follows:
@@ -382,7 +419,7 @@ Prerequisites:
 
 Steps:
 1. Sync with the QA person on the team in charge of beta testing to make sure we can go to beta. For example, if a previous release has not yet made it to candidate, we would need to hold off on promoting.
-2. Find the revisions for the snap you just pushed. It will be `beta/<version>`. You can find the revisions by running `snapcraft status snapd`
+2. Find the revisions for the snap you just pushed. It will be `beta/<version>`. Promote also snaps in the fips channel. You can find the revisions by running `snapcraft status snapd`
 3. For each architectural build, you have a unique revision number. You release by running `snapcraft release snapd <revision-number> beta`. You will run that command for each individual revision number.
 4. Update internal roadmap tracking, for example by marking Jira epics and releases as completed.
 5. Update GitHub milestones to close the released milestone
@@ -528,7 +565,7 @@ Prerequisites:
 - snapd QA gives the OK to promote to candidate (we always want to ensure we do not promote to a channel that has an artifact that itself has not yet been promoted to the next channel)
 
 Steps:
-1. You can find the revisions by running `snapcraft status snapd`
+1. You can find the revisions by running `snapcraft status snapd`. Promote also in the fips channel.
 2. For each architectural build, you should have a unique revision number. You release by running `snapcraft release snapd <revision-number> candidate`. You will run that command for each individual revision number.
 3. Update the [snapd roadmap](https://forum.snapcraft.io/t/the-snapd-roadmap/1973)
 4. Create a forum post using the template specified in the document "Snapd Release Form Comms Template" (example https://forum.snapcraft.io/t/snapd-2-74-1-release-update/50694)
@@ -611,6 +648,8 @@ Prerequisites:
 - One week has passed since snapd was promoted to candidate
 - The WSL smoke tests were run
 - No stable-stopper bugs have been filed in Launchpad and internal channels against candidate
+
+Do not promote FIPS snaps to stable.
 
 Request that snapd QA promotes snapd to stable. The release is done progressively. Once the progressive release has completed, update the [snapd roadmap](https://forum.snapcraft.io/t/the-snapd-roadmap/1973).
 

@@ -3,7 +3,7 @@
     SPDX-License-Identifier: GPL-3.0-only
 -->
 
-# snapd-rest-openapi
+# Snapd REST API OpenAPI specification
 
 A complete reimplementation of the [snapd REST API
 documentation](https://snapcraft.io/docs/snapd-api) using the [OpenAPI 3]
@@ -19,25 +19,11 @@ This requires a snapd developer to be aware of the API modifications they make,
 and to track those changes until they've been merged into the code base. It's
 then their responsibility to update the REST API documentation manually.
 
-### Existing format
+Redocly lints and bundles the OpenAPI specification. The published reference is rendered with Swagger UI in the [snap documentation](https://snapcraft.io/docs/reference/development/snapd-rest-api/).
 
-The existing REST API documentation is written in Markdown, using
-[markdown-it](https://github.com/markdown-it/markdown-it) and hosted on the
-[Discourse-based](https://www.discourse.org/)
-[forum.snapcraft.io](https://forum.snapcraft.io/t/snapd-rest-api/17954). From
-there, it's published directly to the [official
-documentation](https://snapcraft.io/docs).
+## Contents
 
-The REST API Markdown file is tightly structured using headings, subheadings,
-bullets and code blocks. These are manually added and adjusted when the API
-changes. There is currently no automation, and no testing, and edits often
-breaks the consistency and output of the source document.
-
-Moving to an OpenAPI-based source document is intended to solve these problems.
-
-## Repository contents
-
-The repository is structured to modularly build a complete OpenAPI
+This directory is structured to modularly build a complete OpenAPI
 specification. The main `openapi.yaml` file serves as the entry point,
 referencing the various components defined in the `v2/` directory.
 
@@ -56,22 +42,40 @@ referencing the various components defined in the `v2/` directory.
 ```
 
 The `v2/` directory contains the individual OpenAPI components:
-*   **components**: Reusable components like schemas, responses, and security schemes.
-    *   **errors**: Defines the various error responses that the API can return.
-    *   **parameters**: Defines reusable parameters for API operations.
-    *   **responses**: Defines reusable responses for API operations.
-    *   **schemas**: Defines the data models used in the API.
-    *   **security**: Defines the security schemes used by the API.
-*   **paths**: The individual API paths, with each file corresponding to
-    an endpoint.
+
+- **components**: Reusable components like schemas, responses, and security schemes.
+  - **errors**: Defines the various error responses that the API can return.
+  - **parameters**: Defines reusable parameters for API operations.
+  - **responses**: Defines reusable responses for API operations.
+  - **schemas**: Defines the data models used in the API.
+  - **security**: Defines the security schemes used by the API.
+- **paths**: The individual API paths, with each file corresponding to
+  an endpoint.
 
 The `tools` directory contains files used to perform additional functionality:
-*   **visualize.py**: Generates graphs showing the relation between
-    endpoints and their dependency schemas. All endpoints possessing the
-    same tag will be grouped in the same graph.
-*   **post-process.py**: Injects formatting into the generated webpage.
-    Currently used to create dark mode documentation webpage.
-*   **dark-theme.css**: Contains the color definitions to use for dark mode.
+
+- **visualize.py**: Generates graphs showing the relation between
+  endpoints and their dependency schemas. All endpoints possessing the
+  same tag will be grouped in the same graph.
+- **post-process.py**: Injects formatting into the generated webpage.
+  Currently used to create dark mode documentation webpage.
+- **dark-theme.css**: Contains the color definitions to use for dark mode.
 
 For more detailed information on the project structure and how to update the
 specification, please see [UPDATING.md](UPDATING.md).
+
+## Preview the specification
+
+`make build` renders a Redocly preview of the specification. Although useful, this preview differs from the published reference, which uses Swagger UI.
+
+To preview the Swagger UI rendering, run the follwoing command from `docs/api`.
+
+```sh
+sudo docker run --rm \
+  -p 8080:8080 \
+  -v "$PWD:/usr/share/nginx/html/spec:ro" \
+  -e URL=/spec/openapi.yaml \
+  swaggerapi/swagger-ui
+```
+
+Open `http://localhost:8080` to view the preview.

@@ -1082,7 +1082,7 @@ func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) str
 	}
 
 	// ensure we have valid kernel.yaml in our tests
-	err = kernel.Validate(kernelRootDir)
+	err = kernel.Validate(kernelRootDir, nil)
 	c.Assert(err, IsNil)
 
 	return kernelRootDir

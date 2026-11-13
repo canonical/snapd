@@ -35,6 +35,11 @@ parse_value_arg() {
         --corruption) CORRUPTION="$2" ;;
         --output-snap) OUTPUT_SNAP="$2" ;;
         --snap-version) SNAP_VERSION="$2" ;;
+    esac
+}
+
+parse_component_arg() {
+    case "$1" in
         --component-module) COMPONENT_MODULE="$2" ;;
         --component-name) COMPONENT_NAME="$2" ;;
         --output-component) OUTPUT_COMPONENT="$2" ;;
@@ -44,13 +49,22 @@ parse_value_arg() {
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --mode|--kernel-channel|--core-version|--kernel-branch|--epoch-bump-time|--orig-snap|--corruption|--output-snap|--snap-version|--component-module|--component-name|--output-component)
+            --mode|--kernel-channel|--core-version|--kernel-branch|--epoch-bump-time|--orig-snap|--corruption|--output-snap|--snap-version)
                 if [ "$#" -lt 2 ]; then
                     echo "repack-kernel: missing value for $1" >&2
                     show_help >&2
                     exit 1
                 fi
                 parse_value_arg "$1" "$2"
+                shift 2
+                ;;
+            --component-module|--component-name|--output-component)
+                if [ "$#" -lt 2 ]; then
+                    echo "repack-kernel: missing value for $1" >&2
+                    show_help >&2
+                    exit 1
+                fi
+                parse_component_arg "$1" "$2"
                 shift 2
                 ;;
             --inject-kernel-panic-before-snap-bootstrap)

@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/snap"
 )
 
 type validateKernelSuite struct {
@@ -49,7 +50,7 @@ assets:
 `
 	mockKernelRoot := makeMockKernel(c, kernelYaml, nil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `asset "dtbs": content "foo" source path does not exist`)
 }
 
@@ -63,7 +64,7 @@ assets:
 `
 	mockKernelRoot := makeMockKernel(c, kernelYaml, map[string]string{"dir": ""})
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `asset "dtbs": content "dir/" is not a directory`)
 }
 
@@ -82,13 +83,13 @@ assets:
 	err := os.MkdirAll(filepath.Join(mockKernelRoot, "dir"), 0755)
 	c.Assert(err, IsNil)
 
-	err = kernel.Validate(mockKernelRoot)
+	err = kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, IsNil)
 }
 
 func (s *validateKernelSuite) TestValidateHappyNoKernelYaml(c *C) {
 	emptyDir := c.MkDir()
-	err := kernel.Validate(emptyDir)
+	err := kernel.Validate(emptyDir, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -108,9 +109,43 @@ assets:
 	} {
 		mockKernelRoot := makeMockKernel(c, fmt.Sprintf(kernelYamlFmt, tc), nil)
 
-		err := kernel.Validate(mockKernelRoot)
+		err := kernel.Validate(mockKernelRoot, nil)
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`asset "dtbs": invalid content %q`, tc))
 	}
+}
+
+func (s *validateKernelSuite) TestValidateModulesRequiredForKernelModulesComponents(c *C) {
+	for _, tc := range []struct {
+		componentType snap.ComponentType
+		hasVersion    bool
+		wantErr       string
+	}{
+		{componentType: snap.StandardComponent},
+		{componentType: snap.KernelModulesComponent, wantErr: `kernel snap with kernel-modules components must contain a modules/<kernel-version> directory`},
+		{componentType: snap.KernelModulesComponent, hasVersion: true},
+	} {
+		mockKernelRoot := makeMockKernel(c, "", nil)
+		if tc.hasVersion {
+			makeMockKernelModules(c, mockKernelRoot, "5.15.0-78-generic")
+		}
+
+		components := map[string]*snap.Component{"drivers": {Type: tc.componentType}}
+		err := kernel.Validate(mockKernelRoot, components)
+		if tc.wantErr != "" {
+			c.Assert(err, ErrorMatches, tc.wantErr)
+		} else {
+			c.Assert(err, IsNil)
+		}
+	}
+}
+
+func (s *validateKernelSuite) TestValidateKernelModulesComponentsWithoutVersion(c *C) {
+	mockKernelRoot := makeMockKernel(c, "", nil)
+	c.Assert(os.Mkdir(filepath.Join(mockKernelRoot, "modules"), 0755), IsNil)
+
+	components := map[string]*snap.Component{"drivers": {Type: snap.KernelModulesComponent}}
+	err := kernel.Validate(mockKernelRoot, components)
+	c.Assert(err, ErrorMatches, `no modules directory found in ".*/modules"`)
 }
 
 // makeMockKernelModules creates a modules/<kversion> tree under kernelRoot
@@ -129,7 +164,7 @@ func (s *validateKernelSuite) TestValidateModulesUpdatesConflict(c *C) {
 	// reserved directory for kernel-modules components.
 	c.Assert(os.MkdirAll(filepath.Join(modsDir, "updates"), 0755), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `modules directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
 }
 
@@ -141,7 +176,7 @@ func (s *validateKernelSuite) TestValidateModulesUpdatesConflictFile(c *C) {
 	// directory; the check is by name, not by type.
 	c.Assert(os.WriteFile(filepath.Join(modsDir, "updates"), []byte("content"), 0644), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `modules directory ".*" must not contain an entry named "updates", reserved for kernel-modules components`)
 }
 
@@ -154,7 +189,7 @@ func (s *validateKernelSuite) TestValidateModulesNoUpdates(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(modsDir, "modules.dep"), []byte("content"), 0644), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(modsDir, "ubuntu"), 0755), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -165,7 +200,7 @@ func (s *validateKernelSuite) TestValidateModulesMultipleKernelVersions(c *C) {
 	makeMockKernelModules(c, mockKernelRoot, "5.15.0-78-generic")
 	makeMockKernelModules(c, mockKernelRoot, "5.4.0-90-generic")
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `more than one modules directory in ".*"`)
 }
 
@@ -179,7 +214,7 @@ func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflict(c *C) {
 	c.Assert(os.MkdirAll(updatesDir, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(updatesDir, "some.bin"), []byte("content"), 0644), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain a non-empty entry named "updates", reserved for kernel-modules components`)
 }
 
@@ -192,7 +227,7 @@ func (s *validateKernelSuite) TestValidateFirmwareEmptyUpdatesOK(c *C) {
 	// actually conflict with anything at runtime.
 	c.Assert(os.MkdirAll(filepath.Join(fwDir, "updates"), 0755), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -205,7 +240,7 @@ func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictFile(c *C) {
 	// directory; the check is by name, not by type.
 	c.Assert(os.WriteFile(filepath.Join(fwDir, "updates"), []byte("content"), 0644), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates" that is not an empty directory`)
 }
 
@@ -219,7 +254,7 @@ func (s *validateKernelSuite) TestValidateFirmwareUpdatesConflictSymlink(c *C) {
 	// symlink, see it as missing, and wrongly let this through.
 	c.Assert(os.Symlink("nonexistent-target", filepath.Join(fwDir, "updates")), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, ErrorMatches, `firmware directory ".*" must not contain an entry named "updates" that is not an empty directory`)
 }
 
@@ -229,6 +264,6 @@ func (s *validateKernelSuite) TestValidateFirmwareNoUpdates(c *C) {
 	c.Assert(os.MkdirAll(fwDir, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(fwDir, "foo.bin"), []byte("content"), 0644), IsNil)
 
-	err := kernel.Validate(mockKernelRoot)
+	err := kernel.Validate(mockKernelRoot, nil)
 	c.Assert(err, IsNil)
 }

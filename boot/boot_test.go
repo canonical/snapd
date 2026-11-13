@@ -2604,6 +2604,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 }
 
 func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateUnexpectedAsset(c *C) {
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
 	tab := s.bootloaderWithTrustedAssets(c, map[string]string{
 		"EFI/asset": "efi:asset",
 	})

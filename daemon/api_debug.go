@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -59,7 +60,7 @@ type debugAction struct {
 
 		RecoverySystemLabel string `json:"recovery-system-label"`
 	} `json:"params"`
-	Snaps []string `json:"snaps"`
+	Snaps []naming.InstanceName `json:"snaps"`
 }
 
 type connectivityStatus struct {

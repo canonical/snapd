@@ -139,10 +139,26 @@ func (ntb *noticeTypeBackend) AddNotice(userID uint32, id prompting.IDType, data
 	return ntb.addNotice(userID, id, data)
 }
 
+// These must be mocked together, as addNotice prunes any expired notices, so
+// we must manually skip pruning expired notices while adding more notices when
+// we want to test the behavior of the notice backend in the presence of
+// expired notices. And we mock timeNow since tests which add expired notices
+// always check that all the expected notices exist before anything else occurs.
+func (ntb *noticeTypeBackend) MockNextNoticeTimestampSkipExpirationTimeNow(f func() time.Time) (restoreNextNoticeTimestamp, restoreSkipExpiration, restoreTimeNow func()) {
+	restoreNextNoticeTimestamp = testutil.Mock(&ntb.nextNoticeTimestamp, f)
+	restoreSkipExpiration = testutil.Mock(&skipExpirationForTesting, true)
+	restoreTimeNow = testutil.Mock(&timeNow, f)
+	return restoreNextNoticeTimestamp, restoreSkipExpiration, restoreTimeNow
+}
+
 type NtbFilter = ntbFilter
 
 func (ntb *noticeTypeBackend) SimplifyFilter(filter *state.NoticeFilter) (simplified ntbFilter, matchPossible bool) {
 	return ntb.simplifyFilter(filter)
+}
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	return testutil.Mock(&timeNow, f)
 }
 
 func (ntb *noticeTypeBackend) Save() error {

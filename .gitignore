@@ -120,3 +120,6 @@ __pycache__/
 
 # Directory that is used by the run-spread script
 /built-snap
+
+# Workshop
+.workshop.lock

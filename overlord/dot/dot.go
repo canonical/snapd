@@ -142,7 +142,7 @@ func taskSnapName(t *state.Task) (string, error) {
 		return "", err
 	}
 	if err == nil && compsup.CompSideInfo != nil {
-		return compsup.CompSideInfo.Component.SnapName, nil
+		return compsup.CompSideInfo.Component.SnapName.String(), nil
 	}
 
 	return "", nil

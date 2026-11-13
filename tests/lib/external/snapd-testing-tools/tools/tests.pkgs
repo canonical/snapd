@@ -23,11 +23,6 @@ cmd_install() {
     unsupported
 }
 
-cmd_install_local() {
-    # This is re-defined by the backend file.
-    unsupported
-}
-
 cmd_download() {
     # This is re-defined by the backend file.
     unsupported

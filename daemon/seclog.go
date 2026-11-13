@@ -54,12 +54,14 @@ func (un *ucrednet) seclogPeer() seclog.Peer {
 }
 
 // authzRecorder accumulates one AUTHZ audit event during an access check.
-// User, peer, and endpoint are set at construction. Record the outcome via
-// recordGranted or recordDenied, then call log.
+// User, peer, and endpoint are set at construction. The access level is set
+// at the start of the check and decides whether an outcome is audited.
+// Record the outcome via recordGranted or recordDenied, then call log.
 type authzRecorder struct {
 	user          seclog.SnapdUser
 	peer          seclog.Peer
 	endpoint      seclog.Endpoint
+	level         accessLevel
 	reasonGranted seclog.GrantReason
 	reasonDenied  seclog.DenialReason
 }
@@ -75,13 +77,12 @@ func newAuthzRecorder(user seclog.SnapdUser, peer seclog.Peer, endpoint seclog.E
 
 // recordGranted records access granted. reason is one of [seclog.GrantUserAuth],
 // [seclog.GrantRootAuth], or [seclog.GrantPolkitAuth]. When a snap interface
-// connection also contributed, pass iface and set onPlugSide for the plug
-// side or leave it false for the slot side. The stored reason is
-// reason.WithInterface(iface, onPlugSide). A later record replaces any
-// earlier outcome.
-func (rec *authzRecorder) recordGranted(reason seclog.GrantReason, iface string, onPlugSide bool) {
+// connection also contributed, pass iface and the side the calling snap is
+// on. The stored reason is reason.WithInterface(iface, side). A later record
+// replaces any earlier outcome.
+func (rec *authzRecorder) recordGranted(reason seclog.GrantReason, iface string, side seclog.InterfaceSide) {
 	rec.reasonDenied = ""
-	rec.reasonGranted = reason.WithInterface(iface, onPlugSide)
+	rec.reasonGranted = reason.WithInterface(iface, side)
 }
 
 // recordDenied records access denied. reason is one of the [seclog.DenialReason]

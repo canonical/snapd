@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -619,6 +620,12 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	bloader.SetBootBase("core_1.snap")
 
 	chg, model := s.makeSeedChange(c, nil, checkSeedTasks, checkOrder)
+
+	restore := devicestate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		return nil, integrity.ErrNoIntegrityDataFoundInRevision
+	})
+	defer restore()
+
 	err := s.overlord.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 

@@ -15,9 +15,6 @@ details: |
     This test is related to lp-1844496, lp-1852361 and lp-1867193.
 
 prepare: |
-    snap set system experimental.parallel-instances=true
-    tests.cleanup defer snap unset system experimental.parallel-instances
-
     snap pack test-snapd-layout
 
     snap install --dangerous test-snapd-layout_1_all.snap

@@ -38,10 +38,8 @@ execute: |
     not tests.info is-reexec-in-use
     /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: re-exec disabled by user"
 
-    # shellcheck disable=SC2034
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     # shellcheck disable=SC2153
-    /usr/bin/env SNAPD_DEBUG=1 SNAP_REEXEC=1 snap list 2>&1 | MATCH "DEBUG: restarting into \"$SNAP_MOUNT_DIR/snapd/current/usr/bin/snap\""
+    /usr/bin/env SNAPD_DEBUG=1 SNAP_REEXEC=1 snap list 2>&1 | MATCH 'DEBUG: restarting into "/snap/snapd/'
 
     # Check the snap version has the proper value expected when the snapd snap is not being used
     . /etc/os-release

@@ -489,6 +489,31 @@ func (s *retrySuite) TestRetryOnTemporaryDNSfailureNotGo19(c *C) {
 	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
 }
 
+func (s *retrySuite) TestRetryOnDNSDeviceOrResourceBusy(c *C) {
+	n := 0
+	doRequest := func() (*http.Response, error) {
+		n++
+		return nil, &url.Error{
+			Op:  "Post",
+			URL: "https://api.snapcraft.io/v2/snaps/refresh",
+			Err: &net.OpError{
+				Op:  "dial",
+				Net: "tcp",
+				Err: &net.DNSError{
+					Err:  "device or resource busy",
+					Name: "api.snapcraft.io",
+				},
+			},
+		}
+	}
+	readResponseBody := func(resp *http.Response) error {
+		return nil
+	}
+	_, err := httputil.RetryRequest("endp", doRequest, readResponseBody, testRetryStrategy)
+	c.Assert(err, FitsTypeOf, &httputil.PersistentNetworkError{})
+	c.Assert(n > 1, Equals, true, Commentf("%v not > 1", n))
+}
+
 func (s *retrySuite) TestRetryOnHttp2ProtocolErrors(c *C) {
 	n := 0
 	doRequest := func() (*http.Response, error) {
