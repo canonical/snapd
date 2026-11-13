@@ -166,6 +166,16 @@ execute: |
     echo "Verify that device access map for the application is present and is pinned to a file"
     test -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
 
+    echo "Run snap and component hooks"
+    snap set test-snapd-service device-cgroup-test=true
+    snap pack hook-component
+    snap install --dangerous test-snapd-service+two_1.0.comp
+
+    echo "Verify snap debug device-cgroup reports the correct hook security tags"
+    snap debug device-cgroup test-snapd-service > device-cgroup-devices-hooks.out
+    MATCH 'Security tag: snap\.test-snapd-service\.hook\.configure' < device-cgroup-devices-hooks.out
+    MATCH 'Security tag: snap\.test-snapd-service\+two\.hook\.install' < device-cgroup-devices-hooks.out
+
     if test -f enforcing.mode; then
         # Ignore expected SELinux denials from syslogd_t using netlink_tcpdiag_socket
         # Fail on any other unexpected AVCs.

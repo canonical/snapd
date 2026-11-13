@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // DeviceKey is the key structure describing a device which the snap is allowed
@@ -126,28 +127,59 @@ func (d *DeviceMap) Iterate(fn func(key DeviceKey) error) error {
 	return iter.Err()
 }
 
-// bpffsPinnedNameToSecurityTag converts a name of a pinned entry back to a
-// security tag. The bpffs name has the format snap_<name>_<app> where dots in
-// the original tag were replaced with underscores. Valid snap and app names cannot
-// contain underscores.
-func bpffsPinnedNameToSecurityTag(name string) (tag string, err error) {
-	first := strings.Index(name, "_")
-	last := strings.LastIndex(name, "_")
-	// Do a lightweight check, the names are reasonably validated before even
-	// getting here.
-	if first < 0 || last < 0 || (last-first) < 2 {
-		return "", fmt.Errorf("cannot identify security tag from name %q", name)
+// bpffsPinnedNameToSecurityTag converts the name of a pinned device map
+// file to the security tag it was created for. The encoding, performed
+// by snap-confine and mirrored by SecurityTagToBPFPath, replaces the dots
+// of the security tag with underscores; the plus sign separating a snap
+// instance from a component name is preserved.
+//
+// Because the underscore is also the separator between a snap name and
+// its instance key, one shape is ambiguous: snap_<instance>_hook_<hookname>
+// is also a valid pin of the app <hookname> of the instance whose key is
+// "hook". When <hookname> is both a valid app name and a valid hook name,
+// prefer the hook interpretation, following the snap-device-helper
+// convention. If it is an invalid hook name, return the app interpretation.
+//
+// The converter guarantees the structure of the tag (non-empty,
+// dot-separated parts) but not its content; use naming.ParseSecurityTag
+// to validate the content (charsets, instance-key rules) and to inspect
+// its parts. An error is returned only for names that cannot
+// structurally be pins (no "snap_" prefix, fewer than two
+// underscore-separated segments after it, or an empty segment).
+func bpffsPinnedNameToSecurityTag(name string) (string, error) {
+	cannotIdentifyErr := fmt.Errorf("cannot identify security tag from name %q", name)
+	if !strings.HasPrefix(name, "snap_") {
+		return "", cannotIdentifyErr
 	}
-	return name[:first] + "." + name[first+1:last] + "." + name[last+1:], nil
+	segments := strings.Split(name[len("snap_"):], "_")
+	if len(segments) < 2 {
+		return "", cannotIdentifyErr
+	}
+	for _, segment := range segments {
+		if segment == "" {
+			return "", cannotIdentifyErr
+		}
+	}
+	if len(segments) >= 3 && segments[len(segments)-2] == "hook" {
+		// snap_<instance>_hook_<hookname>
+		instance := strings.Join(segments[:len(segments)-2], "_")
+		hookName := segments[len(segments)-1]
+		if err := naming.ValidateHook(hookName); err == nil {
+			return fmt.Sprintf("snap.%s.hook.%s", instance, hookName), nil
+		}
+	}
+	// snap_<instance>_<app> (the app may be literally named "hook")
+	instance := strings.Join(segments[:len(segments)-1], "_")
+	return fmt.Sprintf("snap.%s.%s", instance, segments[len(segments)-1]), nil
 }
 
-func FindActiveDeviceMapsForSnap(instanceName string) (tags []string, err error) {
-	// Security tags in bpffs have dots replaced with underscores.
-	// Pattern: snap_<name>_<app>
-	// This also matches parallel installs (e.g. snap_foo_inst_bar for
-	// instance "foo_inst") since snap and app names cannot contain
-	// underscores.
-	prefix := fmt.Sprintf("snap_%s_", instanceName)
+// FindActiveDeviceMapTagsForSnap returns the security tags of the device
+// maps pinned for the given snap instance name, sorted. Only tags
+// belonging to the exact instance are returned; in particular the maps
+// of parallel installs of the same snap are excluded. Tags of apps,
+// snap hooks and component hooks of this instance are included. It
+// returns nil if there is nothing to find.
+func FindActiveDeviceMapTagsForSnap(instanceName string) (tags []string, err error) {
 	entries, err := os.ReadDir(dirs.SnapBPFFSDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -155,14 +187,19 @@ func FindActiveDeviceMapsForSnap(instanceName string) (tags []string, err error)
 		}
 		return nil, fmt.Errorf("cannot read %s: %v", dirs.SnapBPFFSDir, err)
 	}
-
 	for _, e := range entries {
-		name := e.Name()
-		if strings.HasPrefix(name, prefix) {
-			if tag, err := bpffsPinnedNameToSecurityTag(name); err == nil && tag != "" {
-				tags = append(tags, tag)
-			}
+		tag, err := bpffsPinnedNameToSecurityTag(e.Name())
+		if err != nil {
+			continue
 		}
+		parsedTag, err := naming.ParseSecurityTag(tag)
+		if err != nil {
+			continue
+		}
+		if parsedTag.InstanceName() != instanceName {
+			continue
+		}
+		tags = append(tags, tag)
 	}
 	sort.Strings(tags)
 	return tags, nil

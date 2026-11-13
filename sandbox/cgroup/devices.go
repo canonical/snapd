@@ -41,8 +41,8 @@ type deviceMapAccessor interface {
 }
 
 var (
-	loadDeviceMapFunc         = loadDeviceMapImpl
-	findDeviceMapsForSnapFunc = ebpf.FindActiveDeviceMapsForSnap
+	loadDeviceMapFunc                  = loadDeviceMapImpl
+	findActiveDeviceMapTagsForSnapFunc = ebpf.FindActiveDeviceMapTagsForSnap
 )
 
 func loadDeviceMapImpl(securityTag string) (deviceMapAccessor, error) {
@@ -57,7 +57,7 @@ func FindActiveDeviceMediationForSnap(snapName string) (tags []string, err error
 		return nil, err
 	}
 	if v == V2 {
-		return findDeviceMapsForSnapFunc(snapName)
+		return findActiveDeviceMapTagsForSnapFunc(snapName)
 	}
 	return findSecurityTagsV1(snapName)
 }
