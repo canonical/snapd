@@ -8415,6 +8415,162 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestStopSnapServicesPersistsRetryStateBeforeStopping(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
+	prevUserCurrentlyDisabled := s.fakeBackend.userServicesCurrentlyDisabled
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1"}
+	s.fakeBackend.userServicesCurrentlyDisabled = map[int][]string{
+		1000: {"svc2"},
+	}
+	defer func() {
+		s.fakeBackend.servicesCurrentlyDisabled = prevCurrentlyDisabled
+		s.fakeBackend.userServicesCurrentlyDisabled = prevUserCurrentlyDisabled
+	}()
+
+	si := &snap.SideInfo{RealName: "hello-snap", SnapID: "hello-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, servicesSnap, si)
+
+	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
+		Active:                     true,
+		Sequence:                   snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:                    si.Revision,
+		SnapType:                   "app",
+		LastActiveDisabledServices: []string{"old-svc"},
+		LastActiveDisabledUserServices: map[int][]string{
+			1000: {"old-user-svc"},
+		},
+	})
+
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	chg := s.state.NewChange("services..", "")
+	t := s.state.NewTask("stop-snap-services", "")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	t.Set("stop-reason", snap.StopReasonDisable)
+	chg.AddTask(t)
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "stop-snap-services:disable" {
+			return fmt.Errorf("mock stop failure")
+		}
+		return nil
+	}
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+
+	var oldDisabledSvcs []string
+	c.Assert(t.Get("old-last-active-disabled-services", &oldDisabledSvcs), IsNil)
+	c.Check(oldDisabledSvcs, DeepEquals, []string{"old-svc"})
+
+	var oldDisabledUserSvcs map[int][]string
+	c.Assert(t.Get("old-last-active-disabled-user-services", &oldDisabledUserSvcs), IsNil)
+	c.Check(oldDisabledUserSvcs, DeepEquals, map[int][]string{
+		1000: {"old-user-svc"},
+	})
+
+	var disabledSvcs wrappers.DisabledServices
+	c.Assert(t.Get("disabled-services", &disabledSvcs), IsNil)
+	c.Check(disabledSvcs, DeepEquals, wrappers.DisabledServices{
+		SystemServices: []string{"svc1"},
+		UserServices: map[int][]string{
+			1000: {"svc2"},
+		},
+	})
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "hello-snap", &snapst), IsNil)
+	c.Check(snapst.LastActiveDisabledServices, DeepEquals, []string{"old-svc"})
+	c.Check(snapst.LastActiveDisabledUserServices, DeepEquals, map[int][]string{
+		1000: {"old-user-svc"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestStopSnapServicesRetryUsesPersistedDisabledServices(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
+	prevUserCurrentlyDisabled := s.fakeBackend.userServicesCurrentlyDisabled
+	// A new query after the first stop would observe different disabled services.
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc2"}
+	s.fakeBackend.userServicesCurrentlyDisabled = map[int][]string{
+		2000: {"svc1"},
+	}
+	defer func() {
+		s.fakeBackend.servicesCurrentlyDisabled = prevCurrentlyDisabled
+		s.fakeBackend.userServicesCurrentlyDisabled = prevUserCurrentlyDisabled
+	}()
+
+	si := &snap.SideInfo{RealName: "hello-snap", SnapID: "hello-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, servicesSnap, si)
+
+	// Model a restart after the final snap state was persisted but before the
+	// task completion was persisted.
+	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
+		Active:                     true,
+		Sequence:                   snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:                    si.Revision,
+		SnapType:                   "app",
+		LastActiveDisabledServices: []string{"old-svc", "svc1"},
+		LastActiveDisabledUserServices: map[int][]string{
+			1000: {"old-user-svc", "svc2"},
+		},
+	})
+
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	chg := s.state.NewChange("services..", "")
+	t := s.state.NewTask("stop-snap-services", "")
+	t.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	t.Set("stop-reason", snap.StopReasonDisable)
+	t.Set("old-last-active-disabled-services", []string{"old-svc"})
+	t.Set("old-last-active-disabled-user-services", map[int][]string{
+		1000: {"old-user-svc"},
+	})
+	t.Set("disabled-services", &wrappers.DisabledServices{
+		SystemServices: []string{"svc1"},
+		UserServices: map[int][]string{
+			1000: {"svc2"},
+		},
+	})
+	chg.AddTask(t)
+	t.SetStatus(state.DoingStatus)
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
+		{
+			op:       "stop-snap-services:disable",
+			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+			services: []string{"svc1", "svc2"},
+		},
+	})
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "hello-snap", &snapst), IsNil)
+	c.Check(snapst.LastActiveDisabledServices, DeepEquals, []string{"old-svc", "svc1"})
+	c.Check(snapst.LastActiveDisabledUserServices, DeepEquals, map[int][]string{
+		1000: {"old-user-svc", "svc2"},
+	})
+
+	var disabledSvcs wrappers.DisabledServices
+	c.Assert(t.Get("disabled-services", &disabledSvcs), IsNil)
+	c.Check(disabledSvcs, DeepEquals, wrappers.DisabledServices{
+		SystemServices: []string{"svc1"},
+		UserServices: map[int][]string{
+			1000: {"svc2"},
+		},
+	})
+}
+
 func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -8529,7 +8685,7 @@ func (s *snapmgrTestSuite) testStopSnapServicesOnStopFailure(c *C, reason snap.S
 			services: []string{"svc1", "svc2"},
 		},
 	}
-	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
+	skipUndo := reason == snap.StopReasonRemove
 	if !skipUndo {
 		expected = append(expected, fakeOp{
 			// Should be triggered due to mock error in StopServices
@@ -8544,6 +8700,10 @@ func (s *snapmgrTestSuite) testStopSnapServicesOnStopFailure(c *C, reason snap.S
 
 func (s *snapmgrTestSuite) TestStopSnapServicesStartsStoppedServicesOnStopFailureForRefresh(c *C) {
 	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonRefresh)
+}
+
+func (s *snapmgrTestSuite) TestStopSnapServicesStartsStoppedServicesOnStopFailureForDisable(c *C) {
+	s.testStopSnapServicesOnStopFailure(c, snap.StopReasonDisable)
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesDoesNotStartStoppedServicesOnStopFailureForRemove(c *C) {

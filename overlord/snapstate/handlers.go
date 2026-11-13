@@ -3056,7 +3056,7 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	// XXX: stop reason not set on start task, should we have a new reason for undo?
 	var stopReason snap.ServiceStopReason
 
-	// stop the services
+	// stop and disable the services
 	st.Unlock()
 	err = m.backend.StopServices(svcs, nil, nil, stopReason, NullUndoer, progress.Null, perfTimings)
 	st.Lock()
@@ -3077,14 +3077,19 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		return err
 	}
 
-	// For remove/disable, the end goal is to have services stopped, so undo is skipped
-	// to avoid restarting the services in case of error. This aligns with making
-	// remove/disable best effort towards achieving their end goal.
-	// On the other hand, for example for refresh the end goal is to have the services
-	// running (just from a different revision), so undo is needed to restart the
-	// services in case of error.
+	// For remove, the end goal is to have services stopped, so undo is skipped
+	// to avoid restarting/re-enabling the services in case of error. This
+	// aligns with making remove best effort towards achieving its end goal.
+	// For disable, the end goal is also to have services stopped/disabled, but
+	// since subsequent disable changes would treat the disabled services from
+	// the previous failed task as having been originally disabled, we must undo
+	// the service stop/disable on error. Then, on a later enable change, the
+	// originally-enabled services will be re-enabled correctly.
+	// For other reasons, such as refresh, the end goal is to have the services
+	// running (just from a different revision), so undo is needed to restart
+	// and re-enable the services in case of error.
 	undoerUnlocked := NullUndoer
-	skipUndo := stopReason == snap.StopReasonRemove || stopReason == snap.StopReasonDisable
+	skipUndo := stopReason == snap.StopReasonRemove
 	if !skipUndo {
 		ut, undoOnError := NewUndoTracker(t, &retErr)
 		defer undoOnError()
@@ -3109,6 +3114,34 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
+
+	// In case stopSnapServices is retried (such as due to an error or snapd
+	// restart), check whether we have already set the disabled services in
+	// the task state, and retrieve and use the original values if so rather
+	// than re-querying services which may have been disabled during the
+	// previous attempt. This allows retries to be idempotent.
+	var alreadySetDisabledServices bool
+	var disabledServices wrappers.DisabledServices
+	err = t.Get("disabled-services", &disabledServices)
+	switch {
+	case errors.Is(err, state.ErrNoState):
+		alreadySetDisabledServices = false
+	case err != nil:
+		return err
+	default:
+		alreadySetDisabledServices = true
+		var oldLastActiveDisabledServices []string
+		if err := t.Get("old-last-active-disabled-services", &oldLastActiveDisabledServices); err != nil {
+			return err
+		}
+		var oldLastActiveDisabledUserServices map[int][]string
+		if err := t.Get("old-last-active-disabled-user-services", &oldLastActiveDisabledUserServices); err != nil {
+			return err
+		}
+		snapst.LastActiveDisabledServices = oldLastActiveDisabledServices
+		snapst.LastActiveDisabledUserServices = oldLastActiveDisabledUserServices
+	}
+
 	st.Unlock()
 	defer st.Lock()
 
@@ -3131,34 +3164,39 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		}
 	}
 
-	// Query disabled services before stopping. This serves two purposes:
-	// 1. The undoer passes it to StartServices to skip disabled services,
-	//    so only previously enabled services are started again on error.
-	// 2. The result is persisted in the task state for undoStopSnapServices
-	//    to similarly know which services should remain disabled when starting
-	//    services again during undo.
-	// backend.StopServices does not change which services are disabled as it uses
-	// the default StopServicesOptions.Disable = false opts, so a single
-	// query before the stop is sufficient for both uses.
-	disabledServices, err := m.queryDisabledServices(currentInfo, pb)
-	if err != nil {
-		return err
+	if !alreadySetDisabledServices {
+		// Query disabled services before stopping. This serves two purposes:
+		// 1. The undoer passes it to StartServices to skip disabled services,
+		//    so only previously enabled services are started again on error.
+		// 2. The result is persisted in the task state for undoStopSnapServices
+		//    to similarly know which services should remain disabled when starting
+		//    services again during undo.
+		// backend.StopServices disables services after stopping them, so this query
+		// must happen first to capture which services were already disabled.
+		disabledServicesPtr, err := m.queryDisabledServices(currentInfo, pb)
+		if err != nil {
+			return err
+		}
+		disabledServices = *disabledServicesPtr
+		func() {
+			st.Lock()
+			defer st.Unlock()
+			// for undo
+			t.Set("old-last-active-disabled-services", snapst.LastActiveDisabledServices)
+			t.Set("old-last-active-disabled-user-services", snapst.LastActiveDisabledUserServices)
+			// undo could queryDisabledServices, but this avoids it
+			t.Set("disabled-services", &disabledServices)
+		}()
 	}
 
-	// stop the services
-	err = m.backend.StopServices(svcs, rmSvcs, disabledServices, stopReason, undoerUnlocked, pb, perfTimings)
+	// stop and disable the services
+	err = m.backend.StopServices(svcs, rmSvcs, &disabledServices, stopReason, undoerUnlocked, pb, perfTimings)
 	if err != nil {
 		return err
 	}
 
 	st.Lock()
 	defer st.Unlock()
-
-	// for undo
-	t.Set("old-last-active-disabled-services", snapst.LastActiveDisabledServices)
-	t.Set("old-last-active-disabled-user-services", snapst.LastActiveDisabledUserServices)
-	// undo could queryDisabledServices, but this avoids it
-	t.Set("disabled-services", disabledServices)
 
 	// add to the disabled services list in snapst services which were disabled
 	// for usage across changes like in reverting and enabling after being
@@ -3184,6 +3222,9 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	snapst.ServicesEnabledByHooks = nil
 
 	Set(st, snapsup.InstanceName().String(), snapst)
+	// Commit the final snapstate and task completion together with the state
+	// lock held so a restart does not rerun the completed task handler
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
