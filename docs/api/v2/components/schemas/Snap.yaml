@@ -12,7 +12,7 @@ properties:
     description: The name of the snap.
   base:
     type: string
-    description: The base snap providing the runtime environment.
+    description: The base snap this snap is built on.
     example: core20
   build-base:
     type: string
