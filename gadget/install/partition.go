@@ -149,8 +149,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, vol *gadget.Volume, opts *Creat
 	}
 	sectorSize := uint64(dl.SectorSize)
 
-	// For eMMC volumes, do not build any partitions
-	if vol.Schema == "emmc" {
+	// For eMMC and UFS volumes, do not build any partitions
+	if vol.Schema == "emmc" || vol.Schema == "ufs" {
 		return nil, nil, nil
 	}
 

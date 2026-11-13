@@ -118,6 +118,35 @@ func (s *validateGadgetTestSuite) TestRuleValidateStructureEmmcNames(c *C) {
 	}
 }
 
+func (s *validateGadgetTestSuite) TestRuleValidateStructureUFSNames(c *C) {
+	for _, tc := range []struct {
+		name, err string
+		model     gadget.Model
+	}{
+		{name: "some-name", err: `cannot use "some-name" as ufs name, only \["boot-lu-a" "boot-lu-b"\] is allowed`},
+		{name: "boot-lu-a", err: ""},
+		{name: "boot-lu-b", err: ""},
+	} {
+		gi := &gadget.Info{
+			Volumes: map[string]*gadget.Volume{
+				"ufs": {
+					Schema: "ufs",
+					Structure: []gadget.VolumeStructure{{
+						Name: tc.name,
+					}},
+				},
+			},
+		}
+		gadget.SetEnclosingVolumeInStructs(gi.Volumes)
+		err := gadget.Validate(gi, tc.model, nil)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, ".*: "+tc.err)
+		}
+	}
+}
+
 // rolesYaml produces gadget metadata with volumes with structure withs the given
 // role if data, seed or save are != "-", and with their label set to the value
 func rolesYaml(c *C, data, seed, save string) *gadget.Info {
