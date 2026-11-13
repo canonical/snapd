@@ -145,6 +145,32 @@ func (s *batchSuite) TestCommitToAndObserve(c *C) {
 	})
 }
 
+func (s *batchSuite) TestCommitSnapResourcePairBeforeDeveloperAccount(c *C) {
+	err := s.db.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = s.db.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	decl := s.snapDecl(c, "foo", nil)
+	developer := assertstest.NewAccount(s.storeSigning, "developer2", nil, "")
+	pair, err := s.storeSigning.Sign(asserts.SnapResourcePairType, map[string]any{
+		"snap-id":           decl.SnapID(),
+		"resource-name":     "component",
+		"resource-revision": "1",
+		"snap-revision":     "1",
+		"developer-id":      developer.AccountID(),
+		"timestamp":         time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	batch := asserts.NewBatch(nil)
+	c.Assert(batch.Add(pair), IsNil)
+	c.Assert(batch.Add(decl), IsNil)
+	c.Assert(batch.Add(developer), IsNil)
+
+	c.Assert(batch.CommitTo(s.db, nil), IsNil)
+}
+
 func (s *batchSuite) TestAddEmptyStream(c *C) {
 	b := &bytes.Buffer{}
 
