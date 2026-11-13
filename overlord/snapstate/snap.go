@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -822,6 +823,63 @@ func shouldPreDownloadSnap(st *state.State, snapsup *SnapSetup, snapst *SnapStat
 	return nil, nil
 }
 
+// checkPublisherValidation returns true if the publisher's validation status meets the system's security requirements.
+func checkPublisherValidation(validationsStr string, publisher snap.StoreAccount) bool {
+	if validationsStr == "" {
+		// if not set or empty, all are allowed
+		return true
+	}
+
+	validations := strings.Split(validationsStr, ",")
+	for _, v := range validations {
+		v = strings.TrimSpace(v)
+		if publisher.HasValidation(v) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// CheckVerifiedPublisher checks if the snap's publisher validation meets the system requirements; local and private snaps are excluded. Called from doValidateSnap in assertstate.
+func CheckVerifiedPublisher(st *state.State, snapsup *SnapSetup) error {
+	var validationsStr string
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "system.security.required-publisher-validations", &validationsStr)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if validationsStr == "" {
+		return nil
+	}
+
+	isPrivate := snapsup.SideInfo != nil && snapsup.SideInfo.Private
+	if isPrivate {
+		return nil
+	}
+
+	if snapsup.SideInfo == nil || snapsup.SideInfo.SnapID == "" {
+		return fmt.Errorf("internal error: publisher validation requested without a snap ID")
+	}
+	if PublisherStoreAccount == nil {
+		return fmt.Errorf("internal error: publisher assertion lookup is unavailable")
+	}
+	publisher, err := PublisherStoreAccount(st, snapsup.SideInfo.SnapID)
+	if err != nil {
+		return fmt.Errorf("cannot determine publisher validation for snap %q: %v", snapsup.InstanceName(), err)
+	}
+
+	// installed snaps are unaffected if validation drops on refresh
+	if !checkPublisherValidation(validationsStr, publisher) {
+		var snapst SnapState
+		if err := Get(st, snapsup.InstanceName().String(), &snapst); err == nil && snapst.IsInstalled() {
+			return fmt.Errorf("cannot update snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
+		}
+		return fmt.Errorf("cannot install snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
+	}
+	return nil
+}
+
 // checkInstallPreconditions performs the pre-flight checks currently done at the
 // start of doInstall. It may mutate snapsup (e.g. PlugsOnly tweak) to keep
 // semantics identical to the existing flow.
@@ -1043,4 +1101,49 @@ func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
 
 func isCoreSnap(snapName string) bool {
 	return snapName == defaultCoreSnapName
+}
+
+// CheckInstalledSnapsPublisherValidation warns if publisher validation drops after assertion refresh.
+func CheckInstalledSnapsPublisherValidation(st *state.State) {
+	var validationsStr string
+	tr := config.NewTransaction(st)
+	err := tr.Get("core", "system.security.required-publisher-validations", &validationsStr)
+	if err != nil || validationsStr == "" {
+		return
+	}
+
+	var all map[string]*SnapState
+	if err := st.Get("snaps", &all); err != nil {
+		return
+	}
+
+	for instanceName, snapst := range all {
+		if !snapst.Active {
+			continue
+		}
+
+		info, err := CurrentInfo(st, instanceName)
+		if err != nil {
+			continue
+		}
+
+		isPrivate := info.SideInfo.Private
+		if isPrivate {
+			continue
+		}
+
+		if PublisherStoreAccount == nil {
+			st.Warnf("cannot determine publisher validation for snap %q: publisher assertion lookup is unavailable", instanceName)
+			continue
+		}
+		publisher, err := PublisherStoreAccount(st, info.SnapID)
+		if err != nil {
+			st.Warnf("cannot determine publisher validation for snap %q: %v", instanceName, err)
+			continue
+		}
+
+		if !checkPublisherValidation(validationsStr, publisher) {
+			st.Warnf("snap %q publisher validation dropped below required security policy (required-publisher-validations=%s)", instanceName, validationsStr)
+		}
+	}
 }
