@@ -61,28 +61,6 @@ static void replace_slashes_with_NUL(char *path, size_t len) {
     }
 }
 
-#ifdef NVIDIA_MULTIARCH
-// A variant of unsetenv that is compatible with GDestroyNotify
-static void my_unsetenv(const char *k) { unsetenv(k); }
-
-// Write the given version into <dir>/version and point
-// SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE at it.
-static void sc_test_set_nvidia_driver_version(const char *dir, const char *version) {
-    char *version_file = g_build_filename(dir, "version", NULL);
-    g_assert_true(g_file_set_contents(version_file, version, -1, NULL));
-    g_assert_cmpint(setenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE", version_file, 1), ==, 0);
-    g_test_queue_destroy((GDestroyNotify)my_unsetenv, "SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
-    g_free(version_file);
-}
-
-// Create an empty regular file under dir, used as the canary library file.
-static void sc_test_touch(const char *dir, const char *name) {
-    char *path = g_build_filename(dir, name, NULL);
-    g_assert_true(g_file_set_contents(path, "", 0, NULL));
-    g_free(path);
-}
-#endif  // ifdef NVIDIA_MULTIARCH
-
 static void test_get_nextpath__typical(void) {
     char path[] = "/some/path";
     size_t offset = 0;
@@ -362,6 +340,26 @@ static void test_sc_is_mount_point(void) {
 }
 
 #ifdef NVIDIA_MULTIARCH
+// A variant of unsetenv that is compatible with GDestroyNotify
+static void my_unsetenv(const char *k) { unsetenv(k); }
+
+// Write the given version into <dir>/version and point
+// SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE at it.
+static void sc_test_set_nvidia_driver_version(const char *dir, const char *version) {
+    char *version_file = g_build_filename(dir, "version", NULL);
+    g_assert_true(g_file_set_contents(version_file, version, -1, NULL));
+    g_assert_cmpint(setenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE", version_file, 1), ==, 0);
+    g_test_queue_destroy((GDestroyNotify)my_unsetenv, "SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
+    g_free(version_file);
+}
+
+// Create an empty regular file under dir, used as the canary library file.
+static void sc_test_touch(const char *dir, const char *name) {
+    char *path = g_build_filename(dir, name, NULL);
+    g_assert_true(g_file_set_contents(path, "", 0, NULL));
+    g_free(path);
+}
+
 static void test_sc_mount_nvidia_is_driver_in_dir__no_driver(void) {
     char *dir = g_dir_make_tmp("snap-confine-nvidia-test-XXXXXX", NULL);
     g_assert_nonnull(dir);
