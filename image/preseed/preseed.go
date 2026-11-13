@@ -61,6 +61,19 @@ type CoreOptions struct {
 	SysfsOverlay string
 }
 
+// ClassicOptions provides optional options for classic and hybrid preseeding.
+type ClassicOptions struct {
+	// optional path to the AppArmor kernel features directory of the
+	// target kernel; it is copied into the chroot and handed over to the
+	// snapd being run, which must support this, so that securityfs is not
+	// needed inside the chroot
+	AppArmorKernelFeaturesDir string
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail;
+	// it is handed over to the snapd being run, which must support this
+	SeccompActionsFile string
+}
+
 // preseedCoreOptions holds internal preseeding options for the core case
 type preseedCoreOptions struct {
 	// input options
@@ -81,6 +94,8 @@ type targetSnapdInfo struct {
 	path        string
 	preseedPath string
 	version     string
+	// flags from the snapd info file
+	flags map[string]string
 }
 
 var (

@@ -67,3 +67,18 @@ func (s *seccompSuite) TestProbe(c *C) {
 
 	c.Check(seccomp.Actions(), DeepEquals, []string{"a", "b"})
 }
+
+func (s *seccompSuite) TestProbePreseedOverride(c *C) {
+	seccomp.FreshSecCompProbe()
+	defer seccomp.FreshSecCompProbe()
+	r1 := seccomp.MockIoutilReadfile(func(string) ([]byte, error) {
+		return []byte("allow log\n"), nil
+	})
+	defer r1()
+	r2 := seccomp.MockPreseedSeccompActions("trap allow errno\n")
+	defer r2()
+
+	// the actions of the target kernel are used instead of the running one
+	c.Check(seccomp.Actions(), DeepEquals, []string{"allow", "errno", "trap"})
+	c.Check(seccomp.SupportsAction("log"), Equals, false)
+}

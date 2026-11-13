@@ -31,7 +31,12 @@ var (
 	NumberOfJobsParam     = numberOfJobsParam
 	SetupConfCacheDirs    = setupConfCacheDirs
 	SetupNotifySocketPath = setupNotifySocketPath
+	KernelFeaturesDir     = kernelFeaturesDir
 )
+
+func MockPreseedAppArmorFeaturesDir(dir string) (restore func()) {
+	return testutil.Mock(&preseedAppArmorFeaturesDir, func() string { return dir })
+}
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {
 	old := runtimeNumCPU

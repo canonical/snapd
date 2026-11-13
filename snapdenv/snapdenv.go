@@ -97,3 +97,35 @@ func MockPreseeding(preseeding bool) (restore func()) {
 func PreseedingHybrid() bool {
 	return Preseeding() && osutil.GetenvBool("SNAPD_PRESEED_HYBRID")
 }
+
+// EnvPreseedAppArmorFeaturesDir is the environment variable pointing at a
+// directory with the AppArmor kernel features of the target kernel (in the
+// format of /sys/kernel/security/apparmor/features). It is only honored while
+// preseeding. A snapd that understands it advertises so with a key of the same
+// name set to 1 in its info file.
+const EnvPreseedAppArmorFeaturesDir = "SNAPD_PRESEED_APPARMOR_FEATURES_DIR"
+
+// PreseedAppArmorFeaturesDir returns the directory with the AppArmor kernel
+// features of the target kernel, or "" if not set or not preseeding.
+func PreseedAppArmorFeaturesDir() string {
+	if !Preseeding() {
+		return ""
+	}
+	return os.Getenv(EnvPreseedAppArmorFeaturesDir)
+}
+
+// EnvPreseedSeccompActions is the environment variable holding the seccomp
+// actions available in the target kernel (in the format of
+// /proc/sys/kernel/seccomp/actions_avail). It is only honored while
+// preseeding. A snapd that understands it advertises so with a key of the same
+// name set to 1 in its info file.
+const EnvPreseedSeccompActions = "SNAPD_PRESEED_SECCOMP_ACTIONS"
+
+// PreseedSeccompActions returns the seccomp actions available in the target
+// kernel, or "" if not set or not preseeding.
+func PreseedSeccompActions() string {
+	if !Preseeding() {
+		return ""
+	}
+	return os.Getenv(EnvPreseedSeccompActions)
+}

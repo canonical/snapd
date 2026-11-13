@@ -23,6 +23,7 @@
 package snap_preseed
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,6 +56,7 @@ type options struct {
 	SystemLabel         string `long:"system-label"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
+	SeccompActionsFile  string `long:"seccomp-actions-file"`
 	SysfsOverlay        string `long:"sysfs-overlay"`
 }
 
@@ -87,6 +89,8 @@ func probeCore20ImageDir(dir string) bool {
 	_, isDir, _ := osutil.DirExists(sysDir)
 	return isDir
 }
+
+var errSysfsOverlayClassic = errors.New("cannot use --sysfs-overlay with classic or hybrid systems")
 
 // Run executes the snap-preseed logic with the given parser and args.
 func run(parser *flags.Parser, args []string) (err error) {
@@ -126,19 +130,30 @@ func run(parser *flags.Parser, args []string) (err error) {
 		return fmt.Errorf("cannot use --system-label without --hybrid")
 	}
 
+	classicOpts := &preseed.ClassicOptions{
+		AppArmorKernelFeaturesDir: opts.AppArmorFeaturesDir,
+		SeccompActionsFile:        opts.SeccompActionsFile,
+	}
+
 	if opts.Hybrid {
 		if opts.SystemLabel == "" {
 			return fmt.Errorf("cannot use --hybrid without --system-label")
 		}
+		if opts.SysfsOverlay != "" {
+			return errSysfsOverlayClassic
+		}
 		if opts.Reset {
 			return preseedHybridReset(chrootDir, opts.SystemLabel)
 		}
-		return preseedHybrid(chrootDir, opts.SystemLabel)
+		return preseedHybrid(chrootDir, opts.SystemLabel, classicOpts)
 	}
 
 	if probeCore20ImageDir(chrootDir) {
 		if opts.Reset || opts.ResetChroot {
 			return fmt.Errorf("cannot snap-preseed --reset for Ubuntu Core")
+		}
+		if opts.SeccompActionsFile != "" {
+			return fmt.Errorf("cannot use --seccomp-actions-file for Ubuntu Core")
 		}
 
 		coreOpts := &preseed.CoreOptions{
@@ -149,13 +164,16 @@ func run(parser *flags.Parser, args []string) (err error) {
 		}
 		return preseedCore20(coreOpts)
 	}
+	if opts.SysfsOverlay != "" {
+		return errSysfsOverlayClassic
+	}
 	if opts.ResetChroot {
 		return preseedResetPreseededChroot(chrootDir)
 	}
 	if opts.Reset {
 		return preseedClassicReset(chrootDir)
 	}
-	return preseedClassic(chrootDir)
+	return preseedClassic(chrootDir, classicOpts)
 }
 
 // Main is the entry point for snap-preseed. It exits the process on error.
