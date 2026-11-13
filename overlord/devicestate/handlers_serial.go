@@ -663,13 +663,18 @@ func getSerialRequestConfig(t *state.Task, regCtx registrationContext, client *h
 			return nil, err
 		}
 
-		var bodyStr string
-		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+		// registration.body is a string when set by prepare-device,
+		// but a JSON object when set by prepare-serial-request
+		var rawBody json.RawMessage
+		err = tr.GetMaybe(gadgetName, "registration.body", &rawBody)
 		if err != nil {
 			return nil, err
 		}
 
-		cfg.body = []byte(bodyStr)
+		cfg.body, err = registrationBodyBytes(rawBody)
+		if err != nil {
+			return nil, err
+		}
 
 		err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &cfg.proposedSerial)
 		if err != nil {
@@ -1010,6 +1015,24 @@ func (m *DeviceManager) maybeRunPrepareSerialRequestHook(st *state.State, reques
 	}
 
 	return []byte(encodedBody), nil
+}
+
+// registrationBodyBytes returns the serial-request body bytes for a raw
+// registration.body config value, which is either a JSON string used as is
+// or a JSON object as stored by the prepare-serial-request hook.
+func registrationBodyBytes(rawBody json.RawMessage) ([]byte, error) {
+	if len(rawBody) == 0 {
+		return nil, nil
+	}
+	var bodyStr string
+	if err := json.Unmarshal(rawBody, &bodyStr); err == nil {
+		return []byte(bodyStr), nil
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rawBody, &body); err != nil {
+		return nil, fmt.Errorf("cannot use registration body: expected a string or a JSON object: %v", err)
+	}
+	return []byte(rawBody), nil
 }
 
 func (m *DeviceManager) runPrepareSerialRequestHook(st *state.State, hooksup *hookstate.HookSetup) error {
