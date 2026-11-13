@@ -391,6 +391,12 @@ func (s *SnapSuite) TestDebugTaskMutuallyExclusiveCommands(c *C) {
 
 	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--change=1", "--is-seeded", stateFile})
 	c.Check(err, ErrorMatches, "cannot use --change= and --is-seeded together")
+
+	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--changes", "--connection=foo:bar", stateFile})
+	c.Check(err, ErrorMatches, "cannot use --changes and --connection= together")
+
+	_, err = main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--connections", "--connection=foo:bar", stateFile})
+	c.Check(err, ErrorMatches, "cannot use --connections and --connection= together")
 }
 
 func (s *SnapSuite) TestDebugTasks(c *C) {
