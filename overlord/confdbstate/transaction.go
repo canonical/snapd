@@ -40,9 +40,9 @@ type Transaction struct {
 	ConfdbAccount string
 	ConfdbName    string
 
-	modified      confdb.JSONDatabag
-	deltas        []pathValuePair
-	appliedDeltas int
+	modified   confdb.JSONDatabag
+	operations []operation
+	appliedOps int
 
 	abortingSnap string
 	abortReason  string
@@ -50,9 +50,144 @@ type Transaction struct {
 	mu sync.RWMutex
 }
 
-type pathValuePair struct {
+// operation is a change that can be applied to a databag. A transaction
+// records a sequence of operations which are replayed in order when the
+// changes are applied or committed.
+type operation interface {
+	// apply performs the change on the given databag.
+	apply(bag confdb.Databag) error
+}
+
+// setOperation sets a value at a path of the databag.
+type setOperation struct {
 	path  []confdb.Accessor
 	value any
+}
+
+func (op *setOperation) apply(bag confdb.Databag) error {
+	return bag.Set(op.path, op.value)
+}
+
+func (op *setOperation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Operation string `json:"operation"`
+		Path      string `json:"path"`
+		Value     any    `json:"value"`
+	}{
+		Operation: "set",
+		Path:      confdb.JoinAccessors(op.path),
+		Value:     op.value,
+	})
+}
+
+func (op *setOperation) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Path  string `json:"path"`
+		Value any    `json:"value"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	accs, err := parseOperationPath(wire.Path)
+	if err != nil {
+		return err
+	}
+	op.path = accs
+	op.value = wire.Value
+	return nil
+}
+
+// unsetOperation removes the value at a path of the databag.
+type unsetOperation struct {
+	path []confdb.Accessor
+}
+
+func (op *unsetOperation) apply(bag confdb.Databag) error {
+	return bag.Unset(op.path)
+}
+
+func (op *unsetOperation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Operation string `json:"operation"`
+		Path      string `json:"path"`
+	}{
+		Operation: "unset",
+		Path:      confdb.JoinAccessors(op.path),
+	})
+}
+
+func (op *unsetOperation) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	accs, err := parseOperationPath(wire.Path)
+	if err != nil {
+		return err
+	}
+	op.path = accs
+	return nil
+}
+
+// pruneEmptyOperation removes every container that is left without entries
+// from the databag.
+type pruneEmptyOperation struct{}
+
+func (op *pruneEmptyOperation) apply(bag confdb.Databag) error {
+	return bag.PruneEmpty()
+}
+
+func (op *pruneEmptyOperation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Operation string `json:"operation"`
+	}{
+		Operation: "prune-empty",
+	})
+}
+
+func (op *pruneEmptyOperation) UnmarshalJSON(data []byte) error {
+	// this operations doesn't have any parameters
+	return nil
+}
+
+func parseOperationPath(path string) ([]confdb.Accessor, error) {
+	opts := confdb.ParseOptions{AllowPlaceholders: true}
+	accs, err := confdb.ParsePathIntoAccessors(path, opts)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
+	}
+	return accs, nil
+}
+
+// unmarshalOperation decodes a marshalled operation into its concrete type.
+func unmarshalOperation(data []byte) (operation, error) {
+	var header struct {
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(data, &header); err != nil {
+		return nil, err
+	}
+
+	var op operation
+	switch header.Operation {
+	case "set":
+		op = &setOperation{}
+	case "unset":
+		op = &unsetOperation{}
+	case "prune-empty":
+		op = &pruneEmptyOperation{}
+	default:
+		return nil, fmt.Errorf("internal error: unknown transaction operation %q", header.Operation)
+	}
+
+	if err := json.Unmarshal(data, op); err != nil {
+		return nil, err
+	}
+	return op, nil
 }
 
 // NewTransaction takes a getter and setter to read and write the databag.
@@ -79,32 +214,34 @@ type marshalledTransaction struct {
 	ConfdbAccount string `json:"confdb-account,omitempty"`
 	ConfdbName    string `json:"confdb-name,omitempty"`
 
-	Modified      confdb.JSONDatabag `json:"modified,omitempty"`
-	Deltas        []map[string]any   `json:"deltas,omitempty"`
-	AppliedDeltas int                `json:"applied-deltas,omitempty"`
+	Modified          confdb.JSONDatabag `json:"modified,omitempty"`
+	Operations        []json.RawMessage  `json:"operations,omitempty"`
+	AppliedOperations int                `json:"applied-operations,omitempty"`
 
 	AbortingSnap string `json:"aborting-snap,omitempty"`
 	AbortReason  string `json:"abort-reason,omitempty"`
 }
 
 func (t *Transaction) MarshalJSON() ([]byte, error) {
-	deltas := make([]map[string]any, 0, len(t.deltas))
-	for _, delta := range t.deltas {
-		deltas = append(deltas, map[string]any{
-			confdb.JoinAccessors(delta.path): delta.value,
-		})
+	operations := make([]json.RawMessage, 0, len(t.operations))
+	for _, op := range t.operations {
+		data, err := json.Marshal(op)
+		if err != nil {
+			return nil, err
+		}
+		operations = append(operations, data)
 	}
 
 	return json.Marshal(marshalledTransaction{
-		Pristine:      t.pristine,
-		Previous:      t.previous,
-		ConfdbAccount: t.ConfdbAccount,
-		ConfdbName:    t.ConfdbName,
-		Modified:      t.modified,
-		Deltas:        deltas,
-		AppliedDeltas: t.appliedDeltas,
-		AbortingSnap:  t.abortingSnap,
-		AbortReason:   t.abortReason,
+		Pristine:          t.pristine,
+		Previous:          t.previous,
+		ConfdbAccount:     t.ConfdbAccount,
+		ConfdbName:        t.ConfdbName,
+		Modified:          t.modified,
+		Operations:        operations,
+		AppliedOperations: t.appliedOps,
+		AbortingSnap:      t.abortingSnap,
+		AbortReason:       t.abortReason,
 	})
 }
 
@@ -114,17 +251,13 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	var deltas []pathValuePair
-	for _, delta := range mt.Deltas {
-		for path, value := range delta {
-			opts := confdb.ParseOptions{AllowPlaceholders: true}
-			accs, err := confdb.ParsePathIntoAccessors(path, opts)
-			if err != nil {
-				return fmt.Errorf("internal error: cannot parse path %q: %v", path, err)
-			}
-
-			deltas = append(deltas, pathValuePair{path: accs, value: value})
+	operations := make([]operation, 0, len(mt.Operations))
+	for _, data := range mt.Operations {
+		op, err := unmarshalOperation(data)
+		if err != nil {
+			return err
 		}
+		operations = append(operations, op)
 	}
 
 	t.pristine = mt.Pristine
@@ -132,8 +265,8 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 	t.ConfdbAccount = mt.ConfdbAccount
 	t.ConfdbName = mt.ConfdbName
 	t.modified = mt.Modified
-	t.deltas = deltas
-	t.appliedDeltas = mt.AppliedDeltas
+	t.operations = operations
+	t.appliedOps = mt.AppliedOperations
 	t.abortingSnap = mt.AbortingSnap
 	t.abortReason = mt.AbortReason
 
@@ -141,7 +274,8 @@ func (t *Transaction) UnmarshalJSON(data []byte) error {
 }
 
 // Set sets a value in the transaction's databag. The change isn't persisted
-// until Commit returns without errors.
+// until Commit returns without errors. A nil value unsets the value at the
+// path.
 func (t *Transaction) Set(path []confdb.Accessor, value any) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -150,7 +284,12 @@ func (t *Transaction) Set(path []confdb.Accessor, value any) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, pathValuePair{path: path, value: value})
+	if value == nil {
+		t.operations = append(t.operations, &unsetOperation{path: path})
+	} else {
+		t.operations = append(t.operations, &setOperation{path: path, value: value})
+	}
+
 	return nil
 }
 
@@ -164,7 +303,7 @@ func (t *Transaction) Unset(path []confdb.Accessor) error {
 		return errors.New("cannot write to aborted transaction")
 	}
 
-	t.deltas = append(t.deltas, pathValuePair{path: path})
+	t.operations = append(t.operations, &unsetOperation{path: path})
 	return nil
 }
 
@@ -178,7 +317,7 @@ func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, er
 	}
 
 	// if there aren't any changes, just use the pristine bag
-	if len(t.deltas) == 0 {
+	if len(t.operations) == 0 {
 		return t.pristine.Get(path, cstrs)
 	}
 
@@ -204,7 +343,12 @@ func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error
 		return err
 	}
 
-	if err := applyDeltas(pristine, t.deltas); err != nil {
+	if err := applyOperations(pristine, t.operations); err != nil {
+		return err
+	}
+
+	// remove the containers left empty by the changes
+	if err := pristine.PruneEmpty(); err != nil {
 		return err
 	}
 
@@ -225,8 +369,8 @@ func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error
 
 	t.pristine = pristine
 	t.modified = nil
-	t.deltas = nil
-	t.appliedDeltas = 0
+	t.operations = nil
+	t.appliedOps = 0
 	return nil
 }
 
@@ -245,17 +389,27 @@ func (t *Transaction) Reset(st *state.State) error {
 
 	t.pristine = pristine
 	t.modified = nil
-	t.deltas = nil
-	t.appliedDeltas = 0
+	t.operations = nil
+	t.appliedOps = 0
 	return nil
 }
 
 func (t *Transaction) AlteredPaths() [][]confdb.Accessor {
 	// TODO: maybe we can extend this to recurse into delta's value and figure out
 	// the most specific key possible
-	paths := make([][]confdb.Accessor, 0, len(t.deltas))
-	for _, delta := range t.deltas {
-		paths = append(paths, delta.path)
+	paths := make([][]confdb.Accessor, 0, len(t.operations))
+	for _, op := range t.operations {
+		// pruning doesn't alter a specific path
+		if _, ok := op.(*pruneEmptyOperation); ok {
+			continue
+		}
+
+		switch op := op.(type) {
+		case *setOperation:
+			paths = append(paths, op.path)
+		case *unsetOperation:
+			paths = append(paths, op.path)
+		}
 	}
 	return paths
 }
@@ -264,35 +418,42 @@ func (t *Transaction) applyChanges() error {
 	// use a cached bag to apply and keep the changes
 	if t.modified == nil {
 		t.modified = t.pristine.Copy()
-		t.appliedDeltas = 0
+		t.appliedOps = 0
 	}
 
 	// apply new changes since the last Get/Data call
-	if err := applyDeltas(t.modified, t.deltas[t.appliedDeltas:]); err != nil {
+	if err := applyOperations(t.modified, t.operations[t.appliedOps:]); err != nil {
 		t.modified = nil
-		t.appliedDeltas = 0
+		t.appliedOps = 0
 		return err
 	}
 
-	t.appliedDeltas = len(t.deltas)
+	t.appliedOps = len(t.operations)
 	return nil
 }
 
-func applyDeltas(bag confdb.JSONDatabag, deltas []pathValuePair) error {
-	// changes must be applied in the order they were written
-	for _, delta := range deltas {
-		var err error
-		if delta.value == nil {
-			err = bag.Unset(delta.path)
-		} else {
-			err = bag.Set(delta.path, delta.value)
-		}
-
-		if err != nil {
+func applyOperations(bag confdb.Databag, operations []operation) error {
+	// operations must be applied in the order they were written
+	for _, op := range operations {
+		if err := op.apply(bag); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+// PruneEmpty records an operation that removes every container left without
+// entries by the preceding operations.
+func (t *Transaction) PruneEmpty() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return errors.New("cannot write to aborted transaction")
+	}
+
+	t.operations = append(t.operations, &pruneEmptyOperation{})
 	return nil
 }
 
