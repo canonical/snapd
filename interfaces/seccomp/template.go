@@ -74,28 +74,12 @@ fchdir
 
 # We can't effectively block file perms due to open() with O_CREAT. Allow
 # chmod in general but deny specific patterns with ~ and | (bit mask) entries
-# below.
+# in denySuidCreationSyscalls (see below), which interfaces such as
+# dracut-support can suppress.
 chmod
 fchmod
 fchmodat
 fchmodat2
-# Deny setuid bit (S_ISUID = 0o4000) from being used.
-#
-# The signature is:
-#
-# chmod <path> <mode>
-# fchmod <fd> <mode>
-# fchmodat <fd> <path> <mode>
-# fchmodat2 <fd> <path> <mode> <flags>
-~chmod - |S_ISUID
-~fchmod - |S_ISUID
-~fchmodat - - |S_ISUID
-~fchmodat2 - - |S_ISUID -
-# Deny setgid bit (S_ISGID = 0o2000) from being used.
-~chmod - |S_ISGID
-~fchmod - |S_ISGID
-~fchmodat - - |S_ISGID
-~fchmodat2 - - |S_ISGID -
 
 # Daemons typically run as 'root' so allow chown to 'root'. DAC will prevent
 # non-root from chowning to root.
@@ -146,12 +130,6 @@ chroot
 
 # creat <path> <mode>
 creat
-
-# Deny setuid bit (S_ISUID = 0o4000) from being used.
-~creat - |S_ISUID
-
-# Deny setgid bit (S_ISGID = 0o2000) from being used.
-~creat - |S_ISGID
 
 dup
 dup2
@@ -319,14 +297,6 @@ mknodat - - |S_IFIFO -
 mknod - |S_IFSOCK -
 mknodat - - |S_IFSOCK -
 
-# Deny setuid bit (S_ISUID = 0o4000) from being used.
-~mknod - |S_ISUID
-~mknodat - - |S_ISUID
-
-# Deny setgid bit (S_ISGID = 0o2000) from being used.
-~mknod - |S_ISGID
-~mknodat - - |S_ISGID
-
 modify_ldt
 mprotect
 
@@ -369,22 +339,6 @@ openat
 # to openat, which is filtered by mode.
 # openat2 <dirfd> <path> <how> <size>
 ~ENOSYS:openat2
-
-# Deny setuid bit (S_ISUID = 0o4000) from being used together with O_CREAT.
-~open - |O_CREAT |S_ISUID
-~openat - - |O_CREAT |S_ISUID
-
-# Deny setgid bit (S_ISGID = 0o2000) from being used together with O_CREAT.
-~open - |O_CREAT |S_ISGID
-~openat - - |O_CREAT |S_ISGID
-
-# Deny setuid bit from being used together with O_TMPFILE.
-~open - |O_TMPFILE |S_ISUID
-~openat - - |O_TMPFILE |S_ISUID
-
-# Deny setgid bit from being used together with O_TMPFILE.
-~open - |O_TMPFILE |S_ISGID
-~openat - - |O_TMPFILE |S_ISGID
 
 pause
 personality
@@ -693,6 +647,64 @@ pwrite64
 pwritev
 pwritev2
 `)
+
+// denySuidCreationSyscalls contains the default seccomp hardening rules that
+// deny creating files with the setuid or setgid bits set. These rules are part
+// of the default policy but are omitted when an interface (e.g. dracut-support)
+// suppresses them via Specification.SetSuppressSuidCreationDeny(). Note that
+// openat2 is unconditionally denied in the default template above and is not
+// affected by the suppression.
+//
+// It is a variable so that tests can replace it with MockTemplate().
+var denySuidCreationSyscalls = `
+# Deny setuid bit (S_ISUID = 0o4000) from being used.
+#
+# The signature is:
+#
+# chmod <path> <mode>
+# fchmod <fd> <mode>
+# fchmodat <fd> <path> <mode>
+# fchmodat2 <fd> <path> <mode> <flags>
+~chmod - |S_ISUID
+~fchmod - |S_ISUID
+~fchmodat - - |S_ISUID
+~fchmodat2 - - |S_ISUID -
+# Deny setgid bit (S_ISGID = 0o2000) from being used.
+~chmod - |S_ISGID
+~fchmod - |S_ISGID
+~fchmodat - - |S_ISGID
+~fchmodat2 - - |S_ISGID -
+
+# Deny setuid bit (S_ISUID = 0o4000) from being used.
+~creat - |S_ISUID
+
+# Deny setgid bit (S_ISGID = 0o2000) from being used.
+~creat - |S_ISGID
+
+# Deny setuid bit (S_ISUID = 0o4000) from being used.
+~mknod - |S_ISUID
+~mknodat - - |S_ISUID
+
+# Deny setgid bit (S_ISGID = 0o2000) from being used.
+~mknod - |S_ISGID
+~mknodat - - |S_ISGID
+
+# Deny setuid bit (S_ISUID = 0o4000) from being used together with O_CREAT.
+~open - |O_CREAT |S_ISUID
+~openat - - |O_CREAT |S_ISUID
+
+# Deny setgid bit (S_ISGID = 0o2000) from being used together with O_CREAT.
+~open - |O_CREAT |S_ISGID
+~openat - - |O_CREAT |S_ISGID
+
+# Deny setuid bit from being used together with O_TMPFILE.
+~open - |O_TMPFILE |S_ISUID
+~openat - - |O_TMPFILE |S_ISUID
+
+# Deny setgid bit from being used together with O_TMPFILE.
+~open - |O_TMPFILE |S_ISGID
+~openat - - |O_TMPFILE |S_ISGID
+`
 
 // Go's net package attempts to bind early to check whether IPv6 is available or not.
 // For systems with apparmor enabled, this will be mediated and cause an error to be

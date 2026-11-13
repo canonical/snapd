@@ -596,6 +596,43 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestDracutSupportSuperPrivileged(c *C) {
+	// installation of a snap plugging dracut-support is denied by the
+	// base declaration
+	ic := s.installPlugCand(c, "dracut-support", snap.TypeApp, ``)
+	err := ic.Check()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `installation not allowed by "dracut-support" plug rule of interface "dracut-support"`)
+
+	// connection and auto-connection are denied by the base declaration
+	cand := s.connectCand(c, "dracut-support", "", "")
+	err = cand.Check()
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `connection denied by plug rule of interface "dracut-support"`)
+	_, err = cand.CheckAutoConnect()
+	c.Assert(err, NotNil)
+
+	// a store snap declaration for a specific snap lifts all of the above
+	plugsSlots := `
+plugs:
+  dracut-support:
+    allow-installation: true
+    allow-connection: true
+    allow-auto-connection: true
+`
+	snapDecl := s.mockSnapDecl(c, "dracut", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+
+	ic = s.installPlugCand(c, "dracut-support", snap.TypeApp, ``)
+	ic.SnapDeclaration = snapDecl
+	c.Check(ic.Check(), IsNil)
+
+	cand = s.connectCand(c, "dracut-support", "", "")
+	cand.PlugSnapDeclaration = snapDecl
+	c.Check(cand.Check(), IsNil)
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestAutoConnectionClassicSupportOverride(c *C) {
 	cand := s.connectCand(c, "classic-support", "", "")
 	_, err := cand.CheckAutoConnect()
@@ -1086,6 +1123,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
 		"docker-support":                   true,
+		"dracut-support":                   true,
 		"egl-driver-libs":                  true,
 		"gbm-driver-libs":                  true,
 		"vulkan-driver-libs":               true,
@@ -1186,6 +1224,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"cups":                      true,
 		"custom-device":             true,
 		"desktop":                   true,
+		"dracut-support":            true,
 		"fwupd":                     true,
 		"location-control":          true,
 		"location-observe":          true,
@@ -1408,6 +1447,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"desktop-launch":                   true,
 		"dm-crypt":                         true,
 		"docker-support":                   true,
+		"dracut-support":                   true,
 		"egl-driver-libs":                  true,
 		"vulkan-driver-libs":               true,
 		"gbm-driver-libs":                  true,

@@ -386,9 +386,114 @@ func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
 		"open\n",
 		"getuid\n",
 		"setresuid\n", // this is not random
+		// the default setuid/setgid file creation hardening denies
+		"~chmod - |S_ISUID\n",
+		"~fchmodat - - |S_ISGID\n",
+		"~creat - |S_ISUID\n",
+		"~mknodat - - |S_ISGID\n",
+		"~open - |O_CREAT |S_ISUID\n",
+		"~openat - - |O_TMPFILE |S_ISGID\n",
+		// openat2 is always denied
+		"~ENOSYS:openat2\n",
 	} {
 		c.Assert(string(data), testutil.Contains, line)
 	}
+}
+
+func (s *backendSuite) TestSuppressSuidCreationDeny(c *C) {
+	// an interface that suppresses the setuid/setgid file creation denies
+	s.Iface.SecCompConnectedPlugCallback = func(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		spec.SetSuppressSuidCreationDeny()
+		return nil
+	}
+
+	// a snap where only one app and one hook have the plug
+	// NOTE: we don't call seccomp.MockTemplate()
+	const twoAppYaml = `
+name: foo
+version: 1
+apps:
+    svc:
+        plugs: [iface]
+    tool:
+hooks:
+    configure:
+        plugs: [iface]
+    install:
+plugs:
+    iface:
+slots:
+    slot:
+        interface: iface
+`
+	snapInfo := snaptest.MockInfo(c, twoAppYaml, nil)
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+	c.Assert(s.Repo.AddAppSet(appSet), IsNil)
+
+	// connect the plug to the snap's own slot
+	connRef := interfaces.NewConnRef(snapInfo.Plugs["iface"], snapInfo.Slots["slot"])
+	_, err = s.Repo.Connect(connRef, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	err = s.Backend.Setup(appSet, interfaces.ConfinementOptions{}, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther}, s.Repo, s.meas)
+	c.Assert(err, IsNil)
+
+	// profiles of the app and hook that have the plug connected lack the
+	// setuid/setgid file creation deny rules
+	for _, tag := range []string{"snap.foo.svc", "snap.foo.hook.configure"} {
+		profile := filepath.Join(dirs.SnapSeccompDir, tag)
+		data, err := os.ReadFile(profile + ".src")
+		c.Assert(err, IsNil)
+		for _, line := range []string{
+			"~chmod - |S_ISUID",
+			"~chmod - |S_ISGID",
+			"~fchmod - |S_ISUID",
+			"~fchmodat - - |S_ISUID",
+			"~fchmodat2 - - |S_ISUID",
+			"~creat - |S_ISUID",
+			"~creat - |S_ISGID",
+			"~mknod - |S_ISUID",
+			"~mknodat - - |S_ISGID",
+			"|O_CREAT |S_ISUID",
+			"|O_CREAT |S_ISGID",
+			"|O_TMPFILE |S_ISUID",
+			"|O_TMPFILE |S_ISGID",
+		} {
+			c.Check(string(data), Not(testutil.Contains), line, Commentf("%s: line %q unexpectedly present", tag, line))
+		}
+		// the plain allows and the unconditional openat2 deny are still there
+		for _, line := range []string{
+			"chmod\n",
+			"fchmodat\n",
+			"creat\n",
+			"open\n",
+			"openat\n",
+			"~ENOSYS:openat2\n",
+		} {
+			c.Check(string(data), testutil.Contains, line, Commentf("%s", tag))
+		}
+	}
+
+	// profiles of the app and hook without the plug retain the deny rules
+	for _, tag := range []string{"snap.foo.tool", "snap.foo.hook.install"} {
+		profile := filepath.Join(dirs.SnapSeccompDir, tag)
+		data, err := os.ReadFile(profile + ".src")
+		c.Assert(err, IsNil)
+		for _, line := range []string{
+			"~chmod - |S_ISUID\n",
+			"~fchmodat - - |S_ISGID\n",
+			"~creat - |S_ISUID\n",
+			"~mknodat - - |S_ISGID\n",
+			"~open - |O_CREAT |S_ISUID\n",
+			"~openat - - |O_TMPFILE |S_ISGID\n",
+			"~ENOSYS:openat2\n",
+		} {
+			c.Check(string(data), testutil.Contains, line, Commentf("%s: line %q unexpectedly missing", tag, line))
+		}
+	}
+
+	s.RemoveSnap(c, snapInfo)
 }
 
 type combineSnippetsScenario struct {
