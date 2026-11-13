@@ -1,4 +1,9 @@
 name: security-scan
+run-name: >-
+  ${{ github.event_name == 'schedule' && 'security-scan (weekly)'
+   || github.event_name == 'workflow_dispatch' && format('security-scan (manual, {0})', github.ref_name)
+   || github.event_name == 'push' && format('security-scan (push to {0})', github.ref_name)
+   || format('security-scan (PR #{0})', github.event.pull_request.number) }}
 on:
   pull_request:
     branches: ["master", "fips", "release/**", "core-snap-security-release/**", "security-release/**", "hotfix/**"]
