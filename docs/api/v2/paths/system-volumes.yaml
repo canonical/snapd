@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - Systems
+    - Synchronous
+  summary: Enumerate system volume keyslots
+  description: |-
+    Enumerate keyslots for a container role, or for all containers grouped by
+    container role. The response includes properties of each structure,
+    including encryption-related details.
+  operationId: getSystemVolumes
+  security: []
+  parameters:
+    - name: container-role
+      in: query
+      description: Return the container with this role.
+      schema:
+        type: string
+      example: system-data
+    - name: by-container-role
+      in: query
+      description: Return all containers grouped by their container roles when true.
+      schema:
+        type: boolean
+      example: true
+  responses:
+    200:
+      description: Containers and their keyslots grouped by container role.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              type:
+                type: string
+                enum:
+                  - sync
+              result:
+                type: object
+                properties:
+                  by-container-role:
+                    type: object
+                    description: A map of container roles to gadget structures and their keyslots.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        volume-name:
+                          type: string
+                          description: The name of the volume in the gadget.
+                        name:
+                          type: string
+                          description: The name of the partition in the gadget.
+                        encrypted:
+                          type: boolean
+                          description: Whether the container is encrypted.
+                        keyslots:
+                          type: object
+                          description: A map of keyslot names to keyslot details.
+                          additionalProperties:
+                            type: object
+                            required:
+                              - type
+                            properties:
+                              type:
+                                type: string
+                                enum:
+                                  - recovery
+                                  - platform
+                              roles:
+                                type: array
+                                description: Roles of a platform key, only for platform keys.
+                                items:
+                                  type: string
+                              # Currently in the spec, but not supported by the API.
+                              # role:
+                              #   type: string
+                              #   description: Role of a platform key when grouping by container role.
+                              platform-name:
+                                type: string
+                                description: Platform name, only for platform keys.
+                              auth-mode:
+                                type: string
+                                description: Authentication mode, only for platform keys.
+                                enum:
+                                  - none
+                                  - pin
+                                  - passphrase

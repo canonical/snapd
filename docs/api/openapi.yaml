@@ -353,6 +353,8 @@ paths:
     $ref: './v2/paths/snapshots-set-id-export.yaml'
   /v2/system/system-recovery-keys:
     $ref: './v2/paths/system-recovery-keys.yaml'
+  /v2/system-volumes:
+    $ref: './v2/paths/system-volumes.yaml'
   /v2/systems:
     $ref: './v2/paths/systems.yaml'
   /v2/systems/{label}:
