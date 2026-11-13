@@ -65,6 +65,13 @@ const powerControlConnectedPlugAppArmor = `
 /sys/devices/**/power_supply/BAT[0-9]*/** r,
 /sys/devices/**/power_supply/AC/type r,
 /sys/devices/**/power_supply/AC/online r,
+
+# Allow reading the list of supported platform profiles
+/sys/firmware/acpi/platform_profile_choices r,
+
+# Allow setting the ACPI platform profile (low-power/balanced/performance)
+# on supported hardware
+/sys/firmware/acpi/platform_profile rw,
 `
 
 func init() {
