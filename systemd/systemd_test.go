@@ -3027,6 +3027,60 @@ X-SnapdOrigin=%s
 	c.Check(err, IsNil)
 }
 
+func (s *SystemdTestSuite) TestListMountUnitsExactContainerName(c *C) {
+	tmpDir := c.MkDir()
+
+	// Units of snaps whose names share a prefix, of a parallel instance and
+	// of a component, all created by the same origin. Their descriptions
+	// follow the formats used by snap.Info.MountDescription,
+	// snap.ComponentInfo.MountDescription and snapctl mount.
+	units := []struct {
+		description, where string
+	}{
+		{"Mount unit for foo, revision 1 via mount-control", "/var/snap/foo/1/mnt"},
+		{"Mount unit for foobar, revision 2 via mount-control", "/var/snap/foobar/2/mnt"},
+		{"Mount unit for foo_x, revision 3 via mount-control", "/var/snap/foo_x/3/mnt"},
+		{"Mount unit for foo+comp, revision 4", "/snap/foo/components/mnt/comp/4"},
+		{"Mount unit for foo", "/var/snap/foo/common/mnt"},
+	}
+	var listOutput, showOutput string
+	for _, u := range units {
+		fileName := EscapeUnitNamePath(u.where) + ".mount"
+		path := filepath.Join(tmpDir, fileName)
+		contents := fmt.Sprintf("[Unit]\nDescription=%s\n\n[Mount]\nWhere=%s\n\n[Install]\nX-SnapdOrigin=mount-control\n", u.description, u.where)
+		c.Assert(os.WriteFile(path, []byte(contents), 0644), IsNil)
+		if showOutput != "" {
+			showOutput += "\n"
+		}
+		showOutput += fmt.Sprintf("Description=%s\nWhere=%s\nFragmentPath=%s\n", u.description, u.where, path)
+		listOutput += fileName + " enabled enabled\n"
+	}
+
+	for _, tc := range []struct {
+		name     string
+		expected []string
+	}{
+		{"foo", []string{"/var/snap/foo/1/mnt", "/var/snap/foo/common/mnt"}},
+		{"foobar", []string{"/var/snap/foobar/2/mnt"}},
+		{"foo_x", []string{"/var/snap/foo_x/3/mnt"}},
+		{"foo+comp", []string{"/snap/foo/components/mnt/comp/4"}},
+		{"fo", nil},
+	} {
+		for _, filter := range []MountUnitFilter{LoadedMountUnits, InstalledMountUnits} {
+			cmt := Commentf("name %q, filter %v", tc.name, filter)
+			s.i = 0
+			s.outs = [][]byte{[]byte(showOutput)}
+			if filter == InstalledMountUnits {
+				s.outs = [][]byte{[]byte(listOutput), []byte(showOutput)}
+			}
+			sysd := New(SystemMode, nil)
+			mountPoints, err := sysd.ListMountUnits(tc.name, "mount-control", filter)
+			c.Assert(err, IsNil, cmt)
+			c.Check(mountPoints, DeepEquals, tc.expected, cmt)
+		}
+	}
+}
+
 func (s *SystemdTestSuite) TestListMountUnitsInstalledListUnitFilesMalformed(c *C) {
 	// A blank line embedded in list-unit-files output is skipped rather
 	// than causing a panic

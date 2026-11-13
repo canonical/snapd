@@ -132,3 +132,29 @@ func (s *umountSuite) TestHappy(c *C) {
 		"/dest",
 	})
 }
+
+// realSystemd is created before any test mocks the systemd constructor.
+var realSystemd = systemd.New(systemd.SystemMode, nil)
+
+func (s *umountSuite) TestOnlyOwnMountsOfSnapWithCommonNamePrefix(c *C) {
+	// Other snaps whose names start with "snap1", including a parallel
+	// instance of snap1, have snapctl mounts of their own.
+	restore, err := systemdtest.MockSystemctlForOriginMountUnits(c.MkDir(), []systemdtest.OriginMountUnit{
+		{Description: "Mount unit for snap1, revision 42 via mount-control", Where: "/dest", Origin: "mount-control"},
+		{Description: "Mount unit for snap1bar, revision 1 via mount-control", Where: "/dest-snap1bar", Origin: "mount-control"},
+		{Description: "Mount unit for snap1_x, revision 1 via mount-control", Where: "/dest-snap1-x", Origin: "mount-control"},
+	})
+	c.Assert(err, IsNil)
+	defer restore()
+	s.sysd.ListMountUnitsDelegate = realSystemd
+
+	for _, where := range []string{"/dest-snap1bar", "/dest-snap1-x"} {
+		_, _, _, err = ctlcmd.Run(s.mockContext, []string{"umount", where}, 0, nil)
+		c.Check(err, ErrorMatches, "cannot find the given mount")
+	}
+	c.Check(s.sysd.RemoveMountUnitFileCalls, HasLen, 0)
+
+	_, _, _, err = ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
+	c.Check(err, IsNil)
+	c.Check(s.sysd.RemoveMountUnitFileCalls, DeepEquals, []string{"/dest"})
+}
