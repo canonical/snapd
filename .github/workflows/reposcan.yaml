@@ -15,7 +15,6 @@ concurrency:
 permissions:
   contents: read
   security-events: write
-  pull-requests: write
 
 jobs:
   scan:
@@ -30,5 +29,4 @@ jobs:
       - uses: canonical/reposcan@55f9f01048e884f47dc34b658d2bf7de76fb03e7 # main
         with:
           fail-on: none
-          pr-comment: true
           sbom: false
