@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type patch1Suite struct{}
@@ -116,7 +117,7 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	defer st.Unlock()
 
 	expected := []struct {
-		name string
+		name naming.InstanceName
 		typ  snap.Type
 		cur  snap.Revision
 	}{

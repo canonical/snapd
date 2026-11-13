@@ -54,16 +54,16 @@ func (s *linkCompSnapSuite) SetUpTest(c *C) {
 	}))
 }
 
-func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev snap.Revision, kmodComps []*snap.ComponentSideInfo) {
+func (s *linkCompSnapSuite) testDoLinkComponent(c *C, instanceName naming.InstanceName, snapRev snap.Revision, kmodComps []*snap.ComponentSideInfo) {
 	const compName = "mycomp"
 	compRev := snap.R(7)
-	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	si := createTestSnapInfoForComponent(c, instanceName.String(), snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 
 	s.state.Lock()
 
 	t := s.state.NewTask("link-component", "task desc")
-	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
+	cref := naming.NewComponentRef(instanceName.SnapName(), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -88,13 +88,13 @@ func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev s
 		{
 			op: "link-component",
 			path: filepath.Join(
-				dirs.SnapMountDir, snapName, "components",
+				dirs.SnapMountDir, instanceName.String(), "components",
 				"mnt", compName, compRev.String()),
 		},
 	})
 	// state is modified as expected
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
 	stateCsi := snapst.CurrentComponentSideInfo(cref)
 	c.Assert(stateCsi, DeepEquals, csi)
 	c.Assert(snapst.LastCompRefreshTime[csi.Component.ComponentName], Equals, taskRunTime)
@@ -140,19 +140,19 @@ func (s *linkCompSnapSuite) TestDoLinkComponentOtherCompPresent(c *C) {
 	s.testDoLinkComponent(c, snapName, snapRev, []*snap.ComponentSideInfo{kmodCsi})
 }
 
-func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName string, snapRev snap.Revision) {
+func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, instanceName naming.InstanceName, snapRev snap.Revision) {
 	const compName = "mycomp"
 	compRev := snap.R(7)
-	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	si := createTestSnapInfoForComponent(c, instanceName.String(), snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 
 	s.state.Lock()
 
 	// state does not contain the component
-	setStateWithOneSnap(s.state, snapName, snapRev)
+	setStateWithOneSnap(s.state, instanceName, snapRev)
 
 	t := s.state.NewTask("link-component", "task desc")
-	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
+	cref := naming.NewComponentRef(instanceName.SnapName(), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -184,19 +184,19 @@ func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName strin
 		{
 			op: "link-component",
 			path: filepath.Join(
-				dirs.SnapMountDir, snapName, "components",
+				dirs.SnapMountDir, instanceName.String(), "components",
 				"mnt", compName, compRev.String()),
 		},
 		{
 			op: "unlink-component",
 			path: filepath.Join(
-				dirs.SnapMountDir, snapName, "components",
+				dirs.SnapMountDir, instanceName.String(), "components",
 				"mnt", compName, compRev.String()),
 		},
 	})
 	// the component is not in the state
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
 	c.Assert(snapst.CurrentComponentSideInfo(cref), IsNil)
 	c.Assert(snapst.LastCompRefreshTime[csi.Component.ComponentName], Equals, taskRunTime)
 	c.Assert(t.Status(), Equals, state.UndoneStatus)
@@ -228,14 +228,14 @@ func (s *linkCompSnapSuite) TestDoLinkThenUndoLinkComponentOtherCompPresent(c *C
 	s.testDoLinkThenUndoLinkComponent(c, snapName, snapRev)
 }
 
-func (s *linkCompSnapSuite) testDoUnlinkComponent(c *C, snapName string, snapRev snap.Revision, compName string, compRev snap.Revision, unlinkTaskType string, kmodComps []*snap.ComponentSideInfo) {
-	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+func (s *linkCompSnapSuite) testDoUnlinkComponent(c *C, instanceName naming.InstanceName, snapRev snap.Revision, compName string, compRev snap.Revision, unlinkTaskType string, kmodComps []*snap.ComponentSideInfo) {
+	si := createTestSnapInfoForComponent(c, instanceName.String(), snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 
 	s.state.Lock()
 
 	t := s.state.NewTask(unlinkTaskType, "task desc")
-	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
+	cref := naming.NewComponentRef(instanceName.SnapName(), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -260,13 +260,13 @@ func (s *linkCompSnapSuite) testDoUnlinkComponent(c *C, snapName string, snapRev
 		{
 			op: "unlink-component",
 			path: filepath.Join(
-				dirs.SnapMountDir, snapName, "components",
+				dirs.SnapMountDir, instanceName.String(), "components",
 				"mnt", compName, compRev.String()),
 		},
 	})
 	// state is modified as expected
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
 	c.Assert(snapst.CurrentComponentSideInfo(cref), IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
@@ -330,7 +330,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
 	ts := s.state.NewTask("nop", "first task")
 	t := s.state.NewTask("unlink-current-component", "task desc")
 	t.WaitFor(ts)
-	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
+	cref := naming.NewComponentRef(snapName, compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	ts.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	ts.Set("snap-setup", ssu)
@@ -373,14 +373,14 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
 	s.state.Unlock()
 }
 
-func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkComponent(c *C, snapName string, snapRev snap.Revision, compName string, compRev snap.Revision, unlinkTaskType string) {
-	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkComponent(c *C, instanceName naming.InstanceName, snapRev snap.Revision, compName string, compRev snap.Revision, unlinkTaskType string) {
+	si := createTestSnapInfoForComponent(c, instanceName.String(), snapRev, compName)
 	ssu := createTestSnapSetup(si, snapstate.Flags{})
 
 	s.state.Lock()
 
 	t := s.state.NewTask(unlinkTaskType, "task desc")
-	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
+	cref := naming.NewComponentRef(instanceName.SnapName(), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -412,19 +412,19 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkComponent(c *C, snapName s
 		{
 			op: "unlink-component",
 			path: filepath.Join(
-				dirs.SnapMountDir, snapName, "components",
+				dirs.SnapMountDir, instanceName.String(), "components",
 				"mnt", compName, compRev.String()),
 		},
 		{
 			op: "link-component",
 			path: filepath.Join(
-				dirs.SnapMountDir, snapName, "components",
+				dirs.SnapMountDir, instanceName.String(), "components",
 				"mnt", compName, compRev.String()),
 		},
 	})
 	// the component is still in the state
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, instanceName, &snapst), IsNil)
 	stateCsi := snapst.CurrentComponentSideInfo(cref)
 	c.Assert(stateCsi, DeepEquals, csi)
 	c.Assert(t.Status(), Equals, state.UndoneStatus)

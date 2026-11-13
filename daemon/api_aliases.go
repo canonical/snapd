@@ -89,7 +89,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 			// check if a snap is referred/intended
 			// or just an alias
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, a.Snap.String(), &snapst)
+			err := snapstate.Get(st, a.Snap, &snapst)
 			if err != nil && !errors.Is(err, state.ErrNoState) {
 				return InternalError("%v", err)
 			}

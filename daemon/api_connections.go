@@ -251,7 +251,7 @@ func checkSnapInstalled(st *state.State, name string) error {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	return snapstate.Get(st, name, &snapst)
+	return snapstate.Get(st, naming.InstanceName(name), &snapst)
 }
 
 func getConnections(c *Command, r *http.Request, user *auth.UserState) Response {

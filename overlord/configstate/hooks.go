@@ -65,7 +65,7 @@ func (h *configureHandler) Before() error {
 			return err
 		}
 
-		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName.String())
+		patch, err = snapstate.ConfigDefaults(st, deviceCtx, instanceName)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -150,7 +150,7 @@ func (h *defaultConfigureHandler) Before() error {
 			return err
 		}
 
-		patch, err := snapstate.ConfigDefaults(st, deviceCtx, instanceName.String())
+		patch, err := snapstate.ConfigDefaults(st, deviceCtx, instanceName)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}

@@ -2076,7 +2076,7 @@ func (s *interfaceManagerSuite) TestStaleConnectionsIgnoredInReloadConnections(c
 	c.Assert(logLines[1], Equals, "")
 }
 
-func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName string) {
+func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c *C, brokenSnapName naming.InstanceName) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2089,7 +2089,7 @@ func (s *interfaceManagerSuite) testStaleAutoConnectionsNotRemovedIfSnapBroken(c
 		"other-consumer:plug other-producer:slot": map[string]any{"interface": "test", "auto": true},
 	})
 	sideInfo := &snap.SideInfo{
-		RealName: brokenSnapName,
+		RealName: brokenSnapName.SnapName().String(),
 		Revision: snap.R(1),
 	}
 
@@ -2166,7 +2166,7 @@ func (s *interfaceManagerSuite) TestStaleConnectionsRemoved(c *C) {
 	c.Assert(ifaces.Connections, HasLen, 0)
 }
 
-func (s *interfaceManagerSuite) testStaleConnectionsNotRemovedIfRemainingSnapBroken(c *C, brokenSnapName string) {
+func (s *interfaceManagerSuite) testStaleConnectionsNotRemovedIfRemainingSnapBroken(c *C, brokenSnapName naming.InstanceName) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.state.Lock()
@@ -2175,7 +2175,7 @@ func (s *interfaceManagerSuite) testStaleConnectionsNotRemovedIfRemainingSnapBro
 		"consumer:plug producer:slot": map[string]any{"interface": "test"},
 	})
 	sideInfo := &snap.SideInfo{
-		RealName: brokenSnapName,
+		RealName: brokenSnapName.SnapName().String(),
 		Revision: snap.R(1),
 	}
 
@@ -2387,7 +2387,7 @@ func (s *interfaceManagerSuite) mockSnapInstance(c *C, instanceName, yamlText st
 	defer s.state.Unlock()
 
 	// Put a side info into the state
-	snapstate.Set(s.state, snapInfo.InstanceName().String(), &snapstate.SnapState{
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapstate.SnapState{
 		Active:      true,
 		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:     sideInfo.Revision,
@@ -2407,10 +2407,10 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 
 	// Put the new revision (stored in SideInfo) into the state
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.InstanceName().String(), &snapst)
+	err := snapstate.Get(s.state, snapInfo.InstanceName(), &snapst)
 	c.Assert(err, IsNil)
 	snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(sideInfo, nil))
-	snapstate.Set(s.state, snapInfo.InstanceName().String(), &snapst)
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
 
 	return snapInfo
 }
@@ -2441,7 +2441,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 		// snap must be installed at this point, either just installed by a
 		// previous link-snap task, or it was already installed.
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 		if err != nil {
 			return err
 		}
@@ -2457,7 +2457,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 			return fmt.Errorf("internal error while linking component: %w", err)
 		}
 
-		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
@@ -2470,7 +2470,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 		}
 
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 		if err != nil {
 			return err
 		}
@@ -2486,7 +2486,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 
 		c.Check(removed, NotNil)
 
-		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 
 		return nil
 	})
@@ -2501,7 +2501,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 
 	// snap should already be installed if calling this function
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 	c.Assert(err, IsNil)
 
 	change := s.state.NewChange("test", "")
@@ -2537,7 +2537,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 
 	if !opts.install {
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 		c.Assert(err, IsNil)
 		csis = append(csis, snapst.CurrentComponentSideInfos()...)
 	}
@@ -2551,7 +2551,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		s.state.Lock()
 		defer s.state.Unlock()
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -2565,7 +2565,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			c.Check(snapst.PendingSecurity.SideInfo, DeepEquals, snapsup.SideInfo)
 			c.Check(snapst.PendingSecurity.Components, DeepEquals, csis)
 		}
-		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
 
 		if opts.linkSnapRestarts {
@@ -2577,16 +2577,16 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		s.state.Lock()
 		defer s.state.Unlock()
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if opts.install {
 			// unlink completely
-			snapstate.Set(s.state, snapsup.InstanceName().String(), nil)
+			snapstate.Set(s.state, snapsup.InstanceName(), nil)
 		} else {
 			snapst.Active = false
-			snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
+			snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 		}
 		// this is realistic and will move PendingSecurity.SideInfo
 		// on undo already to the previous revision, this should
@@ -2596,9 +2596,9 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		if !opts.install {
 			// perturb things to make sure undo-setup-profiles
 			// sets the right value
-			c.Assert(snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst), IsNil)
+			c.Assert(snapstate.Get(s.state, snapsup.InstanceName(), &snapst), IsNil)
 			snapst.PendingSecurity.SideInfo = &snap.SideInfo{}
-			snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
+			snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 		}
 		return nil
 	})
@@ -2606,13 +2606,13 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	s.mockLinkComponent(c)
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
+	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic(err)
 	}
 	if snapst.IsInstalled() {
 		snapst.Active = opts.active
-		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
 	}
 
 	change := s.state.NewChange("test", "")
@@ -4266,12 +4266,12 @@ slots:
 
 	// Alter the state of producer and consumer snaps to get new revisions.
 	s.state.Lock()
-	for _, snapName := range []string{"producer", "consumer"} {
+	for _, snapName := range []naming.InstanceName{"producer", "consumer"} {
 		snapstate.Set(s.state, snapName, &snapstate.SnapState{
 			Active: true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-				{Revision: snap.R(1), RealName: snapName},
-				{Revision: snap.R(2), RealName: snapName},
+				{Revision: snap.R(1), RealName: snapName.SnapName().String()},
+				{Revision: snap.R(2), RealName: snapName.SnapName().String()},
 			}),
 			Current:  snap.R(2),
 			SnapType: string("app"),
@@ -4377,12 +4377,12 @@ slots:
 
 	// Alter the state of producer and consumer snaps to get new revisions.
 	s.state.Lock()
-	for _, snapName := range []string{"producer", "consumer"} {
-		snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	for _, instanceName := range []naming.InstanceName{"producer", "consumer"} {
+		snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 			Active: true,
 			Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-				{Revision: snap.R(1), RealName: snapName},
-				{Revision: snap.R(2), RealName: snapName},
+				{Revision: snap.R(1), RealName: instanceName.SnapName().String()},
+				{Revision: snap.R(2), RealName: instanceName.SnapName().String()},
 			}),
 			Current:  snap.R(2),
 			SnapType: string("app"),
@@ -5139,7 +5139,7 @@ func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, comp
 	defer s.state.Unlock()
 
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapInfo.InstanceName().String(), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, snapInfo.InstanceName(), &snapst), IsNil)
 
 	snapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
@@ -5149,7 +5149,7 @@ func (s *interfaceManagerSuite) mockComponentForSnap(c *C, compName string, comp
 		CompType: snap.StandardComponent,
 	})
 
-	snapstate.Set(s.state, snapInfo.InstanceName().String(), &snapst)
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
 
 	return compInfo
 }
@@ -5286,7 +5286,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 
 	s.state.Lock()
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapInfo.InstanceName().String(), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, snapInfo.InstanceName(), &snapst), IsNil)
 
 	// add a preexisting component to make sure that we create an app set that
 	// includes it
@@ -5301,7 +5301,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 	// add a component to the affected snap, we should see this in the final
 	// call to Setup in the backend
 	var coreSnapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, coreSnapInfo.InstanceName().String(), &coreSnapst), IsNil)
+	c.Assert(snapstate.Get(s.state, coreSnapInfo.InstanceName(), &coreSnapst), IsNil)
 	coreSnapst.Sequence.AddComponentForRevision(snapInfo.Revision, &sequence.ComponentState{
 		SideInfo: &snap.ComponentSideInfo{
 			Component: naming.NewComponentRef(snapInfo.SnapName(), "comp"),
@@ -5310,8 +5310,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesOfAffectedSnapWithComponents(c 
 		CompType: snap.StandardComponent,
 	})
 
-	snapstate.Set(s.state, snapInfo.InstanceName().String(), &snapst)
-	snapstate.Set(s.state, coreSnapInfo.InstanceName().String(), &coreSnapst)
+	snapstate.Set(s.state, snapInfo.InstanceName(), &snapst)
+	snapstate.Set(s.state, coreSnapInfo.InstanceName(), &coreSnapst)
 
 	s.state.Unlock()
 
@@ -5641,7 +5641,7 @@ func (s *interfaceManagerSuite) testDoDiscardConns(c *C, snapName string) {
 	})
 }
 
-func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
+func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, instanceName naming.InstanceName) {
 	s.manager(c)
 
 	s.state.Lock()
@@ -5651,11 +5651,11 @@ func (s *interfaceManagerSuite) testUndoDiscardConns(c *C, snapName string) {
 	})
 
 	// Store empty snap state. This snap has an empty sequence now.
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{})
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{})
 	s.state.Unlock()
 
 	// Run the discard-conns task and let it finish
-	change, t := s.addDiscardConnsChange(snapName)
+	change, t := s.addDiscardConnsChange(instanceName.String())
 	s.state.Lock()
 	terr := s.state.NewTask("error-trigger", "provoking undo")
 	terr.WaitFor(t)
@@ -6950,9 +6950,9 @@ hooks:
 
 	s.state.Lock()
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, producerInfo.InstanceName().String(), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, producerInfo.InstanceName(), &snapst), IsNil)
 	snapst.Active = false
-	snapstate.Set(s.state, producerInfo.InstanceName().String(), &snapst)
+	snapstate.Set(s.state, producerInfo.InstanceName(), &snapst)
 
 	change := s.state.NewChange("test", "")
 	task := s.state.NewTask("setup-profiles", "")
@@ -6980,7 +6980,7 @@ hooks:
 		CanDelayEffects: false,
 	})
 
-	c.Assert(snapstate.Get(s.state, producerInfo.InstanceName().String(), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, producerInfo.InstanceName(), &snapst), IsNil)
 	c.Assert(snapst.PendingSecurity, NotNil)
 	c.Check(snapst.PendingSecurity.SideInfo.Revision, Equals, updatedInfo.Revision)
 }
@@ -7167,12 +7167,12 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefreshClassicToStrictUse
 	// Mark the installed revision as classic in the state flags.
 	s.state.Lock()
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, oldSnapInfo.InstanceName().String(), &snapst), IsNil)
+	c.Assert(snapstate.Get(s.state, oldSnapInfo.InstanceName(), &snapst), IsNil)
 	snapst.Flags.Classic = true
 	// Make the snap inactive so prepare-profiles will record PendingSecurity
 	// for the refresh attempt.
 	snapst.Active = false
-	snapstate.Set(s.state, oldSnapInfo.InstanceName().String(), &snapst)
+	snapstate.Set(s.state, oldSnapInfo.InstanceName(), &snapst)
 	s.state.Unlock()
 
 	// Mock a new revision that is strict.
@@ -8111,13 +8111,13 @@ plugs:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for name, expected := range map[string]bool{
+	for name, expected := range map[naming.InstanceName]bool{
 		"consumer_ok":  false,
 		"consumer_nok": true,
 	} {
 		var snapst snapstate.SnapState
 		c.Assert(snapstate.Get(s.state, name, &snapst), IsNil)
-		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name))
+		c.Check(snapst.AllowUnsupportedInstances, Equals, expected, Commentf(name.String()))
 	}
 }
 
@@ -9726,8 +9726,8 @@ func (s *interfaceManagerSuite) TestHotplugAutoconnectConflictRetry(c *C) {
 }
 
 // mockConsumer mocks a consumer snap and its single plug in the repository
-func mockConsumer(c *C, st *state.State, repo *interfaces.Repository, snapYaml, consumerSnapName, plugName string) {
-	si := &snap.SideInfo{RealName: consumerSnapName, Revision: snap.R(1)}
+func mockConsumer(c *C, st *state.State, repo *interfaces.Repository, snapYaml string, consumerSnapName naming.InstanceName, plugName string) {
+	si := &snap.SideInfo{RealName: consumerSnapName.SnapName().String(), Revision: snap.R(1)}
 	consumer := ifacetest.MockSnapAndAppSet(c, snapYaml, nil, si)
 	c.Assert(consumer.Info().Plugs[plugName], NotNil)
 	c.Assert(repo.AddAppSet(consumer), IsNil)
@@ -11933,7 +11933,7 @@ version: 1.0
 	})
 
 	// need to mark snap as inactive (which it would be during unlink)
-	for _, sn := range []string{"consumer2", "producer2"} {
+	for _, sn := range []naming.InstanceName{"consumer2", "producer2"} {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, sn, &snapst)
 		c.Assert(err, IsNil)
@@ -12139,7 +12139,7 @@ plugs:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, name, &snapstate.SnapState{
+	snapstate.Set(s.state, naming.InstanceName(name), &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   true,
@@ -12169,7 +12169,7 @@ plugs:
 	s.state.Set("conns", conns)
 }
 
-func (s *interfaceManagerSuite) testDoSetupProfilesForMultiConnectedPlugOnRefresh(c *C, refreshedSnap string) (consideredConns []string) {
+func (s *interfaceManagerSuite) testDoSetupProfilesForMultiConnectedPlugOnRefresh(c *C, refreshedSnap naming.InstanceName) (consideredConns []string) {
 	// Have a plug connected to two slots. And second witness plug on a different snap.
 	s.state.Lock()
 	s.state.Set("conns", map[string]any{
@@ -12262,7 +12262,7 @@ slots:
 			} else {
 				name := appSet.InstanceName()
 				switch {
-				case refreshedSnap == name.String():
+				case refreshedSnap == name:
 					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 				case refreshedSnap == "consumer" && (name == "producer" || name == "producer2"):
 					// Both slot provider snaps are affected by an update of connected consumer
@@ -12300,8 +12300,8 @@ slots:
 	snapstate.Set(s.state, refreshedSnap, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{Revision: snap.R(1), RealName: refreshedSnap},
-			{Revision: snap.R(2), RealName: refreshedSnap},
+			{Revision: snap.R(1), RealName: refreshedSnap.SnapName().String()},
+			{Revision: snap.R(2), RealName: refreshedSnap.SnapName().String()},
 		}),
 		Current:  snap.R(2),
 		SnapType: string("app"),
@@ -12313,7 +12313,7 @@ slots:
 	change := s.state.NewChange("test", "")
 	task := s.state.NewTask("setup-profiles", "")
 	task.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: refreshedSnap, Revision: snap.R(2)}})
+		SideInfo: &snap.SideInfo{RealName: refreshedSnap.SnapName().String(), Revision: snap.R(2)}})
 	change.AddTask(task)
 	s.state.Unlock()
 
@@ -12340,7 +12340,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesForMultiConnectedPlugConsumer
 	c.Check(consideredConns, DeepEquals, []string{"consumer:plug producer2:slot", "consumer:plug producer:slot"})
 }
 
-func (s *interfaceManagerSuite) testDoSetupProfilesForCyclicallyConenctedSnap(c *C, refreshedSnap string) (consideredConns []string) {
+func (s *interfaceManagerSuite) testDoSetupProfilesForCyclicallyConenctedSnap(c *C, refreshedSnap naming.InstanceName) (consideredConns []string) {
 	// We have a cyclic connection between the producer and consumer, spiced up
 	// with producer2 carrying a single connection
 	s.state.Lock()
@@ -12425,7 +12425,7 @@ plugs:
 			} else {
 				name := appSet.InstanceName()
 				switch {
-				case refreshedSnap == name.String():
+				case refreshedSnap == name:
 					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 				case refreshedSnap == "consumer" && name == "producer2":
 					c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedPlugConsumerUpdate})
@@ -12463,8 +12463,8 @@ plugs:
 	snapstate.Set(s.state, refreshedSnap, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{Revision: snap.R(1), RealName: refreshedSnap},
-			{Revision: snap.R(2), RealName: refreshedSnap},
+			{Revision: snap.R(1), RealName: refreshedSnap.SnapName().String()},
+			{Revision: snap.R(2), RealName: refreshedSnap.SnapName().String()},
 		}),
 		Current:  snap.R(2),
 		SnapType: string("app"),
@@ -12476,7 +12476,7 @@ plugs:
 	change := s.state.NewChange("test", "")
 	task := s.state.NewTask("setup-profiles", "")
 	task.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: refreshedSnap, Revision: snap.R(2)}})
+		SideInfo: &snap.SideInfo{RealName: refreshedSnap.SnapName().String(), Revision: snap.R(2)}})
 	change.AddTask(task)
 	s.state.Unlock()
 

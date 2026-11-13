@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -3500,7 +3501,7 @@ func (s *systemsCreateSuite) TestCreateSystemActionWithComponentsOffline(c *chec
 			snapFormData[name] = string(content)
 		} else {
 			st.Lock()
-			snapstate.Set(st, name, &snapstate.SnapState{
+			snapstate.Set(st, naming.InstanceName(name), &snapstate.SnapState{
 				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 					{
 						RealName: name,

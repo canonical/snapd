@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -77,7 +78,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+	if err := snapstate.Get(st, naming.InstanceName(sc.SnapName), &snapst); err != nil {
 		return err
 	}
 	info, err := snapst.CurrentInfo()
@@ -142,7 +143,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 		if disable {
 			// re-read snapst after reacquiring the lock as it could have changed.
-			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+			if err := snapstate.Get(st, naming.InstanceName(sc.SnapName), &snapst); err != nil {
 				return err
 			}
 			changed, err := updateSnapstateServices(&snapst, nil, services, sc.ScopeOptions)
@@ -150,7 +151,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 				return err
 			}
 			if changed {
-				snapstate.Set(st, sc.SnapName, &snapst)
+				snapstate.Set(st, naming.InstanceName(sc.SnapName), &snapst)
 			}
 		}
 	case "start":
@@ -167,7 +168,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 		if enable {
 			// re-read snapst after reacquiring the lock as it could have changed.
-			if err := snapstate.Get(st, sc.SnapName, &snapst); err != nil {
+			if err := snapstate.Get(st, naming.InstanceName(sc.SnapName), &snapst); err != nil {
 				return err
 			}
 			changed, err := updateSnapstateServices(&snapst, startupOrdered, nil, sc.ScopeOptions)
@@ -175,7 +176,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 				return err
 			}
 			if changed {
-				snapstate.Set(st, sc.SnapName, &snapst)
+				snapstate.Set(st, naming.InstanceName(sc.SnapName), &snapst)
 			}
 		}
 	case "restart":

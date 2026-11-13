@@ -65,10 +65,10 @@ var timeNow = func() time.Time {
 	return time.Now()
 }
 
-func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
+func lastRefreshed(st *state.State, instanceName naming.InstanceName) (time.Time, error) {
 	var snapst SnapState
-	if err := Get(st, snapName, &snapst); err != nil {
-		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
+	if err := Get(st, instanceName, &snapst); err != nil {
+		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", instanceName, err)
 	}
 	// try to get last refresh time from snapstate, but it may not be present
 	// for snaps installed before the introduction of last-refresh attribute.
@@ -250,7 +250,7 @@ func HoldRefresh(st *state.State, level HoldLevel, gatingSnap string, holdDurati
 			hold.HoldUntil = now.Add(holdDuration)
 			left = holdDuration
 		} else {
-			lastRefreshTime, err := lastRefreshed(st, heldSnap)
+			lastRefreshTime, err := lastRefreshed(st, naming.InstanceName(heldSnap))
 			if err != nil {
 				return 0, err
 			}
@@ -521,7 +521,7 @@ func HeldSnaps(st *state.State, level HoldLevel) (map[string][]string, error) {
 
 	held := make(map[string][]string)
 	for heldSnap, holds := range gating {
-		lastRefresh, err := lastRefreshed(st, heldSnap)
+		lastRefresh, err := lastRefreshed(st, naming.InstanceName(heldSnap))
 		if err != nil {
 			return nil, err
 		}

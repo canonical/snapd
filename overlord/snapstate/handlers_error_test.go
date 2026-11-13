@@ -95,18 +95,18 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorNoTaskSnapSetup(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	task := s.state.NewTask("kill-snap-apps", "")
 	chg := s.state.NewChange("test", "")
@@ -129,7 +129,7 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorNoTaskSnapSetup(c *C) {
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot is unchanged
@@ -144,18 +144,18 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorSnapOpenLock(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	// Mock snaplock.OpenLock failure by making the lock directory unwritable
 	err := os.MkdirAll(dirs.SnapRunLockDir, 0700)
@@ -181,11 +181,11 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorSnapOpenLock(c *C) {
 
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	c.Check(task.Log(), HasLen, 1)
-	c.Check(task.Log()[0], Matches, fmt.Sprintf(`.* ERROR open .*/run/snapd/lock/%s.lock: permission denied`, snapName))
+	c.Check(task.Log()[0], Matches, fmt.Sprintf(`.* ERROR open .*/run/snapd/lock/%s.lock: permission denied`, instanceName))
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot is unchanged
@@ -196,18 +196,18 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorKillReasonUnmarshal(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	task := s.state.NewTask("kill-snap-apps", "")
 	// Mock error for task.Get("kill-reason") by setting an invalid value
@@ -234,13 +234,13 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorKillReasonUnmarshal(c *C
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
 	fsIgnore := &testutil.FsSnapshotIgnoreDiff{
 		// lock file is intentionally not removed on error
-		fmt.Sprintf("run/snapd/lock/%s.lock", snapName): {
+		fmt.Sprintf("run/snapd/lock/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
@@ -256,18 +256,18 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorInhibitLockWithHint(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	// Mock runinhibit.LockWithHint failure by making the InhibitDir unwritable
 	err := os.MkdirAll(runinhibit.InhibitDir, 0755)
@@ -294,17 +294,17 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorInhibitLockWithHint(c *C
 
 	c.Check(task.Status(), Equals, state.ErrorStatus)
 	c.Check(task.Log(), HasLen, 1)
-	c.Check(task.Log()[0], Matches, fmt.Sprintf(`.* ERROR open .*/var/lib/snapd/inhibit/%s.lock: permission denied`, snapName))
+	c.Check(task.Log()[0], Matches, fmt.Sprintf(`.* ERROR open .*/var/lib/snapd/inhibit/%s.lock: permission denied`, instanceName))
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
 	fsIgnore := &testutil.FsSnapshotIgnoreDiff{
 		// lock file is intentionally not removed on error
-		fmt.Sprintf("run/snapd/lock/%s.lock", snapName): {
+		fmt.Sprintf("run/snapd/lock/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
@@ -316,30 +316,30 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapApps(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	// setup cgroup
 	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
-	cgDir := fmt.Sprintf("sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.%s.app-1.1234.scope", snapName)
+	cgDir := fmt.Sprintf("sys/fs/cgroup/user.slice/user-1001.slice/user@1001.service/app.slice/snap.%s.app-1.1234.scope", instanceName)
 	cgKillFile := filepath.Join(s.rootDir, cgDir, "cgroup.kill")
 	c.Assert(os.MkdirAll(filepath.Dir(cgKillFile), 0755), IsNil)
 	c.Assert(os.WriteFile(cgKillFile, []byte{}, 0644), IsNil)
 
 	// Mock error in snapst.CurrentInfo
 	restore = snapstate.MockSnapReadInfo(func(name naming.InstanceName, si *snap.SideInfo) (*snap.Info, error) {
-		c.Assert(name.String(), Equals, snapName)
+		c.Assert(name, Equals, instanceName)
 		return nil, fmt.Errorf("mock SnapReadInfo error")
 	})
 	defer restore()
@@ -367,17 +367,17 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapApps(c *C
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
 	fsIgnore := &testutil.FsSnapshotIgnoreDiff{
 		// lock files are intentionally not removed on error
-		fmt.Sprintf("run/snapd/lock/%s.lock", snapName): {
+		fmt.Sprintf("run/snapd/lock/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
-		fmt.Sprintf("var/lib/snapd/inhibit/%s.lock", snapName): {
+		fmt.Sprintf("var/lib/snapd/inhibit/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
@@ -393,18 +393,18 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsErrorBackendKillSnapServices(
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	// Create snap.yaml on disk for snap.ReadInfo
 	killSnapAppsTestYaml := fmt.Sprintf(`name: %s
@@ -413,15 +413,15 @@ apps:
   svc1:
     command: bin/svc1
     daemon: simple
-`, snapName)
+`, instanceName)
 	snaptest.MockSnap(c, killSnapAppsTestYaml, si)
-	svcFile := filepath.Join(s.rootDir, fmt.Sprintf("/etc/systemd/system/snap.%s.svc1.service", snapName))
+	svcFile := filepath.Join(s.rootDir, fmt.Sprintf("/etc/systemd/system/snap.%s.svc1.service", instanceName))
 	c.Assert(os.MkdirAll(filepath.Dir(svcFile), 0755), IsNil)
 	c.Assert(os.WriteFile(svcFile, []byte{}, 0644), IsNil)
 
 	// Mock error in systemctl stop svc1
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if len(cmd) == 2 && cmd[0] == "stop" && strings.Contains(cmd[1], fmt.Sprintf("%s.svc1", snapName)) {
+		if len(cmd) == 2 && cmd[0] == "stop" && strings.Contains(cmd[1], fmt.Sprintf("%s.svc1", instanceName)) {
 			return nil, fmt.Errorf("mock systemctl error")
 		}
 		return []byte("ActiveState=active\n"), nil
@@ -451,17 +451,17 @@ apps:
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
 	fsIgnore := &testutil.FsSnapshotIgnoreDiff{
 		// lock files are intentionally not removed on error
-		fmt.Sprintf("run/snapd/lock/%s.lock", snapName): {
+		fmt.Sprintf("run/snapd/lock/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
-		fmt.Sprintf("var/lib/snapd/inhibit/%s.lock", snapName): {
+		fmt.Sprintf("var/lib/snapd/inhibit/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
@@ -473,18 +473,18 @@ func (s *killSnapAppsErrorSuite) TestDoKillSnapAppsUndoesOnFutureTaskError(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	si := &snap.SideInfo{
-		RealName: snapName,
+		RealName: instanceName.SnapName().String(),
 		Revision: snap.R(1),
-		SnapID:   fmt.Sprintf("%s-id", snapName),
+		SnapID:   fmt.Sprintf("%s-id", instanceName),
 	}
 	snapstBefore := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		Active:   true,
 	}
-	snapstate.Set(s.state, snapName, snapstBefore)
+	snapstate.Set(s.state, instanceName, snapstBefore)
 
 	// Create snap.yaml on disk for snap.ReadInfo
 	killSnapAppsTestYaml := fmt.Sprintf(`name: %s
@@ -493,9 +493,9 @@ apps:
   svc1:
     command: bin/svc1
     daemon: simple
-`, snapName)
+`, instanceName)
 	snaptest.MockSnap(c, killSnapAppsTestYaml, si)
-	svcFile := filepath.Join(s.rootDir, fmt.Sprintf("/etc/systemd/system/snap.%s.svc1.service", snapName))
+	svcFile := filepath.Join(s.rootDir, fmt.Sprintf("/etc/systemd/system/snap.%s.svc1.service", instanceName))
 	c.Assert(os.MkdirAll(filepath.Dir(svcFile), 0755), IsNil)
 	c.Assert(os.WriteFile(svcFile, []byte{}, 0644), IsNil)
 
@@ -532,17 +532,17 @@ apps:
 
 	// Verify that the snap state is unchanged
 	snapstAfter := &snapstate.SnapState{}
-	snapstate.Get(s.state, snapName, snapstAfter)
+	snapstate.Get(s.state, instanceName, snapstAfter)
 	c.Check(snapstAfter, DeepEquals, snapstBefore)
 
 	// Verify that the fs snapshot has acceptable differences
 	fsIgnore := &testutil.FsSnapshotIgnoreDiff{
 		// lock files are intentionally not removed on error
-		fmt.Sprintf("run/snapd/lock/%s.lock", snapName): {
+		fmt.Sprintf("run/snapd/lock/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},
-		fmt.Sprintf("var/lib/snapd/inhibit/%s.lock", snapName): {
+		fmt.Sprintf("var/lib/snapd/inhibit/%s.lock", instanceName): {
 			Kinds:         []testutil.FsDiffKind{testutil.PresenceDiffKind},
 			IgnoreParents: true,
 		},

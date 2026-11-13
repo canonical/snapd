@@ -374,7 +374,7 @@ func newPrereqSeedRefreshFinder(t *state.Task) (func([]*state.TaskSet) (*SeedRef
 // prerequisite, such as on classic systems that are already seeded. It returns
 // false on Ubuntu Core systems where this requires remodeling.
 func considerSnapdAsPrereq(st *state.State) (bool, error) {
-	installed, err := isInstalled(st, "snapd")
+	installed, err := isInstalled(st, naming.Snapd)
 	if err != nil {
 		return false, err
 	}
@@ -516,7 +516,7 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 
 	// as a special case, we allow the core snap to satisfy a core16 requirement
 	if sn.InstanceName == "core16" {
-		installed, err := isInstalled(st, "core")
+		installed, err := isInstalled(st, naming.Core)
 		if err != nil {
 			return nil, err
 		}
@@ -529,7 +529,7 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 		}
 	}
 
-	installed, err := isInstalled(st, sn.InstanceName.String())
+	installed, err := isInstalled(st, sn.InstanceName)
 	if err != nil {
 		return nil, err
 	}
@@ -651,9 +651,9 @@ func instanceNameFromTask(t *state.Task) (string, bool) {
 	return snapsup.InstanceName().String(), true
 }
 
-func isInstalled(st *state.State, snapName string) (bool, error) {
+func isInstalled(st *state.State, instanceName naming.InstanceName) (bool, error) {
 	var snapState SnapState
-	err := Get(st, snapName, &snapState)
+	err := Get(st, instanceName, &snapState)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return false, err
 	}

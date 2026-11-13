@@ -183,7 +183,7 @@ func refreshHintsFromUpdatePlan(st *state.State, plan updatePlan, deviceCtx Devi
 	for _, t := range plan.targets {
 		info := t.info
 		var snapst SnapState
-		if err := Get(st, info.InstanceName().String(), &snapst); err != nil {
+		if err := Get(st, info.InstanceName(), &snapst); err != nil {
 			return nil, err
 		}
 

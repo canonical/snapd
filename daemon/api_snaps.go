@@ -973,7 +973,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 	)
 	for _, name := range inst.Snaps {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		if err := snapstate.Get(st, naming.InstanceName(name), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return nil, nil, nil, err
 		}
 

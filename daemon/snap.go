@@ -59,7 +59,7 @@ func localSnapInfo(st *state.State, name string) (aboutSnap, error) {
 	defer st.Unlock()
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(st, name, &snapst)
+	err := snapstate.Get(st, naming.InstanceName(name), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return aboutSnap{}, fmt.Errorf("cannot consult state: %v", err)
 	}

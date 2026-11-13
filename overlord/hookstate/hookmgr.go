@@ -207,7 +207,7 @@ func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 	}
 
 	var baseSnapst snapstate.SnapState
-	err = snapstate.Get(cand.State(), snapst.Base, &baseSnapst)
+	err = snapstate.Get(cand.State(), naming.InstanceName(snapst.Base), &baseSnapst)
 	if err != nil {
 		return false
 	}
@@ -310,7 +310,7 @@ func hookSetup(task *state.Task, key string) (*HookSetup, *snapstate.SnapState, 
 	}
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(task.State(), hooksup.Snap, &snapst)
+	err = snapstate.Get(task.State(), naming.InstanceName(hooksup.Snap), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, fmt.Errorf("cannot handle %q snap: %v", hooksup.Snap, err)
 	}
@@ -375,7 +375,7 @@ func (m *HookManager) undoRunHook(task *state.Task, tomb *tomb.Tomb) error {
 func (m *HookManager) EphemeralRunHook(ctx context.Context, hooksup *HookSetup, contextData map[string]any) (*Context, error) {
 	var snapst snapstate.SnapState
 	m.state.Lock()
-	err := snapstate.Get(m.state, hooksup.Snap, &snapst)
+	err := snapstate.Get(m.state, naming.InstanceName(hooksup.Snap), &snapst)
 	m.state.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("cannot run ephemeral hook %q for snap %q: %v", hooksup.Hook, hooksup.Snap, err)

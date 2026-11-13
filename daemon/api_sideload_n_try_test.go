@@ -870,7 +870,7 @@ func (s *sideloadSuite) sideloadComponentCheck(
 		Revision: snap.R(1),
 		SnapID:   snaptest.AssertedSnapID("local"),
 	}
-	snapstate.Set(st, expectedInstanceName, &snapstate.SnapState{
+	snapstate.Set(st, naming.InstanceName(expectedInstanceName), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -1535,13 +1535,13 @@ func (s *sideloadSuite) testSideloadManySnapsAndComponents(c *check.C, opts side
 	st.Set("snaps", make(map[string]*json.RawMessage))
 	st.Unlock()
 
-	for _, name := range []string{"one", "two"} {
+	for _, name := range []naming.InstanceName{"one", "two"} {
 		if opts.updateExisting {
 			continue
 		}
 
 		ssi := &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R(1),
 			SnapID:   fmt.Sprintf("%s-snap-id", name),
 		}

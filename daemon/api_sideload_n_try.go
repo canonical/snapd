@@ -804,7 +804,7 @@ func readComponentInfoDangerous(
 
 func installedSnapInfo(st *state.State, instanceName string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+	if err := snapstate.Get(st, naming.InstanceName(instanceName), &snapst); err != nil {
 		return nil, err
 	}
 

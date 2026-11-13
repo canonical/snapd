@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 var snapFileCmd = &Command{
@@ -45,7 +46,7 @@ func getSnapFile(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	var snapst snapstate.SnapState
 	var info *snap.Info
-	err := snapstate.Get(st, name, &snapst)
+	err := snapstate.Get(st, naming.InstanceName(name), &snapst)
 	if err == nil {
 		info, err = snapst.CurrentInfo()
 	}

@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -638,7 +639,7 @@ plugs:
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	snapstate.Set(s.state, name, &snapstate.SnapState{
+	snapstate.Set(s.state, naming.InstanceName(name), &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  snap.R(1),
 		Active:   true,
