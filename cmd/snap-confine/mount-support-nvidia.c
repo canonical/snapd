@@ -134,6 +134,7 @@ static const char *nvidia_globs[] = {
     "libnvidia-opencl.so*",
     "libnvidia-opticalflow.so*",
     "libnvidia-ptxjitcompiler.so*",
+    "libnvidia-rmapi-tegra.so*",
     "libnvidia-rtcore.so*",
     "libnvidia-tls.so*",
     "libnvoptix.so*",
