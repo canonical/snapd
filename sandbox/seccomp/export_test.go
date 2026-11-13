@@ -19,6 +19,10 @@
 
 package seccomp
 
+import (
+	"github.com/snapcore/snapd/testutil"
+)
+
 func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func()) {
 	old := osReadFile
 	osReadFile = newReadfile
@@ -29,4 +33,8 @@ func MockIoutilReadfile(newReadfile func(string) ([]byte, error)) (restorer func
 
 func FreshSecCompProbe() {
 	secCompProber = &secCompProbe{}
+}
+
+func MockPreseedSeccompActions(actions string) (restore func()) {
+	return testutil.Mock(&preseedSeccompActions, func() string { return actions })
 }

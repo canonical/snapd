@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/snapcore/snapd/snapdenv"
 )
 
 var secCompProber = &secCompProbe{}
@@ -58,14 +60,23 @@ func (scp *secCompProbe) actions() []string {
 	return scp.probedActions
 }
 
-var osReadFile = os.ReadFile
+var (
+	osReadFile            = os.ReadFile
+	preseedSeccompActions = snapdenv.PreseedSeccompActions
+)
 
 func probeActions() []string {
-	contents, err := osReadFile("/proc/sys/kernel/seccomp/actions_avail")
-	if err != nil {
-		return []string{}
+	// the actions of the target kernel when they were provided for
+	// preseeding
+	contents := preseedSeccompActions()
+	if contents == "" {
+		data, err := osReadFile("/proc/sys/kernel/seccomp/actions_avail")
+		if err != nil {
+			return []string{}
+		}
+		contents = string(data)
 	}
-	actions := strings.Split(strings.TrimRight(string(contents), "\n"), " ")
+	actions := strings.Split(strings.TrimRight(contents, "\n"), " ")
 	sort.Strings(actions)
 	return actions
 }

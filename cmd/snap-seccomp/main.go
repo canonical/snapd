@@ -223,6 +223,8 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h
@@ -856,10 +858,26 @@ func actLogSupported() bool {
 	return actLog.String() == "Action: Log system call"
 }
 
+var preseedSeccompActions = snapdenv.PreseedSeccompActions
+
+// targetKernelSupportsLog returns whether the kernel the filter is compiled
+// for supports the log action. The actions of the running kernel are checked
+// by libseccomp when the filter is created, but when preseeding for another
+// kernel, its actions were provided via the environment and must be checked
+// here, so that the compiled filter only uses actions it supports.
+func targetKernelSupportsLog() bool {
+	actions := preseedSeccompActions()
+	if actions == "" {
+		// not preseeding for another kernel
+		return true
+	}
+	return strutil.ListContains(strings.Fields(actions), "log")
+}
+
 func complainAction() seccomp.ScmpAction {
 	// XXX: Work around some distributions not having a new enough
 	// libseccomp-golang that declares ActLog.
-	if actLogSupported() {
+	if actLogSupported() && targetKernelSupportsLog() {
 		return actLog
 	}
 

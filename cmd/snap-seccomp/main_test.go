@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -629,6 +630,43 @@ func (s *snapSeccompSuite) TestCompileExplicitDenialMatchingImplicitErrno(c *C) 
 		err := main.Compile([]byte(inp), outPath)
 		c.Check(err, IsNil, Commentf("%q", inp))
 	}
+}
+
+func (s *snapSeccompSuite) TestCompileComplainPreseedTargetActions(c *C) {
+	prof := []byte("@complain\nexecve\n")
+	// SECCOMP_RET_LOG, as found in the k field of the BPF RET instructions
+	var retLog [4]byte
+	arch.Endian().PutUint32(retLog[:], 0x7ffc0000)
+
+	// the target kernel does not support the log action: the compiled
+	// filter must not use it, as the target kernel would treat it as a
+	// kill action
+	restore := main.MockPreseedSeccompActions("kill_process kill_thread trap errno allow")
+	defer restore()
+	bpfPath := filepath.Join(c.MkDir(), "bpf")
+	err := main.Compile(prof, bpfPath)
+	c.Assert(err, IsNil)
+	data, err := os.ReadFile(bpfPath)
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(data, retLog[:]), Equals, false)
+
+	// the target kernel supports the log action: the compiled filter uses
+	// it, so that not allowed syscalls are logged
+	//
+	// the actions of the running kernel are checked by libseccomp when the
+	// filter is created, so it must support the log action too
+	if _, err := seccomp.NewFilter(main.ActLog); err != nil {
+		c.Skip("the running kernel does not support the log action")
+	}
+	restore()
+	restore = main.MockPreseedSeccompActions("kill_process kill_thread trap errno trace log allow")
+	defer restore()
+	bpfPath = filepath.Join(c.MkDir(), "bpf")
+	err = main.Compile(prof, bpfPath)
+	c.Assert(err, IsNil)
+	data, err = os.ReadFile(bpfPath)
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(data, retLog[:]), Equals, true)
 }
 
 func (s *snapSeccompSuite) TestCompileBadInput(c *C) {
