@@ -210,7 +210,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 	if !opts.Preseeding {
 		sysd = systemd.New(systemd.SystemMode, inter)
 	} else {
-		sysd = systemd.NewEmulationMode("")
+		sysd = systemd.NewEmulationMode(dirs.GlobalRootDir)
 	}
 
 	if err := writeSnapdToolingMountUnit(sysd, s.MountDir(), opts); err != nil {

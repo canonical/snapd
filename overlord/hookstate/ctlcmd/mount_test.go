@@ -296,6 +296,7 @@ func (s *mountSuite) TestUnitCreationFailure(c *C) {
 			Where:                  "/dest",
 			Fstype:                 "ext4",
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -317,6 +318,7 @@ func (s *mountSuite) TestHappy(c *C) {
 			Fstype:                 "ext4",
 			Options:                []string{"sync", "rw"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -340,6 +342,7 @@ func (s *mountSuite) TestHappyWithVariableExpansion(c *C) {
 			Where:                  where,
 			Options:                []string{"bind", "ro"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -361,6 +364,7 @@ func (s *mountSuite) TestHappyWithCommasInPath(c *C) {
 			Where:                  "/dest,with,commas",
 			Options:                []string{"ro"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -383,6 +387,7 @@ func (s *mountSuite) TestHappyNFS(c *C) {
 			Fstype:                 "nfs",
 			Options:                []string{"rw"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -405,6 +410,7 @@ func (s *mountSuite) TestHappyCIFS(c *C) {
 			Fstype:                 "cifs",
 			Options:                []string{"rw", "guest"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -426,6 +432,7 @@ func (s *mountSuite) TestEnsureMountUnitFailed(c *C) {
 			Fstype:                 "ext4",
 			Options:                []string{"sync", "rw"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
@@ -450,6 +457,7 @@ func (s *mountSuite) TestEnsureMountUnitFailedRemoveFailed(c *C) {
 			Fstype:                 "ext4",
 			Options:                []string{"sync", "rw"},
 			Origin:                 "mount-control",
+			RootDir:                dirs.GlobalRootDir,
 			EnsureStartIfUnchanged: true,
 		},
 	})
