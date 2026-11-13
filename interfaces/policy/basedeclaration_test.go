@@ -2026,6 +2026,40 @@ plugs:
 	c.Assert(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestUsbGadgetFFSMountsInstallation(c *C) {
+	// a plain usb-gadget plug installs without a snap-declaration
+	ic := s.installPlugCand(c, "usb-gadget", snap.TypeApp, `name: some-snap
+version: 0
+type: app
+plugs:
+  usb-gadget:
+`)
+	err := ic.Check()
+	c.Assert(err, IsNil)
+
+	// FunctionFS mounts grant mount permissions and need a snap-declaration
+	ic = s.installPlugCand(c, "usb-gadget", snap.TypeApp, `name: some-snap
+version: 0
+type: app
+plugs:
+  usb-gadget:
+    ffs-mounts:
+      - name: ffs-dev0
+        where: $SNAP_COMMON/ffs
+`)
+	err = ic.Check()
+	c.Assert(err, ErrorMatches, `installation not allowed by "usb-gadget" plug rule of interface "usb-gadget"`)
+
+	const plugsOverride = `
+plugs:
+  usb-gadget:
+    allow-installation: true
+`
+	ic.SnapDeclaration = s.mockSnapDecl(c, "some-snap", "some-snap-id", "canonical", plugsOverride)
+	err = ic.Check()
+	c.Assert(err, IsNil)
+}
+
 func (s *baseDeclSuite) TestConnectionScreenInhibitControl(c *C) {
 	cand := s.connectCand(c, "screen-inhibit-control", "", "")
 	err := cand.Check()
