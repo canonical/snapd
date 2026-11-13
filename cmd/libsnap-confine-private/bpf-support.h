@@ -57,6 +57,13 @@ int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, s
                    const char *map_name);
 
 /**
+ * bpf_create_ringbuf creates a BPF ring buffer map with the given size (must
+ * be a power of 2 and page-aligned). Returns a file descriptor handle or -1
+ * on error. The returned file descriptor has O_CLOEXEC flag set on it.
+ */
+int bpf_create_ringbuf(size_t size, const char *map_name);
+
+/**
  * bpf_update_map updates the value of element with a given key (or adds it to
  * the map).
  */
