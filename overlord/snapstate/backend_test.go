@@ -1062,8 +1062,10 @@ func (f *fakeStore) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadI
 }
 
 type fakeSnappyBackend struct {
-	ops fakeOps
-	mu  sync.Mutex
+	ops              fakeOps
+	mu               sync.Mutex
+	kernelSetupRevs  []snap.Revision
+	kernelSetupComps [][]*snap.ComponentSideInfo
 
 	linkSnapWaitCh      chan int
 	linkSnapWaitTrigger string
@@ -1196,7 +1198,9 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, instanceName naming.I
 	return snapType, &backend.InstallRecord{}, nil
 }
 
-func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, reason backend.SetupKernelReason, meter progress.Meter) error {
+func (f *fakeSnappyBackend) SetupKernelSnap(instanceName string, rev snap.Revision, currentComps []*snap.ComponentSideInfo, meter progress.Meter) error {
+	f.kernelSetupRevs = append(f.kernelSetupRevs, rev)
+	f.kernelSetupComps = append(f.kernelSetupComps, currentComps)
 	meter.Notify("prepare-kernel-snap")
 	op := &fakeOp{
 		op: "prepare-kernel-snap",
