@@ -20,7 +20,6 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -187,10 +186,41 @@ static void sc_udev_setup_acls_common(sc_device_cgroup *cgroup) {
 }
 
 static char *sc_security_to_udev_tag(const char *security_tag) {
-    char *udev_tag = sc_strdup(security_tag);
-    for (char *c = strchr(udev_tag, '.'); c != NULL; c = strchr(c, '.')) {
-        *c = '_';
+    size_t security_tag_len = 0;
+    size_t plus_count = 0;
+    for (; security_tag[security_tag_len] != '\0'; ++security_tag_len) {
+        if (security_tag[security_tag_len] == '+') {
+            ++plus_count;
+        }
     }
+    if (plus_count > 1) {
+        errno = 0;
+        die("internal error: security tag contains more '+' than expected");
+    }
+
+    /* '+' expands to "__" and reserve one more byte for the terminator. */
+    size_t udev_tag_size = security_tag_len + plus_count + 1;
+    char *udev_tag = malloc(udev_tag_size);
+    if (udev_tag == NULL) {
+        die("cannot allocate udev tag");
+    }
+
+    char *out = udev_tag;
+    for (const char *cursor = security_tag; *cursor != '\0'; ++cursor) {
+        switch (*cursor) {
+            case '+':
+                *out++ = '_';
+                *out++ = '_';
+                break;
+            case '.':
+                *out++ = '_';
+                break;
+            default:
+                *out++ = *cursor;
+                break;
+        }
+    }
+    *out = '\0';
     return udev_tag;
 }
 
@@ -252,8 +282,8 @@ void sc_setup_device_cgroup(const char *security_tag, sc_device_cgroup_mode mode
 
     /* Derive the udev tag from the snap security tag.
      *
-     * Because udev does not allow for dots in tag names, those are replaced by
-     * underscores in snapd. We just match that behavior. */
+     * Match snapd's encoding: dots become single underscores and plus signs
+     * become double underscores. */
     char *udev_tag SC_CLEANUP(sc_cleanup_string) = NULL;
     udev_tag = sc_security_to_udev_tag(security_tag);
 
