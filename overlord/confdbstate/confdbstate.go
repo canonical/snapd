@@ -616,11 +616,16 @@ func getCustodianPlugsForView(st *state.State, view *confdb.View) ([]string, map
 			continue
 		}
 
-		// TODO: if a snap has more than one plug providing access to a view, then
-		// which plug we're getting here becomes unpredictable. We should check
-		// for this at some point (interface connection?)
-		custodianPlugs[plug.Snap.InstanceName().String()] = plug
-		custodians = append(custodians, plug.Snap.InstanceName().String())
+		// TODO: a snap can have more than one custodian plug for the same view
+		// and nothing currently prevents it (interface connection?). Each snap
+		// must only be listed once, otherwise its hooks would be scheduled more
+		// than once, so we use the first such plug (plugs are sorted by name)
+		snapName := plug.Snap.InstanceName().String()
+		if _, ok := custodianPlugs[snapName]; ok {
+			continue
+		}
+		custodianPlugs[snapName] = plug
+		custodians = append(custodians, snapName)
 	}
 
 	// we want to process these in a deterministic order (useful for testing
