@@ -42,58 +42,17 @@ const umuSupportBaseDeclarationSlots = `
 `
 
 const umuSupportConnectedPlugAppArmor = `
-@{PROC}/sys/kernel/overflowuid r,
-@{PROC}/sys/kernel/overflowgid r,
-@{PROC}/sys/kernel/sched_autogroup_enabled r,
-owner @{PROC}/@{pid}/uid_map rw,
-owner @{PROC}/@{pid}/gid_map rw,
-owner @{PROC}/@{pid}/setgroups rw,
-
 # Allow pv-adverb to list and access /proc entries
-@{PROC}/ r,
 @{PROC}/@{pids}/ r,
 @{PROC}/@{pids}/** r,
-@{PROC}/sys/ r,
-@{PROC}/sys/** r,
 
-# Allow mounting operations
-mount,
-umount,
-
-# Allow access to user namespaces
-userns,
-
-# Permission for the new root
-/newroot/** mrwklix,
-
-# Restrictive host access
-/run/host/usr/lib/** mr,
-
-# Permission for bwrap temporary files
-/bindfile* rw,
 # Permission for proot-next bwrap root directory
-owner /run/user/[0-9]*/bwrap/ rw,
 owner /run/user/[0-9]*/bwrap/** mrwklix,
-
-# Broad execution permissions for container binaries
-/usr/bin/steam-runtime-launcher-interface-* ixr,
-/usr/lib/pressure-vessel/from-host/libexec/steam-runtime-tools-*/* ixr,
-
-# Allow access to pressure-vessel directories
-/*/pressure-vessel/** mrw,
 
 # Access to mounting points
 /media/ r,
 /mnt/ r,
 /run/media/ r,
-
-# Permissions to access certain binaries
-# For UMU launcher
-/usr/bin/zenity ixr,
-/run/host/usr/sbin/ldconfig* ixr,
-
-# Allow basic operations needed by pressure-vessel
-capability sys_admin,
 `
 
 const umuSupportConnectedPlugSecComp = `
