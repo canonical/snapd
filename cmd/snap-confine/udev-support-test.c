@@ -39,6 +39,19 @@ static void test_sc_security_to_udev_tag(void) {
     }
 }
 
+static void test_sc_security_to_udev_tag_multiple_plus(void) {
+    if (g_test_subprocess()) {
+        char *tag SC_CLEANUP(sc_cleanup_string) = sc_security_to_udev_tag("snap.foo+bar+baz.hook.install");
+        g_test_message("expected sc_security_to_udev_tag not to return");
+        g_test_fail();
+        return;
+    }
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("internal error: security tag contains more '+' than expected\n");
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/udev/security_to_udev_tag", test_sc_security_to_udev_tag);
+    g_test_add_func("/udev/security_to_udev_tag_multiple_plus", test_sc_security_to_udev_tag_multiple_plus);
 }
