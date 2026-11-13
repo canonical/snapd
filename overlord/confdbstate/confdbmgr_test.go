@@ -550,6 +550,48 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 }
 
+func (s *confdbTestSuite) TestCommitTransactionEphemeralCheckIgnoresOtherTxSaveViewHooks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// a change (e.g., of a non-confdb hook) that contains the tasks of an
+	// unrelated confdb write, including its save-view hook
+	chg := s.state.NewChange("test", "")
+	otherCommit := s.state.NewTask("commit-confdb-tx", "")
+	otherCommit.SetStatus(state.DoneStatus)
+	chg.AddTask(otherCommit)
+
+	otherSaveView := s.state.NewTask("run-hook", "")
+	otherSaveView.Set("hook-setup", &hookstate.HookSetup{
+		Snap: "other-custodian",
+		Hook: "save-view-other",
+	})
+	otherSaveView.Set("tx-task", otherCommit.ID())
+	otherSaveView.SetStatus(state.DoneStatus)
+	chg.AddTask(otherSaveView)
+
+	// this transaction has no save-view hook but writes ephemeral data
+	t := s.state.NewTask("commit-confdb-tx", "")
+	chg.AddTask(t)
+
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "wifi.eph"), "foo")
+	c.Assert(err, IsNil)
+
+	setTransaction(t, tx)
+	t.Set("view", "setup-wifi")
+
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(t.Log(), "\n"), Matches, `.*ERROR cannot commit transaction: write may affect ephemeral data but no save-view hook is present.*`)
+}
+
 func (s *confdbTestSuite) TestCommitTransactionEphemeralCheckWithoutSaveViewHooks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
