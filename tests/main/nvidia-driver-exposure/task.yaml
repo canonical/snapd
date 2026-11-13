@@ -65,7 +65,6 @@ debug: |
     dpkg -l 'libnvidia-*' 2>/dev/null || true
 
 execute: |
-    # export SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE="$DRIVER_FILE"
     case "$DRIVER_FLAVOR" in
         compute)
             # libcuda is present, but the GL libraries shipped by
