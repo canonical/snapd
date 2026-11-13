@@ -55,6 +55,8 @@ jobs:
             zypper --non-interactive dup -y
             zypper --non-interactive install -y rpmdevtools rpm-build git
             zypper --non-interactive install -y $(rpmspec -q --buildrequires "./packaging/$distroname/snapd.spec")
+            # TODO: use meson
+            zypper --non-interactive install -y make autoconf autoconf-archive automake make libtool
             zypper --non-interactive install -y llvm-clang # required by run-checks
             zypper --non-interactive install -y python3-pytest # required by run-checks
             zypper --non-interactive install -y ShellCheck # required by run-checks
