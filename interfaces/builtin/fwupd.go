@@ -82,6 +82,10 @@ const fwupdPermanentSlotAppArmor = `
   /sys/devices/virtual/dmi/id/product_name r,
   /sys/devices/virtual/dmi/id/sys_vendor r,
 
+  # Allow access to MSR for Intel ME/AMT
+  /sys/devices/virtual/msr/ r,
+  /sys/devices/virtual/msr/** r,
+
   # Allow read/write access for efivarfs filesystem
   /sys/firmware/efi/efivars/ r,
   /sys/firmware/efi/efivars/** rw,
