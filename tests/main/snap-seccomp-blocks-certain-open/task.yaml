@@ -35,44 +35,44 @@ execute: |
     cat output.txt
 
     # SYS_open with O_CREAT: setuid/setgid denied; skipped on arm64 (no SYS_open)
-    if grep -E -q 'open setuid: skipped' output.txt; then
+    if grep -E -q '^open setuid: skipped' output.txt; then
         echo "SYS_open is not available, all open with O_CREAT tests should be skipped"
-        MATCH 'open setuid: skipped' < output.txt
-        MATCH 'open setgid: skipped' < output.txt
-        MATCH 'open normal: skipped' < output.txt
+        MATCH '^open setuid: skipped' < output.txt
+        MATCH '^open setgid: skipped' < output.txt
+        MATCH '^open normal: skipped' < output.txt
     else
-        MATCH 'open setuid: EACCES' < output.txt
-        MATCH 'open setgid: EACCES' < output.txt
-        MATCH 'open normal: succeeded' < output.txt
+        MATCH '^open setuid: EACCES' < output.txt
+        MATCH '^open setgid: EACCES' < output.txt
+        MATCH '^open normal: succeeded' < output.txt
     fi
 
     # SYS_openat with O_CREAT: always exercised on all architectures
-    MATCH 'openat setuid: EACCES' < output.txt
-    MATCH 'openat setgid: EACCES' < output.txt
-    MATCH 'openat normal: succeeded' < output.txt
+    MATCH '^openat setuid: EACCES' < output.txt
+    MATCH '^openat setgid: EACCES' < output.txt
+    MATCH '^openat normal: succeeded' < output.txt
 
     # SYS_open with O_TMPFILE + linkat: skipped on arm64 or unsupported filesystems
-    if grep -E -q 'open tmpfile setuid: skipped' output.txt; then
+    if grep -E -q '^open tmpfile setuid: skipped' output.txt; then
         echo "SYS_open with O_TMPFILE is not available, all open with O_TMPFILE tests should be skipped"
-        MATCH 'open tmpfile setuid: skipped' < output.txt
-        MATCH 'open tmpfile setgid: skipped' < output.txt
-        MATCH 'open tmpfile normal: skipped' < output.txt
+        MATCH '^open tmpfile setuid: skipped' < output.txt
+        MATCH '^open tmpfile setgid: skipped' < output.txt
+        MATCH '^open tmpfile normal: skipped' < output.txt
     else
-        MATCH 'open tmpfile setuid: EACCES' < output.txt
-        MATCH 'open tmpfile setgid: EACCES' < output.txt
-        MATCH 'open tmpfile normal: succeeded' < output.txt
+        MATCH '^open tmpfile setuid: EACCES' < output.txt
+        MATCH '^open tmpfile setgid: EACCES' < output.txt
+        MATCH '^open tmpfile normal: succeeded' < output.txt
     fi
 
     # SYS_openat with O_TMPFILE + linkat: always exercised; O_TMPFILE support optional
-    if grep -E -q 'openat tmpfile setuid: skipped' output.txt; then
+    if grep -E -q '^openat tmpfile setuid: skipped' output.txt; then
         echo "SYS_openat with O_TMPFILE is not available, all openat with O_TMPFILE tests should be skipped"
-        MATCH 'openat tmpfile setuid: skipped' < output.txt
-        MATCH 'openat tmpfile setgid: skipped' < output.txt
-        MATCH 'openat tmpfile normal: skipped' < output.txt
+        MATCH '^openat tmpfile setuid: skipped' < output.txt
+        MATCH '^openat tmpfile setgid: skipped' < output.txt
+        MATCH '^openat tmpfile normal: skipped' < output.txt
     else
-        MATCH 'openat tmpfile setuid: EACCES' < output.txt
-        MATCH 'openat tmpfile setgid: EACCES' < output.txt
-        MATCH 'openat tmpfile normal: succeeded' < output.txt
+        MATCH '^openat tmpfile setuid: EACCES' < output.txt
+        MATCH '^openat tmpfile setgid: EACCES' < output.txt
+        MATCH '^openat tmpfile normal: succeeded' < output.txt
     fi
 
     # SYS_openat2: entirely blocked on all kernel versions that have the syscall;
@@ -85,6 +85,6 @@ execute: |
     # (EACCES), with seccomp action/errno precedence determining which result
     # is returned. The security property under test is that openat2 is blocked.
 
-    MATCH 'openat2 setuid: (EPERM|EACCES|skipped)' < output.txt
-    MATCH 'openat2 setgid: (EPERM|EACCES|skipped)' < output.txt
-    MATCH 'openat2 normal: (EPERM|EACCES|skipped)' < output.txt
+    MATCH '^openat2 setuid: (EPERM|EACCES|skipped)' < output.txt
+    MATCH '^openat2 setgid: (EPERM|EACCES|skipped)' < output.txt
+    MATCH '^openat2 normal: (EPERM|EACCES|skipped)' < output.txt
