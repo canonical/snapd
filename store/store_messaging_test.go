@@ -66,7 +66,7 @@ func (s *storeMessagingSuite) TestExchangeMessagesOK(c *C) {
 					"token":  "token-43",
 				},
 			},
-			"total-pending-messages": 5,
+			"has-pending-messages": true,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -93,7 +93,7 @@ func (s *storeMessagingSuite) TestExchangeMessagesOK(c *C) {
 	c.Assert(resp.Messages, HasLen, 1)
 	c.Check(resp.Messages[0].Data, Equals, "request-message-43")
 	c.Check(resp.Messages[0].Token, Equals, "token-43")
-	c.Check(resp.TotalPendingMessages, Equals, 5)
+	c.Check(resp.HasPendingMessages, Equals, true)
 }
 
 func (s *storeMessagingSuite) TestExchangeMessagesNilRequest(c *C) {
