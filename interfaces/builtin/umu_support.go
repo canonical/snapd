@@ -47,6 +47,7 @@ const umuSupportConnectedPlugAppArmor = `
 @{PROC}/@{pids}/** r,
 
 # Permission for proot-next bwrap root directory
+owner /run/user/[0-9]*/bwrap/ rw,
 owner /run/user/[0-9]*/bwrap/** mrwklix,
 
 # Access to mounting points

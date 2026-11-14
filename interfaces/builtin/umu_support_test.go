@@ -91,6 +91,7 @@ func (s *UMUSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "@{PROC}/@{pids}/ r,")
 	c.Check(snippet, testutil.Contains, "@{PROC}/@{pids}/** r,")
 
+	c.Check(snippet, testutil.Contains, "owner /run/user/[0-9]*/bwrap/ rw,")
 	c.Check(snippet, testutil.Contains, "owner /run/user/[0-9]*/bwrap/** mrwklix,")
 
 	c.Check(snippet, testutil.Contains, "/media/ r,")
