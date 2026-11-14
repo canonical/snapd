@@ -1208,6 +1208,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"unity8-calendar":           true,
 		"unity8-contacts":           true,
 		"upower-observe":            true,
+		"umu-support":               true,
 	}
 
 	for _, iface := range all {
