@@ -1,0 +1,193 @@
+name: advisory tracker
+
+# Poll GitHub repository security advisories and track them as children of
+# SNAPDENG-37541. repository_advisory is a webhook, not an Actions trigger, so
+# this job polls the advisories API.
+#
+# Sync writes only in canonical/snapd. ADVISORY_TRACKER_CREATE,
+# ADVISORY_TRACKER_NOTIFY, and ADVISORY_TRACKER_SYNC allow ticket creation,
+# Mattermost and Jira alerts, and advisory-to-Jira status sync. A scheduled
+# run applies when at least one is true. A dispatched sync writes only when
+# apply is set, and only the writes those variables allow. dry-run wins over
+# apply and does not write.
+#
+# contents: read lets checkout fetch these scripts. actions: write is only for
+# the summary artifact. The token is not used to change repository contents.
+# Advisory reads and summary updates prefer SNAPD_ADVISORY_GITHUB_TOKEN, which
+# needs write access to repository security advisories when a codename is
+# applied. Jira uses JIRA_EMAIL and JIRA_API_TOKEN. New codenames come from
+# the petname package.
+
+on:
+  schedule:
+    # Every 2 hours at :00 UTC, including 08:00.
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'sync tickets or print a read-only summary'
+        type: choice
+        options:
+          - summary
+          - sync
+        default: summary
+      apply:
+        description: 'Perform the writes allowed by the repository variables'
+        type: boolean
+        default: false
+      dry-run:
+        description: 'Report intended writes without performing them'
+        type: boolean
+        default: false
+  # Payload fields: action (summary or sync), apply, and dry_run.
+  repository_dispatch:
+    types: [advisory-tracker]
+  pull_request:
+    paths:
+      - .github/workflows/advisory-tracker.yaml
+      - .github/scripts/advisory_tracker.py
+      - .github/scripts/test_advisory_tracker.py
+      - .github/advisory-tracker.yaml
+
+concurrency:
+  group: advisory-tracker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s .github/scripts -p 'test_advisory_tracker.py'
+
+  track:
+    needs: test
+    if: github.event_name != 'pull_request' && github.repository == 'canonical/snapd'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Resolve mode
+        id: mode
+        env:
+          ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
+          ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
+          ADVISORY_TRACKER_SYNC: ${{ vars.ADVISORY_TRACKER_SYNC }}
+          INPUT_ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.action || '' }}
+          INPUT_APPLY: ${{ github.event_name == 'workflow_dispatch' && inputs.apply || '' }}
+          INPUT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs['dry-run'] || '' }}
+          PAYLOAD_ACTION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.action || '' }}
+          PAYLOAD_APPLY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.apply || '' }}
+          PAYLOAD_DRY_RUN: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.dry_run || '' }}
+        run: |
+          set -euo pipefail
+          mode="$(python3 .github/scripts/advisory_tracker.py resolve-mode)"
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+          echo "resolved mode: ${mode}"
+
+      - name: Require Jira credentials
+        if: steps.mode.outputs.mode != 'skip'
+        env:
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          HAS_ADVISORY_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${JIRA_API_TOKEN}" || -z "${JIRA_EMAIL}" ]]; then
+              echo "::error::set JIRA_API_TOKEN and JIRA_EMAIL"
+              exit 1
+          fi
+          if [[ "${HAS_ADVISORY_TOKEN}" == "true" ]]; then
+              echo "using SNAPD_ADVISORY_GITHUB_TOKEN"
+          else
+              echo "using github.token"
+          fi
+
+      - name: Skip sync
+        if: steps.mode.outputs.mode == 'skip'
+        run: |
+          set -euo pipefail
+          {
+              echo "# Advisory tracker"
+              echo
+              echo "Sync was skipped. A scheduled run skips when \`ADVISORY_TRACKER_CREATE\`, \`ADVISORY_TRACKER_NOTIFY\`, and \`ADVISORY_TRACKER_SYNC\` are all unset. Set each repository variable to \`true\` to allow that write. Dispatch this workflow with action \`sync\` and \`apply\` set to write what those variables allow. Dispatch \`dry-run\` to report those writes. Dispatch \`summary\` for a read-only overview."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Install petname
+        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y petname
+
+      - name: Summarize advisories
+        if: steps.mode.outputs.mode == 'summary'
+        env:
+          SNAPD_ADVISORY_GITHUB_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
+          MATTERMOST_MAINTENANCE_WEBHOOK_URL: ${{ secrets.MATTERMOST_MAINTENANCE_WEBHOOK_URL }}
+          ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
+          ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
+          ADVISORY_TRACKER_SYNC: ${{ vars.ADVISORY_TRACKER_SYNC }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/advisory_tracker.py summary --format markdown --output advisory-tracker-summary.md
+
+      - name: Dry-run sync
+        if: steps.mode.outputs.mode == 'dry-run'
+        env:
+          SNAPD_ADVISORY_GITHUB_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
+          MATTERMOST_MAINTENANCE_WEBHOOK_URL: ${{ secrets.MATTERMOST_MAINTENANCE_WEBHOOK_URL }}
+          ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
+          ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
+          ADVISORY_TRACKER_SYNC: ${{ vars.ADVISORY_TRACKER_SYNC }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/advisory_tracker.py sync --dry-run
+
+      - name: Sync advisories
+        if: steps.mode.outputs.mode == 'apply'
+        env:
+          SNAPD_ADVISORY_GITHUB_TOKEN: ${{ secrets.SNAPD_ADVISORY_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          MATTERMOST_NEW_ADVISORY_WEBHOOK_URL: ${{ secrets.MATTERMOST_NEW_ADVISORY_WEBHOOK_URL }}
+          MATTERMOST_MAINTENANCE_WEBHOOK_URL: ${{ secrets.MATTERMOST_MAINTENANCE_WEBHOOK_URL }}
+          ADVISORY_TRACKER_CREATE: ${{ vars.ADVISORY_TRACKER_CREATE }}
+          ADVISORY_TRACKER_NOTIFY: ${{ vars.ADVISORY_TRACKER_NOTIFY }}
+          ADVISORY_TRACKER_SYNC: ${{ vars.ADVISORY_TRACKER_SYNC }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/advisory_tracker.py sync
+
+      - name: Upload summary
+        if: steps.mode.outputs.mode == 'summary'
+        uses: actions/upload-artifact@v7
+        with:
+          name: advisory-tracker-summary
+          path: advisory-tracker-summary.md
