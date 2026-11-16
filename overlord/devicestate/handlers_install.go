@@ -1327,12 +1327,22 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	var bootAssets boot.BootAssets
+	var encryptionSetup *boot.EncryptionSetup
+
+	// The trustedInstallObserver instance can be nil for
+	// non-encrypted installations.
+	if trustedInstallObserver != nil {
+		bootAssets = trustedInstallObserver.BootAssets()
+		encryptionSetup = trustedInstallObserver.EncryptionSetup()
+	}
+
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
 	if err := bootMakeRunnableStandalone(
 		systemAndSnaps.Model,
 		bootWith,
-		trustedInstallObserver.BootAssets(),
-		trustedInstallObserver.EncryptionSetup(),
+		bootAssets,
+		encryptionSetup,
 		st.Unlocker()); err != nil {
 		return err
 	}
