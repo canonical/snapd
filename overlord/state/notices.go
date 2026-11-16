@@ -126,23 +126,23 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 
 // Reoccur returns a deep copy of the receiving notice, updated with the given
 // timestamp and data. Depending on its repeat after duration, the lastRepeated
-// timestamp may be updated. The returned notice's lastData is replaced by the
-// given data, except that keys in preserveDataKeys which exist in the
-// receiver's lastData are retained. New data with the same key takes
-// precedence and replaces preserved data.
+// timestamp may be updated. The returned notice's lastData is built from data,
+// then any keys in preserveDataKeys that exist in the receiver's lastData are
+// copied over it, so preserved values take precedence over provided data with
+// the same key.
 //
 // Returns whether the notice was repeated. It is the caller's responsibility
 // to replace the receiver with the new notice in the notice backend from
 // whence it came.
 func (n *Notice) Reoccur(now time.Time, data map[string]string, preserveDataKeys []string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
 	newData := map[string]string{}
-	for _, k := range preserveDataKeys {
-		if v, ok := n.lastData[k]; ok {
+	if data != nil {
+		for k, v := range data {
 			newData[k] = v
 		}
 	}
-	if data != nil {
-		for k, v := range data {
+	for _, k := range preserveDataKeys {
+		if v, ok := n.lastData[k]; ok {
 			newData[k] = v
 		}
 	}
@@ -411,9 +411,9 @@ type AddNoticeOptions struct {
 	// Data is the optional key-value data for this occurrence.
 	Data map[string]string
 
-	// PreserveDataKeys lists the keys to retain from the previous occurrence's
-	// data when this notice reoccurs. Keys also present in Data take precedence.
-	// It has no effect on a notice's first occurrence.
+	// PreserveDataKeys lists keys to retain from the previous occurrence's data
+	// when this notice reoccurs. Preserved values take precedence over values for
+	// the same key in Data. It has no effect on a notice's first occurrence.
 	PreserveDataKeys []string
 
 	// RepeatAfter defines how long after this notice was last repeated we

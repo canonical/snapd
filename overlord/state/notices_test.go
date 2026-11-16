@@ -165,14 +165,14 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(newN["repeat-after"], IsNil)
 	c.Check(newN["last-data"], DeepEquals, map[string]any{"something": "changed", "fizz": "buzz"})
 
-	// New data has precedence over preserved data
+	// Preserved data has precedence over new data
 	data = map[string]string{"something": "new"}
 	newerNotice, repeated = newerNotice.Reoccur(newTimestamp, data, []string{"something"}, repeatAfter)
 	c.Check(repeated, Equals, true)
 	newN = noticeToMap(c, newerNotice)
 	c.Check(newN["occurrences"], Equals, 9.0)
 	c.Check(newN["repeat-after"], IsNil)
-	c.Check(newN["last-data"], DeepEquals, map[string]any{"something": "new"})
+	c.Check(newN["last-data"], DeepEquals, map[string]any{"something": "changed"})
 }
 
 func (s *noticesSuite) TestDeepCopy(c *C) {
@@ -387,7 +387,7 @@ func (s *noticesSuite) TestRepeatWithPreservedDataKeys(c *C) {
 	n1 := noticeToMap(c, notice1)
 	c.Check(n1["last-data"], DeepEquals, map[string]any{"key": "val"})
 
-	// Key specified in PreserveDataKeys is preserved when notice is repeated
+	// Key specified in PreserveDataKeys is preserved when notice reoccurs
 	id2, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
 		Data:             map[string]string{"other": "value"},
 		PreserveDataKeys: []string{"key"},
@@ -398,7 +398,7 @@ func (s *noticesSuite) TestRepeatWithPreservedDataKeys(c *C) {
 	n2 := noticeToMap(c, notice2)
 	c.Check(n2["last-data"], DeepEquals, map[string]any{"key": "val", "other": "value"})
 
-	// New data has precedence over preserved data
+	// Retained data has precedence over new data
 	id3, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
 		Data:             map[string]string{"key": "new val"},
 		PreserveDataKeys: []string{"key"},
@@ -407,7 +407,40 @@ func (s *noticesSuite) TestRepeatWithPreservedDataKeys(c *C) {
 	notice3 := st.Notice(id3)
 	c.Assert(notice3, NotNil)
 	n3 := noticeToMap(c, notice3)
-	c.Check(n3["last-data"], DeepEquals, map[string]any{"key": "new val"})
+	c.Check(n3["last-data"], DeepEquals, map[string]any{"key": "val"})
+
+	// Keys in PreserveDataKeys that are absent from the previous data do not
+	// suppress the value provided by the new data, while present keys are
+	// still retained
+	id4, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		Data:             map[string]string{"missing": "new value"},
+		PreserveDataKeys: []string{"missing", "key"},
+	})
+	c.Assert(err, IsNil)
+	notice4 := st.Notice(id4)
+	c.Assert(notice4, NotNil)
+	n4 := noticeToMap(c, notice4)
+	c.Check(n4["last-data"], DeepEquals, map[string]any{"missing": "new value", "key": "val"})
+
+	// Preserved keys are retained even when the new occurrence has no data
+	id5, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		PreserveDataKeys: []string{"key"},
+	})
+	c.Assert(err, IsNil)
+	notice5 := st.Notice(id5)
+	c.Assert(notice5, NotNil)
+	n5 := noticeToMap(c, notice5)
+	c.Check(n5["last-data"], DeepEquals, map[string]any{"key": "val"})
+
+	// Preserving keys that do not exist anywhere leaves lastData empty
+	id6, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		PreserveDataKeys: []string{"nonexistent"},
+	})
+	c.Assert(err, IsNil)
+	notice6 := st.Notice(id6)
+	c.Assert(notice6, NotNil)
+	n6 := noticeToMap(c, notice6)
+	c.Check(n6["last-data"], IsNil)
 }
 
 func (s *noticesSuite) TestRepeatAfterFirst(c *C) {
