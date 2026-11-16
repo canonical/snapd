@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
@@ -84,6 +85,10 @@ func MockOsRemoveAll(f func(path string) error) func() {
 
 func MockCgroupKillSnapProcesses(f func(ctx context.Context, snapName string) error) func() {
 	return testutil.Mock(&cgroupKillSnapProcesses, f)
+}
+
+func MockCgroupRemoveSnapFreezerCgroupV1(f func(instanceName naming.InstanceName) error) func() {
+	return testutil.Mock(&cgroupRemoveSnapFreezerCgroupV1, f)
 }
 
 func MockWrappersStartServices(f func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error) func() {

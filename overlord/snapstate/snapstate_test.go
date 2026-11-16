@@ -6298,6 +6298,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			name: "ubuntu-core",
 		},
 		{
+			op:   "remove-freezer-cgroup",
+			name: "ubuntu-core",
+		},
+		{
 			op:   "remove-inhibit-lock",
 			name: "ubuntu-core",
 		},
@@ -6410,6 +6414,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "ubuntu-core",
+		},
+		{
+			op:   "remove-freezer-cgroup",
 			name: "ubuntu-core",
 		},
 		{

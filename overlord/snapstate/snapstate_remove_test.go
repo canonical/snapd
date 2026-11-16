@@ -358,6 +358,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:   "remove-freezer-cgroup",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-inhibit-lock",
 			name: "some-snap",
 		},
@@ -515,6 +519,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap_instance",
+		},
+		{
+			op:   "remove-freezer-cgroup",
 			name: "some-snap_instance",
 		},
 		{
@@ -683,6 +691,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			name: "some-snap_instance",
 		},
 		{
+			op:   "remove-freezer-cgroup",
+			name: "some-snap_instance",
+		},
+		{
 			op:   "remove-inhibit-lock",
 			name: "some-snap_instance",
 		},
@@ -841,6 +853,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-freezer-cgroup",
 			name: "some-snap",
 		},
 		{
@@ -1123,6 +1139,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:   "remove-freezer-cgroup",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-inhibit-lock",
 			name: "some-snap",
 		},
@@ -1256,6 +1276,10 @@ func (s *snapmgrTestSuite) TestRemoveLastActiveRevisionRunThrough(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "some-snap",
+		},
+		{
+			op:   "remove-freezer-cgroup",
 			name: "some-snap",
 		},
 		{
@@ -2909,6 +2933,10 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 		},
 		{
 			op:   "discard-namespace",
+			name: "snap1",
+		},
+		{
+			op:   "remove-freezer-cgroup",
 			name: "snap1",
 		},
 		{
