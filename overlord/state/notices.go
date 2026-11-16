@@ -135,7 +135,7 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 // to replace the receiver with the new notice in the notice backend from
 // whence it came.
 func (n *Notice) Reoccur(now time.Time, data map[string]string, preserveDataKeys []string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
-	newData := map[string]string{}
+	newData := make(map[string]string, len(data)+len(preserveDataKeys))
 	if data != nil {
 		for k, v := range data {
 			newData[k] = v
