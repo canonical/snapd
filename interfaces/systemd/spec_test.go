@@ -57,6 +57,8 @@ plugs:
     plug1:
         interface: test
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(info1, nil)
+	c.Assert(err, IsNil)
 
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
@@ -71,8 +73,8 @@ plugs:
 		return spec.AddService("foo", svc2)
 	}
 
-	spec := systemd.Specification{}
-	err := spec.AddPermanentPlug(iface, info1.Plugs["plug1"])
+	spec := systemd.NewSpecification(appSet)
+	err = spec.AddPermanentPlug(iface, info1.Plugs["plug1"])
 	c.Assert(err, ErrorMatches, `internal error: interface "test" has inconsistent system needs: service for "foo" used to be defined as .*, now re-defined as .*`)
 }
 
@@ -85,6 +87,8 @@ plugs:
     plug2:
         interface: test2
 `, nil)
+	appSet, err := interfaces.NewSnapAppSet(info1, nil)
+	c.Assert(err, IsNil)
 
 	iface1 := &ifacetest.TestInterface{
 		InterfaceName: "test1",
@@ -103,8 +107,8 @@ plugs:
 		return spec.AddService("foo", svc2)
 	}
 
-	spec := systemd.Specification{}
-	err := spec.AddPermanentPlug(iface1, info1.Plugs["plug1"])
+	spec := systemd.NewSpecification(appSet)
+	err = spec.AddPermanentPlug(iface1, info1.Plugs["plug1"])
 	c.Assert(err, IsNil)
 	err = spec.AddPermanentPlug(iface2, info1.Plugs["plug2"])
 	c.Assert(err, ErrorMatches, `internal error: interface "test2" and "test1" have conflicting system needs: service for "foo" used to be defined as .* by "test1", now re-defined as .*`)
@@ -160,7 +164,8 @@ slots:
 `
 	slot, slotInfo := mockConnectedSlot(c, slotYaml, nil, "slot2")
 
-	spec := systemd.Specification{}
+	spec1 := systemd.NewSpecification(plug.AppSet())
+	spec2 := systemd.NewSpecification(slot.AppSet())
 
 	iface := &ifacetest.TestInterface{
 		InterfaceName: "test",
@@ -182,22 +187,74 @@ slots:
 		},
 	}
 
-	err := spec.AddPermanentSlot(iface, slotInfo)
+	err := spec2.AddPermanentSlot(iface, slotInfo)
 	c.Assert(err, IsNil)
 
-	err = spec.AddPermanentPlug(iface, plugInfo)
+	err = spec1.AddPermanentPlug(iface, plugInfo)
 	c.Assert(err, IsNil)
 
-	err = spec.AddConnectedSlot(iface, plug, slot)
+	err = spec2.AddConnectedSlot(iface, plug, slot)
 	c.Assert(err, IsNil)
 
-	err = spec.AddConnectedPlug(iface, plug, slot)
+	err = spec1.AddConnectedPlug(iface, plug, slot)
 	c.Assert(err, IsNil)
 
-	c.Check(spec.Services(), DeepEquals, map[string]*systemd.Service{
+	c.Check(spec1.Services(), DeepEquals, map[string]*systemd.Service{
 		"plug1-slot2": {ExecStart: "connected-plug"},
-		"slot2-plug1": {ExecStart: "connected-slot"},
 		"plug1":       {ExecStart: "permanent-plug"},
+	})
+	c.Check(spec2.Services(), DeepEquals, map[string]*systemd.Service{
+		"slot2-plug1": {ExecStart: "connected-slot"},
 		"slot2":       {ExecStart: "permanent-slot"},
+	})
+}
+
+func (s *specSuite) TestAddDropIn(c *C) {
+	const plugYaml = `name: snap1
+version: 0
+plugs:
+    plug1:
+        interface: test1
+apps:
+    svc1:
+        daemon: simple
+        plugs:
+            - plug1
+    svc2:
+        daemon: simple
+        plugs:
+            - plug1
+    other-svc:
+        daemon: simple
+`
+	plug, _ := ifacetest.MockConnectedPlug(c, plugYaml, nil, "plug1")
+
+	const slotYaml = `name: core
+version: 0
+type: os
+slots:
+    slot1:
+        interface: test1
+`
+	slot, _ := ifacetest.MockConnectedSlot(c, slotYaml, nil, "slot1")
+
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test1",
+	}
+
+	iface.SystemdConnectedPlugCallback = func(spec *systemd.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+		return spec.AddDropIn("foo", "drop-in snippet")
+	}
+	spec := systemd.NewSpecification(plug.AppSet())
+	err := spec.AddConnectedPlug(iface, plug, slot)
+
+	c.Assert(err, IsNil)
+	c.Check(spec.DropIns(), DeepEquals, map[string]map[string]string{
+		"snap.snap1.svc1.service": {
+			"foo": "drop-in snippet",
+		},
+		"snap.snap1.svc2.service": {
+			"foo": "drop-in snippet",
+		},
 	})
 }
