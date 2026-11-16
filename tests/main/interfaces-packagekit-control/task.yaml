@@ -13,6 +13,16 @@ systems:
     # Arm64 is not supported
     - -ubuntu-*-arm-64
 
+prepare: |
+    # PackageKit can be D-Bus activated while the suite preparation is still
+    # running package transactions. On Fedora, a dnf5 backend started that way
+    # may keep an empty package view, so even installed packages do not
+    # resolve. Restart a running daemon so the test sees the current package
+    # database; if it is not running, D-Bus activation starts a fresh one.
+    if systemctl is-active --quiet packagekit.service; then
+        systemctl restart packagekit.service
+    fi
+
 restore: |
     snap remove --purge test-snapd-packagekit
 
