@@ -282,8 +282,8 @@ void sc_setup_device_cgroup(const char *security_tag, sc_device_cgroup_mode mode
 
     /* Derive the udev tag from the snap security tag.
      *
-     * Match snapd's encoding: dots become single underscores and plus signs
-     * become double underscores. */
+     * Match snapd's encoding: dots become single underscores and the optional
+     * single plus sign becomes a double underscore. */
     char *udev_tag SC_CLEANUP(sc_cleanup_string) = NULL;
     udev_tag = sc_security_to_udev_tag(security_tag);
 

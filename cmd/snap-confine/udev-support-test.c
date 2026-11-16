@@ -42,6 +42,7 @@ static void test_sc_security_to_udev_tag(void) {
 static void test_sc_security_to_udev_tag_multiple_plus(void) {
     if (g_test_subprocess()) {
         char *tag SC_CLEANUP(sc_cleanup_string) = sc_security_to_udev_tag("snap.foo+bar+baz.hook.install");
+        (void)tag;
         g_test_message("expected sc_security_to_udev_tag not to return");
         g_test_fail();
         return;
