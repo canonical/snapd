@@ -11,8 +11,9 @@ metadata:
 # Reproduce a Spread failure from CI jobs
 
 Use this workflow to investigate failures from supplied GitHub Actions job
-URLs. Use the `spread-runner` skill for the mechanics and safety rules of
-running and debugging Spread. This skill owns CI evidence collection,
+URLs. Use the `spread-runner` skill for test execution and the
+[shared procedures](../references/common-procedures.md) for run context,
+debug-socket handling, and CI evidence storage. This skill owns CI evidence collection,
 reproduction attempts, and prior-test correlation; it does not replace the
 shared runner guidance. If the evidence identifies a test defect, hand the
 completed reproduction handoff to `spread-fixer` for the focused test change.
@@ -36,31 +37,10 @@ restoring failure is not equivalent to an executing failure.
 
 ## Allowed actions and CI access boundary
 
+Follow the [shared CI evidence and session-directory procedure](../references/common-procedures.md#ci-evidence-and-session-directory).
 This skill may inspect the workspace, analyze the selected test and its
 downloaded evidence, and run local reproduction commands through
-`spread-runner`. It may read existing CI evidence only by executing the bundled
-[CI log fetcher](../../../tests/utils/spread-log/fetch_spread_ci_logs.py). Do not use `gh`, `curl`,
-browser/network tools, or another script for CI access. Do not trigger CI,
-write to GitHub, or upload CI data. User-pasted logs may be read directly.
-
-The fetcher requires `gh` authenticated for the relevant Canonical repository.
-From the snapd repository root, create one unique directory in the project's
-ignored `.logs` directory at the start of the workflow and reuse it for all
-workflow outputs:
-
-```bash
-PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-mkdir -p "$PROJECT_ROOT/.logs"
-SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.logs/spread-failure-workflow-XXXXXX")"
-printf '%s\n' "$SESSION_DIR"
-```
-
-Pass `--session-dir "$SESSION_DIR"` on every fetcher invocation. Each
-invocation writes logs, run metadata, and result artifacts to a unique
-subdirectory beneath that shared directory. Keep analysis notes and the
-default reproduction handoff in the same directory. Do not use `/tmp`, create
-another temporary directory, or remove the session directory while the
-workflow is using it.
+`spread-runner`.
 
 ## 1. Fetch CI job logs
 
@@ -203,13 +183,8 @@ three repetitions on a fresh machine:
 ./run-spread -- -debug-socket -repeat 3 BACKEND:SYSTEM:TEST_PATH
 ```
 
-After creating the socket, Spread prints a ready message that includes its
-exact path, in the form `.spread-<jobid>-<machine>.socket`. Use that path with
-`spread exec SOCKET -- COMMAND` to inspect the failed task, then
-`spread stop SOCKET` to resume it. Each run and machine has its own socket, so
-multiple debug sessions can be active concurrently; select the path printed for
-the target failure. An abruptly killed Spread process can leave its socket file
-behind, so a leftover socket file does not by itself indicate a live session.
+For socket inspection and resuming a paused run, follow the
+[shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection).
 
 Preserve all required environment assignments and the variant from the
 original failure in the real command. Spread's `-repeat 3` means three
@@ -218,8 +193,9 @@ on the same worker; it is not equivalent to three fresh-machine attempts.
 Record which repetition failed and inspect Spread output or `results.json` to
 determine whether the same instance was retained and whether prepare and
 restore ran between repetitions. Keep the debug session paused on the first
-matching failure, inspect it using the printed socket path, and stop that
-session to let the repetitions continue.
+matching failure, inspect it using the printed socket path, then resume it
+according to the [shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection)
+to let the repetitions continue.
 
 If all three repetitions pass, do not conclude that an intermittent failure
 is absent. When the report history or failure rate warrants further
@@ -308,8 +284,9 @@ Do not batch unrelated candidates before the target: that cannot identify
 which test or ordered interaction changed the state. Do not edit the product
 or test until a baseline or sequence reproduces the original signature.
 
-When a sequence reproduces, use `spread exec` to compare state after its
-predecessors and at target failure. Focus on resources those tests own:
+When a sequence reproduces, use the
+[shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection)
+to compare state after its predecessors and at target failure. Focus on resources those tests own:
 services, mounts, snaps, users, files, environment, firewall rules, devices,
 and nested VMs. Then trace the relevant `restore` sections and shared helpers.
 
@@ -400,4 +377,4 @@ name the strongest repeated predecessor, the evidence for and against it, and
 the next discriminating experiment. A following fixing agent must begin by
 reading the handoff, rerun its exact reproduction command, and preserve those
 conditions while implementing and verifying a fix. For test or helper defects,
-use `.agents/skills/spread-fixer/SKILL.md`.
+use the sibling `spread-fixer/SKILL.md`.

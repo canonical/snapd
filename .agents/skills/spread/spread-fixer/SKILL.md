@@ -15,8 +15,9 @@ code is defective. The input should be a reproduction handoff created by
 `spread-reproducer`, or equivalent evidence that records the original
 failure and conditions.
 
-Use `spread-runner` for Spread command mechanics, debug-shell handling, and
-verification. This skill owns the test-specific diagnosis and change. Do not
+Follow sibling `spread-runner/SKILL.md` for test execution and the
+[shared procedures](../references/common-procedures.md) for run context and
+debug-socket handling. This skill owns the test-specific diagnosis and change. Do not
 repeat the report-selection or predecessor-correlation work from
 `spread-reproducer`. For an end-to-end run, reproduce, fix, and verify flow,
 use `spread-failure-workflow`.
@@ -60,12 +61,10 @@ proposed change explicitly unverified.
 Inspect the failing test's `task.yaml`, scripts, and shared helpers, along
 with the relevant debug-shell state and logs. Verify that the observed behavior
 is a test defect, not merely a symptom of a product or environment problem.
-With `-debug-socket`, keep the run paused. Use the socket path from Spread's
-ready message with as many focused `spread exec SOCKET -- 'COMMAND'`
-invocations as needed to inspect the worker, test hypotheses, and perform any
-necessary remote worker actions. Make source-code changes in the checkout as
-usual. Once investigation and remote actions are complete, run
-`spread stop SOCKET` to resume Spread and allow restore and cleanup.
+With `-debug-socket`, keep the run paused while gathering evidence. Follow the
+[shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection)
+to inspect the worker and resume Spread after investigation. Make source-code
+changes in the checkout as usual.
 
 Make the smallest change that corrects the test's expectation or behavior.
 Preserve meaningful coverage: do not weaken or remove an assertion, add

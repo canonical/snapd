@@ -37,4 +37,5 @@ ls -lh built-snap/snapd_*.snap.keep
 
 - `run-spread` looks for the snap in `built-snap/`
 - Set `NO_REBUILD=1` to skip rebuilding when snap already exists
-- See `spread-runner` skill for running tests
+- Use `spread-router` to select the Spread workflow; its runner instructions
+  are in `.agents/skills/spread/spread-runner/SKILL.md`.
