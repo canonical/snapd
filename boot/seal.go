@@ -337,6 +337,23 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToMo
 		return fmt.Errorf("internal error: cannot reseal without the modeenv lock")
 	}
 
+	fullUnlocker := func() (relock func()) {
+		// Because we cannot lock the modeenv when the state lock
+		// is taken, that means we cannot release the state lock
+		// without release the modeenv lock.
+		modeenv.expired = true
+		modeenvUnlock()
+		innerRelock := unlocker()
+		relock = func() {
+			innerRelock()
+			// We still need relock even though the modeenv
+			// is expired, because somewhere up the stack,
+			// the modeenv will be locked.
+			modeenvLock()
+		}
+		return relock
+	}
+
 	method, err := device.SealedKeysMethod(rootdir)
 	if err == device.ErrNoSealedKeys {
 		// nothing to do
@@ -346,7 +363,7 @@ func resealKeyToModeenvImpl(rootdir string, modeenv *Modeenv, opts ResealKeyToMo
 		return err
 	}
 
-	return resealKeyToModeenvForMethod(unlocker, method, rootdir, modeenv, opts)
+	return resealKeyToModeenvForMethod(fullUnlocker, method, rootdir, modeenv, opts)
 }
 
 type ResealKeyForBootChainsParams struct {
