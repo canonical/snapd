@@ -2528,6 +2528,34 @@ func (s *viewSuite) TestUnsetUnmatchedPlaceholderLast(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get "foo" through acc/confdb/foo: no data`)
 }
 
+func (s *viewSuite) TestUnsetTopLevelUnmatchedPlaceholderLast(c *C) {
+	databag := confdb.NewJSONDatabag()
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"request": "foo.{bar}", "storage": "{bar}"},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	c.Assert(view, NotNil)
+
+	err = view.Set(databag, "foo", map[string]any{
+		"bar": "value",
+		"baz": "other",
+	})
+	c.Assert(err, IsNil)
+
+	err = view.Unset(databag, "foo")
+	c.Assert(err, IsNil)
+
+	val, err := view.Get(databag, "foo", nil, confdb.AdminAccess)
+	c.Assert(val, IsNil)
+	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
 func (s *viewSuite) TestUnsetUnmatchedPlaceholderMid(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
@@ -3981,7 +4009,7 @@ func (*viewSuite) TestSetPartialSetRemovesFirstItem(c *C) {
 	view := schema.View("foo")
 
 	// this tests that the missing age field doesn't cause the entire list item to
-	// be removed until the end, as that would shift would the following writes
+	// be removed until the end, as that would shift the following writes
 	err = view.Set(bag, "users", []any{map[string]any{"name": "carol"}, map[string]any{"name": "david", "age": 45}})
 	c.Assert(err, IsNil)
 

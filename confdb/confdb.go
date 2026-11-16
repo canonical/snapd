@@ -3063,7 +3063,11 @@ func (s JSONDatabag) PruneEmpty() error {
 
 func removeEmptyContainers(raw json.RawMessage) (json.RawMessage, error) {
 	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &obj); err == nil && obj != nil {
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		if !errors.As(err, new(*json.UnmarshalTypeError)) {
+			return nil, err
+		}
+	} else if obj != nil {
 		for k, v := range obj {
 			pruned, err := removeEmptyContainers(v)
 			if err != nil {
@@ -3084,7 +3088,11 @@ func removeEmptyContainers(raw json.RawMessage) (json.RawMessage, error) {
 	}
 
 	var list []json.RawMessage
-	if err := json.Unmarshal(raw, &list); err == nil && list != nil {
+	if err := json.Unmarshal(raw, &list); err != nil {
+		if !errors.As(err, new(*json.UnmarshalTypeError)) {
+			return nil, err
+		}
+	} else if list != nil {
 		wi := 0
 		for _, v := range list {
 			pruned, err := removeEmptyContainers(v)
@@ -3287,11 +3295,16 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) 
 	}
 
 	if index == len(accessors)-1 {
-		// NOTE: we don't remove the map if it's left empty because
-		// the level in place even if it becomes empty
 		if acc.Type() == KeyPlaceholderType {
-			for k := range node {
-				delete(node, k)
+			if index == 0 {
+				// if we're unsetting the top level we can't replace the entire object, we
+				// must unset each key
+				for k := range node {
+					delete(node, k)
+				}
+			} else {
+				// for any other level, it's more efficient to replace the map entirely
+				node = map[string]json.RawMessage{}
 			}
 		} else {
 			delete(node, acc.Name())

@@ -347,11 +347,6 @@ func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error
 		return err
 	}
 
-	// remove the containers left empty by the changes
-	if err := pristine.PruneEmpty(); err != nil {
-		return err
-	}
-
 	data, err := pristine.Data()
 	if err != nil {
 		return err
@@ -394,21 +389,25 @@ func (t *Transaction) Reset(st *state.State) error {
 	return nil
 }
 
+// AlteredPaths returns the paths altered by the transaction's operations.
+// Pruning operations don't alter a specific path, so they aren't reported as
+// changes. At some point, containers that were explicitly set to an empty value
+// weren't removed as they are now, so it's possible for a pruning operation to
+// remove one of those containers without this function reporting it. IMO, that's
+// fine as this is a minor implementation detail in an experimental feature
+// causing a small change that users likely don't want to be notified of.
 func (t *Transaction) AlteredPaths() [][]confdb.Accessor {
 	// TODO: maybe we can extend this to recurse into delta's value and figure out
 	// the most specific key possible
 	paths := make([][]confdb.Accessor, 0, len(t.operations))
 	for _, op := range t.operations {
-		// pruning doesn't alter a specific path
-		if _, ok := op.(*pruneEmptyOperation); ok {
-			continue
-		}
-
 		switch op := op.(type) {
 		case *setOperation:
 			paths = append(paths, op.path)
 		case *unsetOperation:
 			paths = append(paths, op.path)
+		case *pruneEmptyOperation:
+			// pruning doesn't alter a specific path so nothing to set here
 		}
 	}
 	return paths
