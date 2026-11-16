@@ -371,35 +371,37 @@ func (s *findSuite) TestFindOne(c *check.C) {
 	c.Check(m["revision"], check.Equals, "42")
 }
 
-func (s *findSuite) TestFindOneKernelBuildBase(c *check.C) {
+func (s *findSuite) TestFindOmitsBuildBase(c *check.C) {
 	s.daemon(c)
 
-	for _, buildBase := range []string{"core24", ""} {
+	restore := daemon.MockAssertstateFetchAllValidationSets(func(*state.State, int, *assertstate.RefreshAssertionsOptions) error {
+		return nil
+	})
+	defer restore()
+
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	// a store kernel can carry a build-base, e.g. in the snap-yaml returned
+	// for refreshes, but it is only reported for the installed kernel
+	for _, query := range []string{"name=store", "q=store", "select=refresh"} {
 		s.rsnaps = []*snap.Info{{
 			SideInfo: snap.SideInfo{
-				RealName: "pc-kernel",
-				Revision: snap.R(5),
+				RealName: "store",
 			},
-			SnapType:  snap.TypeKernel,
-			BuildBase: buildBase,
+			SnapType:      snap.TypeKernel,
+			BuildBase:     "core24",
+			Architectures: []string{"all"},
 		}}
 
-		req, err := http.NewRequest("GET", "/v2/find?name=pc-kernel", nil)
+		req, err := http.NewRequest("GET", "/v2/find?"+query, nil)
 		c.Assert(err, check.IsNil)
 		rsp := s.syncReq(c, req, nil, actionIsExpected)
 
 		snaps := snapList(rsp.Result)
-		c.Assert(snaps, check.HasLen, 1)
-		c.Check(snaps[0]["name"], check.Equals, "pc-kernel")
-		c.Check(snaps[0]["type"], check.Equals, "kernel")
-		c.Check(snaps[0]["revision"], check.Equals, "5")
-		value, hasBuildBase := snaps[0]["build-base"]
-		c.Check(hasBuildBase, check.Equals, buildBase != "")
-		if hasBuildBase {
-			c.Check(value, check.Equals, buildBase)
-		}
-		_, hasBase := snaps[0]["base"]
-		c.Check(hasBase, check.Equals, false)
+		c.Assert(snaps, check.HasLen, 1, check.Commentf("query %q", query))
+		c.Check(snaps[0]["type"], check.Equals, "kernel", check.Commentf("query %q", query))
+		_, hasBuildBase := snaps[0]["build-base"]
+		c.Check(hasBuildBase, check.Equals, false, check.Commentf("query %q", query))
 	}
 }
 

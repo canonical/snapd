@@ -125,6 +125,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 		"RefreshInhibit",
 		"RefreshFailures",
 		"Components",
+		"BuildBase",
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -153,7 +154,8 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 	c.Check(ci.Name, Equals, "the-snap_insta")
 	c.Check(ci.Type, Equals, "app")
 	c.Check(ci.Base, Equals, "core18")
-	c.Check(ci.BuildBase, Equals, "core22")
+	// only set for installed kernels, see daemon/snap.go
+	c.Check(ci.BuildBase, Equals, "")
 	c.Check(ci.ID, Equals, si.ID())
 	c.Check(ci.Revision, Equals, snap.R(99))
 	c.Check(ci.Version, Equals, "v1")

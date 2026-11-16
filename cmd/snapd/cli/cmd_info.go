@@ -380,8 +380,12 @@ func (iw *infoWriter) maybePrintBase() {
 }
 
 func (iw *infoWriter) maybePrintBuildBase() {
-	if iw.verbose && iw.theSnap.BuildBase != "" {
-		fmt.Fprintf(iw, "build-base:\t%s\n", iw.theSnap.BuildBase)
+	// only the installed kernel reports a build-base
+	if !iw.verbose || iw.localSnap == nil || iw.localSnap.Type != string(snap.TypeKernel) {
+		return
+	}
+	if iw.localSnap.BuildBase != "" {
+		fmt.Fprintf(iw, "build-base:\t%s\n", iw.localSnap.BuildBase)
 	}
 }
 
