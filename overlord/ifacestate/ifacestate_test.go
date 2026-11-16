@@ -5835,6 +5835,8 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "producer")
 	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "consumer")
+	c.Check(s.secBackend.SetupCalls[0].SetupContext.Reason, Equals, interfaces.SnapSetupReasonSlotConnectionChange)
+	c.Check(s.secBackend.SetupCalls[1].SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
@@ -5974,9 +5976,50 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName().String(), Equals, "consumer")
 	c.Check(s.secBackend.SetupCalls[1].AppSet.InstanceName().String(), Equals, "producer")
+	c.Check(s.secBackend.SetupCalls[0].SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
+	c.Check(s.secBackend.SetupCalls[1].SetupContext.Reason, Equals, interfaces.SnapSetupReasonSlotConnectionChange)
 
 	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
 	c.Check(s.secBackend.SetupCalls[1].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
+}
+
+func (s *interfaceManagerSuite) TestSelfConnectDisconnectSetsUpSecurity(c *C) {
+	s.MockModel(c, nil)
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "interface"})
+	s.mockSnap(c, producerYaml4)
+	_ = s.manager(c)
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "producer", "self", "producer", "slot")
+	c.Assert(err, IsNil)
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+	s.settle(c)
+
+	conn := s.getConnection(c, "producer", "self", "producer", "slot")
+	s.state.Lock()
+	c.Assert(change.Err(), IsNil)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	for _, call := range s.secBackend.SetupCalls {
+		c.Check(call.SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
+	}
+	s.secBackend.SetupCalls = nil
+
+	ts, err = ifacestate.Disconnect(s.state, conn)
+	c.Assert(err, IsNil)
+	change = s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Err(), IsNil)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	for _, call := range s.secBackend.SetupCalls {
+		c.Check(call.SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
+	}
 }
 
 func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
@@ -9526,6 +9569,9 @@ func (s *interfaceManagerSuite) TestHotplugConnect(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Check(s.secBackend.SetupCalls[0].SetupContext.Reason, Equals, interfaces.SnapSetupReasonSlotConnectionChange)
+	c.Check(s.secBackend.SetupCalls[1].SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
 
 	var conns map[string]any
 	c.Assert(s.state.Get("conns", &conns), IsNil)
@@ -9859,6 +9905,9 @@ func (s *interfaceManagerSuite) TestHotplugDisconnect(c *C) {
 		}
 	}
 	c.Assert(byHotplug, Equals, true)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Check(s.secBackend.SetupCalls[0].SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
+	c.Check(s.secBackend.SetupCalls[1].SetupContext.Reason, Equals, interfaces.SnapSetupReasonSlotConnectionChange)
 
 	// hotplug-gone flag on the connection is set
 	var conns map[string]any
@@ -13424,8 +13473,8 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 						// 2 possible scenarios for the consumer, if it was
 						// connected before, it may be possible to delay
 						// effects, but not for new connections
-						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
 						if opts.AlreadyConnected {
+							c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
 							c.Check(sctx.CanDelayEffects, Equals, true)
 							c.Check(sctx.DelayEffect, NotNil)
 							if opts.DelayEffects {
@@ -13436,6 +13485,7 @@ func (s *interfaceManagerSuite) testDelayedEffectsSetupProfilesRunThrough(c *C, 
 								})
 							}
 						} else {
+							c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
 							c.Check(sctx.CanDelayEffects, Equals, false)
 							c.Check(sctx.DelayEffect, IsNil)
 						}

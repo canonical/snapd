@@ -109,6 +109,12 @@ const (
 	// which we have a cyclical connection, i.e. the other snap is connected to
 	// our slots, while we are connected to theirs.
 	SnapSetupReasonCyclicallyConnectedUpdate
+	// Setup called for a snap as a result of change in the connection status of its
+	// plugs.
+	SnapSetupReasonPlugConnectionChange
+	// Setup called for a snap as a result of change in the connection status of
+	// its slots.
+	SnapSetupReasonSlotConnectionChange
 )
 
 func (s SnapSetupCallReason) String() string {

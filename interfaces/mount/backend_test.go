@@ -378,6 +378,7 @@ func (s *backendSuite) TestSetupUpdateChangedRemoved(c *C) {
 	}
 
 	cmd := testutil.MockCommand(c, "snap-update-ns", "")
+	cmd.Also("snap-discard-ns", "")
 	defer cmd.Restore()
 	dirs.DistroLibExecDir = cmd.BinDir()
 
@@ -405,26 +406,32 @@ func (s *backendSuite) TestSetupUpdateChangedRemoved(c *C) {
 	c.Check(cmd.Calls(), HasLen, 0)
 
 	// pretend we have an update
+	sctx.Reason = interfaces.SnapSetupReasonSlotConnectionChange
 	mode = modeUpdate
 	doSetup()
-	c.Check(cmd.Calls(), HasLen, 1)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
 	cmd.ForgetCalls()
 
 	// still same updated content
 	doSetup()
-	// no calls
 	c.Check(cmd.Calls(), HasLen, 0)
-	cmd.ForgetCalls()
 
 	// now remove an entry
+	sctx.Reason = interfaces.SnapSetupReasonPlugConnectionChange
 	mode = modeRemove
 	doSetup()
-	c.Check(cmd.Calls(), HasLen, 1)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "--snap-already-locked", "snap-name"}})
 	cmd.ForgetCalls()
 
-	// one more for good measure
+	// no profile change, no discard
 	doSetup()
 	c.Check(cmd.Calls(), HasLen, 0)
+
+	// a running app prevents discard, so update instead
+	s.mockCgroup(c, "a/b/c/snap.snap-name.foo.123123123123.scope")
+	mode = modeUpdate
+	doSetup()
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-update-ns", "snap-name"}})
 }
 
 func (s *backendSuite) TestSetupEndureUpdatesError(c *C) {

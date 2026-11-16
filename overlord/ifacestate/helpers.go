@@ -746,6 +746,33 @@ func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interface
 	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
 }
 
+type forWhichSide int
+
+const (
+	forSlotSnap forWhichSide = iota
+	forPlugSnap
+)
+
+func (m *InterfaceManager) setupSnapSecurityFor(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, side forWhichSide, tm timings.Measurer) error {
+	sctx := interfaces.SetupContext{
+		// this is called only in the contexts where all backend effects
+		// are expected to be immediate
+		CanDelayEffects: false,
+	}
+
+	switch side {
+	case forPlugSnap:
+		sctx.Reason = interfaces.SnapSetupReasonPlugConnectionChange
+	case forSlotSnap:
+		sctx.Reason = interfaces.SnapSetupReasonSlotConnectionChange
+	}
+
+	sctxs := map[string]interfaces.SetupContext{
+		appSet.InstanceName().String(): sctx,
+	}
+	return m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, tm)
+}
+
 func (m *InterfaceManager) removeSnapSecurity(task *state.Task, instanceName naming.InstanceName) error {
 	st := task.State()
 	for _, backend := range m.repo.Backends() {
