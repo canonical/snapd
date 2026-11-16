@@ -205,11 +205,14 @@ class FakeClient(tracker.HttpClient):
         self.github_always_next = False
         self.mattermost_status = 200
         self.property_status = None
+        self.property_read_status = {}
+        self.property_write_status = {}
         self.omit_create_key = False
         self.search_page_size = None
         self.search_forever = False
         self.comment_page_size = None
         self.comment_status = {}
+        self.comment_write_status = {}
         self.create_error_body = None
         self.updates = []
         self.next_number = 500
@@ -307,6 +310,11 @@ class FakeClient(tracker.HttpClient):
                     self.property_status, {}, b'{"errorMessages":["unavailable"]}'
                 )
             key = issue_key(path)
+            status = self.property_read_status.get(key)
+            if status is not None:
+                return tracker.HttpResult(
+                    status, {}, b'{"errorMessages":["unavailable"]}'
+                )
             if key not in self.properties:
                 return tracker.HttpResult(404, {}, b'{"errorMessages":["missing"]}')
             return self._json(
@@ -314,6 +322,11 @@ class FakeClient(tracker.HttpClient):
             )
         if path.endswith("/properties/advisory-tracker") and method == "PUT":
             key = issue_key(path)
+            status = self.property_write_status.get(key)
+            if status is not None:
+                return tracker.HttpResult(
+                    status, {}, b'{"errorMessages":["unavailable"]}'
+                )
             self.properties[key] = payload
             return tracker.HttpResult(200, {}, b"{}")
         if path.endswith("/comment") and method == "GET":
@@ -335,6 +348,11 @@ class FakeClient(tracker.HttpClient):
             return self._json({"comments": comments, "total": len(comments)})
         if path.endswith("/comment") and method == "POST":
             key = issue_key(path)
+            status = self.comment_write_status.get(key)
+            if status is not None:
+                return tracker.HttpResult(
+                    status, {}, b'{"errorMessages":["unavailable"]}'
+                )
             self.comments.setdefault(key, []).append(
                 {"body": payload["body"], "created": NOW_STAMP}
             )
@@ -982,6 +1000,72 @@ class AdvisoryTrackerTests(unittest.TestCase):
             run(forbidden)
         self.assertEqual(caught.exception.status, 401)
         self.assertEqual(posts(forbidden, "/comment"), [])
+
+    def test_comment_write_failure_does_not_stamp_the_stage(self):
+        issue = jira_issue(
+            "SNAPDENG-30", "Ember Falcon", "Triage", EMBER, created=OLD_STAMP
+        )
+        client = FakeClient(
+            [sample_advisory(EMBER, "pins a map (Ember Falcon)")],
+            [
+                jira_issue("SNAPDENG-10", "Quiet Lantern", "Triage", QUIET),
+                issue,
+                parent_epic(assignee=ADA),
+            ],
+        )
+        client.properties["SNAPDENG-30"] = {"advisory_state": "triage", "stalls": {}}
+        client.comment_write_status["SNAPDENG-30"] = 401
+        with self.assertRaises(tracker.TrackerError) as caught:
+            run(client)
+        self.assertEqual(caught.exception.status, 401)
+        self.assertEqual(client.properties["SNAPDENG-30"]["stalls"], {})
+        self.assertNotIn("SNAPDENG-30", client.comments)
+        self.assertEqual(mattermost_texts(client), [])
+
+    def test_cooldown_stamp_failure_does_not_skip_the_next_child(self):
+        config = replace(
+            tracker.load_config(CONFIG_PATH),
+            notify={"created": (), "not_ready": (), "stall": ("mattermost",)},
+        )
+        first = jira_issue(
+            "SNAPDENG-30", "Ember Falcon", "Triage", EMBER, created=OLD_STAMP
+        )
+        second = jira_issue(
+            "SNAPDENG-31", "second part", "Triage", EMBER, created=OLD_STAMP
+        )
+        catalog = [
+            jira_issue("SNAPDENG-10", "Quiet Lantern", "Triage", QUIET),
+            first,
+            second,
+            parent_epic(assignee=ADA),
+        ]
+        client = FakeClient(
+            [sample_advisory(EMBER, "pins a map (Ember Falcon)")], catalog
+        )
+        client.property_write_status["SNAPDENG-30"] = 500
+        report = run(client, config=config)
+        row = report.advisories[0]
+        self.assertIn("SNAPDENG-30", row.error or "")
+        self.assertIn("HTTP 500", row.error or "")
+        self.assertTrue(any("HTTP 500" in error for error in report.errors))
+        self.assertIn("sent mattermost assigned", row.notifications)
+        self.assertEqual(mattermost_texts(client, MAINTENANCE_HOOK), [MAINTENANCE_TEXT])
+        self.assertNotIn("SNAPDENG-30", client.properties)
+        self.assertIn(
+            "mattermost", client.properties["SNAPDENG-31"]["stalls"]["assigned"]
+        )
+
+        forbidden = FakeClient(
+            [sample_advisory(EMBER, "pins a map (Ember Falcon)")], catalog
+        )
+        forbidden.property_write_status["SNAPDENG-30"] = 401
+        with self.assertRaises(tracker.TrackerError) as caught:
+            run(forbidden, config=config)
+        self.assertEqual(caught.exception.status, 401)
+        self.assertEqual(
+            mattermost_texts(forbidden, MAINTENANCE_HOOK), [MAINTENANCE_TEXT]
+        )
+        self.assertNotIn("SNAPDENG-31", forbidden.properties)
 
     def test_resolve_mode(self):
         for name in (
@@ -3047,6 +3131,28 @@ class AdvisoryTrackerTests(unittest.TestCase):
         again = run(client)
         self.assertIsNone(again.advisories[0].error)
         self.assertEqual(mattermost_texts(client), [MAINTENANCE_TEXT, MAINTENANCE_TEXT])
+
+    def test_not_ready_property_auth_failure_does_not_transition(self):
+        issue = jira_issue("SNAPDENG-40", "Ember Falcon", "Triage", EMBER)
+        client = FakeClient(
+            [
+                sample_advisory(
+                    EMBER,
+                    "pins a map (Ember Falcon)",
+                    state="draft",
+                    description="short",
+                )
+            ],
+            quiet_catalog(issue),
+        )
+        client.property_status = 401
+        with self.assertRaises(tracker.TrackerError) as caught:
+            run(client)
+        self.assertEqual(caught.exception.status, 401)
+        self.assertEqual(posts(client, "/transitions"), [])
+        self.assertEqual(
+            client._issue("SNAPDENG-40")["fields"]["status"]["name"], "Triage"
+        )
 
     def test_stall_comment_lands_on_the_least_progressed_ticket(self):
         review = jira_issue(

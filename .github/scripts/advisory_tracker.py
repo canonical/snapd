@@ -1626,12 +1626,14 @@ class Tracker:
     def parent_epic(self) -> Issue | None:
         if self._parent_epic_loaded:
             return self._parent_epic
-        self._parent_epic_loaded = True
         try:
             self._parent_epic = self.get_issue(self.config.parent_key)
         except TrackerError as exc:
+            if exc.status in {401, 403}:
+                raise
             self._parent_epic_error = str(exc)
             self._parent_epic = None
+        self._parent_epic_loaded = True
         return self._parent_epic
 
     def create(self, fields: Mapping[str, Any]) -> Issue:
@@ -2117,6 +2119,8 @@ def _notify(
                 webhook,
             )
         except TrackerError as exc:
+            if exc.status in {401, 403}:
+                raise
             row.error = str(exc)
             report.errors.append(f"{row.ghsa_id}: {exc}")
             continue
@@ -2390,30 +2394,44 @@ def _fail_maintenance(tracker: Tracker, report: Report, exc: TrackerError) -> No
             report.errors.append(prefixed)
 
 
-def _stamp_pending_stalls(tracker: Tracker) -> None:
+def _stamp_pending_stalls(tracker: Tracker, report: Report) -> None:
     grouped: dict[str, list[PendingStall]] = {}
     for pending in tracker.pending_stalls:
         grouped.setdefault(pending.issue_key, []).append(pending)
     stamp = tracker.now.isoformat()
     for issue_key, items in grouped.items():
-        prop = tracker.get_property(issue_key)
-        stalls = _clean_stalls(None if prop is None else prop.get("stalls"))
-        state = None
-        if prop is not None and isinstance(prop.get("advisory_state"), str):
-            state = prop["advisory_state"]
+        try:
+            prop = tracker.get_property(issue_key)
+            stalls = _clean_stalls(None if prop is None else prop.get("stalls"))
+            state = None
+            if prop is not None and isinstance(prop.get("advisory_state"), str):
+                state = prop["advisory_state"]
+            for pending in items:
+                stalls[pending.stage_name] = _merge_channel_stamps(
+                    stalls.get(pending.stage_name), ("mattermost",), stamp
+                )
+            tracker.put_property(issue_key, _property_body(prop, state, stalls))
+        except TrackerError as exc:
+            if exc.status in {401, 403}:
+                raise
+            for pending in items:
+                _remember_error(report, pending.row, str(exc))
+            continue
         for pending in items:
-            stalls[pending.stage_name] = _merge_channel_stamps(
-                stalls.get(pending.stage_name), ("mattermost",), stamp
-            )
             pending.row.notifications.append(f"sent mattermost {pending.stage_name}")
-        tracker.put_property(issue_key, _property_body(prop, state, stalls))
 
 
-def _stamp_pending_not_ready(tracker: Tracker) -> None:
+def _stamp_pending_not_ready(tracker: Tracker, report: Report) -> None:
     stamp = tracker.now.isoformat()
     for pending in tracker.pending_not_ready:
-        prop = tracker.get_property(pending.epic_key)
-        _save_not_ready(tracker, pending.epic_key, prop, stamp, pending.ghsa_id)
+        try:
+            prop = tracker.get_property(pending.epic_key)
+            _save_not_ready(tracker, pending.epic_key, prop, stamp, pending.ghsa_id)
+        except TrackerError as exc:
+            if exc.status in {401, 403}:
+                raise
+            _remember_error(report, pending.row, str(exc))
+            continue
         pending.row.notifications.append("sent mattermost not-ready")
 
 
@@ -2449,8 +2467,8 @@ def _finish_maintenance(
     except TrackerError as exc:
         _fail_maintenance(tracker, report, exc)
         return
-    _stamp_pending_stalls(tracker)
-    _stamp_pending_not_ready(tracker)
+    _stamp_pending_stalls(tracker, report)
+    _stamp_pending_not_ready(tracker, report)
 
 
 def _page_not_ready(
@@ -2474,6 +2492,8 @@ def _page_not_ready(
     try:
         epic_prop = tracker.get_property(epic_key)
     except TrackerError as exc:
+        if exc.status in {401, 403}:
+            raise
         _remember_error(report, row, str(exc))
         return
     stamp = _not_ready_stamp(epic_prop, row.ghsa_id)
@@ -2481,6 +2501,8 @@ def _page_not_ready(
         try:
             ticket_prop = tracker.get_property(issue.key)
         except TrackerError as exc:
+            if exc.status in {401, 403}:
+                raise
             _remember_error(report, row, str(exc))
             return
         stamp = _not_ready_stamp(ticket_prop, None)

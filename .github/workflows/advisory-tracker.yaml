@@ -11,8 +11,9 @@ name: advisory tracker
 # apply is set, and only the writes those variables allow. dry-run wins over
 # apply and does not write.
 #
-# contents: read lets checkout fetch these scripts. actions: write is only for
-# the summary artifact. The token is not used to change repository contents.
+# contents: read lets checkout fetch these scripts. The track job also has
+# actions: write for the summary artifact. The token is not used to change
+# repository contents.
 # Advisory reads and summary updates prefer SNAPD_ADVISORY_GITHUB_TOKEN, which
 # needs write access to repository security advisories when a codename is
 # applied. Jira uses JIRA_EMAIL and JIRA_API_TOKEN. New codenames come from
@@ -55,7 +56,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   test:
@@ -73,6 +73,9 @@ jobs:
   track:
     needs: test
     if: github.event_name != 'pull_request' && github.repository == 'canonical/snapd'
+    permissions:
+      contents: read
+      actions: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
