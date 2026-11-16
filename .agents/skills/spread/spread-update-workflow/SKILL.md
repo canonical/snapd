@@ -15,8 +15,10 @@ a requested behavior, migration, or acceptance specification, not a reported
 failure. Unlike `spread-failure-workflow`, this workflow does not require the
 old test to fail, an existing failure signature, or a reproduction report.
 
-Use `spread-runner` for Spread command mechanics, backend and system selection,
-debug-shell handling, artifact collection, and verification. Use
+Follow sibling `spread-runner/SKILL.md` for test execution, backend and system
+selection, and artifact collection. Use the
+[shared procedures](../references/common-procedures.md) for run context and
+debug-socket handling. Use
 `spread-failure-workflow` instead when the primary goal is to diagnose an
 unknown failure before deciding what should change.
 
@@ -94,9 +96,9 @@ When fixtures must be created or refreshed:
   is needed in place of the execute step to inspect or prepare test state
   proactively. Use `-debug-socket` for remote inspection when execute should
   run normally and pause only after a failure, preserving generated output and
-  failed state. Use the socket path from Spread's ready message with
-  `spread exec SOCKET -- COMMAND` to inspect and `spread stop SOCKET` to
-  resume; use `-debug` when a human-operated terminal shell is needed.
+  failed state. Follow the
+  [shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection);
+  use `-debug` when a human-operated terminal shell is needed.
 2. Inspect every difference against the old fixture and acceptance criteria.
 3. Add or update fixtures only after the differences are understood.
 4. Rerun the same selector from a fresh worker when image state or generated
@@ -120,8 +122,8 @@ while an evidence-based next action is available:
 1. Identify the failed phase, command, exit status, and first relevant error.
 2. Keep the Spread debug session paused and inspect the failed worker's live
   state, generated files, logs, and commands needed to explain the failure.
-  For remote inspection, use the socket path from Spread's ready message with
-  `spread exec SOCKET -- COMMAND` and resume with `spread stop SOCKET`.
+  For remote inspection, follow the
+  [shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection).
   If diagnosis must happen before execute, rerun with `-shell` and perform the
   execute commands selectively. Use downloaded artifacts when a live shell is
   unavailable or persistent evidence is specifically required.

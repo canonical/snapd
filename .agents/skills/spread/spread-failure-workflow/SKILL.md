@@ -30,36 +30,15 @@ their safety rules or duplicate their detailed commands here.
 
 ## Allowed actions and CI access boundary
 
+Follow the [shared CI evidence and session-directory procedure](../references/common-procedures.md#ci-evidence-and-session-directory).
 This skill may inspect and change the local checkout as required to reproduce
-and fix the failure, and may run local tests using `spread-runner`. It may read
-existing CI evidence only from user-pasted logs or by executing the bundled
-[CI log fetcher](../../../tests/utils/spread-log/fetch_spread_ci_logs.py). Do not
-use `gh`, `curl`, browser/network tools, or another script for CI access. Do
-not trigger CI, write to GitHub, or upload CI data.
+and fix the failure, and may run local tests using `spread-runner`.
 
 ## Workflow session directory
 
-From the snapd repository root, create one unique session directory in the
-project's ignored `.logs` directory at the start of the workflow, for example:
-
-```bash
-PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-mkdir -p "$PROJECT_ROOT/.logs"
-SESSION_DIR="$(mktemp -d "$PROJECT_ROOT/.logs/spread-failure-workflow-XXXXXX")"
-printf '%s\n' "$SESSION_DIR"
-```
-
-Keep its absolute path for the entire workflow. Store fetched logs, result
-artifacts, run metadata, analysis notes, attempt evidence, and the default
-reproduction handoff in this directory (the fetcher may create unique
-subdirectories beneath it). Pass `--session-dir "$SESSION_DIR"` to every
-fetcher invocation. Keep all workflow logs, artifacts, notes, and handoffs
-inside this session directory; do not use `/tmp` or create another temporary
-directory for another stage. If the user supplies an explicit handoff path,
-honor it. Do not remove the session directory while the workflow is running;
-include its path in the final report.
-The repository's Spread exclusion list must keep `.logs` out of worker
-archives, so fetched artifacts are not retransmitted to test machines.
+Use the shared procedure to create and maintain `SESSION_DIR`. Store this
+workflow's handoff at `$SESSION_DIR/reproduction-report.md` unless the user
+provides another path, and include the session directory in the final report.
 
 ## Inputs
 
@@ -118,10 +97,8 @@ related workflow runs unless the user asks for that broader investigation.
 If no CI source is supplied, record the user's failure description and
 continue with a local baseline. Do not invent CI history.
 
-Before any local test run, record the current commit and dirty state, the
-selected test, and the available CI source evidence. Do not clean, switch, or
-overwrite a dirty user checkout. Redact credentials and tokens in notes and
-final output.
+Follow the shared run-context procedure before local runs. Do not clean,
+switch, or overwrite a dirty user checkout.
 Keep fixes on the branch active when the workflow starts. Do not switch
 branches or commit unless the user's initial request explicitly asks. A
 separate worktree for historical reproduction must not be used for the fix.
@@ -166,8 +143,7 @@ Reproduction must match the original failure's phase, failed command, exit
 status, and symptom. Keep the debug session paused on a matching failure and
 collect the minimal evidence needed to distinguish a test defect from a
 product, image, dependency, or infrastructure problem. For remote inspection,
-use the socket path from Spread's ready message with
-`spread exec SOCKET -- COMMAND`, then resume with `spread stop SOCKET`.
+follow the [shared debug-socket procedure](../references/common-procedures.md#debug-socket-inspection).
 
 If the failure does not reproduce, or execution is blocked before reaching the
 behavior under test, do not patch speculatively. Record attempts and blockers
