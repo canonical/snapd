@@ -1383,10 +1383,26 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return retryRestore("linking the previous revision", err)
 	}
+	// A failed attempt may have already updated the boot configuration (e.g.
+	// written the modeenv but failed to reseal), in which case a retry would
+	// report that no reboot is needed even though we are still running the
+	// newer base. Remember the failure so the successful retry reboots.
+	const bootRestoreFailedKey = "model-base-boot-restore-failed"
 	isUndo := true
 	reboot, err := m.backend.MaybeSetNextBoot(oldInfo, deviceCtx, isUndo)
 	if err != nil {
-		return retryRestore("restoring next boot", err)
+		retryErr := retryRestore("restoring next boot", err)
+		if _, ok := retryErr.(*state.Retry); ok {
+			t.Set(bootRestoreFailedKey, true)
+		}
+		return retryErr
+	}
+	var bootRestoreFailed bool
+	if err := t.Get(bootRestoreFailedKey, &bootRestoreFailed); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if bootRestoreFailed {
+		reboot.RebootRequired = true
 	}
 
 	// mark as active again

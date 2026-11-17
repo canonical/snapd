@@ -2676,7 +2676,8 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCoreBase(c *C) {
 	c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
 }
 
-func (s *linkSnapSuite) testRetryUndoUnlinkModelBase(c *C, failOp, stage string) {
+func (s *linkSnapSuite) testRetryUndoUnlinkModelBase(c *C, failOp, stage string, expectReboot bool) {
+	s.AddCleanup(release.MockOnClassic(false))
 	r := snapstatetest.MockDeviceModel(ModelWithBase("some-base"))
 	defer r()
 
@@ -2730,16 +2731,25 @@ func (s *linkSnapSuite) testRetryUndoUnlinkModelBase(c *C, failOp, stage string)
 	c.Assert(snapstate.Get(s.state, "some-base", &snapst), IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Current, Equals, snap.R(1))
-	c.Check(t.Status(), Equals, state.UndoneStatus)
-	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	if expectReboot {
+		// the fake backend reports no reboot needed on the retry, but the
+		// earlier failure may have already updated the boot configuration
+		c.Check(s.restartRequested, DeepEquals, []restart.RestartType{restart.RestartSystem})
+		c.Check(t.Status(), Equals, state.WaitStatus)
+		c.Check(t.WaitedStatus(), Equals, state.UndoneStatus)
+	} else {
+		c.Check(s.restartRequested, HasLen, 0)
+		c.Check(t.Status(), Equals, state.UndoneStatus)
+		c.Check(chg.Status(), Equals, state.ErrorStatus)
+	}
 }
 
 func (s *linkSnapSuite) TestUndoUnlinkModelBaseRetriesLinkError(c *C) {
-	s.testRetryUndoUnlinkModelBase(c, "link-snap", "linking the previous revision")
+	s.testRetryUndoUnlinkModelBase(c, "link-snap", "linking the previous revision", false)
 }
 
 func (s *linkSnapSuite) TestUndoUnlinkModelBaseRetriesBootError(c *C) {
-	s.testRetryUndoUnlinkModelBase(c, "maybe-set-next-boot", "restoring next boot")
+	s.testRetryUndoUnlinkModelBase(c, "maybe-set-next-boot", "restoring next boot", true)
 }
 
 func (s *linkSnapSuite) testUndoUnlinkBaseLinkErrorIsTerminal(c *C, modelBase string, revert bool) {
