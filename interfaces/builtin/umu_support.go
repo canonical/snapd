@@ -70,6 +70,7 @@ const umuSupportConnectedPlugSecComp = `
 // same input rules as steam - joysticks and game controllers access
 const umuSupportSteamInputUDevRules = steamSupportSteamInputUDevRules
 
+// same input rules as steam - VR controllers
 const umuSupportSteamVRUDevRules = steamSupportSteamVRUDevRules
 
 type umuSupportInterface struct {
