@@ -25,6 +25,9 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
+// Support interface for umu-launcher, which  is an alternative variant of 
+// Steam Runtime and Tools. Uses the same underlying containerization technology
+// as actual steam. See https://github.com/Open-Wine-Components/umu-launcher for details.
 const umuSupportSummary = `allows UMU launcher to configure pressure-vessel containers`
 
 const umuSupportBaseDeclarationPlugs = `
