@@ -1,0 +1,5 @@
+  storage:
+    layout:
+      name: hybrid
+      encrypted: true
+      accepted-errors: [running-in-vm]
