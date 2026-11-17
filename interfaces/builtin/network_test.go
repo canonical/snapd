@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -32,6 +34,7 @@ import (
 
 type NetworkInterfaceSuite struct {
 	iface    interfaces.Interface
+	base     string
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
 	plugInfo *snap.PlugInfo
@@ -40,12 +43,14 @@ type NetworkInterfaceSuite struct {
 
 const netMockPlugSnapInfoYaml = `name: other
 version: 1.0
+base: %s
 apps:
  app2:
   command: foo
   plugs: [network]
 `
-const netMockSlotSnapInfoYaml = `name: core
+
+const netMockSlotSnapInfoYaml = `name: %s
 version: 1.0
 type: os
 slots:
@@ -55,11 +60,22 @@ slots:
 
 var _ = Suite(&NetworkInterfaceSuite{
 	iface: builtin.MustInterface("network"),
+	base: "core",
+})
+
+var _ = Suite(&NetworkInterfaceSuite{
+	iface: builtin.MustInterface("network"),
+	base: "core20",
+})
+
+var _ = Suite(&NetworkInterfaceSuite{
+	iface: builtin.MustInterface("network"),
+	base: "bare",
 })
 
 func (s *NetworkInterfaceSuite) SetUpTest(c *C) {
-	s.slot, s.slotInfo = MockConnectedSlot(c, netMockSlotSnapInfoYaml, nil, "network")
-	s.plug, s.plugInfo = MockConnectedPlug(c, netMockPlugSnapInfoYaml, nil, "network")
+	s.slot, s.slotInfo = MockConnectedSlot(c, fmt.Sprintf(netMockSlotSnapInfoYaml, s.base), nil, "network")
+	s.plug, s.plugInfo = MockConnectedPlug(c, fmt.Sprintf(netMockPlugSnapInfoYaml, s.base), nil, "network")
 }
 
 func (s *NetworkInterfaceSuite) TestName(c *C) {
@@ -81,6 +97,15 @@ func (s *NetworkInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `tcp_fastopen`)
+	if s.base == "core" {
+		c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), `bin/ping`)
+	} else if s.base == "bare" {
+		c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), `bin/ping`)
+	} else if s.base == "core20" {
+		c.Assert(apparmorSpec.SnippetForTag("snap.other.app2"), testutil.Contains, `bin/ping`)
+	} else {
+		c.Errorf("Unknown base")
+	}
 
 	// connected plugs have a non-nil security snippet for seccomp
 	seccompSpec := seccomp.NewSpecification(s.plug.AppSet())
