@@ -4008,8 +4008,8 @@ func (*viewSuite) TestSetPartialSetRemovesFirstItem(c *C) {
 
 	view := schema.View("foo")
 
-	// this tests that the missing age field doesn't cause the entire list item to
-	// be removed until the end, as that would shift the following writes
+	// this tests that the missing age field doesn't cause the entire list item
+	// to be removed prematurely, as that would shift the following writes
 	err = view.Set(bag, "users", []any{map[string]any{"name": "carol"}, map[string]any{"name": "david", "age": 45}})
 	c.Assert(err, IsNil)
 

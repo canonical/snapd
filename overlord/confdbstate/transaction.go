@@ -56,7 +56,19 @@ type Transaction struct {
 type operation interface {
 	// apply performs the change on the given databag.
 	apply(bag confdb.Databag) error
+
+	// kind of the operation (i.e., set, unset, pruneEmpty).
+	kind() operationKind
 }
+
+// operationKind identifies the type of a marshalled transaction operation.
+type operationKind string
+
+const (
+	setOpKind        operationKind = "set"
+	unsetOpKind      operationKind = "unset"
+	pruneEmptyOpKind operationKind = "prune-empty"
+)
 
 // setOperation sets a value at a path of the databag.
 type setOperation struct {
@@ -64,17 +76,19 @@ type setOperation struct {
 	value any
 }
 
+func (op *setOperation) kind() operationKind { return setOpKind }
+
 func (op *setOperation) apply(bag confdb.Databag) error {
 	return bag.Set(op.path, op.value)
 }
 
 func (op *setOperation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Operation string `json:"operation"`
-		Path      string `json:"path"`
-		Value     any    `json:"value"`
+		Operation operationKind `json:"operation"`
+		Path      string        `json:"path"`
+		Value     any           `json:"value"`
 	}{
-		Operation: "set",
+		Operation: op.kind(),
 		Path:      confdb.JoinAccessors(op.path),
 		Value:     op.value,
 	})
@@ -103,16 +117,18 @@ type unsetOperation struct {
 	path []confdb.Accessor
 }
 
+func (op *unsetOperation) kind() operationKind { return unsetOpKind }
+
 func (op *unsetOperation) apply(bag confdb.Databag) error {
 	return bag.Unset(op.path)
 }
 
 func (op *unsetOperation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Operation string `json:"operation"`
-		Path      string `json:"path"`
+		Operation operationKind `json:"operation"`
+		Path      string        `json:"path"`
 	}{
-		Operation: "unset",
+		Operation: op.kind(),
 		Path:      confdb.JoinAccessors(op.path),
 	})
 }
@@ -137,15 +153,17 @@ func (op *unsetOperation) UnmarshalJSON(data []byte) error {
 // from the databag.
 type pruneEmptyOperation struct{}
 
+func (op *pruneEmptyOperation) kind() operationKind { return pruneEmptyOpKind }
+
 func (op *pruneEmptyOperation) apply(bag confdb.Databag) error {
 	return bag.PruneEmpty()
 }
 
 func (op *pruneEmptyOperation) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Operation string `json:"operation"`
+		Operation operationKind `json:"operation"`
 	}{
-		Operation: "prune-empty",
+		Operation: op.kind(),
 	})
 }
 
@@ -166,7 +184,7 @@ func parseOperationPath(path string) ([]confdb.Accessor, error) {
 // unmarshalOperation decodes a marshalled operation into its concrete type.
 func unmarshalOperation(data []byte) (operation, error) {
 	var header struct {
-		Operation string `json:"operation"`
+		Operation operationKind `json:"operation"`
 	}
 	if err := json.Unmarshal(data, &header); err != nil {
 		return nil, err
@@ -174,11 +192,11 @@ func unmarshalOperation(data []byte) (operation, error) {
 
 	var op operation
 	switch header.Operation {
-	case "set":
+	case setOpKind:
 		op = &setOperation{}
-	case "unset":
+	case unsetOpKind:
 		op = &unsetOperation{}
-	case "prune-empty":
+	case pruneEmptyOpKind:
 		op = &pruneEmptyOperation{}
 	default:
 		return nil, fmt.Errorf("internal error: unknown transaction operation %q", header.Operation)
