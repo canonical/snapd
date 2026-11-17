@@ -67,5 +67,7 @@ Pass `--session-dir "$SESSION_DIR"` to every fetcher invocation. Store fetched
 logs, artifacts, run metadata, notes, and the default handoff in this
 directory; do not use `/tmp` or create another temporary directory for the
 same workflow. Keep the directory while the workflow is running and ensure
-`.logs` remains excluded from Spread worker archives. Redact credentials and
-tokens in notes and final output.
+`.logs` remains excluded from Spread worker archives. The cleanup in
+`tests/build-test-snapd-snap` also excludes `.logs`, preserving fetched snap
+artifacts when rebuilding snapd. Redact credentials and tokens in notes and
+final output.

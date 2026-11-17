@@ -403,6 +403,42 @@ For quick reuse you can use:
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
 
+#### Using the Spread workflow router
+
+In your coding agent's chat, describe the outcome and name the
+`spread-router` skill, for example, "Use `spread-router` to fix this test."
+The router chooses a focused workflow based on the request. The common cases
+are:
+
+1. **Fix a failing test from evidence.** Provide the selector
+   `BACKEND:SYSTEM:TEST_PATH` and one of: a failure log, a GitHub Actions job
+   URL, or a test predictor report. Include the failing phase, observed versus
+   expected behavior, and variant if known. For a pasted CI log, include its
+   repository, run ID, and job ID when available. For example:
+
+   > Use `spread-router` to investigate and fix this test, then verify the fix:
+   > `garden:ubuntu-24.04-64:tests/<suite>/<test>`. Here is the CI job URL:
+   > `<job URL>`.
+
+   You can provide the log or predictor report instead of a CI URL. Attach it
+   or paste its relevant contents, and identify the test if the report does
+   not make it clear. Treat a predictor report as evidence to investigate, not
+   as confirmation of the root cause.
+
+2. **Update a test from instructions.** Provide the test or task path and the
+   instructions or specification describing the intended change. Include
+   acceptance criteria and a target system or variant if they affect the
+   expected behavior. For example:
+
+   > Use `spread-router` to update `tests/<suite>/<test>` according to these
+   > instructions: `<instructions>`. Verify the requested behavior on
+   > `<backend>:<system>`.
+
+If a required selector or other detail is missing, say what you know and the
+agent can ask for what is needed. See the [Spread workflow router](.agents/skills/spread-router/SKILL.md)
+and its [shared procedures](.agents/skills/spread/references/common-procedures.md)
+for workflow details and run-context guidance.
+
 ### Testing the snapd daemon
 
 To test the `snapd` REST API daemon on a snappy system you need to
