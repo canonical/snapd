@@ -262,7 +262,16 @@ class TestVersionAndNaming(unittest.TestCase):
         self.assertEqual(crt.jira_version_for("bugfix", "2.78.1"), "2.78")
 
     def test_security_uses_major_jira_version(self):
-        self.assertEqual(crt.jira_version_for("security", "2.78.2"), "2.78")
+        self.assertEqual(crt.jira_version_for("security", "2.78.X"), "2.78")
+        self.assertEqual(crt.jira_version_for("security", "2.78.x"), "2.78")
+
+    def test_security_rejects_a_numeric_patch(self):
+        with self.assertRaises(RuntimeError) as cm:
+            crt.jira_version_for("security", "2.78.2")
+        self.assertEqual(
+            str(cm.exception),
+            'cannot use version "2.78.2" with variant "security", expected X.YY.X',
+        )
 
     def test_bugfix_rejects_major_version(self):
         with self.assertRaises(RuntimeError) as cm:
@@ -282,15 +291,19 @@ class TestVersionAndNaming(unittest.TestCase):
             "Snapd Bugfix Release 2.78.1",
         )
         self.assertEqual(
-            crt.epic_summary_for("security", "2.78.1"),
-            "Snapd Security Release 2.78.1",
+            crt.epic_summary_for("security", "2.78.X"),
+            "Snapd Security Release 2.78.X",
         )
 
     def test_variant_from_version(self):
         self.assertEqual(crt.variant_from_version("2.78"), "major")
         self.assertEqual(crt.variant_from_version("2.77.1"), "bugfix")
         self.assertEqual(
-            crt.variant_from_version("2.77.1", security=True),
+            crt.variant_from_version("2.77.X", security=True),
+            "security",
+        )
+        self.assertEqual(
+            crt.variant_from_version("2.77.x", security=True),
             "security",
         )
 
@@ -299,7 +312,23 @@ class TestVersionAndNaming(unittest.TestCase):
             crt.variant_from_version("2.78", security=True)
         self.assertEqual(
             str(cm.exception),
-            'cannot use --security with version "2.78", expected X.YY.Z',
+            'cannot use --security with version "2.78", expected X.YY.X',
+        )
+
+    def test_variant_from_version_rejects_security_on_numeric_patch(self):
+        with self.assertRaises(RuntimeError) as cm:
+            crt.variant_from_version("2.78.1", security=True)
+        self.assertEqual(
+            str(cm.exception),
+            'cannot use --security with version "2.78.1", expected X.YY.X',
+        )
+
+    def test_security_placeholder_requires_the_security_flag(self):
+        with self.assertRaises(RuntimeError) as cm:
+            crt.variant_from_version("2.78.X")
+        self.assertEqual(
+            str(cm.exception),
+            'cannot use version "2.78.X" without --security',
         )
 
     def test_jira_version_override(self):
@@ -341,14 +370,14 @@ class TestTaskTitles(unittest.TestCase):
         )
         self.assertEqual(sum(task.points for task in plan.tasks), 21)
         bugfix = sample_plan(variant="bugfix", version="2.78.1")
-        security = sample_plan(variant="security", version="2.78.1")
+        security = sample_plan(variant="security", version="2.78.X")
         self.assertEqual(
             [task.points for task in bugfix.tasks],
             [task.points for task in plan.tasks],
         )
         self.assertEqual(
             [task.points for task in security.tasks],
-            [task.points for task in plan.tasks],
+            [3, 2, 3, 1, 3, 3],
         )
 
     def test_bugfix_cut_title_uses_patch_version(self):
@@ -364,7 +393,7 @@ class TestTaskTitles(unittest.TestCase):
             plan.tasks[0].checklist[0],
             "Create the release/2.78 branch from master",
         )
-        for variant, version in (("bugfix", "2.78.1"), ("security", "2.78.2")):
+        for variant, version in (("bugfix", "2.78.1"), ("security", "2.78.X")):
             plan = sample_plan(variant=variant, version=version)
             self.assertEqual(
                 plan.tasks[0].checklist[0],
@@ -373,19 +402,36 @@ class TestTaskTitles(unittest.TestCase):
             )
 
     def test_security_task_titles_are_prefixed(self):
-        plan = sample_plan(variant="security", version="2.77.1")
+        plan = sample_plan(variant="security", version="2.77.x")
+        self.assertEqual(plan.version, "2.77.X")
+        self.assertEqual(plan.epic_summary, "Snapd Security Release 2.77.X")
+        self.assertEqual(plan.jira_version, "snapd 2.77")
         summaries = [task.summary for task in plan.tasks]
-        self.assertEqual(len(summaries), 9)
-        self.assertTrue(
-            all(title.startswith(crt.SECURITY_TITLE_PREFIX) for title in summaries)
+        self.assertEqual(
+            summaries,
+            [
+                "Security: Cut release 2.77.X",
+                "Security: Build and upload BETA snapd snaps",
+                "Security: Complete Snapd Team QA BETA validation",
+                "Security: Complete Certification BETA validation",
+                "Security: Cross-distro: releases Arch, openSUSE & Amazon",
+                "Security: Cross-distro: Fedora and Debian",
+            ],
         )
-        self.assertEqual(summaries[0], "Security: Cut release 2.77.1")
+        for dropped in (
+            "Build and upload snapd debs",
+            "Request upload to resolute-proposed and facilitate LP bug verification",
+            "Request upload to {jammy,noble,plucky}-proposed "
+            "and facilitate LP bug verification",
+        ):
+            self.assertNotIn(crt.SECURITY_TITLE_PREFIX + dropped, summaries)
         self.assertFalse(
             any(
                 item.startswith(crt.SECURITY_TITLE_PREFIX)
                 for item in plan.tasks[0].checklist
             )
         )
+        self.assertEqual(crt.task_team(plan, plan.tasks[2]), crt.DESKTOP_TEAM)
 
     def test_default_team_is_iot_except_qa_and_cross_distro(self):
         plan = sample_plan()
@@ -1679,9 +1725,9 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Snapd Bugfix Release 2.77.1", out)
 
     def test_main_security_flag_marks_patch(self):
-        rc, out, _err = run_main(
+        rc, out, err = run_main(
             [
-                "2.77.1",
+                "2.77.x",
                 "--security",
                 "--dev-target",
                 "resolute",
@@ -1690,8 +1736,20 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("Snapd Security Release 2.77.1", out)
-        self.assertIn("Security: Cut release 2.77.1", out)
+        self.assertEqual(err, "")
+        self.assertIn("Snapd Security Release 2.77.X", out)
+        self.assertIn("Security: Cut release 2.77.X", out)
+        self.assertNotIn("Build and upload snapd debs", out)
+        self.assertNotIn("facilitate LP bug verification", out)
+
+    def test_main_security_rejects_numeric_and_major_versions(self):
+        for version in ("2.78", "2.78.1"):
+            out_buf, err_buf = StringIO(), StringIO()
+            with patch.object(sys, "stdout", out_buf), patch.object(sys, "stderr", err_buf):
+                rc = crt.cli([version, "--security"])
+            self.assertEqual(rc, 1, version)
+            self.assertEqual(out_buf.getvalue(), "")
+            self.assertIn("expected X.YY.X", err_buf.getvalue())
 
     def test_invalid_team_is_cobra_style(self):
         rc, out, err = run_main(["2.78", "--team", "SRE"])
