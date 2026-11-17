@@ -15,13 +15,17 @@ get:
   parameters:
     - name: container-role
       in: query
-      description: Return the container with this role.
+      description: Return containers matching any of the specified roles.
+      style: form
+      explode: true
       schema:
-        type: string
-      example: system-data
+        type: array
+        items:
+          type: string
+      example: [system-data, system-save]
     - name: by-container-role
       in: query
-      description: Return all containers grouped by their container roles when true.
+      description: Return all containers grouped by their container roles when true. Must not be true when container-role is supplied; filtered results are already grouped by container role.
       schema:
         type: boolean
       example: true
@@ -81,10 +85,6 @@ get:
                                 description: Roles of a platform key, only for platform keys.
                                 items:
                                   type: string
-                              # Currently in the spec, but not supported by the API.
-                              # role:
-                              #   type: string
-                              #   description: Role of a platform key when grouping by container role.
                               platform-name:
                                 type: string
                                 description: Platform name, only for platform keys.
