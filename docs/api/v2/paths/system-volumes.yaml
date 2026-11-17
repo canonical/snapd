@@ -98,3 +98,93 @@ get:
                                   - passphrase
     400:
       $ref: '../components/responses/BadRequest.yaml'
+
+post:
+  tags:
+    - Systems
+    - Synchronous
+    - Asynchronous
+  summary: Manage system volume keys and check authentication quality
+  description: |-
+    Generate, check, add, or replace system volume keys, and check or
+    change PINs and passphrases at runtime. The request action determines the required fields and whether the operation is synchronous or asynchronous.
+  operationId: performSystemVolumesAction
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - $ref: '../components/schemas/SystemVolumeActionGenerateRecoveryKey.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionAddRecoveryKey.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionReplaceRecoveryKey.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionCheckRecoveryKey.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionCheckPinQuality.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionCheckPassphraseQuality.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionChangePin.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionChangePassphrase.yaml'
+            - $ref: '../components/schemas/SystemVolumeActionReplacePlatformKey.yaml'
+  responses:
+    200:
+      description: |-
+        The action was handled synchronously.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - type
+              - status-code
+              - status
+              - result
+            properties:
+              type:
+                type: string
+                enum:
+                  - sync
+              status-code:
+                type: integer
+                enum:
+                  - 200
+              status:
+                type: string
+                enum:
+                  - OK
+              result:
+                anyOf:
+                  - type: object
+                    description: The generated recovery key and its opaque key ID.
+                    required:
+                      - recovery-key
+                      - key-id
+                    properties:
+                      recovery-key:
+                        type: string
+                        description: The recovery key to display to the user.
+                      key-id:
+                        type: string
+                        description: |-
+                          The opaque ID to use with add-recovery-key or
+                          replace-recovery-key. Can be used once within five minutes.
+                  - type: object
+                    description: The recovery key is valid for all targeted containers.
+                    nullable: true
+                    enum:
+                      - null
+                  - $ref: '../components/schemas/AuthQualityEntropyMetrics.yaml'
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'
+    403:
+      $ref: '../components/responses/Forbidden.yaml'
+    409:
+      $ref: '../components/responses/Conflict.yaml'
+    429:
+      $ref: '../components/responses/TooManyRequests.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'

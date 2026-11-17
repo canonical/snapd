@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumeActionReplaceRecoveryKey
+description: |-
+  Replace existing recovery-key keyslots using a
+  generated key-id. Requires root access or authorization through
+  the io.snapcraft.snapd.manage-fde Polkit action. Requests
+  through /run/snapd-snap.socket also require a connected
+  snap-fde-control plug.
+required:
+  - action
+  - key-id
+properties:
+  action:
+    type: string
+    enum:
+      - replace-recovery-key
+  key-id:
+    type: string
+    minLength: 1
+    description: The opaque ID returned by generate-recovery-key.
+  keyslots:
+    type: array
+    description: |-
+      Target keyslots to replace. If omitted, targets the
+      following keyslots:
+      - container-role `system-data`, name `default-recovery`; and
+      - container-role `system-save`, name `default-recovery`.
+      Each target must already exist and have type `recovery`;
+      use add-recovery-key for a target that does not exist.
+      Duplicate targets are rejected. Use GET /v2/system-volumes
+      to find the target keyslot's container role and name.
+    items:
+      allOf:
+        - $ref: "SystemVolumeKeyslotTarget.yaml"
+        - type: object
+          properties:
+            name:
+              type: string
+              description: |-
+                Names must not start with the reserved prefixes
+                "snap" or "default", except "default-recovery".
+              pattern: "^(?:default-recovery|(?!snap|default).+)$"
