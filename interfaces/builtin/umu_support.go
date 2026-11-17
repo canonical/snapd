@@ -29,7 +29,7 @@ const umuSupportSummary = `allows UMU launcher to configure pressure-vessel cont
 
 const umuSupportBaseDeclarationPlugs = `
   umu-support:
-    allow-installation: true
+    allow-installation: false
     deny-auto-connection: true
 `
 
