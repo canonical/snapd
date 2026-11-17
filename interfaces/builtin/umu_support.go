@@ -60,9 +60,8 @@ owner /run/user/[0-9]*/bwrap/** mrwklix,
 `
 
 const umuSupportConnectedPlugSecComp = `
-# Description: allow UMU launcher (via proot-next) to intercept syscalls using
-# seccomp user notifications, traverse paths safely with RESOLVE_NO_SYMLINKS,
-# and monitor child process exits without requiring an unrestricted profile.
+# The comment below is to ensure that umu-support is detected as an exception.
+# This allows the use of openat2, which is necessary for proot-next.
 # umu-support-openat2
 
 openat2
