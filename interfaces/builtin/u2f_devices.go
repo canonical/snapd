@@ -233,6 +233,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "08e6",
 		ProductIDPattern: "34d2",
 	},
+	{
+		Name:             "OpenSK",
+		VendorIDPattern:  "1915",
+		ProductIDPattern: "521f",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
