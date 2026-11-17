@@ -32,7 +32,7 @@ const umuSupportSummary = `allows UMU launcher to configure pressure-vessel cont
 
 const umuSupportBaseDeclarationPlugs = `
   umu-support:
-    allow-installation: false
+    allow-installation: true
     deny-auto-connection: true
 `
 
@@ -60,11 +60,12 @@ owner /run/user/[0-9]*/bwrap/** mrwklix,
 `
 
 const umuSupportConnectedPlugSecComp = `
-# Description: allow UMU launcher to run without a seccomp profile so that
-# pressure-vessel containers can use any features available on the system
-# without having to perpetually update the snapd interface side.
+# Description: allow UMU launcher (via proot-next) to intercept syscalls using
+# seccomp user notifications, traverse paths safely with RESOLVE_NO_SYMLINKS,
+# and monitor child process exits without requiring an unrestricted profile.
+# umu-support-openat2
 
-@unrestricted
+openat2
 `
 
 // same input rules as steam - joysticks and game controllers access

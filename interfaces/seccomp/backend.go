@@ -324,7 +324,12 @@ func generateContent(opts interfaces.ConfinementOptions, snippetForTag string, a
 		}
 	}
 
-	buffer.Write(defaultTemplate)
+	tmpl := defaultTemplate
+	if strings.Contains(snippetForTag, "# umu-support-openat2") {
+		tmpl = bytes.ReplaceAll(tmpl, []byte("~ENOSYS:openat2\n"), []byte(""))
+	}
+
+	buffer.Write(tmpl)
 	buffer.WriteString(snippetForTag)
 	buffer.WriteString(uidGidChownSyscalls)
 

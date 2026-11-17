@@ -107,8 +107,9 @@ func (s *UMUSupportInterfaceSuite) TestSecCompSpec(c *C) {
 
 	snippet := spec.SnippetForTag("snap.consumer.app")
 	c.Check(snippet, Not(Equals), "")
-	c.Check(snippet, testutil.Contains, "@unrestricted")
+	c.Check(snippet, testutil.Contains, "openat2\n")
 }
+
 
 func (s *UMUSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
@@ -121,7 +122,7 @@ func (s *UMUSupportInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
 	c.Assert(spec.Snippets(), HasLen, 2)
-	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEM=="usb", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"`)
+	c.Assert(spec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb", ATTRS{idVendor}=="28de", MODE="0660", TAG+="uaccess"`)
 	c.Assert(spec.Snippets()[1], testutil.Contains, `KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="114d", ATTRS{idProduct}=="8a12", MODE="0660", TAG+="uaccess"`)
 }
 
