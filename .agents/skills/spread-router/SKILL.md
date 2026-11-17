@@ -23,6 +23,28 @@ Shared execution, debug-socket, and CI evidence procedures are documented in
 | Handle an end-to-end failure investigation, reproduction, fix, and verification | [`spread-failure-workflow`](../spread/spread-failure-workflow/SKILL.md) |
 | Make a planned test migration or update from a specification | [`spread-update-workflow`](../spread/spread-update-workflow/SKILL.md) |
 
+## How to use the router
+
+Describe the outcome you want; you can ask for this router explicitly or let
+the task description select it. Include a test path, backend and system when
+you know them, and a CI job URL or relevant specification when applicable.
+For example:
+
+- "Run `tests/<suite>/<test>/task.yaml` on `<backend>` with `<system>` and
+  debug any failure." The router selects `spread-runner`.
+- "Investigate and reproduce the failure from this CI job: `<job URL>`."
+  The router selects `spread-reproducer`.
+- "I confirmed the bug is in `tests/<suite>/<test>`; fix it and verify the
+  test." The router selects `spread-fixer`.
+- "Take this CI failure from investigation through fix and verification:
+  `<job URL>`." The router selects `spread-failure-workflow`.
+- "Update `tests/<suite>/<test>` to cover this planned behavior:
+  `<specification>`." The router selects `spread-update-workflow`.
+
+Use the failure workflow when you want the complete investigation-to-fix
+sequence. If you only need one stage, name that stage instead. The selected
+workflow provides its own detailed steps.
+
 Use the smallest workflow that meets the request. The runner owns execution
 and test selection; the common procedures reference owns shared run-context,
 debug-socket, and CI evidence mechanics. The reproducer owns CI investigation
