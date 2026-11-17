@@ -37,9 +37,9 @@ AC_FIELD = "customfield_10064"
 TEAM_FIELD = "customfield_10001"
 POINTS_FIELD = "customfield_10016"
 FAKE_TEAM_IDS = {
-    crt.DEFAULT_TEAM: "team-emea",
+    crt.DEFAULT_TEAM: "team-iot",
     crt.CROSS_DISTRO_TEAM: "team-cross",
-    crt.AMER_TEAM: "team-amer",
+    crt.DESKTOP_TEAM: "team-desktop",
 }
 
 
@@ -323,7 +323,7 @@ class TestTaskTitles(unittest.TestCase):
                 "Build and upload BETA snapd snaps",
                 "Build and upload snapd debs",
                 "Complete Snapd Team QA BETA validation",
-                "Monitor Certification Team BETA validation",
+                "Complete Certification BETA validation",
                 "Request upload to resolute-proposed "
                 "and facilitate LP bug verification",
                 "Request upload to {jammy,noble,plucky}-proposed "
@@ -387,16 +387,28 @@ class TestTaskTitles(unittest.TestCase):
             )
         )
 
-    def test_default_team_is_emea_except_cross_distro(self):
+    def test_default_team_is_iot_except_qa_and_cross_distro(self):
         plan = sample_plan()
         self.assertEqual(plan.team, crt.DEFAULT_TEAM)
         teams = [crt.task_team(plan, task) for task in plan.tasks]
-        self.assertEqual(teams[:-2], [crt.DEFAULT_TEAM] * 7)
-        self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
+        self.assertEqual(
+            teams,
+            [
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DESKTOP_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.CROSS_DISTRO_TEAM,
+                crt.CROSS_DISTRO_TEAM,
+            ],
+        )
         self.assertTrue(plan.tasks[-1].cross_distro)
         self.assertFalse(plan.tasks[0].cross_distro)
         self.assertIn(
-            "Publish the GitHub release created when uploading tarballs",
+            "Report pass/fail to the snapd release coordinator",
             plan.tasks[3].checklist,
         )
         self.assertTrue(
@@ -434,12 +446,25 @@ class TestTaskTitles(unittest.TestCase):
             checklist.index("Promote FIPS revisions to fips-updates/beta"),
         )
 
-    def test_candidate_promotion_gates_and_comms(self):
+    def test_qa_beta_validation_criteria(self):
         plan = sample_plan()
-        checklist = list(plan.tasks[3].checklist)
         self.assertEqual(
-            checklist[-6:],
+            list(plan.tasks[3].checklist),
             [
+                "Coordinate snapd team QA beta validation",
+                "Analyse test results and add comment to explain/justify findings "
+                "and provide conclusion",
+                "Report pass/fail to the snapd release coordinator",
+            ],
+        )
+
+    def test_certification_beta_validation_criteria(self):
+        plan = sample_plan()
+        self.assertEqual(
+            list(plan.tasks[4].checklist),
+            [
+                "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+                "Discuss results with the certification team and obtain certification sign-off",
                 "Obtain QA sign-off to promote to candidate",
                 "Confirm the certification team beta sign-off",
                 "Promote snapd snap revisions to candidate",
@@ -464,22 +489,27 @@ class TestTaskTitles(unittest.TestCase):
             ],
         )
 
-    def test_amer_team_does_not_override_cross_distro(self):
-        plan = sample_plan(team=crt.AMER_TEAM)
-        self.assertEqual(plan.team, crt.AMER_TEAM)
+    def test_desktop_team_does_not_override_cross_distro(self):
+        plan = sample_plan(team=crt.DESKTOP_TEAM)
+        self.assertEqual(plan.team, crt.DESKTOP_TEAM)
         teams = [crt.task_team(plan, task) for task in plan.tasks]
-        self.assertEqual(teams[:-2], [crt.AMER_TEAM] * 7)
+        self.assertEqual(teams[:-2], [crt.DESKTOP_TEAM] * 7)
         self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
+
+    def test_plan_team_does_not_override_qa_beta(self):
+        plan = sample_plan(team=crt.CROSS_DISTRO_TEAM)
+        self.assertEqual(crt.task_team(plan, plan.tasks[3]), crt.DESKTOP_TEAM)
+        self.assertEqual(crt.task_team(plan, plan.tasks[0]), crt.CROSS_DISTRO_TEAM)
 
     def test_parse_team_maps_short_and_full_names(self):
         self.assertEqual(crt.parse_team(None), crt.DEFAULT_TEAM)
-        self.assertEqual(crt.parse_team("EMEA"), crt.DEFAULT_TEAM)
-        self.assertEqual(crt.parse_team("AMER"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("IOT"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("Desktop"), crt.DESKTOP_TEAM)
         self.assertEqual(crt.parse_team("Cross-distro"), crt.CROSS_DISTRO_TEAM)
-        self.assertEqual(crt.parse_team("amer"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("desktop"), crt.DESKTOP_TEAM)
         self.assertEqual(crt.parse_team("cross-distro"), crt.CROSS_DISTRO_TEAM)
-        self.assertEqual(crt.parse_team("SnapD AMER"), crt.AMER_TEAM)
-        self.assertEqual(crt.parse_team("snapd emea"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("Snapd Desktop"), crt.DESKTOP_TEAM)
+        self.assertEqual(crt.parse_team("snapd iot"), crt.DEFAULT_TEAM)
         self.assertEqual(crt.parse_team("SnapD Cross-distro"), crt.CROSS_DISTRO_TEAM)
 
     def test_parse_team_rejects_unknown_names(self):
@@ -488,7 +518,7 @@ class TestTaskTitles(unittest.TestCase):
                 crt.parse_team(raw)
             message = str(cm.exception)
             self.assertIn(f'invalid --team "{raw}"', message)
-            self.assertIn('expected one of "EMEA", "AMER", "Cross-distro"', message)
+            self.assertIn('expected one of "IOT", "Desktop", "Cross-distro"', message)
 
     def test_parse_targets_strips_whitespace(self):
         self.assertEqual(
@@ -594,10 +624,10 @@ class TestPayloads(unittest.TestCase):
             "SNAPDENG-1001",
             AC_FIELD,
             team_field=TEAM_FIELD,
-            team_id="team-emea",
+            team_id="team-iot",
             story_points_field=POINTS_FIELD,
         )
-        self.assertEqual(with_team[TEAM_FIELD], "team-emea")
+        self.assertEqual(with_team[TEAM_FIELD], "team-iot")
         self.assertEqual(with_team[POINTS_FIELD], 3)
 
     def test_epic_name_field_from_env(self):
@@ -626,7 +656,8 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertIn("Fix Version: snapd 2.78", text)
         self.assertIn("Parent: SNAPDENG-34819", text)
         self.assertIn("Epic: Snapd Major Release 2.78", text)
-        self.assertIn("Team: SnapD EMEA", text)
+        self.assertIn("Team: Snapd IOT", text)
+        self.assertIn("Team: Snapd Desktop", text)
         self.assertIn("Team: SnapD Cross-distro", text)
         self.assertIn("Description:", text)
         self.assertIn("Acceptance Criteria:", text)
@@ -744,15 +775,10 @@ class TestDryRunAndApply(unittest.TestCase):
             client.created[0]["fields"][TEAM_FIELD],
             FAKE_TEAM_IDS[crt.DEFAULT_TEAM],
         )
-        for issue in client.created[1:-2]:
+        for issue, task in zip(client.created[1:], plan.tasks):
             self.assertEqual(
                 issue["fields"][TEAM_FIELD],
-                FAKE_TEAM_IDS[crt.DEFAULT_TEAM],
-            )
-        for issue in client.created[-2:]:
-            self.assertEqual(
-                issue["fields"][TEAM_FIELD],
-                FAKE_TEAM_IDS[crt.CROSS_DISTRO_TEAM],
+                FAKE_TEAM_IDS[crt.task_team(plan, task)],
             )
         for issue in client.created[1:]:
             self.assertEqual(issue["fields"]["issuetype"]["name"], "Task")
@@ -782,17 +808,21 @@ class TestDryRunAndApply(unittest.TestCase):
             )
         self.assertEqual(len(client.transitioned), 10)
 
-    def test_apply_amer_team_skips_cross_distro(self):
-        plan = sample_plan(team=crt.AMER_TEAM)
+    def test_apply_desktop_team_skips_cross_distro(self):
+        plan = sample_plan(team=crt.DESKTOP_TEAM)
         client = FakeJiraClient(versions=["snapd 2.78"])
         crt.apply_plan(plan, client)
         self.assertEqual(
             client.created[0]["fields"][TEAM_FIELD],
-            FAKE_TEAM_IDS[crt.AMER_TEAM],
+            FAKE_TEAM_IDS[crt.DESKTOP_TEAM],
         )
         self.assertEqual(
             client.created[1]["fields"][TEAM_FIELD],
-            FAKE_TEAM_IDS[crt.AMER_TEAM],
+            FAKE_TEAM_IDS[crt.DESKTOP_TEAM],
+        )
+        self.assertEqual(
+            client.created[4]["fields"][TEAM_FIELD],
+            FAKE_TEAM_IDS[crt.DESKTOP_TEAM],
         )
         self.assertEqual(
             client.created[-1]["fields"][TEAM_FIELD],
@@ -1365,7 +1395,7 @@ class TestDryRunAndApply(unittest.TestCase):
                 }
 
         issues = crt.search_jql(
-            EndlessJira(), 'Team = "SnapD EMEA"', ["summary"], limit=1
+            EndlessJira(), 'Team = "Snapd IOT"', ["summary"], limit=1
         )
         self.assertEqual([issue["key"] for issue in issues], ["SNAPDENG-1"])
         self.assertEqual(len(bodies), 1)
@@ -1668,16 +1698,16 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn('invalid --team "SRE"', err)
-        self.assertIn('"EMEA"', err)
-        self.assertIn('"AMER"', err)
+        self.assertIn('"IOT"', err)
+        self.assertIn('"Desktop"', err)
         self.assertIn('"Cross-distro"', err)
 
-    def test_amer_team_printed_in_dry_run(self):
+    def test_desktop_team_printed_in_dry_run(self):
         rc, out, _err = run_main(
             [
                 "2.78",
                 "--team",
-                "AMER",
+                "Desktop",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1685,7 +1715,8 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("Team: SnapD AMER", out)
+        self.assertIn("Team: Snapd Desktop", out)
+        self.assertNotIn("Team: Snapd IOT", out)
         self.assertIn("Team: SnapD Cross-distro", out)
 
     def test_team_flag_accepts_legacy_capitalized_alias(self):
@@ -1693,7 +1724,7 @@ class TestCLI(unittest.TestCase):
             [
                 "2.78",
                 "--Team",
-                "AMER",
+                "Desktop",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1701,14 +1732,14 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn(f"Team: {crt.AMER_TEAM}", out)
+        self.assertIn(f"Team: {crt.DESKTOP_TEAM}", out)
 
     def test_team_flag_accepts_full_jira_name(self):
         rc, out, _err = run_main(
             [
                 "2.78",
                 "--team",
-                "SnapD AMER",
+                "Snapd Desktop",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1716,7 +1747,7 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn(f"Team: {crt.AMER_TEAM}", out)
+        self.assertIn(f"Team: {crt.DESKTOP_TEAM}", out)
 
     def test_abbreviated_flags_are_rejected(self):
         for flag in ("--app", "--for", "--create-v"):

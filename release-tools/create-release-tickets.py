@@ -15,9 +15,10 @@ already exists, --apply lists it and does not create or edit issues; pass
 epic and labeled tasks. Unlabeled tasks with a matching title are listed as
 placeholders but never modified.
 
-The epic and non-cross-distro tasks use team SnapD EMEA unless --team is
-set to a short name (AMER, Cross-distro) or the full Jira team name.
-Cross-distro tasks always use SnapD Cross-distro.
+The epic and non-cross-distro tasks use team Snapd IOT unless --team is
+set to a short name (Desktop, Cross-distro) or the full Jira team name.
+Cross-distro tasks always use SnapD Cross-distro. The QA beta task always
+uses Snapd Desktop.
 """
 
 # Hyphenated filename; this is a script, not a library.
@@ -67,14 +68,15 @@ GENERATED_LABEL = "snapd-release-tickets"
 SECURITY_TITLE_PREFIX = "Security: "
 TARGET_STATUS = "Triaged"
 
-DEFAULT_TEAM = "SnapD EMEA"
+DEFAULT_TEAM = "Snapd IOT"
 CROSS_DISTRO_TEAM = "SnapD Cross-distro"
-AMER_TEAM = "SnapD AMER"
+DESKTOP_TEAM = "Snapd Desktop"
 # --team accepts a short name or the full Jira team name. Cross-distro
-# tasks ignore --team and always use CROSS_DISTRO_TEAM.
+# tasks ignore --team and always use CROSS_DISTRO_TEAM. The QA beta task
+# ignores --team and always uses DESKTOP_TEAM.
 TEAM_NAMES = {
-    "EMEA": DEFAULT_TEAM,
-    "AMER": AMER_TEAM,
+    "IOT": DEFAULT_TEAM,
+    "Desktop": DESKTOP_TEAM,
     "Cross-distro": CROSS_DISTRO_TEAM,
 }
 TEAM_FIELD_NAME = "Team"
@@ -99,6 +101,8 @@ class TaskSpec(NamedTuple):
     checklist: tuple
     points: int
     cross_distro: bool = False
+    # Set to pin a Jira team. Empty follows plan.team, except cross-distro tasks.
+    team: str = ""
 
 
 class PlannedRelease(NamedTuple):
@@ -140,7 +144,12 @@ def parse_team(raw):
 
 
 def task_team(plan, task):
-    """Team name for a task: Cross-distro tasks ignore plan.team."""
+    """Team name for a task.
+
+    A task with its own team, and every cross-distro task, ignores plan.team.
+    """
+    if task.team:
+        return task.team
     if task.cross_distro:
         return CROSS_DISTRO_TEAM
     return plan.team
@@ -298,25 +307,27 @@ def task_qa_beta():
         summary="Complete Snapd Team QA BETA validation",
         checklist=(
             "Coordinate snapd team QA beta validation",
-            "Review known issues from beta testing",
+            "Analyse test results and add comment to explain/justify findings "
+            "and provide conclusion",
+            "Report pass/fail to the snapd release coordinator",
+        ),
+        points=3,
+        team=DESKTOP_TEAM,
+    )
+
+
+def task_certification_beta():
+    return TaskSpec(
+        summary="Complete Certification BETA validation",
+        checklist=(
+            "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+            "Discuss results with the certification team and obtain certification sign-off",
             "Obtain QA sign-off to promote to candidate",
             "Confirm the certification team beta sign-off",
             "Promote snapd snap revisions to candidate",
             "Update the snapd roadmap for candidate",
             "Create the release forum post and publicize the move to candidate",
             "Publish the GitHub release created when uploading tarballs",
-        ),
-        points=3,
-    )
-
-
-def task_certification_beta():
-    return TaskSpec(
-        summary="Monitor Certification Team BETA validation",
-        checklist=(
-            "Contact the assigned certification tester",
-            "Track certification beta results",
-            "Obtain certification sign-off",
         ),
         points=1,
     )
@@ -1029,7 +1040,8 @@ def find_team_id(jira, team_name):
 def resolve_plan_teams(jira, plan):
     """Return (team_field_id, {team_name: team_uuid}) for the plan's teams."""
     field_id = team_field_id(jira)
-    names = {plan.team, CROSS_DISTRO_TEAM}
+    names = {plan.team}
+    names.update(task_team(plan, task) for task in plan.tasks)
     ids = {name: find_team_id(jira, name) for name in names}
     return field_id, ids
 
@@ -1401,7 +1413,7 @@ def print_help(out=None):
         ("      --security", "Treat a patch version as a security release"),
         (
             "      --team string",
-            "Non-cross-distro team: EMEA (default), AMER, Cross-distro",
+            "Non-cross-distro team: IOT (default), Desktop, Cross-distro",
         ),
         (
             "      --lts-targets strings",
@@ -1432,7 +1444,7 @@ def print_help(out=None):
     print(f"  {prog} 2.77.1", file=out)
     print(f"  {prog} 2.77.1 --security", file=out)
     print(f"  {prog} 2.78 --apply", file=out)
-    print(f"  {prog} 2.78 --team AMER", file=out)
+    print(f"  {prog} 2.78 --team Desktop", file=out)
     print(file=out)
     print("Flags:", file=out)
     for name, desc in flags:
