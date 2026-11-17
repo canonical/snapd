@@ -88,7 +88,7 @@ runs:
             (
               cd $(dirname "$file")
               echo "Fuzzing test $func"
-              go test -fuzz "^$func\$" -fuzztime 3m || touch "${{ github.workspace }}/fuzzingfailed"
+              go test -run '^$' -fuzz "^$func\$" -fuzztime 3m || touch "${{ github.workspace }}/fuzzingfailed"
             )
           done
         done
