@@ -16,7 +16,7 @@ already exists, --apply lists it and does not create or edit issues; pass
 epic and labeled tasks. Unlabeled tasks with a matching title are listed as
 placeholders but never modified.
 
-The epic and non-cross-distro tasks use team Snapd IOT unless --team is
+The epic and non-cross-distro tasks use team Snapd IoT unless --team is
 set to a short name (Desktop, Cross-distro) or the full Jira team name.
 Cross-distro tasks always use SnapD Cross-distro. The QA beta task always
 uses Snapd Desktop.
@@ -71,14 +71,14 @@ GENERATED_LABEL = "snapd-release-tickets"
 SECURITY_TITLE_PREFIX = "Security: "
 TARGET_STATUS = "Triaged"
 
-DEFAULT_TEAM = "Snapd IOT"
+DEFAULT_TEAM = "Snapd IoT"
 CROSS_DISTRO_TEAM = "SnapD Cross-distro"
 DESKTOP_TEAM = "Snapd Desktop"
 # --team accepts a short name or the full Jira team name. Cross-distro
 # tasks ignore --team and always use CROSS_DISTRO_TEAM. The QA beta task
 # ignores --team and always uses DESKTOP_TEAM.
 TEAM_NAMES = {
-    "IOT": DEFAULT_TEAM,
+    "IoT": DEFAULT_TEAM,
     "Desktop": DESKTOP_TEAM,
     "Cross-distro": CROSS_DISTRO_TEAM,
 }
@@ -296,20 +296,31 @@ def task_cut_release(*, version, variant):
     )
 
 
-def task_beta_snaps():
+# Deb upload owns these for a standard release. A security release has no deb
+# ticket, so the beta-snaps task carries them instead.
+GITHUB_TARBALL_STEPS = (
+    "Create source tarballs with release-tools/repack-debian-tarball.sh",
+    "Create a draft GitHub release and upload tarballs",
+)
+
+
+def task_beta_snaps(*, variant):
+    checklist = (
+        "Push the version git tag",
+        "Open and merge the changelog PR against master",
+        "Build snapd snaps on Launchpad (including FIPS)",
+        "Verify the FIPS snap loads the FIPS provider on a FIPS-enabled system",
+        "Promote revisions to latest/beta",
+        "Promote FIPS revisions to fips-updates/beta",
+        "Close the GitHub milestone for this release",
+        "Notify snapd QA and the certification tester",
+        "Update the snapd roadmap for beta",
+    )
+    if variant == "security":
+        checklist = checklist + GITHUB_TARBALL_STEPS
     return TaskSpec(
         summary="Build and upload BETA snapd snaps",
-        checklist=(
-            "Push the version git tag",
-            "Open and merge the changelog PR against master",
-            "Build snapd snaps on Launchpad (including FIPS)",
-            "Verify the FIPS snap loads the FIPS provider on a FIPS-enabled system",
-            "Promote revisions to latest/beta",
-            "Promote FIPS revisions to fips-updates/beta",
-            "Close the GitHub milestone for this release",
-            "Notify snapd QA and the certification tester",
-            "Update the snapd roadmap for beta",
-        ),
+        checklist=checklist,
         points=2,
     )
 
@@ -319,8 +330,7 @@ def task_debs():
         summary="Build and upload snapd debs",
         checklist=(
             "Build snapd debs for each target series",
-            "Create source tarballs with release-tools/repack-debian-tarball.sh",
-            "Create a draft GitHub release and upload tarballs",
+            *GITHUB_TARBALL_STEPS,
             "Upload to a test PPA and run autopkgtests",
             "Upload to ppa:snappy-dev/image",
             "Set the SRU bug series status to in progress",
@@ -1463,7 +1473,7 @@ def print_help(out=None):
         ("      --security", "Treat X.YY.X as a security release"),
         (
             "      --team string",
-            "Non-cross-distro team: IOT (default), Desktop, Cross-distro",
+            "Non-cross-distro team: IoT (default), Desktop, Cross-distro",
         ),
         (
             "      --lts-targets strings",

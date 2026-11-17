@@ -491,6 +491,22 @@ class TestTaskTitles(unittest.TestCase):
             checklist.index(verify),
             checklist.index("Promote FIPS revisions to fips-updates/beta"),
         )
+        for step in crt.GITHUB_TARBALL_STEPS:
+            self.assertNotIn(step, checklist)
+
+    def test_security_beta_snaps_creates_tarballs_and_draft_release(self):
+        plan = sample_plan(variant="security", version="2.77.X")
+        beta = next(
+            task
+            for task in plan.tasks
+            if task.summary == "Security: Build and upload BETA snapd snaps"
+        )
+        self.assertEqual(
+            list(beta.checklist[-2:]),
+            list(crt.GITHUB_TARBALL_STEPS),
+        )
+        self.assertNotIn("Upload to a test PPA and run autopkgtests", beta.checklist)
+        self.assertNotIn("Upload to ppa:snappy-dev/image", beta.checklist)
 
     def test_qa_beta_validation_criteria(self):
         plan = sample_plan()
@@ -549,7 +565,9 @@ class TestTaskTitles(unittest.TestCase):
 
     def test_parse_team_maps_short_and_full_names(self):
         self.assertEqual(crt.parse_team(None), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("IoT"), crt.DEFAULT_TEAM)
         self.assertEqual(crt.parse_team("IOT"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("Snapd IoT"), crt.DEFAULT_TEAM)
         self.assertEqual(crt.parse_team("Desktop"), crt.DESKTOP_TEAM)
         self.assertEqual(crt.parse_team("Cross-distro"), crt.CROSS_DISTRO_TEAM)
         self.assertEqual(crt.parse_team("desktop"), crt.DESKTOP_TEAM)
@@ -564,7 +582,7 @@ class TestTaskTitles(unittest.TestCase):
                 crt.parse_team(raw)
             message = str(cm.exception)
             self.assertIn(f'invalid --team "{raw}"', message)
-            self.assertIn('expected one of "IOT", "Desktop", "Cross-distro"', message)
+            self.assertIn('expected one of "IoT", "Desktop", "Cross-distro"', message)
 
     def test_parse_targets_strips_whitespace(self):
         self.assertEqual(
@@ -702,7 +720,7 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertIn("Fix Version: snapd 2.78", text)
         self.assertIn("Parent: SNAPDENG-34819", text)
         self.assertIn("Epic: Snapd Major Release 2.78", text)
-        self.assertIn("Team: Snapd IOT", text)
+        self.assertIn("Team: Snapd IoT", text)
         self.assertIn("Team: Snapd Desktop", text)
         self.assertIn("Team: SnapD Cross-distro", text)
         self.assertIn("Description:", text)
@@ -1441,7 +1459,7 @@ class TestDryRunAndApply(unittest.TestCase):
                 }
 
         issues = crt.search_jql(
-            EndlessJira(), 'Team = "Snapd IOT"', ["summary"], limit=1
+            EndlessJira(), 'Team = "Snapd IoT"', ["summary"], limit=1
         )
         self.assertEqual([issue["key"] for issue in issues], ["SNAPDENG-1"])
         self.assertEqual(len(bodies), 1)
@@ -1756,7 +1774,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn('invalid --team "SRE"', err)
-        self.assertIn('"IOT"', err)
+        self.assertIn('"IoT"', err)
         self.assertIn('"Desktop"', err)
         self.assertIn('"Cross-distro"', err)
 
@@ -1774,7 +1792,7 @@ class TestCLI(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         self.assertIn("Team: Snapd Desktop", out)
-        self.assertNotIn("Team: Snapd IOT", out)
+        self.assertNotIn("Team: Snapd IoT", out)
         self.assertIn("Team: SnapD Cross-distro", out)
 
     def test_team_flag_accepts_legacy_capitalized_alias(self):
