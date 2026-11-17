@@ -67,6 +67,7 @@ const umuSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
+// same input rules as steam - joysticks and game controllers access
 const umuSupportSteamInputUDevRules = steamSupportSteamInputUDevRules
 
 const umuSupportSteamVRUDevRules = steamSupportSteamVRUDevRules
