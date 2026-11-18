@@ -18,6 +18,7 @@ Environment:
   JIRA_API_TOKEN               Jira Cloud API token
   JIRA_EMAIL                   account email for that token
   JIRA_BASE_URL                default https://warthogs.atlassian.net
+                               Jira calls use atlassian-python-api
   MATTERMOST_NEW_ADVISORY_WEBHOOK_URL
                                incoming webhook for created tickets and for the
                                one notice when a ticket was not created
@@ -28,7 +29,6 @@ Environment:
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -44,6 +44,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 GITHUB_API = "https://api.github.com"
+JIRA_TIMEOUT_SECONDS = 60
 AUTOMATION_MARK = "advisory-tracker:"
 CHANNELS = ("mattermost",)
 NEW_ADVISORY_WEBHOOK = "MATTERMOST_NEW_ADVISORY_WEBHOOK_URL"
@@ -965,14 +966,65 @@ def _github_headers(token: str) -> dict[str, str]:
     }
 
 
-def jira_settings(env: Mapping[str, str]) -> tuple[str, str]:
+def jira_settings(env: Mapping[str, str]) -> tuple[str, str, str]:
     email = env.get("JIRA_EMAIL") or ""
     token = env.get("JIRA_API_TOKEN") or ""
     if email == "" or token == "":
         raise TrackerError("cannot reach Jira: set JIRA_EMAIL and JIRA_API_TOKEN")
     base = (env.get("JIRA_BASE_URL") or "https://warthogs.atlassian.net").rstrip("/")
-    raw = f"{email}:{token}".encode()
-    return base, "Basic " + base64.b64encode(raw).decode("ascii")
+    return base, email, token
+
+
+def connect_jira(url: str, email: str, token: str) -> Any:
+    """Return a Jira Cloud v3 client (email + API token as Basic auth)."""
+    try:
+        from atlassian.jira import JiraCloud
+    except ImportError as exc:
+        raise TrackerError(
+            "cannot import Jira Cloud client, please install atlassian-python-api"
+        ) from exc
+    return JiraCloud(
+        url,
+        username=email,
+        password=token,
+        timeout=JIRA_TIMEOUT_SECONDS,
+        api_version=3,
+    )
+
+
+def _status_code(exc: BaseException) -> int | None:
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if isinstance(status, int):
+        return status
+    return None
+
+
+def _is_requests_error(exc: BaseException) -> bool:
+    try:
+        from requests.exceptions import RequestException
+    except ImportError:
+        return False
+    return isinstance(exc, RequestException)
+
+
+def _jira_failure(exc: BaseException) -> TrackerError:
+    # The response body can echo the request. Keep it out of the summary.
+    status = _status_code(exc)
+    if status is not None:
+        return TrackerError(f"cannot call Jira: HTTP {status}", status)
+    return TrackerError(f"cannot reach Jira: {exc.__class__.__name__}")
+
+
+def _call_jira(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    try:
+        return method(*args, **kwargs)
+    except TrackerError:
+        raise
+    except Exception as exc:
+        if _status_code(exc) is None and not _is_requests_error(exc):
+            raise
+        raise _jira_failure(exc) from exc
 
 
 def _json_bytes(payload: Mapping[str, Any] | None) -> bytes | None:
@@ -997,15 +1049,16 @@ class Tracker:
         env: Mapping[str, str],
         client: HttpClient,
         now: datetime,
+        jira: Any,
         name_source: Callable[[], str] | None = None,
     ) -> None:
         self.config = config
         self.env = env
         self.client = client
+        self.jira = jira
         self.now = now
         self.name_source = name_source or petname_words
         self.repo = repository_name(env)
-        self.base, self.auth = jira_settings(env)
         self.token = github_token(env)
         self.permissions = permissions_from_env(env)
 
@@ -1033,31 +1086,6 @@ class Tracker:
             raise TrackerError(
                 f"cannot update advisory summary: HTTP {result.status}", result.status
             )
-
-    def jira(
-        self,
-        method: str,
-        path: str,
-        payload: Mapping[str, Any] | None = None,
-        ok: tuple[int, ...] = (200, 201, 204),
-    ) -> Any:
-        result = self.client.request(
-            method,
-            self.base + path,
-            {
-                "Authorization": self.auth,
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "User-Agent": "snapd-advisory-tracker",
-            },
-            _json_bytes(payload),
-        )
-        if result.status not in ok:
-            raise TrackerError(
-                f"cannot call Jira {method} {path}: HTTP {result.status}",
-                result.status,
-            )
-        return _decode_json(result)
 
     def fetch_advisories(self) -> list[dict[str, Any]]:
         url = f"{GITHUB_API}/repos/{self.repo}/security-advisories?per_page=100"
@@ -1097,7 +1125,9 @@ class Tracker:
             }
             if page_token:
                 payload["nextPageToken"] = page_token
-            result = self.jira("POST", "/rest/api/3/search/jql", payload)
+            result = _call_jira(
+                self.jira.search_and_reconsile_issues_using_jql_post, data=payload
+            )
             if not isinstance(result, dict):
                 raise TrackerError("cannot search Jira: response was not an object")
             batch = result.get("issues") or []
@@ -1113,14 +1143,13 @@ class Tracker:
         raise TrackerError("cannot search Jira: pagination did not end")
 
     def get_issue(self, key: str) -> Issue:
-        fields = ",".join(ISSUE_FIELDS)
-        payload = self.jira("GET", f"/rest/api/3/issue/{key}?fields={fields}")
+        payload = _call_jira(self.jira.get_issue, key, fields=",".join(ISSUE_FIELDS))
         if not isinstance(payload, dict):
             raise TrackerError(f"cannot read Jira issue {key}")
         return issue_from_json(payload)
 
     def create(self, fields: Mapping[str, Any]) -> Issue:
-        payload = self.jira("POST", "/rest/api/3/issue", {"fields": dict(fields)})
+        payload = _call_jira(self.jira.create_issue, data={"fields": dict(fields)})
         if not isinstance(payload, dict) or not isinstance(payload.get("key"), str):
             raise TrackerError(
                 "cannot create Jira issue: response did not include a key"
@@ -1470,10 +1499,13 @@ def execute(
     command: str,
     dry_run: bool = False,
     name_source: Callable[[], str] | None = None,
+    jira: Any = None,
 ) -> Report:
     if command not in {"summary", "sync"}:
         raise TrackerError(f"cannot run advisory tracker: unknown command {command}")
-    tracker = Tracker(config, env, client, now, name_source)
+    if jira is None:
+        jira = connect_jira(*jira_settings(env))
+    tracker = Tracker(config, env, client, now, jira, name_source)
     mode = "summary" if command == "summary" else "dry-run" if dry_run else "apply"
     advisories = tracker.fetch_advisories()
     children = tracker.search(f"parent = {config.parent_key}")

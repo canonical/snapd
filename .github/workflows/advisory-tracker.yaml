@@ -15,8 +15,8 @@ name: advisory tracker
 # repository contents.
 # Advisory reads and summary updates prefer SNAPD_ADVISORY_GITHUB_TOKEN, which
 # needs write access to repository security advisories when a codename is
-# applied. Jira uses JIRA_EMAIL and JIRA_API_TOKEN. New codenames come from
-# the petname package.
+# applied. Jira uses JIRA_EMAIL and JIRA_API_TOKEN through atlassian-python-api.
+# New codenames come from the petname package.
 
 on:
   schedule:
@@ -127,6 +127,10 @@ jobs:
               echo
               echo "Sync was skipped. A scheduled run skips when \`ADVISORY_TRACKER_CREATE\` and \`ADVISORY_TRACKER_NOTIFY\` are both unset. Set each repository variable to \`true\` to allow that write. Dispatch this workflow with action \`sync\` and \`apply\` set to write what those variables allow. Dispatch \`dry-run\` to report those writes. Dispatch \`summary\` for a read-only overview."
           } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Install Jira client
+        if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
+        run: python3 -m pip install --user atlassian-python-api
 
       - name: Install petname
         if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'

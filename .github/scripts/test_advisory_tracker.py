@@ -2,9 +2,11 @@
 
 import json
 import os
+import sys
 import tempfile
 import unittest
 from datetime import UTC, datetime
+from unittest.mock import patch
 
 import advisory_tracker as tracker
 
@@ -22,6 +24,23 @@ RUN_LINK = "https://github.com/canonical/snapd/actions/runs/4242"
 NOT_CREATED_TEXT = (
     "advisory-tracker: a Jira ticket was not created\n" f"Link: {RUN_LINK}"
 )
+
+
+class _Response:
+    def __init__(self, status, text):
+        self.status_code = status
+        self.text = text
+
+
+class JiraHTTPError(Exception):
+    def __init__(self, status, body=b""):
+        super().__init__(f"HTTP {status}")
+        text = body.decode() if isinstance(body, bytes) else str(body)
+        self.response = _Response(status, text)
+
+
+def _jira_http_error(status, body=b""):
+    return JiraHTTPError(status, body or b"")
 _PETNAME_DIR = None
 
 
@@ -148,6 +167,7 @@ class FakeClient(tracker.HttpClient):
         self.create_error_body = None
         self.omit_create_key = False
         self.search_page_size = None
+        self.created = []
         self.updates = []
         self.next_number = 500
 
@@ -165,7 +185,7 @@ class FakeClient(tracker.HttpClient):
                 status = 500
             payload = b"ok" if status < 300 else b"no"
             return tracker.HttpResult(status, {}, payload)
-        return self._jira(method, url, body)
+        return tracker.HttpResult(404, {}, b'{"errorMessages":["not found"]}')
 
     def _github(self, method, url, body):
         if method == "PATCH":
@@ -190,24 +210,29 @@ class FakeClient(tracker.HttpClient):
             )
         return tracker.HttpResult(200, {}, json.dumps(self.extra_advisories).encode())
 
-    def _jira(self, method, url, body):
-        path = url.split("warthogs.atlassian.net", 1)[-1].split("?", 1)[0]
-        payload = json.loads(body.decode()) if body else {}
-        if method == "POST" and path == "/rest/api/3/search/jql":
-            token = payload.get("nextPageToken") or ""
-            return self._json(self._search(payload["jql"], token))
-        if method == "POST" and path == "/rest/api/3/issue":
-            if self.create_status is not None:
-                raw = self.create_error_body or b'{"errorMessages":["no"]}'
-                return tracker.HttpResult(self.create_status, {}, raw)
-            return self._json(self._create(payload["fields"]), 201)
-        if method == "GET" and path.startswith("/rest/api/3/issue/"):
-            key = path.rstrip("/").split("/")[-1]
-            for issue in self.catalog:
-                if issue["key"] == key:
-                    return self._json(issue)
-            return tracker.HttpResult(404, {}, b'{"errorMessages":["missing"]}')
-        return tracker.HttpResult(404, {}, b'{"errorMessages":["not found"]}')
+    def search_and_reconsile_issues_using_jql_post(self, data=None, **kwargs):
+        del kwargs
+        payload = data or {}
+        token = payload.get("nextPageToken") or ""
+        return self._search(payload["jql"], token)
+
+    def get_issue(self, issue_id_or_key, fields=None, **kwargs):
+        del fields, kwargs
+        for issue in self.catalog:
+            if issue["key"] == issue_id_or_key:
+                return issue
+        raise _jira_http_error(404)
+
+    def create_issue(self, data=None, **kwargs):
+        del kwargs
+        if self.create_status is not None:
+            raise _jira_http_error(self.create_status, self.create_error_body)
+        fields = dict((data or {}).get("fields") or {})
+        self.created.append(fields)
+        if self.omit_create_key:
+            return {"id": "100"}
+        created = self._create(fields)
+        return {"id": created["id"], "key": created["key"]}
 
     def _search(self, jql, page_token=""):
         if "parent =" in jql:
@@ -236,8 +261,6 @@ class FakeClient(tracker.HttpClient):
         return result
 
     def _create(self, fields):
-        if self.omit_create_key:
-            return {"id": "100"}
         key = f"SNAPDENG-{self.next_number}"
         self.next_number += 1
         issue = jira_issue(
@@ -275,6 +298,7 @@ def run(
         command,
         dry_run,
         name_source,
+        jira=client,
     )
 
 
@@ -287,12 +311,7 @@ def mattermost_texts(client):
 
 
 def created_fields(client):
-    found = []
-    for method, url, body in client.calls:
-        path = url.split("?", 1)[0]
-        if method == "POST" and path.endswith("/rest/api/3/issue"):
-            found.append(json.loads(body.decode())["fields"])
-    return found
+    return client.created
 
 
 class AdvisoryTrackerTests(unittest.TestCase):
@@ -307,6 +326,12 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(config.notify["created"], ("mattermost",))
         self.assertEqual(config.notify["not_created"], ("mattermost",))
         self.assertNotIn("state_map", config.__dict__)
+
+    def test_missing_jira_client_names_the_package(self):
+        with patch.dict(sys.modules, {"atlassian.jira": None}):
+            with self.assertRaises(tracker.TrackerError) as caught:
+                tracker.connect_jira("https://jira.example", "a@b.c", "token")
+        self.assertIn("atlassian-python-api", str(caught.exception))
 
     def test_unknown_channel_is_rejected(self):
         with open(CONFIG_PATH, encoding="utf-8") as handle:
