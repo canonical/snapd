@@ -532,6 +532,18 @@ class AdvisoryTrackerTests(unittest.TestCase):
         run(client)
         self.assertEqual(created_fields(client)[0]["priority"], {"name": "Medium"})
 
+    def test_petname_alone_does_not_claim_another_ticket(self):
+        advisory = sample_advisory(EMBER, "pins a map (Quiet Lantern)")
+        client = FakeClient([advisory], [anchor()])
+        report = run(client)
+        self.assertEqual(report.advisories[0].action, "created")
+        self.assertEqual(report.advisories[0].issue_key, "SNAPDENG-500")
+        self.assertNotIn("SNAPDENG-10", report.advisories[0].issue_keys)
+        self.assertEqual(
+            created_fields(client)[0]["summary"], f"Quiet Lantern: {EMBER}"
+        )
+        self.assertEqual(client.edits, [])
+
     def test_existing_reference_is_not_created_again(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
         client = FakeClient(

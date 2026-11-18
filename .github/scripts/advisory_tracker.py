@@ -1260,7 +1260,7 @@ def issue_references(issue: Issue, ghsa_id: str) -> bool:
 
 
 def _find_matches(
-    tracker: Tracker, children: list[Issue], ghsa_id: str, codename: str | None
+    tracker: Tracker, children: list[Issue], ghsa_id: str
 ) -> list[Issue]:
     jql = (
         f'project = "{tracker.config.project_key}" AND '
@@ -1269,18 +1269,11 @@ def _find_matches(
     parent_key = tracker.config.parent_key
     found = list(children)
     found.extend(tracker.search(jql))
-    matches = [
+    return [
         issue
         for issue in found
         if issue.key != parent_key and issue_references(issue, ghsa_id)
     ]
-    if codename:
-        matches.extend(
-            issue
-            for issue in children
-            if issue.key != parent_key and issue.summary == codename
-        )
-    return matches
 
 
 def outside_parent_error(ghsa_id: str, outside: list[Issue], parent_key: str) -> str:
@@ -1543,7 +1536,7 @@ def _process(
         return
     named_on_advisory = row.codename is not None
     _primary, related = select_issues(
-        _find_matches(tracker, children, row.ghsa_id, row.codename),
+        _find_matches(tracker, children, row.ghsa_id),
         tracker.config.parent_key,
         row.codename,
     )
