@@ -76,7 +76,8 @@ runs:
 
     - name: Build snapd snap
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
-      uses: canonical/craft-actions/snapcraft/pack@v1
+      # v1.1.0
+      uses: canonical/craft-actions/snapcraft/pack@5d072661cd0e3a60ad1b79d6ba93db88344e2b5b
       with:
         channel: 8.x/stable
         verbosity: verbose
