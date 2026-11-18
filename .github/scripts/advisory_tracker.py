@@ -19,6 +19,8 @@ Environment, all read from the process environment:
   JIRA_EMAIL                   Jira account email
   JIRA_API_TOKEN               API token for that account
   JIRA_BASE_URL                default https://warthogs.atlassian.net
+  JIRA_BUG_LINK_FIELD          custom field id for Bug Link; looked up by name
+                               when unset
   MATTERMOST_NEW_ADVISORY_WEBHOOK_URL
                                full incoming webhook; POST {"text": ...}
   ADVISORY_TRACKER_CREATE      the string true allows Jira bug creation
@@ -57,6 +59,8 @@ GITHUB_TIMEOUT_SECONDS = 60
 ADVISORY_LIMIT = 2000
 AUTOMATION_MARK = "advisory-tracker:"
 CHANNELS = ("mattermost",)
+BUG_LINK_FIELD_NAME = "Bug Link"
+BUG_LINK_FIELD_ENV = "JIRA_BUG_LINK_FIELD"
 NEW_ADVISORY_WEBHOOK = "MATTERMOST_NEW_ADVISORY_WEBHOOK_URL"
 NOTIFY_EVENTS = ("created", "not_created")
 ISSUE_FIELDS = (
@@ -160,6 +164,7 @@ class Issue:
     assignee_name: str | None = None
     reporter_id: str | None = None
     reporter_name: str | None = None
+    bug_link: str | None = None
 
 
 @dataclass
@@ -789,7 +794,42 @@ def account_identity(value: Any) -> tuple[str | None, str | None]:
     return account_id, display
 
 
-def issue_from_json(payload: Mapping[str, Any]) -> Issue:
+def bug_link_field_id(jira: Any, env: Mapping[str, str]) -> str:
+    override = (env.get(BUG_LINK_FIELD_ENV) or "").strip()
+    if override:
+        return override
+    fields = _call_jira(jira.get_fields)
+    if not isinstance(fields, list):
+        raise TrackerError(
+            'cannot find Jira field "Bug Link"; '
+            f"set {BUG_LINK_FIELD_ENV} to the customfield id"
+        )
+    matches = [
+        field.get("id")
+        for field in fields
+        if isinstance(field, dict) and field.get("name") == BUG_LINK_FIELD_NAME
+    ]
+    found = [field_id for field_id in matches if isinstance(field_id, str)]
+    if not found:
+        raise TrackerError(
+            'cannot find Jira field "Bug Link"; '
+            f"set {BUG_LINK_FIELD_ENV} to the customfield id"
+        )
+    return found[0]
+
+
+def _bug_link_value(fields: Mapping[str, Any], field_id: str) -> str | None:
+    if field_id == "":
+        return None
+    value = fields.get(field_id)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def issue_from_json(
+    payload: Mapping[str, Any], bug_link_field: str = ""
+) -> Issue:
     key = payload.get("key")
     fields = payload.get("fields")
     if not isinstance(key, str) or not isinstance(fields, dict):
@@ -845,6 +885,7 @@ def issue_from_json(payload: Mapping[str, Any]) -> Issue:
         assignee_name=assignee_name,
         reporter_id=reporter_id,
         reporter_name=reporter_name,
+        bug_link=_bug_link_value(fields, bug_link_field),
     )
 
 
@@ -934,13 +975,16 @@ def jira_priority(config: Config, severity: str) -> str:
 
 
 def create_fields(
-    config: Config, row: AdvisoryRow, advisory: Mapping[str, Any]
+    config: Config,
+    row: AdvisoryRow,
+    advisory: Mapping[str, Any],
+    bug_link_field: str,
 ) -> dict[str, Any]:
     if row.codename is None:
         raise TrackerError(
             f"cannot create a ticket for {row.ghsa_id}: missing codename"
         )
-    return {
+    fields: dict[str, Any] = {
         "project": {"key": config.project_key},
         "parent": {"key": config.parent_key},
         "issuetype": {"name": config.issue_type},
@@ -949,6 +993,9 @@ def create_fields(
         "description": description_doc(row, advisory),
         "priority": {"name": jira_priority(config, row.severity)},
     }
+    if row.url != "" and bug_link_field != "":
+        fields[bug_link_field] = row.url
+    return fields
 
 
 def repository_name(env: Mapping[str, str]) -> str:
@@ -1138,6 +1185,13 @@ class Tracker:
         self.name_source = name_source or petname_words
         self.repo = repository_name(env)
         self.permissions = permissions_from_env(env)
+        self.bug_link_field = ""
+
+    def issue_field_names(self) -> list[str]:
+        names = list(ISSUE_FIELDS)
+        if self.bug_link_field != "":
+            names.append(self.bug_link_field)
+        return names
 
     def update_advisory_summary(self, ghsa_id: str, summary: str) -> None:
         repo = _call_github(self.github.get_repo, self.repo, action="update")
@@ -1174,7 +1228,7 @@ class Tracker:
             payload: dict[str, Any] = {
                 "jql": jql,
                 "maxResults": 50,
-                "fields": list(ISSUE_FIELDS),
+                "fields": self.issue_field_names(),
             }
             if page_token:
                 payload["nextPageToken"] = page_token
@@ -1187,7 +1241,9 @@ class Tracker:
             if not isinstance(batch, list):
                 raise TrackerError("cannot search Jira: issues was not a list")
             issues.extend(
-                issue_from_json(item) for item in batch if isinstance(item, dict)
+                issue_from_json(item, self.bug_link_field)
+                for item in batch
+                if isinstance(item, dict)
             )
             token = result.get("nextPageToken")
             if not isinstance(token, str) or token == "":
@@ -1196,10 +1252,12 @@ class Tracker:
         raise TrackerError("cannot search Jira: pagination did not end")
 
     def get_issue(self, key: str) -> Issue:
-        payload = _call_jira(self.jira.get_issue, key, fields=",".join(ISSUE_FIELDS))
+        payload = _call_jira(
+            self.jira.get_issue, key, fields=",".join(self.issue_field_names())
+        )
         if not isinstance(payload, dict):
             raise TrackerError(f"cannot read Jira issue {key}")
-        return issue_from_json(payload)
+        return issue_from_json(payload, self.bug_link_field)
 
     def create(self, fields: Mapping[str, Any]) -> Issue:
         payload = _call_jira(self.jira.create_issue, data={"fields": dict(fields)})
@@ -1208,6 +1266,13 @@ class Tracker:
                 "cannot create Jira issue: response did not include a key"
             )
         return self.get_issue(payload["key"])
+
+    def set_bug_link(self, key: str, url: str) -> None:
+        _call_jira(
+            self.jira.edit_issue,
+            key,
+            data={"fields": {self.bug_link_field: url}},
+        )
 
 
 def _row_from_advisory(
@@ -1300,14 +1365,20 @@ def _attach(row: AdvisoryRow, issue: Issue, related: list[Issue]) -> None:
     row.issue_status = issue.status
 
 
+def _quiet_link(url: str) -> str:
+    return f"Link: `{url}`"
+
+
 def created_message(row: AdvisoryRow, issue_key: str) -> str:
-    name = public_label(row)
-    lines = [
-        f"{issue_key} ({name}): Jira ticket created",
-        f"GitHub-Advisory: {row.ghsa_id}",
-        f"Link: {row.url}",
-    ]
-    return "\n".join([f"{AUTOMATION_MARK} new advisory detected", *lines])
+    return "\n".join(
+        [
+            f"## {AUTOMATION_MARK} new advisory detected",
+            "",
+            f"Jira ticket created: {issue_key}",
+            f"GitHub-Advisory: {row.ghsa_id}",
+            _quiet_link(row.url),
+        ]
+    )
 
 
 def run_summary_url(env: Mapping[str, str]) -> str:
@@ -1325,7 +1396,7 @@ def not_created_message(env: Mapping[str, str]) -> str:
     return "\n".join(
         [
             f"{AUTOMATION_MARK} a Jira ticket was not created",
-            f"Link: {run_summary_url(env)}",
+            _quiet_link(run_summary_url(env)),
         ]
     )
 
@@ -1476,7 +1547,11 @@ def _create_missing(
     if row.codename is None:
         row.codename = choose_codename(tracker.name_source, used)
     try:
-        issue = tracker.create(create_fields(tracker.config, row, advisory))
+        issue = tracker.create(
+            create_fields(
+                tracker.config, row, advisory, tracker.bug_link_field
+            )
+        )
     except TrackerError as exc:
         if exc.status in {401, 403}:
             raise
@@ -1487,6 +1562,30 @@ def _create_missing(
     _attach(row, issue, [issue])
     _announce_created(tracker, report, row, issue.key, writes)
     return issue
+
+
+def _ensure_bug_link(
+    tracker: Tracker,
+    report: Report,
+    row: AdvisoryRow,
+    issue: Issue,
+    writes: Permissions,
+    mode: str,
+) -> None:
+    if issue.parent_key != tracker.config.parent_key:
+        return
+    if issue.bug_link or row.url == "":
+        return
+    if not writes.create:
+        if mode == "dry-run" and tracker.permissions.create:
+            row.notifications.append("would set bug link")
+        return
+    try:
+        tracker.set_bug_link(issue.key, row.url)
+    except TrackerError as exc:
+        if exc.status in {401, 403}:
+            raise
+        _remember_error(report, row, f"{row.ghsa_id}: {exc}")
 
 
 def _process(
@@ -1524,16 +1623,20 @@ def _process(
             outside_parent_error(row.ghsa_id, outside, tracker.config.parent_key),
         )
         return
+    created_now = False
     if issue is None:
         issue = _create_missing(tracker, report, row, advisory, writes, used, mode)
         if issue is None:
             return
+        created_now = True
         related = [issue]
         row.issue_keys = [issue.key]
     else:
         _attach(row, issue, related)
         if row.action == "":
             row.action = "tracked"
+    if not created_now:
+        _ensure_bug_link(tracker, report, row, issue, writes, mode)
     if named_on_advisory:
         return
     try:
@@ -1562,6 +1665,7 @@ def execute(
     if github is None:
         github = connect_github(github_token(env))
     tracker = Tracker(config, env, client, now, jira, github, name_source)
+    tracker.bug_link_field = bug_link_field_id(jira, env)
     mode = "summary" if command == "summary" else "dry-run" if dry_run else "apply"
     advisories = tracker.fetch_advisories()
     children = tracker.search(f"parent = {config.parent_key}")

@@ -19,10 +19,11 @@ PARENT = "SNAPDENG-37541"
 EMBER = "GHSA-95j9-cvc3-mmgg"
 WILLOW = "GHSA-p962-3gwv-5ppc"
 QUIET = "GHSA-jhwq-ffw7-65j7"
+BUG_LINK_FIELD = "customfield_10050"
 NEW_ADVISORY_HOOK = "https://hooks.mattermost.test/new-advisory"
 RUN_LINK = "https://github.com/canonical/snapd/actions/runs/4242"
 NOT_CREATED_TEXT = (
-    "advisory-tracker: a Jira ticket was not created\n" f"Link: {RUN_LINK}"
+    "advisory-tracker: a Jira ticket was not created\n" f"Link: `{RUN_LINK}`"
 )
 
 
@@ -136,6 +137,7 @@ def jira_issue(
     issue_type="Bug",
     parent=PARENT,
     label=None,
+    bug_link=None,
 ):
     labels = []
     if label is not None:
@@ -154,7 +156,7 @@ def jira_issue(
                 {"type": "paragraph", "content": [{"type": "text", "text": text}]}
             ],
         }
-    return {
+    issue = {
         "key": key,
         "fields": {
             "summary": summary,
@@ -168,6 +170,9 @@ def jira_issue(
             "parent": {"key": parent} if parent else None,
         },
     }
+    if bug_link:
+        issue["fields"][BUG_LINK_FIELD] = bug_link
+    return issue
 
 
 def anchor():
@@ -191,6 +196,9 @@ class FakeClient(tracker.HttpClient):
         self.search_page_size = None
         self.created = []
         self.updates = []
+        self.edits = []
+        self.edit_status = None
+        self.jira_fields = [{"id": BUG_LINK_FIELD, "name": "Bug Link"}]
         self.next_number = 500
 
     def request(self, method, url, headers, body):
@@ -300,8 +308,26 @@ class FakeClient(tracker.HttpClient):
         )
         issue["fields"]["labels"] = list(fields["labels"])
         issue["fields"]["description"] = fields["description"]
+        link = fields.get(BUG_LINK_FIELD)
+        if isinstance(link, str) and link != "":
+            issue["fields"][BUG_LINK_FIELD] = link
         self.catalog.append(issue)
         return {"id": "100", "key": key}
+
+    def get_fields(self, **kwargs):
+        del kwargs
+        return self.jira_fields
+
+    def edit_issue(self, issue_id_or_key, data=None, **kwargs):
+        del kwargs
+        if self.edit_status is not None:
+            raise _jira_http_error(self.edit_status)
+        fields = dict((data or {}).get("fields") or {})
+        self.edits.append((issue_id_or_key, fields))
+        for issue in self.catalog:
+            if issue["key"] == issue_id_or_key:
+                issue["fields"].update(fields)
+        return None
 
 
 def run(
@@ -424,6 +450,11 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(fields[0]["issuetype"], {"name": "Bug"})
         self.assertEqual(fields[0]["priority"], {"name": "Medium"})
         self.assertEqual(fields[0]["labels"], [EMBER])
+        self.assertEqual(
+            fields[0][BUG_LINK_FIELD],
+            f"https://github.com/canonical/snapd/security/advisories/{EMBER}",
+        )
+        self.assertEqual(client.edits, [])
         self.assertNotIn("status", fields[0])
         description = tracker.adf_to_text(fields[0]["description"])
         self.assertIn(f"GitHub-Advisory: {EMBER}", description)
@@ -494,6 +525,81 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(report.advisories[0].action, "tracked")
         self.assertEqual(report.advisories[0].issue_key, "SNAPDENG-20")
         self.assertEqual(mattermost_texts(client), [])
+
+    def test_empty_bug_link_is_filled(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient(
+            [advisory],
+            [anchor(), jira_issue("SNAPDENG-20", "Ember Falcon", "Triage", EMBER)],
+        )
+        run(client)
+        self.assertEqual(
+            client.edits,
+            [
+                (
+                    "SNAPDENG-20",
+                    {
+                        BUG_LINK_FIELD: (
+                            "https://github.com/canonical/snapd"
+                            f"/security/advisories/{EMBER}"
+                        )
+                    },
+                )
+            ],
+        )
+
+    def test_existing_bug_link_is_left_alone(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        existing = jira_issue(
+            "SNAPDENG-20",
+            "Ember Falcon",
+            "Triage",
+            EMBER,
+            bug_link="https://example.test/kept",
+        )
+        client = FakeClient([advisory], [anchor(), existing])
+        run(client)
+        self.assertEqual(client.edits, [])
+        self.assertEqual(
+            existing["fields"][BUG_LINK_FIELD], "https://example.test/kept"
+        )
+
+    def test_dry_run_records_an_empty_bug_link(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient(
+            [advisory],
+            [anchor(), jira_issue("SNAPDENG-20", "Ember Falcon", "Triage", EMBER)],
+        )
+        report = run(client, dry_run=True)
+        self.assertEqual(client.edits, [])
+        self.assertIn("would set bug link", report.advisories[0].notifications)
+
+    def test_bug_link_field_override_is_used(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient([advisory], [anchor()])
+        client.jira_fields = []
+        run(client, env=environment(JIRA_BUG_LINK_FIELD="customfield_9"))
+        self.assertEqual(
+            created_fields(client)[0]["customfield_9"], advisory["html_url"]
+        )
+
+    def test_missing_bug_link_field_names_the_override(self):
+        client = FakeClient([], [anchor()])
+        client.jira_fields = []
+        with self.assertRaises(tracker.TrackerError) as caught:
+            run(client)
+        self.assertIn("JIRA_BUG_LINK_FIELD", str(caught.exception))
+
+    def test_bug_link_auth_failure_aborts(self):
+        advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
+        client = FakeClient(
+            [advisory],
+            [anchor(), jira_issue("SNAPDENG-20", "Ember Falcon", "Triage", EMBER)],
+        )
+        client.edit_status = 403
+        with self.assertRaises(tracker.TrackerError) as caught:
+            run(client)
+        self.assertEqual(caught.exception.status, 403)
 
     def test_existing_petname_is_copied_onto_the_advisory(self):
         advisory = sample_advisory(EMBER, "pins a map")
@@ -735,7 +841,13 @@ class AdvisoryTrackerTests(unittest.TestCase):
         texts = mattermost_texts(client)
         created = [text for text in texts if "new advisory detected" in text]
         self.assertEqual(len(created), 1)
-        self.assertIn("SNAPDENG-500 (Ember Falcon): Jira ticket created", created[0])
+        self.assertIn("## advisory-tracker: new advisory detected", created[0])
+        self.assertIn("Jira ticket created: SNAPDENG-500", created[0])
+        self.assertIn(
+            "Link: `https://github.com/canonical/snapd"
+            f"/security/advisories/{EMBER}`",
+            created[0],
+        )
         self.assertIn(f"GitHub-Advisory: {EMBER}", created[0])
         self.assertEqual(texts.count(NOT_CREATED_TEXT), 2)
         self.assertEqual(len(created_fields(client)), 1)
@@ -820,7 +932,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(advisory["summary"], "pins a map (Lively Willow)")
         self.assertEqual(report.advisories[0].codename, "Lively Willow")
         text = mattermost_texts(client)[0]
-        self.assertIn("SNAPDENG-500 (Lively Willow): Jira ticket created", text)
+        self.assertIn("Jira ticket created: SNAPDENG-500", text)
 
     def test_failed_advisory_rename_is_retried_without_a_second_ticket(self):
         advisory = sample_advisory(EMBER, "pins a map")
