@@ -140,7 +140,7 @@ func (ss *serialSuite) TestSerialCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
 
-	const serialMismatchErr = `serial with authority "generic" different from brand "brand1" without model assertion with serial-authority set to to allow for them`
+	const serialMismatchErr = `serial with authority "generic" different from brand "brand1" without model assertion with serial-authority set to allow for them`
 	brandID := brandDB.AuthorityID
 	brandKeyID := brandDB.KeyID
 	genericKeyID := storeDB.GenericKey.PublicKeyID()

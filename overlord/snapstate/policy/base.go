@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type basePolicy struct {
@@ -131,7 +132,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 		}
 
 		for _, si := range snapst.Sequence.SideInfos() {
-			snapInfo, err := snap.ReadInfo(name, si)
+			snapInfo, err := snap.ReadInfo(naming.InstanceName(name), si)
 			if err == nil {
 				if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget && typ != snap.TypeKernel {
 					continue

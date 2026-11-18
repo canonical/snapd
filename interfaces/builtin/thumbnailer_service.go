@@ -143,6 +143,12 @@ func (iface *thumbnailerServiceInterface) AutoConnect(plug *snap.PlugInfo, slot 
 	return true
 }
 
+func (iface *thumbnailerServiceInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// the thumbnailer service owns the well-known bus name com.canonical.Thumbnailer
+	// on the session bus; only one snap instance can hold it at a time.
+	return errParallelInstancesUniqueResourceOwner
+}
+
 func init() {
 	registerIface(&thumbnailerServiceInterface{})
 }

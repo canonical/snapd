@@ -2933,6 +2933,31 @@ func (s *storeTestSuite) TestFindFailures(c *C) {
 	c.Check(err, Equals, store.ErrBadQuery)
 }
 
+func (s *storeTestSuite) TestFindQueryWithPlus(c *C) {
+	// "+" is not special for the search server, and it appears in well known
+	// names such as Notepad++, so it must be passed through verbatim (as %2B)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", findPath)
+		c.Check(r.URL.Query().Get("q"), Equals, "notepad++")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		io.WriteString(w, "{}")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		FindFields:   []string{},
+	}
+	sto := store.New(&cfg, nil)
+
+	snaps, err := sto.Find(s.ctx, &store.Search{Query: "notepad++"}, nil)
+	c.Check(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+}
+
 func (s *storeTestSuite) TestFindInvalidScope(c *C) {
 	// bad query check is done early in Find(), so the test covers both search
 	// v1 & v2

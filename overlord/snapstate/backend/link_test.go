@@ -1143,7 +1143,7 @@ func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
 	linkTarget, err := filepath.EvalSymlinks(linkPath)
 	c.Assert(err, IsNil)
 	c.Assert(linkTarget, Equals,
-		filepath.Join(snap.ComponentsBaseDir(instanceName.String()), "mnt", compName, compRev.String()))
+		filepath.Join(snap.ComponentsBaseDir(instanceName), "mnt", compName, compRev.String()))
 }
 
 func (s *linkSuite) TestLinkComponentError(c *C) {

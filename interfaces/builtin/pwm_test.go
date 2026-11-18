@@ -166,7 +166,7 @@ func (s *PwmInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *PwmInterfaceSuite) TestSystemdConnectedSlot(c *C) {
-	spec := &systemd.Specification{}
+	spec := systemd.NewSpecification(s.gadgetPwmSlot.AppSet())
 	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
@@ -210,8 +210,4 @@ func (s *PwmInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/pwm/pwmchip10/pwm100/* rwk`)
-}
-
-func (s *PwmInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
 }

@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap"
 )
 
 func validateAssetsContent(kernelRoot string, info *Info) error {
@@ -60,12 +61,28 @@ func validateAssetsContent(kernelRoot string, info *Info) error {
 	return nil
 }
 
+func hasKernelModulesComponents(components map[string]*snap.Component) bool {
+	if len(components) == 0 {
+		return false
+	}
+
+	for _, component := range components {
+		if component.Type == snap.KernelModulesComponent {
+			return true
+		}
+	}
+	return false
+}
+
 // validateModulesTree checks the kernel snap modules tree for entries that
 // would conflict with snapd's runtime handling of the drivers tree.
-func validateModulesTree(kernelRoot string) error {
-	// The modules directory is optional; if there is none, there is nothing
-	// to validate here.
+func validateModulesTree(kernelRoot string, hasComponents bool) error {
+	// The modules directory is optional unless the snap declares components
+	// that may ship modules: the drivers tree needs a kernel version for them.
 	if _, err := os.Stat(filepath.Join(kernelRoot, "modules")); errors.Is(err, fs.ErrNotExist) {
+		if hasComponents {
+			return fmt.Errorf("kernel snap with kernel-modules components must contain a modules/<kernel-version> directory")
+		}
 		return nil
 	}
 
@@ -136,8 +153,9 @@ func validateFirmwareTree(kernelRoot string) error {
 }
 
 // Validate checks whether the given directory contains valid kernel snap
-// metadata and a matching content.
-func Validate(kernelRoot string) error {
+// metadata and matching content. Components are the declarations from the
+// kernel snap's snap.yaml.
+func Validate(kernelRoot string, components map[string]*snap.Component) error {
 	info, err := ReadInfo(kernelRoot)
 	if err != nil {
 		return fmt.Errorf("invalid kernel metadata: %v", err)
@@ -147,7 +165,7 @@ func Validate(kernelRoot string) error {
 		return err
 	}
 
-	if err := validateModulesTree(kernelRoot); err != nil {
+	if err := validateModulesTree(kernelRoot, hasKernelModulesComponents(components)); err != nil {
 		return err
 	}
 

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
@@ -248,7 +249,7 @@ func (s *postDebugSuite) TestMigrateHome(c *check.C) {
 	d := s.daemonWithOverlordMock()
 	s.expectRootAccess()
 
-	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []naming.InstanceName) ([]*state.TaskSet, error) {
 		st := state.New(nil)
 		st.Lock()
 		defer st.Unlock()
@@ -298,7 +299,7 @@ func (s *postDebugSuite) TestMigrateHomeNotInstalled(c *check.C) {
 	s.daemonWithOverlordMock()
 	s.expectRootAccess()
 
-	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []naming.InstanceName) ([]*state.TaskSet, error) {
 		return nil, snap.NotInstalledError{Snap: "some-snap"}
 	})
 	defer restore()
@@ -321,7 +322,7 @@ func (s *postDebugSuite) TestMigrateHomeInternalError(c *check.C) {
 	s.daemonWithOverlordMock()
 	s.expectRootAccess()
 
-	restore := daemon.MockSnapstateMigrate(func(*state.State, []string) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateMigrate(func(*state.State, []naming.InstanceName) ([]*state.TaskSet, error) {
 		return nil, errors.New("boom")
 	})
 	defer restore()

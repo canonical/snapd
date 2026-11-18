@@ -131,12 +131,11 @@ func (iface *displayControlInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 
 func init() {
 	registerIface(&displayControlInterface{commonInterface{
-		name:                     "display-control",
-		summary:                  displayControlSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     displayControlBaseDeclarationSlots,
-		connectedPlugAppArmor:    displayControlConnectedPlugAppArmor,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "display-control",
+		summary:               displayControlSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  displayControlBaseDeclarationSlots,
+		connectedPlugAppArmor: displayControlConnectedPlugAppArmor,
 	}})
 }

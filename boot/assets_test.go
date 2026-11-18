@@ -2276,6 +2276,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoRevocation(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	// call to observe successful boot, but the asset we booted with is unexpected
 
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
 	s.bootloaderWithTrustedAssets(map[string]string{
 		"asset": "asset",
 	})
@@ -2313,6 +2314,74 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`system booted with unexpected recovery bootloader asset "asset" hash %v`, unexpectedHash))
 	c.Assert(newM, IsNil)
 	c.Check(drop, HasLen, 0)
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootUnexpectedNoSealedKeys(c *C) {
+	// when sealed keys are not present, an unexpected asset should be ignored
+
+	s.bootloaderWithTrustedAssets(map[string]string{
+		"asset": "asset",
+	})
+
+	unexpected := []byte("unexpected")
+
+	// asset for ubuntu-boot - unexpected content
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), unexpected, 0644), IsNil)
+	// and for ubuntu-seed
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), unexpected, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"assethash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"recoveryassethash"},
+		},
+	}
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// no sealed keys, so the unexpected asset is ignored (no error)
+	newM, drop, _, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Check(logbuf.String(), testutil.Contains, "ignoring as the system is not using FDE")
+	c.Assert(newM, NotNil)
+	// trustedAssetsMap is NOT updated with the booted hash since it was unexpected
+	c.Check(newM.CurrentTrustedBootAssets, DeepEquals, m.CurrentTrustedBootAssets)
+	c.Check(newM.CurrentTrustedRecoveryBootAssets, DeepEquals, m.CurrentTrustedRecoveryBootAssets)
+	// old hashes are dropped since they were not the booted hash and not used elsewhere
+	c.Check(drop, HasLen, 2)
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootUnexpectedSealedKeysUnreadable(c *C) {
+	// when the sealed keys marker cannot be read, we cannot tell whether
+	// FDE is in use, so the unexpected asset must not be ignored
+
+	s.bootloaderWithTrustedAssets(map[string]string{
+		"asset": "asset",
+	})
+
+	// a directory in place of the marker makes reading it fail
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapFDEDirUnder(dirs.GlobalRootDir), "sealed-keys"), 0755), IsNil)
+
+	unexpected := []byte("unexpected")
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "asset"), unexpected, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "asset"), unexpected, 0644), IsNil)
+
+	m := &boot.Modeenv{
+		Mode: "run",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"assethash"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"recoveryassethash"},
+		},
+	}
+
+	_, _, _, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, ErrorMatches, "cannot determine if the system is using FDE: .*")
 }
 
 func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {

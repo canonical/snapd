@@ -59,9 +59,9 @@ jobs:
 
     - name: Install golangci-lint snap
       run: |
-          # Install version 2.13.0 on AMD.
+          # Install version 2.14.0 on AMD.
           # This workflow is not on other architectures so this is safe
-          sudo snap install --revision 622 --classic golangci-lint
+          sudo snap install --revision 639 --classic golangci-lint
 
     - name: Get changed files
       id: changed-files

@@ -1045,7 +1045,7 @@ func comparePreseedAndSeedSnaps(seedSnap *seed.Snap, preseedSnap *asserts.Presee
 	if len(expectedComps) != 0 {
 		missing := make([]string, 0, len(expectedComps))
 		for name := range expectedComps {
-			missing = append(missing, naming.NewComponentRef(seedSnap.SnapName().String(), name).String())
+			missing = append(missing, naming.NewComponentRef(seedSnap.SnapName(), name).String())
 		}
 		return fmt.Errorf("seed is missing components expected by preseed assertion: %s", strutil.Quoted(missing))
 	}

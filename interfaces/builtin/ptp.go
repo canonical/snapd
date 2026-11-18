@@ -44,13 +44,12 @@ var ptpConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "ptp",
-		summary:                  ptpSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     ptpBaseDeclarationSlots,
-		connectedPlugAppArmor:    ptpConnectedPlugAppArmor,
-		connectedPlugUDev:        ptpConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "ptp",
+		summary:               ptpSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  ptpBaseDeclarationSlots,
+		connectedPlugAppArmor: ptpConnectedPlugAppArmor,
+		connectedPlugUDev:     ptpConnectedPlugUDev,
 	})
 }

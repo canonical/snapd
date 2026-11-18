@@ -186,8 +186,10 @@ class MongoRetriever(Retriever):
     """
     Retrieves feature data from a mongodb instance at snapd.features.
     The mongodb entries should all be SystemFeatures documents with a
-    timestamp added. Use of this retriever, requires a credentials
-    json file with host, port, user, and password defined.
+    timestamp added. Coverages are stored separately in snapd.coverages,
+    one document per test, and are merged back into the tests on retrieval.
+    Use of this retriever, requires a credentials json file with host, port,
+    user, and password defined.
     """
 
     def __init__(self, creds_file, exclude: Optional[list[str]] = None):
@@ -197,6 +199,7 @@ class MongoRetriever(Retriever):
             host=config["host"], port=config["port"], username=config["user"], password=config["password"]
         )
         self.collection = self.client.snapd.features
+        self.coverage_collection = self.client.snapd.coverages
 
     def close(self):
         self.client.close()
@@ -222,6 +225,27 @@ class MongoRetriever(Retriever):
             return None
         return {feature: 0 for feature in exclude}
 
+    def _add_coverages(self, system_json: SystemFeatures) -> SystemFeatures:
+        """
+        Merges the coverages stored in the coverages collection back into the
+        tests of the system json. Documents uploaded before coverages were
+        split out have no entries there and are returned unchanged.
+        """
+        if self.exclude and "coverages" in self.exclude:
+            return system_json
+        coverages = {}
+        for doc in self.coverage_collection.find(
+            {"timestamp": system_json["timestamp"], "system": system_json["system"]}
+        ):
+            coverages[(doc.get("suite"), doc.get("task_name"), doc.get("variant"))] = doc["coverages"]
+        if not coverages:
+            return system_json
+        for test in system_json.get("tests", []):
+            key = (test.get("suite"), test.get("task_name"), test.get("variant"))
+            if key in coverages:
+                test["coverages"] = coverages[key]
+        return system_json
+
     def _get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
         projection = self._projection_for_system_features(self.exclude)
         if systems:
@@ -231,14 +255,14 @@ class MongoRetriever(Retriever):
                     projection,
                 )
                 for system_json in system_jsons:
-                    yield system_json
+                    yield self._add_coverages(system_json)
         else:
             for result in self.collection.find(
                 {"timestamp": datetime.datetime.fromisoformat(timestamp)},
                 projection,
             ):
                 if "all_features" not in result or not result["all_features"]:
-                    yield result
+                    yield self._add_coverages(result)
 
     def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         projection = self._projection_for_system_features(self.exclude)
@@ -248,7 +272,7 @@ class MongoRetriever(Retriever):
         ).to_list()
         if len(json_result) != 1:
             raise RuntimeError(f"{len(json_result)} entries of system {system} found in collection {timestamp}")
-        return json_result[0]
+        return self._add_coverages(json_result[0])
 
     def _get_all_features(self, timestamp) -> dict[str, list[Any]]:
         projection = self._projection_for_all_features(self.exclude)

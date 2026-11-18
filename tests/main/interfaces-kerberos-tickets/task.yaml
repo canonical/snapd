@@ -13,6 +13,8 @@ environment:
     KRB5CCNAME: FILE:$TICKET
     # Snap_run will overwrite the original KRB5CCNAME
     EXPECTED_KRB5CCNAME: FILE:/var/lib/snapd/hostfs/tmp/krb5cc_test
+    DIR_TICKET: /tmp/krb5cc_test_dir
+    EXPECTED_DIR_KRB5CCNAME: DIR:/var/lib/snapd/hostfs/tmp/krb5cc_test_dir
 
 prepare: |
     echo "Given a snap declaring a plug on the kerberos-tickets interface is installed"
@@ -20,10 +22,15 @@ prepare: |
 
     echo "Mock the kerberos ticket at $TICKET"
     echo "$TICKET_CONTENTS" > "$TICKET"
+    tests.cleanup defer rm -f "$TICKET"
+    mkdir -p "$DIR_TICKET"
+    tests.cleanup defer rm -rf "$DIR_TICKET"
+    echo "$TICKET_CONTENTS" > "$DIR_TICKET/tkt_foo"
+    echo "tkt_foo" > "$DIR_TICKET/primary"
 
 execute: |
     echo "KRB5CCNAME was correctly overwritten in the snap's environment."
-    kerberos-tickets-consumer | tr -s / | MATCH "KRB5CCNAME:$EXPECTED_KRB5CCNAME"
+    kerberos-tickets-consumer | MATCH "KRB5CCNAME:$EXPECTED_KRB5CCNAME"
 
     echo "The interface is disconnected by default"
     snap interfaces -i kerberos-tickets | MATCH -- '^- +kerberos-tickets-consumer:kerberos-tickets'
@@ -32,9 +39,17 @@ execute: |
     snap connect kerberos-tickets-consumer:kerberos-tickets
 
     if snap debug sandbox-features --required apparmor:kernel:file; then
-        echo "Then the snap command can rean read/write the Kerberos ticket"
+        echo "Then the snap command can read/write the Kerberos ticket"
         kerberos-tickets-consumer | MATCH "$TICKET_CONTENTS"
         kerberos-tickets-consumer | MATCH "appended contents"
+
+        echo "And it can read/write a DIR Kerberos ticket cache"
+        export KRB5CCNAME="DIR:$DIR_TICKET"
+        kerberos-tickets-consumer | MATCH "KRB5CCNAME:$EXPECTED_DIR_KRB5CCNAME"
+        kerberos-tickets-consumer | MATCH "$TICKET_CONTENTS"
+        kerberos-tickets-consumer | MATCH "appended contents"
+        test "$(cat "$DIR_TICKET/tkt_bar")" = "created contents"
+        export KRB5CCNAME="FILE:$TICKET"
 
         echo "When the plug is disconnected"
         snap disconnect kerberos-tickets-consumer:kerberos-tickets
@@ -42,6 +57,10 @@ execute: |
         echo "Then the snap command can neither read the Kerberos ticket nor write to it"
         kerberos-tickets-consumer | MATCH "cannot read ticket"
         kerberos-tickets-consumer | MATCH "cannot write to ticket"
+        export KRB5CCNAME="DIR:$DIR_TICKET"
+        kerberos-tickets-consumer | MATCH "cannot read ticket"
+        kerberos-tickets-consumer | MATCH "cannot create ticket"
+        export KRB5CCNAME="FILE:$TICKET"
 
         export KRB5CCNAME=FILE:/a/b/c
         if [ -n "$SNAPD_TRACE" ] && [ -n "$SNAPD_LOG_SNAP_TO_JOURNAL" ]; then

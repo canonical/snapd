@@ -71,13 +71,12 @@ var intelQatConnectedPlugUDev = []string{
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "intel-qat",
-		summary:                  intelQatSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     intelQatBaseDeclarationSlots,
-		connectedPlugAppArmor:    intelQatConnectedPlugAppArmor,
-		connectedPlugUDev:        intelQatConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "intel-qat",
+		summary:               intelQatSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  intelQatBaseDeclarationSlots,
+		connectedPlugAppArmor: intelQatConnectedPlugAppArmor,
+		connectedPlugUDev:     intelQatConnectedPlugUDev,
 	})
 }

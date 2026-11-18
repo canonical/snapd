@@ -173,7 +173,21 @@ func snapOrBaseAreInactive(cand *state.Task, running []*state.Task) bool {
 		return false
 	}
 
-	hooksup, snapst, err := hookSetup(cand, "hook-setup")
+	// run-hook tasks only run something on undo if they have an undo-hook-setup.
+	// The pre-refresh hook has none, so its undo just returns nil.
+	// Blocking it gains nothing and can deadlock the whole rollback.
+	setupKey := "hook-setup"
+	if status := cand.Status(); status == state.UndoStatus || status == state.UndoingStatus {
+		if !cand.Has("undo-hook-setup") {
+			// undo is a no-op, nothing can be affected by the snap being inactive
+			return false
+		}
+
+		// ensure we select the right hook
+		setupKey = "undo-hook-setup"
+	}
+
+	hooksup, snapst, err := hookSetup(cand, setupKey)
 	if err != nil || !snapst.IsInstalled() {
 		return false
 	}
@@ -426,7 +440,7 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 			}
 		} else {
 			comp, err := snapst.CurrentComponentInfo(naming.ComponentRef{
-				SnapName:      info.SnapName().String(),
+				SnapName:      info.SnapName(),
 				ComponentName: hooksup.Component,
 			})
 			if err != nil {

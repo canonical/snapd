@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -83,6 +84,10 @@ func (s *baseHandlerSuite) SetUpTest(c *C) {
 		return nil
 	})
 	s.AddCleanup(restoreSecurityProfilesDiscardLate)
+
+	s.AddCleanup(snapstate.MockValidatedIntegrityData(func(st *state.State, snapID string, rev snap.Revision) (*integrity.IntegrityDataParams, error) {
+		return nil, integrity.ErrNoIntegrityDataFoundInRevision
+	}))
 }
 
 type prepareSnapSuite struct {

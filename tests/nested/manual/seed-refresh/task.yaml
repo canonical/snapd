@@ -241,7 +241,7 @@ execute: |
   # the original seed
   assert_seed_snap_absent "${orig_seed_label}"
 
-  remote.exec 'sudo snap set core experimental.seed-refresh=true'
+  tests.nested enable-wip-features seed-refresh
 
   revision=2
   make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/${base_snap}.snap" "./${base_snap}-rev${revision}.snap" "${base_id}" "${revision}"

@@ -123,7 +123,6 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     microcephSupportBaseDeclarationSlots,
 		baseDeclarationPlugs:     microcephSupportBaseDeclarationPlugs,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

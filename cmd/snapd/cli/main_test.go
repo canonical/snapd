@@ -289,6 +289,65 @@ func (s *SnapSuite) TestUnknownCommand(c *C) {
 	c.Assert(err, ErrorMatches, `unknown command "unknowncmd", see 'snap help'.`)
 }
 
+func (s *SnapSuite) TestUnknownCommandSuggestion(c *C) {
+	restore := mockArgs("snap", "instal")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "instal", did you mean "install"\?\nSee 'snap help'\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionSub(c *C) {
+	restore := mockArgs("snap", "debug", "stat")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "stat", did you mean "state"\?\nSee 'snap help debug'\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionNested(c *C) {
+	restore := mockArgs("snap", "debug", "execution", "internal-tol")
+	defer restore()
+
+	// suggestions come from the sub-commands of "execution" and the help
+	// path covers the whole command chain
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "internal-tol", did you mean "internal-tool"\?\nSee 'snap help debug execution'\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionNestedSibling(c *C) {
+	restore := mockArgs("snap", "debug", "execution", "stat")
+	defer restore()
+
+	// "state" is a sub-command of "debug" and close to the typo, but it
+	// is not a valid sub-command of "execution", so nothing is suggested
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "stat", see 'snap help debug execution'\.`)
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionTransposition(c *C) {
+	// a transposition of two adjacent characters is a single edit
+	for _, tc := range []struct{ typo, name string }{
+		{"debgu", "debug"},
+		{"akc", "ack"},
+	} {
+		restore := mockArgs("snap", tc.typo)
+		defer restore()
+
+		err := snap.RunMain()
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`unknown command %q, did you mean %q\?\nSee 'snap help'\.`, tc.typo, tc.name))
+	}
+}
+
+func (s *SnapSuite) TestUnknownCommandSuggestionAlias(c *C) {
+	restore := mockArgs("snap", "chage", "42")
+	defer restore()
+
+	// "change" is an alias of "tasks" and a closer match than "changes"
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `unknown command "chage", did you mean "change"\?\nSee 'snap help'\.`)
+}
+
 func (s *SnapSuite) TestNoCommandWithArgs(c *C) {
 	for _, args := range [][]string{
 		{"snap", "--foo"},

@@ -109,10 +109,6 @@ execute: |
             if [ "$SNAP_REEXEC" = 0 ]; then
                 MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
                 MATCH 'internal: false' < snap-apparmor-default.out
-
-                # when forced to reexec, we're using vendored apparmor
-                MATCH 'internal: true' < snap-apparmor-force-reexec.out
-                MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
                 MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/5\.0' < snap-apparmor-default.out
@@ -130,9 +126,18 @@ execute: |
 
             echo "Checking AppArmor (forced reexec)"
             if [ "$SNAP_REEXEC" = 0 ]; then
-                # with native package and when forced to reexec, we're using vendored apparmor
-                MATCH 'internal: true' < snap-apparmor-force-reexec.out
-                MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
+                case "$SPREAD_SYSTEM" in
+                    debian-sid-*)
+                        # Debian Sid disables the vendored parser in its native package.
+                        MATCH 'apparmor-parser: /usr/sbin/apparmor_parser' < snap-apparmor-force-reexec.out
+                        MATCH 'internal: false' < snap-apparmor-force-reexec.out
+                        ;;
+                    *)
+                        # Other native packages use vendored AppArmor on forced reexec.
+                        MATCH 'internal: true' < snap-apparmor-force-reexec.out
+                        MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
+                        ;;
+                esac
             else
                 # but when using the snapd snap there's no difference
                 MATCH 'internal: true' < snap-apparmor-force-reexec.out
@@ -210,4 +215,3 @@ execute: |
             MATCH 'snap-update-ns: /usr/lib(exec)?/snapd/snap-update-ns' < snap-uns-default.out
             ;;
     esac
-

@@ -204,10 +204,6 @@ func (iface *hidrawInterface) hasUsbAttrs(attrs interfaces.Attrer) bool {
 	return false
 }
 
-func (iface *hidrawInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) error {
-	return parallelInstancesSystemOrGadgetSlotErr(slot)
-}
-
 func init() {
 	registerIface(&hidrawInterface{})
 }

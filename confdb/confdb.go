@@ -218,6 +218,8 @@ type Databag interface {
 	Set(path []Accessor, value any) error
 	Unset(path []Accessor) error
 	Data() ([]byte, error)
+	// PruneEmpty removes every empty map or list in the databag.
+	PruneEmpty() error
 }
 
 type Visibility uint
@@ -813,7 +815,6 @@ func validateRequestStoragePair(request, storage string) (reqAccessors []Accesso
 		return nil, nil, fmt.Errorf("invalid request %q: %w", request, err)
 	}
 
-	opts.ForbidIndexes = false
 	storageAccessors, err = ParsePathIntoAccessors(storage, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid storage %q: %w", storage, err)
@@ -1189,6 +1190,8 @@ var maxValueDepth = 64
 // validateSetValue performs some basic checks on the value being set:
 //   - map keys conform to the path sub-key regex
 //   - containers must contain a scalar either directly or indirectly
+//   - lists cannot contain null values, since they can only be used to unset
+//     list elements which can change the meaning of subsequent writes.
 //   - nestedness is limited.
 func validateSetValue(initial any) error {
 	for depth, values := 1, []any{initial}; len(values) > 0; depth++ {
@@ -1203,6 +1206,13 @@ func validateSetValue(initial any) error {
 				if len(typed) == 0 {
 					return fmt.Errorf(`cannot set empty container: must contain at least one scalar`)
 				}
+
+				for _, el := range typed {
+					if el == nil {
+						return fmt.Errorf(`cannot set null value in list`)
+					}
+				}
+
 				values = append(values, typed...)
 			case map[string]any:
 				if len(typed) == 0 {
@@ -1305,6 +1315,12 @@ func (v *View) Set(databag Databag, request string, value any) error {
 		}
 	}
 
+	// remove the containers left empty by the databag Sets. This cannot be done
+	// in the databag methods because list item removals can impact subsequent writes.
+	if err := databag.PruneEmpty(); err != nil {
+		return err
+	}
+
 	data, err := databag.Data()
 	if err != nil {
 		return err
@@ -1379,17 +1395,24 @@ func (v *View) Unset(databag Databag, request string) error {
 			return err
 		}
 
-		data, err := databag.Data()
-		if err != nil {
-			return err
-		}
+	}
 
-		// TODO: when using a transaction, the data only changes on commit so
-		// this is a bit of a waste. Maybe cache the result so we only do the first
-		// validation and then in viewstate on Commit
-		if err := v.schema.DatabagSchema.Validate(data); err != nil {
-			return fmt.Errorf(`cannot unset data: %w`, err)
-		}
+	// remove the containers left empty by the databag Sets. This cannot be done
+	// in the databag methods because list item removals can impact subsequent writes.
+	if err := databag.PruneEmpty(); err != nil {
+		return err
+	}
+
+	data, err := databag.Data()
+	if err != nil {
+		return err
+	}
+
+	// TODO: when using a transaction, the data only changes on commit so this is
+	// a bit of a waste. Maybe cache the result so we only do the first validation
+	// and then in viewstate on Commit
+	if err := v.schema.DatabagSchema.Validate(data); err != nil {
+		return fmt.Errorf(`cannot unset data: %w`, err)
 	}
 
 	return nil
@@ -1535,15 +1558,21 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), KeyPlaceholderType, newKey(cand, nil))
 				nestedPathValuePairs, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], candVal)
 				if err != nil {
+					if errors.Is(err, &NoDataError{}) {
+						// this key has no data for the remaining suffix so the value at
+						// the corresponding path is removed
+						pathValuePairs = append(pathValuePairs, pathValuePair{path: newStoragePath})
+						continue
+					}
 					return nil, err
 				}
 
-				for _, pathValue := range nestedPathValuePairs {
-					pathValuePairs = append(pathValuePairs, pathValuePair{
-						path:  pathValue.path,
-						value: pathValue.value,
-					})
-				}
+				pathValuePairs = append(pathValuePairs, nestedPathValuePairs...)
+			}
+
+			if len(pathValuePairs) == 0 {
+				// the value has no keys to fill the placeholder with
+				return nil, &NoDataError{}
 			}
 			return pathValuePairs, nil
 
@@ -1576,17 +1605,22 @@ func getValuesThroughPathsImpl(storagePath []Accessor, unmatchedSuffix []Accesso
 				newStoragePath := replaceAccessorWith(storagePath, unmatchedPart.Name(), IndexPlaceholderType, cand)
 				nestedPathValuePairs, err := getValuesThroughPathsImpl(newStoragePath, unmatchedSuffix[unmatchedIndex+1:], el)
 				if err != nil {
+					if errors.Is(err, &NoDataError{}) {
+						// this element has no data for the remaining suffix so the value
+						// at the corresponding path is removed
+						pathValuePairs = append(pathValuePairs, pathValuePair{path: newStoragePath})
+						continue
+					}
 					return nil, err
 				}
 
-				for _, pathValue := range nestedPathValuePairs {
-					pathValuePairs = append(pathValuePairs, pathValuePair{
-						path:  pathValue.path,
-						value: pathValue.value,
-					})
-				}
+				pathValuePairs = append(pathValuePairs, nestedPathValuePairs...)
 			}
 
+			if len(pathValuePairs) == 0 {
+				// the value has no elements to fill the placeholder with
+				return nil, &NoDataError{}
+			}
 			return pathValuePairs, nil
 
 		case ListIndexType:
@@ -3008,6 +3042,83 @@ func removeNilValues(value any) any {
 	return level
 }
 
+// PruneEmpty removes empty lists and maps left empty by previous set/unset
+// operations (see the comment in view.Set for why this must happen).
+func (s JSONDatabag) PruneEmpty() error {
+	for k, v := range s {
+		pruned, err := removeEmptyContainers(v)
+		if err != nil {
+			return err
+		}
+
+		if pruned == nil {
+			delete(s, k)
+		} else {
+			s[k] = pruned
+		}
+	}
+
+	return nil
+}
+
+func removeEmptyContainers(raw json.RawMessage) (json.RawMessage, error) {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		if !errors.As(err, new(*json.UnmarshalTypeError)) {
+			return nil, err
+		}
+	} else if obj != nil {
+		for k, v := range obj {
+			pruned, err := removeEmptyContainers(v)
+			if err != nil {
+				return nil, err
+			}
+
+			if pruned == nil {
+				delete(obj, k)
+			} else {
+				obj[k] = pruned
+			}
+		}
+
+		if len(obj) == 0 {
+			return nil, nil
+		}
+		return json.Marshal(obj)
+	}
+
+	var list []json.RawMessage
+	if err := json.Unmarshal(raw, &list); err != nil {
+		if !errors.As(err, new(*json.UnmarshalTypeError)) {
+			return nil, err
+		}
+	} else if list != nil {
+		wi := 0
+		for _, v := range list {
+			pruned, err := removeEmptyContainers(v)
+			if err != nil {
+				return nil, err
+			}
+
+			if pruned == nil {
+				// drop the element that holds no data
+				continue
+			}
+			list[wi] = pruned
+			wi++
+		}
+
+		list = list[:wi]
+		if len(list) == 0 {
+			return nil, nil
+		}
+		return json.Marshal(list)
+	}
+
+	// not a container so leave it as is
+	return raw, nil
+}
+
 func set(accessors []Accessor, index int, node any, value any) (json.RawMessage, error) {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
@@ -3173,24 +3284,31 @@ func unset(accessors []Accessor, index int, node any) (json.RawMessage, error) {
 }
 
 func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
-	acc := accessors[index]
+	// NOTE: we don't remove the entire map even if we left it empty because that
+	// might impact matched set/unsets of subsequent list that may contain this.
+	// This is pruned after all matches are serviced (see view.Set/Unset)
 
+	acc := accessors[index]
 	pathPrefix := JoinAccessors(accessors[:index])
 	if acc.Type() != MapKeyType && acc.Type() != KeyPlaceholderType {
 		return nil, fmt.Errorf("cannot use %q to access map at path %q", acc.Access(), pathPrefix)
 	}
 
 	if index == len(accessors)-1 {
-		if acc.Type() == KeyPlaceholderType || (len(node) == 1 && node[acc.Name()] != nil) {
-			// remove entire level. We still need to iterate and delete() because the
-			// top level is always non-nil so returning nil isn't enough
-			for k := range node {
-				delete(node, k)
+		if acc.Type() == KeyPlaceholderType {
+			if index == 0 {
+				// if we're unsetting the top level we can't replace the entire object, we
+				// must unset each key
+				for k := range node {
+					delete(node, k)
+				}
+			} else {
+				// for any other level, it's more efficient to replace the map entirely
+				node = map[string]json.RawMessage{}
 			}
-			return nil, nil
+		} else {
+			delete(node, acc.Name())
 		}
-
-		delete(node, acc.Name())
 		return json.Marshal(node)
 	}
 
@@ -3210,12 +3328,8 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) 
 			return err
 		}
 
-		// update the map with the sublevel which may have changed or been removed
-		if updated == nil {
-			delete(level, key)
-		} else {
-			level[key] = updated
-		}
+		// update the map with the sublevel which may have changed
+		level[key] = updated
 
 		return nil
 	}
@@ -3232,15 +3346,14 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) 
 		}
 	}
 
-	if len(node) == 0 {
-		return nil, nil
-	}
 	return json.Marshal(node)
 }
 
 func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json.RawMessage, error) {
+	// NOTE: we don't remove the entire list even if we left it empty because
+	// that might impact matched set/unsets of subsequent list items. This is
+	// pruned after all matches are serviced (see view.Set/Unset)
 	acc := accessors[accIndex]
-
 	pathPrefix := JoinAccessors(accessors[:accIndex])
 	if acc.Type() != ListIndexType && acc.Type() != IndexPlaceholderType {
 		return nil, fmt.Errorf("cannot use %q to index list at path %q", acc.Access(), pathPrefix)
@@ -3248,17 +3361,13 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json
 
 	if accIndex == len(accessors)-1 {
 		if acc.Type() == IndexPlaceholderType {
-			// remove entire level
-			return nil, nil
+			node = node[:0]
+			return json.Marshal(node)
 		}
 
 		i, _ := strconv.Atoi(acc.Name())
 		if i < len(node) {
 			node = append(node[:i], node[i+1:]...)
-		}
-
-		if len(node) == 0 {
-			return nil, nil
 		}
 
 		return json.Marshal(node)
@@ -3274,22 +3383,14 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json
 	}
 
 	if acc.Type() == IndexPlaceholderType {
-		var wi int
 		for i := range node {
 			updated, err := unsetIndex(node, i)
 			if err != nil {
 				return nil, err
 			}
 
-			if updated == nil {
-				continue
-			}
-
-			node[wi] = updated
-			wi++
+			node[i] = updated
 		}
-
-		node = node[:wi]
 	} else {
 		i, _ := strconv.Atoi(acc.Name())
 		if i >= len(node) {
@@ -3302,15 +3403,7 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json
 			return nil, err
 		}
 
-		if updated == nil {
-			node = append(node[:i], node[i+1:]...)
-		} else {
-			node[i] = updated
-		}
-	}
-
-	if len(node) == 0 {
-		return nil, nil
+		node[i] = updated
 	}
 
 	return json.Marshal(node)

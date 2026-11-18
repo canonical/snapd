@@ -14,12 +14,6 @@ details: |
     not contain the instance key, but are required for operation, are removed by
     the undo handler of the appropriate task.
 
-prepare: |
-    snap set system experimental.parallel-instances=true
-
-restore: |
-    snap set system experimental.parallel-instances=null
-
 execute: |
     # the snap is named 'test-snapd-service'
     path="$("$TESTSTOOLS"/snaps-state pack-local test-snapd-service-v2-bad)"

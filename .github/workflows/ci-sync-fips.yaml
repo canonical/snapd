@@ -55,6 +55,6 @@ jobs:
             --limit 1 --json url --jq '.[0].url // empty')"
           if [[ -z "$existing_pr" ]]; then
             gh pr create --base fips --head sync-master-to-fips \
-              --title "Synchronize fips with master" \
+              --title "chore: Synchronize fips with master" \
               --body 'Synchronize fips with master, using snapcraft-fips.yaml from master as snapcraft.yaml. Merge using "Create a merge commit".'
           fi

@@ -1038,17 +1038,24 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 			}
 		}
 
-		if !assetFound {
+		if assetFound {
+			// update the list of what we booted with
+			(*trustedAssetsMap)[assetName] = bootedWith
+		} else {
 			// unexpected, we have booted with an asset whose hash
 			// is not listed among the ones we expect
-
-			// TODO:UC20: try to restore the asset from cache
-			return nil, false, fmt.Errorf("system booted with unexpected %v bootloader asset %q hash %v", whichBootloader, trustedAsset, assetHash)
+			_, err := device.SealedKeysMethod(dirs.GlobalRootDir)
+			switch {
+			case err == nil:
+				// TODO:UC20: try to restore the asset from cache
+				return nil, false, fmt.Errorf("system booted with unexpected %v bootloader asset %q hash %v", whichBootloader, trustedAsset, assetHash)
+			case err == device.ErrNoSealedKeys:
+				// trusted assets only matter with FDE, do not fail
+				logger.Noticef("system booted with unexpected %v bootloader asset %q hash %v, ignoring as the system is not using FDE", whichBootloader, trustedAsset, assetHash)
+			default:
+				return nil, false, fmt.Errorf("cannot determine if the system is using FDE: %v", err)
+			}
 		}
-
-		// update the list of what we booted with
-		(*trustedAssetsMap)[assetName] = bootedWith
-
 	}
 
 	for _, droppedAsset := range drop {

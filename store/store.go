@@ -1092,7 +1092,9 @@ func (s *Store) Find(ctx context.Context, search *Search, user *auth.UserState) 
 	//
 	// "-" might also be special on the server, but it's also a
 	// valid part of a package name, so we let it pass
-	if strings.ContainsAny(searchTerm, `+=&|><!(){}[]^"~*?:\/`) {
+	// "+" is not a valid snap name character, but it appears in well known
+	// names (Notepad++) and is safely percent-encoded as %2B, so let it pass
+	if strings.ContainsAny(searchTerm, `=&|><!(){}[]^"~*?:\/`) {
 		return nil, ErrBadQuery
 	}
 

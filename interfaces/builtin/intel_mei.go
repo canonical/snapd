@@ -41,13 +41,12 @@ var intelMEIConnectedPlugUDev = []string{`SUBSYSTEM=="mei"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "intel-mei",
-		summary:                  intelMEISummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     intelMEIBaseDeclarationSlots,
-		connectedPlugAppArmor:    intelMEIConnectedPlugAppArmor,
-		connectedPlugUDev:        intelMEIConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "intel-mei",
+		summary:               intelMEISummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  intelMEIBaseDeclarationSlots,
+		connectedPlugAppArmor: intelMEIConnectedPlugAppArmor,
+		connectedPlugUDev:     intelMEIConnectedPlugUDev,
 	})
 }

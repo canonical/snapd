@@ -119,7 +119,9 @@ func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml strin
 		kernelFiles = append(kernelFiles, []string{"snapd-info", fmt.Sprintf("VERSION=%s", snapdVersionByType[snap.TypeKernel])})
 	}
 	if len(kModsRevs) > 0 {
+		kernelFiles = append(kernelFiles, seedtest.SampleSnapFiles["pc-kernel=24+kmods"]...)
 		s.MakeAssertedSnapWithComps(c, seedtest.SampleSnapYaml["pc-kernel=24+kmods"], kernelFiles, snap.R(1), kModsRevs, "my-brand", s.StoreSigning.Database)
+		// must match utsRelease regexp from the kernel package
 	} else {
 		s.MakeAssertedSnap(c, seedtest.SampleSnapYaml["pc-kernel=24"], kernelFiles, snap.R(1), "my-brand", s.StoreSigning.Database)
 	}
@@ -461,8 +463,12 @@ components:
   %s:
     type: kernel-modules
 `, compData[0].name, compData[1].name)
-	kernelInfo := snaptest.MockSnapWithFiles(c, kernYaml, si, nil)
-	kernelFn := snaptest.MakeTestSnapWithFiles(c, kernYaml, nil)
+	kernelInfo := snaptest.MockSnapWithFiles(c, kernYaml, si, [][]string{
+		{"modules/1.0.0/", ""},
+	})
+	kernelFn := snaptest.MakeTestSnapWithFiles(c, kernYaml, [][]string{
+		{"modules/1.0.0/", ""},
+	})
 	err := os.Rename(kernelFn, kernelInfo.MountFile())
 	c.Assert(err, IsNil)
 

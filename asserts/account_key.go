@@ -285,11 +285,11 @@ func checkAKConstraints(cs any) ([]attrMatcher, error) {
 			return nil, err
 		}
 		if hm == nil {
-			return nil, fmt.Errorf(`"headers" constraint mandatory in asserions constraints`)
+			return nil, fmt.Errorf(`"headers" constraint mandatory in assertions constraints`)
 		}
 		t, ok := hm["type"]
 		if !ok {
-			return nil, fmt.Errorf("type header constraint mandatory in asserions constraints")
+			return nil, fmt.Errorf("type header constraint mandatory in assertions constraints")
 		}
 		tstr, ok := t.(string)
 		if !ok {

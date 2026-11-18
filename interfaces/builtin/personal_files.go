@@ -69,13 +69,12 @@ func init() {
 	registerIface(&personalFilesInterface{
 		commonFilesInterface{
 			commonInterface: commonInterface{
-				name:                     "personal-files",
-				summary:                  personalFilesSummary,
-				implicitOnCore:           true,
-				implicitOnClassic:        true,
-				baseDeclarationPlugs:     personalFilesBaseDeclarationPlugs,
-				baseDeclarationSlots:     personalFilesBaseDeclarationSlots,
-				parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+				name:                 "personal-files",
+				summary:              personalFilesSummary,
+				implicitOnCore:       true,
+				implicitOnClassic:    true,
+				baseDeclarationPlugs: personalFilesBaseDeclarationPlugs,
+				baseDeclarationSlots: personalFilesBaseDeclarationSlots,
 			},
 			apparmorHeader:    personalFilesConnectedPlugAppArmor,
 			extraPathValidate: validateSinglePathHome,

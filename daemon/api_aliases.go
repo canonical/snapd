@@ -157,7 +157,7 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	for snapName, snapst := range allStates {
 		if len(snapst.Aliases) != 0 {
 			snapAliases := make(map[string]aliasStatus)
-			res[snapName] = snapAliases
+			res[snapName.String()] = snapAliases
 			autoDisabled := snapst.AutoAliasesDisabled
 			for alias, aliasTarget := range snapst.Aliases {
 				aliasStatus := aliasStatus{
@@ -173,7 +173,7 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 					status = "manual"
 				}
 				aliasStatus.Status = status
-				aliasStatus.Command = snap.JoinSnapApp(snapName, tgt)
+				aliasStatus.Command = snap.JoinSnapApp(snapName.String(), tgt)
 				snapAliases[alias] = aliasStatus
 			}
 		}

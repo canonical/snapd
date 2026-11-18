@@ -14,29 +14,62 @@ prepare: |
 
 restore: |
     tests.pkgs remove sshpass
-    rm -rf remote.setup.cfg my-key my-key.pub  /home/tools-user-1/*  /home/tools-user-2/*
+    rm -rf remote.setup.cfg /tmp/remote-exec-test my-key my-key.pub  /home/tools-user-1/*  /home/tools-user-2/*
 
 execute: |
-    remote.exec --help | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'
-    remote.exec -h | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] <CMD>'    
+    export TESTS_REMOTE_CONTROL_DIR=/tmp/remote-exec-test
+
+    remote.exec --help | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] \[--reconnect\] <CMD>'
+    remote.exec -h | MATCH 'usage: remote.exec \[--user <USER>\] \[--pass <PASS>\] \[--reconnect\] <CMD>'
 
     remote.exec "touch testfile"
     test -f /home/tools-user-1/testfile
 
+    control_socket="$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*')"
+    test -S "$control_socket"
+    test "${#control_socket}" -le 80
+    control_socket_inode="$(stat -c %i "$control_socket")"
+    remote.exec "true"
+    test "$(stat -c %i "$control_socket")" = "$control_socket_inode"
+    control_master_pid="$(ssh -S "$control_socket" -O check tools-user-1@localhost 2>&1 | sed -n 's/.*pid=\([0-9]*\).*/\1/p')"
+    remote.exec --reconnect "true"
+    new_control_master_pid="$(ssh -S "$control_socket" -O check tools-user-1@localhost 2>&1 | sed -n 's/.*pid=\([0-9]*\).*/\1/p')"
+    test "$new_control_master_pid" != "$control_master_pid"
+
+    control_socket_count="$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*' | wc -l)"
+    remote.setup config --host 127.0.0.1 --port 22 --user tools-user-1 --pass tools-user-1
+    remote.exec "true"
+    test "$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*' | wc -l)" -eq "$((control_socket_count + 1))"
+    remote.setup config --host localhost --port 22 --user tools-user-1 --pass tools-user-1
+
+    control_master_pid="$(ssh -S "$control_socket" -O check tools-user-1@localhost 2>&1 | sed -n 's/.*pid=\([0-9]*\).*/\1/p')"
+    kill -9 "$control_master_pid"
+    remote.exec "true"
+    test -S "$control_socket"
+
+    not remote.exec 'echo executed >> command-runs; exit 255'
+    test "$(remote.exec 'wc -l < command-runs')" -eq 1
+
     remote.exec --user tools-user-2 --pass tools-user-2 "touch testfile"
     test -f /home/tools-user-2/testfile
+    not remote.exec --user tools-user-2 --pass invalid-password "true"
 
     remote.exec --user tools-user-2 --password tools-user-2 "touch testfile" 2>&1 | MATCH "remote.exec: unknown option --password"
 
-    # Check the remote execution using a certificate
+    # Check the remote execution using a key
     ssh-keygen -t rsa -N "" -f my-key
     chmod 0600 my-key my-key.pub
 
-    mkdir -p /home/tools-user-1/.ssh
+    mkdir -p /home/tools-user-1/.ssh /home/tools-user-2/.ssh
     cat my-key.pub > /home/tools-user-1/.ssh/authorized_keys
+    cat my-key.pub > /home/tools-user-2/.ssh/authorized_keys
     
-    remote.setup config --host localhost --port 22 --user tools-user-1 --cert my-key
+    control_socket_count="$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*' | wc -l)"
+    remote.setup config --host localhost --port 22 --user tools-user-1 --key my-key
     remote.exec "ls /home/tools-user-1/testfile" | MATCH testfile
+    test "$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*' | wc -l)" -eq "$((control_socket_count + 1))"
+    test "$(remote.exec --user tools-user-2 whoami)" = tools-user-2
+    test "$(find "$TESTS_REMOTE_CONTROL_DIR" -type s -name 'remote-exec-*' | wc -l)" -eq "$((control_socket_count + 2))"
 
     # Check error when there is no configuration
     rm -f remote.setup.cfg

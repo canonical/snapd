@@ -73,7 +73,7 @@ type ClusterSnap struct {
 	// removed).
 	State ClusterSnapState
 	// Instance is the snap's instance name.
-	Instance string
+	Instance naming.InstanceName
 	// Channel is the channel the snap should track.
 	Channel string
 }
@@ -195,7 +195,7 @@ func checkClusterSnap(snap map[string]any) (ClusterSnap, error) {
 
 	return ClusterSnap{
 		State:    ClusterSnapState(state),
-		Instance: instance,
+		Instance: naming.InstanceName(instance),
 		Channel:  ch,
 	}, nil
 }

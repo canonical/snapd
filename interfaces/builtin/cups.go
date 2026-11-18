@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -126,9 +127,11 @@ func validateCupsSocketDirSlotAttr(a interfaces.Attrer, snapInfo *snap.Info) (st
 	// The path starts with $ and ValidatePathVariables() ensures
 	// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
 	// other $VARs are present. It is ok to use
-	// ExpandSnapVariables() since it only expands $SNAP, $SNAP_DATA
-	// and $SNAP_COMMON
-	return snapInfo.ExpandSnapVariables(cupsdSocketSourceDir), nil
+	// ExpandSnapVariablesSetSnapMountDir() since it only expands
+	// $SNAP, $SNAP_DATA and $SNAP_COMMON.
+	// Note: The returned path is used for the plug side policy, so
+	//       it needs to reflect the perspective of the other snap.
+	return snapInfo.ExpandSnapVariablesSetSnapMountDir(cupsdSocketSourceDir, dirs.CoreSnapMountDir, snap.PerspectiveOther), nil
 }
 
 func (iface *cupsInterface) BeforePrepareSlot(slot *snap.SlotInfo) error {

@@ -329,8 +329,9 @@ func (env *Env) iterEnv(f func(key, value string)) {
 	}
 }
 
-// buildPayload builds the environment payload and returns it along with its CRC.
-func (env *Env) buildPayload() ([]byte, uint32) {
+// buildPayload builds the environment payload and returns it along with its
+// CRC. An error is returned if the variables do not fit in the environment.
+func (env *Env) buildPayload() ([]byte, uint32, error) {
 	headerSize := calcHeaderSize(env.headerFlagByte)
 
 	w := bytes.NewBuffer(nil)
@@ -351,12 +352,15 @@ func (env *Env) buildPayload() ([]byte, uint32) {
 
 	// write 0xff into the remaining parts
 	writtenSoFar := w.Len()
+	if avail := env.size - headerSize; writtenSoFar > avail {
+		return nil, 0, fmt.Errorf("environment data of %d bytes does not fit in the %d bytes available", writtenSoFar, avail)
+	}
 	for i := 0; i < env.size-headerSize-writtenSoFar; i++ {
 		w.Write([]byte{0xff})
 	}
 
 	payload := w.Bytes()
-	return payload, crc32.ChecksumIEEE(payload)
+	return payload, crc32.ChecksumIEEE(payload), nil
 }
 
 // writeToDevice opens a device, optionally checks the size, writes the buffer
@@ -388,8 +392,11 @@ func writeToDevice(fname string, buf []byte, offset int64, minimumSize int64) er
 }
 
 // buildImage builds a complete environment image with header (CRC + flag) and payload.
-func (env *Env) buildImage(flag byte) []byte {
-	payload, crc := env.buildPayload()
+func (env *Env) buildImage(flag byte) ([]byte, error) {
+	payload, crc, err := env.buildPayload()
+	if err != nil {
+		return nil, err
+	}
 
 	buf := make([]byte, env.size)
 	copy(buf[0:4], writeUint32(crc))
@@ -399,7 +406,7 @@ func (env *Env) buildImage(flag byte) []byte {
 	} else {
 		copy(buf[4:], payload)
 	}
-	return buf
+	return buf, nil
 }
 
 // Save will write out the environment data
@@ -412,7 +419,10 @@ func (env *Env) Save() error {
 
 // saveLegacy writes the environment to a single-copy file.
 func (env *Env) saveLegacy() error {
-	buf := env.buildImage(0)
+	buf, err := env.buildImage(0)
+	if err != nil {
+		return err
+	}
 
 	// Note that we overwrite the existing file and do not do
 	// the usual write-rename. The rationale is that we want to
@@ -622,7 +632,10 @@ func (env *Env) saveRedundant() error {
 		newActiveCopy = Copy1
 	}
 
-	buf := env.buildImage(newFlag)
+	buf, err := env.buildImage(newFlag)
+	if err != nil {
+		return err
+	}
 	expectedSize := int64(env.size * 2)
 
 	if err := writeToDevice(env.fname, buf, writeOffset, expectedSize); err != nil {

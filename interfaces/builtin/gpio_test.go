@@ -140,7 +140,7 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
-	spec := &systemd.Specification{}
+	spec := systemd.NewSpecification(s.gadgetGpioSlot.AppSet())
 	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
@@ -184,8 +184,4 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 
 func (s *GpioInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
-}
-
-func (s *GpioInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
-	checkParallelInstancesUnsupportedForSystemOrGadgetSlot(c, s.iface)
 }

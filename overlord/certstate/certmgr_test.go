@@ -88,8 +88,8 @@ func (b *checkpointBackend) EnsureBefore(time.Duration) {}
 func (s *certMgrTestSuite) settle(c *C) {
 	s.state.Unlock()
 	err := s.o.Settle(30 * time.Second)
-	c.Assert(err, IsNil)
 	s.state.Lock()
+	c.Assert(err, IsNil)
 }
 
 func seedCurrentPublishedGeneration(c *C, generation string, bundle []byte) string {

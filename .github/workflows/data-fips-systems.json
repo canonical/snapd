@@ -1,0 +1,20 @@
+{
+    "include": [
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "ubuntu-fips-snap",
+        "backend": "openstack",
+        "systems": "ubuntu-fips-22.04-64 ubuntu-fips-24.04-64",
+        "tasks": "tests/fips-snap/...",
+        "rules": "fips"
+      },
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "ubuntu-fips-deb",
+        "backend": "openstack",
+        "systems": "ubuntu-fips-22.04-64 ubuntu-fips-24.04-64",
+        "tasks": "tests/fips-deb/...",
+        "rules": "fips"
+      }
+    ]
+  }

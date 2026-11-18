@@ -25,11 +25,11 @@ _get_pass() {
     fi
 }
 
-_get_cert() {
+_get_key() {
     if [ -n "$TESTS_REMOTE_PASS" ]; then
         return
-    elif [ -n "$TESTS_REMOTE_CERT" ]; then
-        echo "-i $TESTS_REMOTE_CERT"
+    elif [ -n "$TESTS_REMOTE_KEY" ]; then
+        echo "-i $TESTS_REMOTE_KEY"
     fi
 }
 
@@ -40,9 +40,9 @@ remote_pull() {
         echo "remote.pull: remote path is required"
     fi
 
-    local SSH_PASS SSH_CERT
+    local SSH_PASS SSH_KEY
     SSH_PASS="$(_get_pass)"
-    SSH_CERT="$(_get_cert)"
+    SSH_KEY="$(_get_key)"
 
     LEGACY_PARAM="-O"
     # We check if -O option is supported by scp
@@ -51,7 +51,7 @@ remote_pull() {
     fi
 
     # shellcheck disable=SC2153,SC2086
-    $SSH_PASS scp $SSH_CERT $LEGACY_PARAM -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH" "$LOCAL_PATH"
+    $SSH_PASS scp $SSH_KEY $LEGACY_PARAM -P "$TESTS_REMOTE_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$TESTS_REMOTE_USER"@"$TESTS_REMOTE_HOST":"$REMOTE_PATH" "$LOCAL_PATH"
 }
 
 main() {
