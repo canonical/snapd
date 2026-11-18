@@ -105,6 +105,8 @@ var (
 	GetSystemKeyRetryCount = getSystemKeyRetryCount
 
 	ComposeSubCmd = composeSubCmd
+
+	ClosestCommand = closestCommand
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
