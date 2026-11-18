@@ -4,9 +4,10 @@
 Dry-run is the default. Pass --apply to create or update issues on
 warthogs.atlassian.net using JIRA_EMAIL and a classic unscoped JIRA_API_TOKEN.
 
-Version X.YY is a major release; X.YY.Z is a bugfix, or a security release
-with --security. Jira Fix Version is always "snapd X.YY". Ubuntu devel and
-LTS series default from ubuntu-distro-info.
+Version X.YY is a major release and X.YY.Z is a bugfix. X.YY.X with
+--security is a security release; the patch number is not known yet, so the
+literal X stands in for it. Jira Fix Version is always "snapd X.YY". Ubuntu
+devel and LTS series default from ubuntu-distro-info.
 
 Created issues are labeled snapd-release-tickets. --apply creates the epic
 and tasks when none exist for this version and variant. If the matching epic
@@ -15,9 +16,10 @@ already exists, --apply lists it and does not create or edit issues; pass
 epic and labeled tasks. Unlabeled tasks with a matching title are listed as
 placeholders but never modified.
 
-The epic and non-cross-distro tasks use team SnapD EMEA unless --team is
-set to a short name (AMER, Cross-distro) or the full Jira team name.
-Cross-distro tasks always use SnapD Cross-distro.
+The epic and non-cross-distro tasks use team Snapd IoT unless --team is
+set to a short name (Desktop, Cross-distro) or the full Jira team name.
+Cross-distro tasks always use SnapD Cross-distro. The QA beta task always
+uses Snapd Desktop.
 """
 
 # Hyphenated filename; this is a script, not a library.
@@ -58,6 +60,8 @@ VARIANT_LABELS = {
 
 VERSION_MAJOR_RE = re.compile(r"^\d+\.\d+$")
 VERSION_PATCH_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+# Literal X, not a digit: the security patch number is not known in advance.
+VERSION_SECURITY_RE = re.compile(r"^(\d+)\.(\d+)\.[Xx]$")
 ISSUE_KEY_RE = re.compile(r"^([A-Z][A-Z0-9]+-\d+)\s+")
 
 UNEXPECTED_LABEL = "not-in-release-plan"
@@ -67,14 +71,15 @@ GENERATED_LABEL = "snapd-release-tickets"
 SECURITY_TITLE_PREFIX = "Security: "
 TARGET_STATUS = "Triaged"
 
-DEFAULT_TEAM = "SnapD EMEA"
+DEFAULT_TEAM = "Snapd IoT"
 CROSS_DISTRO_TEAM = "SnapD Cross-distro"
-AMER_TEAM = "SnapD AMER"
+DESKTOP_TEAM = "Snapd Desktop"
 # --team accepts a short name or the full Jira team name. Cross-distro
-# tasks ignore --team and always use CROSS_DISTRO_TEAM.
+# tasks ignore --team and always use CROSS_DISTRO_TEAM. The QA beta task
+# ignores --team and always uses DESKTOP_TEAM.
 TEAM_NAMES = {
-    "EMEA": DEFAULT_TEAM,
-    "AMER": AMER_TEAM,
+    "IoT": DEFAULT_TEAM,
+    "Desktop": DESKTOP_TEAM,
     "Cross-distro": CROSS_DISTRO_TEAM,
 }
 TEAM_FIELD_NAME = "Team"
@@ -99,6 +104,8 @@ class TaskSpec(NamedTuple):
     checklist: tuple
     points: int
     cross_distro: bool = False
+    # Set to pin a Jira team. Empty follows plan.team, except cross-distro tasks.
+    team: str = ""
 
 
 class PlannedRelease(NamedTuple):
@@ -140,7 +147,12 @@ def parse_team(raw):
 
 
 def task_team(plan, task):
-    """Team name for a task: Cross-distro tasks ignore plan.team."""
+    """Team name for a task.
+
+    A task with its own team, and every cross-distro task, ignores plan.team.
+    """
+    if task.team:
+        return task.team
     if task.cross_distro:
         return CROSS_DISTRO_TEAM
     return plan.team
@@ -198,19 +210,36 @@ def targets_proposed_label(targets):
     return "{" + ",".join(targets) + "}-proposed"
 
 
+def security_version(version):
+    """Return X.YY.X when version is a security placeholder, else None."""
+    match = VERSION_SECURITY_RE.match(version)
+    if match is None:
+        return None
+    return f"{match.group(1)}.{match.group(2)}.X"
+
+
 def variant_from_version(version, security=False):
-    """Map X.YY to major and X.YY.Z to bugfix, or security with --security."""
+    """Map X.YY to major, X.YY.Z to bugfix, and X.YY.X with --security to security."""
     if VERSION_MAJOR_RE.match(version):
         if security:
             raise RuntimeError(
-                f'cannot use --security with version "{version}", expected X.YY.Z'
+                f'cannot use --security with version "{version}", expected X.YY.X'
             )
         return "major"
+    if security_version(version) is not None:
+        if not security:
+            raise RuntimeError(
+                f'cannot use version "{version}" without --security'
+            )
+        return "security"
     if VERSION_PATCH_RE.match(version):
         if security:
-            return "security"
+            raise RuntimeError(
+                f'cannot use --security with version "{version}", expected X.YY.X'
+            )
         return "bugfix"
-    raise RuntimeError(f'cannot use version "{version}", expected X.YY or X.YY.Z')
+    expected = "X.YY.X" if security else "X.YY or X.YY.Z"
+    raise RuntimeError(f'cannot use version "{version}", expected {expected}')
 
 
 def jira_version_for(variant, version):
@@ -223,6 +252,13 @@ def jira_version_for(variant, version):
         return version
     if variant not in VARIANT_LABELS:
         raise RuntimeError(f'cannot use unknown variant "{variant}"')
+    if variant == "security":
+        normalized = security_version(version)
+        if normalized is None:
+            raise RuntimeError(
+                f'cannot use version "{version}" with variant "security", expected X.YY.X'
+            )
+        return normalized.rsplit(".", 1)[0]
     match = VERSION_PATCH_RE.match(version)
     if not match:
         raise RuntimeError(
@@ -260,20 +296,31 @@ def task_cut_release(*, version, variant):
     )
 
 
-def task_beta_snaps():
+# Deb upload owns these for a standard release. A security release has no deb
+# ticket, so the beta-snaps task carries them instead.
+GITHUB_TARBALL_STEPS = (
+    "Create source tarballs with release-tools/repack-debian-tarball.sh",
+    "Create a draft GitHub release and upload tarballs. Do not publish the release",
+)
+
+
+def task_beta_snaps(*, variant):
+    checklist = (
+        "Push the version git tag",
+        "Open and merge the changelog PR against master",
+        "Build snapd snaps on Launchpad (including FIPS)",
+        "Verify the FIPS snap loads the FIPS provider on a FIPS-enabled system",
+        "Promote revisions to latest/beta",
+        "Promote FIPS revisions to fips-updates/beta",
+        "Close the GitHub milestone for this release",
+        "Notify snapd QA and the certification tester",
+        "Update the snapd roadmap for beta",
+    )
+    if variant == "security":
+        checklist = checklist + GITHUB_TARBALL_STEPS
     return TaskSpec(
         summary="Build and upload BETA snapd snaps",
-        checklist=(
-            "Push the version git tag",
-            "Open and merge the changelog PR against master",
-            "Build snapd snaps on Launchpad (including FIPS)",
-            "Verify the FIPS snap loads the FIPS provider on a FIPS-enabled system",
-            "Promote revisions to latest/beta",
-            "Promote FIPS revisions to fips-updates/beta",
-            "Close the GitHub milestone for this release",
-            "Notify snapd QA and the certification tester",
-            "Update the snapd roadmap for beta",
-        ),
+        checklist=checklist,
         points=2,
     )
 
@@ -283,8 +330,7 @@ def task_debs():
         summary="Build and upload snapd debs",
         checklist=(
             "Build snapd debs for each target series",
-            "Create source tarballs with release-tools/repack-debian-tarball.sh",
-            "Create a draft GitHub release and upload tarballs",
+            *GITHUB_TARBALL_STEPS,
             "Upload to a test PPA and run autopkgtests",
             "Upload to ppa:snappy-dev/image",
             "Set the SRU bug series status to in progress",
@@ -298,26 +344,44 @@ def task_qa_beta():
         summary="Complete Snapd Team QA BETA validation",
         checklist=(
             "Coordinate snapd team QA beta validation",
-            "Review known issues from beta testing",
-            "Obtain QA sign-off to promote to candidate",
-            "Confirm the certification team beta sign-off",
-            "Promote snapd snap revisions to candidate",
-            "Update the snapd roadmap for candidate",
-            "Create the release forum post and publicize the move to candidate",
-            "Publish the GitHub release created when uploading tarballs",
+            "Analyse test results and add comment to explain/justify findings "
+            "and provide conclusion",
+            "Report pass/fail to the snapd release coordinator",
         ),
         points=3,
+        team=DESKTOP_TEAM,
     )
 
 
-def task_certification_beta():
+def task_certification_beta(*, variant):
+    checklist = (
+        "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+        "Discuss results with the certification team and obtain certification sign-off",
+        "Obtain QA sign-off to promote to candidate",
+        "Confirm the certification team beta sign-off",
+        "Promote snapd snap revisions to candidate",
+    )
+    if variant == "security":
+        # Security debs are published by the security team. Snap stable
+        # promotion stays here, and publicity waits until stable.
+        checklist = checklist + (
+            (
+                "Confirm the candidate soak week, the WSL smoke tests, "
+                "and that no stable-stopper bugs are open"
+            ),
+            "Start the progressive snap release in sync with the deb release",
+            "Publish the GitHub release after the debs and snaps have been released",
+            "Update the snapd roadmap and publicize the release once it is in stable",
+        )
+    else:
+        checklist = checklist + (
+            "Update the snapd roadmap for candidate",
+            "Create the release forum post and publicize the move to candidate",
+            "Publish the GitHub release created when uploading tarballs",
+        )
     return TaskSpec(
-        summary="Monitor Certification Team BETA validation",
-        checklist=(
-            "Contact the assigned certification tester",
-            "Track certification beta results",
-            "Obtain certification sign-off",
-        ),
+        summary="Complete Certification BETA validation",
+        checklist=checklist,
         points=1,
     )
 
@@ -408,6 +472,22 @@ TASKS = (
     task_cross_distro_fedora_debian,
 )
 
+# Security releases only supply the patch. Deb upload and SRU publication
+# belong to the security team, so those tasks are not generated.
+SECURITY_SKIPPED_TASKS = (
+    task_debs,
+    task_devel_upload,
+    task_sru_upload,
+)
+
+
+def task_builders(variant):
+    """Task builders for a variant. Security omits deb and SRU tickets."""
+    if variant == "security":
+        return tuple(fn for fn in TASKS if fn not in SECURITY_SKIPPED_TASKS)
+    return TASKS
+
+
 TASK_CONTEXT_KEYS = ("version", "variant", "devel", "targets")
 
 
@@ -436,7 +516,14 @@ def build_plan(
     parent_epic=None,
     team=None,
 ):
-    """Build the epic summary, Fix Version, and nine TaskSpecs for a release."""
+    """Build the epic summary, Fix Version, and tasks for a release."""
+    if variant == "security":
+        normalized = security_version(version)
+        if normalized is None:
+            raise RuntimeError(
+                f'cannot use version "{version}" with variant "security", expected X.YY.X'
+            )
+        version = normalized
     derived_version = jira_version_for(variant, version)
     if jira_version is None:
         jira_version = f"snapd {derived_version}"
@@ -452,7 +539,7 @@ def build_plan(
     }
     tasks = tuple(
         spec._replace(summary=task_summary_for(variant, spec.summary))
-        for spec in (call_task(fn, ctx) for fn in TASKS)
+        for spec in (call_task(fn, ctx) for fn in task_builders(variant))
     )
     return PlannedRelease(
         variant=variant,
@@ -1029,7 +1116,8 @@ def find_team_id(jira, team_name):
 def resolve_plan_teams(jira, plan):
     """Return (team_field_id, {team_name: team_uuid}) for the plan's teams."""
     field_id = team_field_id(jira)
-    names = {plan.team, CROSS_DISTRO_TEAM}
+    names = {plan.team}
+    names.update(task_team(plan, task) for task in plan.tasks)
     ids = {name: find_team_id(jira, name) for name in names}
     return field_id, ids
 
@@ -1398,10 +1486,10 @@ def print_help(out=None):
             "      --force",
             "Update preexisting script-generated epic and tasks for this version",
         ),
-        ("      --security", "Treat a patch version as a security release"),
+        ("      --security", "Treat X.YY.X as a security release"),
         (
             "      --team string",
-            "Non-cross-distro team: EMEA (default), AMER, Cross-distro",
+            "Non-cross-distro team: IoT (default), Desktop, Cross-distro",
         ),
         (
             "      --lts-targets strings",
@@ -1430,9 +1518,9 @@ def print_help(out=None):
     print("Examples:", file=out)
     print(f"  {prog} 2.78", file=out)
     print(f"  {prog} 2.77.1", file=out)
-    print(f"  {prog} 2.77.1 --security", file=out)
+    print(f"  {prog} 2.77.X --security", file=out)
     print(f"  {prog} 2.78 --apply", file=out)
-    print(f"  {prog} 2.78 --team AMER", file=out)
+    print(f"  {prog} 2.78 --team Desktop", file=out)
     print(file=out)
     print("Flags:", file=out)
     for name, desc in flags:
@@ -1481,11 +1569,12 @@ def main(argv=None):
         print_help()
         return 2
 
-    variant = variant_from_version(args.version, security=args.security)
+    version = security_version(args.version) or args.version
+    variant = variant_from_version(version, security=args.security)
     devel, targets = resolve_ubuntu_series(args.dev_target, args.lts_targets)
     plan = build_plan(
         variant=variant,
-        version=args.version,
+        version=version,
         devel=devel,
         targets=targets,
         team=args.team,
