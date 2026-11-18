@@ -349,13 +349,8 @@ func (t NoticeType) Valid() bool {
 	return false
 }
 
-// Allow nextNoticeTimestamp to be mocked in tests.
-var NextNoticeTimestamp = (*State).nextNoticeTimestamp
-
-// nextNoticeTimestamp computes a notice timestamp which is guaranteed to be
-// after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
-// the result and returns it.
-func (s *State) nextNoticeTimestamp() time.Time {
+// Allow NextNoticeTimestamp to be mocked in tests.
+var nextNoticeTimestamp = func(s *State) time.Time {
 	s.lastNoticeTimestampMu.Lock()
 	defer s.lastNoticeTimestampMu.Unlock()
 	now := timeNow().UTC()
@@ -375,6 +370,13 @@ func (s *State) nextNoticeTimestamp() time.Time {
 	}
 	s.lastNoticeTimestamp = now
 	return s.lastNoticeTimestamp
+}
+
+// NextNoticeTimestamp computes a notice timestamp which is guaranteed to be
+// after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
+// the result and returns it.
+func (s *State) NextNoticeTimestamp() time.Time {
+	return nextNoticeTimestamp(s)
 }
 
 // getLastNoticeTimestamp returns the current lastNoticeTimestamp.
@@ -423,7 +425,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := NextNoticeTimestamp(s).UTC()
+	now := s.NextNoticeTimestamp().UTC()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}

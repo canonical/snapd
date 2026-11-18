@@ -1039,17 +1039,17 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 
 	c.Check(st.GetLastNoticeTimestamp().IsZero(), Equals, true)
 
-	ts1 := state.NextNoticeTimestamp(st)
+	ts1 := st.NextNoticeTimestamp()
 	c.Check(ts1, Equals, testDate)
 
 	c.Check(st.GetLastNoticeTimestamp(), Equals, ts1)
 
-	ts2 := state.NextNoticeTimestamp(st)
+	ts2 := st.NextNoticeTimestamp()
 	c.Check(ts2.After(ts1), Equals, true)
 
 	c.Check(st.GetLastNoticeTimestamp(), Equals, ts2)
 
-	ts3 := state.NextNoticeTimestamp(st)
+	ts3 := st.NextNoticeTimestamp()
 	c.Check(ts3.After(ts1), Equals, true)
 	c.Check(ts3.After(ts2), Equals, true)
 
@@ -1060,7 +1060,7 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 	restore2 := state.MockTime(testDate2)
 	defer restore2()
 
-	ts4 := state.NextNoticeTimestamp(st)
+	ts4 := st.NextNoticeTimestamp()
 	c.Check(ts4.After(ts1), Equals, true)
 	c.Check(ts4.After(ts2), Equals, true)
 	c.Check(ts4.After(ts3), Equals, true)

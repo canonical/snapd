@@ -54,7 +54,7 @@ func MockNoticeTimes(n *Notice, firstOccurred, lastOccurred, lastRepeated time.T
 }
 
 func MockNextNoticeTimestamp(t time.Time) (restore func()) {
-	return testutil.Mock(&NextNoticeTimestamp, func(*State) time.Time { return t })
+	return testutil.Mock(&nextNoticeTimestamp, func(*State) time.Time { return t })
 }
 
 func (w Warning) LastAdded() time.Time {
