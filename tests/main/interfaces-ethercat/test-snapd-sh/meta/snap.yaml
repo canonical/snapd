@@ -1,0 +1,15 @@
+name: test-snapd-sh
+version: 1.0
+summary: Test EtherCAT interface access
+confinement: strict
+
+plugs:
+    ethercat-master:
+        interface: ethercat
+
+apps:
+    with-ethercat-plug:
+        command: bin/sh
+        plugs: [ethercat-master]
+    without-ethercat-plug:
+        command: bin/sh

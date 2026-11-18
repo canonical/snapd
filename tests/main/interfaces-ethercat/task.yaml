@@ -1,0 +1,64 @@
+summary: Ensure that the ethercat interface grants access only when connected
+
+details: |
+    The ethercat interface grants access to the host IgH EtherCAT master devices.
+    It is not connected automatically. Only apps using the connected plug should
+    gain access, and disconnecting must deny access from new invocations.
+
+    Mock files exercise AppArmor path permissions without EtherCAT hardware.
+    This test does not validate real device tagging, device cgroups or ioctls.
+
+environment:
+    TEST_DEVICE: /dev/EtherCAT999999
+    OTHER_DEVICE: /dev/snapd-test-ethercat-unrelated
+
+prepare: |
+    test ! -e "$TEST_DEVICE"
+    test ! -e "$OTHER_DEVICE"
+    "$TESTSTOOLS"/fs-state mock-file "$TEST_DEVICE"
+    "$TESTSTOOLS"/fs-state mock-file "$OTHER_DEVICE"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+restore: |
+    "$TESTSTOOLS"/fs-state restore-file "$TEST_DEVICE"
+    "$TESTSTOOLS"/fs-state restore-file "$OTHER_DEVICE"
+
+execute: |
+    echo "The interface is not connected by default"
+    snap connections test-snapd-sh | MATCH '^ethercat +test-snapd-sh:ethercat-master +- '
+
+    if [ "$(snap debug confinement)" != partial ]; then
+        echo "A disconnected app cannot read the device"
+        not test-snapd-sh.with-ethercat-plug -c "cat '$TEST_DEVICE'" >call.output 2>call.error
+        MATCH "Permission denied" <call.error
+    fi
+
+    echo "Connecting the interface grants read and write access"
+    snap connect test-snapd-sh:ethercat-master
+    snap connections test-snapd-sh | MATCH '^ethercat +test-snapd-sh:ethercat-master +[^ ]*:ethercat '
+    test-snapd-sh.with-ethercat-plug -c "printf '%s\n' connected > '$TEST_DEVICE'"
+    test-snapd-sh.with-ethercat-plug -c "cat '$TEST_DEVICE'" | MATCH '^connected$'
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "An app without the plug cannot access the device"
+    not test-snapd-sh.without-ethercat-plug -c "cat '$TEST_DEVICE'" >call.output 2>call.error
+    MATCH "Permission denied" <call.error
+
+    echo "The interface does not grant access to unrelated paths"
+    not test-snapd-sh.with-ethercat-plug -c "cat '$OTHER_DEVICE'" >call.output 2>call.error
+    MATCH "Permission denied" <call.error
+
+    echo "Disconnecting denies fresh read and write attempts"
+    snap disconnect test-snapd-sh:ethercat-master
+    not test-snapd-sh.with-ethercat-plug -c "cat '$TEST_DEVICE'" >call.output 2>call.error
+    MATCH "Permission denied" <call.error
+    not test-snapd-sh.with-ethercat-plug -c "printf '%s\n' disconnected > '$TEST_DEVICE'" >call.output 2>call.error
+    MATCH "Permission denied" <call.error
+
+    echo "Reconnecting restores access"
+    snap connect test-snapd-sh:ethercat-master
+    test-snapd-sh.with-ethercat-plug -c "printf '%s\n' reconnected > '$TEST_DEVICE'"
+    test-snapd-sh.with-ethercat-plug -c "cat '$TEST_DEVICE'" | MATCH '^reconnected$'

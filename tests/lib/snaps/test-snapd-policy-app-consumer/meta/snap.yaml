@@ -65,6 +65,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  ethercat:
+    command: bin/run
+    plugs: [ ethercat ]
   fpga:
     command: bin/run
     plugs: [ fpga ]

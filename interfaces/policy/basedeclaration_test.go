@@ -260,6 +260,24 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestEtherCATPolicy(c *C) {
+	c.Assert(s.installPlugCand(c, "ethercat", snap.TypeApp, "").Check(), IsNil)
+	c.Assert(s.installSlotCand(c, "ethercat", snap.TypeOS, "").Check(), IsNil)
+	c.Assert(s.installSlotCand(c, "ethercat", snap.TypeApp, "").Check(), NotNil)
+	c.Assert(s.installSlotCand(c, "ethercat", snap.TypeGadget, "").Check(), NotNil)
+
+	const coreYaml = `name: core
+type: os
+version: 0
+slots:
+ ethercat:
+`
+	cand := s.connectCand(c, "ethercat", coreYaml, "")
+	c.Assert(cand.Check(), IsNil)
+	_, err := cand.CheckAutoConnect()
+	c.Assert(err, ErrorMatches, `auto-connection denied by slot rule of interface "ethercat"`)
+}
+
 func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
