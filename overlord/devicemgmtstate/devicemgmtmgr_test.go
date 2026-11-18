@@ -115,6 +115,15 @@ func (h *mockMessageHandler) ResultFromChange(ctx context.Context, chg *state.Ch
 	return nil, nil
 }
 
+// failingBackstore fails every Get with an error that is not a NotFoundError.
+type failingBackstore struct {
+	asserts.Backstore
+}
+
+func (failingBackstore) Get(*asserts.AssertionType, []string, int) (asserts.Assertion, error) {
+	return nil, fmt.Errorf("db broken")
+}
+
 func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
 	tr := config.NewTransaction(st)
 	_, confOption := features.RemoteDeviceManagement.ConfigOption()
@@ -1432,7 +1441,9 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
 	c.Check(msg.ResponseBody["message"], Equals, "cannot decode message: assertion content/signature separator not found")
 }
 
-func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
+// validateWithoutAccountKey runs a message through validation with the signing
+// key missing from bs and the store fetch failing with fetchErr.
+func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, bs asserts.Backstore, fetchErr error) (int, *handlers.RequestMessage) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -1444,16 +1455,17 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 		}, nil
 	})
 
-	// Remove the account key from the local DB so ensureAccountKey reaches the fetch.
+	// Back the DB with bs, which has no account key, so ensureAccountKey cannot find it locally.
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
+		Backstore: bs,
 		Trusted:   s.storeStack.Trusted,
 	})
 	c.Assert(err, IsNil)
 	assertstate.ReplaceDB(s.st, db)
 
-	fetchErr := fmt.Errorf("store unavailable")
+	fetchCalls := 0
 	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+		fetchCalls++
 		return fetchErr
 	}))
 	s.AddCleanup(devicemgmtstate.MockTaskRetryInterval(time.Millisecond))
@@ -1466,9 +1478,41 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	msg := ms.Sequences["operator/msg1"].Messages[0]
+	return fetchCalls, ms.Sequences["operator/msg1"].Messages[0]
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyTransientErrorRetries(c *C) {
+	fetchCalls, msg := s.validateWithoutAccountKey(c, asserts.NewMemoryBackstore(), &store.UnexpectedHTTPStatusError{
+		OpSummary:  "fetch assertion",
+		StatusCode: 503,
+		Method:     "GET",
+	})
+
+	// Ten retries plus the final attempt.
+	c.Check(fetchCalls, Equals, 11)
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], Equals, "cannot fetch signing key: store unavailable")
+	c.Check(msg.ResponseBody["message"], testutil.Contains, "cannot fetch signing key: cannot fetch assertion: got unexpected HTTP status code 503")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyPermanentErrorNotRetried(c *C) {
+	fetchCalls, msg := s.validateWithoutAccountKey(c, asserts.NewMemoryBackstore(), &store.UnexpectedHTTPStatusError{
+		OpSummary:  "fetch assertion",
+		StatusCode: 400,
+		Method:     "GET",
+	})
+
+	c.Check(fetchCalls, Equals, 1)
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
+	c.Check(msg.ResponseBody["message"], testutil.Contains, "cannot fetch signing key: cannot fetch assertion: got unexpected HTTP status code 400")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageAccountKeyLookupError(c *C) {
+	bs := failingBackstore{asserts.NewMemoryBackstore()}
+	fetchCalls, msg := s.validateWithoutAccountKey(c, bs, fmt.Errorf("fetch must not be called"))
+
+	c.Check(fetchCalls, Equals, 0)
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot look up signing key: db broken")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadSignature(c *C) {
