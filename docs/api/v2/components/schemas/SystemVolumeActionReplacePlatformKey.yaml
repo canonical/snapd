@@ -26,10 +26,12 @@ properties:
       - none
     description: Authentication mode for the replacement keyslots.
   passphrase:
-    type: string
+    allOf:
+      - $ref: 'Passphrase.yaml'
     description: Required only when auth-mode is `passphrase`.
   pin:
-    type: string
+    allOf:
+      - $ref: 'PIN.yaml'
     description: Required only when auth-mode is `pin`.
   keyslots:
     type: array

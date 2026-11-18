@@ -29,3 +29,6 @@ properties:
       are checked.
     items:
       type: string
+      enum:
+        - system-data
+        - system-save

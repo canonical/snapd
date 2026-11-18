@@ -126,6 +126,18 @@ post:
             - $ref: '../components/schemas/SystemVolumeActionChangePin.yaml'
             - $ref: '../components/schemas/SystemVolumeActionChangePassphrase.yaml'
             - $ref: '../components/schemas/SystemVolumeActionReplacePlatformKey.yaml'
+          discriminator:
+            propertyName: action
+            mapping:
+              generate-recovery-key: '../components/schemas/SystemVolumeActionGenerateRecoveryKey.yaml'
+              add-recovery-key: '../components/schemas/SystemVolumeActionAddRecoveryKey.yaml'
+              replace-recovery-key: '../components/schemas/SystemVolumeActionReplaceRecoveryKey.yaml'
+              check-recovery-key: '../components/schemas/SystemVolumeActionCheckRecoveryKey.yaml'
+              check-pin-quality: '../components/schemas/SystemVolumeActionCheckPinQuality.yaml'
+              check-passphrase-quality: '../components/schemas/SystemVolumeActionCheckPassphraseQuality.yaml'
+              change-pin: '../components/schemas/SystemVolumeActionChangePin.yaml'
+              change-passphrase: '../components/schemas/SystemVolumeActionChangePassphrase.yaml'
+              replace-platform-key: '../components/schemas/SystemVolumeActionReplacePlatformKey.yaml'
   responses:
     200:
       description: |-
@@ -171,8 +183,7 @@ post:
                   - type: object
                     description: The recovery key is valid for all targeted containers.
                     nullable: true
-                    enum:
-                      - null
+                    example: null
                   - $ref: '../components/schemas/AuthQualityEntropyMetrics.yaml'
     202:
       $ref: '../components/responses/Accepted.yaml'
