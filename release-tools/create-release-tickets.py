@@ -300,7 +300,7 @@ def task_cut_release(*, version, variant):
 # ticket, so the beta-snaps task carries them instead.
 GITHUB_TARBALL_STEPS = (
     "Create source tarballs with release-tools/repack-debian-tarball.sh",
-    "Create a draft GitHub release and upload tarballs",
+    "Create a draft GitHub release and upload tarballs. Do not publish the release",
 )
 
 
@@ -365,12 +365,12 @@ def task_certification_beta(*, variant):
         # Security debs are published by the security team. Snap stable
         # promotion stays here, and publicity waits until stable.
         checklist = checklist + (
-            "Publish the GitHub release created when uploading tarballs",
             (
                 "Confirm the candidate soak week, the WSL smoke tests, "
                 "and that no stable-stopper bugs are open"
             ),
             "Start the progressive snap release in sync with the deb release",
+            "Publish the GitHub release after the debs and snaps have been released",
             "Update the snapd roadmap and publicize the release once it is in stable",
         )
     else:

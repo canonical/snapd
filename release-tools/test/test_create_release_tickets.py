@@ -556,10 +556,10 @@ class TestTaskTitles(unittest.TestCase):
                 "Obtain QA sign-off to promote to candidate",
                 "Confirm the certification team beta sign-off",
                 "Promote snapd snap revisions to candidate",
-                "Publish the GitHub release created when uploading tarballs",
                 "Confirm the candidate soak week, the WSL smoke tests, "
                 "and that no stable-stopper bugs are open",
                 "Start the progressive snap release in sync with the deb release",
+                "Publish the GitHub release after the debs and snaps have been released",
                 "Update the snapd roadmap and publicize the release once it is in stable",
             ],
         )
