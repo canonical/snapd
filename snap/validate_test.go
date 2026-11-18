@@ -271,6 +271,86 @@ func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPath(c *C) {
 	}
 }
 
+func (s *ValidateSuite) TestValidateAppSocketsPkcs11SlotSocket(c *C) {
+	app := createSampleApp()
+	app.Slots = map[string]*SlotInfo{
+		"pkcs11-optee-slot-0": {
+			Name:      "pkcs11-optee-slot-0",
+			Interface: "pkcs11",
+			Attrs:     map[string]any{"pkcs11-socket": "/run/p11-kit/optee-slot-0"},
+		},
+	}
+	app.Sockets["sock"].ListenStream = "/run/p11-kit/optee-slot-0"
+	c.Assert(ValidateApp(app), IsNil)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsPkcs11SlotSocketFromYaml(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+type: gadget
+slots:
+  pkcs11-optee-slot-0:
+    interface: pkcs11
+    pkcs11-socket: /run/p11-kit/optee-slot-0
+  pkcs11-optee-slot-1:
+    interface: pkcs11
+    pkcs11-socket: /run/p11-kit/optee-slot-1
+apps:
+  server-0:
+    command: bin/server --slot 0
+    daemon: simple
+    plugs: [network-bind]
+    slots: [pkcs11-optee-slot-0]
+    sockets:
+      optee-slot-0:
+        listen-stream: /run/p11-kit/optee-slot-0
+  server-1:
+    command: bin/server --slot 1
+    daemon: simple
+    plugs: [network-bind]
+    slots: [pkcs11-optee-slot-1]
+    sockets:
+      optee-slot-0:
+        listen-stream: /run/p11-kit/optee-slot-0
+`))
+	c.Assert(err, IsNil)
+	c.Check(ValidateApp(info.Apps["server-0"]), IsNil)
+	// an app may only listen on the socket of its own slot
+	c.Check(ValidateApp(info.Apps["server-1"]), ErrorMatches,
+		`invalid definition of socket "optee-slot-0": invalid "listen-stream": system daemon sockets must have a prefix of .*`)
+}
+
+func (s *ValidateSuite) TestValidateAppSocketsPkcs11SlotSocketInvalid(c *C) {
+	for _, t := range []struct {
+		iface, slotSocket, listen string
+		scope                     DaemonScope
+	}{
+		// not the socket of the slot
+		{"pkcs11", "/run/p11-kit/optee-slot-0", "/run/p11-kit/optee-slot-1", SystemDaemon},
+		// not a pkcs11 slot
+		{"other", "/run/p11-kit/optee-slot-0", "/run/p11-kit/optee-slot-0", SystemDaemon},
+		// not in /run/p11-kit, which the pkcs11 interface would refuse too
+		{"pkcs11", "/run/p11-kit/sub/optee-slot-0", "/run/p11-kit/sub/optee-slot-0", SystemDaemon},
+		{"pkcs11", "/run/optee-slot-0", "/run/optee-slot-0", SystemDaemon},
+		// only for system daemons
+		{"pkcs11", "/run/p11-kit/optee-slot-0", "/run/p11-kit/optee-slot-0", UserDaemon},
+	} {
+		app := createSampleApp()
+		app.DaemonScope = t.scope
+		app.Slots = map[string]*SlotInfo{
+			"pkcs11": {
+				Name:      "pkcs11",
+				Interface: t.iface,
+				Attrs:     map[string]any{"pkcs11-socket": t.slotSocket},
+			},
+		}
+		app.Sockets["sock"].ListenStream = t.listen
+		c.Check(ValidateApp(app), ErrorMatches,
+			`invalid definition of socket "sock": invalid "listen-stream": (system|user) daemon sockets must have a prefix of .*`,
+			Commentf("%+v", t))
+	}
+}
+
 func (s *ValidateSuite) TestValidateAppSocketsInvalidListenStreamPathContainsDots(c *C) {
 	app := createSampleApp()
 	app.Sockets["sock"].ListenStream = "$SNAP/../some.path"

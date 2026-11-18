@@ -249,6 +249,25 @@ func validateSocketAddr(socket *SocketInfo, fieldName string, address string) er
 	}
 }
 
+// isPkcs11SlotSocket returns true when path is the socket of one of the app's
+// slots of the pkcs11 interface. The pkcs11 interface keeps that socket in
+// /run/p11-kit, where its consumers look for it, so the p11-kit server behind
+// the slot may be socket activated there.
+func isPkcs11SlotSocket(app *AppInfo, path string) bool {
+	if filepath.Dir(path) != "/run/p11-kit" {
+		return false
+	}
+	for _, slot := range app.Slots {
+		if slot == nil || slot.Interface != "pkcs11" {
+			continue
+		}
+		if socket, ok := slot.Attrs["pkcs11-socket"].(string); ok && socket == path {
+			return true
+		}
+	}
+	return false
+}
+
 func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) error {
 	if clean := filepath.Clean(path); clean != path {
 		return fmt.Errorf("invalid %q: %q should be written as %q", fieldName, path, clean)
@@ -256,6 +275,9 @@ func validateSocketAddrPath(socket *SocketInfo, fieldName string, path string) e
 
 	switch socket.App.DaemonScope {
 	case SystemDaemon:
+		if isPkcs11SlotSocket(socket.App, path) {
+			return nil
+		}
 		if !(strings.HasPrefix(path, "$SNAP_DATA/") || strings.HasPrefix(path, "$SNAP_COMMON/") || strings.HasPrefix(path, "$XDG_RUNTIME_DIR/")) {
 			return fmt.Errorf(
 				"invalid %q: system daemon sockets must have a prefix of $SNAP_DATA, $SNAP_COMMON or $XDG_RUNTIME_DIR", fieldName)
