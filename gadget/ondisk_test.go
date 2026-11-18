@@ -566,6 +566,13 @@ volumes:
       - name: boot1
         content:
           - image: boot1filename
+volume-assignments:
+  - assignment-name: emmc-device
+    assignment:
+      disk:
+        device: /dev/disk/by-path/platform-11230000.mmc
+      my-emmc:
+        device: /dev/disk/by-path/platform-11230000.mmc
 `
 
 	vol := mustParseVolume(c, gadgetYaml, "my-emmc")

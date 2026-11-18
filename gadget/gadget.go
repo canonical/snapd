@@ -1158,13 +1158,14 @@ func validateVolumeAssignments(volassigns []*VolumeAssignment, volumes map[strin
 		}
 	}
 
-	// UFS volumes are located through the UFS device they are assigned to,
-	// so they need volume-assignments. A variant that does not assign a UFS
-	// volume leaves it out of the volumes of the device, like any other
-	// volume.
+	// eMMC boot partitions and UFS boot logical units have no partition
+	// that the disk of their volume could be found from, so these volumes
+	// are located through the device they are assigned to and need
+	// volume-assignments. A variant that does not assign such a volume
+	// leaves it out of the volumes of the device, like any other volume.
 	if len(volassigns) == 0 {
 		for name, vol := range volumes {
-			if vol.Schema == schemaUFS {
+			if isHardwareBootAreaVolume(vol) {
 				return fmt.Errorf("volume %q with schema %q requires volume-assignments", name, vol.Schema)
 			}
 		}

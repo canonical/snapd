@@ -41,6 +41,17 @@ type gadgetYamlEMMCSuite struct {
 
 var _ = Suite(&gadgetYamlEMMCSuite{})
 
+// emmcVolumeAssignments assigns the volumes of the test gadgets to the eMMC
+// device that holds the system partitions.
+const emmcVolumeAssignments = `volume-assignments:
+  - assignment-name: emmc-device
+    assignment:
+      volumename:
+        device: /dev/disk/by-path/platform-11230000.mmc
+      my-emmc:
+        device: /dev/disk/by-path/platform-11230000.mmc
+`
+
 var mockEMMCGadgetYaml = []byte(`
 volumes:
   volumename:
@@ -69,7 +80,7 @@ volumes:
       - name: boot1
         content:
           - image: boot1filename
-`)
+` + emmcVolumeAssignments)
 
 func (s *gadgetYamlEMMCSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -93,7 +104,7 @@ volumes:
   my-emmc:
     schema: emmc
     id: test
-`), 0644)
+`+emmcVolumeAssignments), 0644)
 	c.Assert(err, IsNil)
 
 	info, err := gadget.ReadInfo(s.dir, coreMod)
@@ -111,7 +122,7 @@ volumes:
   my-emmc:
     schema: emmc
     bootloader: u-boot
-`), 0644)
+`+emmcVolumeAssignments), 0644)
 	c.Assert(err, IsNil)
 
 	info, err := gadget.ReadInfo(s.dir, coreMod)
@@ -130,7 +141,7 @@ volumes:
   my-emmc:
     schema: emmc
     partial: [size]
-`), 0644)
+`+emmcVolumeAssignments), 0644)
 	c.Assert(err, IsNil)
 
 	info, err := gadget.ReadInfo(s.dir, coreMod)
@@ -166,7 +177,7 @@ volumes:
         content:
           - image: boot0filename
             offset: 1000
-`, t)), 0644)
+`+emmcVolumeAssignments, t)), 0644)
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfo(s.dir, coreMod)
@@ -199,7 +210,7 @@ volumes:
       - name: %s
         content:
           - source: hello.bin
-`, t)), 0644)
+`+emmcVolumeAssignments, t)), 0644)
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfo(s.dir, coreMod)
@@ -232,7 +243,7 @@ volumes:
       - name: %s
         content:
           - unpack: true
-`, t)), 0644)
+`+emmcVolumeAssignments, t)), 0644)
 		c.Assert(err, IsNil)
 
 		_, err = gadget.ReadInfo(s.dir, coreMod)
@@ -307,6 +318,15 @@ func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlHappy(c *C) {
 				},
 			},
 		},
+		VolumeAssignments: []*gadget.VolumeAssignment{
+			{
+				Name: "emmc-device",
+				Assignments: map[string]*gadget.DeviceAssignment{
+					"volumename": {Device: "/dev/disk/by-path/platform-11230000.mmc"},
+					"my-emmc":    {Device: "/dev/disk/by-path/platform-11230000.mmc"},
+				},
+			},
+		},
 	}
 	gadget.SetEnclosingVolumeInStructs(expected.Volumes)
 
@@ -333,6 +353,11 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 	makeSizedFile(c, filepath.Join(newRootDir, "boot0filename"), 1*quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(newRootDir, "boot1filename"), 2*quantity.SizeMiB, nil)
 	newData := gadget.GadgetData{Info: newInfo, RootDir: newRootDir}
+
+	// the device of the volume assignment
+	byPathDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-path")
+	c.Assert(os.MkdirAll(byPathDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(byPathDir, "platform-11230000.mmc"), nil, 0644), IsNil)
 
 	rollbackDir := c.MkDir()
 
@@ -374,4 +399,53 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 	err = gadget.Update(uc16Model, oldData, newData, rollbackDir, nil, muo)
 	c.Assert(err, IsNil)
 	c.Assert(updaterForStructureCalls, Equals, 1)
+}
+
+func (s *gadgetYamlEMMCSuite) TestReadGadgetYamlEMMCRequiresAssignment(c *C) {
+	const volumes = `
+volumes:
+  volumename:
+    schema: mbr
+    bootloader: u-boot
+  my-emmc:
+    schema: emmc
+    structure:
+      - name: boot0
+        content:
+          - image: boot0filename
+`
+	for _, tc := range []struct {
+		assignments string
+		err         string
+	}{{
+		assignments: "",
+		err:         `volume "my-emmc" with schema "emmc" requires volume-assignments`,
+	}, {
+		// a variant for a device without eMMC can leave the eMMC volume out
+		assignments: `
+volume-assignments:
+  - assignment-name: other-device
+    assignment:
+      volumename:
+        device: /dev/disk/by-path/platform-ufshci-scsi-0:0:0:2
+  - assignment-name: emmc-device
+    assignment:
+      volumename:
+        device: /dev/disk/by-path/platform-11230000.mmc
+      my-emmc:
+        device: /dev/disk/by-path/platform-11230000.mmc
+`,
+	}, {
+		assignments: "\n" + emmcVolumeAssignments,
+	}} {
+		err := os.WriteFile(s.gadgetYamlPath, []byte(volumes+tc.assignments), 0644)
+		c.Assert(err, IsNil)
+
+		_, err = gadget.ReadInfo(s.dir, coreMod)
+		if tc.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, tc.err)
+		}
+	}
 }
