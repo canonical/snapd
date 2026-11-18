@@ -22,8 +22,12 @@ QUIET = "GHSA-jhwq-ffw7-65j7"
 BUG_LINK_FIELD = "customfield_10050"
 NEW_ADVISORY_HOOK = "https://hooks.mattermost.test/new-advisory"
 RUN_LINK = "https://github.com/canonical/snapd/actions/runs/4242"
-NOT_CREATED_TEXT = (
-    "advisory-tracker: a Jira ticket was not created\n" f"Link: `{RUN_LINK}`"
+NOT_CREATED_TEXT = "\n".join(
+    [
+        "## :exclamation: advisory-tracker: a Jira ticket was not created",
+        "",
+        f"Link: `{RUN_LINK}`",
+    ]
 )
 
 
@@ -457,8 +461,9 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(client.edits, [])
         self.assertNotIn("status", fields[0])
         description = tracker.adf_to_text(fields[0]["description"])
-        self.assertIn(f"GitHub-Advisory: {EMBER}", description)
-        self.assertIn("CVE: CVE-2026-1", description)
+        self.assertEqual(description, f"GitHub-Advisory: {EMBER}")
+        self.assertNotIn("CVE-2026-1", description)
+        self.assertNotIn("pins a map", description)
         self.assertEqual(report.advisories[0].action, "created")
         self.assertEqual(report.advisories[0].issue_key, "SNAPDENG-500")
         markdown = tracker.render_markdown(report)
@@ -841,7 +846,10 @@ class AdvisoryTrackerTests(unittest.TestCase):
         texts = mattermost_texts(client)
         created = [text for text in texts if "new advisory detected" in text]
         self.assertEqual(len(created), 1)
-        self.assertIn("## advisory-tracker: new advisory detected", created[0])
+        self.assertIn(
+            "## :white_check_mark: advisory-tracker: new advisory detected",
+            created[0],
+        )
         self.assertIn("Jira ticket created: SNAPDENG-500", created[0])
         self.assertIn(
             "Link: `https://github.com/canonical/snapd"

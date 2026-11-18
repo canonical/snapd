@@ -30,11 +30,13 @@ Environment, all read from the process environment:
 
 sync --dry-run reads GitHub and Jira and does not create, rename, or post.
 A new bug is titled "<pet name>: <GHSA>" with priority from the advisory
-severity, or Medium when the severity is missing. HTTP 401 and 403 from
-GitHub or Jira abort the run. Other API failures are recorded without the
-response body. A failed creation post does not undo the ticket. A failed
-not-created post is recorded and the summary is still written. Creation is
-refused while the parent has no child of the configured issue type.
+severity, or Medium when the severity is missing. Its description is only
+"GitHub-Advisory: <GHSA>"; the writeup stays on the advisory. HTTP 401 and
+403 from GitHub or Jira abort the run. Other API failures are recorded
+without the response body. A failed creation post does not undo the ticket.
+A failed not-created post is recorded and the summary is still written.
+Creation is refused while the parent has no child of the configured issue
+type.
 """
 
 from __future__ import annotations
@@ -889,75 +891,8 @@ def issue_from_json(
     )
 
 
-def cvss_text(advisory: Mapping[str, Any]) -> str:
-    severities = advisory.get("cvss_severities")
-    if isinstance(severities, dict):
-        for key in ("cvss_v4", "cvss_v3"):
-            item = severities.get(key)
-            if isinstance(item, dict) and item.get("vector_string"):
-                score = item.get("score")
-                vector = str(item["vector_string"])
-                if score is None:
-                    return vector
-                return f"{vector} ({score})"
-    cvss = advisory.get("cvss")
-    if isinstance(cvss, dict) and cvss.get("vector_string"):
-        return str(cvss["vector_string"])
-    return "not set"
-
-
-def affected_text(advisory: Mapping[str, Any]) -> str:
-    vulns = advisory.get("vulnerabilities")
-    if not isinstance(vulns, list):
-        return "not set"
-    parts: list[str] = []
-    for vuln in vulns:
-        if not isinstance(vuln, dict):
-            continue
-        package_raw = vuln.get("package")
-        package = package_raw if isinstance(package_raw, dict) else {}
-        package_name = package.get("name")
-        name = (
-            package_name
-            if isinstance(package_name, str) and package_name
-            else "unspecified package"
-        )
-        version = vuln.get("vulnerable_version_range")
-        if not isinstance(version, str) or version == "":
-            version = "unspecified versions"
-        parts.append(f"{name} {version}")
-    return "; ".join(parts) if parts else "not set"
-
-
-def reporter_text(advisory: Mapping[str, Any]) -> str:
-    credits = advisory.get("credits")
-    if not isinstance(credits, list):
-        return "not set"
-    names = [
-        str(credit["login"])
-        for credit in credits
-        if isinstance(credit, dict) and credit.get("login")
-    ]
-    return ", ".join(names) if names else "not set"
-
-
-def description_doc(row: AdvisoryRow, advisory: Mapping[str, Any]) -> dict[str, Any]:
-    cve = row.cve_id or "not set"
-    paragraphs = [
-        f"GitHub-Advisory: {row.ghsa_id}",
-        f"Link: {row.url}",
-        f"Summary: {row.summary}",
-        f"CVE: {cve}",
-        f"Severity: {row.severity or 'not set'}",
-        f"CVSS: {cvss_text(advisory)}",
-        f"Reporter: {reporter_text(advisory)}",
-        f"Affected: {affected_text(advisory)}",
-        "Report:",
-    ]
-    description = advisory.get("description")
-    if isinstance(description, str):
-        paragraphs.extend(description.splitlines())
-    return adf_doc(paragraphs)
+def description_doc(ghsa_id: str) -> dict[str, Any]:
+    return adf_doc([f"GitHub-Advisory: {ghsa_id}"])
 
 
 def ticket_summary(codename: str, ghsa_id: str) -> str:
@@ -975,10 +910,7 @@ def jira_priority(config: Config, severity: str) -> str:
 
 
 def create_fields(
-    config: Config,
-    row: AdvisoryRow,
-    advisory: Mapping[str, Any],
-    bug_link_field: str,
+    config: Config, row: AdvisoryRow, bug_link_field: str
 ) -> dict[str, Any]:
     if row.codename is None:
         raise TrackerError(
@@ -990,7 +922,7 @@ def create_fields(
         "issuetype": {"name": config.issue_type},
         "summary": ticket_summary(row.codename, row.ghsa_id),
         "labels": [row.ghsa_id],
-        "description": description_doc(row, advisory),
+        "description": description_doc(row.ghsa_id),
         "priority": {"name": jira_priority(config, row.severity)},
     }
     if row.url != "" and bug_link_field != "":
@@ -1372,7 +1304,7 @@ def _quiet_link(url: str) -> str:
 def created_message(row: AdvisoryRow, issue_key: str) -> str:
     return "\n".join(
         [
-            f"## {AUTOMATION_MARK} new advisory detected",
+            f"## :white_check_mark: {AUTOMATION_MARK} new advisory detected",
             "",
             f"Jira ticket created: {issue_key}",
             f"GitHub-Advisory: {row.ghsa_id}",
@@ -1395,7 +1327,8 @@ def run_summary_url(env: Mapping[str, str]) -> str:
 def not_created_message(env: Mapping[str, str]) -> str:
     return "\n".join(
         [
-            f"{AUTOMATION_MARK} a Jira ticket was not created",
+            f"## :exclamation: {AUTOMATION_MARK} a Jira ticket was not created",
+            "",
             _quiet_link(run_summary_url(env)),
         ]
     )
@@ -1548,9 +1481,7 @@ def _create_missing(
         row.codename = choose_codename(tracker.name_source, used)
     try:
         issue = tracker.create(
-            create_fields(
-                tracker.config, row, advisory, tracker.bug_link_field
-            )
+            create_fields(tracker.config, row, tracker.bug_link_field)
         )
     except TrackerError as exc:
         if exc.status in {401, 403}:
