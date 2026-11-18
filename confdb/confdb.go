@@ -586,10 +586,19 @@ func newView(schema *Schema, name string, viewRules []any, paramPresence map[str
 func checkFilteredPathConsistency(rules []viewRule) error {
 	for i, rule := range rules {
 		for _, other := range rules[i+1:] {
-			equivAccess := rule.isReadable() && other.isReadable() ||
-				rule.isWriteable() && other.isWriteable()
-			if equivAccess && pathsOverlap(rule.request, other.request) &&
-				!storagePathsHaveConsistentFilters(rule.storage, other.storage) {
+			// Reads are merged into the same result wrapped in the unmatched suffix as
+			// a namespace, so paths that completely overlap (i.e., they'll be in the
+			// same namespace) need to be filtered in the same way. Otherwise, data
+			// filtered out in one path is merged back in by another one.
+			requestsOverlap := rule.isReadable() && other.isReadable() &&
+				pathsOverlap(rule.request, other.request)
+
+			// Writes match on shared prefixes, so rules with mismatched filters could
+			// set/remove data through path but not another.
+			requestsOverlap = requestsOverlap || (rule.isWriteable() && other.isWriteable() &&
+				commonPrefix(rule.request, other.request))
+
+			if requestsOverlap && !storagePathsHaveConsistentFilters(rule.storage, other.storage) {
 				return fmt.Errorf("storage paths %q and %q access overlapping data with different field filters", rule.originalStorage, other.originalStorage)
 			}
 		}
@@ -632,6 +641,11 @@ func pathsOverlap[T Accessor](left, right []T) bool {
 	minLen := int(math.Min(float64(len(left)), float64(len(right))))
 	for i := 0; i < minLen; i++ {
 		leftAcc, rightAcc := left[i], right[i]
+
+		// TODO: this is overly broad because it doesn't account for placeholder
+		// bindings made during the request matching. It's possible for the requests
+		// to be common because a placeholder can match a literal, but in that case,
+		// at this point that placeholder should be considered to have a literal value.
 		if accessorContainerType(leftAcc) != accessorContainerType(rightAcc) ||
 			(!isPlaceholderAccessor(leftAcc) && !isPlaceholderAccessor(rightAcc) &&
 				leftAcc.Name() != rightAcc.Name()) {
@@ -639,6 +653,11 @@ func pathsOverlap[T Accessor](left, right []T) bool {
 		}
 	}
 	return true
+}
+
+// commonPrefix returns true if the two accessors share a common prefix.
+func commonPrefix[T Accessor](left, right []T) bool {
+	return len(left) > 0 && len(right) > 0 && pathsOverlap(left[:1], right[:1])
 }
 
 func equalFieldFilters(a, b map[string]string) bool {
@@ -1373,6 +1392,10 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 // Unset unsets the value at request in the named view. If constraints are
 // provided, only the portion selected by them is removed.
 func (v *View) Unset(databag Databag, request string, constraints map[string]any) error {
+	if request == "" {
+		return badRequestErrorFrom(v, "unset", request, "")
+	}
+
 	opts := ParseOptions{AllowPlaceholders: false}
 	accessors, err := ParsePathIntoAccessors(request, opts)
 	if err != nil {

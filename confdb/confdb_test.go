@@ -1809,6 +1809,15 @@ func (s *viewSuite) TestBadRequestPaths(c *C) {
 	c.Assert(err, NotNil, cmt)
 	c.Assert(err.Error(), Equals, `cannot set empty path through confdb view acc/confdb/foo`, cmt)
 	c.Assert(err, testutil.ErrorIs, &confdb.BadRequestError{}, cmt)
+
+	err = view.Unset(databag, "", nil)
+	c.Assert(err, NotNil, cmt)
+	c.Assert(err.Error(), Equals, `cannot unset empty path through confdb view acc/confdb/foo`, cmt)
+	c.Assert(err, testutil.ErrorIs, &confdb.BadRequestError{}, cmt)
+
+	value, err := view.Get(databag, "a.b.c", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil, cmt)
+	c.Assert(value, Equals, "value", cmt)
 }
 
 func (s *viewSuite) TestSetAllowedOnSameRequestButDifferentPaths(c *C) {
@@ -4669,10 +4678,12 @@ func (*viewSuite) TestMismatchedFiltersAllowedWhenRequestPathsDiverge(c *C) {
 				map[string]any{
 					"request": "results.filtered.{item}",
 					"storage": "shared.{item}[.kind={kind}]",
+					"access":  "read",
 				},
 				map[string]any{
 					"request": "results.all.{item}",
 					"storage": "shared.{item}",
+					"access":  "read",
 				},
 			},
 		},
@@ -4759,6 +4770,29 @@ func (*viewSuite) TestFieldFilterConstraints(c *C) {
 				map[string]any{"request": "items.target", "storage": "items.target", "access": "write"},
 			},
 			err: `storage paths "items.{item}[.kind={kind}]" and "items.target" access overlapping data with different field filters`,
+		},
+		{
+			name: "divergent write request paths share a matching prefix",
+			rules: []any{
+				map[string]any{"request": "results.filtered.{item}", "storage": "shared.{item}[.kind={kind}]", "access": "write"},
+				map[string]any{"request": "results.all.{item}", "storage": "shared.{item}", "access": "write"},
+			},
+			err: `storage paths "shared.{item}[.kind={kind}]" and "shared.{item}" access overlapping data with different field filters`,
+		},
+		{
+			name: "divergent write request paths do not share a matching prefix",
+			rules: []any{
+				map[string]any{"request": "filtered.{item}", "storage": "shared.{item}[.kind={kind}]", "access": "write"},
+				map[string]any{"request": "all.{item}", "storage": "shared.{item}", "access": "write"},
+			},
+		},
+		{
+			name: "placeholder and literal write request paths share a matching prefix",
+			rules: []any{
+				map[string]any{"request": "{scope}.filtered.{item}", "storage": "shared.{scope}.{item}[.kind={kind}]", "access": "write"},
+				map[string]any{"request": "results.all.{item}", "storage": "shared.results.{item}", "access": "write"},
+			},
+			err: `storage paths "shared.{scope}.{item}[.kind={kind}]" and "shared.results.{item}" access overlapping data with different field filters`,
 		},
 		{
 			name: "write and read-write rules must use consistent filters",
