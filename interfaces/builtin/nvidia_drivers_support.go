@@ -79,7 +79,6 @@ func init() {
 		baseDeclarationSlots:     nvidiaDriversSupportBaseDeclarationSlots,
 		connectedPlugAppArmor:    nvidiaDriversSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:     nvidiaDriversSupportConnectedPlugSecComp,
-		parallelInstancesPlugErr: errParallelInstancesSharedResources,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		parallelInstancesPlugErr: errParallelInstancesSupportInterfacePlug,
 	}})
 }

@@ -13,6 +13,16 @@ systems:
     # Arm64 is not supported
     - -ubuntu-*-arm-64
 
+prepare: |
+    # PackageKit can be D-Bus activated while the suite preparation is still
+    # running package transactions. On Fedora, a dnf5 backend started that way
+    # may keep an empty package view, so even installed packages do not
+    # resolve. If PackageKit cannot resolve its own installed package, restart
+    # it so the test sees the current package database.
+    if ! pkcon resolve --filter installed PackageKit | MATCH 'Installed[[:space:]]+PackageKit'; then
+        systemctl restart packagekit.service
+    fi
+
 restore: |
     snap remove --purge test-snapd-packagekit
 
@@ -32,7 +42,7 @@ execute: |
     snap connections test-snapd-packagekit | MATCH "packagekit-control +test-snapd-packagekit:packagekit-control +:packagekit-control +manual"
 
     echo "With the plug connected it is possible to communicate with packagekit"
-    if test-snapd-packagekit.pkcon backend-details | grep -qF 'setting the proxy failed'; then
+    if test-snapd-packagekit.pkcon backend-details | MATCH 'setting the proxy failed'; then
         # Some versions of PackageKit cannot handle the presence of commonly
         # used proxy environment variables. Specifically those that lack the patch
         # 4626cc3bec7affb632122b1d3d4898d7a5bd0e7d (pk-engine:

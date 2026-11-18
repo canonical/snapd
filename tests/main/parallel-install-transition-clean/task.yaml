@@ -1,0 +1,117 @@
+summary: Activate mount directory units after a clean native-package purge
+
+details: |
+    With no snap revisions or namespaces mounted, the native package helper
+    must permit the mount units to activate. A subsequent strict snap install
+    and removal must leave only one content mount at every stage.
+
+systems: [-ubuntu-core-*]
+
+skip:
+    - reason: the clean native-package transition requires the package built from this branch
+      if: |
+        [ "$SNAP_REEXEC" != "0" ] || tests.info is-snapd-from-archive
+
+prepare: |
+    # disable parallel instances
+    snap unset system experimental.parallel-instances
+    # ensure that, if we fail in the execute phase before enabling parallel instances, that they get enabled during restore
+    tests.cleanup defer snap set system experimental.parallel-instances=true || true
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = /snap ]; then
+        SNAP_MOUNT_UNIT=snap.mount
+    else
+        SNAP_MOUNT_UNIT=var-lib-snapd-snap.mount
+    fi
+    echo "$SNAP_MOUNT_UNIT" > snap-mount-unit.name
+    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+        systemctl cat "$u" > /dev/null
+        printf '%s %s %s\n' "$u" "$(systemctl is-enabled "$u" || true)" "$(systemctl is-active "$u" || true)"
+    done > mount-units.state
+
+    systemctl stop snapd.service snapd.socket
+    snapd.tool exec snap-mgmt --purge
+    rm -f /var/lib/snapd/state.json
+    mkdir -p "$SNAP_MOUNT_DIR" /var/snap
+    not findmnt -M "$SNAP_MOUNT_DIR"
+    not findmnt -M /var/snap
+    test -z "$(find /run/snapd/ns -maxdepth 1 -name '*.mnt' 2>/dev/null)"
+    touch mount-units.modified
+
+restore: |
+    if [ -f mount-units.modified ]; then
+        systemctl stop snapd.service snapd.socket || true
+        # Remove any child mounts before restoring initially active parent units.
+        snapd.tool exec snap-mgmt --purge || true
+        while read -r u enabled active; do
+            systemctl stop "$u" || true
+            systemctl disable "$u" || true
+        done < mount-units.state
+        systemctl daemon-reload
+        while read -r u enabled active; do
+            case "$enabled" in
+                enabled) systemctl enable "$u" ;;
+                disabled|static) : ;;
+                *) echo "unexpected initial state for $u: $enabled" >&2; exit 1 ;;
+            esac
+            if [ "$active" = active ]; then
+                systemctl start "$u"
+            fi
+        done < mount-units.state
+        systemctl start snapd.service snapd.socket
+    fi
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    SNAP_MOUNT_UNIT="$(cat snap-mount-unit.name)"
+    marker=/run/snapd/packaging/prevent-mount-dir-activation
+
+    echo "Purge leaves no marker or child mounts: activation is safe"
+    not test -e "$marker"
+    # Exits with non-0 if activation would be unsafe
+    snapd.tool exec snap-mgmt --check-post-upgrade-mount-activation
+    systemctl enable var-snap.mount
+    # The snap-mount-dir unit is expected to be automatically activated on first
+    # snap install
+    systemctl start var-snap.mount
+    systemctl is-active var-snap.mount
+    not systemctl is-active "$SNAP_MOUNT_UNIT"
+
+    systemctl start snapd.service snapd.socket
+    snap wait system seed.loaded
+
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        # Provide /snap for classic snaps with an alternate mount directory.
+        ln -sfn "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
+    snap set system experimental.parallel-instances=true
+    # The mount unit is still inactive
+    not systemctl is-active "$SNAP_MOUNT_UNIT"
+
+    # This is expected to work right away
+    snap install test-snapd-classic-confinement_foo --classic
+    # Both mount units are now active
+    systemctl is-active var-snap.mount
+    systemctl is-active "$SNAP_MOUNT_UNIT"
+    # The app works
+    test-snapd-classic-confinement_foo
+    # And a regular snap
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    # Both mount units are now active
+    systemctl is-active var-snap.mount
+    systemctl is-active "$SNAP_MOUNT_UNIT"
+
+    test-snapd-sh-core24.sh -c true
+
+    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+        findmnt -M "$mp"
+        findmnt -no PROPAGATION -M "$mp" | MATCH '^shared$'
+        count="$(awk -v p="$mp" '$5 == p { n++ } END { print n+0 }' /proc/1/mountinfo)"
+        test "$count" -eq 1
+    done
+
+    snap remove --purge test-snapd-sh-core24
+    snap remove --purge test-snapd-classic-confinement_foo

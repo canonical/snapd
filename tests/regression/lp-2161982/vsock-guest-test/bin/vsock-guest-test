@@ -1,0 +1,36 @@
+#!/bin/bash
+set -u
+
+failed=0
+
+# Check access to /dev/vsock
+if [[ -e /dev/vsock ]]; then
+    if (exec 3<>/dev/vsock) 2>/dev/null; then
+        echo "PASS: opened /dev/vsock successfully"
+    else
+        echo "FAIL: cannot open /dev/vsock"
+        failed=1
+    fi
+else
+    echo "SKIP: /dev/vsock does not exist"
+fi
+
+# Check whether AF_VSOCK sockets can be created
+if python3 -c '
+import socket
+with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM):
+    pass
+'; then
+    echo "PASS: created AF_VSOCK SOCK_STREAM socket successfully"
+else
+    echo "FAIL: cannot create AF_VSOCK socket"
+    failed=1
+fi
+
+if [[ "$failed" -eq 0 ]]; then
+    echo "PASS: all vsock checks passed"
+    exit 0
+else
+    echo "FAIL: one or more vsock checks failed"
+    exit 1
+fi

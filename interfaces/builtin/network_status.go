@@ -48,13 +48,12 @@ type networkStatusInterface struct {
 func init() {
 	registerIface(&networkStatusInterface{
 		commonInterface: commonInterface{
-			name:                     "network-status",
-			summary:                  networkStatusSummary,
-			implicitOnCore:           true,
-			implicitOnClassic:        true,
-			baseDeclarationSlots:     networkStatusBaseDeclarationSlots,
-			connectedPlugAppArmor:    networkStatusConnectedPlugAppArmor,
-			parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+			name:                  "network-status",
+			summary:               networkStatusSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			baseDeclarationSlots:  networkStatusBaseDeclarationSlots,
+			connectedPlugAppArmor: networkStatusConnectedPlugAppArmor,
 		},
 	})
 }

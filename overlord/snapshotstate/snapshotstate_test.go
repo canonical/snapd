@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/systemd/systemdtest"
@@ -135,8 +136,8 @@ func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
 }
 
 func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"a-snap": {Active: true},
 			"b-snap": {},
 			"c-snap": {Active: true},
@@ -155,7 +156,7 @@ func (snapshotSuite) TestAllActiveSnapNames(c *check.C) {
 
 func (snapshotSuite) TestAllActiveSnapNamesError(c *check.C) {
 	errBad := errors.New("bad")
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
 		return nil, errBad
 	}
 
@@ -359,7 +360,7 @@ func (snapshotSuite) TestCheckConflictSnapshotOpInProgress(c *check.C) {
 }
 
 func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
-	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
 		return nil, errors.New("bzzt")
 	})()
 
@@ -437,8 +438,8 @@ func (s snapshotSuite) TestSaveChecksSnapstateConflict(c *check.C) {
 }
 
 func (snapshotSuite) TestSaveConflictsWithSnapstate(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"foo": {Active: true},
 		}, nil
 	}
@@ -523,8 +524,8 @@ func (snapshotSuite) TestSaveSnapNotInstalled(c *check.C) {
 }
 
 func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"a-snap": {Active: true},
 			"b-snap": {},
 			"c-snap": {Active: true},
@@ -570,7 +571,7 @@ func (snapshotSuite) TestSaveSomeSnaps(c *check.C) {
 }
 
 func (s snapshotSuite) TestSaveOneSnap(c *check.C) {
-	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[string]*snapstate.SnapState, error) {
+	defer snapshotstate.MockSnapstateAll(func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
 		// snapstate.All isn't called when a snap name is passed in
 		return nil, errors.New("bzzt")
 	})()
@@ -956,8 +957,8 @@ func (snapshotSuite) TestRestoreConflictsWithSnapstate(c *check.C) {
 	defer shotfile.Close()
 
 	sideInfo := &snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"foo": {
 				Active:   true,
 				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -1041,8 +1042,8 @@ func (snapshotSuite) TestRestoreChecksChangesToSnapID(c *check.C) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
 	c.Assert(err, check.IsNil)
 	defer shotfile.Close()
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"a-snap": {
 				Active: true,
 				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
@@ -1078,8 +1079,8 @@ func (snapshotSuite) TestRestoreChecksChangesToEpoch(c *check.C) {
 	defer shotfile.Close()
 
 	sideInfo := &snap.SideInfo{RealName: "a-snap", Revision: snap.R(1)}
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"a-snap": {
 				Active:   true,
 				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
@@ -1119,8 +1120,8 @@ func (snapshotSuite) TestRestoreWorksWithCompatibleEpoch(c *check.C) {
 	defer shotfile.Close()
 
 	sideInfo := &snap.SideInfo{RealName: "a-snap", Revision: snap.R(1)}
-	fakeSnapstateAll := func(*state.State) (map[string]*snapstate.SnapState, error) {
-		return map[string]*snapstate.SnapState{
+	fakeSnapstateAll := func(*state.State) (map[naming.InstanceName]*snapstate.SnapState, error) {
+		return map[naming.InstanceName]*snapstate.SnapState{
 			"a-snap": {
 				Active:   true,
 				Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),

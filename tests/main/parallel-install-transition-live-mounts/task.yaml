@@ -1,0 +1,161 @@
+summary: Defer in-place mount activation with live snap revision mounts
+
+details: |
+    Simulate deploying the new mount units on a running system with snap
+    revisions mounted but no preserved namespace. The packaging check must
+    set a boot-scoped marker so a subsequent snap installation cannot start
+    the parent binds over the existing content mounts. Removal of an old snap
+    must still succeed. After reboot, both parents and content mounts work.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = /snap ]; then
+        SNAP_MOUNT_UNIT=snap.mount
+    else
+        SNAP_MOUNT_UNIT=var-lib-snapd-snap.mount
+    fi
+
+    SNAPD_SERVICE_UNIT="$(systemctl show snapd.service -p FragmentPath)"
+    VENDOR_UNIT_DIR="$(dirname "${SNAPD_SERVICE_UNIT#FragmentPath=}")"
+    echo "$VENDOR_UNIT_DIR" > mount-unit-vendor.path
+    echo "$SNAP_MOUNT_UNIT" > snap-mount-unit.name
+    mkdir -p original-mount-units
+    : > mount-units.state
+    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+        enabled="$(systemctl is-enabled "$u" || true)"
+        active="$(systemctl is-active "$u" || true)"
+        if [ -e "$VENDOR_UNIT_DIR/$u" ] || [ -L "$VENDOR_UNIT_DIR/$u" ]; then
+            cp -a "$VENDOR_UNIT_DIR/$u" "original-mount-units/$u"
+        else
+            enabled=absent
+        fi
+        printf '%s %s %s\n' "$u" "$enabled" "$active" >> mount-units.state
+    done
+
+    SNAPD_REV="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
+    cp "/var/lib/snapd/snaps/snapd_${SNAPD_REV}.snap" "$TESTSTMP/snapd-under-test.snap"
+    systemctl stop snapd.service snapd.socket
+    snapd.tool exec snap-mgmt --purge
+    rm -f /var/lib/snapd/state.json
+
+    touch mount-units.modified
+    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+        systemctl stop "$u" 2>/dev/null || true
+        systemctl disable "$u" 2>/dev/null || true
+        rm -f "$VENDOR_UNIT_DIR/$u"
+    done
+    systemctl daemon-reload
+    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+        if findmnt -M "$mp" > /dev/null 2>&1; then
+            umount -l "$mp"
+        fi
+    done
+    mkdir -p "$SNAP_MOUNT_DIR" /var/snap
+
+    systemctl start snapd.service snapd.socket
+    snap wait system seed.loaded
+    snap install --dangerous "$TESTSTMP/snapd-under-test.snap"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    test -z "$(find /run/snapd/ns -maxdepth 1 -name '*.mnt' 2>/dev/null)"
+    not findmnt -M "$SNAP_MOUNT_DIR"
+    not findmnt -M /var/snap
+    count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-sh-core24/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
+    test "$count" -eq 1
+
+restore: |
+    # If the task stopped before reboot, purge live child mounts before
+    # dropping the marker or restoring an initially active parent unit.
+    if [ -f mount-units.modified ]; then
+        systemctl stop snapd.service snapd.socket || true
+        snapd.tool exec snap-mgmt --purge || true
+        VENDOR_UNIT_DIR="$(cat mount-unit-vendor.path)"
+        while read -r u enabled active; do
+            systemctl stop "$u" || true
+            systemctl disable "$u" || true
+            rm -f "$VENDOR_UNIT_DIR/$u"
+            if [ -e "original-mount-units/$u" ] || [ -L "original-mount-units/$u" ]; then
+                cp -a "original-mount-units/$u" "$VENDOR_UNIT_DIR/$u"
+            fi
+        done < mount-units.state
+        systemctl daemon-reload
+        while read -r u enabled active; do
+            case "$enabled" in
+                enabled) systemctl enable "$u" ;;
+                disabled|static|absent) : ;;
+                *) echo "unexpected initial state for $u: $enabled" >&2; exit 1 ;;
+            esac
+            if [ "$active" = active ] && [ "$enabled" != absent ]; then
+                systemctl start "$u"
+            fi
+        done < mount-units.state
+        systemctl start snapd.service snapd.socket
+    fi
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    SNAP_MOUNT_UNIT="$(cat snap-mount-unit.name)"
+    VENDOR_UNIT_DIR="$(cat mount-unit-vendor.path)"
+    SNAP_MOUNT_UNITS_DIR="${SNAP_MOUNT_UNIT%.mount}"
+    marker=/run/snapd/packaging/prevent-mount-dir-activation
+
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        echo "Simulate the package check before making the new units available"
+        # Exits with non-0 if activation is unsafe
+        not snapd.tool exec snap-mgmt --check-post-upgrade-mount-activation
+        install -d -m 0755 /run/snapd/packaging
+        touch "$marker"
+        install -m 0644 "$PROJECT_PATH/data/systemd/$SNAP_MOUNT_UNITS_DIR/$SNAP_MOUNT_UNIT" "$VENDOR_UNIT_DIR/$SNAP_MOUNT_UNIT"
+        install -m 0644 "$PROJECT_PATH/data/systemd/$SNAP_MOUNT_UNITS_DIR/var-snap.mount" "$VENDOR_UNIT_DIR/var-snap.mount"
+        systemctl daemon-reload
+        systemctl enable var-snap.mount
+
+        echo "Even explicit starts skip both units while child mounts are live"
+        systemctl start "$SNAP_MOUNT_UNIT" var-snap.mount
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            not systemctl is-active "$u"
+            test "$(systemctl show "$u" -p ConditionResult)" = ConditionResult=no
+        done
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+
+        echo "A new snap installs without recursively binding over the old snap"
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+        for name in core core24 snapd test-snapd-sh-core24 test-snapd-sh; do
+            count="$(awk -v p="$SNAP_MOUNT_DIR/$name/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
+            test "$count" -eq 1
+        done
+        test -z "$(find /run/snapd/ns -maxdepth 1 -name '*.mnt' 2>/dev/null)"
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            not systemctl is-active "$u"
+        done
+
+        echo "Removal of a snap installed before the upgrade succeeds"
+        snap remove --purge test-snapd-sh-core24
+        count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-sh-core24/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
+        test "$count" -eq 0
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        REBOOT
+
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "The boot-scoped marker is gone and the parent mounts can start"
+        not test -e "$marker"
+        retry -n 20 --wait 1 findmnt -M "$SNAP_MOUNT_DIR"
+        retry -n 20 --wait 1 findmnt -M /var/snap
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            retry -n 20 --wait 1 systemctl is-active "$u"
+        done
+        for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+            count="$(awk -v p="$mp" '$5 == p { n++ } END { print n+0 }' /proc/1/mountinfo)"
+            test "$count" -eq 1
+        done
+        for name in core core24 snapd test-snapd-sh; do
+            count="$(awk -v p="$SNAP_MOUNT_DIR/$name/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
+            test "$count" -eq 1
+        done
+        snap remove --purge test-snapd-sh
+    fi

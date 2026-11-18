@@ -1,0 +1,25 @@
+name: test-snapd-hello-multi-arch
+version: 1.0
+summary: An amd64 snap that contains an i386 binary for testing
+description: An amd64 snap that contains an i386 binary for testing.
+base: bare
+build-base: core24
+grade: stable
+confinement: strict
+
+platforms:
+  amd64:
+
+apps:
+  hello-i386:
+    command: hello-i386
+    adapter: none
+
+parts:
+  hello-i386:
+    plugin: nil
+    source: .
+    build-packages:
+      - gcc-multilib
+    override-build: |
+      gcc -m32 -static -Os -s hello.c -o "$CRAFT_PART_INSTALL/hello-i386"

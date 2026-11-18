@@ -197,7 +197,7 @@ func (s *secretStateSuite) TearDownTest(c *C) {
 
 func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, fdstoreSupported bool) {
 	if !fdstoreSupported {
-		s.failOn["fdstore-get"] = fdstore.ErrUnsupportedSystemdVersion
+		s.failOn["fdstore-get"] = fdstore.ErrUnsupported
 	}
 
 	logbuf, restore := logger.MockDebugLogger()
@@ -230,8 +230,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 
 	// Open and initialize the secret state
 	s.stateLockChecker.locked = true
-	secretState, err := backend.OpenSecretState(s.stateLockChecker)
-	c.Assert(err, IsNil)
+	secretState := backend.NewSecretState(s.stateLockChecker)
 	c.Assert(secretState, NotNil)
 	s.stateLockChecker.locked = false
 
@@ -256,9 +255,9 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	s.stateLockChecker.locked = true
 	// Get a non-existing key
 	var value string
-	err = secretState.Get("non-existing", &value)
-	c.Check(err, testutil.ErrorIs, backend.ErrNoState)
-	c.Check(err, ErrorMatches, `no state entry for key "non-existing"`)
+	err := secretState.Get("non-existing", &value)
+	c.Check(err, testutil.ErrorIs, backend.ErrNoSecret)
+	c.Check(err, ErrorMatches, `no secret state entry for key "non-existing"`)
 
 	// Set a key
 	err = secretState.Set("key-1", "some-value")
@@ -306,8 +305,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	c.Check(exists, Equals, false)
 
 	// Reopen the secret state and check that the previous key is still there
-	secretState, err = backend.OpenSecretState(s.stateLockChecker)
-	c.Assert(err, IsNil)
+	secretState = backend.NewSecretState(s.stateLockChecker)
 	c.Assert(secretState, NotNil)
 
 	expectedOps = append(expectedOps, "fdstore-get: memfd-secret-state")
@@ -330,7 +328,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	} else {
 		// if fdstore is not supported, the memfd-secret file is recreated
 		// on reopening and the previous state is lost.
-		c.Check(err, testutil.ErrorIs, backend.ErrNoState)
+		c.Check(err, testutil.ErrorIs, backend.ErrNoSecret)
 	}
 
 	err = secretState.Close()
@@ -394,8 +392,7 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	expectedOps = append(expectedOps, "fdstore-add: memfd-secret-state") // add the new secret state file to fdstore
 
 	s.stateLockChecker.locked = true
-	secretState, err := backend.OpenSecretState(s.stateLockChecker)
-	c.Assert(err, IsNil)
+	secretState := backend.NewSecretState(s.stateLockChecker)
 	c.Assert(secretState, NotNil)
 	s.stateLockChecker.locked = false
 
@@ -428,7 +425,7 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 		largeValue[i] = byte(i % 256)
 	}
 	s.stateLockChecker.locked = true
-	err = secretState.Set("large-key", largeValue)
+	err := secretState.Set("large-key", largeValue)
 	c.Assert(err, ErrorMatches, `cannot set key "large-key": insufficient capacity in secret state`)
 	c.Assert(err, testutil.ErrorIs, backend.ErrInsufficientCapacity)
 
@@ -481,9 +478,14 @@ func (s *secretStateSuite) TestOpenSecretStateFailsWhenFileTooSmall(c *C) {
 	s.fdstoreFile = f
 
 	s.stateLockChecker.locked = true
-	secretState, err := backend.OpenSecretState(s.stateLockChecker)
-	c.Assert(secretState, IsNil)
-	c.Assert(err, ErrorMatches, `secret state file size 31 is too small`)
+	secretState := backend.NewSecretState(s.stateLockChecker)
+	c.Assert(secretState, NotNil)
+
+	// The initialization error is surfaced lazily on access.
+	var val string
+	c.Assert(secretState.Get("key", &val), ErrorMatches, `cannot initialize secret state: secret state file size 31 is too small`)
+	c.Assert(secretState.Set("key", "value"), ErrorMatches, `cannot initialize secret state: secret state file size 31 is too small`)
+	c.Assert(secretState.Has("key"), Equals, false)
 
 	// Open should fail before any mmap attempt.
 	c.Assert(s.ops, DeepEquals, []string{"fdstore-get: memfd-secret-state"})
@@ -503,8 +505,7 @@ func (s *secretStateSuite) TestOpenSecretStateClampsOversizedFile(c *C) {
 	s.fdstoreFile = f
 
 	s.stateLockChecker.locked = true
-	secretState, err := backend.OpenSecretState(s.stateLockChecker)
-	c.Assert(err, IsNil)
+	secretState := backend.NewSecretState(s.stateLockChecker)
 	c.Assert(secretState, NotNil)
 
 	// Capacity should match the fixed supported mmap size: 8KB - 32B header.
@@ -528,8 +529,7 @@ func (s *secretStateSuite) TestOpenSecretStateClampsOversizedFile(c *C) {
 
 func (s *secretStateSuite) TestMemfdSecretStateMethodsPanicWithoutLock(c *C) {
 	s.stateLockChecker.locked = true
-	secretState, err := backend.OpenSecretState(s.stateLockChecker)
-	c.Assert(err, IsNil)
+	secretState := backend.NewSecretState(s.stateLockChecker)
 	c.Assert(secretState, NotNil)
 	s.stateLockChecker.locked = false
 

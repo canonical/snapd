@@ -56,10 +56,10 @@ func IntsToCommaSeparated(vals []int) string {
 
 // Quoted formats a slice of strings to a quoted list of
 // comma-separated strings, e.g. `"snap1", "snap2"`
-func Quoted(names []string) string {
+func Quoted[T ~string](names []T) string {
 	quoted := make([]string, len(names))
 	for i, name := range names {
-		quoted[i] = strconv.Quote(name)
+		quoted[i] = strconv.Quote(string(name))
 	}
 
 	return strings.Join(quoted, ", ")
@@ -67,7 +67,7 @@ func Quoted(names []string) string {
 
 // ListContains determines whether the given string is contained in the
 // given list of strings.
-func ListContains(list []string, str string) bool {
+func ListContains[T ~string](list []T, str T) bool {
 	for _, k := range list {
 		if k == str {
 			return true

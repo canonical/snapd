@@ -241,3 +241,9 @@ func TestProtectorKey(ctx context.Context, devicePath, slotName string, protecto
 func GetDALockoutInfo() (*DALockoutInfo, error) {
 	return nil, errBuildWithoutSecboot
 }
+
+var ErrKeyslotNameNotExist = errors.New("no key with the specified name exists")
+
+func IsKeyUsedByKeyring(devicePath string, name string) (bool, error) {
+	return false, errBuildWithoutSecboot
+}

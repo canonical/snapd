@@ -41,13 +41,12 @@ var framebufferConnectedPlugUDev = []string{`KERNEL=="fb[0-9]*"`}
 
 func init() {
 	registerIface(&commonInterface{
-		name:                     "framebuffer",
-		summary:                  framebufferSummary,
-		implicitOnCore:           true,
-		implicitOnClassic:        true,
-		baseDeclarationSlots:     framebufferBaseDeclarationSlots,
-		connectedPlugAppArmor:    framebufferConnectedPlugAppArmor,
-		connectedPlugUDev:        framebufferConnectedPlugUDev,
-		parallelInstancesSlotErr: errParallelInstancesSystemSlot,
+		name:                  "framebuffer",
+		summary:               framebufferSummary,
+		implicitOnCore:        true,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  framebufferBaseDeclarationSlots,
+		connectedPlugAppArmor: framebufferConnectedPlugAppArmor,
+		connectedPlugUDev:     framebufferConnectedPlugUDev,
 	})
 }

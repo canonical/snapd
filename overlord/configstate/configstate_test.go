@@ -22,6 +22,7 @@ package configstate_test
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -370,6 +371,9 @@ func (s *configcoreHijackSuite) TestConfigMngrInitMigratesDiskSpaceReservation(c
 	var reservation uint64
 	c.Assert(t.Get("core", "disk-reservation.size", &reservation), IsNil)
 	c.Check(reservation, Equals, uint64(5*1024*1024))
+	var enabled bool
+	c.Assert(t.Get("core", "experimental.check-disk-space-install", &enabled), IsNil)
+	c.Check(enabled, Equals, true)
 }
 
 type witnessManager struct {
@@ -562,6 +566,52 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 	err = tr.Get("core", "services", &serviceCfg)
 	// nothing of this was set
 	c.Assert(config.IsNoOption(err), Equals, true)
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigDefaultEnabledExperimentalFeature(c *C) {
+	// Mock parallel-instances as enabled when unset so that setting it
+	// triggers the default-enabled experimental warning path in
+	// warnExperimentalChange, which locks the state.
+	restore := features.MockFeaturesEnabledWhenUnset(map[features.SnapdFeature]bool{
+		features.ParallelInstances: true,
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const gadgetYaml = `
+defaults:
+   system:
+     experimental:
+       parallel-instances: true
+`
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		gi, err := gadget.InfoFromGadgetYaml([]byte(gadgetYaml), nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		dev := &snapstatetest.TrivialDeviceContext{}
+		return dev, gi, nil
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, IsNil)
+
+	// The warning was recorded.
+	msg := "feature parallel-instances is enabled by default and will be permanently enabled in a future release"
+	warnings := s.state.AllWarnings()
+	var warningStrings []string
+	for _, w := range warnings {
+		warningStrings = append(warningStrings, w.String())
+	}
+	c.Check(strings.Join(warningStrings, "\n"), testutil.Contains, msg)
+
+	// The config was committed.
+	tr := config.NewTransaction(s.state)
+	ok, err := features.Flag(tr, features.ParallelInstances)
+	c.Assert(err, IsNil)
+	c.Check(ok, Equals, true)
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {

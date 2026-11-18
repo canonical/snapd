@@ -1,0 +1,298 @@
+summary: Check the guarded transition to boot-time snap bind mounts
+
+details: |
+    Simulate a native-package upgrade by deploying the mount units after a
+    strict snap has a preserved namespace. Check that the guard keeps
+    SNAP_MOUNT_DIR and /var/snap unmounted through reload, start attempts,
+    and snap runs; after reboot, verify that both mount and classic parallel
+    installation work, and still work after another reboot.
+
+    The suite uses new snapd throughout, so it cannot pre-install a classic
+    parallel instance without the mounts. Test installation refusal before
+    reboot and success afterward; snap-confine unit tests cover runtime
+    refusal when an installed instance has no mounts.
+
+# classic snaps are not supported on Ubuntu Core
+systems: [-ubuntu-core-*]
+
+prepare: |
+    # disable parallel instances
+    snap unset system experimental.parallel-instances
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
+        SNAP_MOUNT_UNIT="snap.mount"
+    else
+        SNAP_MOUNT_UNIT="var-lib-snapd-snap.mount"
+    fi
+
+    # Use the native package's unit directory, which may be /lib rather than
+    # /usr/lib on systems without merged /usr. Preserve any units it ships and
+    # their enabled/active states before simulating the upgrade.
+    SNAPD_SERVICE_UNIT="$(systemctl show snapd.service -p FragmentPath)"
+    SNAPD_SERVICE_UNIT="${SNAPD_SERVICE_UNIT#FragmentPath=}"
+    test -f "$SNAPD_SERVICE_UNIT"
+    VENDOR_UNIT_DIR="$(dirname "$SNAPD_SERVICE_UNIT")"
+    echo "$VENDOR_UNIT_DIR" > mount-unit-vendor.path
+    echo "$SNAP_MOUNT_UNIT" > snap-mount-unit.name
+    mkdir -p original-mount-units
+    : > mount-units.state
+    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+        enabled="$(systemctl is-enabled "$u" || true)"
+        active="$(systemctl is-active "$u" || true)"
+        if [ -e "$VENDOR_UNIT_DIR/$u" ] || [ -L "$VENDOR_UNIT_DIR/$u" ]; then
+            cp -a "$VENDOR_UNIT_DIR/$u" "original-mount-units/$u"
+        else
+            enabled=absent
+        fi
+        printf '%s %s %s\n' "$u" "$enabled" "$active" >> mount-units.state
+    done
+
+    SNAPD_REV="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
+    # Preserve the snapd snap under test because snap-mgmt --purge removes it.
+    cp "/var/lib/snapd/snaps/snapd_${SNAPD_REV}.snap" \
+        "$TESTSTMP/snapd-under-test.snap"
+
+    # Start without snap state or mounts: systemd treats an existing mount
+    # as active regardless of a new unit's condition.
+    systemctl stop snapd.service snapd.socket
+    snapd.tool exec snap-mgmt --purge
+    rm -f /var/lib/snapd/state.json
+
+    # Remove native units and mounts left by purge (e.g. dedicated partitions).
+    # Restore uses this marker even if prepare or execute stops partway through.
+    touch mount-units.modified
+    for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+        systemctl stop "$u" 2>/dev/null || true
+        systemctl disable "$u" 2>/dev/null || true
+        rm -f "$VENDOR_UNIT_DIR/$u"
+    done
+    systemctl daemon-reload
+    for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+        if findmnt -M "$mp" > /dev/null 2>&1; then
+            umount -l "$mp"
+        fi
+    done
+    # Purge removes these directories; snapd needs them when restarting.
+    mkdir -p "$SNAP_MOUNT_DIR" /var/snap
+
+    systemctl start snapd.service snapd.socket
+    snap wait system seed.loaded
+
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        # Provide /snap for classic snaps with an alternate mount directory.
+        ln -sfn "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
+    snap install --dangerous "$TESTSTMP/snapd-under-test.snap"
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
+
+    # Create the namespace before enabling parallel instances; old
+    # snap-confine could otherwise create the binds on a snap run.
+    test-snapd-sh-core24.sh -c true
+    test -e /run/snapd/ns/test-snapd-sh-core24.mnt
+    not findmnt -M "$SNAP_MOUNT_DIR"
+    not findmnt -M /var/snap
+
+    snap set system experimental.parallel-instances=true
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh-core24 test-snapd-sh-core24_foo
+    tests.cleanup defer snap remove --purge test-snapd-sh-core24_foo
+    not findmnt -M "$SNAP_MOUNT_DIR"
+    not findmnt -M /var/snap
+
+restore: |
+    # Restore vendor files and enablement after successful and partial runs.
+    # Spread's state snapshot does not include native-package unit files.
+    if [ -f mount-units.modified ]; then
+        VENDOR_UNIT_DIR="$(cat mount-unit-vendor.path)"
+        while read -r u enabled active; do
+            systemctl stop "$u" || true
+            systemctl disable "$u" || true
+            rm -f "$VENDOR_UNIT_DIR/$u"
+            if [ -e "original-mount-units/$u" ] || [ -L "original-mount-units/$u" ]; then
+                cp -a "original-mount-units/$u" "$VENDOR_UNIT_DIR/$u"
+            fi
+        done < mount-units.state
+        systemctl daemon-reload
+        while read -r u enabled active; do
+            case "$enabled" in
+                enabled) systemctl enable "$u" ;;
+                disabled|static|absent) : ;;
+                *) echo "unexpected initial state for $u: $enabled" >&2; exit 1 ;;
+            esac
+            # A legacy bind mount can be active without a vendor unit file;
+            # there is no unit to start after the simulated upgrade is undone.
+            if [ "$active" = active ] && [ "$enabled" != absent ]; then
+                systemctl start "$u"
+            fi
+        done < mount-units.state
+    fi
+
+execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = "/snap" ]; then
+        SNAP_MOUNT_UNIT="snap.mount"
+    else
+        SNAP_MOUNT_UNIT="var-lib-snapd-snap.mount"
+    fi
+    test "$(cat snap-mount-unit.name)" = "$SNAP_MOUNT_UNIT"
+    VENDOR_UNIT_DIR="$(cat mount-unit-vendor.path)"
+    SNAP_MOUNT_UNITS_DIR="${SNAP_MOUNT_UNIT%.mount}"
+
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        echo "A preserved namespace exists, but neither directory is mounted"
+        test -e /run/snapd/ns/test-snapd-sh-core24.mnt
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+
+        echo "Deploy the mount units (simulating a native package update), do not start them yet"
+        install -m 0644 "$PROJECT_PATH/data/systemd/$SNAP_MOUNT_UNITS_DIR/$SNAP_MOUNT_UNIT" "$VENDOR_UNIT_DIR/$SNAP_MOUNT_UNIT"
+        install -m 0644 "$PROJECT_PATH/data/systemd/$SNAP_MOUNT_UNITS_DIR/var-snap.mount" "$VENDOR_UNIT_DIR/var-snap.mount"
+        systemctl daemon-reload
+
+        echo "Reload alone must not create the bind mounts"
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            systemctl show "$u" -p FragmentPath | MATCH "FragmentPath=(/usr)?/lib/systemd/system/$u"
+            not systemctl is-active "$u"
+        done
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        test -e /run/snapd/ns/test-snapd-sh-core24.mnt
+
+        echo "Explicit starts are skipped because the namespace is preserved"
+        systemctl start "$SNAP_MOUNT_UNIT"
+        systemctl start var-snap.mount
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            not systemctl is-active "$u"
+            test "$(systemctl show "$u" -p ConditionResult)" = "ConditionResult=no"
+        done
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+
+        echo "Install a new snap and remove a pre-upgrade snap while the namespace guard is active"
+        "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+        snap remove --purge test-snapd-sh-core24_foo
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            not systemctl is-active "$u"
+        done
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        test -e /run/snapd/ns/test-snapd-sh-core24.mnt
+        count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-sh/" 'index($5, p) == 1' /proc/1/mountinfo | wc -l)"
+        test "$count" -eq 1
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh-core24 test-snapd-sh-core24_foo
+        not findmnt -M "$SNAP_MOUNT_DIR"
+
+        echo "Running an unrelated classic snap must not trigger the binds"
+        test-snapd-classic-confinement.sh -c true
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+
+        echo "Existing strict snap and its instance work without triggering the binds"
+        test-snapd-sh-core24.sh -c true
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        test-snapd-sh-core24_foo.sh -c true
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        test -e /run/snapd/ns/test-snapd-sh-core24.mnt
+
+        echo "A fresh parallel installed classic snap cannot be installed"
+        not "$TESTSTOOLS"/snaps-state install-local-as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic |& tee install-foo.log
+        tr '\n' ' ' < install-foo.log | tr -s ' ' | MATCH "$SNAP_MOUNT_UNIT needs to be started, and var-snap.mount needs to be enabled and started"
+        not snap list test-snapd-classic-confinement_foo
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+
+        echo "Enable var-snap.mount for the next boot"
+        systemctl enable var-snap.mount
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+
+        REBOOT
+
+    elif [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "Mounts are active after reboot"
+        # snapd starts mounts-pre.target asynchronously after boot.
+        retry -n 20 --wait 1 findmnt -M "$SNAP_MOUNT_DIR"
+        retry -n 20 --wait 1 findmnt -M /var/snap
+        retry -n 20 --wait 1 systemctl is-active "$SNAP_MOUNT_UNIT"
+        retry -n 20 --wait 1 systemctl is-active var-snap.mount
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            test "$(systemctl show "$u" -p ConditionResult)" = "ConditionResult=yes"
+        done
+        for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+            count="$(awk -v p="$mp" '$5 == p { count++ } END { print count+0 }' /proc/1/mountinfo)"
+            test "$count" -eq 1
+        done
+
+        echo "No duplicated content mounts"
+        for snap_name in core core24 snapd test-snapd-sh test-snapd-sh-core24 test-snapd-sh-core24_foo \
+            test-snapd-classic-confinement; do
+            count="$(awk -v p="$SNAP_MOUNT_DIR/$snap_name/" 'index($5, p) == 1' /proc/self/mountinfo | wc -l)"
+            test "$count" -eq 1
+        done
+
+        echo "All already installed snaps work"
+        test-snapd-sh-core24.sh -c true
+        test-snapd-sh-core24_foo.sh -c true
+        test-snapd-classic-confinement.sh -c true
+
+        echo "A parallel installed classic snap can now be installed and run"
+        "$TESTSTOOLS"/snaps-state install-local-as test-snapd-classic-confinement test-snapd-classic-confinement_foo --classic
+        test-snapd-classic-confinement_foo.sh -c true
+
+        echo "No duplicated content mounts for the snap installed after the reboot either"
+        count="$(awk -v p="$SNAP_MOUNT_DIR/test-snapd-classic-confinement_foo/" 'index($5, p) == 1' /proc/self/mountinfo | wc -l)"
+        test "$count" -eq 1
+
+        REBOOT
+
+    elif [ "$SPREAD_REBOOT" = 2 ]; then
+        echo "Mounts are active after a second reboot"
+        retry -n 20 --wait 1 findmnt -M "$SNAP_MOUNT_DIR"
+        retry -n 20 --wait 1 findmnt -M /var/snap
+        retry -n 20 --wait 1 systemctl is-active "$SNAP_MOUNT_UNIT"
+        retry -n 20 --wait 1 systemctl is-active var-snap.mount
+        for u in "$SNAP_MOUNT_UNIT" var-snap.mount; do
+            test "$(systemctl show "$u" -p ConditionResult)" = "ConditionResult=yes"
+        done
+        for mp in "$SNAP_MOUNT_DIR" /var/snap; do
+            count="$(awk -v p="$mp" '$5 == p { count++ } END { print count+0 }' /proc/1/mountinfo)"
+            test "$count" -eq 1
+        done
+
+        echo "No duplicated content mounts after the second reboot"
+        for snap_name in core core24 snapd test-snapd-sh test-snapd-sh-core24 test-snapd-sh-core24_foo \
+            test-snapd-classic-confinement test-snapd-classic-confinement_foo; do
+            count="$(awk -v p="$SNAP_MOUNT_DIR/$snap_name/" 'index($5, p) == 1' /proc/self/mountinfo | wc -l)"
+            test "$count" -eq 1
+        done
+
+        echo "All snaps still run after the second reboot"
+        test-snapd-sh-core24.sh -c true
+        test-snapd-sh-core24_foo.sh -c true
+        test-snapd-classic-confinement.sh -c true
+        test-snapd-classic-confinement_foo.sh -c true
+
+        echo "Purge all the snaps used by this test"
+        snap remove --purge test-snapd-sh
+        snap remove --purge test-snapd-sh-core24
+        snap remove --purge test-snapd-sh-core24_foo
+        snap remove --purge test-snapd-classic-confinement
+        snap remove --purge test-snapd-classic-confinement_foo
+
+        echo "Stop the mount units, leave the system in a clean state"
+        systemctl stop snapd.service snapd.socket
+        systemctl stop "$SNAP_MOUNT_UNIT"
+        systemctl stop var-snap.mount
+        systemctl disable var-snap.mount
+        rm -f "$VENDOR_UNIT_DIR/$SNAP_MOUNT_UNIT" "$VENDOR_UNIT_DIR/var-snap.mount"
+        systemctl daemon-reload
+        not findmnt -M "$SNAP_MOUNT_DIR"
+        not findmnt -M /var/snap
+        systemctl start snapd.service snapd.socket
+    fi

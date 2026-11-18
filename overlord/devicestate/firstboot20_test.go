@@ -504,8 +504,8 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 		c.Assert(snapst.Required, Equals, true)
 		c.Check(snapst.TrackingChannel, Equals, "latest/stable")
 
-		cref1 := naming.NewComponentRef(compsSnap, "comp1")
-		cref2 := naming.NewComponentRef(compsSnap, "comp2")
+		cref1 := naming.NewComponentRef(naming.SnapName(compsSnap), "comp1")
+		cref2 := naming.NewComponentRef(naming.SnapName(compsSnap), "comp2")
 		cinfos, err := snapst.CurrentComponentInfos()
 		c.Assert(err, IsNil)
 		c.Assert(len(cinfos), Equals, 2)

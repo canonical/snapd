@@ -627,6 +627,23 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 	})
 }
 
+func (s *snapServiceOptionsSuite) TestSnapServiceOptionsDuplicateVitalityRankUsesFirst(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	t := config.NewTransaction(st)
+	err := t.Set("core", "resilience.vitality-hint", "bar,foo,baz,foo")
+	c.Assert(err, IsNil)
+	t.Commit()
+
+	fooInfo := snaptest.MockInfo(c, "name: foo\nversion: 0", nil)
+	opts, err := servicestate.SnapServiceOptions(st, fooInfo, nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 2,
+	})
+}
+
 func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	st := s.state
 	st.Lock()

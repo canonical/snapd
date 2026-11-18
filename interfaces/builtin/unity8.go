@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -117,6 +118,12 @@ func (iface *unity8Interface) AppArmorConnectedPlug(spec *apparmor.Specification
 func (iface *unity8Interface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
+}
+
+func (iface *unity8Interface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	// TODO: this is an app-provided slot with no slot-side policy.
+	// Should this instead be system-provided slot like `unity7`?
+	return errors.New("currently unsupported")
 }
 
 func init() {

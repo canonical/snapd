@@ -31,6 +31,14 @@ const (
 )
 
 // Notice represents an aggregated notice. The combination of type and key is unique.
+//
+// It is important to never mutate a notice after it has been returned outside
+// of a function where there is no mutex protecting it. Otherwise, race
+// conditions can occur between reading its fields and updating them. Thus, when
+// mutating a notice is necessary, such as when re-recording an existing notice
+// or marking a warning notice as shown, a deep copy of the notice must be
+// created, and only that copy may be mutated. The Reoccur() method creates and
+// returns this deep copy.
 type Notice struct {
 	// Server-generated unique ID for this notice (a surrogate key).
 	//
@@ -88,6 +96,19 @@ type Notice struct {
 
 // NewNotice returns a new notice with the given details.
 func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestamp time.Time, data map[string]string, repeatAfter time.Duration, expireAfter time.Duration) *Notice {
+	if userID != nil {
+		// TODO:GOVERSION:1.26: simplify to `userID = new(*userID)`
+		copiedUserID := *userID
+		userID = &copiedUserID
+	}
+	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
+	var newData map[string]string
+	if data != nil {
+		newData = make(map[string]string, len(data))
+		for k, v := range data {
+			newData[k] = v
+		}
+	}
 	return &Notice{
 		id:            id,
 		userID:        userID,
@@ -97,35 +118,46 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 		lastOccurred:  timestamp,
 		lastRepeated:  timestamp,
 		occurrences:   1,
-		lastData:      data,
+		lastData:      newData,
 		repeatAfter:   repeatAfter,
 		expireAfter:   expireAfter,
 	}
 }
 
-// Reoccur updates the receiving notice to re-occur with the given timestamp
-// and data. Depending on its repeat after duration, the lastRepeated timestamp
-// may be updated. Returns whether the notice was repeated.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (repeated bool) {
-	n.occurrences++
+// Reoccur returns a deep copy of the receiving notice, updated with the given
+// timestamp and data. Depending on its repeat after duration, the lastRepeated
+// timestamp may be updated. Returns whether the notice was repeated. It is the
+// caller's responsibility to replace the receiver with the new notice in the
+// notice backend from whence it came.
+func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
+	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
+	var newData map[string]string
+	if data != nil {
+		newData = make(map[string]string, len(data))
+		for k, v := range data {
+			newData[k] = v
+		}
+	}
+	newNotice = n.DeepCopy()
+	newNotice.occurrences++
 	repeated = false
-	if repeatAfter == 0 || now.After(n.lastRepeated.Add(repeatAfter)) {
+	if repeatAfter == 0 || now.After(newNotice.lastRepeated.Add(repeatAfter)) {
 		// Update last repeated time if repeat-after time has elapsed (or is zero)
 		// XXX: this is what was used previously, but it seems strange to look
 		// at the repeatAfter argument instead of n.repeatAfter when deciding if
 		// the lastRepeated timestamp should be updated for an existing notice.
 		// It seems like the saved n.repeatAfter should be used when deciding
 		// whether the current call should cause the notice to be repeated, and
-		// then the given repeatAfter argument should be stored as n.repeatAfter
+		// then the given repeatAfter argument should be stored as newNotice.repeatAfter
 		// and used next time the notice is re-recorded. Otherwise, n.repeatAfter
 		// is never used, so what's the point of storing it in the notice?
-		n.lastRepeated = now
+		newNotice.lastRepeated = now
 		repeated = true
 	}
-	n.lastOccurred = now
-	n.lastData = data
-	n.repeatAfter = repeatAfter
-	return repeated
+	newNotice.lastOccurred = now
+	newNotice.lastData = newData
+	newNotice.repeatAfter = repeatAfter
+	return newNotice, repeated
 }
 
 // DeepCopy returns a deep copy of the receiver.
@@ -408,7 +440,8 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		s.notices[uniqueKey] = notice
 	}
 
 	if newOrRepeated {

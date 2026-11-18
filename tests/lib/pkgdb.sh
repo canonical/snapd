@@ -889,6 +889,7 @@ pkg_dependencies_opensuse(){
         nss-mdns
         osc
         PackageKit
+        libpackagekit-glib2-18
         procps
         python3-yaml
         strace

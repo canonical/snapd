@@ -17,9 +17,6 @@ skip:
         [ "$TRUST_TEST_KEYS" = "false" ]
 
 prepare: |
-    # needed for test-snapd-tools_instance
-    snap set system experimental.parallel-instances=true
-
     echo "Given snaps installed"
     for snap in test-snapd-tools test-snapd-tools_instance test-snapd-python-webserver; do
         snap install $snap
@@ -31,8 +28,6 @@ prepare: |
 restore: |
     "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
     rm -rf "$BLOB_DIR"
-
-    snap set system experimental.parallel-instances=null
 
 execute: |
     echo "Precondition check for the fake store"

@@ -6,11 +6,7 @@ details: |
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
-    snap set system experimental.parallel-instances=true
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
-
-restore: |
-    snap set system experimental.parallel-instances=null
 
 execute: |
     echo "List prints core snap version"

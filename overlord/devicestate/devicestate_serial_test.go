@@ -578,7 +578,7 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationMyBrandMismatchedAuthor
 	c.Assert(becomeOperational, NotNil)
 
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
-	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*obtained serial assertion is signed by authority "generic" different from brand "my-brand" without model assertion with serial-authority set to to allow for them.*`)
+	c.Check(becomeOperational.Err(), ErrorMatches, `(?s).*obtained serial assertion is signed by authority "generic" different from brand "my-brand" without model assertion with serial-authority set to allow for them.*`)
 }
 
 func (s *deviceMgrSerialSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {

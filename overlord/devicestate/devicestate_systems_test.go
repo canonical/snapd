@@ -1567,7 +1567,7 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 			continue
 		}
 
-		cref := naming.NewComponentRef(name, comp)
+		cref := naming.NewComponentRef(naming.SnapName(name), comp)
 
 		compYaml, ok := componentYamls[cref.String()]
 		c.Assert(ok, Equals, true, Commentf("component.yaml not found for %q", name))
@@ -3637,7 +3637,8 @@ func (s *modelAndGadgetInfoSuite) makeMockUC20SeedWithLocalContainers(c *C, labe
 		gadgetFiles, snap.R(1), "my-brand", s.storeSigning.Database)
 
 	compsSnapPath := snaptest.MakeTestSnapWithFiles(c,
-		"name: pc-kernel\nversion: 1\ntype: kernel\ncomponents:\n  comp1:\n    type: kernel-modules\n", nil)
+		"name: pc-kernel\nversion: 1\ntype: kernel\ncomponents:\n  comp1:\n    type: kernel-modules\n",
+		kfilesForComponents(nil))
 	compPath := snaptest.MakeTestComponent(c,
 		"component: pc-kernel+comp1\ntype: kernel-modules\nversion: 1.0.2")
 
@@ -4557,7 +4558,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		var path string
 		var files [][]string
 		switch snapsup.Type {
-		case snap.TypeBase:
+		case snap.TypeGadget:
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+		case snap.TypeKernel:
+			files = kfilesForComponents(nil)
+		}
+
+		if snapsup.Type == snap.TypeBase {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				fmt.Sprintf("name: %s\nversion: 1.0\ntype: %s",
@@ -4566,12 +4575,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				),
 				nil,
 			)
-		case snap.TypeGadget:
-			files = [][]string{
-				{"meta/gadget.yaml", uc20gadgetYaml},
-			}
-			fallthrough
-		default:
+		} else {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				fmt.Sprintf("name: %s\nversion: 1.0\nbase: %s\ntype: %s",
@@ -4611,6 +4615,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			Type:     snapTypes[name],
 		})
 
+		fmt.Printf("== fake download\n")
 		_, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamls[name], snapFiles[name], si)
 
 		opts.PrereqTracker.Add(info)
@@ -4977,7 +4982,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		res := make(map[string]snap.ComponentType)
 		for _, comps := range snapComponents {
 			for _, comp := range comps {
-				res[comp] = componentTypes[naming.NewComponentRef(snapName, comp).String()]
+				res[comp] = componentTypes[naming.NewComponentRef(naming.SnapName(snapName), comp).String()]
 			}
 		}
 		return res
@@ -5057,7 +5062,15 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		var path string
 		var files [][]string
 		switch snapsup.Type {
-		case snap.TypeBase:
+		case snap.TypeGadget:
+			files = [][]string{
+				{"meta/gadget.yaml", uc20gadgetYaml},
+			}
+		case snap.TypeKernel:
+			files = kfilesForComponents(nil)
+		}
+
+		if snapsup.Type == snap.TypeBase {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				withComponents(
@@ -5069,12 +5082,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 				),
 				nil,
 			)
-		case snap.TypeGadget:
-			files = [][]string{
-				{"meta/gadget.yaml", uc20gadgetYaml},
-			}
-			fallthrough
-		default:
+		} else {
 			path = snaptest.MakeTestSnapWithFiles(
 				c,
 				withComponents(
@@ -5180,7 +5188,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		var compsupTaskIDs []string
 		for _, comp := range components {
-			cref := naming.NewComponentRef(name, comp)
+			cref := naming.NewComponentRef(naming.SnapName(name), comp)
 
 			download := s.state.NewTask("mock-download-component", fmt.Sprintf("Download component %q", cref))
 			download.Set("component-setup", &snapstate.ComponentSetup{
@@ -5240,7 +5248,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		var compsupTaskIDs []string
 		for _, comp := range components {
-			cref := naming.NewComponentRef(name, comp)
+			cref := naming.NewComponentRef(naming.SnapName(name), comp)
 
 			download := s.state.NewTask("mock-download-component", fmt.Sprintf("Download component %q", cref))
 			download.Set("component-setup", &snapstate.ComponentSetup{
@@ -6238,18 +6246,14 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		var base string
 		switch snapTypes[name] {
 		case snap.TypeGadget:
+			base = "core20"
 			files = [][]string{
 				{"meta/gadget.yaml", uc20gadgetYaml},
 			}
-			fallthrough
 		case snap.TypeApp:
 			base = "core20"
-		}
-		if snapTypes[name] == snap.TypeGadget {
-			base = "core20"
-			files = [][]string{
-				{"meta/gadget.yaml", uc20gadgetYaml},
-			}
+		case snap.TypeKernel:
+			files = kfilesForComponents(nil)
 		}
 
 		rev := snapRevisions[name]
@@ -6279,14 +6283,14 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	localComponents := make([]snapstate.PathComponent, 0, len(opts.componentsToProvide))
 	for _, cref := range opts.componentsToProvide {
 		compRev := componentRevisions[cref]
-		compType := snapComponents[cref.SnapName][cref.ComponentName]
+		compType := snapComponents[cref.SnapName.String()][cref.ComponentName]
 
 		yaml := fmt.Sprintf("component: %s\nversion: 1.0\ntype: %s\n", cref, compType)
 		compPath := snaptest.MakeTestComponent(c, yaml)
 
-		snapID := fakeSnapID(cref.SnapName)
+		snapID := fakeSnapID(cref.SnapName.String())
 		s.setupSnapResourceRevision(c, compPath, cref.ComponentName, snapID, "canonical", compRev)
-		s.setupSnapResourcePair(c, cref.ComponentName, snapID, "canonical", compRev, snapRevisions[cref.SnapName])
+		s.setupSnapResourcePair(c, cref.ComponentName, snapID, "canonical", compRev, snapRevisions[cref.SnapName.String()])
 
 		localComponents = append(localComponents, snapstate.PathComponent{
 			SideInfo: snap.NewComponentSideInfo(cref, compRev),

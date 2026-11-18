@@ -57,6 +57,11 @@ prepare: |
   SNAPD_DEBUG=1 "$SNAP_PRESEED" --reset "$IMAGE_MOUNTPOINT"
 
 restore: |
+  # Restore the environment after the test
+  for container in my-ubuntu-preseeded my-ubuntu; do
+      lxc stop "$container" --force || true
+      lxc delete "$container" || true
+  done
 
   umount "$IMAGE_MOUNTPOINT"
   rmdir "$IMAGE_MOUNTPOINT"
@@ -64,6 +69,8 @@ restore: |
   # qemu-nbd -d may sporadically fail when removing the device,
   # reporting it's still in use.
   retry -n 30 --wait 1 qemu-nbd -d /dev/nbd0
+
+  snap remove --purge lxd
 
   "$TESTSTOOLS"/lxd-state undo-mount-changes
 
@@ -125,7 +132,10 @@ execute: |
       SNAP_PRESEED="$MOUNT_DIR/snapd/current$SNAP_PRESEED"
       lxc exec my-ubuntu -- "$SNAP_PRESEED" "$IMAGE_MOUNTPOINT"
   else
-      lxc file push "$SNAP_PRESEED" "my-ubuntu/$GOHOME/"
+      # If not using snapd from archive, we assume snap-preseed and its dependencies are available locally and push them into the container
+      lxc file push "$(dirname "$SNAP_PRESEED")/snapd" "my-ubuntu/$GOHOME/snapd"
+      # Push the snap-preseed binary into the container
+      lxc file push "$SNAP_PRESEED" "my-ubuntu/$GOHOME/snap-preseed"
       lxc exec my-ubuntu -- "$GOHOME"/snap-preseed "$IMAGE_MOUNTPOINT"
   fi
 

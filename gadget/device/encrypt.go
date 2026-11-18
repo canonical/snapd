@@ -163,7 +163,7 @@ func (et EncryptionType) IsLUKS() bool {
 }
 
 // ValidatePIN checks that the passed PIN is formatted properly.
-// If the supplied PIN larger than 255 characters or contains
+// If the supplied PIN larger than 256 characters or contains
 // anything other than base-10 digits, an error will be returned.
 var ValidatePIN func(pin string) error = validatePINImpl
 

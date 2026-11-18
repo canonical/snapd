@@ -63,7 +63,7 @@ func (s *linkCompSnapSuite) testDoLinkComponent(c *C, snapName string, snapRev s
 	s.state.Lock()
 
 	t := s.state.NewTask("link-component", "task desc")
-	cref := naming.NewComponentRef(snapName, compName)
+	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -152,7 +152,7 @@ func (s *linkCompSnapSuite) testDoLinkThenUndoLinkComponent(c *C, snapName strin
 	setStateWithOneSnap(s.state, snapName, snapRev)
 
 	t := s.state.NewTask("link-component", "task desc")
-	cref := naming.NewComponentRef(snapName, compName)
+	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -235,7 +235,7 @@ func (s *linkCompSnapSuite) testDoUnlinkComponent(c *C, snapName string, snapRev
 	s.state.Lock()
 
 	t := s.state.NewTask(unlinkTaskType, "task desc")
-	cref := naming.NewComponentRef(snapName, compName)
+	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)
@@ -330,7 +330,7 @@ func (s *linkCompSnapSuite) TestDoUnlinkCurrentComponentTwoTasks(c *C) {
 	ts := s.state.NewTask("nop", "first task")
 	t := s.state.NewTask("unlink-current-component", "task desc")
 	t.WaitFor(ts)
-	cref := naming.NewComponentRef(snapName, compName)
+	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	ts.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	ts.Set("snap-setup", ssu)
@@ -380,7 +380,7 @@ func (s *linkCompSnapSuite) testDoUnlinkThenUndoUnlinkComponent(c *C, snapName s
 	s.state.Lock()
 
 	t := s.state.NewTask(unlinkTaskType, "task desc")
-	cref := naming.NewComponentRef(snapName, compName)
+	cref := naming.NewComponentRef(naming.SnapName(snapName), compName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
 	t.Set("snap-setup", ssu)

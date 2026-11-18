@@ -70,8 +70,8 @@ prepare: |
     # https://github.com/canonical/snapd/pull/16615#discussion_r2953194911
 
     # Download two real snapd snap revisions for end-to-end testing
-    snap download snapd --revision=25585 --basename=snapd-old
-    snap download snapd --revision=25839 --basename=snapd-new
+    snap download snapd --revision=25585 --basename=snapd-old  # rev 2.72
+    snap download snapd --revision=25940 --basename=snapd-new  # rev 2.73
 
 restore: |
     rm -rf source-snap target-snap

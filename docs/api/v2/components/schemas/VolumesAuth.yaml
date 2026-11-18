@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: VolumesAuth
+required:
+  - mode
+description: >-
+  Options for the volumes authentication mechanism (passphrase or PIN).
+  If omitted, no authentication mechanism is used.
+  If `storage-encryption.requirements` in SystemDetails contains 'volumes-auth',
+  this field is required.
+properties:
+  mode:
+    type: string
+    enum:
+      - passphrase
+      - pin
+    description: >-
+      The authentication mode to use for the volumes. The selected must be
+      supported by the system and returned in `storage-encryption.features` in
+      SystemDetails ('passphrase-auth' for passphrase, 'pin-auth' for PIN).
+oneOf:
+  - type: object
+    title: passphrase
+    additionalProperties: false
+    required:
+      - mode
+      - passphrase
+    properties:
+      mode:
+        type: string
+        enum:
+          - passphrase
+      passphrase:
+        $ref: 'Passphrase.yaml'
+      kdf-type:
+        type: string
+        enum:
+          - argon2i
+          - argon2id
+          - pbkdf2
+        description: >-
+          The key derivation function to use for passphrase
+          authentication. If omitted, snapd defaults to 'argon2id'.
+  - type: object
+    title: pin
+    additionalProperties: false
+    required:
+      - mode
+      - pin
+    properties:
+      mode:
+        type: string
+        enum:
+          - pin
+      pin:
+        $ref: 'PIN.yaml'

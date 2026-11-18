@@ -192,6 +192,23 @@ apps:
 	c.Assert(err, ErrorMatches, `snap is unusable due to missing files: path "bin/hello-world" does not exist`)
 }
 
+func (s *packSuite) TestPackKernelModulesComponentNeedsKernelVersion(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: pc-kernel
+version: 1
+type: kernel
+components:
+  drivers:
+    type: kernel-modules
+`)
+
+	_, err := pack.Pack(sourceDir, pack.Defaults)
+	c.Assert(err, ErrorMatches, `kernel snap with kernel-modules components must contain a modules/<kernel-version> directory`)
+
+	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "modules", "5.15.0-78-generic"), 0755), IsNil)
+	var output bytes.Buffer
+	c.Assert(pack.CheckSkeleton(&output, sourceDir), IsNil)
+}
+
 func (s *packSuite) TestPackKernelGadgetOSAppWithConfigureHookHappy(c *C) {
 	for _, snapType := range []string{"kernel", "gadget", "os", "app"} {
 		snapYaml := fmt.Sprintf(`name: %[1]s

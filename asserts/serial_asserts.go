@@ -93,7 +93,7 @@ func (ser *Serial) CheckConsistency(db RODatabase, acck *AccountKey) error {
 			return err
 		}
 		if errors.Is(err, &NotFoundError{}) || !strutil.ListContains(a.(*Model).SerialAuthority(), ser.AuthorityID()) {
-			return fmt.Errorf("serial with authority %q different from brand %q without model assertion with serial-authority set to to allow for them", ser.AuthorityID(), ser.BrandID())
+			return fmt.Errorf("serial with authority %q different from brand %q without model assertion with serial-authority set to allow for them", ser.AuthorityID(), ser.BrandID())
 		}
 	}
 	return nil

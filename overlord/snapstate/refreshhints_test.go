@@ -318,7 +318,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 
 	restore := snapstate.MockReadComponentInfo(func(compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
 		c.Check(csi.Component.ComponentName, Equals, "comp1")
-		c.Check(csi.Component.SnapName, Equals, "other-snap")
+		c.Check(csi.Component.SnapName.String(), Equals, "other-snap")
 		return &snap.ComponentInfo{
 			Component:         csi.Component,
 			Type:              snap.StandardComponent,
@@ -785,7 +785,7 @@ func (s *refreshHintsTestSuite) TestUpdateCandidatesDiscriminating(c *C) {
 	c.Check(hints["bar"].Monitored, Equals, true)
 
 	// like re-refresh code path would eventually call it
-	err = snapstate.UpdateRefreshCandidates(s.state, nil, []string{"foo"})
+	err = snapstate.UpdateRefreshCandidates(s.state, nil, []naming.InstanceName{"foo"})
 	c.Assert(err, IsNil)
 
 	hints = nil

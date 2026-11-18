@@ -96,7 +96,7 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
 	c.Check(snapDecl.Series(), Equals, "16")
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
-	c.Check(snapDecl.SnapName(), Equals, "first")
+	c.Check(snapDecl.SnapName().String(), Equals, "first")
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
 	c.Check(snapDecl.AutoAliases(), DeepEquals, []string{"cmd1", "cmd_2", "Cmd-3", "CMD.4"})
@@ -141,7 +141,7 @@ func (sds *snapDeclSuite) TestDecodeOKWithRevisionAuthority(c *C) {
 	c.Check(snapDecl.Timestamp(), Equals, sds.ts)
 	c.Check(snapDecl.Series(), Equals, "16")
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
-	c.Check(snapDecl.SnapName(), Equals, "first")
+	c.Check(snapDecl.SnapName().String(), Equals, "first")
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
 	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
 	ras := snapDecl.RevisionAuthority("prov1")
@@ -227,7 +227,7 @@ func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	snapDecl := a.(*asserts.SnapDeclaration)
-	c.Check(snapDecl.SnapName(), Equals, "")
+	c.Check(snapDecl.SnapName().String(), Equals, "")
 }
 
 func (sds *snapDeclSuite) TestMissingRefreshControlAutoAliases(c *C) {

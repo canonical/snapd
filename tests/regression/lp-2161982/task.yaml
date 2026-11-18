@@ -1,0 +1,14 @@
+summary: Test the vsock-guest interface for confined access to /dev/vsock and AF_VSOCK sockets
+
+details: |
+    LP: #2161982. Test the vsock-guest interface for confined access to /dev/vsock and AF_VSOCK sockets.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local vsock-guest-test
+
+execute: |
+    snap connect vsock-guest-test:vsock-guest
+    vsock-guest-test.test
+
+    snap disconnect vsock-guest-test:vsock-guest
+    not vsock-guest-test.test

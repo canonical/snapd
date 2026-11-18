@@ -254,7 +254,7 @@ func symlinksForSourceDir(
 		instance := slot.Snap().InstanceName()
 		splitNum := 3
 		compSuffix := ""
-		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance.String())) {
+		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance)) {
 			splitNum = 6
 			compSuffix = "+"
 		}

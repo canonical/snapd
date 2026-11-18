@@ -640,11 +640,23 @@ func run() error {
 			case flags.ErrUnknownCommand:
 				sub := os.Args[1]
 				sug := "snap help"
+				cmd := parser.Command
 				if len(xtra) > 0 {
 					sub = xtra[0]
-					if x := parser.Command.Active; x != nil && x.Name != "help" {
-						sug = "snap help " + x.Name
+					// parsing stopped at the innermost active command, only
+					// its sub-commands are valid suggestions
+					var path []string
+					for cmd.Active != nil {
+						cmd = cmd.Active
+						path = append(path, cmd.Name)
 					}
+					if len(path) > 0 {
+						sug = "snap help " + strings.Join(path, " ")
+					}
+				}
+				if closest := closestCommand(cmd, sub); closest != "" {
+					// TRANSLATORS: %q is the command the user entered, %q is the closest known command and %s is 'snap help' or 'snap help <cmd>'
+					return unknownCommandError{fmt.Sprintf(i18n.G("unknown command %q, did you mean %q?\nSee '%s'."), sub, closest, sug)}
 				}
 				// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
 				return unknownCommandError{fmt.Sprintf(i18n.G("unknown command %q, see '%s'."), sub, sug)}

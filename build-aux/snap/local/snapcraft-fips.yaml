@@ -267,6 +267,7 @@ parts:
       # double check the toolchain
       echo "--- go version $(go version)"
       echo "--- go is at $(which go)"
+      snap info go | grep "tracking\|installed" | tr -s ' '
 
       cd "${CRAFT_PART_BUILD}/cmd"
 
