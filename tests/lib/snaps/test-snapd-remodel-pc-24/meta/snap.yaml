@@ -1,5 +1,5 @@
 name: test-snapd-remodel-pc
-version: 24-0.1
+version: 24-0.2
 summary: PC gadget for test-snapd-remodel devices
 description: 'This gadget enables testing of pc devices with snapd brand store
 

@@ -37,9 +37,9 @@ AC_FIELD = "customfield_10064"
 TEAM_FIELD = "customfield_10001"
 POINTS_FIELD = "customfield_10016"
 FAKE_TEAM_IDS = {
-    crt.DEFAULT_TEAM: "team-emea",
+    crt.DEFAULT_TEAM: "team-iot",
     crt.CROSS_DISTRO_TEAM: "team-cross",
-    crt.AMER_TEAM: "team-amer",
+    crt.DESKTOP_TEAM: "team-desktop",
 }
 
 
@@ -262,7 +262,15 @@ class TestVersionAndNaming(unittest.TestCase):
         self.assertEqual(crt.jira_version_for("bugfix", "2.78.1"), "2.78")
 
     def test_security_uses_major_jira_version(self):
-        self.assertEqual(crt.jira_version_for("security", "2.78.2"), "2.78")
+        self.assertEqual(crt.jira_version_for("security", "2.78.X"), "2.78")
+
+    def test_security_rejects_a_numeric_patch(self):
+        with self.assertRaises(RuntimeError) as cm:
+            crt.jira_version_for("security", "2.78.2")
+        self.assertEqual(
+            str(cm.exception),
+            'cannot use version "2.78.2" with variant "security", expected X.YY.X',
+        )
 
     def test_bugfix_rejects_major_version(self):
         with self.assertRaises(RuntimeError) as cm:
@@ -282,15 +290,19 @@ class TestVersionAndNaming(unittest.TestCase):
             "Snapd Bugfix Release 2.78.1",
         )
         self.assertEqual(
-            crt.epic_summary_for("security", "2.78.1"),
-            "Snapd Security Release 2.78.1",
+            crt.epic_summary_for("security", "2.78.X"),
+            "Snapd Security Release 2.78.X",
         )
 
     def test_variant_from_version(self):
         self.assertEqual(crt.variant_from_version("2.78"), "major")
         self.assertEqual(crt.variant_from_version("2.77.1"), "bugfix")
         self.assertEqual(
-            crt.variant_from_version("2.77.1", security=True),
+            crt.variant_from_version("2.77.X", security=True),
+            "security",
+        )
+        self.assertEqual(
+            crt.variant_from_version("2.77.x", security=True),
             "security",
         )
 
@@ -299,7 +311,23 @@ class TestVersionAndNaming(unittest.TestCase):
             crt.variant_from_version("2.78", security=True)
         self.assertEqual(
             str(cm.exception),
-            'cannot use --security with version "2.78", expected X.YY.Z',
+            'cannot use --security with version "2.78", expected X.YY.X',
+        )
+
+    def test_variant_from_version_rejects_security_on_numeric_patch(self):
+        with self.assertRaises(RuntimeError) as cm:
+            crt.variant_from_version("2.78.1", security=True)
+        self.assertEqual(
+            str(cm.exception),
+            'cannot use --security with version "2.78.1", expected X.YY.X',
+        )
+
+    def test_security_placeholder_requires_the_security_flag(self):
+        with self.assertRaises(RuntimeError) as cm:
+            crt.variant_from_version("2.78.X")
+        self.assertEqual(
+            str(cm.exception),
+            'cannot use version "2.78.X" without --security',
         )
 
     def test_jira_version_override(self):
@@ -323,7 +351,7 @@ class TestTaskTitles(unittest.TestCase):
                 "Build and upload BETA snapd snaps",
                 "Build and upload snapd debs",
                 "Complete Snapd Team QA BETA validation",
-                "Monitor Certification Team BETA validation",
+                "Complete Certification BETA validation",
                 "Request upload to resolute-proposed "
                 "and facilitate LP bug verification",
                 "Request upload to {jammy,noble,plucky}-proposed "
@@ -341,14 +369,14 @@ class TestTaskTitles(unittest.TestCase):
         )
         self.assertEqual(sum(task.points for task in plan.tasks), 21)
         bugfix = sample_plan(variant="bugfix", version="2.78.1")
-        security = sample_plan(variant="security", version="2.78.1")
+        security = sample_plan(variant="security", version="2.78.X")
         self.assertEqual(
             [task.points for task in bugfix.tasks],
             [task.points for task in plan.tasks],
         )
         self.assertEqual(
             [task.points for task in security.tasks],
-            [task.points for task in plan.tasks],
+            [3, 2, 3, 1, 3, 3],
         )
 
     def test_bugfix_cut_title_uses_patch_version(self):
@@ -364,7 +392,7 @@ class TestTaskTitles(unittest.TestCase):
             plan.tasks[0].checklist[0],
             "Create the release/2.78 branch from master",
         )
-        for variant, version in (("bugfix", "2.78.1"), ("security", "2.78.2")):
+        for variant, version in (("bugfix", "2.78.1"), ("security", "2.78.X")):
             plan = sample_plan(variant=variant, version=version)
             self.assertEqual(
                 plan.tasks[0].checklist[0],
@@ -373,30 +401,59 @@ class TestTaskTitles(unittest.TestCase):
             )
 
     def test_security_task_titles_are_prefixed(self):
-        plan = sample_plan(variant="security", version="2.77.1")
+        plan = sample_plan(variant="security", version="2.77.x")
+        self.assertEqual(plan.version, "2.77.X")
+        self.assertEqual(plan.epic_summary, "Snapd Security Release 2.77.X")
+        self.assertEqual(plan.jira_version, "snapd 2.77")
         summaries = [task.summary for task in plan.tasks]
-        self.assertEqual(len(summaries), 9)
-        self.assertTrue(
-            all(title.startswith(crt.SECURITY_TITLE_PREFIX) for title in summaries)
+        self.assertEqual(
+            summaries,
+            [
+                "Security: Cut release 2.77.X",
+                "Security: Build and upload BETA snapd snaps",
+                "Security: Complete Snapd Team QA BETA validation",
+                "Security: Complete Certification BETA validation",
+                "Security: Cross-distro: releases Arch, openSUSE & Amazon",
+                "Security: Cross-distro: Fedora and Debian",
+            ],
         )
-        self.assertEqual(summaries[0], "Security: Cut release 2.77.1")
+        for dropped in (
+            "Build and upload snapd debs",
+            "Request upload to resolute-proposed and facilitate LP bug verification",
+            "Request upload to {jammy,noble,plucky}-proposed "
+            "and facilitate LP bug verification",
+        ):
+            self.assertNotIn(crt.SECURITY_TITLE_PREFIX + dropped, summaries)
         self.assertFalse(
             any(
                 item.startswith(crt.SECURITY_TITLE_PREFIX)
                 for item in plan.tasks[0].checklist
             )
         )
+        self.assertEqual(crt.task_team(plan, plan.tasks[2]), crt.DESKTOP_TEAM)
 
-    def test_default_team_is_emea_except_cross_distro(self):
+    def test_default_team_is_iot_except_qa_and_cross_distro(self):
         plan = sample_plan()
         self.assertEqual(plan.team, crt.DEFAULT_TEAM)
         teams = [crt.task_team(plan, task) for task in plan.tasks]
-        self.assertEqual(teams[:-2], [crt.DEFAULT_TEAM] * 7)
-        self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
+        self.assertEqual(
+            teams,
+            [
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DESKTOP_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.DEFAULT_TEAM,
+                crt.CROSS_DISTRO_TEAM,
+                crt.CROSS_DISTRO_TEAM,
+            ],
+        )
         self.assertTrue(plan.tasks[-1].cross_distro)
         self.assertFalse(plan.tasks[0].cross_distro)
         self.assertIn(
-            "Publish the GitHub release created when uploading tarballs",
+            "Report pass/fail to the snapd release coordinator",
             plan.tasks[3].checklist,
         )
         self.assertTrue(
@@ -433,13 +490,42 @@ class TestTaskTitles(unittest.TestCase):
             checklist.index(verify),
             checklist.index("Promote FIPS revisions to fips-updates/beta"),
         )
+        for step in crt.GITHUB_TARBALL_STEPS:
+            self.assertNotIn(step, checklist)
 
-    def test_candidate_promotion_gates_and_comms(self):
-        plan = sample_plan()
-        checklist = list(plan.tasks[3].checklist)
+    def test_security_beta_snaps_creates_tarballs_and_draft_release(self):
+        plan = sample_plan(variant="security", version="2.77.X")
+        beta = next(
+            task
+            for task in plan.tasks
+            if task.summary == "Security: Build and upload BETA snapd snaps"
+        )
         self.assertEqual(
-            checklist[-6:],
+            list(beta.checklist[-2:]),
+            list(crt.GITHUB_TARBALL_STEPS),
+        )
+        self.assertNotIn("Upload to a test PPA and run autopkgtests", beta.checklist)
+        self.assertNotIn("Upload to ppa:snappy-dev/image", beta.checklist)
+
+    def test_qa_beta_validation_criteria(self):
+        plan = sample_plan()
+        self.assertEqual(
+            list(plan.tasks[3].checklist),
             [
+                "Coordinate snapd team QA beta validation",
+                "Analyse test results and add comment to explain/justify findings "
+                "and provide conclusion",
+                "Report pass/fail to the snapd release coordinator",
+            ],
+        )
+
+    def test_certification_beta_validation_criteria(self):
+        plan = sample_plan()
+        self.assertEqual(
+            list(plan.tasks[4].checklist),
+            [
+                "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+                "Discuss results with the certification team and obtain certification sign-off",
                 "Obtain QA sign-off to promote to candidate",
                 "Confirm the certification team beta sign-off",
                 "Promote snapd snap revisions to candidate",
@@ -448,6 +534,45 @@ class TestTaskTitles(unittest.TestCase):
                 "Publish the GitHub release created when uploading tarballs",
             ],
         )
+
+    def test_security_certification_defers_publicity_until_stable(self):
+        plan = sample_plan(variant="security", version="2.77.X")
+        summaries = [task.summary for task in plan.tasks]
+        self.assertNotIn(
+            "Security: Request upload to {jammy,noble,plucky}-proposed "
+            "and facilitate LP bug verification",
+            summaries,
+        )
+        cert = next(
+            task
+            for task in plan.tasks
+            if task.summary == "Security: Complete Certification BETA validation"
+        )
+        self.assertEqual(
+            list(cert.checklist),
+            [
+                "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+                "Discuss results with the certification team and obtain certification sign-off",
+                "Obtain QA sign-off to promote to candidate",
+                "Confirm the certification team beta sign-off",
+                "Promote snapd snap revisions to candidate",
+                "Confirm the candidate soak week, the WSL smoke tests, "
+                "and that no stable-stopper bugs are open",
+                "Start the progressive snap release in sync with the deb release",
+                "Publish the GitHub release after the debs and snaps have been released",
+                "Update the snapd roadmap and publicize the release once it is in stable",
+            ],
+        )
+        for task in plan.tasks:
+            self.assertNotIn("Request the move to -updates", task.checklist)
+            self.assertNotIn(
+                "Update the snapd roadmap for candidate",
+                task.checklist,
+            )
+            self.assertNotIn(
+                "Create the release forum post and publicize the move to candidate",
+                task.checklist,
+            )
 
     def test_stable_release_follows_documented_order(self):
         plan = sample_plan()
@@ -464,22 +589,29 @@ class TestTaskTitles(unittest.TestCase):
             ],
         )
 
-    def test_amer_team_does_not_override_cross_distro(self):
-        plan = sample_plan(team=crt.AMER_TEAM)
-        self.assertEqual(plan.team, crt.AMER_TEAM)
+    def test_desktop_team_does_not_override_cross_distro(self):
+        plan = sample_plan(team=crt.DESKTOP_TEAM)
+        self.assertEqual(plan.team, crt.DESKTOP_TEAM)
         teams = [crt.task_team(plan, task) for task in plan.tasks]
-        self.assertEqual(teams[:-2], [crt.AMER_TEAM] * 7)
+        self.assertEqual(teams[:-2], [crt.DESKTOP_TEAM] * 7)
         self.assertEqual(teams[-2:], [crt.CROSS_DISTRO_TEAM, crt.CROSS_DISTRO_TEAM])
+
+    def test_plan_team_does_not_override_qa_beta(self):
+        plan = sample_plan(team=crt.CROSS_DISTRO_TEAM)
+        self.assertEqual(crt.task_team(plan, plan.tasks[3]), crt.DESKTOP_TEAM)
+        self.assertEqual(crt.task_team(plan, plan.tasks[0]), crt.CROSS_DISTRO_TEAM)
 
     def test_parse_team_maps_short_and_full_names(self):
         self.assertEqual(crt.parse_team(None), crt.DEFAULT_TEAM)
-        self.assertEqual(crt.parse_team("EMEA"), crt.DEFAULT_TEAM)
-        self.assertEqual(crt.parse_team("AMER"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("IoT"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("IOT"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("Snapd IoT"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("Desktop"), crt.DESKTOP_TEAM)
         self.assertEqual(crt.parse_team("Cross-distro"), crt.CROSS_DISTRO_TEAM)
-        self.assertEqual(crt.parse_team("amer"), crt.AMER_TEAM)
+        self.assertEqual(crt.parse_team("desktop"), crt.DESKTOP_TEAM)
         self.assertEqual(crt.parse_team("cross-distro"), crt.CROSS_DISTRO_TEAM)
-        self.assertEqual(crt.parse_team("SnapD AMER"), crt.AMER_TEAM)
-        self.assertEqual(crt.parse_team("snapd emea"), crt.DEFAULT_TEAM)
+        self.assertEqual(crt.parse_team("Snapd Desktop"), crt.DESKTOP_TEAM)
+        self.assertEqual(crt.parse_team("snapd iot"), crt.DEFAULT_TEAM)
         self.assertEqual(crt.parse_team("SnapD Cross-distro"), crt.CROSS_DISTRO_TEAM)
 
     def test_parse_team_rejects_unknown_names(self):
@@ -488,7 +620,7 @@ class TestTaskTitles(unittest.TestCase):
                 crt.parse_team(raw)
             message = str(cm.exception)
             self.assertIn(f'invalid --team "{raw}"', message)
-            self.assertIn('expected one of "EMEA", "AMER", "Cross-distro"', message)
+            self.assertIn('expected one of "IoT", "Desktop", "Cross-distro"', message)
 
     def test_parse_targets_strips_whitespace(self):
         self.assertEqual(
@@ -594,10 +726,10 @@ class TestPayloads(unittest.TestCase):
             "SNAPDENG-1001",
             AC_FIELD,
             team_field=TEAM_FIELD,
-            team_id="team-emea",
+            team_id="team-iot",
             story_points_field=POINTS_FIELD,
         )
-        self.assertEqual(with_team[TEAM_FIELD], "team-emea")
+        self.assertEqual(with_team[TEAM_FIELD], "team-iot")
         self.assertEqual(with_team[POINTS_FIELD], 3)
 
     def test_epic_name_field_from_env(self):
@@ -626,7 +758,8 @@ class TestDryRunAndApply(unittest.TestCase):
         self.assertIn("Fix Version: snapd 2.78", text)
         self.assertIn("Parent: SNAPDENG-34819", text)
         self.assertIn("Epic: Snapd Major Release 2.78", text)
-        self.assertIn("Team: SnapD EMEA", text)
+        self.assertIn("Team: Snapd IoT", text)
+        self.assertIn("Team: Snapd Desktop", text)
         self.assertIn("Team: SnapD Cross-distro", text)
         self.assertIn("Description:", text)
         self.assertIn("Acceptance Criteria:", text)
@@ -744,15 +877,10 @@ class TestDryRunAndApply(unittest.TestCase):
             client.created[0]["fields"][TEAM_FIELD],
             FAKE_TEAM_IDS[crt.DEFAULT_TEAM],
         )
-        for issue in client.created[1:-2]:
+        for issue, task in zip(client.created[1:], plan.tasks):
             self.assertEqual(
                 issue["fields"][TEAM_FIELD],
-                FAKE_TEAM_IDS[crt.DEFAULT_TEAM],
-            )
-        for issue in client.created[-2:]:
-            self.assertEqual(
-                issue["fields"][TEAM_FIELD],
-                FAKE_TEAM_IDS[crt.CROSS_DISTRO_TEAM],
+                FAKE_TEAM_IDS[crt.task_team(plan, task)],
             )
         for issue in client.created[1:]:
             self.assertEqual(issue["fields"]["issuetype"]["name"], "Task")
@@ -782,17 +910,21 @@ class TestDryRunAndApply(unittest.TestCase):
             )
         self.assertEqual(len(client.transitioned), 10)
 
-    def test_apply_amer_team_skips_cross_distro(self):
-        plan = sample_plan(team=crt.AMER_TEAM)
+    def test_apply_desktop_team_skips_cross_distro(self):
+        plan = sample_plan(team=crt.DESKTOP_TEAM)
         client = FakeJiraClient(versions=["snapd 2.78"])
         crt.apply_plan(plan, client)
         self.assertEqual(
             client.created[0]["fields"][TEAM_FIELD],
-            FAKE_TEAM_IDS[crt.AMER_TEAM],
+            FAKE_TEAM_IDS[crt.DESKTOP_TEAM],
         )
         self.assertEqual(
             client.created[1]["fields"][TEAM_FIELD],
-            FAKE_TEAM_IDS[crt.AMER_TEAM],
+            FAKE_TEAM_IDS[crt.DESKTOP_TEAM],
+        )
+        self.assertEqual(
+            client.created[4]["fields"][TEAM_FIELD],
+            FAKE_TEAM_IDS[crt.DESKTOP_TEAM],
         )
         self.assertEqual(
             client.created[-1]["fields"][TEAM_FIELD],
@@ -1365,7 +1497,7 @@ class TestDryRunAndApply(unittest.TestCase):
                 }
 
         issues = crt.search_jql(
-            EndlessJira(), 'Team = "SnapD EMEA"', ["summary"], limit=1
+            EndlessJira(), 'Team = "Snapd IoT"', ["summary"], limit=1
         )
         self.assertEqual([issue["key"] for issue in issues], ["SNAPDENG-1"])
         self.assertEqual(len(bodies), 1)
@@ -1649,9 +1781,9 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Snapd Bugfix Release 2.77.1", out)
 
     def test_main_security_flag_marks_patch(self):
-        rc, out, _err = run_main(
+        rc, out, err = run_main(
             [
-                "2.77.1",
+                "2.77.x",
                 "--security",
                 "--dev-target",
                 "resolute",
@@ -1660,24 +1792,36 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("Snapd Security Release 2.77.1", out)
-        self.assertIn("Security: Cut release 2.77.1", out)
+        self.assertEqual(err, "")
+        self.assertIn("Snapd Security Release 2.77.X", out)
+        self.assertIn("Security: Cut release 2.77.X", out)
+        self.assertNotIn("Build and upload snapd debs", out)
+        self.assertNotIn("facilitate LP bug verification", out)
+
+    def test_main_security_rejects_numeric_and_major_versions(self):
+        for version in ("2.78", "2.78.1"):
+            out_buf, err_buf = StringIO(), StringIO()
+            with patch.object(sys, "stdout", out_buf), patch.object(sys, "stderr", err_buf):
+                rc = crt.cli([version, "--security"])
+            self.assertEqual(rc, 1, version)
+            self.assertEqual(out_buf.getvalue(), "")
+            self.assertIn("expected X.YY.X", err_buf.getvalue())
 
     def test_invalid_team_is_cobra_style(self):
         rc, out, err = run_main(["2.78", "--team", "SRE"])
         self.assertEqual(rc, 2)
         self.assertEqual(out, "")
         self.assertIn('invalid --team "SRE"', err)
-        self.assertIn('"EMEA"', err)
-        self.assertIn('"AMER"', err)
+        self.assertIn('"IoT"', err)
+        self.assertIn('"Desktop"', err)
         self.assertIn('"Cross-distro"', err)
 
-    def test_amer_team_printed_in_dry_run(self):
+    def test_desktop_team_printed_in_dry_run(self):
         rc, out, _err = run_main(
             [
                 "2.78",
                 "--team",
-                "AMER",
+                "Desktop",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1685,7 +1829,8 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn("Team: SnapD AMER", out)
+        self.assertIn("Team: Snapd Desktop", out)
+        self.assertNotIn("Team: Snapd IoT", out)
         self.assertIn("Team: SnapD Cross-distro", out)
 
     def test_team_flag_accepts_legacy_capitalized_alias(self):
@@ -1693,7 +1838,7 @@ class TestCLI(unittest.TestCase):
             [
                 "2.78",
                 "--Team",
-                "AMER",
+                "Desktop",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1701,14 +1846,14 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn(f"Team: {crt.AMER_TEAM}", out)
+        self.assertIn(f"Team: {crt.DESKTOP_TEAM}", out)
 
     def test_team_flag_accepts_full_jira_name(self):
         rc, out, _err = run_main(
             [
                 "2.78",
                 "--team",
-                "SnapD AMER",
+                "Snapd Desktop",
                 "--dev-target",
                 "resolute",
                 "--lts-targets",
@@ -1716,7 +1861,7 @@ class TestCLI(unittest.TestCase):
             ]
         )
         self.assertEqual(rc, 0)
-        self.assertIn(f"Team: {crt.AMER_TEAM}", out)
+        self.assertIn(f"Team: {crt.DESKTOP_TEAM}", out)
 
     def test_abbreviated_flags_are_rejected(self):
         for flag in ("--app", "--for", "--create-v"):
