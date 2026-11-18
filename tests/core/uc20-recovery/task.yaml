@@ -1,4 +1,4 @@
-summary: verify booting into recovery mode on UC20 systems
+summary: verify booting into recovery mode on UC20 and newer systems
 
 details: |
     In recovery mode, the device boots to a temporary system and operates
@@ -13,6 +13,8 @@ details: |
 systems:
   - ubuntu-core-20-*
   - ubuntu-core-22-*
+  - ubuntu-core-24-*
+  - ubuntu-core-26-*
 
 restore: |
     rm -f /writable/systems.json.run
@@ -34,7 +36,7 @@ execute: |
     if [ "$SPREAD_REBOOT" == "0" ]; then
         echo "In run mode"
 
-        MATCH 'snapd_recovery_mode=run' < /proc/cmdline
+        MATCH '^mode=run$' < /var/lib/snapd/modeenv
         # verify we are in run mode via the API
         snap debug api '/v2/system-info' > system-info
         gojq -r '.result["system-mode"]' < system-info | MATCH 'run'
@@ -60,18 +62,20 @@ execute: |
 
         prepare_recover_mode
 
-        # host data should be accessible
-        test -e /host/ubuntu-data/systems.json.run
+        # Check the host data at its original mount, without relying on the
+        # base snap's /host compatibility bind mount.
+        host_data=/run/mnt/host/ubuntu-data
+        test -e "$host_data/systems.json.run"
 
         snap debug api '/v2/systems' > systems.json
         gojq -r .result.systems[0].actions[].mode < systems.json | sort | tr '\n' ' ' | MATCH 'install run'
 
-        label="$(cat /host/ubuntu-data/systems.label)"
+        label="$(cat "$host_data/systems.label")"
         test -n "$label"
         # seed in mounted in recover mode too
         test -d "/var/lib/snapd/seed/systems/$label"
 
-        MATCH "snapd_recovery_system=$label" < /proc/cmdline
+        MATCH -x "recovery_system=$label" < /var/lib/snapd/modeenv
 
         transition_to_run_mode "$label"
     elif [ "$SPREAD_REBOOT" == "2" ]; then
@@ -95,9 +99,9 @@ execute: |
         # message like this:
         # ssh: unexpected packet in response to channel open: <nil>
         if [ "$SPREAD_BACKEND" = "external" ]; then
-            # TODO:UC20: if/when /host is mounted ro, then we will need to 
+            # TODO:UC20: if/when host data is mounted ro, then we will need to
             # either remount it rw or do some other hack to fix this
-            rm -f /host/ubuntu-data/user-data/external/.ssh/rc
+            rm -f /run/mnt/host/ubuntu-data/user-data/external/.ssh/rc
         fi
 
         # do a simple reboot to verify that we go back to run mode

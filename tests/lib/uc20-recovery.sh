@@ -47,7 +47,7 @@ transition_to_recover_mode(){
     # build_snapd_snap_with_run_mode_firstboot_tweaks func
     # so instead to get the spread gopath and other data needed to continue
     # the test, we need to add a .ssh/rc script which copies all of the data
-    # from /host/ubuntu-data in recover mode to the tmpfs /home, see
+    # from /run/mnt/host/ubuntu-data in recover mode to the tmpfs /home, see
     # sshd(8) for details on the ~/.ssh/rc script
     if [ "$SPREAD_BACKEND" = "external" ] || [ "$SPREAD_BACKEND" = "testflinger" ]; then
         mkdir -p /home/external/.ssh
@@ -58,14 +58,14 @@ transition_to_recover_mode(){
         cat <<-EOF > /home/external/.ssh/rc
 #!/bin/sh
 # added by spread tests
-if grep -q 'snapd_recovery_mode=recover' /proc/cmdline; then
+if grep -qx 'mode=recover' /var/lib/snapd/modeenv; then
     # use as sudo for proper permissions, assumes that the external user is
     # a sudo user, which it must be by definition of it being the login user
     # that spread uses
     # silence the output so that nothing is output to a ssh command,
     # potentially confusing spread
     sudo mkdir /home/gopath > /dev/null
-    sudo mount --bind /host/ubuntu-data/user-data/gopath /home/gopath > /dev/null
+    sudo mount --bind /run/mnt/host/ubuntu-data/user-data/gopath /home/gopath > /dev/null
 fi
 EOF
     fi
@@ -112,9 +112,9 @@ transition_to_run_mode() {
     # message like this:
     # ssh: unexpected packet in response to channel open: <nil>
     if [ "$SPREAD_BACKEND" = "external" ]; then
-        # TODO:UC20: if/when /host is mounted ro, then we will need to 
+        # TODO:UC20: if/when host data is mounted ro, then we will need to
         # either remount it rw or do some other hack to fix this
-        rm -f /host/ubuntu-data/user-data/external/.ssh/rc
+        rm -f /run/mnt/host/ubuntu-data/user-data/external/.ssh/rc
     fi
 
     REBOOT
@@ -128,7 +128,7 @@ prepare_recover_mode() {
     # wait till the system seeding is finished
     snap wait system seed.loaded
 
-    MATCH 'snapd_recovery_mode=recover' < /proc/cmdline
+    MATCH '^mode=recover$' < /var/lib/snapd/modeenv
     # verify we are in recovery mode via the API
     snap debug api /v2/system-info > system-info
     gojq -r '.result["system-mode"]' < system-info | MATCH 'recover'
