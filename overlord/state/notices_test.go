@@ -391,10 +391,11 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 
 	// Add a notice (with faked time) after a long time and ensure it has repeated
 	future := time.Now().Add(delay)
+	restore := state.MockNextNoticeTimestamp(future)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", &state.AddNoticeOptions{
 		RepeatAfter: second,
-		Time:        future,
 	})
+	restore()
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
@@ -725,9 +726,10 @@ func (s *noticesSuite) TestPruneNoticesCheckpoint(c *C) {
 	st := state.New(backend)
 	st.Lock()
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		Time: old,
-	})
+
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	restore()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "456", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
@@ -755,12 +757,10 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 	defer st.Unlock()
 
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", &state.AddNoticeOptions{
-		Time: old,
-	})
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", &state.AddNoticeOptions{
-		Time: old,
-	})
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", nil)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	restore()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)
@@ -1039,17 +1039,17 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 
 	c.Check(st.GetLastNoticeTimestamp().IsZero(), Equals, true)
 
-	ts1 := st.NextNoticeTimestamp()
+	ts1 := state.NextNoticeTimestamp(st)
 	c.Check(ts1, Equals, testDate)
 
 	c.Check(st.GetLastNoticeTimestamp(), Equals, ts1)
 
-	ts2 := st.NextNoticeTimestamp()
+	ts2 := state.NextNoticeTimestamp(st)
 	c.Check(ts2.After(ts1), Equals, true)
 
 	c.Check(st.GetLastNoticeTimestamp(), Equals, ts2)
 
-	ts3 := st.NextNoticeTimestamp()
+	ts3 := state.NextNoticeTimestamp(st)
 	c.Check(ts3.After(ts1), Equals, true)
 	c.Check(ts3.After(ts2), Equals, true)
 
@@ -1060,7 +1060,7 @@ func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
 	restore2 := state.MockTime(testDate2)
 	defer restore2()
 
-	ts4 := st.NextNoticeTimestamp()
+	ts4 := state.NextNoticeTimestamp(st)
 	c.Check(ts4.After(ts1), Equals, true)
 	c.Check(ts4.After(ts2), Equals, true)
 	c.Check(ts4.After(ts3), Equals, true)

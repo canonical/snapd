@@ -220,7 +220,7 @@ func prefixFromID(id string) (prefix string, ok bool) {
 // previous notice timestamp, and updates the last notice timestamp in the
 // state.
 func (nm *NoticeManager) NextNoticeTimestamp() time.Time {
-	return nm.state.NextNoticeTimestamp()
+	return state.NextNoticeTimestamp(nm.state.State)
 }
 
 // Notices returns the list of notices that match the filter (if any),

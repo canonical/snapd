@@ -21,6 +21,8 @@ package state
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 // MockCheckpointRetryDelay changes unlockCheckpointRetryInterval and unlockCheckpointRetryMaxTime.
@@ -43,6 +45,16 @@ func MockChangeTimes(chg *Change, spawnTime, readyTime time.Time) {
 func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 	t.spawnTime = spawnTime
 	t.readyTime = readyTime
+}
+
+func MockNoticeTimes(n *Notice, firstOccurred, lastOccurred, lastRepeated time.Time) {
+	n.firstOccurred = firstOccurred
+	n.lastOccurred = lastOccurred
+	n.lastRepeated = lastRepeated
+}
+
+func MockNextNoticeTimestamp(t time.Time) (restore func()) {
+	return testutil.Mock(&NextNoticeTimestamp, func(*State) time.Time { return t })
 }
 
 func (w Warning) LastAdded() time.Time {

@@ -349,10 +349,13 @@ func (t NoticeType) Valid() bool {
 	return false
 }
 
-// NextNoticeTimestamp computes a notice timestamp which is guaranteed to be
+// Allow nextNoticeTimestamp to be mocked in tests.
+var NextNoticeTimestamp = (*State).nextNoticeTimestamp
+
+// nextNoticeTimestamp computes a notice timestamp which is guaranteed to be
 // after the current lastNoticeTimestamp, then updates lastNoticeTimestamp to
 // the result and returns it.
-func (s *State) NextNoticeTimestamp() time.Time {
+func (s *State) nextNoticeTimestamp() time.Time {
 	s.lastNoticeTimestampMu.Lock()
 	defer s.lastNoticeTimestampMu.Unlock()
 	now := timeNow().UTC()
@@ -403,9 +406,6 @@ type AddNoticeOptions struct {
 	// RepeatAfter defines how long after this notice was last repeated we
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
-
-	// Time, if set, overrides time.Now() as the notice occurrence time.
-	Time time.Time
 }
 
 // AddNotice records an occurrence of a notice with the specified type and key
@@ -423,11 +423,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := options.Time
-	if now.IsZero() {
-		now = s.NextNoticeTimestamp()
-	}
-	now = now.UTC()
+	now := NextNoticeTimestamp(s).UTC()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
