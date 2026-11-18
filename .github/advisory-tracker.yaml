@@ -7,7 +7,7 @@
 # is appended on sync.
 parent_key: SNAPDENG-37541
 project_key: SNAPDENG
-issue_type: Task
+issue_type: Bug
 
 # States that may open a new ticket. Published and closed advisories are left
 # alone when they have no ticket.
@@ -15,7 +15,7 @@ create_for_states:
   - triage
   - draft
 
-# Set only when the advisory already has a severity. Triage decides it otherwise.
+# Advisory severity, when GitHub has set one. Anything else is Medium.
 priority_map:
   critical: Highest
   high: High

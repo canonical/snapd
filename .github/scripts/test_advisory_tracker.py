@@ -41,6 +41,29 @@ class JiraHTTPError(Exception):
 
 def _jira_http_error(status, body=b""):
     return JiraHTTPError(status, body or b"")
+
+
+class GitHubHTTPError(Exception):
+    def __init__(self, status):
+        super().__init__(f"HTTP {status}")
+        self.status = status
+        self.data = {"message": "secret-github-body"}
+
+
+class _FakeAdvisory:
+    def __init__(self, client, data):
+        self._client = client
+        self.raw_data = data
+
+    def edit(self, summary=None, **kwargs):
+        del kwargs
+        if self._client.patch_status != 200:
+            raise GitHubHTTPError(self._client.patch_status)
+        ghsa = self.raw_data.get("ghsa_id")
+        self._client.updates.append((ghsa, {"summary": summary}))
+        self.raw_data["summary"] = summary
+
+
 _PETNAME_DIR = None
 
 
@@ -110,7 +133,7 @@ def jira_issue(
     ghsa=None,
     description="",
     created=NOW_STAMP,
-    issue_type="Task",
+    issue_type="Bug",
     parent=PARENT,
     label=None,
 ):
@@ -157,7 +180,6 @@ class FakeClient(tracker.HttpClient):
         self.extra_advisories = None
         self.catalog = catalog
         self.calls = []
-        self.page = 0
         self.github_status = 200
         self.patch_status = 200
         self.mattermost_status = 200
@@ -173,8 +195,6 @@ class FakeClient(tracker.HttpClient):
 
     def request(self, method, url, headers, body):
         self.calls.append((method, url, body))
-        if "api.github.com" in url:
-            return self._github(method, url, body)
         if url.startswith("https://hooks.mattermost.test/"):
             self._mattermost_posts += 1
             status = self.mattermost_status
@@ -187,28 +207,35 @@ class FakeClient(tracker.HttpClient):
             return tracker.HttpResult(status, {}, payload)
         return tracker.HttpResult(404, {}, b'{"errorMessages":["not found"]}')
 
-    def _github(self, method, url, body):
-        if method == "PATCH":
-            if self.patch_status != 200:
-                return tracker.HttpResult(self.patch_status, {}, b'{"message":"no"}')
-            payload = json.loads(body.decode())
-            self.updates.append((url, payload))
-            ghsa = url.rstrip("/").split("/")[-1]
-            for advisory in self.advisories:
-                if advisory.get("ghsa_id") == ghsa:
-                    advisory["summary"] = payload["summary"]
-            return self._json(payload)
+    def get_repo(self, name, **kwargs):
+        del name, kwargs
         if self.github_status != 200:
-            return tracker.HttpResult(self.github_status, {}, b'{"message":"no"}')
-        if self.extra_advisories is None:
-            return tracker.HttpResult(200, {}, json.dumps(self.advisories).encode())
-        if self.page == 0:
-            self.page = 1
-            header = f'<{url}&page=2>; rel="next"'
-            return tracker.HttpResult(
-                200, {"link": header}, json.dumps(self.advisories).encode()
-            )
-        return tracker.HttpResult(200, {}, json.dumps(self.extra_advisories).encode())
+            raise GitHubHTTPError(self.github_status)
+        return self
+
+    def get_repository_advisories(self, **kwargs):
+        del kwargs
+        if self.github_status != 200:
+            raise GitHubHTTPError(self.github_status)
+        pages = [self.advisories]
+        if self.extra_advisories is not None:
+            pages.append(self.extra_advisories)
+        for page in pages:
+            for item in page:
+                yield _FakeAdvisory(self, item)
+
+    def get_repository_advisory(self, ghsa_id, **kwargs):
+        del kwargs
+        if self.github_status != 200:
+            raise GitHubHTTPError(self.github_status)
+        pages = [self.advisories]
+        if self.extra_advisories is not None:
+            pages.append(self.extra_advisories)
+        for page in pages:
+            for item in page:
+                if item.get("ghsa_id") == ghsa_id:
+                    return _FakeAdvisory(self, item)
+        raise GitHubHTTPError(404)
 
     def search_and_reconsile_issues_using_jql_post(self, data=None, **kwargs):
         del kwargs
@@ -276,9 +303,6 @@ class FakeClient(tracker.HttpClient):
         self.catalog.append(issue)
         return {"id": "100", "key": key}
 
-    def _json(self, payload, status=200):
-        return tracker.HttpResult(status, {}, json.dumps(payload).encode())
-
 
 def run(
     client,
@@ -299,6 +323,7 @@ def run(
         dry_run,
         name_source,
         jira=client,
+        github=client,
     )
 
 
@@ -319,7 +344,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         config = tracker.load_config(CONFIG_PATH)
         self.assertEqual(config.parent_key, PARENT)
         self.assertEqual(config.project_key, "SNAPDENG")
-        self.assertEqual(config.issue_type, "Task")
+        self.assertEqual(config.issue_type, "Bug")
         self.assertEqual(config.create_for_states, ("triage", "draft"))
         self.assertEqual(config.priority_map["critical"], "Highest")
         self.assertEqual(config.min_description_chars, 80)
@@ -332,6 +357,12 @@ class AdvisoryTrackerTests(unittest.TestCase):
             with self.assertRaises(tracker.TrackerError) as caught:
                 tracker.connect_jira("https://jira.example", "a@b.c", "token")
         self.assertIn("atlassian-python-api", str(caught.exception))
+
+    def test_missing_github_client_names_the_package(self):
+        with patch.dict(sys.modules, {"github": None}):
+            with self.assertRaises(tracker.TrackerError) as caught:
+                tracker.connect_github("token")
+        self.assertIn("PyGithub", str(caught.exception))
 
     def test_unknown_channel_is_rejected(self):
         with open(CONFIG_PATH, encoding="utf-8") as handle:
@@ -351,6 +382,9 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(tracker.petname_from_summary("Ember Falcon"), "Ember Falcon")
         self.assertEqual(
             tracker.petname_from_summary("Ember Falcon: pins a map"), "Ember Falcon"
+        )
+        self.assertEqual(
+            tracker.petname_from_summary(f"Ember Falcon: {EMBER}"), "Ember Falcon"
         )
         self.assertIsNone(tracker.petname_from_summary("pins a map"))
 
@@ -385,9 +419,10 @@ class AdvisoryTrackerTests(unittest.TestCase):
         report = run(client)
         fields = created_fields(client)
         self.assertEqual(len(fields), 1)
-        self.assertEqual(fields[0]["summary"], "Ember Falcon")
+        self.assertEqual(fields[0]["summary"], f"Ember Falcon: {EMBER}")
         self.assertEqual(fields[0]["parent"], {"key": PARENT})
-        self.assertEqual(fields[0]["issuetype"], {"name": "Task"})
+        self.assertEqual(fields[0]["issuetype"], {"name": "Bug"})
+        self.assertEqual(fields[0]["priority"], {"name": "Medium"})
         self.assertEqual(fields[0]["labels"], [EMBER])
         self.assertNotIn("status", fields[0])
         description = tracker.adf_to_text(fields[0]["description"])
@@ -395,6 +430,13 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertIn("CVE: CVE-2026-1", description)
         self.assertEqual(report.advisories[0].action, "created")
         self.assertEqual(report.advisories[0].issue_key, "SNAPDENG-500")
+        markdown = tracker.render_markdown(report)
+        self.assertIn(
+            f"## Created\n\n- `{EMBER}`: SNAPDENG-500 (Ember Falcon)\n",
+            markdown,
+        )
+        self.assertIn(f"Ember Falcon {EMBER}", markdown)
+        self.assertNotIn(f"{EMBER} {EMBER}", markdown)
 
     def test_reports_hide_the_vulnerability_title(self):
         title = "pins a private map (Ember Falcon)"
@@ -414,7 +456,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         advisory = sample_advisory(EMBER, "Fix The Pin")
         client = FakeClient([advisory], [anchor()])
         report = run(client, name_source=lambda: "keen yak")
-        self.assertEqual(created_fields(client)[0]["summary"], "Keen Yak")
+        self.assertEqual(created_fields(client)[0]["summary"], f"Keen Yak: {EMBER}")
         self.assertEqual(report.advisories[0].codename, "Keen Yak")
         self.assertNotIn("Fix The Pin", created_fields(client)[0]["summary"])
 
@@ -426,12 +468,20 @@ class AdvisoryTrackerTests(unittest.TestCase):
         run(client)
         self.assertEqual(created_fields(client)[0]["priority"], {"name": "Highest"})
 
-    def test_missing_severity_is_created_without_priority(self):
+    def test_missing_severity_defaults_to_medium(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)", severity=None)
         client = FakeClient([advisory], [anchor()])
         report = run(client)
-        self.assertNotIn("priority", created_fields(client)[0])
+        self.assertEqual(created_fields(client)[0]["priority"], {"name": "Medium"})
         self.assertEqual(report.advisories[0].action, "created")
+
+    def test_unknown_severity_defaults_to_medium(self):
+        advisory = sample_advisory(
+            EMBER, "pins a map (Ember Falcon)", severity="urgent"
+        )
+        client = FakeClient([advisory], [anchor()])
+        run(client)
+        self.assertEqual(created_fields(client)[0]["priority"], {"name": "Medium"})
 
     def test_existing_reference_is_not_created_again(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
@@ -466,6 +516,10 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(report.advisories[0].action, "tracked")
         self.assertIsNone(report.advisories[0].codename)
         self.assertEqual(client.updates, [])
+        markdown = tracker.render_markdown(report)
+        self.assertIn("## Created\n\nNone.\n\n## Not created\n", markdown)
+        self.assertIn(f"| {EMBER} |", markdown)
+        self.assertNotIn(f"{EMBER} {EMBER}", markdown)
 
     def test_multiple_tickets_are_tracked_without_creating_another(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
@@ -688,20 +742,24 @@ class AdvisoryTrackerTests(unittest.TestCase):
 
     def test_confirmation_failure_refuses_creation(self):
         advisory = sample_advisory(EMBER, "pins a map (Ember Falcon)")
-        bug = jira_issue(
-            "SNAPDENG-10", "Quiet Lantern", "Triage", QUIET, issue_type="Bug"
+        task = jira_issue(
+            "SNAPDENG-10", "Quiet Lantern", "Triage", QUIET, issue_type="Task"
         )
-        client = FakeClient([advisory], [bug])
+        client = FakeClient([advisory], [task])
         report = run(client)
-        self.assertIn("does not match child issue type Bug", report.confirmation_error)
+        self.assertIn(
+            "does not match child issue type Task", report.confirmation_error
+        )
         self.assertEqual(report.advisories[0].action, "refused")
         self.assertEqual(created_fields(client), [])
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_TEXT])
-        self.assertIn("Bug", tracker.render_markdown(report))
+        self.assertIn("Task", tracker.render_markdown(report))
 
     def test_a_matching_child_confirms_a_mixed_set(self):
         config = tracker.load_config(CONFIG_PATH)
-        task = tracker.issue_from_json(anchor())
+        task = tracker.issue_from_json(
+            jira_issue("SNAPDENG-10", "Quiet Lantern", "Triage", issue_type="Task")
+        )
         bug = tracker.issue_from_json(
             jira_issue("SNAPDENG-11", "Quiet Lantern", "Triage", issue_type="Bug")
         )
@@ -756,7 +814,9 @@ class AdvisoryTrackerTests(unittest.TestCase):
         advisory = sample_advisory(EMBER, "pins a map")
         client = FakeClient([advisory], [anchor()])
         report = run(client, name_source=lambda: "lively willow")
-        self.assertEqual(created_fields(client)[0]["summary"], "Lively Willow")
+        self.assertEqual(
+            created_fields(client)[0]["summary"], f"Lively Willow: {EMBER}"
+        )
         self.assertEqual(advisory["summary"], "pins a map (Lively Willow)")
         self.assertEqual(report.advisories[0].codename, "Lively Willow")
         text = mattermost_texts(client)[0]
@@ -844,4 +904,6 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(len(mattermost_texts(client)), 1)
         run(client)
         self.assertEqual(len(mattermost_texts(client)), 1)
-        self.assertEqual(client.catalog[-1]["fields"]["summary"], "Ember Falcon")
+        self.assertEqual(
+            client.catalog[-1]["fields"]["summary"], f"Ember Falcon: {EMBER}"
+        )

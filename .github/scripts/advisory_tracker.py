@@ -11,19 +11,28 @@ Commands:
 A follow-up can continue after the petname is published on the advisory.
 This command stops once the ticket exists and that announcement is done.
 
-Environment:
-  SNAPD_ADVISORY_GITHUB_TOKEN  preferred token for repository security advisories
-  GITHUB_TOKEN                 fallback advisory token
+Environment, all read from the process environment:
+  SNAPD_ADVISORY_GITHUB_TOKEN  read advisories and update a summary
+                               Repository security advisories: read and write
+  GITHUB_TOKEN                 used when the advisory token is unset
   GITHUB_REPOSITORY            owner/name, default canonical/snapd
-  JIRA_API_TOKEN               Jira Cloud API token
-  JIRA_EMAIL                   account email for that token
+  JIRA_EMAIL                   Jira account email
+  JIRA_API_TOKEN               API token for that account
   JIRA_BASE_URL                default https://warthogs.atlassian.net
-                               Jira calls use atlassian-python-api
   MATTERMOST_NEW_ADVISORY_WEBHOOK_URL
-                               incoming webhook for created tickets and for the
-                               one notice when a ticket was not created
-  GITHUB_SERVER_URL            server used in the not-created run link
-  GITHUB_RUN_ID                Actions run id used in that link
+                               full incoming webhook; POST {"text": ...}
+  ADVISORY_TRACKER_CREATE      the string true allows Jira bug creation
+  ADVISORY_TRACKER_NOTIFY      the string true allows Mattermost posts
+  GITHUB_SERVER_URL            server in the not-created run link
+  GITHUB_RUN_ID                Actions run id in that link
+
+sync --dry-run reads GitHub and Jira and does not create, rename, or post.
+A new bug is titled "<pet name>: <GHSA>" with priority from the advisory
+severity, or Medium when the severity is missing. HTTP 401 and 403 from
+GitHub or Jira abort the run. Other API failures are recorded without the
+response body. A failed creation post does not undo the ticket. A failed
+not-created post is recorded and the summary is still written. Creation is
+refused while the parent has no child of the configured issue type.
 """
 
 from __future__ import annotations
@@ -43,8 +52,9 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-GITHUB_API = "https://api.github.com"
 JIRA_TIMEOUT_SECONDS = 60
+GITHUB_TIMEOUT_SECONDS = 60
+ADVISORY_LIMIT = 2000
 AUTOMATION_MARK = "advisory-tracker:"
 CHANNELS = ("mattermost",)
 NEW_ADVISORY_WEBHOOK = "MATTERMOST_NEW_ADVISORY_WEBHOOK_URL"
@@ -909,6 +919,20 @@ def description_doc(row: AdvisoryRow, advisory: Mapping[str, Any]) -> dict[str, 
     return adf_doc(paragraphs)
 
 
+def ticket_summary(codename: str, ghsa_id: str) -> str:
+    return f"{codename}: {ghsa_id}"
+
+
+def jira_priority(config: Config, severity: str) -> str:
+    mapped = config.priority_map.get(severity)
+    if mapped:
+        return mapped
+    fallback = config.priority_map.get("medium")
+    if fallback:
+        return fallback
+    return "Medium"
+
+
 def create_fields(
     config: Config, row: AdvisoryRow, advisory: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -916,29 +940,15 @@ def create_fields(
         raise TrackerError(
             f"cannot create a ticket for {row.ghsa_id}: missing codename"
         )
-    fields: dict[str, Any] = {
+    return {
         "project": {"key": config.project_key},
         "parent": {"key": config.parent_key},
         "issuetype": {"name": config.issue_type},
-        "summary": row.codename,
+        "summary": ticket_summary(row.codename, row.ghsa_id),
         "labels": [row.ghsa_id],
         "description": description_doc(row, advisory),
+        "priority": {"name": jira_priority(config, row.severity)},
     }
-    priority = config.priority_map.get(row.severity)
-    if priority:
-        fields["priority"] = {"name": priority}
-    return fields
-
-
-def next_link(header: str) -> str | None:
-    for part in header.split(","):
-        if 'rel="next"' not in part:
-            continue
-        start = part.find("<")
-        end = part.find(">")
-        if start != -1 and end > start:
-            return part[start + 1 : end]
-    return None
 
 
 def repository_name(env: Mapping[str, str]) -> str:
@@ -957,13 +967,19 @@ def github_token(env: Mapping[str, str]) -> str:
     return token
 
 
-def _github_headers(token: str) -> dict[str, str]:
-    return {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "snapd-advisory-tracker",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
+def connect_github(token: str) -> Any:
+    """Return a GitHub client authenticated with a personal or app token."""
+    try:
+        from github import Auth, Github
+    except ImportError as exc:
+        raise TrackerError(
+            "cannot import GitHub client, please install PyGithub"
+        ) from exc
+    return Github(
+        auth=Auth.Token(token),
+        per_page=100,
+        timeout=GITHUB_TIMEOUT_SECONDS,
+    )
 
 
 def jira_settings(env: Mapping[str, str]) -> tuple[str, str, str]:
@@ -1027,19 +1043,79 @@ def _call_jira(method: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         raise _jira_failure(exc) from exc
 
 
+def _github_status(exc: BaseException) -> int | None:
+    status = getattr(exc, "status", None)
+    if isinstance(status, int):
+        return status
+    return None
+
+
+def _is_github_error(exc: BaseException) -> bool:
+    try:
+        from github import GithubException
+    except ImportError:
+        return False
+    return isinstance(exc, GithubException)
+
+
+def _github_failure(exc: BaseException, action: str) -> TrackerError:
+    # GitHub error data can echo the request. Keep it out of the summary.
+    status = _github_status(exc)
+    if status in {401, 403}:
+        if action == "list":
+            return TrackerError(
+                "cannot list advisories: "
+                f"GitHub returned HTTP {status}. "
+                "Set SNAPD_ADVISORY_GITHUB_TOKEN with access "
+                "to repository security advisories",
+                status,
+            )
+        return TrackerError(
+            "cannot update advisory summary: "
+            f"GitHub returned HTTP {status}. "
+            "Set SNAPD_ADVISORY_GITHUB_TOKEN with write access "
+            "to repository security advisories",
+            status,
+        )
+    if status is not None:
+        if action == "list":
+            return TrackerError(f"cannot list advisories: HTTP {status}", status)
+        return TrackerError(
+            f"cannot update advisory summary: HTTP {status}", status
+        )
+    return TrackerError(f"cannot reach GitHub: {exc.__class__.__name__}")
+
+
+def _call_github(
+    method: Callable[..., Any], *args: Any, action: str, **kwargs: Any
+) -> Any:
+    try:
+        return method(*args, **kwargs)
+    except TrackerError:
+        raise
+    except Exception as exc:
+        if (
+            _github_status(exc) is None
+            and not _is_github_error(exc)
+            and not _is_requests_error(exc)
+        ):
+            raise
+        raise _github_failure(exc, action) from exc
+
+
+def _advisory_dict(item: Any) -> dict[str, Any]:
+    if isinstance(item, dict):
+        return item
+    raw = getattr(item, "raw_data", None)
+    if isinstance(raw, dict):
+        return raw
+    raise TrackerError("cannot list advisories: response was not an advisory")
+
+
 def _json_bytes(payload: Mapping[str, Any] | None) -> bytes | None:
     if payload is None:
         return None
     return json.dumps(payload).encode("utf-8")
-
-
-def _decode_json(result: HttpResult) -> Any:
-    if result.body.strip() == b"":
-        return {}
-    try:
-        return json.loads(result.body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise TrackerError(f"cannot read response: HTTP {result.status}") from exc
 
 
 class Tracker:
@@ -1050,69 +1126,46 @@ class Tracker:
         client: HttpClient,
         now: datetime,
         jira: Any,
+        github: Any,
         name_source: Callable[[], str] | None = None,
     ) -> None:
         self.config = config
         self.env = env
         self.client = client
         self.jira = jira
+        self.github = github
         self.now = now
         self.name_source = name_source or petname_words
         self.repo = repository_name(env)
-        self.token = github_token(env)
         self.permissions = permissions_from_env(env)
 
-    def github(self, url: str) -> HttpResult:
-        return self.client.request("GET", url, _github_headers(self.token), None)
-
     def update_advisory_summary(self, ghsa_id: str, summary: str) -> None:
-        headers = _github_headers(self.token)
-        headers["Content-Type"] = "application/json"
-        result = self.client.request(
-            "PATCH",
-            f"{GITHUB_API}/repos/{self.repo}/security-advisories/{ghsa_id}",
-            headers,
-            _json_bytes({"summary": summary}),
+        repo = _call_github(self.github.get_repo, self.repo, action="update")
+        advisory = _call_github(
+            repo.get_repository_advisory, ghsa_id, action="update"
         )
-        if result.status in {401, 403}:
-            raise TrackerError(
-                "cannot update advisory summary: "
-                f"GitHub returned HTTP {result.status}. "
-                "Set SNAPD_ADVISORY_GITHUB_TOKEN with write access "
-                "to repository security advisories",
-                result.status,
-            )
-        if result.status != 200:
-            raise TrackerError(
-                f"cannot update advisory summary: HTTP {result.status}", result.status
-            )
+        _call_github(advisory.edit, summary=summary, action="update")
 
     def fetch_advisories(self) -> list[dict[str, Any]]:
-        url = f"{GITHUB_API}/repos/{self.repo}/security-advisories?per_page=100"
+        repo = _call_github(self.github.get_repo, self.repo, action="list")
+        found = _call_github(repo.get_repository_advisories, action="list")
         advisories: list[dict[str, Any]] = []
-        for _ in range(20):
-            result = self.github(url)
-            if result.status == 403:
-                raise TrackerError(
-                    "cannot list advisories: GitHub returned HTTP 403. "
-                    "Set SNAPD_ADVISORY_GITHUB_TOKEN with access "
-                    "to repository security advisories",
-                    403,
-                )
-            if result.status != 200:
-                raise TrackerError(
-                    f"cannot list advisories: HTTP {result.status}", result.status
-                )
-            payload = _decode_json(result)
-            if not isinstance(payload, list):
-                raise TrackerError("cannot list advisories: response was not a list")
-            for item in payload:
-                if isinstance(item, dict):
-                    advisories.append(item)
-            url = next_link(result.headers.get("link", "")) or ""
-            if url == "":
-                return advisories
-        raise TrackerError("cannot list advisories: pagination did not end")
+        try:
+            for item in found:
+                advisories.append(_advisory_dict(item))
+                if len(advisories) >= ADVISORY_LIMIT:
+                    break
+        except TrackerError:
+            raise
+        except Exception as exc:
+            if (
+                _github_status(exc) is None
+                and not _is_github_error(exc)
+                and not _is_requests_error(exc)
+            ):
+                raise
+            raise _github_failure(exc, "list") from exc
+        return advisories
 
     def search(self, jql: str) -> list[Issue]:
         issues: list[Issue] = []
@@ -1500,12 +1553,15 @@ def execute(
     dry_run: bool = False,
     name_source: Callable[[], str] | None = None,
     jira: Any = None,
+    github: Any = None,
 ) -> Report:
     if command not in {"summary", "sync"}:
         raise TrackerError(f"cannot run advisory tracker: unknown command {command}")
     if jira is None:
         jira = connect_jira(*jira_settings(env))
-    tracker = Tracker(config, env, client, now, jira, name_source)
+    if github is None:
+        github = connect_github(github_token(env))
+    tracker = Tracker(config, env, client, now, jira, github, name_source)
     mode = "summary" if command == "summary" else "dry-run" if dry_run else "apply"
     advisories = tracker.fetch_advisories()
     children = tracker.search(f"parent = {config.parent_key}")
@@ -1566,6 +1622,20 @@ def displayed_advisories(
     ]
 
 
+def _advisory_cell(row: AdvisoryRow) -> str:
+    label = public_label(row)
+    if label == row.ghsa_id:
+        return row.ghsa_id
+    return f"{label} {row.ghsa_id}"
+
+
+def _created_line(row: AdvisoryRow) -> str:
+    ticket = row.issue_key or ""
+    if row.codename:
+        ticket = f"{ticket} ({row.codename})"
+    return f"- `{row.ghsa_id}`: {ticket}"
+
+
 def _not_created_reason(report: Report, row: AdvisoryRow) -> str:
     if row.action == "not_ready":
         return ", ".join(row.reasons) or "not ready"
@@ -1607,7 +1677,7 @@ def render_markdown(report: Report, omit_settled: bool = False) -> str:
             "| "
             + " | ".join(
                 [
-                    _cell(f"{public_label(row)} {row.ghsa_id}"),
+                    _cell(_advisory_cell(row)),
                     _cell(row.state),
                     _cell(
                         ", ".join(row.issue_keys)
@@ -1620,6 +1690,12 @@ def render_markdown(report: Report, omit_settled: bool = False) -> str:
             )
             + " |"
         )
+    created = [row for row in visible if row.action == "created"]
+    lines.extend(["", "## Created", ""])
+    if not created:
+        lines.append("None.")
+    for row in created:
+        lines.append(_created_line(row))
     blocked = [
         row for row in visible if _blocked_creation(row, report.create_for_states)
     ]
