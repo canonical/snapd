@@ -130,7 +130,7 @@ jobs:
 
       - name: Install API clients
         if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
-        run: python3 -m pip install --user atlassian-python-api PyGithub
+        run: python3 -m pip install --user 'atlassian-python-api==5.0.5' 'PyGithub==2.10.0'
 
       - name: Install petname
         if: steps.mode.outputs.mode == 'summary' || steps.mode.outputs.mode == 'dry-run' || steps.mode.outputs.mode == 'apply'
