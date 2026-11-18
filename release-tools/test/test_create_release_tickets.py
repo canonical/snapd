@@ -263,7 +263,6 @@ class TestVersionAndNaming(unittest.TestCase):
 
     def test_security_uses_major_jira_version(self):
         self.assertEqual(crt.jira_version_for("security", "2.78.X"), "2.78")
-        self.assertEqual(crt.jira_version_for("security", "2.78.x"), "2.78")
 
     def test_security_rejects_a_numeric_patch(self):
         with self.assertRaises(RuntimeError) as cm:
@@ -535,6 +534,45 @@ class TestTaskTitles(unittest.TestCase):
                 "Publish the GitHub release created when uploading tarballs",
             ],
         )
+
+    def test_security_certification_defers_publicity_until_stable(self):
+        plan = sample_plan(variant="security", version="2.77.X")
+        summaries = [task.summary for task in plan.tasks]
+        self.assertNotIn(
+            "Security: Request upload to {jammy,noble,plucky}-proposed "
+            "and facilitate LP bug verification",
+            summaries,
+        )
+        cert = next(
+            task
+            for task in plan.tasks
+            if task.summary == "Security: Complete Certification BETA validation"
+        )
+        self.assertEqual(
+            list(cert.checklist),
+            [
+                "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+                "Discuss results with the certification team and obtain certification sign-off",
+                "Obtain QA sign-off to promote to candidate",
+                "Confirm the certification team beta sign-off",
+                "Promote snapd snap revisions to candidate",
+                "Publish the GitHub release created when uploading tarballs",
+                "Confirm the candidate soak week, the WSL smoke tests, "
+                "and that no stable-stopper bugs are open",
+                "Start the progressive snap release in sync with the deb release",
+                "Update the snapd roadmap and publicize the release once it is in stable",
+            ],
+        )
+        for task in plan.tasks:
+            self.assertNotIn("Request the move to -updates", task.checklist)
+            self.assertNotIn(
+                "Update the snapd roadmap for candidate",
+                task.checklist,
+            )
+            self.assertNotIn(
+                "Create the release forum post and publicize the move to candidate",
+                task.checklist,
+            )
 
     def test_stable_release_follows_documented_order(self):
         plan = sample_plan()

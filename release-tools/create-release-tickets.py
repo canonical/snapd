@@ -353,19 +353,35 @@ def task_qa_beta():
     )
 
 
-def task_certification_beta():
-    return TaskSpec(
-        summary="Complete Certification BETA validation",
-        checklist=(
-            "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
-            "Discuss results with the certification team and obtain certification sign-off",
-            "Obtain QA sign-off to promote to candidate",
-            "Confirm the certification team beta sign-off",
-            "Promote snapd snap revisions to candidate",
+def task_certification_beta(*, variant):
+    checklist = (
+        "Analyse failures, trigger reruns as required and determine PASS/FAIL result",
+        "Discuss results with the certification team and obtain certification sign-off",
+        "Obtain QA sign-off to promote to candidate",
+        "Confirm the certification team beta sign-off",
+        "Promote snapd snap revisions to candidate",
+    )
+    if variant == "security":
+        # Security debs are published by the security team. Snap stable
+        # promotion stays here, and publicity waits until stable.
+        checklist = checklist + (
+            "Publish the GitHub release created when uploading tarballs",
+            (
+                "Confirm the candidate soak week, the WSL smoke tests, "
+                "and that no stable-stopper bugs are open"
+            ),
+            "Start the progressive snap release in sync with the deb release",
+            "Update the snapd roadmap and publicize the release once it is in stable",
+        )
+    else:
+        checklist = checklist + (
             "Update the snapd roadmap for candidate",
             "Create the release forum post and publicize the move to candidate",
             "Publish the GitHub release created when uploading tarballs",
-        ),
+        )
+    return TaskSpec(
+        summary="Complete Certification BETA validation",
+        checklist=checklist,
         points=1,
     )
 
