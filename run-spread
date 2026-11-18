@@ -19,6 +19,7 @@ help() {
     echo "   -a, --arch         - Specify architecture (e.g., amd64, arm64)"
     echo "   -n, --no-rebuild   - Do not rebuild snapd snap (equivalent to NO_REBUILD=1)"
     echo "   -d, --download     - Download latest snapd snap built on master (equivalent to DOWNLOAD_SNAPD_SNAP=1)"
+    echo "   --instrumented-snap PATH - Use an explicitly instrumented snap with --scenario features"
     echo "   --                 - Delimiter for arguments parsed by this script"
     echo "   ARGS               - Arguments passed to spread"
     echo
@@ -28,6 +29,7 @@ arch="amd64"
 no_rebuild=0
 download=0
 scenario=""
+instrumented_snap=""
 SPREAD_ENV=()
 
 while true; do
@@ -55,6 +57,18 @@ while true; do
         --download|-d)
             download=1
             shift
+            ;;
+        --instrumented-snap)
+            if [ -n "$instrumented_snap" ]; then
+                echo "instrumented snap already specified: $instrumented_snap" >&2
+                exit 1
+            fi
+            if [ "$#" -lt 2 ]; then
+                echo "missing snap path for $1" >&2
+                exit 1
+            fi
+            instrumented_snap="$2"
+            shift 2
             ;;
         --arch|-a)
             shift
@@ -90,11 +104,45 @@ if [ -n "$scenario" ]; then
     done < "$scenario_file"
 fi
 
+if [ "$scenario" = "features" ] && [ -z "$instrumented_snap" ]; then
+    echo "the features scenario requires an explicitly instrumented snap; use --instrumented-snap PATH" >&2
+    exit 1
+fi
+
+if [ -n "$instrumented_snap" ]; then
+    if [ "$scenario" != "features" ]; then
+        echo "--instrumented-snap can only be used with --scenario features" >&2
+        exit 1
+    fi
+    if [ "$download" = "1" ] || [ "$no_rebuild" = "1" ]; then
+        echo "--instrumented-snap cannot be combined with --download or --no-rebuild" >&2
+        exit 1
+    fi
+    if [ ! -f "$instrumented_snap" ]; then
+        echo "instrumented snap does not exist: $instrumented_snap" >&2
+        exit 1
+    fi
+    case "$instrumented_snap" in
+        *.snap|*.snap.keep) ;;
+        *)
+            echo "instrumented snap must have a .snap or .snap.keep suffix: $instrumented_snap" >&2
+            exit 1
+            ;;
+    esac
+fi
+
 set -x
 
 shopt -s nullglob
 
-if [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
+if [ -n "$instrumented_snap" ]; then
+    echo "-- $(date) -- using explicitly instrumented features snap: $instrumented_snap"
+    mkdir -p built-snap
+    cp -- "$instrumented_snap" built-snap/.snapd-features-snap.tmp
+    rm -f built-snap/snapd_1337.*.snap.keep
+    mv built-snap/.snapd-features-snap.tmp built-snap/snapd_1337.instrumented.snap.keep
+
+elif [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
     run="$(gh run list --repo github.com/canonical/snapd -w ci-master-push.yaml --json databaseId,conclusion --jq 'first(.[] | select(.conclusion == "success") | .databaseId)')"
     filename="snap-files-amd64-default-test"
     if uname -m | grep -Eq '(aarch64.*|armv8.*)' || [ "$arch" == "arm64" ]; then
