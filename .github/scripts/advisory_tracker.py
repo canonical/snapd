@@ -538,6 +538,13 @@ def is_public_codename(name: str) -> bool:
     return parts[0].casefold() in adjectives and parts[1].casefold() in names
 
 
+def accepted_codename(summary: str) -> str | None:
+    name = extract_codename(summary)
+    if name is None or not is_public_codename(name):
+        return None
+    return name
+
+
 def public_label(row: AdvisoryRow) -> str:
     if row.codename and is_public_codename(row.codename):
         return row.codename
@@ -1230,7 +1237,7 @@ def _row_from_advisory(
         url=url,
         cve_id=cve,
         summary=summary,
-        codename=extract_codename(summary) if summary else None,
+        codename=accepted_codename(summary) if summary else None,
         state=state,
         severity=severity_text,
         ready=not reasons,
@@ -1304,7 +1311,7 @@ def _quiet_link(url: str) -> str:
 def created_message(row: AdvisoryRow, issue_key: str) -> str:
     return "\n".join(
         [
-            f"## :white_check_mark: {AUTOMATION_MARK} new advisory detected",
+            f"## :bug: {AUTOMATION_MARK} new advisory detected",
             "",
             f"Jira ticket created: {issue_key}",
             f"GitHub-Advisory: {row.ghsa_id}",
@@ -1622,10 +1629,13 @@ def execute(
             if exc.status in {401, 403}:
                 raise
             if report.advisories:
+                row = report.advisories[-1]
+                if row.action == "":
+                    row.action = "error"
                 _remember_error(
                     report,
-                    report.advisories[-1],
-                    f"{report.advisories[-1].ghsa_id or 'advisory'}: {exc}",
+                    row,
+                    f"{row.ghsa_id or 'advisory'}: {exc}",
                 )
             else:
                 report.errors.append(str(exc))
@@ -1666,7 +1676,7 @@ def _advisory_cell(row: AdvisoryRow) -> str:
 
 def _created_line(row: AdvisoryRow) -> str:
     ticket = row.issue_key or ""
-    if row.codename:
+    if row.codename and is_public_codename(row.codename):
         ticket = f"{ticket} ({row.codename})"
     return f"- `{row.ghsa_id}`: {ticket}"
 

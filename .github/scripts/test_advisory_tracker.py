@@ -496,6 +496,19 @@ class AdvisoryTrackerTests(unittest.TestCase):
         self.assertEqual(report.advisories[0].codename, "Keen Yak")
         self.assertNotIn("Fix The Pin", created_fields(client)[0]["summary"])
 
+    def test_private_title_suffix_is_not_a_codename(self):
+        advisory = sample_advisory(EMBER, "Issue (Local Privilege Escalation)")
+        client = FakeClient([advisory], [anchor()])
+        report = run(client, name_source=lambda: "keen yak")
+        self.assertEqual(created_fields(client)[0]["summary"], f"Keen Yak: {EMBER}")
+        self.assertNotIn("Privilege", created_fields(client)[0]["summary"])
+        self.assertEqual(report.advisories[0].codename, "Keen Yak")
+        markdown = tracker.render_markdown(report)
+        self.assertIn(
+            f"## Created\n\n- `{EMBER}`: SNAPDENG-500 (Keen Yak)\n", markdown
+        )
+        self.assertNotIn("Privilege", markdown)
+
     def test_critical_advisory_sets_the_mapped_priority(self):
         advisory = sample_advisory(
             EMBER, "pins a map (Ember Falcon)", severity="critical"
@@ -847,7 +860,7 @@ class AdvisoryTrackerTests(unittest.TestCase):
         created = [text for text in texts if "new advisory detected" in text]
         self.assertEqual(len(created), 1)
         self.assertIn(
-            "## :white_check_mark: advisory-tracker: new advisory detected",
+            "## :bug: advisory-tracker: new advisory detected",
             created[0],
         )
         self.assertIn("Jira ticket created: SNAPDENG-500", created[0])
@@ -1015,6 +1028,21 @@ class AdvisoryTrackerTests(unittest.TestCase):
         report = run(client)
         self.assertEqual(report.advisories[0].action, "error")
         self.assertIn("did not include a key", report.advisories[0].error)
+        self.assertEqual(mattermost_texts(client), [NOT_CREATED_TEXT])
+
+    def test_petname_failure_is_not_created(self):
+        advisory = sample_advisory(EMBER, "pins a map")
+
+        def fail():
+            raise tracker.TrackerError("cannot generate codename: petname failed")
+
+        client = FakeClient([advisory], [anchor()])
+        report = run(client, name_source=fail)
+        row = report.advisories[0]
+        self.assertEqual(row.action, "error")
+        self.assertIn("cannot generate codename: petname failed", row.error)
+        markdown = tracker.render_markdown(report)
+        self.assertIn(f"## Not created\n\n- `{EMBER}`: {row.error}\n", markdown)
         self.assertEqual(mattermost_texts(client), [NOT_CREATED_TEXT])
 
     def test_later_run_does_not_repeat_the_creation_message(self):
