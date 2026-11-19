@@ -345,8 +345,14 @@ func (s *ValidateSuite) TestValidateAppSocketsPkcs11SlotSocketInvalid(c *C) {
 			},
 		}
 		app.Sockets["sock"].ListenStream = t.listen
+
+		expectedScope := "system"
+		if t.scope == UserDaemon {
+			expectedScope = "user"
+		}
+
 		c.Check(ValidateApp(app), ErrorMatches,
-			`invalid definition of socket "sock": invalid "listen-stream": (system|user) daemon sockets must have a prefix of .*`,
+			fmt.Sprintf(`invalid definition of socket "sock": invalid "listen-stream": %s daemon sockets must have a prefix of .*`, expectedScope),
 			Commentf("%+v", t))
 	}
 }
