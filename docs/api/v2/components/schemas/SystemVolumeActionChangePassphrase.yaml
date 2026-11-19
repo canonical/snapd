@@ -17,12 +17,12 @@ properties:
     enum:
       - change-passphrase
   old-passphrase:
-    type: string
-    minLength: 1
+    allOf:
+      - $ref: 'Passphrase.yaml'
     description: The current passphrase.
   new-passphrase:
-    type: string
-    minLength: 1
+    allOf:
+      - $ref: 'Passphrase.yaml'
     description: The replacement passphrase.
   keyslots:
     type: array
