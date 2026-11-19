@@ -261,7 +261,7 @@ func isPkcs11SlotSocket(app *AppInfo, path string) bool {
 		if slot == nil || slot.Interface != "pkcs11" {
 			continue
 		}
-		if socket, ok := slot.Attrs["pkcs11-socket"].(string); ok && socket == path {
+		if slotSocketPath, ok := slot.Attrs["pkcs11-socket"].(string); ok && slotSocketPath == path {
 			return true
 		}
 	}
