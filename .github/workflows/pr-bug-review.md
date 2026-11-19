@@ -7,6 +7,7 @@ on:
   pull_request_target:
     types: [opened, ready_for_review, labeled]
     forks: ["*"]
+    acknowledge-risk: true # deliberate: read-only token, trusted base checkout
   # Runs on new non-draft PRs. Re-request by (re-)applying the `ai-review`
   # label: after new commits only those are reviewed, otherwise the whole PR.
   # A maintainer-applied label also lets the agent read PRs from external
@@ -14,6 +15,11 @@ on:
 if: >
   (github.event.action == 'labeled' && github.event.label.name == 'ai-review') ||
   (github.event.action != 'labeled' && github.event.pull_request.draft == false)
+
+# Required by strict mode for `forks: ["*"]`. Fork PRs still only run when
+# triggered by an authorized actor (for example a maintainer adding the label).
+features:
+  dangerously-allow-pull-request-target-forks-all: true
 
 engine:
   id: copilot
