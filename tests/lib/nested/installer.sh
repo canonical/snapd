@@ -85,7 +85,11 @@ nested_live_snapd_setup() {
             ;;
         branch)
             # The image snapd may be newer than the branch snap, so re-exec
-            # happens only when SNAP_REEXEC=force.
+            # happens only when SNAP_REEXEC=force. The CI snap is version 1337
+            # and is built with withtestkeys, so an unset SNAPPY_TESTING still
+            # makes snapdenv.Testing return true and the preinstall check
+            # permits a virtual machine. Set it to 0 so the check reports
+            # running-in-vm.
             cat <<'EOF'
     mkdir -p /mnt/cidata
     if ! mount -o ro /dev/disk/by-label/cidata /mnt/cidata; then
@@ -96,7 +100,7 @@ nested_live_snapd_setup() {
       echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       exit 1
     fi
-    if ! printf '%s\n' '[Service]' 'Environment=SNAP_REEXEC=force' | systemctl edit snapd.service --stdin --drop-in=99-nested-reexec.conf || ! systemctl restart snapd.socket snapd.service; then
+    if ! printf '%s\n' '[Service]' 'Environment=SNAPPY_TESTING=0' 'Environment=SNAP_REEXEC=force' | systemctl edit snapd.service --stdin --drop-in=99-nested-reexec.conf || ! systemctl restart snapd.socket snapd.service; then
       echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       systemctl list-units --all '*snapd*' >/dev/ttyS0 2>&1 || true
       exit 1
