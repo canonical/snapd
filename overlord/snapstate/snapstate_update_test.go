@@ -1697,6 +1697,36 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateReservedHookKey(c *C) {
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}
+	snaptest.MockSnapInstance(c, "some-snap_hook", `name: some-snap`, si)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Existing instances must still receive updates.
+	snapstate.Set(s.state, "some-snap_hook", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "hook",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap_hook", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("refresh", "refresh an existing instance with the reserved hook key")
+	chg.AddAll(ts)
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap_hook", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.InstanceKey, Equals, "hook")
+}
+
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateUnsupportedPlug(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

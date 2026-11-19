@@ -99,6 +99,8 @@ func (s *ValidateSuite) TestValidateInstanceName(c *C) {
 		"foo_0123456789",
 		"01game_0123456789",
 		"foo_1", "foo_1234abcd",
+		// Reserved for new installs, but still valid for managing installed instances.
+		"foo_hook",
 	}
 	for _, name := range validNames {
 		err := naming.ValidateInstance(name)
