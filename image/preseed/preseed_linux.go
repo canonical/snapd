@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -58,8 +59,9 @@ var (
 // sure critical virtual filesystems (such as proc) are mounted. This is not meant to
 // be exhaustive check, but one that prevents running the tool against a wrong directory
 // by an accident, which would lead to hard to understand errors from snapd in preseed
-// mode.
-func checkChroot(preseedChroot string) error {
+// mode. securityfs is not required when the AppArmor kernel features of the
+// target kernel are provided via aaFeaturesDir.
+func checkChroot(preseedChroot, aaFeaturesDir string) error {
 	exists, isDir, err := osutil.DirExists(preseedChroot)
 	if err != nil {
 		return fmt.Errorf("cannot verify %q: %v", preseedChroot, err)
@@ -75,7 +77,11 @@ func checkChroot(preseedChroot string) error {
 	// validity checks of the critical mountpoints inside chroot directory.
 	required := map[string]bool{}
 	// required mountpoints are relative to the preseed chroot
-	for _, p := range []string{"/sys/kernel/security", "/proc", "/dev"} {
+	requiredMounts := []string{"/proc", "/dev"}
+	if aaFeaturesDir == "" {
+		requiredMounts = append(requiredMounts, "/sys/kernel/security")
+	}
+	for _, p := range requiredMounts {
 		required[filepath.Join(preseedChroot, p)] = true
 	}
 	entries, err := osutil.LoadMountInfo()
@@ -98,9 +104,11 @@ func checkChroot(preseedChroot string) error {
 		return fmt.Errorf("cannot preseed without the following mountpoints:%s", strings.Join(parts, "\n - "))
 	}
 
-	path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
-	if exists := osutil.FileExists(path); !exists {
-		return fmt.Errorf("cannot preseed without access to %q", path)
+	if aaFeaturesDir == "" {
+		path := filepath.Join(preseedChroot, "/sys/kernel/security/apparmor")
+		if exists := osutil.FileExists(path); !exists {
+			return fmt.Errorf("cannot preseed without access to %q", path)
+		}
 	}
 
 	return nil
@@ -175,13 +183,13 @@ const snapdPreseedResetReexec = `2.59`
 // chooseTargetSnapdVersion checks if the version of snapd under chroot env
 // is good enough for preseeding. It checks both the snapd from the deb
 // and from the seeded snap mounted under snapdMountPath and returns the
-// information (path, version) about snapd to execute as part of preseeding
-// (it picks the newer version of the two).
+// information (path, version, info file flags) about snapd to execute as part
+// of preseeding (it picks the newer version of the two).
 // The function must be called after syscall.Chroot(..).
 func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	// read snapd version from the mounted core/snapd snap
 	snapdInfoDir := filepath.Join(snapdMountPath, dirs.CoreLibExecDir)
-	verFromSnap, _, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
+	verFromSnap, flagsFromSnap, err := snapdtool.SnapdVersionFromInfoFile(snapdInfoDir)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +197,7 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	// read snapd version from the main fs under chroot (snapd from the deb);
 	// assumes running under chroot already.
 	hostInfoDir := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir)
-	verFromDeb, _, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
+	verFromDeb, flagsFromDeb, err := snapdtool.SnapdVersionFromInfoFile(hostInfoDir)
 	if err != nil {
 		return nil, err
 	}
@@ -200,14 +208,17 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	}
 
 	var whichVer, snapdPath, preseedPath string
+	var flags map[string]string
 	if res < 0 {
 		// snapd from the deb under chroot is the candidate to run
 		whichVer = verFromDeb
+		flags = flagsFromDeb
 		snapdPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snapd")
 		preseedPath = filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-preseed")
 	} else {
 		// snapd from the mounted core/snapd snap is the candidate to run
 		whichVer = verFromSnap
+		flags = flagsFromSnap
 		snapdPath = filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snapd")
 		preseedPath = filepath.Join(snapdMountPath, dirs.CoreLibExecDir, "snap-preseed")
 	}
@@ -221,7 +232,7 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 			whichVer, snapdPreseedSupportVer)
 	}
 
-	return &targetSnapdInfo{path: snapdPath, preseedPath: preseedPath, version: whichVer}, nil
+	return &targetSnapdInfo{path: snapdPath, preseedPath: preseedPath, version: whichVer, flags: flags}, nil
 }
 
 func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), err error) {
@@ -538,16 +549,48 @@ func getSnapdVersion(rootDir, label string) (string, error) {
 	return ver, nil
 }
 
-func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targetSnapdInfo, func(), error) {
+// chrootAppArmorFeaturesDir is where the AppArmor kernel features directory of
+// the target kernel is copied to inside the chroot.
+const chrootAppArmorFeaturesDir = "/tmp/snapd-preseed-apparmor-features"
+
+// copyAppArmorFeatures copies the AppArmor kernel features directory src to
+// dst, replacing any stale copy at dst. cp is used as it reads files until EOF,
+// while e.g. osutil.CopyFile copies the reported file size, which is 0 for the
+// files in securityfs.
+func copyAppArmorFeatures(src, dst string) error {
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+	cmd := exec.Command("cp", "-r", src+"/.", dst)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot copy AppArmor kernel features directory %q: %v", src, osutil.OutputErr(out, err))
+	}
+	return nil
+}
+
+// prepareClassicChroot chroots into preseedChroot and prepares it for running
+// snapd in preseed mode. If aaFeaturesDir is set, it is copied into the chroot
+// at chrootAppArmorFeaturesDir.
+func prepareClassicChroot(preseedChroot string, reset bool, label string, aaFeaturesDir string) (*targetSnapdInfo, func(), error) {
+	// the AppArmor features directory is not reachable from inside the
+	// chroot, copy it there first
+	if aaFeaturesDir != "" {
+		if err := copyAppArmorFeatures(aaFeaturesDir, filepath.Join(preseedChroot, chrootAppArmorFeaturesDir)); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	if err := syscallChroot(preseedChroot); err != nil {
+		if aaFeaturesDir != "" {
+			os.RemoveAll(filepath.Join(preseedChroot, chrootAppArmorFeaturesDir))
+		}
 		return nil, nil, fmt.Errorf("cannot chroot into %s: %v", preseedChroot, err)
 	}
 
 	logger.Debugf("inside chroot: %s", preseedChroot)
-
-	if err := os.Chdir("/"); err != nil {
-		return nil, nil, fmt.Errorf("cannot chdir to /: %v", err)
-	}
 
 	// GlobalRootDir is now relative to chroot env. We assume all paths
 	// inside the chroot to be identical with the host.
@@ -569,6 +612,18 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 		cleanup()
 	}()
 
+	if aaFeaturesDir != "" {
+		addCleanup(func() {
+			if err := os.RemoveAll(filepath.Join(rootDir, chrootAppArmorFeaturesDir)); err != nil {
+				fmt.Fprintf(Stdout, "cannot remove AppArmor kernel features copy: %v\n", err)
+			}
+		})
+	}
+
+	if err := os.Chdir("/"); err != nil {
+		return nil, nil, fmt.Errorf("cannot chdir to /: %v", err)
+	}
+
 	// The best would have been to check if /proc is a mountpoint.
 	// But we would need /proc/self/mountinfo for that.
 	if !osutil.FileExists(filepath.Join(rootDir, "/proc/self/cmdline")) {
@@ -584,11 +639,19 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 		})
 	}
 
-	// We need loop devices to work to be able to mount the snap.
-	if !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
+	// We need loop devices to work to be able to mount the snap, unless snaps
+	// are mounted with FUSE, as decided by squashfs.FsType() using the same
+	// check (e.g. in a container). Mounting devtmpfs is not possible in an
+	// unprivileged container, so /dev provided by the caller is used as is
+	// in that case.
+	if !squashfs.NeedsFuse() && !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
 		cmd := exec.Command("mount", "-t", "devtmpfs", "none", filepath.Join(rootDir, "/dev"))
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available: %s\nOutput: %s", err, out)
+			var hint string
+			if !osutil.FileExists(filepath.Join(rootDir, "/dev/fuse")) {
+				hint = " (/dev/fuse not available either, it is needed to mount snaps with FUSE instead)"
+			}
+			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available%s: %s\nOutput: %s", hint, err, out)
 		}
 		addCleanup(func() {
 			cmd := exec.Command("umount", "--lazy", filepath.Join(rootDir, "/dev"))
@@ -696,7 +759,8 @@ func createPreseedArtifact(opts *preseedCoreOptions) (digest []byte, err error) 
 
 // runPreseedMode runs snapd in a preseed mode. It assumes running in a chroot.
 // The chroot is expected to be set-up and ready to use (critical system directories mounted).
-func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo, hybrid bool) error {
+// extraEnv is added to the environment of snapd.
+func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo, hybrid bool, extraEnv []string) error {
 	// run snapd in preseed mode
 	cmd := exec.Command(targetSnapd.path)
 	cmd.Env = os.Environ()
@@ -704,6 +768,7 @@ func runPreseedMode(preseedChroot string, targetSnapd *targetSnapdInfo, hybrid b
 	if hybrid {
 		cmd.Env = append(cmd.Env, "SNAPD_PRESEED_HYBRID=1")
 	}
+	cmd.Env = append(cmd.Env, extraEnv...)
 	cmd.Stderr = Stderr
 	cmd.Stdout = Stdout
 
@@ -777,15 +842,29 @@ func Core20(opts *CoreOptions) error {
 	return runUC20PreseedMode(popts)
 }
 
-func classicLikePreseed(chrootDir, label string) error {
+func classicLikePreseed(chrootDir, label string, opts *ClassicOptions) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
 		return err
 	}
 
-	if err := checkChroot(chrootDir); err != nil {
+	var aaFeaturesDir, seccompActionsFile string
+	if opts != nil {
+		aaFeaturesDir = opts.AppArmorKernelFeaturesDir
+		seccompActionsFile = opts.SeccompActionsFile
+	}
+
+	if err := checkChroot(chrootDir, aaFeaturesDir); err != nil {
 		return fmt.Errorf("chroot verification failed: %w", err)
+	}
+
+	var seccompActions string
+	if seccompActionsFile != "" {
+		seccompActions, err = readSeccompActions(seccompActionsFile)
+		if err != nil {
+			return err
+		}
 	}
 
 	// XXX: if prepareClassicChroot & runPreseedMode were refactored to
@@ -794,27 +873,60 @@ func classicLikePreseed(chrootDir, label string) error {
 	// runPreseedMode/runUC20PreseedMode function that handles both classic
 	// and core20.
 	const reset = false
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label, aaFeaturesDir)
 	if err != nil {
 		return fmt.Errorf("cannot prepare chroot: %w", err)
 	}
 	defer cleanup()
 
+	// the snapd to run must support receiving the target kernel features via
+	// the environment, which it advertises in its info file with keys named
+	// as the environment variables
+	var env []string
+	if aaFeaturesDir != "" {
+		if targetSnapd.flags[snapdenv.EnvPreseedAppArmorFeaturesDir] != "1" {
+			return fmt.Errorf("cannot use the AppArmor kernel features directory: snapd %s from the target system does not support it", targetSnapd.version)
+		}
+		env = append(env, snapdenv.EnvPreseedAppArmorFeaturesDir+"="+chrootAppArmorFeaturesDir)
+	}
+	if seccompActions != "" {
+		if targetSnapd.flags[snapdenv.EnvPreseedSeccompActions] != "1" {
+			return fmt.Errorf("cannot use the seccomp actions file: snapd %s from the target system does not support it", targetSnapd.version)
+		}
+		env = append(env, snapdenv.EnvPreseedSeccompActions+"="+seccompActions)
+	}
+
 	// executing inside the chroot
 	hybrid := label != ""
-	return runPreseedMode(chrootDir, targetSnapd, hybrid)
+	return runPreseedMode(chrootDir, targetSnapd, hybrid, env)
+}
+
+// readSeccompActions reads the seccomp actions available in the target kernel
+// from a file in the format of /proc/sys/kernel/seccomp/actions_avail.
+func readSeccompActions(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot read seccomp actions file: %v", err)
+	}
+	actions := strings.Fields(string(data))
+	if len(actions) == 0 {
+		return "", fmt.Errorf("cannot use seccomp actions file %q: no actions listed", path)
+	}
+	return strings.Join(actions, " "), nil
 }
 
 // Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
-func Classic(chrootDir string) error {
+// opts can be nil.
+func Classic(chrootDir string, opts *ClassicOptions) error {
 	const label = ""
-	return classicLikePreseed(chrootDir, label)
+	return classicLikePreseed(chrootDir, label, opts)
 }
 
 // Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
 // components pointed by chrootDir and identified by a given system label.
-func Hybrid(chrootDir, label string) error {
-	return classicLikePreseed(chrootDir, label)
+// opts can be nil.
+func Hybrid(chrootDir, label string, opts *ClassicOptions) error {
+	return classicLikePreseed(chrootDir, label, opts)
 }
 
 func classicLikeReset(chrootDir, label string) error {
@@ -837,7 +949,7 @@ func classicLikeReset(chrootDir, label string) error {
 	}
 
 	const reset = true
-	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label)
+	targetSnapd, cleanup, err := prepareClassicChroot(chrootDir, reset, label, "")
 	if err != nil {
 		return err
 	}

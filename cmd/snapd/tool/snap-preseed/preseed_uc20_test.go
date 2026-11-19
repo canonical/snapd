@@ -60,6 +60,29 @@ func (s *startPreseedSuite) TestRunPreseedUC20Happy(c *C) {
 	c.Check(called, Equals, true)
 }
 
+func (s *startPreseedSuite) TestRunPreseedUC20SeccompActionsFileUnsupported(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+
+	restore := snap_preseed.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	// for UC20 probing
+	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "system-seed/systems/20220203"), 0755), IsNil)
+
+	restorePreseed := snap_preseed.MockPreseedCore20(func(opts *preseed.CoreOptions) error {
+		c.Fatalf("unexpected call")
+		return nil
+	})
+	defer restorePreseed()
+
+	parser := testParser(c)
+	c.Check(snap_preseed.Run(parser, []string{"--seccomp-actions-file", "/actions_avail", tmpDir}), ErrorMatches,
+		`cannot use --seccomp-actions-file for Ubuntu Core`)
+}
+
 func (s *startPreseedSuite) TestRunPreseedUC20HappyNoArgs(c *C) {
 	tmpDir := c.MkDir()
 	dirs.SetRootDir(tmpDir)
