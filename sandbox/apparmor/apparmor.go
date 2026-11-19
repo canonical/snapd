@@ -955,7 +955,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 				"--policy-features", abiFile,
 			}
 
-			return exec.Command(path, withPreseedKernelFeatures(args, true)...), true, nil
+			return exec.Command(path, withPreseedKernelFeatures(args)...), true, nil
 		}
 	}
 
@@ -968,7 +968,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			// Detect apparmor 5.0 ABI support from the host distribution and use it if available.
 			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
 				logger.Debugf("apparmor 5.0 ABI detected")
-				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi50File}, true)...), false, nil
+				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi50File})...), false, nil
 			}
 
 			// Detect but ignore apparmor 4.0 ABI support from the host distribution.
@@ -984,31 +984,43 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 
 			// Perhaps 3.0?
 			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
-				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi30File}, true)...), false, nil
+				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi30File})...), false, nil
 			}
 
 			// Most likely 2.0
-			return exec.Command(path, withPreseedKernelFeatures(nil, false)...), false, nil
+			return exec.Command(path, withPreseedLegacyFeaturesFile(nil)...), false, nil
 		}
 	}
 
 	return nil, false, os.ErrNotExist
 }
 
-// withPreseedKernelFeatures appends to the apparmor_parser arguments the
-// option making the parser use the AppArmor kernel features of the target
-// kernel instead of the running one, when these were provided for preseeding.
-// With a policy ABI pin (--policy-features, apparmor >= 3.0) this must be
-// --kernel-features (apparmor >= 2.13), as --features-file would override the
-// pin too. Without a pin, the parser may be older than 2.13, so use
-// --features-file, which accepts a features directory since apparmor 2.10.
-func withPreseedKernelFeatures(args []string, policyPinned bool) []string {
+// withPreseedKernelFeatures and withPreseedLegacyFeaturesFile append to the
+// apparmor_parser arguments the option making the parser use the AppArmor
+// kernel features of the target kernel instead of the running one, when these
+// were provided for preseeding.
+//
+// With a policy ABI pin (--policy-features, AppArmor >= 3.0) this must be
+// --kernel-features (available since AppArmor 2.13), as --features-file would
+// override the pin, so use withPreseedKernelFeatures.
+//
+// When not using a policy ABI pin, apparmor_parser may be older than 2.13 and
+// not support --kernel-features, so use withPreseedLegacyFeaturesFile to use
+// --features-file instead. Although the name suggests it takes a file, passing
+// a directory works since AppArmor 2.10: the argument is passed to
+// aa_features_new(), which is documented as taking a file or directory.
+func withPreseedKernelFeatures(args []string) []string {
 	dir := preseedAppArmorFeaturesDir()
 	if dir == "" {
 		return args
 	}
-	if policyPinned {
-		return append(args, "--kernel-features", dir)
+	return append(args, "--kernel-features", dir)
+}
+
+func withPreseedLegacyFeaturesFile(args []string) []string {
+	dir := preseedAppArmorFeaturesDir()
+	if dir == "" {
+		return args
 	}
 	return append(args, "--features-file", dir)
 }
