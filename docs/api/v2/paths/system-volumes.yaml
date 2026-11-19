@@ -3,8 +3,9 @@
 
 get:
   tags:
-    - Systems
+    - InterfaceOpenAccess
     - Synchronous
+    - Systems
   summary: Enumerate system volume keyslots
   description: |-
     Enumerate keyslots for a container role, or for all containers grouped by
@@ -95,3 +96,5 @@ get:
                                   - none
                                   - pin
                                   - passphrase
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
