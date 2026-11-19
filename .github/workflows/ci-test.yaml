@@ -664,6 +664,76 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
 
+  # Newly added spread tests must not fail on any system. This check looks at
+  # the failed-tests lists uploaded by the spread jobs in the current attempt
+  # of this workflow run only, so a test that failed earlier but passes on a
+  # rerun is accepted.
+  new-spread-tests-pass:
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'pull_request'
+    needs:
+      - spread-fundamental
+      - spread-fips
+      - spread-not-fundamental-pr
+      - spread-not-fundamental-not-pr
+      - spread-nested
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          # HEAD is the PR merge commit, HEAD^1 is the tip of the base branch
+          fetch-depth: 2
+
+      - name: Find newly added spread tests
+        id: new-tests
+        run: |
+          git diff --name-only --diff-filter=A HEAD^1 HEAD -- 'tests/**/task.yaml' \
+            | xargs -r -n1 dirname | sort -u > new-tests.txt
+          if [ -s new-tests.txt ]; then
+            echo "Newly added spread tests:"
+            cat new-tests.txt
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No new spread tests added"
+          fi
+
+      - name: Download failed spread tests lists
+        if: steps.new-tests.outputs.found == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          # uploaded by the run-spread job of spread-tests.yaml, one per
+          # group and attempt, only when that group had failures; the name
+          # ends with the attempt number, so only match the current attempt
+          pattern: "run-spread-results-${{ github.run_id }}-*-${{ github.run_attempt }}"
+          path: failed-tests
+
+      - name: Check new spread tests did not fail
+        if: steps.new-tests.outputs.found == 'true'
+        run: |
+          # Entries have the format backend:system:test[:variant] and are
+          # space separated within each failed-tests file
+          touch all-failures.txt
+          if [ -d failed-tests ]; then
+            find failed-tests -type f -name failed-tests -exec cat {} + \
+              | tr ' ' '\n' | sed '/^$/d' | sort -u > all-failures.txt
+          fi
+
+          failed=0
+          while IFS= read -r test; do
+            matches="$(awk -F: -v t="$test" '$3 == t' all-failures.txt)"
+            if [ -n "$matches" ]; then
+              failed=1
+              echo "::error title=New spread test failed::$test failed on:"
+              echo "$matches" | sed 's/^/  /'
+            fi
+          done < new-tests.txt
+
+          if [ "$failed" -ne 0 ]; then
+            echo "Newly added spread tests must pass on all systems"
+            exit 1
+          fi
+          echo "All newly added spread tests passed"
+
   # The spread-results-reporter needs the PR number to be able to 
   # comment on the relevant PR with spread failures. Because the PR 
   # number is not in the github.event object during the 
