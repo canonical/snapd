@@ -59,6 +59,7 @@ unix (bind) type=stream addr="@[0-9a-fA-F]*/bus/busctl/*",
 
 /run/systemd/network/{,**} r,
 /run/NetworkManager/conf.d/{,**} r,
+/run/netplan/{,**} r,
 /run/udev/rules.d/ r,
 /run/udev/rules.d/[0-9]*-netplan-* r,
 
