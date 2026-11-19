@@ -182,8 +182,9 @@ post:
                           replace-recovery-key. Can be used once within five minutes.
                   - type: object
                     description: The recovery key is valid for all targeted containers.
+                    enum:
+                      - null
                     nullable: true
-                    example: null
                   - $ref: '../components/schemas/AuthQualityEntropyMetrics.yaml'
     202:
       $ref: '../components/responses/Accepted.yaml'
