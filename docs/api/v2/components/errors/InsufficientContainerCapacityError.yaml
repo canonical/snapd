@@ -19,3 +19,6 @@ properties:
     description: Container roles without sufficient free keyslot capacity.
     items:
       type: string
+      enum:
+        - system-data
+        - system-save
