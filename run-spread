@@ -1,13 +1,21 @@
 #!/bin/bash
 set -eu
 
+print_supported_scenarios() {
+    echo "Supported scenarios:"
+    for scenario_file in tests/scenarios/*; do
+        if [ -f "$scenario_file" ]; then
+            echo "   ${scenario_file##*/}"
+        fi
+    done
+}
+
 help() {
     echo "Usage: $0 [OPTION] [--] [ARGS]"
     echo
     echo "Options:"
-    echo "   -m, --mode MODE    - Use selected mode:"
-    echo "                        sru-validation   - Ubuntu SRU validation"
-    echo "                        native-package   - Use native package"
+    echo "   -s, --scenario NAME - Apply tests/scenarios/NAME for the spread invocation"
+    print_supported_scenarios
     echo "   -a, --arch         - Specify architecture (e.g., amd64, arm64)"
     echo "   -n, --no-rebuild   - Do not rebuild snapd snap (equivalent to NO_REBUILD=1)"
     echo "   -d, --download     - Download latest snapd snap built on master (equivalent to DOWNLOAD_SNAPD_SNAP=1)"
@@ -16,10 +24,11 @@ help() {
     echo
 }
 
-mode=""
 arch="amd64"
 no_rebuild=0
 download=0
+scenario=""
+SPREAD_ENV=()
 
 while true; do
     case "${1-}" in
@@ -27,27 +36,17 @@ while true; do
             help
             exit 0
             ;;
-        --mode|-m)
-            shift
-            maybe_mode="$1"
-            shift
-            if [ "$mode" != "" ]; then
-                echo "already using mode $mode"
+        --scenario|-s)
+            if [ -n "$scenario" ]; then
+                echo "scenario already specified: $scenario" >&2
                 exit 1
             fi
-
-            case "$maybe_mode" in
-                sru-validation)
-                    mode="sru-validation"
-                    ;;
-                native-package)
-                    mode="native-package"
-                    ;;
-                *)
-                    echo "unsupported mode: $maybe_mode"
-                    exit 1
-                    ;;
-            esac
+            if [ "$#" -lt 2 ]; then
+                echo "missing scenario name for $1" >&2
+                exit 1
+            fi
+            scenario="$2"
+            shift 2
             ;;
         --no-rebuild|-n)
             no_rebuild=1
@@ -71,6 +70,25 @@ while true; do
             ;;
     esac
 done
+
+if [ -n "$scenario" ]; then
+    scenario_file="tests/scenarios/$scenario"
+    if [ ! -f "$scenario_file" ]; then
+        echo "unknown scenario: $scenario" >&2
+        print_supported_scenarios >&2
+        exit 1
+    fi
+    while IFS= read -r env_assignment || [ -n "$env_assignment" ]; do
+        if [ -z "$env_assignment" ] || [[ "$env_assignment" == \#* ]]; then
+            continue
+        fi
+        if [[ ! "$env_assignment" =~ ^[a-zA-Z_][a-zA-Z0-9_]*=.*$ ]]; then
+            echo "invalid environment assignment in scenario $scenario: $env_assignment" >&2
+            exit 1
+        fi
+        SPREAD_ENV+=("$env_assignment")
+    done < "$scenario_file"
+fi
 
 set -x
 
@@ -112,19 +130,6 @@ if [ -t 1 ]; then
     export SPREAD_DEBUG_EACH=0
 fi
 
-case "$mode" in
-    sru-validation)
-        echo "-- SRU validation mode"
-        export SPREAD_SNAP_REEXEC=0
-        export SPREAD_SRU_VALIDATION=1
-        ;;
-    native-package)
-        echo "-- native package mode"
-        export SPREAD_SNAP_REEXEC=0
-        export SPREAD_SNAPD_DEB_FROM_REPO=false
-        ;;
-esac
-
 export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
 
 # check that we are passing a test suite (in the form of
@@ -143,5 +148,4 @@ if [ "$maybe_has_ts" = "0" ]; then
     exit 1
 fi
 
-# Run spread
-exec spread "$@"
+exec env "${SPREAD_ENV[@]}" spread "$@"
