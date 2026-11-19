@@ -19,11 +19,15 @@ review, and which head commit to review.
 ### How to review
 
 1. Read the changes under review: the incremental diff, or for a full review the
-   PR's diff and changed files from the GitHub tools. The checkout on disk is
-   either the PR's *base* branch or its head, so use it to read the surrounding
-   code, callers, callees and tests, but read new or changed file contents with
-   the GitHub tools (at the PR head SHA) so you see exactly what the PR
-   proposes.
+   full PR diff (normally `/tmp/gh-aw/agent/pr.diff`). The checkout on disk is
+   the PR's *base* commit, so use it to read the surrounding code, callers,
+   callees and tests. The PR's head commit is in the local repository but not
+   checked out: read new or changed files with `git show <head commit>:<path>`
+   and search them with `git grep <pattern> <head commit>`, so you see exactly
+   what the PR proposes. Only if the orchestrator says the head commit could not
+   be fetched, read them with the GitHub tools at the head commit. Never fetch
+   the pull request diff with the GitHub tools (it is blocked), and do not run
+   `git fetch` or anything else that needs the network.
 2. Read `AGENTS.md` and the guidance it points to for the areas the PR touches.
 3. For every changed hunk, understand what the code did before, what it does
    now, and what depends on it. Follow callers and callees; do not stop at the

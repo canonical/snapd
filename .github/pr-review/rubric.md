@@ -75,7 +75,7 @@ Post a single comment:
    with the reason from the scope file when there was an earlier review, and
    links to the compare view and the previous review when available.
 2. A one-line summary: number of findings per rating and which hunters
-   contributed (`claude`, `gpt`, `gemini`; note any that failed).
+   contributed (`claude`, `kimi`, `mai`; note any that failed).
 3. A table of findings sorted by rating, highest first, with columns: rating,
    location (`path:line`), title, severity, occurrence, found by.
 4. For each finding rated 3 or higher: what is wrong, the concrete trigger
