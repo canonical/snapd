@@ -32,6 +32,8 @@ Other rules:
 - Findings you could not confirm by reading the code are discarded, not rated.
 - Findings in code the PR did not change (and does not make newly reachable) are
   discarded.
+- In an incremental review, findings in code the new commits did not change (and
+  do not make newly reachable) are also discarded; an earlier review covered it.
 - Agreement between hunters is shown in the report but never changes the rating.
 - Do not inflate ratings to make the report look useful. A PR with no real
   findings is a good outcome.
@@ -69,16 +71,21 @@ Choose reviewers **only from the repository's CODEOWNERS file**:
 
 Post a single comment:
 
-1. A one-line summary: number of findings per rating and which hunters
+1. The review scope: "Full review" or "Incremental review of N new commits",
+   with the reason from the scope file when there was an earlier review, and
+   links to the compare view and the previous review when available.
+2. A one-line summary: number of findings per rating and which hunters
    contributed (`claude`, `gpt`, `gemini`; note any that failed).
-2. A table of findings sorted by rating, highest first, with columns: rating,
+3. A table of findings sorted by rating, highest first, with columns: rating,
    location (`path:line`), title, severity, occurrence, found by.
-3. For each finding rated 3 or higher: what is wrong, the concrete trigger
+4. For each finding rated 3 or higher: what is wrong, the concrete trigger
    scenario, the impact and a suggested fix.
-4. Findings rated 1 or 2 inside a collapsed `<details>` block, one line each.
-5. A "Human review" section: the decision, the reason, and the reviewers
+5. Findings rated 1 or 2 inside a collapsed `<details>` block, one line each.
+6. A "Human review" section: the decision, the reason, and the reviewers
    requested (or why none).
-6. A final line explaining how to re-request: apply the `ai-review` label again.
+7. A line explaining how to re-request: apply the `ai-review` label again. After
+   new commits only those are reviewed; without new commits the whole PR is
+   reviewed again.
 
 If there are no verified findings, say so briefly and still include the human
 review decision.

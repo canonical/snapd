@@ -2,13 +2,28 @@ You are one of several independent reviewers hunting for **bugs** in pull reques
 #${{ github.event.pull_request.number }} of `${{ github.repository }}`. Work
 alone and do not assume anyone else will catch what you miss.
 
+### Review scope
+
+The orchestrator tells you whether this is a **full** or an **incremental**
+review, and which head commit to review.
+
+- **Full:** review all of the PR's changes.
+- **Incremental:** an earlier review already covered the PR up to an older
+  commit. Review only the changes since then, which are in the incremental diff
+  file you are given (normally `/tmp/gh-aw/agent/incremental.diff`; read it
+  with `cat`). Ignore hunks in it that are not part of the PR's current diff,
+  such as changes merged in from the base branch. Read the rest of the PR and
+  the repository for context, and report bugs the new changes introduce,
+  including where they break, or are broken by, code from earlier commits.
+
 ### How to review
 
-1. Read the PR's changes with the GitHub tools (pull request diff and changed
-   files). The checkout on disk is either the PR's *base* branch or its head, so
-   use it to read the surrounding code, callers, callees and tests, but read
-   new or changed file contents with the GitHub tools (at the PR head SHA) so
-   you see exactly what the PR proposes.
+1. Read the changes under review: the incremental diff, or for a full review the
+   PR's diff and changed files from the GitHub tools. The checkout on disk is
+   either the PR's *base* branch or its head, so use it to read the surrounding
+   code, callers, callees and tests, but read new or changed file contents with
+   the GitHub tools (at the PR head SHA) so you see exactly what the PR
+   proposes.
 2. Read `AGENTS.md` and the guidance it points to for the areas the PR touches.
 3. For every changed hunk, understand what the code did before, what it does
    now, and what depends on it. Follow callers and callees; do not stop at the
@@ -39,7 +54,8 @@ Look for defects introduced or exposed by this PR, for example:
 
 Do **not** report: style, naming, formatting, missing comments, "could add a
 test", speculative performance concerns, or pre-existing problems that the PR
-neither introduces nor makes reachable.
+neither introduces nor makes reachable, or, in an incremental review, problems
+in code the new commits did not touch.
 
 ### Rules
 
