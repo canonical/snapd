@@ -2732,7 +2732,7 @@ func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, co
 		}
 
 		entry := entry{key: acc.Name(), value: rawLevel}
-		if ok, err := matchesConstraints(acc, entry, constraints); err != nil {
+		if ok, err := matchesReadConstraints(acc, entry, constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
@@ -2751,7 +2751,7 @@ func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, co
 			level := make(map[string]any, len(node))
 			for k, v := range node {
 				entry := entry{key: k, value: v}
-				if ok, err := matchesConstraints(acc, entry, constraints); err != nil {
+				if ok, err := matchesReadConstraints(acc, entry, constraints); err != nil {
 					return err
 				} else if !ok {
 					continue
@@ -2784,7 +2784,7 @@ func getMap(accessors []Accessor, index int, node map[string]json.RawMessage, co
 
 		for k, v := range node {
 			entry := entry{key: k, value: v}
-			if ok, err := matchesConstraints(acc, entry, constraints); err != nil {
+			if ok, err := matchesReadConstraints(acc, entry, constraints); err != nil {
 				return err
 			} else if !ok {
 				continue
@@ -2848,7 +2848,7 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 			return &NoDataError{}
 		}
 
-		if ok, err := fieldFiltersMatchConstraints(acc, list[listIndex], constraints); err != nil {
+		if ok, err := fieldFiltersMatchReadConstraints(acc, list[listIndex], constraints); err != nil {
 			return err
 		} else if !ok {
 			return &NoDataError{}
@@ -2866,7 +2866,7 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 			// request ends in placeholder so return map to all values (but unmarshal the rest first)
 			var level []any
 			for _, v := range list {
-				if ok, err := fieldFiltersMatchConstraints(acc, v, constraints); err != nil {
+				if ok, err := fieldFiltersMatchReadConstraints(acc, v, constraints); err != nil {
 					return err
 				} else if !ok {
 					// filter out this value
@@ -2900,7 +2900,7 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
-			if ok, err := fieldFiltersMatchConstraints(acc, el, constraints); err != nil {
+			if ok, err := fieldFiltersMatchReadConstraints(acc, el, constraints); err != nil {
 				return err
 			} else if !ok {
 				// filter out this value
@@ -2957,12 +2957,18 @@ type entry struct {
 	value json.RawMessage
 }
 
-func matchesConstraints(acc Accessor, e entry, constraints map[string]any) (bool, error) {
+func matchesReadConstraints(acc Accessor, e entry, constraints map[string]any) (bool, error) {
 	if !constrainSubkeyPlaceholder(acc, e.key, constraints) {
 		return false, nil
 	}
+	return fieldFiltersMatchReadConstraints(acc, e.value, constraints)
+}
 
-	return fieldFiltersMatchConstraints(acc, e.value, constraints)
+func matchesWriteConstraints(acc Accessor, e entry, constraints map[string]any) (bool, error) {
+	if !constrainSubkeyPlaceholder(acc, e.key, constraints) {
+		return false, nil
+	}
+	return fieldFiltersMatchWriteConstraints(acc, e.value, constraints)
 }
 
 func constrainSubkeyPlaceholder(acc Accessor, key string, constraints map[string]any) bool {
@@ -2981,9 +2987,21 @@ func constrainSubkeyPlaceholder(acc Accessor, key string, constraints map[string
 	return isStr && key == strVal
 }
 
-// fieldFiltersMatchConstraints returns true only if the object should not be
-// filtered out, either because it matches the constraints or they're not applicable.
-func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]any) (bool, error) {
+// fieldFiltersMatchReadConstraints reports whether a value should be returned
+// by a read. When reading non-maps to which filters don't apply, we consider
+// them a "match" (i.e., we don't filter them out) and keep them in the end result.
+func fieldFiltersMatchReadConstraints(acc Accessor, val json.RawMessage, constraints map[string]any) (bool, error) {
+	return fieldFiltersMatchConstraints(acc, val, constraints, true)
+}
+
+// fieldFiltersMatchWriteConstraints reports whether a value may be selected for
+// a write or removal. When writing non-maps, to which filters don't apply, we
+// don't consider them a match because we don't want to overwrite or remove them.
+func fieldFiltersMatchWriteConstraints(acc Accessor, val json.RawMessage, constraints map[string]any) (bool, error) {
+	return fieldFiltersMatchConstraints(acc, val, constraints, false)
+}
+
+func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints map[string]any, matchNonMap bool) (bool, error) {
 	filters := acc.FieldFilters()
 	if len(filters) == 0 || len(constraints) == 0 {
 		// no filters to apply to this value
@@ -2993,7 +3011,13 @@ func fieldFiltersMatchConstraints(acc Accessor, val json.RawMessage, constraints
 	var mapVal map[string]json.RawMessage
 	if err := json.Unmarshal(val, &mapVal); err != nil {
 		if _, ok := err.(*json.UnmarshalTypeError); ok {
-			// field filters aren't applicable to this field (not a map)
+			// Field filters are inapplicable to non-map values when reading, but
+			// constrained removals require a positive match before resolving a path.
+			for _, filterName := range filters {
+				if _, constrained := constraints[filterName]; constrained {
+					return matchNonMap, nil
+				}
+			}
 			return true, nil
 		}
 		return false, fmt.Errorf(`internal error: %w`, err)
@@ -3513,7 +3537,7 @@ func resolveMapPaths(accessors []Accessor, index int, node map[string]json.RawMe
 	if index == len(accessors)-1 {
 		if acc.Type() == KeyPlaceholderType {
 			for k := range node {
-				matches, err := matchesConstraints(acc, entry{key: k, value: node[k]}, constraints)
+				matches, err := matchesWriteConstraints(acc, entry{key: k, value: node[k]}, constraints)
 				if err != nil {
 					return err
 				}
@@ -3529,7 +3553,7 @@ func resolveMapPaths(accessors []Accessor, index int, node map[string]json.RawMe
 			return nil
 		}
 
-		matches, err := matchesConstraints(acc, entry{key: acc.Name(), value: raw}, constraints)
+		matches, err := matchesWriteConstraints(acc, entry{key: acc.Name(), value: raw}, constraints)
 		if err != nil {
 			return err
 		}
@@ -3545,7 +3569,7 @@ func resolveMapPaths(accessors []Accessor, index int, node map[string]json.RawMe
 			return nil
 		}
 
-		matches, err := matchesConstraints(acc, entry{key: key, value: nextLevelRaw}, constraints)
+		matches, err := matchesWriteConstraints(acc, entry{key: key, value: nextLevelRaw}, constraints)
 		if err != nil {
 			return err
 		}
@@ -3586,7 +3610,7 @@ func resolveListPaths(accessors []Accessor, accIndex int, node []json.RawMessage
 	if accIndex == len(accessors)-1 {
 		if acc.Type() == IndexPlaceholderType {
 			for i, raw := range node {
-				matches, err := matchesConstraints(acc, entry{value: raw}, constraints)
+				matches, err := matchesWriteConstraints(acc, entry{value: raw}, constraints)
 				if err != nil {
 					return err
 				}
@@ -3602,7 +3626,7 @@ func resolveListPaths(accessors []Accessor, accIndex int, node []json.RawMessage
 			return nil
 		}
 
-		matches, err := matchesConstraints(acc, entry{value: node[i]}, constraints)
+		matches, err := matchesWriteConstraints(acc, entry{value: node[i]}, constraints)
 		if err != nil {
 			return err
 		}
@@ -3613,7 +3637,7 @@ func resolveListPaths(accessors []Accessor, accIndex int, node []json.RawMessage
 	}
 
 	resolveIndex := func(i int) error {
-		matches, err := matchesConstraints(acc, entry{value: node[i]}, constraints)
+		matches, err := matchesWriteConstraints(acc, entry{value: node[i]}, constraints)
 		if err != nil {
 			return err
 		}

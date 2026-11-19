@@ -4422,6 +4422,43 @@ func (*viewSuite) TestViewUnsetMapWithConstraints(c *C) {
 	}
 }
 
+func (*viewSuite) TestViewUnsetConstraintPreservesNonMatchingScalars(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"parameters": map[string]any{"kind": map[string]any{}},
+			"rules": []any{
+				map[string]any{
+					"request": "items.{item}",
+					"storage": "items.{item}[.kind={kind}]",
+				},
+			},
+		},
+	}
+	schema, err := confdb.NewSchema("acc", "confdb", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	before := map[string]any{
+		"one": "scalar",
+		"two": map[string]any{"kind": "blue"},
+	}
+	err = bag.Set(parsePath(c, "items"), before)
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	value, err := view.Get(bag, "items", map[string]any{"kind": "red"}, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{"one": "scalar"})
+
+	err = view.Unset(bag, "items", map[string]any{"kind": "red"})
+	c.Assert(err, IsNil)
+
+	// neither entry has kind=red, so both must be preserved
+	value, err = bag.Get(parsePath(c, "items"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, before)
+}
+
 func (*viewSuite) TestViewUnsetListWithConstraints(c *C) {
 	views := map[string]any{
 		"foo": map[string]any{
