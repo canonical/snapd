@@ -81,8 +81,8 @@ func (r *Repair) Series() []string {
 }
 
 // Modes returns the modes that this assertion is valid for. It is either a list
-// of "run", "recover", or "install", or it is the empty list. The empty list
-// is interpreted to mean only "run" mode.
+// of "run" or "recover", or it is the empty list. The empty list is
+// interpreted to mean only "run" mode.
 func (r *Repair) Modes() []string {
 	return r.modes
 }

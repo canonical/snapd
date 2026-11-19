@@ -181,9 +181,9 @@ nested_start_classic_vm() {
     # Give extra disk space for the image
     qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +4G
 
-    # HACK: convert "classic" qcow2 to raw "core" image because we need
-    # to boot with OVMF, but we do this to use shared vm code
-    qemu-img convert -f qcow2 -O raw \
+    # Convert the classic image to raw because we need to boot with OVMF,
+    # but do this to use shared VM code. The image may already be raw.
+    qemu-img convert -O raw \
         "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
         "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw"
     mv -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
@@ -214,4 +214,3 @@ nested_destroy_vm() {
 nested_status_vm() {
     systemctl status "$NESTED_VM" || true
 }
-

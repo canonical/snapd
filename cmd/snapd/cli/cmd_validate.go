@@ -186,11 +186,9 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			return nil
 		}
 
-		esc := cmd.getEscapes()
 		w := tabWriter()
 
-		// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
-		fmt.Fprintf(w, i18n.G("Validation\tMode\tSeq\tCurrent\t%s\tNotes\n"), fillerPublisher(esc))
+		fmt.Fprintln(w, i18n.G("Validation\tMode\tSeq\tCurrent\tNotes"))
 		for _, res := range vsets {
 			// TODO: fill notes when've clarity about them
 			var notes string

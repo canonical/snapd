@@ -1,0 +1,42 @@
+summary: the plymouth-replace interface can configure snap systemd services
+
+details: |
+    The plymouth-replace interface is intended for use by snaps that
+    want to provide a flicker free transition from the Plymouth
+    graphical boot splash screen.
+
+    This is achieved by making the service conflict with and sequence
+    after plymouth-quit.service, and granting it access to talk to
+    plymouthd.
+
+systems:
+    - ubuntu-core-*
+
+execute: |
+    echo "Install the test service"
+    "$TESTSTOOLS"/snaps-state install-local test-svc
+
+    echo "The plymouth-replace plug is initially disconnected"
+    snap connections test-svc | MATCH "plymouth-replace +test-svc:plymouth-replace +- +-"
+
+    echo "The snap service has the regular dependencies"
+    systemctl show --property=Conflicts,After,OnFailure snap.test-svc.svc.service | tee out
+    MATCH '^Conflicts=shutdown.target$' < out
+
+    echo "The plymouth-replace plug can be connected"
+    snap connect test-svc:plymouth-replace
+    snap connections test-svc | MATCH "plymouth-replace +test-svc:plymouth-replace +:plymouth-replace +manual"
+
+    echo "The snap service now conflicts with and is sequenced after the plymouth-replace interface"
+    systemctl show --property=Conflicts,After,OnFailure snap.test-svc.svc.service | tee out
+    MATCH '^Conflicts=.*plymouth-quit.service' < out
+    MATCH '^After=.*plymouth-quit.service'     < out
+    MATCH '^OnFailure=.*plymouth-quit.service' < out
+
+    echo "The snap service has been granted access to plymouthd"
+    MATCH 'can communicate with plymouthd' < /var/lib/snapd/apparmor/profiles/snap.test-svc.svc
+
+    echo "Disconnecting the interface undoes the systemd service changes"
+    snap disconnect test-svc:plymouth-replace
+    systemctl show --property=Conflicts,After,OnFailure snap.test-svc.svc.service | tee out
+    MATCH '^Conflicts=shutdown.target$' < out

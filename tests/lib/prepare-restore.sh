@@ -889,9 +889,7 @@ restore_suite_each() {
     fi
 
     # Check for invariants late, in order to detect any bugs in the code above.
-    if [[ "$variant" = full ]]; then
-        "$TESTSTOOLS"/cleanup-state pre-invariant
-    fi
+    "$TESTSTOOLS"/cleanup-state pre-invariant
     tests.invariant check
 
     "$TESTSTOOLS"/fs-state check-monitor

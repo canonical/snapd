@@ -25,7 +25,7 @@ volumes:
         filesystem: vfat
         # UEFI will boot the ESP partition by default first
         type: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-        size: 1200M
+        size: 1600M
         update:
           edition: 2
         content:

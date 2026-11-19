@@ -109,6 +109,11 @@ static void test_sc_security_tag_validate(void) {
     g_assert_false(sc_security_tag_validate("snap.foo+coMp.hook.install", "foo", "coMp"));
     g_assert_false(sc_security_tag_validate("snap.foo+-omp.hook.install", "foo", "-omp"));
 
+    // Multiple component separators are not allowed.
+    g_assert_false(sc_security_tag_validate("snap.foo+bar+baz.hook.install", "foo", "bar"));
+    g_assert_false(sc_security_tag_validate("snap.foo+bar+baz.hook.install", "foo", "bar+baz"));
+    g_assert_false(sc_security_tag_validate("snap.foo+bar+baz.hook.install", "foo+bar", "baz"));
+
     // Security tag that's too long. The extra +2 is for the string
     // terminator and to allow us to make the tag too long to validate.
     char long_tag[SNAP_SECURITY_TAG_MAX_LEN + 2];

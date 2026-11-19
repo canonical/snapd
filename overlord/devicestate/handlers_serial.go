@@ -590,7 +590,7 @@ func (m *DeviceManager) getSerial(t *state.Task, regCtx registrationContext, pri
 	if serial.BrandID() != serial.AuthorityID() {
 		model := regCtx.Model()
 		if !strutil.ListContains(model.SerialAuthority(), serial.AuthorityID()) {
-			return nil, nil, fmt.Errorf("obtained serial assertion is signed by authority %q different from brand %q without model assertion with serial-authority set to to allow for them", serial.AuthorityID(), serial.BrandID())
+			return nil, nil, fmt.Errorf("obtained serial assertion is signed by authority %q different from brand %q without model assertion with serial-authority set to allow for them", serial.AuthorityID(), serial.BrandID())
 		}
 	}
 

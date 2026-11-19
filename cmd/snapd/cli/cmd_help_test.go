@@ -267,3 +267,18 @@ func (s *SnapSuite) TestBadSub(c *check.C) {
 	err := snap.RunMain()
 	c.Assert(err, check.ErrorMatches, `unknown command "brotato", see 'snap help debug'.`)
 }
+
+func (s *SnapSuite) TestHelpBadSub(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	// arguments of 'snap help' are handled by the help command itself and
+	// never reach the unrecognized command handling, so no suggestion is
+	// made for them, not even for a close typo
+	for _, sub := range []string{"brotato", "instal"} {
+		os.Args = []string{"snap", "help", sub}
+
+		err := snap.RunMain()
+		c.Assert(err, check.ErrorMatches, fmt.Sprintf(`unknown command %q, see 'snap help'\.`, sub))
+	}
+}

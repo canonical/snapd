@@ -67,9 +67,9 @@ type opticalDriveInterface struct {
 	commonInterface
 }
 
-// BeforePrepareSlot checks and possibly modifies a slot.
-// Valid "optical-drive" slots may contain the attribute "write".
-// If defined, the attribute "write" must be either "true" or "false".
+// BeforePreparePlug checks and possibly modifies a plug.
+// Valid "optical-drive" plugs may contain the attribute "write".
+// If defined, the attribute "write" must be either true or false.
 func (iface *opticalDriveInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 	// It's fine if 'write' isn't specified, but if it is, it needs to be bool
 	if w, ok := plug.Attrs["write"]; ok {

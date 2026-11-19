@@ -72,6 +72,12 @@ execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH bar
 
+    echo "Verify that snapctl get without keys returns the whole configuration document"
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get | MATCH '"foo": "bar"'
+
+    echo "Verify that snapctl get --view without a plug is rejected"
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get --view 2>&1 | MATCH 'error: snapctl: cannot use --view without <:plug> argument'
+
     echo "Verify invalid field names are rejected"
     if [ "$SNAP" == "snapctl-from-snap-core26" ]; then
             "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH 'error: snapctl: invalid option name "Foo": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'

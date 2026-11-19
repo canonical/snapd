@@ -1363,6 +1363,14 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
     slot-snap-ids:
       - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
+  allow-installation:
+    plug-snap-ids:
+      - foo`, `allow-installation in plug rule for interface "iface" must specify at least one of plug-names, plug-attributes, plug-snap-type, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
+		{`iface:
+  deny-installation:
+    plug-snap-ids:
+      - foo`, `deny-installation in plug rule for interface "iface" must specify at least one of plug-names, plug-attributes, plug-snap-type, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
+		{`iface:
   allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 		{`iface:
   allow-installation:
@@ -2220,6 +2228,14 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
   deny-auto-connection:
     plug-snap-ids:
       - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-names, slot-names, plug-attributes, slot-attributes, slot-snap-type, plug-snap-type, plug-publisher-id, plug-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
+		{`iface:
+  allow-installation:
+    slot-snap-ids:
+      - foo`, `allow-installation in slot rule for interface "iface" must specify at least one of slot-names, slot-attributes, slot-snap-type, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
+		{`iface:
+  deny-installation:
+    slot-snap-ids:
+      - foo`, `deny-installation in slot rule for interface "iface" must specify at least one of slot-names, slot-attributes, slot-snap-type, slot-snap-id, slots-per-plug, plugs-per-slot, on-classic, on-core-desktop, on-store, on-brand, on-model`},
 		{`iface:
   allow-connect: true`, `slot rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 		{`iface:

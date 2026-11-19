@@ -870,6 +870,7 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *boot.RebootInfo, immediate bool, waitTimeout time.Duration) error {
 	rebootDelay, err := d.rebootDelay(immediate)
 	if err != nil {
+		seclog.LogSystemRestartSnapd(d.Version, seclog.SnapdRestartScheduleFailed(rst.String()))
 		return err
 	}
 	action := boot.RebootReboot
@@ -882,6 +883,7 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst restart.RestartType, rbi *
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restarted by systemd
 	if err := reboot(action, rebootDelay, rbi); err != nil {
+		seclog.LogSystemRestartSnapd(d.Version, seclog.SnapdRestartRequestFailed(rst.String()))
 		return err
 	}
 	switch rst {
