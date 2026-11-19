@@ -11,9 +11,11 @@ details: |
     preinstall proceed action.
 
     The iso variant uses the image snapd unchanged. The branch variant installs the snapd snap
-    built for this tree from the seed CD, restarts it with SNAP_REEXEC=force, and continues
-    only when the running executable is under /snap/snapd. The installed system keeps the image
-    snapd in both variants, without a testing drop-in.
+    built for this tree from the seed CD and restarts it with SNAP_REEXEC=force and
+    SNAPPY_TESTING=0. The CI snap is built with withtestkeys, so an unset SNAPPY_TESTING would
+    permit a virtual machine. The variant continues only when the running executable is under
+    /snap/snapd. The installed system keeps the image snapd in both variants and does not set
+    SNAPPY_TESTING.
 
     The stock ISO boot does not put autoinstall on the kernel command line, so the seed
     confirms that prompt on the installer socket. The seed also sets a user, SSH, and power-off
