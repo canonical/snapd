@@ -218,10 +218,16 @@ func (e *UnauthorizedAccessError) Error() string {
 type Databag interface {
 	Get(path []Accessor, constraints map[string]any) (any, error)
 	Set(path []Accessor, value any) error
-	Unset(path []Accessor, constraints map[string]any) error
+	Unset(path []Accessor) error
 	Data() ([]byte, error)
+
 	// PruneEmpty removes every empty map or list in the databag.
 	PruneEmpty() error
+
+	// Resolve returns the concrete paths selected by path and constraints, with
+	// placeholders replaced by the values they matched and field filters removed.
+	// The databag is not modified.
+	Resolve(path []Accessor, constraints map[string]any) ([][]Accessor, error)
 }
 
 type Visibility uint
@@ -1415,8 +1421,28 @@ func (v *View) Unset(databag Databag, request string, constraints map[string]any
 		return err
 	}
 
-	for _, match := range matches {
-		if err := databag.Unset(match.storagePath, constraints); err != nil {
+	var removalPaths [][]Accessor
+	if len(constraints) == 0 {
+		// nothing to filter out so the matched storage paths can be removed directly
+		for _, match := range matches {
+			removalPaths = append(removalPaths, match.storagePath)
+		}
+	} else {
+		// Resolve every match before applying removals so earlier removals cannot
+		// change the data against which later filters are evaluated.
+		for _, match := range matches {
+			matchedPaths, err := databag.Resolve(match.storagePath, constraints)
+			if err != nil {
+				return err
+			}
+			removalPaths = append(removalPaths, matchedPaths...)
+		}
+
+		removalPaths = canonicalizeRemovalPaths(removalPaths)
+	}
+
+	for _, path := range removalPaths {
+		if err := databag.Unset(path); err != nil {
 			return err
 		}
 	}
@@ -3058,11 +3084,7 @@ func (s JSONDatabag) Set(accessors []Accessor, value any) error {
 	if value != nil {
 		_, err = set(accessors, 0, s, value)
 	} else {
-		// we don't need to pass constraints here because a constrained write is
-		// implemented by reading the opposite constraints, merging that w/ the new
-		// value and then writing the result, effectively replacing the data matching
-		// the constraints.
-		_, err = unset(accessors, 0, s, nil)
+		_, err = unset(accessors, 0, s)
 	}
 	return err
 }
@@ -3303,23 +3325,24 @@ func emptyContainerForType(acc Accessor) any {
 }
 
 // Unset takes a list of accessors, parsed from a path, and removes the value
-// they lead to. If constraints are provided, only the portion selected by them
-// is removed.
-func (s JSONDatabag) Unset(accessors []Accessor, constraints map[string]any) error {
-	_, err := unset(accessors, 0, s, constraints)
+// they lead to. Field filters on the accessors are ignored: constrained removals
+// are resolved to concrete paths (with filters already applied) before being
+// applied.
+func (s JSONDatabag) Unset(accessors []Accessor) error {
+	_, err := unset(accessors, 0, s)
 	return err
 }
 
-func unset(accessors []Accessor, index int, node any, constraints map[string]any) (json.RawMessage, error) {
+func unset(accessors []Accessor, index int, node any) (json.RawMessage, error) {
 	// the first level will be typed as JSONDatabag so we have to convert it
 	if bag, ok := node.(JSONDatabag); ok {
 		node = map[string]json.RawMessage(bag)
 	}
 
 	if obj, ok := node.(map[string]json.RawMessage); ok {
-		return unsetMap(accessors, index, obj, constraints)
+		return unsetMap(accessors, index, obj)
 	} else if list, ok := node.([]json.RawMessage); ok {
-		return unsetList(accessors, index, list, constraints)
+		return unsetList(accessors, index, list)
 	}
 
 	// should be impossible since we handle terminal cases in the type specific functions
@@ -3327,7 +3350,7 @@ func unset(accessors []Accessor, index int, node any, constraints map[string]any
 	return nil, fmt.Errorf("internal error: expected level %q to be map or list but got %T", path, node)
 }
 
-func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]any) (json.RawMessage, error) {
+func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage) (json.RawMessage, error) {
 	// NOTE: we don't remove the entire map even if we left it empty because that
 	// might impact matched set/unsets of subsequent lists. This is pruned after
 	// all matches are serviced (see View.Set/Unset).
@@ -3339,39 +3362,20 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage, 
 
 	if index == len(accessors)-1 {
 		if acc.Type() == KeyPlaceholderType {
-			if index > 0 && len(constraints) == 0 {
-				// for the common case, it's more efficient to replace the map entirely
-				node = map[string]json.RawMessage{}
-			} else {
-				// we can't replace the entire object if it's the top level or, of course,
-				// if we're applying constraints
-				for k, raw := range node {
-					matches, err := matchesConstraints(acc, entry{key: k, value: raw}, constraints)
-					if err != nil {
-						return nil, err
-					}
-					if matches {
-						delete(node, k)
-					}
+			if index == 0 {
+				// if we're unsetting the top level we can't replace the entire object,
+				// we must unset each key
+				for k := range node {
+					delete(node, k)
 				}
+			} else {
+				// for any other level, it's more efficient to replace the map entirely
+				node = map[string]json.RawMessage{}
 			}
-
-			return json.Marshal(node)
+		} else {
+			delete(node, acc.Name())
 		}
 
-		raw, ok := node[acc.Name()]
-		if !ok {
-			return json.Marshal(node)
-		}
-		matches, err := matchesConstraints(acc, entry{key: acc.Name(), value: raw}, constraints)
-		if err != nil {
-			return nil, err
-		}
-		if !matches {
-			return json.Marshal(node)
-		}
-
-		delete(node, acc.Name())
 		return json.Marshal(node)
 	}
 
@@ -3380,19 +3384,13 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage, 
 		if !ok {
 			return nil
 		}
-		matches, err := matchesConstraints(acc, entry{key: key, value: nextLevelRaw}, constraints)
-		if err != nil {
-			return err
-		}
-		if !matches {
-			return nil
-		}
+
 		nextLevel, err := unmarshalLevel(accessors, index+1, nextLevelRaw)
 		if err != nil {
 			return err
 		}
 
-		updated, err := unset(accessors, index+1, nextLevel, constraints)
+		updated, err := unset(accessors, index+1, nextLevel)
 		if err != nil {
 			return err
 		}
@@ -3418,7 +3416,7 @@ func unsetMap(accessors []Accessor, index int, node map[string]json.RawMessage, 
 	return json.Marshal(node)
 }
 
-func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage, constraints map[string]any) (json.RawMessage, error) {
+func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage) (json.RawMessage, error) {
 	// NOTE: we don't remove the entire list even if we left it empty because
 	// that might impact matched set/unsets of subsequent list items. This is
 	// pruned after all matches are serviced (see View.Set/Unset).
@@ -3430,31 +3428,12 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage, const
 
 	if accIndex == len(accessors)-1 {
 		if acc.Type() == IndexPlaceholderType {
-			var wi int
-			for _, raw := range node {
-				matches, err := matchesConstraints(acc, entry{value: raw}, constraints)
-				if err != nil {
-					return nil, err
-				}
-				if matches {
-					continue
-				}
-				node[wi] = raw
-				wi++
-			}
-			node = node[:wi]
+			node = node[:0]
 			return json.Marshal(node)
 		}
 
 		i, _ := strconv.Atoi(acc.Name())
 		if i < len(node) {
-			matches, err := matchesConstraints(acc, entry{value: node[i]}, constraints)
-			if err != nil {
-				return nil, err
-			}
-			if !matches {
-				return json.Marshal(node)
-			}
 			node = append(node[:i], node[i+1:]...)
 		}
 
@@ -3462,20 +3441,12 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage, const
 	}
 
 	unsetIndex := func(list []json.RawMessage, index int) (json.RawMessage, error) {
-		matches, err := matchesConstraints(acc, entry{value: list[index]}, constraints)
-		if err != nil {
-			return nil, err
-		}
-		if !matches {
-			return list[index], nil
-		}
-
 		nextLevel, err := unmarshalLevel(accessors, accIndex+1, list[index])
 		if err != nil {
 			return nil, err
 		}
 
-		return unset(accessors, accIndex+1, nextLevel, constraints)
+		return unset(accessors, accIndex+1, nextLevel)
 	}
 
 	if acc.Type() == IndexPlaceholderType {
@@ -3503,6 +3474,255 @@ func unsetList(accessors []Accessor, accIndex int, node []json.RawMessage, const
 	}
 
 	return json.Marshal(node)
+}
+
+// Resolve returns the concrete paths selected by accessors and constraints.
+// Placeholders are resolved to literals and field filters are removed from the
+// returned paths. Duplicate and descendant paths are not removed and no
+// particular order is guaranteed. The databag is not modified.
+func (s JSONDatabag) Resolve(accessors []Accessor, constraints map[string]any) ([][]Accessor, error) {
+	var resolved [][]Accessor
+	if err := resolvePaths(accessors, 0, s, constraints, nil, &resolved); err != nil {
+		return nil, err
+	}
+	return resolved, nil
+}
+
+func resolvePaths(accessors []Accessor, index int, node any, constraints map[string]any, curPath []Accessor, resolved *[][]Accessor) error {
+	if bag, ok := node.(JSONDatabag); ok {
+		node = map[string]json.RawMessage(bag)
+	}
+
+	if obj, ok := node.(map[string]json.RawMessage); ok {
+		return resolveMapPaths(accessors, index, obj, constraints, curPath, resolved)
+	} else if list, ok := node.([]json.RawMessage); ok {
+		return resolveListPaths(accessors, index, list, constraints, curPath, resolved)
+	}
+
+	pathPrefix := JoinAccessors(accessors[:index+1])
+	return fmt.Errorf("internal error: expected level %q to be map or list but got %T", pathPrefix, node)
+}
+
+func resolveMapPaths(accessors []Accessor, index int, node map[string]json.RawMessage, constraints map[string]any, curPath []Accessor, resolved *[][]Accessor) error {
+	acc := accessors[index]
+	pathPrefix := JoinAccessors(accessors[:index])
+	if acc.Type() != MapKeyType && acc.Type() != KeyPlaceholderType {
+		return fmt.Errorf("cannot use %q to access map at path %q", acc.Access(), pathPrefix)
+	}
+
+	if index == len(accessors)-1 {
+		if acc.Type() == KeyPlaceholderType {
+			for k := range node {
+				matches, err := matchesConstraints(acc, entry{key: k, value: node[k]}, constraints)
+				if err != nil {
+					return err
+				}
+				if matches {
+					*resolved = append(*resolved, appendAccessor(curPath, newKey(k, nil)))
+				}
+			}
+			return nil
+		}
+
+		raw, ok := node[acc.Name()]
+		if !ok {
+			return nil
+		}
+
+		matches, err := matchesConstraints(acc, entry{key: acc.Name(), value: raw}, constraints)
+		if err != nil {
+			return err
+		}
+		if matches {
+			*resolved = append(*resolved, appendAccessor(curPath, newKey(acc.Name(), nil)))
+		}
+		return nil
+	}
+
+	resolveKey := func(key string) error {
+		nextLevelRaw, ok := node[key]
+		if !ok {
+			return nil
+		}
+
+		matches, err := matchesConstraints(acc, entry{key: key, value: nextLevelRaw}, constraints)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return nil
+		}
+
+		nextLevel, err := unmarshalLevel(accessors, index+1, nextLevelRaw)
+		if err != nil {
+			return err
+		}
+		path := appendAccessor(curPath, newKey(key, nil))
+		return resolvePaths(accessors, index+1, nextLevel, constraints, path, resolved)
+	}
+
+	if acc.Type() == KeyPlaceholderType {
+		for k := range node {
+			if err := resolveKey(k); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := resolveKey(acc.Name()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func resolveListPaths(accessors []Accessor, accIndex int, node []json.RawMessage, constraints map[string]any, curPath []Accessor, resolved *[][]Accessor) error {
+	acc := accessors[accIndex]
+	pathPrefix := JoinAccessors(accessors[:accIndex])
+	if acc.Type() != ListIndexType && acc.Type() != IndexPlaceholderType {
+		return fmt.Errorf("cannot use %q to index list at path %q", acc.Access(), pathPrefix)
+	}
+
+	if accIndex == len(accessors)-1 {
+		if acc.Type() == IndexPlaceholderType {
+			for i, raw := range node {
+				matches, err := matchesConstraints(acc, entry{value: raw}, constraints)
+				if err != nil {
+					return err
+				}
+				if matches {
+					*resolved = append(*resolved, appendAccessor(curPath, newIndex(strconv.Itoa(i), nil)))
+				}
+			}
+			return nil
+		}
+
+		i, _ := strconv.Atoi(acc.Name())
+		if i >= len(node) {
+			return nil
+		}
+
+		matches, err := matchesConstraints(acc, entry{value: node[i]}, constraints)
+		if err != nil {
+			return err
+		}
+		if matches {
+			*resolved = append(*resolved, appendAccessor(curPath, newIndex(strconv.Itoa(i), nil)))
+		}
+		return nil
+	}
+
+	resolveIndex := func(i int) error {
+		matches, err := matchesConstraints(acc, entry{value: node[i]}, constraints)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return nil
+		}
+
+		nextLevel, err := unmarshalLevel(accessors, accIndex+1, node[i])
+		if err != nil {
+			return err
+		}
+		path := appendAccessor(curPath, newIndex(strconv.Itoa(i), nil))
+		return resolvePaths(accessors, accIndex+1, nextLevel, constraints, path, resolved)
+	}
+
+	if acc.Type() == IndexPlaceholderType {
+		for i := range node {
+			if err := resolveIndex(i); err != nil {
+				return err
+			}
+		}
+	} else {
+		i, _ := strconv.Atoi(acc.Name())
+		if i >= len(node) {
+			return nil
+		}
+		if err := resolveIndex(i); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// appendAccessor new path with the additional accessor appended, backed by a
+// new array.
+func appendAccessor(path []Accessor, acc Accessor) []Accessor {
+	newPath := make([]Accessor, len(path)+1)
+	copy(newPath, path)
+	newPath[len(path)] = acc
+	return newPath
+}
+
+// canonicalizeRemovalPaths deduplicates removal paths, drops paths that are
+// descendants of another path and orders the result so that list elements are
+// removed from the highest index down. This keeps later removals from being
+// affected by index shifts caused by earlier ones.
+func canonicalizeRemovalPaths(paths [][]Accessor) [][]Accessor {
+	seen := make(map[string]bool, len(paths))
+	unique := make([][]Accessor, 0, len(paths))
+	for _, path := range paths {
+		joined := JoinAccessors(path)
+		if seen[joined] {
+			continue
+		}
+
+		seen[joined] = true
+		unique = append(unique, path)
+	}
+
+	kept := make([][]Accessor, 0, len(unique))
+	for _, path := range unique {
+		hasAncestor := false
+		for i := 1; i < len(path); i++ {
+			if seen[JoinAccessors(path[:i])] {
+				hasAncestor = true
+				break
+			}
+		}
+
+		if !hasAncestor {
+			kept = append(kept, path)
+		}
+	}
+
+	sort.SliceStable(kept, func(i, j int) bool {
+		return removePathBefore(kept[i], kept[j])
+	})
+
+	return kept
+}
+
+// removePathBefore reports whether x should be removed before y. List indexes
+// are ordered from highest to lowest so that removing one element doesn't shift
+// the position of another that still has to be removed.
+func removePathBefore(x, y []Accessor) bool {
+	minLen := len(x)
+	if len(y) < minLen {
+		minLen = len(y)
+	}
+
+	for i := 0; i < minLen; i++ {
+		xAcc, yAcc := x[i], y[i]
+		if xAcc.Type() == ListIndexType && yAcc.Type() == ListIndexType {
+			xNum, _ := strconv.Atoi(xAcc.Name())
+			yNum, _ := strconv.Atoi(yAcc.Name())
+			if xNum != yNum {
+				return xNum > yNum
+			}
+			continue
+		}
+
+		if xAcc.Name() != yAcc.Name() {
+			// doesn't affect removal order. Any order is fine
+			return xAcc.Name() < yAcc.Name()
+		}
+	}
+
+	return len(x) > len(y)
 }
 
 // Data returns all of the bag's data encoded in JSON.

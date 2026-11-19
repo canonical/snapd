@@ -169,6 +169,25 @@ func (s *transactionTestSuite) TestGetReadsUncommitted(c *C) {
 	c.Assert(val, Equals, "baz")
 }
 
+func (s *transactionTestSuite) TestResolveReadsUncommitted(c *C) {
+	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
+	c.Assert(err, IsNil)
+
+	err = tx.Set(parsePath(c, "items"), map[string]any{
+		"first":  map[string]any{"kind": "remove", "value": "one"},
+		"second": map[string]any{"kind": "keep", "value": "two"},
+	})
+	c.Assert(err, IsNil)
+
+	paths, err := tx.Resolve(
+		parsePath(c, "items.{item}[.kind={kind}].value"),
+		map[string]any{"kind": "remove"},
+	)
+	c.Assert(err, IsNil)
+	c.Assert(paths, HasLen, 1)
+	c.Assert(confdb.JoinAccessors(paths[0]), Equals, "items.first.value")
+}
+
 type failingSchema struct {
 	err error
 }
@@ -382,7 +401,7 @@ func (s *transactionTestSuite) TestUnset(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(val, Equals, "bar")
 
-	err = tx.Unset(parsePath(c, "foo"), nil)
+	err = tx.Unset(parsePath(c, "foo"))
 	c.Assert(err, IsNil)
 
 	err = tx.Commit(s.state, confdb.NewJSONSchema())
@@ -448,7 +467,7 @@ func (s *transactionTestSuite) TestMarshallingPreservesPruningOrder(c *C) {
 
 	tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 	c.Assert(err, IsNil)
-	err = tx.Unset(parsePath(c, "users[0].name"), nil)
+	err = tx.Unset(parsePath(c, "users[0].name"))
 	c.Assert(err, IsNil)
 	err = tx.PruneEmpty()
 	c.Assert(err, IsNil)
@@ -515,7 +534,7 @@ func (s *transactionTestSuite) TestSerializableUnsetDifferentPaths(c *C) {
 		tx, err := confdbstate.NewTransaction(s.state, "my-account", "my-confdb")
 		c.Assert(err, IsNil, cmt)
 
-		err = tx.Unset(parsePath(c, tc.path), nil)
+		err = tx.Unset(parsePath(c, tc.path))
 		c.Assert(err, IsNil, cmt)
 
 		jsonData, err := json.Marshal(tx)
@@ -570,10 +589,13 @@ func (s *transactionTestSuite) TestAbortPreventsReadsAndWrites(c *C) {
 	err = tx.Reset(s.state)
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
-	err = tx.Unset(parsePath(c, "foo"), nil)
+	err = tx.Unset(parsePath(c, "foo"))
 	c.Assert(err, ErrorMatches, "cannot write to aborted transaction")
 
 	_, err = tx.Get(parsePath(c, "foo"), nil)
+	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
+
+	_, err = tx.Resolve(parsePath(c, "foo"), nil)
 	c.Assert(err, ErrorMatches, "cannot read from aborted transaction")
 
 	_, err = tx.Data()

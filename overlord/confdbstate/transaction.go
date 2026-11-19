@@ -120,12 +120,10 @@ type unsetOperation struct {
 func (op *unsetOperation) kind() operationKind { return unsetOpKind }
 
 func (op *unsetOperation) apply(bag confdb.Databag) error {
-	// TODO: add support for constraints in transactions.
-	return bag.Unset(op.path, nil)
+	return bag.Unset(op.path)
 }
 
 func (op *unsetOperation) MarshalJSON() ([]byte, error) {
-	// TODO: marshal constraints once transactions support constrained unsets.
 	return json.Marshal(struct {
 		Operation operationKind `json:"operation"`
 		Path      string        `json:"path"`
@@ -315,7 +313,7 @@ func (t *Transaction) Set(path []confdb.Accessor, value any) error {
 
 // Unset unsets a value in the transaction's databag. The change isn't persisted
 // until Commit returns without errors.
-func (t *Transaction) Unset(path []confdb.Accessor, _ map[string]any) error {
+func (t *Transaction) Unset(path []confdb.Accessor) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -346,6 +344,27 @@ func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, er
 	}
 
 	return t.modified.Get(path, cstrs)
+}
+
+// Resolve returns the concrete paths selected by path and constraints,
+// including changes already recorded in the transaction.
+func (t *Transaction) Resolve(path []confdb.Accessor, cstrs map[string]any) ([][]confdb.Accessor, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return nil, errors.New("cannot read from aborted transaction")
+	}
+
+	if len(t.operations) == 0 {
+		return t.pristine.Resolve(path, cstrs)
+	}
+
+	if err := t.applyChanges(); err != nil {
+		return nil, err
+	}
+
+	return t.modified.Resolve(path, cstrs)
 }
 
 // Commit applies the previous writes and validates the final databag. If any
