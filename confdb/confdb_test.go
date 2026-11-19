@@ -4639,6 +4639,44 @@ func (*viewSuite) TestJSONDatabagResolve(c *C) {
 	c.Assert(after, DeepEquals, before)
 }
 
+func (*viewSuite) TestJSONDatabagResolveSkipsNonContainerPlaceholderCandidates(c *C) {
+	for _, t := range []struct {
+		name     string
+		value    any
+		path     string
+		expected string
+	}{
+		{
+			name: "map placeholder",
+			value: map[string]any{
+				"scalar":    "value",
+				"container": map[string]any{"details": map[string]any{"kind": "remove"}},
+			},
+			path:     "items.{item}.details[.kind={kind}]",
+			expected: "items.container.details",
+		},
+		{
+			name: "list placeholder",
+			value: []any{
+				"value",
+				map[string]any{"details": map[string]any{"kind": "remove"}},
+			},
+			path:     "items[{item}].details[.kind={kind}]",
+			expected: "items[1].details",
+		},
+	} {
+		cmt := Commentf("%s test", t.name)
+		bag := confdb.NewJSONDatabag()
+		err := bag.Set(parsePath(c, "items"), t.value)
+		c.Assert(err, IsNil, cmt)
+
+		resolved, err := bag.Resolve(parsePath(c, t.path), map[string]any{"kind": "remove"})
+		c.Assert(err, IsNil, cmt)
+		c.Assert(resolved, HasLen, 1, cmt)
+		c.Assert(confdb.JoinAccessors(resolved[0]), Equals, t.expected, cmt)
+	}
+}
+
 func (*viewSuite) TestViewUnsetConstraintsResolvedBeforeRemoval(c *C) {
 	// Removal targets must all be resolved against the databag before any removal
 	// is applied. Otherwise, removing a field used by a filter of a later match

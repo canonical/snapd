@@ -3588,6 +3588,9 @@ func resolveMapPaths(accessors []Accessor, index int, node map[string]json.RawMe
 	if acc.Type() == KeyPlaceholderType {
 		for k := range node {
 			if err := resolveKey(k); err != nil {
+				if errors.As(err, new(*noContainerError)) {
+					continue
+				}
 				return err
 			}
 		}
@@ -3656,6 +3659,9 @@ func resolveListPaths(accessors []Accessor, accIndex int, node []json.RawMessage
 	if acc.Type() == IndexPlaceholderType {
 		for i := range node {
 			if err := resolveIndex(i); err != nil {
+				if errors.As(err, new(*noContainerError)) {
+					continue
+				}
 				return err
 			}
 		}
