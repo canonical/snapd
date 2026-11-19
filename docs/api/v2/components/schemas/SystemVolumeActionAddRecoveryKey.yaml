@@ -37,4 +37,4 @@ properties:
           properties:
             name:
               type: string
-              pattern: '^(?!snap|default).+'
+              pattern: '^(?!snap|default).+$'

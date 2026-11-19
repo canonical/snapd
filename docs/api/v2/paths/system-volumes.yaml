@@ -180,11 +180,9 @@ post:
                         description: |-
                           The opaque ID to use with add-recovery-key or
                           replace-recovery-key. Can be used once within five minutes.
-                  - type: object
-                    description: The recovery key is valid for all targeted containers.
+                  - description: The recovery key is valid for all targeted containers.
                     enum:
                       - null
-                    nullable: true
                   - $ref: '../components/schemas/AuthQualityEntropyMetrics.yaml'
     202:
       $ref: '../components/responses/Accepted.yaml'
