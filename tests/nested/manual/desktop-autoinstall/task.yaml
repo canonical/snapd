@@ -7,14 +7,13 @@ details: |
 
     The seed document is tests/lib/nested/autoinstall-user-data.in. The storage section is the
     hybrid TPM-backed layout in tests/nested/manual/desktop-autoinstall/autoinstall-tpmfde.yaml,
-    including the running-in-vm exception. Subiquity does not yet honor that exception, so the
-    seed restarts the live snapd with SNAPPY_TESTING=1. The secboot preinstall check permits a
-    virtual machine only in that mode.
+    including the running-in-vm exception. Subiquity accepts that error by sending the
+    preinstall proceed action.
 
-    The iso variant uses that image snapd. The branch variant installs the snapd snap built
-    for this tree from the seed CD, restarts it with SNAP_REEXEC=force, and continues only
-    when the running executable is under /snap/snapd. The installed system keeps the image
-    snapd, and the same testing setting, in both variants.
+    The iso variant uses the image snapd unchanged. The branch variant installs the snapd snap
+    built for this tree from the seed CD, restarts it with SNAP_REEXEC=force, and continues
+    only when the running executable is under /snap/snapd. The installed system keeps the image
+    snapd in both variants, without a testing drop-in.
 
     The stock ISO boot does not put autoinstall on the kernel command line, so the seed
     confirms that prompt on the installer socket. The seed also sets a user, SSH, and power-off
