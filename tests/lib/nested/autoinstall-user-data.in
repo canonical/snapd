@@ -115,5 +115,4 @@ autoinstall:
     - echo nested-autoinstall-failed >/dev/ttyS1
   late-commands:
     - printf "user1 ALL=(ALL) NOPASSWD:ALL\n" > /target/etc/sudoers.d/99-nested-user && chmod 440 /target/etc/sudoers.d/99-nested-user
-    - mkdir -p /target/etc/systemd/system/snapd.service.d && printf "[Service]\nEnvironment=SNAPPY_TESTING=1\n" > /target/etc/systemd/system/snapd.service.d/99-nested-testing.conf
 @PROXY_LINE@@STORAGE@

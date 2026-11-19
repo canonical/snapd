@@ -82,15 +82,6 @@ nested_autoinstall_snippet() {
 nested_live_snapd_setup() {
     case "${NESTED_SNAPD}" in
         iso)
-            cat <<'EOF'
-    if printf '%s\n' '[Service]' 'Environment=SNAPPY_TESTING=1' | systemctl edit snapd.service --stdin --drop-in=99-nested-testing.conf && systemctl restart snapd.socket snapd.service; then
-      echo nested-autoinstall-snapd-testing >/dev/ttyS1
-    else
-      echo nested-autoinstall-snapd-testing-failed >/dev/ttyS1
-      systemctl list-units --all '*snapd*' >/dev/ttyS0 2>&1 || true
-      exit 1
-    fi
-EOF
             ;;
         branch)
             # The image snapd may be newer than the branch snap, so re-exec
@@ -105,12 +96,11 @@ EOF
       echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       exit 1
     fi
-    if ! printf '%s\n' '[Service]' 'Environment=SNAPPY_TESTING=1' 'Environment=SNAP_REEXEC=force' | systemctl edit snapd.service --stdin --drop-in=99-nested-testing.conf || ! systemctl restart snapd.socket snapd.service; then
-      echo nested-autoinstall-snapd-testing-failed >/dev/ttyS1
+    if ! printf '%s\n' '[Service]' 'Environment=SNAP_REEXEC=force' | systemctl edit snapd.service --stdin --drop-in=99-nested-reexec.conf || ! systemctl restart snapd.socket snapd.service; then
+      echo nested-autoinstall-snapd-reexec-failed >/dev/ttyS1
       systemctl list-units --all '*snapd*' >/dev/ttyS0 2>&1 || true
       exit 1
     fi
-    echo nested-autoinstall-snapd-testing >/dev/ttyS1
     pid="$(systemctl show -p MainPID --value snapd)"
     exe="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
     echo "nested-autoinstall-snapd-exe ${exe}" >/dev/ttyS0
@@ -234,9 +224,8 @@ nested_create_autoinstall_seed() {
     local user_data="${NESTED_ASSETS_DIR}/autoinstall-user-data"
     local meta_data="${NESTED_ASSETS_DIR}/autoinstall-meta-data"
     local rendered
-    # Subiquity waits for cloud-init before applying storage. The user-data
-    # template restarts the live snapd with SNAPPY_TESTING=1 first: the secboot
-    # preinstall check permits a virtual machine only in that mode.
+    # The storage snippet lists running-in-vm. Subiquity sends the preinstall
+    # proceed action for that error.
     if ! rendered="$(nested_render_autoinstall_user_data)"; then
         return 1
     fi
@@ -299,7 +288,7 @@ nested_wait_for_qemu_exit() {
         if [ -f "${NESTED_LOGS_DIR}/installer-status.log" ]; then
             # Markers are whole lines on the status port. The seed contains
             # the commands that print them, so an unanchored match is not used.
-            if grep -q -E '^(nested-autoinstall-failed|nested-autoinstall-snapd-testing-failed|nested-autoinstall-confirm-timeout|nested-autoinstall-snapd-reexec-failed)[[:space:]]*$' "${NESTED_LOGS_DIR}/installer-status.log"; then
+            if grep -q -E '^(nested-autoinstall-failed|nested-autoinstall-confirm-timeout|nested-autoinstall-snapd-reexec-failed)[[:space:]]*$' "${NESTED_LOGS_DIR}/installer-status.log"; then
                 echo "desktop installer reported a failure" >&2
                 return 1
             fi
