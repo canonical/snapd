@@ -1,0 +1,168 @@
+{
+  "systemd-veritysetup": {
+    "add": [
+      "cryptsetup"
+    ]
+  },
+  "systemd-integritysetup": {
+    "add": [
+      "cryptsetup"
+    ]
+  },
+  "systemd-validatefs": {
+    "add": [
+      "blkid"
+    ]
+  },
+  "systemd-shutdown": {
+    "add": [
+      "mount"
+    ]
+  },
+  "systemd-networkd": {
+    "add": [
+      "bpf"
+    ]
+  },
+  "systemd-growfs": {
+    "add": [
+      "cryptsetup"
+    ]
+  },
+  "systemd-executor": {
+    "add": [
+      "pam",
+      "seccomp",
+      "bpf",
+      "cryptsetup",
+      "mount",
+      "libcrypto"
+    ]
+  },
+  "systemd": {
+    "add": [
+      "mount"
+    ],
+    "omit": [
+      "selinux"
+    ]
+  },
+  "libsystemd.so*": {
+    "add": [
+      "zstd",
+      "gcrypt"
+    ],
+    "omit": [
+      "lzma",
+      "lz4"
+    ]
+  },
+  "libkmod.so*": {
+    "add": [
+      "zstd",
+      "xz"
+    ]
+  },
+  "libsystemd-core-*.so": {
+    "add": [
+      "bpf",
+      "seccomp",
+      "mount",
+      "cryptsetup"
+    ]
+  },
+  "libsystemd-shared-*.so": {
+    "add": [
+      "bpf",
+      "blkid",
+      "apparmor",
+      "acl",
+      "gcrypt",
+      "zstd",
+      "seccomp",
+      "pam",
+      "kmod",
+      "mount",
+      "crypt",
+      "audit",
+      "cryptsetup",
+      "libcrypto",
+      "fdisk"
+    ],
+    "omit": [
+      "selinux",
+      "qrencode",
+      "p11-kit",
+      "pcre2",
+      "pwquality",
+      "microhttpd",
+      "fido2",
+      "archive",
+      "idn",
+      "elf",
+      "dw",
+      "curl",
+      "libssl",
+      "lzma",
+      "lz4",
+      "bzip2",
+      "zlib",
+      "tpm"
+    ]
+  },
+  "kmod": {
+    "add": [
+      "zstd",
+      "xz"
+    ]
+  },
+  "udevadm": {
+    "add": [
+      "acl",
+      "blkid",
+      "kmod",
+      "mount"
+    ],
+    "omit": [
+      "tpm"
+    ]
+  },
+  "systemd-cryptsetup": {
+    "add": [
+      "libcrypto",
+      "cryptsetup"
+    ]
+  },
+  "systemd-cryptenroll": {
+    "add": [
+      "cryptsetup"
+    ]
+  },
+  "systemd-tmpfiles": {
+    "add": [
+      "acl"
+    ]
+  },
+  "systemd-sysext": {
+    "add": [
+      "mount",
+      "blkid",
+      "cryptsetup"
+    ]
+  },
+  "systemd-creds": {
+    "add": [
+      "mount"
+    ]
+  },
+  "systemd-analyze": {
+    "add": [
+      "seccomp"
+    ]
+  },
+  "journalctl": {
+    "add": [
+      "gcrypt"
+    ]
+  }
+}
