@@ -86,6 +86,15 @@ var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
 	},
 ))
 
+// snap-action is resolved inside task handlers, where giving up fails the
+// whole change, so it retries for longer than the interactive endpoints.
+var refreshRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
+	retry.Exponential{
+		Initial: 500 * time.Millisecond,
+		Factor:  2.5,
+	},
+))
+
 // For testing purposes
 var squashfsSupportedDeltaFormats = squashfs.SupportedDeltaFormats
 
@@ -714,11 +723,31 @@ func decodeJSONBody(resp *http.Response, success any, failure any) error {
 
 // retryRequestDecodeJSON calls retryRequest and decodes the response into either success or failure.
 func (s *Store) retryRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success any, failure any) (resp *http.Response, err error) {
-	return httputil.RetryRequest(reqOptions.URL.String(), func() (*http.Response, error) {
+	return s.retryRequestDecodeJSONWith(ctx, reqOptions, user, success, failure, defaultRetryStrategy, httputil.ShouldRetryHttpResponse)
+}
+
+// refreshRequestDecodeJSON is retryRequestDecodeJSON for snap-action; see
+// refreshRetryStrategy and shouldRetryRefreshResponse.
+func (s *Store) refreshRequestDecodeJSON(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success any, failure any) (resp *http.Response, err error) {
+	return s.retryRequestDecodeJSONWith(ctx, reqOptions, user, success, failure, refreshRetryStrategy, shouldRetryRefreshResponse)
+}
+
+// shouldRetryRefreshResponse also retries 408, which the store returns when it
+// gives up on a slow request body or retires a keep-alive connection. Both are
+// transient and snap-action is a read-only query, so repeating it is safe.
+func shouldRetryRefreshResponse(attempt *retry.Attempt, resp *http.Response) bool {
+	if resp.StatusCode == 408 {
+		return attempt.More()
+	}
+	return httputil.ShouldRetryHttpResponse(attempt, resp)
+}
+
+func (s *Store) retryRequestDecodeJSONWith(ctx context.Context, reqOptions *requestOptions, user *auth.UserState, success any, failure any, strategy retry.Strategy, shouldRetryResponse httputil.RetryResponsePolicy) (resp *http.Response, err error) {
+	return httputil.RetryRequestWithPolicy(reqOptions.URL.String(), func() (*http.Response, error) {
 		return s.doRequest(ctx, s.client, reqOptions, user)
 	}, func(resp *http.Response) error {
 		return decodeJSONBody(resp, success, failure)
-	}, defaultRetryStrategy)
+	}, strategy, shouldRetryResponse)
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
