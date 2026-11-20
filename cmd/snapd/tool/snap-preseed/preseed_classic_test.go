@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -93,8 +94,9 @@ func (s *startPreseedSuite) TestRunPreseedClassicHappy(c *C) {
 	defer restore()
 
 	var called bool
-	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string) error {
+	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string, opts *preseed.ClassicOptions) error {
 		c.Check(dir, Equals, "/a/dir")
+		c.Check(opts, DeepEquals, &preseed.ClassicOptions{})
 		called = true
 		return nil
 	})
@@ -103,6 +105,33 @@ func (s *startPreseedSuite) TestRunPreseedClassicHappy(c *C) {
 	parser := testParser(c)
 	c.Assert(snap_preseed.Run(parser, []string{"/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
+}
+
+func (s *startPreseedSuite) TestRunPreseedClassicSysfsOverlayUnsupported(c *C) {
+	restore := snap_preseed.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string, opts *preseed.ClassicOptions) error {
+		c.Fatalf("unexpected call")
+		return nil
+	})
+	defer restorePreseed()
+	restoreReset := snap_preseed.MockPreseedClassicReset(func(dir string) error {
+		c.Fatalf("unexpected call")
+		return nil
+	})
+	defer restoreReset()
+
+	for _, args := range [][]string{
+		{"--sysfs-overlay", "/sysfs-overlay", "/a/dir"},
+		{"--sysfs-overlay", "/sysfs-overlay", "--reset", "/a/dir"},
+		{"--sysfs-overlay", "/sysfs-overlay", "--hybrid", "--system-label", "label", "/a/dir"},
+	} {
+		parser := testParser(c)
+		c.Check(snap_preseed.Run(parser, args), ErrorMatches, `cannot use --sysfs-overlay with classic or hybrid systems`, Commentf("%v", args))
+	}
 }
 
 func (s *startPreseedSuite) TestResetReexeced(c *C) {
@@ -148,9 +177,10 @@ func (s *startPreseedSuite) TestHybridHappy(c *C) {
 	defer restore()
 
 	var called bool
-	snap_preseed.MockPreseedHybrid(func(dir, label string) error {
+	snap_preseed.MockPreseedHybrid(func(dir, label string, opts *preseed.ClassicOptions) error {
 		c.Check(dir, Equals, "/a/dir")
 		c.Check(label, Equals, "system-label")
+		c.Check(opts, DeepEquals, &preseed.ClassicOptions{})
 		called = true
 		return nil
 	})
@@ -205,7 +235,7 @@ func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 	})
 	defer restore()
 
-	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string) error {
+	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string, opts *preseed.ClassicOptions) error {
 		return nil
 	})
 	defer restorePreseed()
