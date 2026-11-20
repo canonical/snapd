@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -164,27 +165,29 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *user.User) (*state.TaskSet, error) {
-	servicesBySnap := make(map[string][]string, len(appInfos))
+	servicesBySnap := make(map[naming.InstanceName][]string, len(appInfos))
 	explicitServices := computeExplicitServices(appInfos, inst.Names)
-	sortedNames := make([]string, 0, len(appInfos))
+	sortedNames := make([]naming.InstanceName, 0, len(appInfos))
 
 	// group services by snap, we need to create one task for every affected snap
 	for _, app := range appInfos {
-		instanceName := app.Snap.InstanceName().String()
+		instanceName := app.Snap.InstanceName()
 		if _, ok := servicesBySnap[instanceName]; !ok {
 			sortedNames = append(sortedNames, instanceName)
 		}
 		servicesBySnap[instanceName] = append(servicesBySnap[instanceName], app.Name)
 	}
-	sort.Strings(sortedNames)
+	sort.Slice(sortedNames, func(i, j int) bool {
+		return sortedNames[i] < sortedNames[j]
+	})
 
 	ts := state.NewTaskSet()
 	var prev *state.Task
-	for _, snapName := range sortedNames {
+	for _, instanceName := range sortedNames {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+		if err := snapstate.Get(st, instanceName, &snapst); err != nil {
 			if errors.Is(err, state.ErrNoState) {
-				return nil, fmt.Errorf("snap not found: %s", snapName)
+				return nil, fmt.Errorf("snap not found: %s", instanceName)
 			}
 			return nil, err
 		}
@@ -195,7 +198,7 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		}
 
 		cmd := &ServiceAction{
-			SnapName: snapName,
+			SnapName: instanceName.String(),
 			ScopeOptions: wrappers.ScopeOptions{
 				Scope: inst.ServiceScope(),
 				Users: users,
@@ -223,10 +226,10 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 			return nil, fmt.Errorf("unknown action %q", inst.Action)
 		}
 
-		svcs := servicesBySnap[snapName]
+		svcs := servicesBySnap[instanceName]
 		sort.Strings(svcs)
 		cmd.Services = svcs
-		explicitSvcs := explicitServices[snapName]
+		explicitSvcs := explicitServices[instanceName.String()]
 		sort.Strings(explicitSvcs)
 		cmd.ExplicitServices = explicitSvcs
 

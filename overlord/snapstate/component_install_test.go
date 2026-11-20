@@ -280,10 +280,10 @@ func createTestSnapSetup(info *snap.Info, flags snapstate.Flags) *snapstate.Snap
 	}
 }
 
-func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision) {
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+func setStateWithOneSnap(st *state.State, instanceName naming.InstanceName, snapRev snap.Revision) {
+	ssi := &snap.SideInfo{RealName: instanceName.SnapName().String(), Revision: snapRev,
 		SnapID: "some-snap-id"}
-	snapstate.Set(st, snapName, &snapstate.SnapState{
+	snapstate.Set(st, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -293,18 +293,18 @@ func setStateWithOneSnap(st *state.State, snapName string, snapRev snap.Revision
 	})
 }
 
-func setStateWithOneComponent(st *state.State, snapName string,
+func setStateWithOneComponent(st *state.State, instanceName naming.InstanceName,
 	snapRev snap.Revision, compName string, compRev snap.Revision) {
-	csi := snap.NewComponentSideInfo(naming.NewComponentRef(naming.SnapName(snapName), compName), compRev)
-	setStateWithComponents(st, snapName, snapRev,
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(instanceName.SnapName(), compName), compRev)
+	setStateWithComponents(st, instanceName, snapRev,
 		[]*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)})
 }
 
-func setStateWithComponents(st *state.State, snapName string,
+func setStateWithComponents(st *state.State, instanceName naming.InstanceName,
 	snapRev snap.Revision, comps []*sequence.ComponentState) {
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+	ssi := &snap.SideInfo{RealName: instanceName.SnapName().String(), Revision: snapRev,
 		SnapID: "some-snap-id"}
-	snapstate.Set(st, snapName, &snapstate.SnapState{
+	snapstate.Set(st, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{
@@ -528,7 +528,7 @@ func (s *snapmgrTestSuite) TestInstallComponentPathForParallelInstall(c *C) {
 	defer s.state.Unlock()
 
 	// The instance is already installed to make sure it is checked
-	instanceName := snap.InstanceName(snapName, snapKey).String()
+	instanceName := snap.InstanceName(snapName, snapKey)
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev}
 	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
@@ -1128,7 +1128,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		info.Confinement = snap.ClassicConfinement
 	}
 	info.InstanceKey = opts.instanceKey
-	instanceName := info.InstanceName().String()
+	instanceName := info.InstanceName()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1169,7 +1169,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	}
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName().String(), DeepEquals, instanceName)
+		c.Assert(info.InstanceName(), DeepEquals, instanceName)
 		var results []store.SnapResourceResult
 		for _, compName := range components {
 			results = append(results, store.SnapResourceResult{
@@ -1259,8 +1259,8 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		c.Assert(err, IsNil)
 		c.Assert(compsup, NotNil)
 		c.Assert(snapsup, NotNil)
-		c.Assert(snapsup.InstanceName().String(), Equals, instanceName)
-		c.Assert(filepath.Base(compsup.BlobPath(instanceName)), Equals,
+		c.Assert(snapsup.InstanceName(), Equals, instanceName)
+		c.Assert(filepath.Base(compsup.BlobPath(instanceName.String())), Equals,
 			fmt.Sprintf("%s+%s_3.comp", instanceName, compsup.ComponentName()))
 
 		opts := compOptMultiCompInstall
@@ -1457,7 +1457,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsWithIgnoreValidationFlag(c *C) {
 }
 
 func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNames []string, passValidationSets bool, expectedErrorMsg string, opts snapstate.Options) {
-	snapName := "some-snap"
+	instanceName := naming.NewInstanceName("some-snap", "")
 	snapID := "aaqKhntON3vR7kwEbVPsILm7bUViPDzx"
 	snapRev := snap.R(1)
 	compRev := snap.R(1)
@@ -1467,14 +1467,14 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 		"kernel-modules-component": "kernel-modules",
 	}
 
-	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+	info := createTestSnapInfoForComponents(c, instanceName.String(), snapRev, compNamesToType)
 	info.SnapID = snapID
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev, SnapID: snapID}
-	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+	ssi := &snap.SideInfo{RealName: instanceName.SnapName().String(), Revision: snapRev, SnapID: snapID}
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(ssi, nil)}),
@@ -1483,7 +1483,7 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 	})
 
 	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
-		c.Assert(info.InstanceName().String(), DeepEquals, snapName)
+		c.Assert(info.InstanceName(), DeepEquals, instanceName)
 		var results []store.SnapResourceResult
 		for compName, compType := range compNamesToType {
 			results = append(results, store.SnapResourceResult{
@@ -1508,7 +1508,7 @@ func (s *snapmgrTestSuite) testInstallComponentsWithValidationSets(c *C, compNam
 		"timestamp":  time.Now().Format(time.RFC3339),
 		"snaps": []any{
 			map[string]any{
-				"name":     snapName,
+				"name":     instanceName.SnapName().String(),
 				"id":       snapID,
 				"revision": fmt.Sprintf("%d", snapRev.N),
 				"presence": "required",

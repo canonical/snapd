@@ -122,7 +122,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap na
 			continue
 		}
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, affectedInstanceName.String(), &snapst); err != nil {
+		if err := snapstate.Get(st, affectedInstanceName, &snapst); err != nil {
 			task.Errorf("skipping security profiles setup for snap %q when handling snap %q: %v", affectedInstanceName, affectingSnap, err)
 			continue
 		}
@@ -270,7 +270,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 		// Keep PendingSecurity updated for restart durability while this
 		// revision remains inactive.
-		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet)
+		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet)
 	}
 
 	delayedEffects, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDelay, perfTimings)
@@ -278,7 +278,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet); err != nil {
+	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet); err != nil {
 		return err
 	}
 
@@ -304,7 +304,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 // split: it preserves restart durability while a snap is inactive during
 // refresh, and lets ifacestate pick the most recent inactive
 // revision/components when regenerating security for affected snaps.
-func setPendingProfilesSideInfo(st *state.State, instanceName string, appSet *interfaces.SnapAppSet) error {
+func setPendingProfilesSideInfo(st *state.State, instanceName naming.InstanceName, appSet *interfaces.SnapAppSet) error {
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -501,7 +501,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// For remaining snaps we need to interrogate the state.
 	for _, name := range affectedNames[1:] {
 		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, name.String(), &snapst); err != nil {
+		if err := snapstate.Get(st, name, &snapst); err != nil {
 			task.Errorf("cannot obtain state of snap %s: %s", name, err)
 			continue
 		}
@@ -625,7 +625,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 
 	// no pending profiles on disk
-	return setPendingProfilesSideInfo(task.State(), instanceName.String(), nil)
+	return setPendingProfilesSideInfo(task.State(), instanceName, nil)
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, instanceName naming.InstanceName, tm timings.Measurer) error {
@@ -748,7 +748,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	// Get the name from SnapSetup and use it to find the current SideInfo
 	// about the snap, if there is one.
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, instanceName.String(), &snapst)
+	err = snapstate.Get(st, instanceName, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -789,7 +789,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(st, instanceName.String(), appSet)
+		return setPendingProfilesSideInfo(st, instanceName, appSet)
 	}
 }
 
@@ -806,7 +806,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	instanceName := snapSetup.InstanceName()
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, instanceName.String(), &snapst)
+	err = snapstate.Get(st, instanceName, &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -919,7 +919,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	connRef := &interfaces.ConnRef{PlugRef: plugRef, SlotRef: slotRef}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap.String(), &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		if autoConnect && errors.Is(err, state.ErrNoState) {
 			// conflict logic should prevent this
 			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", plugRef.Snap)
@@ -928,7 +928,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap.String(), &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
 		if autoConnect && errors.Is(err, state.ErrNoState) {
 			// conflict logic should prevent this
 			return fmt.Errorf("internal error: snap %q is no longer available for auto-connecting", slotRef.Snap)
@@ -1081,7 +1081,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var snapStates []snapstate.SnapState
-	for _, instanceName := range []string{plugRef.Snap.String(), slotRef.Snap.String()} {
+	for _, instanceName := range []naming.InstanceName{plugRef.Snap, slotRef.Snap} {
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, instanceName, &snapst); err != nil {
 			if errors.Is(err, state.ErrNoState) {
@@ -1203,11 +1203,11 @@ func (m *InterfaceManager) undoDisconnect(task *state.Task, _ *tomb.Tomb) error 
 	}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap.String(), &plugSnapst); err != nil {
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap.String(), &slotSnapst); err != nil {
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
@@ -1340,7 +1340,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var plugSnapst snapstate.SnapState
-	err = snapstate.Get(st, plugRef.Snap.String(), &plugSnapst)
+	err = snapstate.Get(st, plugRef.Snap, &plugSnapst)
 	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: snap %q is no longer available", plugRef.Snap)
 	}
@@ -1348,7 +1348,7 @@ func (m *InterfaceManager) undoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	var slotSnapst snapstate.SnapState
-	err = snapstate.Get(st, slotRef.Snap.String(), &slotSnapst)
+	err = snapstate.Get(st, slotRef.Snap, &slotSnapst)
 	if errors.Is(err, state.ErrNoState) {
 		return fmt.Errorf("internal error: snap %q is no longer available", slotRef.Snap)
 	}
@@ -2732,7 +2732,7 @@ func (m *InterfaceManager) doApplyDelayedSnapSecurityBackendEffects(task *state.
 		return err
 	}
 
-	instanceName := string(effectsData.AffectedSnapInstance)
+	instanceName := naming.InstanceName(effectsData.AffectedSnapInstance)
 	delayed := effectsData.Effects
 	logger.Debugf("delayed update for snap %v, effects %v", instanceName, delayed)
 

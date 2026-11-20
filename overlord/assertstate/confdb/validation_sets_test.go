@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -177,7 +178,7 @@ func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string
 func (s *confdbHandlerSuite) mockInstalledSnap(c *C, name, snapID string, revision snap.Revision) {
 	sideInfo := &snap.SideInfo{RealName: name, SnapID: snapID, Revision: revision}
 	snaptest.MockSnap(c, fmt.Sprintf("name: %s\nversion: 1", name), sideInfo)
-	snapstate.Set(s.st, name, &snapstate.SnapState{
+	snapstate.Set(s.st, naming.InstanceName(name), &snapstate.SnapState{
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
 		Current:  revision,

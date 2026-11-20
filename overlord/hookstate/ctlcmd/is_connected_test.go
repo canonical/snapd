@@ -137,7 +137,7 @@ var isConnectedTests = []struct {
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml, cohortKey string) *snap.Info {
 	info := snaptest.MockSnapCurrent(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
-	snapstate.Set(st, info.InstanceName().String(), &snapstate.SnapState{
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{

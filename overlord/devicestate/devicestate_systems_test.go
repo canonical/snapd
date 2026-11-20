@@ -1611,7 +1611,7 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 		c.Assert(err, IsNil)
 	}
 
-	snapstate.Set(s.state, info.InstanceName().String(), &snapstate.SnapState{
+	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
 		Sequence: seq,
