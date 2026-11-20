@@ -1,0 +1,58 @@
+name: Release distro upgrade-downgrade on proposed
+
+on:
+  workflow_dispatch:
+    inputs:
+      lowest-supported:
+        type: string
+        description: 'The lowest supported version from which to begin distro upgrade testing - must be a valid spread system'
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+  actions: read
+
+jobs:
+  test-snapd-deb:
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: deb-test
+      backend: openstack
+      systems: ${{ inputs.lowest-supported }}
+      tasks: 'tests/release/distro-upgrade'
+      rules: ''
+      spread-env: "SPREAD_SNAP_REEXEC=0 SPREAD_SRU_VALIDATION=1"
+      use-snapd-snap-from-master: true
+      upload-artifacts: true
+
+  report-results:
+    needs: test-snapd-deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spread-artifacts-*
+          merge-multiple: true
+
+      - name: Untar artifacts
+        run: |
+          find . -name "*.tar.gz" | while read filename; do 
+            dir="${filename%.tar.gz}"
+            mkdir -p "$dir"
+            tar -xzf "$filename" -C "$dir"
+            rm "$filename"
+          done
+          find . -name "*.txt" -type f -delete
+          echo "All files after delete"
+          find . -type f
+
+      - name: Report results
+        run: |
+          echo "-------------------------------------------"
+          echo "----------------Deb results----------------"
+          echo "-------------------------------------------"
+          find spread-artifacts-deb-test* -type f -exec sh -c 'echo $1; cat $1' _ {} \;
