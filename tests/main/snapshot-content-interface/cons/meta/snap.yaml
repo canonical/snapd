@@ -1,0 +1,16 @@
+name: test-cons
+version: '1.0'
+summary: Test consume content interface
+description: |
+  Test consume content interface
+base: core22
+confinement: strict
+grade: stable
+
+plugs:
+    ciiface:
+        interface: content
+        target: $SNAP_DATA/data-c
+apps:
+  test:
+    command: bin/test.sh
