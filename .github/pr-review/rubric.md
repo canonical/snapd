@@ -1,6 +1,6 @@
 These rules are read at run time from the trusted base branch. Edit this file
-to change how findings are rated and how reviewers are chosen; no recompile is
-needed.
+to change how findings are rated, when a human review is needed, how reviewers
+are chosen and when the PR is approved; no recompile is needed.
 
 ### Rating (1–5)
 
@@ -38,17 +38,47 @@ Other rules:
 - Do not inflate ratings to make the report look useful. A PR with no real
   findings is a good outcome.
 
-### Human reviewer
+### Architecture changes
 
-Request a human reviewer only when at least one of the following holds:
+A PR that changes the architecture always needs a human review, whatever its
+findings. The list below configures what counts as an architecture change;
+remove all of its items to turn this rule off. Judge the whole PR from the full
+PR diff, also in an incremental review. Bug fixes, refactoring and new features
+that stay within the existing design are not architecture changes.
 
-- a finding is rated 4 or 5;
-- two or more findings are rated 3 or higher;
-- a finding rated 3 or higher is in security-sensitive code (`cmd/snap-confine`,
+A PR changes the architecture when it:
+
+- adds, removes or splits a state manager, changes how the managers are wired
+  together in `overlord/overlord.go`, or adds a dependency or hook between
+  manager packages;
+- adds or removes task kinds, or changes the persisted state or the tasks of an
+  existing change in a way that affects restarts, undo or upgrades from an
+  older snapd;
+- adds, removes or changes REST API endpoints (`daemon/`, `client/`);
+- adds an interface (`interfaces/builtin/`) or changes the base declaration
+  (`interfaces/policy/basedeclaration.go`);
+- changes an assertion type (`asserts/`), the `snap.yaml` format (`snap/`) or
+  the seed format (`seed/`);
+- changes the boot, install, recovery or remodel flows (`boot/`,
+  `cmd/snap-bootstrap/`, the install and remodel code in
+  `overlord/devicestate/`);
+- adds a top-level package or binary, or a third-party dependency (`go.mod`).
+
+### Human review
+
+A human review is required when at least one of the following holds:
+
+- the PR changes the architecture (see above);
+- an open finding is rated 4 or 5;
+- two or more open findings are rated 3 or higher;
+- an open finding rated 3 or higher is in security-sensitive code (`cmd/snap-confine`,
   `sandbox/`, `interfaces/` confinement rules, `secboot/`, `boot/`, `asserts/`,
   `overlord/` state and task handlers).
 
-Otherwise do not request anyone and say why in the report.
+Open findings are the verified findings of this review and, in an incremental
+review, the findings carried forward from earlier reviews that are still open.
+When no human review is required, do not request anyone and say why in the
+report.
 
 Choose reviewers **only from the repository's CODEOWNERS file**:
 
@@ -60,12 +90,28 @@ Choose reviewers **only from the repository's CODEOWNERS file**:
    file was found.
 2. Match with GitHub semantics: patterns follow `.gitignore` rules, the **last**
    matching pattern wins, and `#` starts a comment. Ignore e-mail owners.
-3. Prefer the owners of the files that contain the highest-rated findings. If
-   those have no owner, fall back to the owners of the most heavily changed files.
+3. Prefer the owners of the files that make up the architecture change, then
+   the owners of the files that contain the highest-rated open findings. If
+   those have no owner, fall back to the owners of the most heavily changed
+   files.
 4. Request at most two reviewers. Prefer individual users over teams.
 5. Never request the PR author, anyone already requested, and anyone who has
    already reviewed the PR.
 6. Never request anyone who is not listed in CODEOWNERS.
+
+### Recommendation and approval
+
+Give exactly one recommendation, using the first row that applies:
+
+| Recommendation | When | Action |
+|---|---|---|
+| Human review required | The human review rules above require a human review, even if no reviewer can be requested | Request reviewers as above; do not approve |
+| Address findings | An open finding is rated 3 or higher | Do not approve; the author should fix the findings and re-request a review |
+| Incomplete review | Fewer than two hunters reported, or this is an incremental review and the previous review report is unavailable | Do not approve; re-request a review |
+| Approve | Every open finding is rated 1 or 2 (cosmetic or minor), or there are none | Submit an approving review |
+
+An approval only records that this review found nothing above minor. It does
+not replace the reviews that branch protection or CODEOWNERS require.
 
 ### Report format
 
@@ -74,18 +120,26 @@ Post a single comment:
 1. The review scope: "Full review" or "Incremental review of N new commits",
    with the reason from the scope file when there was an earlier review, and
    links to the compare view and the previous review when available.
-2. A one-line summary: number of findings per rating and which hunters
+2. The recommendation in bold (**Approve**, **Address findings**, **Human
+   review required** or **Incomplete review**) with a one-sentence reason.
+3. A one-line summary: number of open findings per rating, in an incremental
+   review how many earlier findings were resolved, and which hunters
    contributed (`claude`, `kimi`, `mai`; note any that failed).
-3. A table of findings sorted by rating, highest first, with columns: rating,
-   location (`path:line`), title, severity, occurrence, found by.
-4. For each finding rated 3 or higher: what is wrong, the concrete trigger
+4. A table of open findings sorted by rating, highest first, with columns:
+   rating, location (`path:line`), title, severity, occurrence, found by. Mark
+   findings carried forward from earlier reviews with "earlier review" in the
+   found-by column.
+5. For each open finding rated 3 or higher: what is wrong, the concrete trigger
    scenario, the impact and a suggested fix.
-5. Findings rated 1 or 2 inside a collapsed `<details>` block, one line each.
-6. A "Human review" section: the decision, the reason, and the reviewers
-   requested (or why none).
-7. A line explaining how to re-request: apply the `ai-review` label again. After
+6. Open findings rated 1 or 2 inside a collapsed `<details>` block, one line
+   each.
+7. In an incremental review, the earlier findings that are now resolved, one
+   line each.
+8. A "Human review" section: the decision, the reason (naming the architecture
+   change, if any), and the reviewers requested (or why none).
+9. A line explaining how to re-request: apply the `ai-review` label again. After
    new commits only those are reviewed; without new commits the whole PR is
    reviewed again.
 
-If there are no verified findings, say so briefly and still include the human
-review decision.
+If there are no open findings, say so briefly and still include the
+recommendation and the human review decision.
