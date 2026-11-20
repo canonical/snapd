@@ -44,6 +44,12 @@ var timingsTests = []timingsCmdArgs{{
 	args:  "debug timings --ensure=seed --startup=ifacemgr",
 	error: "cannot use change id, 'startup' or 'ensure' together",
 }, {
+	args:  "debug timings --ensure=install-system 9",
+	error: "cannot use change id, 'startup' or 'ensure' together",
+}, {
+	args:  "debug timings --ensure=factory-reset 9",
+	error: "cannot use change id, 'startup' or 'ensure' together",
+}, {
 	args:  "debug timings --last=install --all",
 	error: "cannot use 'all' with change id or 'last'",
 }, {

@@ -511,6 +511,9 @@ func (c *cmdDebugState) Execute(args []string) error {
 	if c.Connections {
 		cmds = append(cmds, "--connections")
 	}
+	if c.Connection != "" {
+		cmds = append(cmds, "--connection=")
+	}
 	if len(cmds) > 1 {
 		return fmt.Errorf("cannot use %s and %s together", cmds[0], cmds[1])
 	}
