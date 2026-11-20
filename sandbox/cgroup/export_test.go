@@ -169,6 +169,6 @@ func MockLoadDeviceMap(fn func(string) (DeviceMapAccessor, error)) (restore func
 	return testutil.Mock(&loadDeviceMapFunc, fn)
 }
 
-func MockFindDeviceMapsForSnap(fn func(string) ([]string, error)) (restore func()) {
-	return testutil.Mock(&findDeviceMapsForSnapFunc, fn)
+func MockFindActiveDeviceMapTagsForSnap(fn func(string) ([]string, error)) (restore func()) {
+	return testutil.Mock(&findActiveDeviceMapTagsForSnapFunc, fn)
 }

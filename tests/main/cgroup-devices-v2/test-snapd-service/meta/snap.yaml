@@ -1,5 +1,8 @@
 name: test-snapd-service
 version: 1.0
+base: core22
+plugs:
+    joystick:
 apps:
     test-snapd-service:
         command: bin/service
@@ -9,3 +12,12 @@ apps:
     sh:
         command: bin/sh
         plugs: [joystick]
+hooks:
+    configure:
+        plugs: [joystick]
+components:
+    two:
+        type: standard
+        hooks:
+            install:
+                plugs: [joystick]
