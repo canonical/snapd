@@ -48,7 +48,14 @@ jobs:
       # Prefer the Canonical-approved GitHub App. SNAPD_SECURITY_SYNC_PAT is a
       # temporary personal fallback on this private repo only; do not set it
       # on public snapd.
-      # The token needs read/write permissions for content and workflows.
+      #
+      # Required token:
+      # - Create a "New fine-grained personal access"
+      # - In the "Resource Owner" drop-down select "canonical"
+      # - Select "Only select repositories" and specify "canonical/snapd-security-release"
+      # - For "Expiration" choose "366 days" (or the maximum excluding never)
+      # - Add permission: "Contents", "Workflows" and set both "Read and write"
+      #
       # TODO(SNAPDENG-37633): remove SNAPD_SECURITY_SYNC_PAT once the App
       # vars and secrets exist.
       - name: Require App credentials or SNAPD_SECURITY_SYNC_PAT
