@@ -1302,6 +1302,92 @@ func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationHappyPrepareSerialHook(
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
+func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationPollPrepareSerialHook(c *C) {
+	r1 := devicestate.MockKeyLength(testKeyLength)
+	defer r1()
+
+	// the first serial request is answered with 202, forcing another
+	// pass of the task after the prepare-serial-request hook has
+	// stored a JSON object in registration.body
+	bhv := &devicestatetest.DeviceServiceBehavior{
+		SerialPolls: 1,
+	}
+	mockServer := s.mockServer(c, devicestatetest.ReqIDPrepareSerialHook, bhv)
+	defer mockServer.Close()
+
+	r2 := devicestate.MockBaseStoreURL(mockServer.URL)
+	defer r2()
+
+	// immediately
+	r3 := devicestate.MockRetryInterval(0)
+	defer r3()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	body := map[string]string{
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
+	}
+	encodedBody, err := json.Marshal(body)
+	c.Assert(err, IsNil)
+
+	pSRBhv := &devicestatetest.PrepareSerialRequestBehavior{
+		RegBody: string(encodedBody),
+	}
+	r4 := devicestatetest.MockGadget(c, s.state, "gadget", snap.R(2), nil, pSRBhv)
+	defer r4()
+
+	s.makeModelAssertionInState(c, "canonical", "pc2", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "gadget",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc2",
+	})
+
+	// mark as seeded
+	s.state.Set("seeded", true)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	becomeOperational := s.findBecomeOperationalChange()
+	c.Assert(becomeOperational, NotNil)
+
+	// another pass to go past the polling
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Serial, Equals, "10000")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc2",
+		"serial":   "10000",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	var details map[string]any
+	err = json.Unmarshal(serial.Body(), &details)
+	c.Assert(err, IsNil)
+	c.Check(details, DeepEquals, map[string]any{
+		"hardware-id-key-sha3-384": "hash",
+		"request-id-signature":     "signature",
+	})
+}
+
 func (s *deviceMgrSerialSuite) TestFullDeviceRegistrationFailingPrepareSerialHook(c *C) {
 	hookMgr := s.o.HookManager()
 	c.Assert(hookMgr, NotNil)
