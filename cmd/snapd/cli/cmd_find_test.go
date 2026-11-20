@@ -624,7 +624,7 @@ func (s *SnapSuite) TestFindSnapInvalidSection(c *check.C) {
 		n++
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
-	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
+	c.Assert(err, check.ErrorMatches, `No matching section\(s\) "foobar", use --section to list existing sections`)
 }
 
 func (s *SnapSuite) TestFindSnapNotFoundInSection(c *check.C) {
@@ -679,7 +679,7 @@ func (s *SnapSuite) TestFindSnapCachedSection(c *check.C) {
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=foobar", "hello"})
 	c.Logf("stdout: %s", s.Stdout())
-	c.Assert(err, check.ErrorMatches, `No matching section "foobar", use --section to list existing sections`)
+	c.Assert(err, check.ErrorMatches, `No matching section\(s\) "foobar", use --section to list existing sections`)
 
 	s.ResetStdStreams()
 
@@ -697,4 +697,86 @@ Please try 'snap find --section=<selected section>'
 
 	s.ResetStdStreams()
 	c.Check(numHits, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestFindRepeatedSectionFlagSearchesBoth(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/sections")
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": []string{"games", "social"},
+			})
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			v, ok := r.URL.Query()["section"]
+			c.Check(ok, check.Equals, true)
+			c.Check(v, check.DeepEquals, []string{"games,social"})
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": []string{},
+			})
+		default:
+			c.Fatalf("expected to get 2 requests, now on #%d", n+1)
+		}
+		n++
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=games", "--section=social", "steam"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestFindSectionFlagCommaAndRepeatCombo(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/sections":
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": []string{"x", "y", "z", "a", "b", "c"},
+			})
+		case "/v2/find":
+			v, ok := r.URL.Query()["section"]
+			c.Check(ok, check.Equals, true)
+			c.Check(v, check.DeepEquals, []string{"x,y,z,a,b,c"})
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": []string{},
+			})
+		default:
+			c.Fatalf("unexpected request to %s", r.URL.Path)
+		}
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=x,y", "--section=z", "--section=a,b,c", "steam"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) TestFindRepeatedSectionFlagUnknownSection(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/sections")
+		EncodeResponseBody(c, w, map[string]any{
+			"type":   "sync",
+			"result": []string{"games"},
+		})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=games", "--section=bogus", "steam"})
+	c.Assert(err, check.ErrorMatches, `No matching section\(s\) "bogus", use --section to list existing sections`)
+}
+
+func (s *SnapSuite) TestFindRepeatedSectionFlagAllUnknownSections(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/sections")
+		EncodeResponseBody(c, w, map[string]any{
+			"type":   "sync",
+			"result": []string{"games", "social"},
+		})
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"find", "--section=bogus1", "--section=bogus2", "steam"})
+	c.Assert(err, check.ErrorMatches, `No matching section\(s\) "bogus1", "bogus2", use --section to list existing sections`)
 }
