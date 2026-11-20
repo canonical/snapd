@@ -1,1 +1,4 @@
-snap.8
+usr/share/man/man8/snap.8
+usr/share/man/man8/snap-confine.8
+usr/share/man/man8/snap-discard-ns.8
+usr/share/man/man8/snapd-env-generator.8
