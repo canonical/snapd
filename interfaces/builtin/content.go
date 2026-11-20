@@ -403,7 +403,7 @@ func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot
 		// use the basename by default, e.g.
 		// source:
 		//   - $SNAP/foo                 -> $TARGET/foo
-		//   - $SNAP                     -> $TARGET/<snap-name>
+		//   - $SNAP                     -> $TARGET/<revision>
 		//   - $SNAP_COMPONENT(bar)/foo  -> $TARGET/foo
 		//   - $SNAP_COMPONENT(bar)      -> $TARGET/bar
 		sourceName := filepath.Base(source)
@@ -521,7 +521,10 @@ func (iface *contentInterface) AppArmorConnectedSlot(spec *apparmor.Specificatio
 `)
 		for _, w := range writePaths {
 			_, target, _ := sourceTarget(plug, slot, w)
-			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
+			// The mount point may have been renamed to target-N by
+			// the mount backend to avoid a clash with other entries,
+			// match that like the plug side does.
+			fmt.Fprintf(contentSnippet, "\"%s{,-[0-9]*}/**\" mrwklix,\n",
 				target)
 		}
 	}
