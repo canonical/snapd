@@ -21,6 +21,8 @@ package snap
 
 import "os"
 
+type DependencyElement = dependency
+
 var (
 	ValidateSocketName           = validateSocketName
 	ValidateTitle                = validateTitle
@@ -28,6 +30,7 @@ var (
 	GetAttribute                 = getAttribute
 	EvalAndValidateSymlink       = evalAndValidateSymlink
 	ShouldValidateSymlink        = shouldValidateSymlink
+	DependenciesForTest          = getDependenciesFor
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {
