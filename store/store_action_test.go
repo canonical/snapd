@@ -138,6 +138,8 @@ func (s *storeActionSuite) testSnapAction(c *C, resources []string) {
 		}
 
 		c.Check(req.Fields, DeepEquals, expectedFields)
+		// check that the "integrity" field is always included in the request fields
+		c.Check(req.Fields, testutil.Contains, "integrity")
 
 		res := map[string]any{
 			"results": []map[string]any{
