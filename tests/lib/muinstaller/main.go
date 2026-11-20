@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -462,7 +463,7 @@ func createAndMountFilesystems(bootDevice string, volumes map[string]*gadget.Vol
 		}
 
 		logger.Debugf("making filesystem in %q", partNode)
-		if err := mkfs.Make(volStruct.Filesystem, partNode, volStruct.Label, 0, 0); err != nil {
+		if err := mkfs.Make(context.Background(), volStruct.Filesystem, partNode, &mkfs.MakeOptions{Label: volStruct.Label}); err != nil {
 			return nil, err
 		}
 
