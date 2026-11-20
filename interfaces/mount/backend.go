@@ -133,6 +133,15 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		return nil
 	}
 
+	if sctx.Reason == interfaces.SnapSetupReasonPlugConnectionChange {
+		if err := opportunisticDiscard(appSet); err == nil {
+			// mount namespace was discarded
+			return nil
+		} else {
+			logger.Noticef("cannot discard the mount namespace: %v", err)
+		}
+	}
+
 	return b.updateOrDiscard(instanceName, snapInfo)
 }
 
