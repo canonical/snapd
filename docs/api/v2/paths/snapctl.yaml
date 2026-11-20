@@ -3,14 +3,15 @@
 
 post:
   tags:
-    - AuthenticatedAccess
     - Snaps
     - Synchronous
   summary: Run snapctl command
   description: |-
-    Executes a 'snapctl' command within a given context. This route uses the
+    Executes a `snapctl` command within a given context. This route uses the
     socket /run/snapd-snap.socket. This is intended to be used only from within
-    a snap itself.
+    a snap itself. On success, command output is returned in result.stdout
+    and result.stderr. A command that exits unsuccessfully returns an error
+    response with HTTP 200 and its exit code in result.value.exit-code.
   operationId: runSnapctl
   security:
     - PeerAuth: []
@@ -33,48 +34,159 @@ post:
         schema:
           type: object
           required:
-            - context-id
             - args
           properties:
             context-id:
               type: string
               description: |-
                 The context ID for this call. The context ID is passed to hooks
-                through the $SNAP_COOKIE environment variable. The 'snapctl'
+                through the $SNAP_COOKIE environment variable. The `snapctl`
                 command passes this automatically. For hooks that are calling
                 the endpoint manually, the responsibility falls on the binary to
-                retrieve the context ID itself.
+                retrieve the context ID itself. Commands requiring a snap context fail without a valid ID; help can be requested without one.
               example: ABCDEF
             args:
               type: array
               description: A list of arguments to pass to snapctl.
+              minItems: 1
               items:
                 type: string
               example: [get, username]
             stdin:
               type: string
+              format: byte
               description: |-
-                If args is fde-setup-result, provides stdin to the context.
-            
+                Base64-encoded stdin bytes for commands such as fde-setup-result.
+
   responses:
     200:
-      description: The output from the snapctl command.
+      description: |-
+        `snapctl` command output. If unsuccessful, includes the exit code.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - type: object
+                required: [type, status-code, status, result]
+                properties:
+                  type:
+                    type: string
+                    enum: [sync]
+                  status-code:
+                    type: integer
+                    enum: [200]
+                  status:
+                    type: string
+                    enum: [OK]
+                  result:
+                    type: object
+                    required: [stdout, stderr]
+                    properties:
+                      stdout:
+                        type: string
+                        description: Command-dependent data written to stdout.
+                      stderr:
+                        type: string
+                        description: Data written to stderr by the command.
+                      change-id:
+                        type: string
+                        description: |-
+                          When the command initiates a change, its ID is returned here; otherwise this field is omitted.
+              - type: object
+                required: [type, status-code, status, result]
+                properties:
+                  type:
+                    type: string
+                    enum: [error]
+                  status-code:
+                    type: integer
+                    enum: [200]
+                  status:
+                    type: string
+                    enum: [OK]
+                  result:
+                    type: object
+                    required: [message, kind, value]
+                    properties:
+                      message:
+                        type: string
+                      kind:
+                        type: string
+                        enum: [unsuccessful]
+                      value:
+                        type: object
+                        required: [stdout, stderr, exit-code]
+                        properties:
+                          stdout:
+                            type: string
+                          stderr:
+                            type: string
+                          exit-code:
+                            type: integer
+                            description: Exit status of the snapctl command.
+          examples:
+            systemModeEncrypted:
+              summary: System mode with snapd-managed storage encryption
+              description: |-
+                The system-mode command includes `storage-encrypted: managed`
+                in its YAML stdout when the FDE state managed by snapd exists and contains at least one primary key.
+                If that state is absent or contains no primary keys, the line
+                is omitted. 
+                This detection does not support two
+                legacy encrypted systems without a primary key: 
+                - systems using v1 TPM keys because an older snapd was used during installation; and
+                - systems whose older kernel snap-bootstrap does not provide
+                a primary key in the keyring. 
+                This line does not indicate whether encryption is TPM2-backed.
+              value:
+                type: sync
+                status-code: 200
+                status: OK
+                result:
+                  stdout: |
+                    system-mode: install
+                    seed-loaded: true
+                    factory: true
+                    storage-encrypted: managed
+                  stderr: ""
+            interfaceNotConnected:
+              summary: A snapctl command exits unsuccessfully
+              value:
+                type: error
+                status-code: 200
+                status: OK
+                result:
+                  message: "unsuccessful with exit code: 1"
+                  kind: unsuccessful
+                  value:
+                    stdout: ""
+                    stderr: ""
+                    exit-code: 1
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    403:
+      description: Access to the socket or command is forbidden.
       content:
         application/json:
           schema:
             type: object
+            required: [type, status-code, status, result]
             properties:
-              stdout:
+              type:
                 type: string
-                description: Data written to stdout by the command.
-              stderr:
+                enum: [error]
+              status-code:
+                type: integer
+                enum: [403]
+              status:
                 type: string
-                description: Data written to stderr by the command.
-              change-id:
-                type: string
-                description: |-
-                  If the command initiated an asynchronous operation, this field contains
-                  the change ID that can be used to track the operation's progress. If the
-                  command did not initiate an asynchronous operation, this field is null.
-    400:
-      $ref: '../components/responses/BadRequest.yaml'
+                enum: [Forbidden]
+              result:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+                  kind:
+                    type: string
+                    enum: [login-required]
