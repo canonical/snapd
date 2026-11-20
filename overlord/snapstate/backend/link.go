@@ -264,7 +264,8 @@ func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap
 		// previously enabled services will be started again.
 		return b.StartServices(apps, disabledSvcs, meter, tm)
 	})
-	return wrappersStopServices(apps, removedSvcs, nil, reason, meter, tm)
+	opts := &wrappers.StopServicesOptions{Disable: true}
+	return wrappersStopServices(apps, removedSvcs, opts, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
