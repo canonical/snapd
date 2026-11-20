@@ -5,10 +5,10 @@ details: |
   and that the resulting image boots.
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   NESTED_UBUNTU_IMAGE_PRESEED_KEY: "\" (test)\""
