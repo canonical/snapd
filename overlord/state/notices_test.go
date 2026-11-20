@@ -478,10 +478,11 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 
 	// Add a notice (with faked time) after a long time and ensure it has repeated
 	future := time.Now().Add(delay)
+	restore := state.MockNextNoticeTimestamp(future)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", &state.AddNoticeOptions{
 		RepeatAfter: second,
-		Time:        future,
 	})
+	restore()
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
@@ -812,9 +813,10 @@ func (s *noticesSuite) TestPruneNoticesCheckpoint(c *C) {
 	st := state.New(backend)
 	st.Lock()
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		Time: old,
-	})
+
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	restore()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "456", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
@@ -842,12 +844,10 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 	defer st.Unlock()
 
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", &state.AddNoticeOptions{
-		Time: old,
-	})
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", &state.AddNoticeOptions{
-		Time: old,
-	})
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", nil)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	restore()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)
