@@ -584,11 +584,19 @@ func prepareClassicChroot(preseedChroot string, reset bool, label string) (*targ
 		})
 	}
 
-	// We need loop devices to work to be able to mount the snap.
-	if !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
+	// We need loop devices to work to be able to mount the snap, unless snaps
+	// are mounted with FUSE, as decided by squashfs.FsType() using the same
+	// check (e.g. in a container). Mounting devtmpfs is not possible in an
+	// unprivileged container, so /dev provided by the caller is used as is
+	// in that case.
+	if !squashfs.NeedsFuse() && !osutil.FileExists(filepath.Join(rootDir, "/dev/loop-control")) {
 		cmd := exec.Command("mount", "-t", "devtmpfs", "none", filepath.Join(rootDir, "/dev"))
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available: %s\nOutput: %s", err, out)
+			var hint string
+			if !osutil.FileExists(filepath.Join(rootDir, "/dev/fuse")) {
+				hint = " (/dev/fuse not available either, it is needed to mount snaps with FUSE instead)"
+			}
+			return nil, nil, fmt.Errorf("Cannot mount devtmpfs and /dev/loop-control not available%s: %s\nOutput: %s", hint, err, out)
 		}
 		addCleanup(func() {
 			cmd := exec.Command("umount", "--lazy", filepath.Join(rootDir, "/dev"))
@@ -777,7 +785,7 @@ func Core20(opts *CoreOptions) error {
 	return runUC20PreseedMode(popts)
 }
 
-func classicLikePreseed(chrootDir, label string) error {
+func classicLikePreseed(chrootDir, label string, opts *ClassicOptions) error {
 	var err error
 	chrootDir, err = filepath.Abs(chrootDir)
 	if err != nil {
@@ -806,15 +814,17 @@ func classicLikePreseed(chrootDir, label string) error {
 }
 
 // Classic runs preseeding of a classic ubuntu system pointed by chrootDir.
-func Classic(chrootDir string) error {
+// opts can be nil.
+func Classic(chrootDir string, opts *ClassicOptions) error {
 	const label = ""
-	return classicLikePreseed(chrootDir, label)
+	return classicLikePreseed(chrootDir, label, opts)
 }
 
 // Hybrid runs preseeding of a hybrid classic ubuntu system with core boot
 // components pointed by chrootDir and identified by a given system label.
-func Hybrid(chrootDir, label string) error {
-	return classicLikePreseed(chrootDir, label)
+// opts can be nil.
+func Hybrid(chrootDir, label string, opts *ClassicOptions) error {
+	return classicLikePreseed(chrootDir, label, opts)
 }
 
 func classicLikeReset(chrootDir, label string) error {
