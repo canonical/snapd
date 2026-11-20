@@ -1161,7 +1161,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		close(doneCh)
 	}()
 
-	straceCmd, err := strace.TraceExecCommandForPid(appCmd.Process.Pid, straceLog)
+	straceCmd, err := strace.TraceExecCommandForPid(dirs.SnapMountDir, appCmd.Process.Pid, straceLog)
 	if err != nil {
 		return err
 	}
@@ -1289,7 +1289,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd []string, envForExec envForExecFunc) 
 
 	logger.Debugf("child stopped, ready to be traced")
 
-	straceCmd, err := strace.CommandWithTraceePid(appCmd.Process.Pid, extraStraceOpts)
+	straceCmd, err := strace.CommandWithTraceePid(dirs.SnapMountDir, appCmd.Process.Pid, extraStraceOpts)
 	if err != nil {
 		return err
 	}
@@ -1537,6 +1537,7 @@ func (r *runnable) Validate() error {
 
 func makeStdStreamsForJournal(app *snap.AppInfo, namespace string) (stdout, stderr *os.File) {
 	stdout, err := systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		RunDir:      dirs.SnapSystemdRunDir,
 		Namespace:   namespace,
 		Identifier:  app.Name,
 		UnitName:    app.ServiceName(),
@@ -1547,6 +1548,7 @@ func makeStdStreamsForJournal(app *snap.AppInfo, namespace string) (stdout, stde
 		logger.Noticef("cannot connect to journal for stdout: %s", err)
 	}
 	stderr, err = systemd.NewJournalStreamFile(systemd.JournalStreamFileParams{
+		RunDir:      dirs.SnapSystemdRunDir,
 		Namespace:   namespace,
 		Identifier:  app.Name,
 		UnitName:    app.ServiceName(),

@@ -28,6 +28,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
@@ -294,7 +295,7 @@ WantedBy={{.TimersTarget}}
 	}
 	switch app.DaemonScope {
 	case snap.SystemDaemon:
-		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(app.Snap.MountDir()))
+		wrapperData.MountUnit = filepath.Base(systemd.MountUnitPath(dirs.GlobalRootDir, dirs.StripRootDir(app.Snap.MountDir())))
 	case snap.UserDaemon:
 		// nothing
 	default:

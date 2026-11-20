@@ -34,7 +34,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -44,8 +43,8 @@ var _ = Disk(&disk{})
 // MockMountPointDisksToPartitionMapping, but we can't just assign
 // diskFromMountPointImpl to diskFromMountPoint due to signature differences,
 // the former returns a *disk, the latter returns a Disk
-var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
-	return diskFromMountPointImpl(mountpoint, opts)
+var diskFromMountPoint = func(rootDir, mountpoint string, opts *Options) (Disk, error) {
+	return diskFromMountPointImpl(rootDir, mountpoint, opts)
 }
 
 var abstractCalculateLastUsableLBA = func(device string, diskSize uint64, sectorSize uint64) (uint64, error) {
@@ -149,7 +148,7 @@ func requiredUDevPropUint(props map[string]string, name string) (uint64, error) 
 	return v, nil
 }
 
-func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
+func diskFromUDevProps(rootDir, deviceIdentifier, deviceIDType string, props map[string]string) (Disk, error) {
 	// all physical disks must have ID_PART_TABLE_TYPE defined as the schema for
 	// the disk, so check for that first and if it's missing then we return a
 	// specific NotAPhysicalDisk error
@@ -188,8 +187,8 @@ func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[s
 	if devpath == "" {
 		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"DEVPATH\"", deviceIDType, deviceIdentifier)
 	}
-	// create the full path by pre-pending /sys, since udev doesn't include /sys
-	devpath = filepath.Join(dirs.SysfsDir, devpath)
+	// create the full path by pre-pending /sys directory, since udev doesn't include /sys
+	devpath = filepath.Join(rootDir, "sys", devpath)
 
 	partTableID := props["ID_PART_TABLE_UUID"]
 	if partTableID == "" {
@@ -205,6 +204,7 @@ func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[s
 	}
 
 	return &disk{
+		rootDir:       rootDir,
 		schema:        schema,
 		diskID:        partTableID,
 		major:         major,
@@ -216,40 +216,52 @@ func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[s
 	}, nil
 }
 
-// DiskFromDeviceName finds a matching Disk using the specified path in the
+// DiskFromDevicePath finds a matching Disk using the specified path in the
 // kernel's sysfs, such as /sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb.
 func DiskFromDevicePath(devicePath string) (Disk, error) {
-	return diskFromDevicePath(devicePath)
+	return diskFromDevicePath("/", devicePath)
+}
+
+// DiskFromDevicePathUnderRoot is like DiskFromDevicePath, but resolves
+// sysfs paths relative to the given root directory.
+func DiskFromDevicePathUnderRoot(rootDir, devicePath string) (Disk, error) {
+	return diskFromDevicePath(rootDir, devicePath)
 }
 
 // diskFromDevicePath is exposed for mocking from other tests via
 // MockDevicePathToDiskMapping (which is yet to be added).
-var diskFromDevicePath = func(devicePath string) (Disk, error) {
+var diskFromDevicePath = func(rootDir, devicePath string) (Disk, error) {
 	// query for the disk props using udev with --path
 	props, err := udevPropertiesForPath(devicePath)
 	if err != nil {
 		return nil, err
 	}
 
-	return diskFromUDevProps(devicePath, "path", props)
+	return diskFromUDevProps(rootDir, devicePath, "path", props)
 }
 
 // DiskFromDeviceName finds a matching Disk using the specified name, such as
 // vda, or mmcblk0, etc.
 func DiskFromDeviceName(deviceName string) (Disk, error) {
-	return diskFromDeviceName(deviceName)
+	return diskFromDeviceName("/", deviceName)
+}
+
+// DiskFromDeviceNameUnderRoot is like DiskFromDeviceName, but resolves
+// device nodes and sysfs paths relative to the given root directory.
+func DiskFromDeviceNameUnderRoot(rootDir, deviceName string) (Disk, error) {
+	return diskFromDeviceName(rootDir, deviceName)
 }
 
 // diskFromDeviceName is exposed for mocking from other tests via
 // MockDeviceNameToDiskMapping.
-var diskFromDeviceName = func(deviceName string) (Disk, error) {
+var diskFromDeviceName = func(rootDir, deviceName string) (Disk, error) {
 	// query for the disk props using udev with --name
 	props, err := udevPropertiesForName(deviceName)
 	if err != nil {
 		return nil, err
 	}
 
-	return diskFromUDevProps(deviceName, "name", props)
+	return diskFromUDevProps(rootDir, deviceName, "name", props)
 }
 
 func mountPointsForPartitionRoot(part Partition, mountOptsMatching map[string]string) ([]string, error) {
@@ -281,24 +293,38 @@ mountLoop:
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
 func DiskFromMountPoint(mountpoint string, opts *Options) (Disk, error) {
 	// call the unexported version that may be mocked by tests
-	return diskFromMountPoint(mountpoint, opts)
+	return diskFromMountPoint("/", mountpoint, opts)
+}
+
+// DiskFromMountPointUnderRoot is like DiskFromMountPoint, but resolves
+// sysfs paths relative to the given root directory.
+func DiskFromMountPointUnderRoot(rootDir, mountpoint string, opts *Options) (Disk, error) {
+	// call the unexported version that may be mocked by tests
+	return diskFromMountPoint(rootDir, mountpoint, opts)
 }
 
 // DiskFromPartitionDeviceNode finds a matching Disk that the specified
 // partition node resides on.
 func DiskFromPartitionDeviceNode(node string) (Disk, error) {
-	// TODO: support options such as IsDecryptedDevice
-	return diskFromPartitionDeviceNode(node)
+	return diskFromPartitionDeviceNode("/", node)
 }
 
-var diskFromPartitionDeviceNode = func(node string) (Disk, error) {
+// DiskFromPartitionDeviceNodeUnderRoot is like DiskFromPartitionDeviceNode,
+// but resolves sysfs paths relative to the given root directory.
+func DiskFromPartitionDeviceNodeUnderRoot(rootDir, node string) (Disk, error) {
+	return diskFromPartitionDeviceNode(rootDir, node)
+}
+
+// diskFromPartitionDeviceNode is exposed for mocking from other tests via
+// MockPartitionDeviceNodeToDiskMapping.
+var diskFromPartitionDeviceNode = func(rootDir, node string) (Disk, error) {
 	// get the udev properties for this device node
 	props, err := udevPropertiesForName(node)
 	if err != nil {
 		return nil, err
 	}
 
-	disk, err := diskFromPartUDevProps(props)
+	disk, err := diskFromPartUDevProps(rootDir, props)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find disk from partition device node %s: %v", node, err)
 	}
@@ -312,6 +338,8 @@ type disk struct {
 	schema string
 
 	diskID string
+
+	rootDir string
 
 	// devname is the DEVNAME property for the disk device like /dev/sda
 	devname string
@@ -461,7 +489,7 @@ func (d *disk) Schema() string {
 	return d.schema
 }
 
-func parentPartitionPropsForOptions(props map[string]string) (map[string]string, error) {
+func parentPartitionPropsForOptions(rootDir string, props map[string]string) (map[string]string, error) {
 	// verify that the mount point is indeed a mapper device, it should:
 	// 1. have DEVTYPE == disk from udev
 	// 2. have dm files in the sysfs entry for the maj:min of the device
@@ -502,7 +530,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 
 	majmin := props["MAJOR"] + ":" + props["MINOR"]
 
-	dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
+	dmDir := filepath.Join(rootDir, "sys", "dev", "block", majmin, "dm")
 	dmUUID, err := os.ReadFile(filepath.Join(dmDir, "uuid"))
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, err)
@@ -528,7 +556,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 	return nil, fmt.Errorf("internal error: no back resolver supports decrypted device mapper with UUID %q and name %q", dmUUID, dmName)
 }
 
-func diskFromPartUDevProps(props map[string]string) (*disk, error) {
+func diskFromPartUDevProps(rootDir string, props map[string]string) (*disk, error) {
 	// ID_PART_ENTRY_DISK will give us the major and minor of the disk that this
 	// partition originated from if this mount point is indeed for a partition
 	if props["ID_PART_ENTRY_DISK"] == "" {
@@ -548,8 +576,9 @@ func diskFromPartUDevProps(props map[string]string) (*disk, error) {
 	}
 
 	d := &disk{
-		major: maj,
-		minor: min,
+		rootDir: rootDir,
+		major:   maj,
+		minor:   min,
 	}
 
 	// now go find the devname and devpath for this major/minor pair since
@@ -577,7 +606,7 @@ func diskFromPartUDevProps(props map[string]string) (*disk, error) {
 
 	// the DEVPATH is given as relative to /sys, so for simplicity's sake
 	// add /sys to the path we save as we return it later
-	d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
+	d.devpath = filepath.Join(rootDir, "sys", realDiskProps["DEVPATH"])
 
 	partTableID := realDiskProps["ID_PART_TABLE_UUID"]
 	if partTableID == "" {
@@ -637,20 +666,20 @@ func partitionPropsFromMountPoint(mountpoint string) (source string, props map[s
 // specified mount point. For mount points which have sources that are not
 // partitions, and thus are a part of a disk, the returned Disk refers to the
 // volume/disk of the mount point itself.
-func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
+func diskFromMountPointImpl(rootDir, mountpoint string, opts *Options) (*disk, error) {
 	source, props, err := partitionPropsFromMountPoint(mountpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	if opts != nil && opts.IsDecryptedDevice {
-		props, err = parentPartitionPropsForOptions(props)
+		props, err = parentPartitionPropsForOptions(rootDir, props)
 		if err != nil {
 			return nil, fmt.Errorf("cannot process properties of %v parent device: %v", source, err)
 		}
 	}
 
-	disk, err := diskFromPartUDevProps(props)
+	disk, err := diskFromPartUDevProps(rootDir, props)
 	if err != nil {
 		// TODO: leave the inclusion of mpointpoint source in the error
 		// to the caller
@@ -732,7 +761,7 @@ func (d *disk) populatePartitions() error {
 			if !ok {
 				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVPATH"))
 			}
-			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
+			part.KernelDevicePath = filepath.Join(d.rootDir, "sys", devpath)
 
 			devname, ok := udevProps["DEVNAME"]
 			if !ok {
@@ -932,7 +961,7 @@ func (d *disk) FindMatchingPartitionUUIDWithPartLabel(label string) (string, err
 }
 
 func (d *disk) MountPointIsFromDisk(mountpoint string, opts *Options) (bool, error) {
-	d2, err := diskFromMountPointImpl(mountpoint, opts)
+	d2, err := diskFromMountPointImpl(d.rootDir, mountpoint, opts)
 	if err != nil {
 		return false, err
 	}
@@ -957,8 +986,14 @@ func (d *disk) HasPartitions() bool {
 }
 
 func AllPhysicalDisks() ([]Disk, error) {
+	return AllPhysicalDisksUnderRoot("/")
+}
+
+// AllPhysicalDisksUnderRoot is like AllPhysicalDisks, but resolves sysfs
+// paths relative to the given root directory.
+func AllPhysicalDisksUnderRoot(rootDir string) ([]Disk, error) {
 	// get disks for every block device in /sys/block/
-	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	blockDir := filepath.Join(rootDir, "sys", "block")
 
 	files, err := os.ReadDir(blockDir)
 	if err != nil {
@@ -977,7 +1012,7 @@ func AllPhysicalDisks() ([]Disk, error) {
 		// get a disk by path with the name of the file and /block/
 		fullpath := filepath.Join(blockDir, f.Name())
 
-		disk, err := DiskFromDevicePath(fullpath)
+		disk, err := diskFromDevicePath(rootDir, fullpath)
 		if err != nil {
 			if errors.As(err, &errNonPhysicalDisk{}) {
 				continue
@@ -994,6 +1029,12 @@ var dmUUIDRe = regexp.MustCompile(`^CRYPT-(?P<type>.*)-(?P<uuid1>[0-9a-f]{8})(?P
 // DMCryptUUIDFromMountPoint finds the UUID of a device mapper device
 // mounted at mountpoint.
 func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
+	return DMCryptUUIDFromMountPointUnderRoot("/", mountpoint)
+}
+
+// DMCryptUUIDFromMountPointUnderRoot is like DMCryptUUIDFromMountPoint, but
+// resolves sysfs paths relative to the given root directory.
+func DMCryptUUIDFromMountPointUnderRoot(rootDir, mountpoint string) (string, error) {
 	_, props, err := partitionPropsFromMountPoint(mountpoint)
 	if err != nil {
 		return "", err
@@ -1010,7 +1051,7 @@ func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
 		if !hasDevPath {
 			return "", ErrNoDmUUID
 		}
-		devUUIDPath := filepath.Join(dirs.SysfsDir, devPath, "dm", "uuid")
+		devUUIDPath := filepath.Join(rootDir, "sys", devPath, "dm", "uuid")
 		data, err := os.ReadFile(devUUIDPath)
 		if err != nil {
 			return "", ErrNoDmUUID

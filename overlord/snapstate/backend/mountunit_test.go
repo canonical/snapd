@@ -22,6 +22,7 @@ package backend_test
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -158,6 +159,7 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitOptions) 
 		Description: "Mount unit for foo, revision 13",
 		What:        "/var/lib/snapd/snaps/foo_13.snap",
 		Where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
+		RootDir:     dirs.GlobalRootDir,
 	}
 	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []*systemd.MountUnitOptions{
 		expectedParameters,
@@ -175,7 +177,8 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	})
 	defer restore()
 
-	err := backend.RemoveMountUnit("/some/where", progress.Null)
+	mountDir := filepath.Join(dirs.GlobalRootDir, "/some/where")
+	err := backend.RemoveMountUnit(mountDir, progress.Null)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
 	c.Check(sysd.RemoveMountUnitFileCalls[0], Equals, "/some/where")
