@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -521,6 +522,45 @@ plugs:
 	c.Check(preRefreshHook.Explicit, Equals, false)
 	c.Check(preRefreshHook.Plugs, HasLen, 1)
 	c.Check(preRefreshHook.Plugs["network-client"], NotNil)
+}
+
+func (s *componentSuite) TestReadComponentInfoUnsupportedImplicitHook(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	const componentYaml = `component: snap+component
+type: standard
+version: 1.0
+`
+	testComp := snaptest.MakeTestComponentWithFiles(c, "snap+component.comp", componentYaml, [][]string{
+		{"meta/hooks/install", "echo 'implicit hook'"},
+		{"meta/hooks/configure", "echo 'unsupported hook'"},
+	})
+
+	compf, err := snapfile.Open(testComp)
+	c.Assert(err, IsNil)
+
+	const snapYaml = `
+name: snap
+components:
+  component:
+    type: standard
+`
+
+	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	ci, err := snap.ReadComponentInfoFromContainer(compf, snapInfo, &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("snap", "component"),
+		Revision:  snap.R(1),
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(ci.Hooks, HasLen, 1)
+	c.Check(ci.Hooks["install"], NotNil)
+	c.Check(ci.Hooks["configure"], IsNil)
+
+	c.Check(logbuf.String(), testutil.Contains, `ignoring unsupported implicit hook "configure" for component "snap+component"`)
 }
 
 func (s *componentSuite) TestReadComponentInfoFinishedWithSnapInfoMissingComponentError(c *C) {
