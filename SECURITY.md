@@ -54,3 +54,8 @@ The [Ubuntu Security disclosure and embargo
 policy](https://ubuntu.com/security/disclosure-policy) contains more
 information about what you can expect when you contact us, and what we
 expect from you.
+
+## Internal documentation
+
+Internal documentation for SSDLC
+https://docs.google.com/document/d/1hS4wHHJbNBFuaFKruczOLYolpiwHoVvcHbT1UObGwu4/edit
