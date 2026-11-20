@@ -1,0 +1,21 @@
+name: assertion-sign-client
+version: 1.0
+summary: Test client for the assertion-sign interface
+description: |
+  A restricted snap that plugs the assertion-sign interface and calls the
+  daemon's POST /v2/assertions/sign endpoint over /run/snapd-snap.socket.
+  The plug restricts signing to "model" assertions via the
+  assertion-types attribute. Used by the interfaces-assertion-sign spread
+  task to exercise the mediated signing happy and denial paths.
+
+apps:
+  sign:
+    command: bin/sign.py
+    plugs:
+      - assertion-sign
+
+plugs:
+  assertion-sign:
+    interface: assertion-sign
+    assertion-types:
+      - model

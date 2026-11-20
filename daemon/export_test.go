@@ -28,6 +28,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client/clientutil"
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -541,4 +543,36 @@ func ResetBuildIDDetection() {
 
 func MockDevicestateReprovision(f func(st *state.State) (*state.Change, error)) (restore func()) {
 	return testutil.Mock(&devicestateReprovision, f)
+}
+
+// --- mediated assertion signing (api_sign.go) ---
+
+const (
+	// PolkitActionSign is the polkit action required by the sign endpoint for
+	// non-root callers.
+	PolkitActionSign = polkitActionSign
+)
+
+// MockSignKeypairManager overrides the keypair manager used by the sign and
+// keys endpoints.
+func MockSignKeypairManager(new func() (signtool.KeypairManager, error)) (restore func()) {
+	old := signKeypairManager
+	signKeypairManager = new
+	return func() { signKeypairManager = old }
+}
+
+// MockSignFetchAccountKey overrides the account-key store lookup used by the
+// "chain" option of POST /v2/assertions/sign.
+func MockSignFetchAccountKey(new func(c *Command, keyID string, user *auth.UserState) (*asserts.AccountKey, error)) (restore func()) {
+	old := fetchAccountKeyImpl
+	fetchAccountKeyImpl = new
+	return func() { fetchAccountKeyImpl = old }
+}
+
+// MockSignFetchAccount overrides the account store lookup used by the "chain"
+// option of POST /v2/assertions/sign.
+func MockSignFetchAccount(new func(c *Command, accountID string, user *auth.UserState) (asserts.Assertion, error)) (restore func()) {
+	old := fetchAccountImpl
+	fetchAccountImpl = new
+	return func() { fetchAccountImpl = old }
 }
