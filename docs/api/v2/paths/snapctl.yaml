@@ -7,7 +7,7 @@ post:
     - Synchronous
   summary: Run snapctl command
   description: |-
-    Executes a 'snapctl' command within a given context. This route uses the
+    Executes a `snapctl` command within a given context. This route uses the
     socket /run/snapd-snap.socket. This is intended to be used only from within
     a snap itself. On success, command output is returned in result.stdout
     and result.stderr. A command that exits unsuccessfully returns an error
@@ -40,11 +40,10 @@ post:
               type: string
               description: |-
                 The context ID for this call. The context ID is passed to hooks
-                through the $SNAP_COOKIE environment variable. The 'snapctl'
+                through the $SNAP_COOKIE environment variable. The `snapctl`
                 command passes this automatically. For hooks that are calling
                 the endpoint manually, the responsibility falls on the binary to
-                retrieve the context ID itself. Commands requiring a snap context
-                fail without a valid ID; help can be requested without one.
+                retrieve the context ID itself. Commands requiring a snap context fail without a valid ID; help can be requested without one.
               example: ABCDEF
             args:
               type: array
@@ -92,9 +91,7 @@ post:
                       change-id:
                         type: string
                         description: |-
-                          When the command initiates a change, its ID is returned
-                          here; otherwise this field is omitted. The snapctl client
-                          can use the ID to wait for the change to finish.
+                          When the command initiates a change, its ID is returned here; otherwise this field is omitted.
               - type: object
                 required: [type, status-code, status, result]
                 properties:
@@ -131,11 +128,16 @@ post:
             systemModeEncrypted:
               summary: System mode with snapd-managed storage encryption
               description: |-
-                When the system-mode command detects snapd-managed encryption,
-                its YAML stdout includes `storage-encrypted: managed`. The line
-                is omitted when managed encryption is not detected, including
-                on some legacy encrypted systems. It does not indicate whether
-                encryption is TPM2-backed.
+                The system-mode command includes `storage-encrypted: managed`
+                in its YAML stdout when the FDE state managed by snapd exists and contains at least one primary key.
+                If that state is absent or contains no primary keys, the line
+                is omitted. 
+                This detection does not support two
+                legacy encrypted systems without a primary key: 
+                - systems using v1 TPM keys because an older snapd was used during installation; and
+                - systems whose older kernel snap-bootstrap does not provide
+                a primary key in the keyring. 
+                This line does not indicate whether encryption is TPM2-backed.
               value:
                 type: sync
                 status-code: 200
