@@ -883,7 +883,11 @@ func (s *Store) applyDeltaImpl(ctx context.Context, name string, deltaPath strin
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")
 	}
 
-	if runErr := squashfsApplyDelta(ctx, snapPath, deltaPath, partialTargetPath); runErr != nil {
+	// The device takes the format's defaults: every core, and whatever the
+	// delta asks for. snapd does not yet carry a per-device memory budget to
+	// pass here, and the generator caps a run at 8 MiB, which is what bounds
+	// this in the meantime.
+	if runErr := squashfsApplyDelta(ctx, snapPath, deltaPath, partialTargetPath, nil); runErr != nil {
 		logger.Noticef("encountered error applying delta: %v", runErr)
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("error cleaning up partial delta target %q: %s", partialTargetPath, err)

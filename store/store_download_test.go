@@ -771,7 +771,7 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 		sto := store.New(nil, nil)
 		applyDeltaCalls := 0
 		restore := store.MockSquashfsApplyDelta(
-			func(ctx context.Context, sourceSnap, deltaFile, targetSnap string) error {
+			func(ctx context.Context, sourceSnap, deltaFile, targetSnap string, opts *squashfs.ApplyDeltaOpts) error {
 				applyDeltaCalls++
 				c.Check(sourceSnap, Equals, currentSnapPath)
 				c.Check(deltaFile, Equals, deltaPath)
