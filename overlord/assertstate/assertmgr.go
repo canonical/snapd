@@ -162,6 +162,13 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// check publisher validation policy
+	if snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" {
+		if err := snapstate.CheckVerifiedPublisher(st, snapsup); err != nil {
+			return err
+		}
+	}
+
 	// TODO: set DeveloperID from assertions
 	return nil
 }
