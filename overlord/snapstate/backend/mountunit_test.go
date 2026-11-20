@@ -89,7 +89,7 @@ func (s *mountunitSuite) TestAddMountUnitAppendsIntegrityMountOptions(c *C) {
 
 	c.Assert(sysd.EnsureMountUnitFileCalls, HasLen, 1)
 	c.Check(sysd.EnsureMountUnitFileCalls[0].Options, DeepEquals,
-		[]string{"nodev", "nosuid", "verity.roothash=e64838dh", "verity.hashdevice=/var/lib/snapd/snaps/foo_13.dmverity_e64838dh"},
+		[]string{"nodev", "nosuid", "verity.roothash=e64838dh", "verity.hashdevice=/var/lib/snapd/snaps/foo_13_e64838dh.dmverity"},
 	)
 }
 
