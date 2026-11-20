@@ -70,6 +70,31 @@ func (s *assertionsSuite) TestAssertOrderedMissingDependency(c *C) {
 	c.Check(tasktest.AssertOrdered(before, after), ErrorMatches, `task 2 \(second\) is not sequenced before task 4 \(fourth\)`)
 }
 
+func (s *assertionsSuite) TestAssertOrderedSkipsMissing(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	first := st.NewTask("first", "...")
+	second := st.NewTask("second", "...")
+	third := st.NewTask("third", "...")
+	second.WaitFor(first)
+	third.WaitFor(second)
+	selection := tasktest.NewSelection([]*state.Task{first, second, third})
+
+	firstSel := selection.Select(tasktest.Kind("first"))
+	secondSel := selection.Select(tasktest.Kind("second"))
+	thirdSel := selection.Select(tasktest.Kind("third"))
+	missing := tasktest.Missing()
+
+	c.Check(tasktest.AssertOrdered(missing, firstSel, missing, missing, thirdSel, missing), IsNil)
+	c.Check(tasktest.AssertOrdered(missing, missing), IsNil)
+
+	// the neighbors of a missing selection are still compared
+	c.Check(tasktest.AssertOrdered(secondSel, missing, firstSel), ErrorMatches,
+		`task 2 \(second\) is not sequenced before task 1 \(first\)`)
+}
+
 func (s *assertionsSuite) TestAssertDoesNotPrecede(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -266,4 +291,12 @@ func (s *assertionsSuite) TestAssertionsCheckEmptySets(c *C) {
 	c.Check(tasktest.AssertLaneSuperset(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertDoesNotShareLane(selection, empty), ErrorMatches, "selection 2 is empty")
 	c.Check(tasktest.AssertSameLanes(selection, empty), ErrorMatches, "selection 2 is empty")
+
+	// missing selections are not reported as empty
+	missing := tasktest.Missing()
+	c.Check(tasktest.AssertOrdered(selection, missing), IsNil)
+	c.Check(tasktest.AssertDoesNotPrecede(selection, missing), IsNil)
+	c.Check(tasktest.AssertLaneSuperset(selection, missing), IsNil)
+	c.Check(tasktest.AssertDoesNotShareLane(selection, missing), IsNil)
+	c.Check(tasktest.AssertSameLanes(selection, missing), IsNil)
 }
