@@ -462,6 +462,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"SideInfo.Channel",
 		"LegacyWebsite",
 		"UbuntuCoreTracks",
+		"BuildBase", // only from kernel snap-yaml (see TestInfoFromStoreSnapBuildBase)
 	}
 	var checker func(string, reflect.Value)
 	checker = func(pfx string, x reflect.Value) {
@@ -545,6 +546,22 @@ snapd-info:
 	c.Check(info.UbuntuCoreTracks, DeepEquals, snap.UbuntuCoreTracks{
 		"18": {"latest": "18", "fips-updates": "18-fips"},
 	})
+}
+
+func (s *detailsV2Suite) TestInfoFromStoreSnapBuildBase(c *C) {
+	snp := &storeSnap{
+		Name: "pc-kernel",
+		Type: snap.TypeKernel,
+		SnapYAML: `name: pc-kernel
+version: 1.0
+type: kernel
+build-base: core24
+`,
+	}
+
+	info, err := infoFromStoreSnap(snp)
+	c.Assert(err, IsNil)
+	c.Check(info.BuildBase, Equals, "core24")
 }
 
 func (s *detailsV2Suite) TestInfoFromStoreSnapEmptyUbuntuCoreTracksSnapd(c *C) {

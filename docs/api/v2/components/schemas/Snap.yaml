@@ -14,6 +14,13 @@ properties:
     type: string
     description: The base snap this snap is built on.
     example: core20
+  build-base:
+    type: string
+    description: |-
+      The build environment base used for building the snap. It is only
+      reported for installed kernel snaps, and is only present if 
+      the kernel was built with snapcraft 9.2 or later.
+    example: core24
   channel:
     type: string
     description: The default channel for this snap.

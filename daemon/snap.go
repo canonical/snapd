@@ -247,6 +247,12 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	}
 	result.InstalledSize = localSnap.Size
 
+	// build-base is only reported for the installed kernel, as it tells
+	// which base the kernel's initrd was built for
+	if localSnap.Type() == snap.TypeKernel {
+		result.BuildBase = localSnap.BuildBase
+	}
+
 	if icon := snapIcon(localSnap, localSnap.SnapID); icon != "" {
 		result.Icon = icon
 	}

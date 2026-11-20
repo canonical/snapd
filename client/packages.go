@@ -47,6 +47,7 @@ type Snap struct {
 	Status           string        `json:"status"`
 	Type             string        `json:"type"`
 	Base             string        `json:"base,omitempty"`
+	BuildBase        string        `json:"build-base,omitempty"`
 	Version          string        `json:"version"`
 	Channel          string        `json:"channel"`
 	TrackingChannel  string        `json:"tracking-channel,omitempty"`

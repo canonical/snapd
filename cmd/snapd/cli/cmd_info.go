@@ -379,6 +379,16 @@ func (iw *infoWriter) maybePrintBase() {
 	}
 }
 
+func (iw *infoWriter) maybePrintBuildBase() {
+	// only the installed kernel reports a build-base
+	if !iw.verbose || iw.localSnap == nil || iw.localSnap.Type != string(snap.TypeKernel) {
+		return
+	}
+	if iw.localSnap.BuildBase != "" {
+		fmt.Fprintf(iw, "build-base:\t%s\n", iw.localSnap.BuildBase)
+	}
+}
+
 func (iw *infoWriter) maybePrintPath() {
 	if iw.path != "" {
 		fmt.Fprintf(iw, "path:\t%q\n", iw.path)
@@ -755,6 +765,7 @@ func (x *infoCmd) Execute([]string) error {
 		iw.Flush()
 		iw.maybePrintType()
 		iw.maybePrintBase()
+		iw.maybePrintBuildBase()
 		iw.maybePrintSum()
 		iw.maybePrintID()
 		iw.maybePrintCohortKey()
