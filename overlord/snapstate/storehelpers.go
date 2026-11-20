@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -464,8 +465,46 @@ func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.Instanc
 	}
 
 	retry = make(map[naming.InstanceName]StoreUpdate)
+	var throttledNotRetried []string
 	for name, hint := range oldHints {
 		if !hint.Monitored {
+			// For non-monitored snaps, detect if the store throttled the
+			// refresh by checking whether the snap still has a pending
+			// update. The store may throttle scheduled auto-refreshes by
+			// returning the current revision or omitting the snap
+			// entirely, so we need to distinguish throttling from the snap
+			// having already been refreshed or removed.
+			var snapst SnapState
+			if err := Get(st, name.String(), &snapst); err != nil {
+				if errors.Is(err, state.ErrNoState) {
+					// snap was removed since the last hints query
+					continue
+				}
+				return nil, fmt.Errorf("cannot get state for snap %q: %v", name, err)
+			}
+			if !snapst.IsInstalled() {
+				// snap was removed but the state entry remains
+				continue
+			}
+			// If the snap was already refreshed to the target revision that
+			// the hints query reported, it is up-to-date, not throttled.
+			if snapst.Current == hint.Revision() {
+				continue
+			}
+			// If the store returned a new revision in the scheduled query, the
+			// snap has an update and was not throttled.
+			if update, ok := targetByName[name]; ok {
+				satisfied, err := areRevisionsSatisfied(&update.snapst, update.info.Revision, update.components)
+				if err != nil {
+					return nil, err
+				}
+				if !satisfied {
+					continue
+				}
+			}
+			// The snap has a pending update but the store did not return it
+			// during the scheduled auto-refresh => it was throttled.
+			throttledNotRetried = append(throttledNotRetried, name.String())
 			continue
 		}
 
@@ -492,6 +531,12 @@ func detectThrottledUpdatesToRetry(st *state.State, requested map[naming.Instanc
 
 		retry[name] = req
 	}
+
+	if len(throttledNotRetried) > 0 {
+		sort.Strings(throttledNotRetried)
+		logger.Noticef("auto-refresh: snaps with available updates deferred by the store: %s", strutil.Quoted(throttledNotRetried))
+	}
+
 	return retry, nil
 }
 
