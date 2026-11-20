@@ -543,6 +543,41 @@ func (s *userSuite) TestPostSerialForgetError(c *check.C) {
 	c.Check(rspe, check.DeepEquals, daemon.InternalError(`forgetting serial failed: boom`))
 }
 
+func (s *userSuite) TestPostSerialRegister(c *check.C) {
+	register := 0
+	defer daemon.MockDevicestateDeviceManagerRegister(func(mgr *devicestate.DeviceManager) error {
+		register++
+		c.Check(mgr, check.NotNil)
+		return nil
+	})()
+	defer daemon.MockDevicestateDeviceManagerUnregister(func(*devicestate.DeviceManager, *devicestate.UnregisterOptions) error {
+		c.Fatal("unexpected unregister")
+		return nil
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"register"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Result, check.IsNil)
+
+	c.Check(register, check.Equals, 1)
+}
+
+func (s *userSuite) TestPostSerialRegisterError(c *check.C) {
+	defer daemon.MockDevicestateDeviceManagerRegister(func(*devicestate.DeviceManager) error {
+		return errors.New("boom")
+	})()
+
+	buf := bytes.NewBufferString(`{"action":"register"}`)
+	req, err := http.NewRequest("POST", "/v2/model/serial", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe, check.DeepEquals, daemon.InternalError(`cannot register device: boom`))
+}
+
 func multipartBody(c *check.C, model, snap, assertion string) (bytes.Buffer, string) {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)

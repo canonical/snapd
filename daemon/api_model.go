@@ -46,7 +46,7 @@ var (
 		Path:        "/v2/model/serial",
 		GET:         getSerial,
 		POST:        postSerial,
-		Actions:     []string{"forget"},
+		Actions:     []string{"forget", "register"},
 		ReadAccess:  openAccess{},
 		WriteAccess: rootAccess{},
 	}
@@ -375,7 +375,10 @@ type postSerialData struct {
 	NoRegistrationUntilReboot bool   `json:"no-registration-until-reboot"`
 }
 
-var devicestateDeviceManagerUnregister = (*devicestate.DeviceManager).Unregister
+var (
+	devicestateDeviceManagerUnregister = (*devicestate.DeviceManager).Unregister
+	devicestateDeviceManagerRegister   = (*devicestate.DeviceManager).Register
+)
 
 func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var postData postSerialData
@@ -388,7 +391,7 @@ func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return BadRequest("spurious content after serial action")
 	}
 	switch postData.Action {
-	case "forget":
+	case "forget", "register":
 	case "":
 		return BadRequest("missing serial action")
 	default:
@@ -400,6 +403,13 @@ func postSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	defer st.Unlock()
 
 	devmgr := c.d.overlord.DeviceManager()
+
+	if postData.Action == "register" {
+		if err := devicestateDeviceManagerRegister(devmgr); err != nil {
+			return InternalError("cannot register device: %v", err)
+		}
+		return SyncResponse(nil)
+	}
 
 	unregOpts := &devicestate.UnregisterOptions{
 		NoRegistrationUntilReboot: postData.NoRegistrationUntilReboot,

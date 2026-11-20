@@ -203,6 +203,7 @@ type DeviceManager struct {
 	registered                   bool
 	reg                          chan struct{}
 	noRegister                   bool
+	registerRequested            bool
 
 	preseed            bool
 	preseedHybrid      bool
@@ -726,7 +727,8 @@ func (m *DeviceManager) ensureOperationalAfterSeed(deviceCtx snapstate.DeviceCon
 	// * classic with a model assertion with a non-default store specified
 	// * lazy classic case (might have a model with no gadget nor store
 	//   or no model): we wait to have some snaps installed or be
-	//   in the process to install some
+	//   in the process to install some, unless registration was
+	//   explicitly requested via Register
 
 	if device.Brand == "" || device.Model == "" {
 		return fmt.Errorf("internal error: device brand or model are unset after seeding")
@@ -766,7 +768,7 @@ func (m *DeviceManager) ensureOperationalAfterSeed(deviceCtx snapstate.DeviceCon
 		if err != nil {
 			return err
 		}
-		if n == 0 && !snapstate.Installing(m.state) {
+		if n == 0 && !snapstate.Installing(m.state) && !m.registerRequested {
 			return nil
 		}
 	}
@@ -2410,6 +2412,7 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 	device.Serial = ""
 	device.KeyID = ""
 	device.SessionMacaroon = ""
+	m.registerRequested = false
 	if err := m.setDevice(device); err != nil {
 		return err
 	}
@@ -2428,6 +2431,26 @@ func (m *DeviceManager) Unregister(opts *UnregisterOptions) error {
 	m.lastBecomeOperationalAttempt = time.Time{}
 	m.becomeOperationalBackoff = 0
 	return err
+}
+
+// Register requests device registration to proceed even when lazy
+// registration would otherwise wait for snaps to be installed, and resets
+// the registration retry backoff. It does nothing if the device already
+// has a serial. The request is not persisted across restarts.
+func (m *DeviceManager) Register() error {
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	if device.Serial != "" {
+		return nil
+	}
+
+	m.registerRequested = true
+	m.lastBecomeOperationalAttempt = time.Time{}
+	m.becomeOperationalBackoff = 0
+	m.state.EnsureBefore(0)
+	return nil
 }
 
 // device returns current device state.
