@@ -233,6 +233,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "08e6",
 		ProductIDPattern: "34d2",
 	},
+	{
+		Name:             "Atlancube ATLKey",
+		VendorIDPattern:  "1fc9",
+		ProductIDPattern: "8334",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
