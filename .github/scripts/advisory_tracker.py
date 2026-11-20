@@ -15,7 +15,8 @@ Environment, all read from the process environment:
   SNAPD_ADVISORY_GITHUB_TOKEN  read advisories and update a summary
                                Repository security advisories: read and write
   GITHUB_TOKEN                 used when the advisory token is unset
-  GITHUB_REPOSITORY            owner/name, default canonical/snapd
+  GITHUB_REPOSITORY            owner/name of this Actions run; used only for the run link
+                               Advisories are always read from canonical/snapd
   JIRA_EMAIL                   Jira account email
   JIRA_API_TOKEN               API token for that account
   JIRA_BASE_URL                default https://warthogs.atlassian.net
@@ -79,7 +80,6 @@ ISSUE_FIELDS = (
 GHSA_RE = re.compile(r"^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}$")
 ISSUE_KEY_RE = re.compile(r"^[A-Z][A-Z0-9]+-\d+$")
 PROJECT_KEY_RE = re.compile(r"^[A-Z][A-Z0-9]+$")
-REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 CODENAME_RE = re.compile(
     r"\((?:aka\s+)?(?P<name>[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)+(?:\s+\d+)?)\)\s*$"
 )
@@ -937,11 +937,13 @@ def create_fields(
     return fields
 
 
-def repository_name(env: Mapping[str, str]) -> str:
-    repo = env.get("GITHUB_REPOSITORY") or "canonical/snapd"
-    if not REPO_RE.fullmatch(repo):
-        raise TrackerError(f"cannot list advisories: unexpected repository {repo}")
-    return repo
+def repository_name(_env: Mapping[str, str]) -> str:
+    """Return the public repository whose advisories are tracked.
+
+    GITHUB_REPOSITORY names the repository where the workflow runs and is
+    used only for the Actions run link.
+    """
+    return "canonical/snapd"
 
 
 def github_token(env: Mapping[str, str]) -> str:

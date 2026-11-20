@@ -4,7 +4,8 @@ name: advisory tracker
 # SNAPDENG-37541. repository_advisory is a webhook, not an Actions trigger, so
 # this job polls the advisories API.
 #
-# Sync writes only in canonical/snapd. ADVISORY_TRACKER_CREATE and
+# This workflow runs only in canonical/snapd-security-release. It reads
+# advisories from public canonical/snapd. ADVISORY_TRACKER_CREATE and
 # ADVISORY_TRACKER_NOTIFY allow ticket creation and Mattermost notices.
 # A scheduled run applies when at least one is true. A dispatched sync writes
 # only when apply is set, and only the writes those variables allow. dry-run
@@ -58,6 +59,7 @@ permissions:
 
 jobs:
   test:
+    if: github.repository == 'canonical/snapd-security-release'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -71,7 +73,7 @@ jobs:
 
   track:
     needs: test
-    if: github.event_name != 'pull_request' && github.repository == 'canonical/snapd'
+    if: github.event_name != 'pull_request' && github.repository == 'canonical/snapd-security-release'
     permissions:
       contents: read
       actions: write
