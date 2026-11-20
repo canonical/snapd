@@ -38,9 +38,7 @@ const usbGadgetBaseDeclarationPlugs = `
   usb-gadget:
     allow-installation:
       plug-attributes:
-        name: $MISSING
-        where: $MISSING
-        persistent: $MISSING
+        ffs-mounts: $MISSING
     deny-auto-connection: true
 `
 
