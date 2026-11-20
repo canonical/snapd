@@ -1,5 +1,2 @@
 name: snap-install-hook-broken
 version: 1.0
-apps:
-    app:
-        command: true
