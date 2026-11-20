@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -34,16 +35,45 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type freezerV1Suite struct{}
+type freezerV1Suite struct {
+	testutil.BaseTest
+}
 
-// TODO: Add SetUpTest for common setup
 var _ = Suite(&freezerV1Suite{})
 
-func (s *freezerV1Suite) TestFreezeSnapProcessesV1(c *C) {
-	defer cgroup.MockVersion(cgroup.V1, nil)()
+func (s *freezerV1Suite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+	s.AddCleanup(cgroup.MockVersion(cgroup.V1, nil))
+}
 
+func (s *freezerV1Suite) TestRemoveSnapFreezerCgroupV1(c *C) {
+	// Neither a missing hierarchy nor a missing group is an error.
+	c.Assert(cgroup.RemoveSnapFreezerCgroupV1("foo_instance"), IsNil)
+	c.Assert(os.MkdirAll(cgroup.FreezerCgroupV1Dir(), 0755), IsNil)
+	c.Assert(cgroup.RemoveSnapFreezerCgroupV1("foo_instance"), IsNil)
+
+	group := filepath.Join(cgroup.FreezerCgroupV1Dir(), "snap.foo_instance")
+	other := filepath.Join(cgroup.FreezerCgroupV1Dir(), "snap.foo")
+	c.Assert(os.Mkdir(group, 0755), IsNil)
+	c.Assert(os.Mkdir(other, 0755), IsNil)
+	c.Assert(cgroup.RemoveSnapFreezerCgroupV1("foo_instance"), IsNil)
+	c.Assert(group, testutil.FileAbsent)
+	c.Assert(other, testutil.FilePresent)
+	c.Assert(cgroup.RemoveSnapFreezerCgroupV1("foo_instance"), IsNil)
+}
+
+func (s *freezerV1Suite) TestRemoveSnapFreezerCgroupV1DoesNotRemoveChildren(c *C) {
+	child := filepath.Join(cgroup.FreezerCgroupV1Dir(), "snap.foo", "child")
+	c.Assert(os.MkdirAll(child, 0755), IsNil)
+	err := cgroup.RemoveSnapFreezerCgroupV1("foo")
+	c.Check(err, testutil.ErrorIs, syscall.ENOTEMPTY)
+	c.Check(err, ErrorMatches, `remove .*/snap.foo: directory not empty`)
+	c.Assert(child, testutil.FilePresent)
+}
+
+func (s *freezerV1Suite) TestFreezeSnapProcessesV1(c *C) {
 	n := "foo"                                                                 // snap name
 	p := filepath.Join(cgroup.FreezerCgroupV1Dir(), fmt.Sprintf("snap.%s", n)) // snap freezer cgroup
 	f := filepath.Join(p, "freezer.state")                                     // freezer.state file of the cgroup
@@ -75,10 +105,6 @@ func (s *freezerV1Suite) TestFreezeSnapProcessesV1(c *C) {
 }
 
 func (s *freezerV1Suite) TestThawSnapProcessesV1(c *C) {
-	defer cgroup.MockVersion(cgroup.V1, nil)()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	n := "foo"                                                                 // snap name
 	p := filepath.Join(cgroup.FreezerCgroupV1Dir(), fmt.Sprintf("snap.%s", n)) // snap freezer cgroup
 	f := filepath.Join(p, "freezer.state")                                     // freezer.state file of the cgroup
@@ -103,15 +129,20 @@ func (s *freezerV1Suite) TestThawSnapProcessesV1(c *C) {
 	c.Assert(f, testutil.FileEquals, `THAWED`)
 }
 
-type freezerV2Suite struct{}
+type freezerV2Suite struct {
+	testutil.BaseTest
+}
 
 var _ = Suite(&freezerV2Suite{})
 
-func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
-	defer cgroup.MockVersion(cgroup.V2, nil)()
+func (s *freezerV2Suite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+	s.AddCleanup(cgroup.MockVersion(cgroup.V2, nil))
+}
 
+func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	// app started by root
 	g1 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
 	// service started by systemd
@@ -199,10 +230,6 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 }
 
 func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
-	defer cgroup.MockVersion(cgroup.V2, nil)()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	// our own cgroup
 	gOwn := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.own-own-own.scope/cgroup.freeze")
 	// app started by root
@@ -244,10 +271,6 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
 }
 
 func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
-	defer cgroup.MockVersion(cgroup.V2, nil)()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	// app started by root
 	g1 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
 	// service started by systemd
@@ -330,10 +353,6 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	if os.Getuid() == 0 {
 		c.Skip("the test cannot be run by the root user")
 	}
-	defer cgroup.MockVersion(cgroup.V2, nil)()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	// app started by root
 	g := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
 	gUnfreeze := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/cgroup.freeze")
@@ -391,10 +410,6 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 }
 
 func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
-	defer cgroup.MockVersion(cgroup.V2, nil)()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	// app started by root
 	g1 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
 	g2 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/cgroup.freeze")
@@ -421,10 +436,6 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
 }
 
 func (s *freezerV2Suite) TestApplyToSnapCallbacks(c *C) {
-	defer cgroup.MockVersion(cgroup.V2, nil)()
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
 	c.Check(cgroup.ApplyToSnap("foo", nil, nil), ErrorMatches, "internal error: action is nil")
 	nop := func(_ string) error { return nil }
 	c.Check(cgroup.ApplyToSnap("foo", nop, nil), ErrorMatches, "internal error: skip error is nil")

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 const defaultFreezerCgroupV1Dir = "/sys/fs/cgroup/freezer"
@@ -47,6 +48,19 @@ func init() {
 	dirs.AddRootDirCallback(func(root string) {
 		freezerCgroupV1Dir = filepath.Join(root, defaultFreezerCgroupV1Dir)
 	})
+}
+
+// RemoveSnapFreezerCgroupV1 removes the cgroup-v1 freezer group of a snap instance.
+// Missing groups are ignored. Populated groups are left intact and return an
+// error. The caller must serialize this operation with snap-confine.
+func RemoveSnapFreezerCgroupV1(instanceName naming.InstanceName) error {
+	path := filepath.Join(freezerCgroupV1Dir, "snap."+instanceName.String())
+	// Remove only the directory: the kernel removes the control
+	// files and refuses removal if processes or child groups remain.
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // FreezeSnapProcesses suspends execution of all the processes belonging to

@@ -1820,6 +1820,15 @@ func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
 	return f.maybeErr(op)
 }
 
+func (f *fakeSnappyBackend) RemoveSnapFreezerCgroup(instanceName naming.InstanceName, stateUnlocker func() (relock func())) error {
+	op := &fakeOp{
+		op:   "remove-freezer-cgroup",
+		name: instanceName.String(),
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
+}
+
 func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error {
 	op := &fakeOp{
 		op:   "remove-inhibit-lock",
