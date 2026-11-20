@@ -27,8 +27,9 @@ prepare: |
     fi
 
 execute: |
-    # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
-    # check the output instead.
+    # Note that `snap run` exits non-zero if the hook is missing, reporting
+    # "cannot find hook" on stderr, so we check both the exit status and that
+    # nothing was printed on stdout.
 
     echo "Test that snap run can call valid hooks"
 
