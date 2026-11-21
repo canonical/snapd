@@ -174,6 +174,13 @@ execute: |
     # Use test build to make sure the version is higher than the deb/rpm coming from the repo
     touch test-build
 
+    # Snapcraft copies an empty http_proxy/https_proxy into the LXD instance,
+    # which makes gpg's keyserver retry fail with "IPC syntax error".
+    if [ -z "${http_proxy:-}" ]; then unset http_proxy; fi
+    if [ -z "${https_proxy:-}" ]; then unset https_proxy; fi
+    if [ -z "${HTTP_PROXY:-}" ]; then unset HTTP_PROXY; fi
+    if [ -z "${HTTPS_PROXY:-}" ]; then unset HTTPS_PROXY; fi
+
     echo "Build the snap"
     snap run snapcraft --verbose --output=snapd_spread-test.snap
     popd
@@ -186,6 +193,10 @@ execute: |
     #!/bin/sh
     cd $PROJECT_PATH
     rm -f test-build
+    if [ -z "\${http_proxy:-}" ]; then unset http_proxy; fi
+    if [ -z "\${https_proxy:-}" ]; then unset https_proxy; fi
+    if [ -z "\${HTTP_PROXY:-}" ]; then unset HTTP_PROXY; fi
+    if [ -z "\${HTTPS_PROXY:-}" ]; then unset HTTPS_PROXY; fi
     snap run snapcraft clean
     EOF
     chmod +x snapcraft-cleanup.sh
