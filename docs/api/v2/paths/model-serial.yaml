@@ -49,6 +49,8 @@ post:
     Performs an asynchronous action on the current serial assertion by sending a
     JSON command. The only supported action is `forget`, which causes the
     system to unregister its current serial and prepare for a new one.
+    The `forget` action requires the `device.allow-unregister` system option
+    to be set to `true`.
   externalDocs:
     description: Read more about offline remodeling on the Ubuntu Core documentation.
     url: https://documentation.ubuntu.com/core/explanation/remodelling/index.html#heading--offline
