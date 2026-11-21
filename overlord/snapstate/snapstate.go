@@ -615,7 +615,7 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 	// refresh.
 	if info.InstanceKey == reservedInstanceKeyHook {
 		var snapst SnapState
-		if err := Get(st, info.InstanceName().String(), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		if err := Get(st, info.InstanceName(), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if !snapst.IsInstalled() {
