@@ -25,22 +25,22 @@ execute: |
 
     # mknod setuid/setgid must be denied; sticky and normal must succeed
     # (skipped gracefully on architectures that don't have SYS_mknod, e.g. arm64)
-    if grep -qE 'mknod setuid: skipped' output.txt; then
+    if grep -qE '^mknod setuid: skipped' output.txt; then
         echo "SYS_mknod is not available, all mknod tests should be skipped"
-        MATCH 'mknod setuid: skipped' < output.txt
-        MATCH 'mknod setgid: skipped' < output.txt
-        MATCH 'mknod normal: skipped' < output.txt
+        MATCH '^mknod setuid: skipped' < output.txt
+        MATCH '^mknod setgid: skipped' < output.txt
+        MATCH '^mknod normal: skipped' < output.txt
     else
-        MATCH 'mknod setuid: EACCES' < output.txt
-        MATCH 'mknod setgid: EACCES' < output.txt
-        MATCH 'mknod normal: succeeded' < output.txt
+        MATCH '^mknod setuid: EACCES' < output.txt
+        MATCH '^mknod setgid: EACCES' < output.txt
+        MATCH '^mknod normal: succeeded' < output.txt
     fi
 
     # mknodat with setuid bit must be denied
-    MATCH 'mknodat setuid: EACCES' < output.txt
+    MATCH '^mknodat setuid: EACCES' < output.txt
 
     # mknodat with setgid bit must be denied
-    MATCH 'mknodat setgid: EACCES' < output.txt
+    MATCH '^mknodat setgid: EACCES' < output.txt
 
     # mknodat with normal mode must succeed
-    MATCH 'mknodat normal: succeeded' < output.txt
+    MATCH '^mknodat normal: succeeded' < output.txt
