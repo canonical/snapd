@@ -33,6 +33,10 @@ type Specification struct {
 	// Snippets are indexed by security tag.
 	snippets     map[string][]string
 	securityTags []string
+
+	// suppressSuidCreationDeny tracks the security tags for which the
+	// default setuid/setgid file creation deny rules should be omitted.
+	suppressSuidCreationDeny map[string]bool
 }
 
 func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
@@ -43,6 +47,31 @@ func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
 
 func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
 	return spec.appSet
+}
+
+// SetSuppressSuidCreationDeny requests that the default seccomp hardening
+// rules denying creation of files with setuid/setgid bits set are omitted
+// from the generated profiles of the apps and hooks bound to the active
+// security tags (ie those that have the plug of the calling interface).
+// Super-privileged interfaces such as dracut-support use this to allow
+// staging files that preserve setuid/setgid modes (eg with cp -a).
+func (spec *Specification) SetSuppressSuidCreationDeny() {
+	if len(spec.securityTags) == 0 {
+		return
+	}
+	if spec.suppressSuidCreationDeny == nil {
+		spec.suppressSuidCreationDeny = make(map[string]bool)
+	}
+	for _, tag := range spec.securityTags {
+		spec.suppressSuidCreationDeny[tag] = true
+	}
+}
+
+// SuppressSuidCreationDeny returns true when the default setuid/setgid file
+// creation deny rules should be omitted from the generated profile of the
+// given security tag.
+func (spec *Specification) SuppressSuidCreationDeny(tag string) bool {
+	return spec.suppressSuidCreationDeny[tag]
 }
 
 // AddSnippet adds a new seccomp snippet.

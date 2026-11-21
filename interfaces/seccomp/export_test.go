@@ -29,11 +29,14 @@ import (
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate []byte) (restore func()) {
 	orig := defaultTemplate
+	origDenySuidCreationSyscalls := denySuidCreationSyscalls
 	origBarePrivDropSyscalls := barePrivDropSyscalls
 	defaultTemplate = fakeTemplate
+	denySuidCreationSyscalls = ""
 	barePrivDropSyscalls = ""
 	return func() {
 		defaultTemplate = orig
+		denySuidCreationSyscalls = origDenySuidCreationSyscalls
 		barePrivDropSyscalls = origBarePrivDropSyscalls
 	}
 }
