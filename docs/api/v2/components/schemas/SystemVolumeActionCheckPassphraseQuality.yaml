@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumeActionCheckPassphraseQuality
+description: |-
+  Assess passphrase quality using the same request
+  and response structure as the pre-install quality check. This
+  runtime check does not return the `unsupported` error kind.
+  Root or Polkit authorization is not required. Requests through
+  /run/snapd-snap.socket require a connected snap-fde-control plug.
+required:
+  - action
+  - passphrase
+properties:
+  action:
+    type: string
+    enum:
+      - check-passphrase-quality
+  passphrase:
+    allOf:
+      - $ref: 'Passphrase.yaml'
+    description: The passphrase to validate.

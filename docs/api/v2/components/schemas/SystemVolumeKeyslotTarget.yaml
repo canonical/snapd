@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+description: |-
+  A system volume keyslot target.
+  Snapd reserves names like "default*" for keyslots it defines, and names like "snap*" for internal usage.
+  Specifying target keyslots using container role and name uniquely
+  identifies a keyslot.
+  Use GET /v2/system-volumes to find the target keyslot's container role and name.
+required:
+  - name
+properties:
+  container-role:
+    type: string
+    description: When omitted, the target expands to both system-data and system-save containers.
+    enum:
+      - system-data
+      - system-save
+  name:
+    type: string
+    minLength: 1
+    description: The name of the target keyslot.

@@ -31,3 +31,7 @@ content:
             - $ref: '../errors/SnapNotInstalledError.yaml'
             - $ref: '../errors/PromptingInvalidFieldsError.yaml'
             - $ref: '../errors/PromptingReplyNotMatchRequestError.yaml'
+            - $ref: '../errors/KeyslotsNotFoundError.yaml'
+            - $ref: '../errors/KeyslotsAlreadyExistError.yaml'
+            - $ref: '../errors/InsufficientContainerCapacityError.yaml'
+            - $ref: '../errors/InvalidRecoveryKeyError.yaml'

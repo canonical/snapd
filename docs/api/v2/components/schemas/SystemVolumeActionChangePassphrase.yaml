@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumeActionChangePassphrase
+description: |-
+  Change the passphrase for existing keyslots.
+  Root or Polkit authorization is not required. Requests through
+  /run/snapd-snap.socket require a connected snap-fde-control plug.
+required:
+  - action
+  - old-passphrase
+  - new-passphrase
+properties:
+  action:
+    type: string
+    enum:
+      - change-passphrase
+  old-passphrase:
+    allOf:
+      - $ref: 'Passphrase.yaml'
+    description: The current passphrase.
+  new-passphrase:
+    allOf:
+      - $ref: 'Passphrase.yaml'
+    description: The replacement passphrase.
+  keyslots:
+    type: array
+    description: |-
+      Target keyslots to update. Each target must exist and have
+      auth-mode `passphrase`. If omitted, targets the following
+      keyslots used during installation:
+      - container-role `system-data`, name `default`;
+      - container-role `system-data`, name `default-fallback`; and
+      - container-role `system-save`, name `default-fallback`.
+      Duplicate targets are rejected. Use GET /v2/system-volumes
+      to find the target keyslot's container role and name.
+    items:
+      $ref: 'SystemVolumePlatformKeyslotTarget.yaml'

@@ -19,8 +19,7 @@ properties:
       change-kind:
         type: string
         description: The kind of change that is in progress.
-        enum:
-          - manip   # TODO investigate change-kinds in follow-up PR
+        example: manip
       snap-name:
         type: string
         description: The name of the snap that has a conflicting change.
