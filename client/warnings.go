@@ -84,6 +84,9 @@ func (client *Client) Okay(t time.Time) error {
 	if err := json.NewEncoder(&body).Encode(op); err != nil {
 		return err
 	}
-	_, err := client.doSync("POST", "/v2/warnings", nil, nil, &body, nil)
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	_, err := client.doSync("POST", "/v2/warnings", nil, header, &body, nil)
 	return err
 }

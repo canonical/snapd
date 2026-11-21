@@ -38,6 +38,7 @@ func (cs *clientSuite) TestClientAssert(c *C) {
 		"result": {}
 	}`
 	a := []byte("Assertion.")
+	cs.ignoreContentType = true
 	err := cs.cli.Ack(a)
 	c.Assert(err, IsNil)
 	body, err := io.ReadAll(cs.req.Body)

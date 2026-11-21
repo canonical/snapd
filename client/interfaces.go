@@ -125,7 +125,10 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) (changeID stri
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("POST", "/v2/interfaces", nil, nil, bytes.NewReader(b))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+	return client.doAsync("POST", "/v2/interfaces", nil, headers, bytes.NewReader(b))
 }
 
 // Connect establishes a connection between a plug and a slot.

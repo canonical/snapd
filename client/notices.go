@@ -49,7 +49,10 @@ func (client *Client) Notify(opts *NotifyOptions) (string, error) {
 	result := struct {
 		ID string `json:"id"`
 	}{}
-	_, err := client.doSync("POST", "/v2/notices", nil, nil, &body, &result)
+	header := map[string]string{
+		"Content-Type": "application/json",
+	}
+	_, err := client.doSync("POST", "/v2/notices", nil, header, &body, &result)
 	if err != nil {
 		return "", err
 	}
