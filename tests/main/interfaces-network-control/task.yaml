@@ -12,6 +12,10 @@ details: |
     gets information about it (read capability) and creates an arp entry (write
     capability).
 
+    On Ubuntu 20.04+ and Ubuntu Core 20+ the consumer snap uses the core base
+    matching the host release, so that the tools shipped in each base (e.g.
+    resolvectl) are exercised across the systems.
+
 # ubuntu-14.04: systemd-run not supported
 # ubuntu-core-16-32: cannot install snap base "core20"
 # ubuntu-core-18-32: cannot install snap base "core20"
@@ -24,7 +28,19 @@ environment:
 
 prepare: |
     echo "Given a snap declaring a plug on the network-control interface is installed"
-    "$TESTSTOOLS"/snaps-state install-local network-control-consumer
+    BASE=core20
+    if os.query is-ubuntu-ge 20.04 || os.query is-core-ge 20; then
+        . /etc/os-release
+        major="${VERSION_ID%%.*}"
+        # interim releases use the base of the preceding LTS
+        BASE="core$((major - major % 2))"
+    fi
+    # pack from a fresh copy so snaps-state does not reuse a cached snap built for another base
+    cp -r network-control-consumer "network-control-consumer-$BASE"
+    sed -i -e "s/^base: .*/base: $BASE/" "network-control-consumer-$BASE/meta/snap.yaml"
+    "$TESTSTOOLS"/snaps-state install-local "network-control-consumer-$BASE"
+    MATCH "^base: $BASE\$" < "$(os.paths snap-mount-dir)/network-control-consumer/current/meta/snap.yaml"
+    echo "$BASE" > consumer-base
 
     echo "And a network service is up"
     # shellcheck source=tests/lib/network.sh
@@ -40,6 +56,8 @@ restore: |
     ip netns delete test-ns || true
     ip link delete veth0 || true
     umount /run/netns || true
+
+    rm -rf network-control-consumer-core* consumer-base
 
 execute: |
     #shellcheck source=tests/lib/network.sh
@@ -114,8 +132,14 @@ execute: |
 
     # xdp is only support by apparmor in 20.04+
     if [ "$(snap debug confinement)" = strict ] && ! os.query is-xenial && ! os.query is-bionic && ! os.query is-core16 && ! os.query is-core18; then
-        echo "Check that AF_XDP can be used"
-        network-control-consumer.cmd python3 -c 'import socket; AF_XDP=44; socket.socket(AF_XDP, socket.SOCK_RAW)'
+        echo "And the policy allows AF_XDP sockets"
+        MATCH '^\s*network xdp,$' < /var/lib/snapd/apparmor/profiles/snap.network-control-consumer.cmd
+
+        # core26 no longer ships python3
+        if [ "$(cat consumer-base)" != core26 ]; then
+            echo "Check that AF_XDP can be used"
+            network-control-consumer.cmd python3 -c 'import socket; AF_XDP=44; socket.socket(AF_XDP, socket.SOCK_RAW)'
+        fi
     fi
 
     if [ "$(snap debug confinement)" = strict ] ; then
@@ -158,10 +182,14 @@ execute: |
 
         echo "And AF_XDP can no longer be used"
         if [ "$(snap debug confinement)" = strict ] && ! os.query is-xenial && ! os.query is-bionic && ! os.query is-core16 && ! os.query is-core18; then
-            if network-control-consumer.cmd python3 -c 'import socket; AF_XDP=44; socket.socket(AF_XDP, socket.SOCK_RAW)' 2> python-af-xdp.output; then
-                echo "Expected error trying to open AF_XDP socket"
-                exit 1
+            NOMATCH '^\s*network xdp,$' < /var/lib/snapd/apparmor/profiles/snap.network-control-consumer.cmd
+            # core26 no longer ships python3
+            if [ "$(cat consumer-base)" != core26 ]; then
+                if network-control-consumer.cmd python3 -c 'import socket; AF_XDP=44; socket.socket(AF_XDP, socket.SOCK_RAW)' 2> python-af-xdp.output; then
+                    echo "Expected error trying to open AF_XDP socket"
+                    exit 1
+                fi
+                MATCH "Permission denied" < python-af-xdp.output
             fi
-            MATCH "Permission denied" < python-af-xdp.output
         fi
     fi

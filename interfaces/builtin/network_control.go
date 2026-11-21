@@ -152,6 +152,9 @@ dbus (receive)
      member=PropertiesChanged
      peer=(label=unconfined),
 
+# required by resolvectl command
+unix (bind) type=stream addr="@*/bus/resolvectl/system",
+
 # required by networkctl command
 unix (bind) type=stream addr="@*/bus/networkctl*/system",
 /run/systemd/netif/links/ r,
