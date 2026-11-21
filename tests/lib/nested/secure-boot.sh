@@ -86,10 +86,27 @@ nested_vm_clear_uefi() {
 }
 
 nested_vm_set_passphrase() {
-    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+    if [ -z "${1}" ]; then
+        rm -f "${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+        rm -f "${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.passphrase"
+    else
+        echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+        echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.passphrase"
+    fi
 }
 
 nested_vm_set_recovery_key() {
-    echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/snapd.fde.password"
+    if [ -z "${1}" ]; then
+        rm -f "${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.recoverykey"
+    else
+        echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.recoverykey"
+    fi
 }
 
+nested_vm_set_pin() {
+    if [ -z "${1}" ]; then
+        rm -f "${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.pin"
+    else
+        echo -n "${1}" >"${NESTED_ASSETS_DIR}/qemu-creds/ubuntu-fde.pin"
+    fi
+}
