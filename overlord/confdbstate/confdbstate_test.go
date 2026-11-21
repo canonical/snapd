@@ -1508,6 +1508,138 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	checkLoadConfdbTasks(c, chg, tasks, hooks)
 }
 
+// setupCustodianWithTwoPlugsForSameView mocks a snap that has two connected
+// custodian plugs ("setup-a" and "setup-b") for the same view, each with all
+// confdb hooks.
+func (s *confdbTestSuite) setupCustodianWithTwoPlugsForSameView(c *C) {
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "confdb"}), IsNil)
+
+	const coreYaml = `name: core
+version: 1
+type: os
+slots:
+  confdb-slot:
+    interface: confdb
+`
+	coreInfo := mockInstalledSnap(c, s.state, coreYaml, nil)
+	coreSet, err := interfaces.NewSnapAppSet(coreInfo, nil)
+	c.Assert(err, IsNil)
+	c.Assert(repo.AddAppSet(coreSet), IsNil)
+
+	snapYaml := fmt.Sprintf(`name: custodian-snap
+version: 1
+type: app
+plugs:
+  setup-a:
+    interface: confdb
+    account: %[1]s
+    view: network/setup-wifi
+    role: custodian
+  setup-b:
+    interface: confdb
+    account: %[1]s
+    view: network/setup-wifi
+    role: custodian
+`, s.devAccID)
+	var hooks []string
+	for _, plug := range []string{"setup-a", "setup-b"} {
+		for _, prefix := range []string{"change-view-", "save-view-", "load-view-", "query-view-"} {
+			hooks = append(hooks, prefix+plug)
+		}
+	}
+	info := mockInstalledSnap(c, s.state, snapYaml, hooks)
+	for _, hook := range hooks {
+		info.Hooks[hook] = &snap.HookInfo{Name: hook, Snap: info}
+	}
+	appSet, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+	c.Assert(repo.AddAppSet(appSet), IsNil)
+
+	for _, plugName := range []string{"setup-a", "setup-b"} {
+		ref := &interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: "custodian-snap", Name: plugName},
+			SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
+		}
+		_, err = repo.Connect(ref, nil, nil, nil, nil, nil)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *confdbTestSuite) TestConfdbTasksCustodianWithTwoPlugsForSameView(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupCustodianWithTwoPlugsForSameView(c)
+
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	c.Assert(tx.Set(parsePath(c, "wifi.ssid"), "my-ssid"), IsNil)
+
+	view := s.dbSchema.View("setup-wifi")
+	chg := s.state.NewChange("set-confdb", "")
+
+	ts, _, _, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "custodian-snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// the custodian's hooks are scheduled only once, for the custodian plug
+	// whose name sorts first
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
+	hooks := []*hookstate.HookSetup{
+		{
+			Snap:        "custodian-snap",
+			Hook:        "change-view-setup-a",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "custodian-snap",
+			Hook:        "save-view-setup-a",
+			Optional:    true,
+			IgnoreError: false,
+		},
+	}
+	checkSetConfdbTasks(c, chg, tasks, hooks)
+}
+
+func (s *confdbTestSuite) TestConfdbLoadCustodianWithTwoPlugsForSameView(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupCustodianWithTwoPlugsForSameView(c)
+
+	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	view := s.dbSchema.View("setup-wifi")
+	chg := s.state.NewChange("load-confdb", "")
+
+	ts, _, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	// the custodian's hooks are scheduled only once, for the custodian plug
+	// whose name sorts first
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "clear-confdb-tx"}
+	hooks := []*hookstate.HookSetup{
+		{
+			Snap:        "custodian-snap",
+			Hook:        "load-view-setup-a",
+			Optional:    true,
+			IgnoreError: false,
+		},
+		{
+			Snap:        "custodian-snap",
+			Hook:        "query-view-setup-a",
+			Optional:    true,
+			IgnoreError: false,
+		},
+	}
+	checkLoadConfdbTasks(c, chg, tasks, hooks)
+}
+
 func (s *confdbTestSuite) TestConfdbLoadCustodianWithNoHooks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
