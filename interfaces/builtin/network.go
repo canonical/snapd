@@ -36,6 +36,11 @@ const networkConnectedPlugAppArmor = `
 /etc/mdns.allow r,     # not yet included in the mdns abstraction
 network netlink dgram, # not yet included in the nameservice abstraction
 
+# In most cases ping only needs SOCK_DGRAM which we give here, so it
+# should work.
+/{,usr/}{,s}bin/ping ixr,
+/{,usr/}{,s}bin/ping6 ixr,
+
 # systemd-resolved (not yet included in nameservice abstraction)
 #
 # Allow access to the safe members of the systemd-resolved D-Bus API:
