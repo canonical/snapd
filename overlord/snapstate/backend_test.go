@@ -1451,6 +1451,9 @@ func (f *fakeSnappyBackend) MaybeSetNextBoot(
 		isUndo: isUndo,
 	}
 	f.appendOp(op)
+	if err := f.maybeErr(op); err != nil {
+		return boot.RebootInfo{}, err
+	}
 
 	reboot := false
 	if f.linkSnapMaybeReboot {
@@ -1490,7 +1493,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 
 	f.appendOp(op)
 
-	return nil
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
