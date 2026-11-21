@@ -147,6 +147,10 @@ func (s *HomeInterfaceSuite) TestConnectedPlugAppArmorWithoutAttrib(c *C) {
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `###PROMPT### owner @{HOME}/ r,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `audit deny @{HOME}/bin/{,**} wl,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `audit deny @{HOME}/bin wl,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `###PROMPT### owner /run/user/[0-9]*/gvfs/{,**} r,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `###PROMPT### owner /run/user/[0-9]*/gvfs/*/**  w,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `###PROMPT### owner /run/user/[0-9]*/kio-fuse{,-*}/{,**} r,`)
+	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), testutil.Contains, `###PROMPT### owner /run/user/[0-9]*/kio-fuse{,-*}/*/**  w,`)
 	c.Check(apparmorSpec.SnippetForTag("snap.other.app"), Not(testutil.Contains), `# Allow non-owner read`)
 }
 
