@@ -1,0 +1,5 @@
+component: test-snapd-service+two
+type: standard
+version: 1.0
+summary: Component with an install hook
+description: Component with an install hook

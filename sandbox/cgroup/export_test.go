@@ -45,6 +45,9 @@ var (
 
 	CollectDevicesV1   = collectDevicesV1
 	FindSecurityTagsV1 = findSecurityTagsV1
+
+	RemoveDeviceCgroupV1 = removeDeviceCgroupV1
+	RemoveDeviceCgroupV2 = removeDeviceCgroupV2
 )
 
 // DeviceMapAccessor is exported for testing.
@@ -169,6 +172,10 @@ func MockLoadDeviceMap(fn func(string) (DeviceMapAccessor, error)) (restore func
 	return testutil.Mock(&loadDeviceMapFunc, fn)
 }
 
-func MockFindDeviceMapsForSnap(fn func(string) ([]string, error)) (restore func()) {
-	return testutil.Mock(&findDeviceMapsForSnapFunc, fn)
+func MockFindActiveDeviceMapTagsForSnap(fn func(string) ([]string, error)) (restore func()) {
+	return testutil.Mock(&findActiveDeviceMapTagsForSnapFunc, fn)
+}
+
+func MockFindActiveDeviceMapPathsForSnap(fn func(string) ([]string, error)) (restore func()) {
+	return testutil.Mock(&findActiveDeviceMapPathsForSnapFunc, fn)
 }

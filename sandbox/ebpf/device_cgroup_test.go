@@ -88,36 +88,7 @@ func (s *ebpfSuite) TestDeviceKeyUnmarshalTooShort(c *C) {
 	c.Assert(err, ErrorMatches, "cannot unmarshal device key: unexpected size 2")
 }
 
-func (s *ebpfSuite) TestBpfNameToSecurityTag(c *C) {
-	tests := []struct {
-		name string
-		tag  string
-		err  string
-	}{
-		{"snap_foo_bar", "snap.foo.bar", ""},
-		{"snap_my-snap_my-app", "snap.my-snap.my-app", ""},
-		// instance key: snap name is "foo_inst", app is "bar"
-		{"snap_foo_inst_bar", "snap.foo_inst.bar", ""},
-
-		// bad cases
-		{"_", "", `cannot identify security tag from name "_"`},
-		{"", "", `cannot identify security tag from name ""`},
-		{"snap__", "", `cannot identify security tag from name "snap__"`},
-		{"snap_", "", `cannot identify security tag from name "snap_"`},
-	}
-	for _, t := range tests {
-		tag, err := ebpf.BpffsPinnedNameToSecurityTag(t.name)
-		if t.err == "" {
-			c.Assert(err, IsNil)
-			c.Check(tag, Equals, t.tag, Commentf("input: %s", t.name))
-		} else {
-			c.Check(err, ErrorMatches, t.err)
-			c.Check(tag, Equals, "")
-		}
-	}
-}
-
-func (s *ebpfSuite) TestFindActiveDeviceMapsForSnap(c *C) {
+func (s *ebpfSuite) TestFindActiveDeviceMapTagsForSnap(c *C) {
 	// Create the bpffs directory with some entries
 	err := os.MkdirAll(dirs.SnapBPFFSDir, 0755)
 	c.Assert(err, IsNil)
@@ -125,25 +96,126 @@ func (s *ebpfSuite) TestFindActiveDeviceMapsForSnap(c *C) {
 	for _, name := range []string{
 		"snap_mysnap_app1",
 		"snap_mysnap_app2",
-		"snap_other_thing",
+		"snap_mysnap_hook_configure",
+		"snap_mysnap_hook_App",
+		"snap_mysnap_hook_123",
+		"snap_mysnap+comp_hook_install",
+		"snap_mysnap_inst_app1",
+		"snap_mysnap_inst_hook_configure",
+		"snap_mysnap_inst+comp_hook_install",
+		"snap_other_app1",
+		"snap_mysnap_a_b_c",
+		"snap_mysnap_",
+		"snap_mysnap_hook_",
 	} {
 		err := os.WriteFile(filepath.Join(dirs.SnapBPFFSDir, name), nil, 0644)
 		c.Assert(err, IsNil)
 	}
 
-	tags, err := ebpf.FindActiveDeviceMapsForSnap("mysnap")
+	tags, err := ebpf.FindActiveDeviceMapTagsForSnap("mysnap")
 	c.Assert(err, IsNil)
-	c.Check(tags, DeepEquals, []string{"snap.mysnap.app1", "snap.mysnap.app2"})
+	// Sorted: "+" (0x2B) sorts before "." (0x2E)
+	c.Check(tags, DeepEquals, []string{
+		"snap.mysnap+comp.hook.install",
+		"snap.mysnap.app1",
+		"snap.mysnap.app2",
+		"snap.mysnap.hook.configure",
+	})
+
+	tags, err = ebpf.FindActiveDeviceMapTagsForSnap("mysnap_inst")
+	c.Assert(err, IsNil)
+	// Sorted: "+" (0x2B) sorts before "." (0x2E)
+	c.Check(tags, DeepEquals, []string{
+		"snap.mysnap_inst+comp.hook.install",
+		"snap.mysnap_inst.app1",
+		"snap.mysnap_inst.hook.configure",
+	})
+
+	// The ambiguous hook pin (snap_mysnap_hook_configure) is claimed by
+	// the hook reading and thus belongs to instance "mysnap"; the
+	// alternative reading (the app "configure" of instance "mysnap_hook")
+	// is not considered. Only names that cannot be hooks fall back to apps.
+	tags, err = ebpf.FindActiveDeviceMapTagsForSnap("mysnap_hook")
+	c.Assert(err, IsNil)
+	c.Check(tags, DeepEquals, []string{
+		"snap.mysnap_hook.123",
+		"snap.mysnap_hook.App",
+	})
 
 	// Non-matching snap
-	tags, err = ebpf.FindActiveDeviceMapsForSnap("nope")
+	tags, err = ebpf.FindActiveDeviceMapTagsForSnap("nope")
 	c.Assert(err, IsNil)
 	c.Check(tags, HasLen, 0)
 }
 
-func (s *ebpfSuite) TestFindActiveDeviceMapsForSnapNoDir(c *C) {
+func (s *ebpfSuite) TestFindActiveDeviceMapTagsForSnapNoDir(c *C) {
 	// SnapBPFFSDir doesn't exist — should return nil, nil
-	tags, err := ebpf.FindActiveDeviceMapsForSnap("anything")
+	tags, err := ebpf.FindActiveDeviceMapTagsForSnap("anything")
 	c.Assert(err, IsNil)
 	c.Check(tags, IsNil)
+}
+
+func (s *ebpfSuite) TestFindActiveDeviceMapPathsForSnap(c *C) {
+	// Create the bpffs directory with some entries
+	err := os.MkdirAll(dirs.SnapBPFFSDir, 0755)
+	c.Assert(err, IsNil)
+
+	for _, name := range []string{
+		"snap_mysnap_app1",
+		"snap_mysnap_app2",
+		"snap_mysnap_hook_configure",
+		"snap_mysnap_hook_App",
+		"snap_mysnap_hook_123",
+		"snap_mysnap_inst_app1",
+		"snap_mysnap_inst_hook_configure",
+		"snap_other_app1",
+		"snap_mysnap_a_b_c",
+		"snap_mysnap+comp_hook_install",
+		"snap_mysnap_inst+comp_hook_install",
+		// A malformed component fixture (missing hook name)
+		"snap_mysnap+comp_hook",
+	} {
+		err := os.WriteFile(filepath.Join(dirs.SnapBPFFSDir, name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	paths, err := ebpf.FindActiveDeviceMapPathsForSnap("mysnap")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap+comp_hook_install"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app1"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_app2"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_configure"),
+	})
+
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("mysnap_inst")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst+comp_hook_install"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst_app1"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_inst_hook_configure"),
+	})
+
+	// The ambiguous hook pin (snap_mysnap_hook_configure) is claimed by
+	// the hook reading and thus belongs to instance "mysnap"; the
+	// alternative reading (the app "configure" of instance "mysnap_hook")
+	// is not considered. Only names that cannot be hooks fall back to apps.
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("mysnap_hook")
+	c.Assert(err, IsNil)
+	c.Check(paths, DeepEquals, []string{
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_123"),
+		filepath.Join(dirs.SnapBPFFSDir, "snap_mysnap_hook_App"),
+	})
+
+	// Non-matching snap.
+	paths, err = ebpf.FindActiveDeviceMapPathsForSnap("nope")
+	c.Assert(err, IsNil)
+	c.Check(paths, HasLen, 0)
+}
+
+func (s *ebpfSuite) TestFindActiveDeviceMapPathsForSnapNoDir(c *C) {
+	// SnapBPFFSDir doesn't exist — should return nil, nil
+	paths, err := ebpf.FindActiveDeviceMapPathsForSnap("anything")
+	c.Assert(err, IsNil)
+	c.Check(paths, IsNil)
 }

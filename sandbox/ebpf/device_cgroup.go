@@ -23,13 +23,14 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/cilium/ebpf"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // DeviceKey is the key structure describing a device which the snap is allowed
@@ -81,10 +82,10 @@ func (k *DeviceKey) UnmarshalBinary(data []byte) error {
 const DeviceKeySize = 9
 
 // SecurityTagToBPFPath converts a snap security tag (e.g. "snap.foo.bar")
-// to the corresponding BPF map pin path, replacing dots with underscores.
+// to the corresponding BPF map pin path.
 func SecurityTagToBPFPath(securityTag string) string {
-	tag := strings.ReplaceAll(securityTag, ".", "_")
-	return fmt.Sprintf("%s/%s", dirs.SnapBPFFSDir, tag)
+	mapName := naming.SecurityTagToBPFMapName(securityTag)
+	return fmt.Sprintf("%s/%s", dirs.SnapBPFFSDir, mapName)
 }
 
 // DeviceMap wraps the underlying eBPF map capturing device access permissions.
@@ -126,28 +127,11 @@ func (d *DeviceMap) Iterate(fn func(key DeviceKey) error) error {
 	return iter.Err()
 }
 
-// bpffsPinnedNameToSecurityTag converts a name of a pinned entry back to a
-// security tag. The bpffs name has the format snap_<name>_<app> where dots in
-// the original tag were replaced with underscores. Valid snap and app names cannot
-// contain underscores.
-func bpffsPinnedNameToSecurityTag(name string) (tag string, err error) {
-	first := strings.Index(name, "_")
-	last := strings.LastIndex(name, "_")
-	// Do a lightweight check, the names are reasonably validated before even
-	// getting here.
-	if first < 0 || last < 0 || (last-first) < 2 {
-		return "", fmt.Errorf("cannot identify security tag from name %q", name)
-	}
-	return name[:first] + "." + name[first+1:last] + "." + name[last+1:], nil
-}
-
-func FindActiveDeviceMapsForSnap(instanceName string) (tags []string, err error) {
-	// Security tags in bpffs have dots replaced with underscores.
-	// Pattern: snap_<name>_<app>
-	// This also matches parallel installs (e.g. snap_foo_inst_bar for
-	// instance "foo_inst") since snap and app names cannot contain
-	// underscores.
-	prefix := fmt.Sprintf("snap_%s_", instanceName)
+// FindActiveDeviceMapTagsForSnap returns the sorted security tags of the
+// device maps pinned for the given snap instance name, which includes
+// the tags of apps, snap hooks and component hooks of this instance. It
+// returns nil if there is no pinned device map.
+func FindActiveDeviceMapTagsForSnap(instanceName string) (tags []string, err error) {
 	entries, err := os.ReadDir(dirs.SnapBPFFSDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -155,15 +139,41 @@ func FindActiveDeviceMapsForSnap(instanceName string) (tags []string, err error)
 		}
 		return nil, fmt.Errorf("cannot read %s: %v", dirs.SnapBPFFSDir, err)
 	}
-
 	for _, e := range entries {
-		name := e.Name()
-		if strings.HasPrefix(name, prefix) {
-			if tag, err := bpffsPinnedNameToSecurityTag(name); err == nil && tag != "" {
-				tags = append(tags, tag)
-			}
+		tag, err := naming.BPFMapNameToSecurityTag(e.Name())
+		if err != nil {
+			continue
 		}
+		if tag.InstanceName() != instanceName {
+			continue
+		}
+		tags = append(tags, tag.String())
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+// FindActiveDeviceMapPathsForSnap returns the bpffs paths of the device maps
+// pinned for the given snap instance name, which includes the maps of apps,
+// snap hooks and component hooks of this instance. It returns nil if there
+// is no pinned device map.
+func FindActiveDeviceMapPathsForSnap(instanceName string) (paths []string, retErr error) {
+	entries, err := os.ReadDir(dirs.SnapBPFFSDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot read %s: %v", dirs.SnapBPFFSDir, err)
+	}
+	for _, e := range entries {
+		tag, err := naming.BPFMapNameToSecurityTag(e.Name())
+		if err != nil {
+			continue
+		}
+		if tag.InstanceName() != instanceName {
+			continue
+		}
+		paths = append(paths, filepath.Join(dirs.SnapBPFFSDir, e.Name()))
+	}
+	return paths, nil
 }

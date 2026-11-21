@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -55,6 +56,8 @@ type Backend struct {
 // rulesSubsystemTriggersPrefix is the prefix of the comment written by Setup()
 // and parsed by Remove() to replay the right udevadm subsystem triggers.
 const rulesSubsystemTriggersPrefix = "# subsystem-triggers: "
+
+var removeDeviceCgroup = cgroup.RemoveDeviceCgroup
 
 // Initialize does nothing.
 func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
@@ -270,7 +273,10 @@ func isKnownSubsystemTrigger(t string) bool {
 }
 
 // Remove removes udev rules specific to a given snap.
-// If any of the rules are removed then udev database is reloaded.
+// If any of the rules are removed then the udev database is reloaded
+// right away, so the reload is not skipped if any other cleanup fails.
+// It also removes the device cgroup artifacts (v1 hierarchy
+// directories or v2 pinned BPF maps) of the snap.
 //
 // This method should be called after removing a snap.
 //
@@ -283,22 +289,35 @@ func (b *Backend) Remove(instanceName naming.InstanceName) error {
 	// so that Remove() can reload the right subsystems.
 	subsystemTriggers := readRulesSubsystemTriggers(rulesFilePath)
 
-	// If file doesn't exist we avoid reloading the udev rules when we return here
-	needReload := false
+	// If file doesn't exist we avoid reloading the udev rules
 	if err := os.Remove(rulesFilePath); err == nil {
-		needReload = true
+		// Reload the udev rules now to ensure they are still
+		// reloaded even if any of the below steps fails.
+		if err := b.reloadRules(subsystemTriggers); err != nil {
+			return err
+		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 
-	if err := os.Remove(selfManageDeviceCgroupPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
+	// Serialize device cgroup cleanup with snap-confine's setup.
+	return snaplock.WithLock(instanceName.String(), func() error {
+		if err := os.Remove(selfManageDeviceCgroupPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 
-	if needReload {
-		return b.reloadRules(subsystemTriggers)
-	}
-	return nil
+		if err := removeDeviceCgroup(instanceName); err != nil {
+			if errors.Is(err, cgroup.ErrDeviceCgroupV1Busy) {
+				// The cgroup v1 hierarchy cannot be removed while the snap
+				// still has running processes. The leftovers disappear on
+				// the next reboot.
+				logger.Noticef("cannot clean up busy device cgroup of snap %q: %v", instanceName, err)
+			} else {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (b *Backend) deriveContent(spec *Specification) (content []string) {
