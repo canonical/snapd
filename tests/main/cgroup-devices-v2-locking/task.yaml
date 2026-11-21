@@ -1,0 +1,150 @@
+summary: device cgroup v2 updates and setup use the same per-tag lock
+
+details: |
+    Both snap-device-helper updates and snap-confine setup must wait for the
+    same per-security-tag device cgroup lock. While the lock is held, neither
+    the helper's map update nor the launcher's pruning may take effect. After
+    releasing the lock, the waiting operation must complete successfully.
+    A device tagged while the launcher waits must survive pruning, proving
+    that udev enumeration also happens under the lock.
+
+# skip all systems that do not use unified cgroup hierarchy by default
+systems:
+  - -amazon-*
+  - -opensuse-15*
+  - -ubuntu-14.04-*
+  - -ubuntu-16.04-*
+  - -ubuntu-18.04-*
+  - -ubuntu-20.04-*
+  - -ubuntu-core-*
+  - -centos-9-*
+
+prepare: |
+    # Use /dev/kmsg, which is not allowed by default, to verify that snap-confine
+    # discovers a newly added udev tag only after acquiring the device cgroup lock.
+    # Drain queued events before saving /dev/kmsg's udev metadata (c 1:11).
+    # The test adds a tag, but never opens the device itself.
+    udevadm settle
+    if [ -e /run/udev/data/c1:11 ]; then
+        cp -a /run/udev/data/c1:11 kmsg.udev-data
+    fi
+    # Trust the backup (or its absence) only after preparation completes.
+    touch kmsg.udev-backup-ready
+
+    # snaps using core24 base always get a device cgroup
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
+
+restore: |
+    # Remove the test rule and reprocess only /dev/kmsg to drop its current tag.
+    rm -f /etc/udev/rules.d/70-test-device-cgroup-locking.rules
+    udevadm control --reload-rules
+    udevadm trigger --action=change /sys/devices/virtual/mem/kmsg
+    udevadm settle
+
+    snap remove --purge test-snapd-sh-core24 || true
+    # Snap removal can trigger udev events; finish them before restoring metadata.
+    udevadm settle
+
+    # Retriggering drops current tags, but historical tags survive in the
+    # database and enumeration index. Restore both so the test is repeatable.
+    # If preparation failed before saving the original state, leave it untouched.
+    if [ -e kmsg.udev-backup-ready ]; then
+        if [ -e kmsg.udev-data ]; then
+            cp -a kmsg.udev-data /run/udev/data/c1:11
+        else
+            # No original entry existed, so remove the one created by the test.
+            rm -f /run/udev/data/c1:11
+        fi
+
+        # Remove the device's entry from the separate tag index; an empty directory
+        # does not affect enumeration.
+        rm -f /run/udev/tags/snap_test-snapd-sh-core24_sh/c1:11
+    fi
+    rm -f kmsg.udev-data kmsg.udev-backup-ready
+
+    # Pinned BPF maps and lock files can outlive the processes that created them.
+    rm -f /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+    rm -f /run/snapd/lock/snap.test-snapd-sh-core24.sh.devcgroup.lock
+
+execute: |
+    echo "Launch the app so that snap-confine creates the device access map and lock"
+    snap run test-snapd-sh-core24.sh -c '/bin/true'
+    test -e /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
+
+    lock_file=/run/snapd/lock/snap.test-snapd-sh-core24.sh.devcgroup.lock
+    test -e "$lock_file"
+    lock_inode=$(stat -c %i "$lock_file")
+
+    # Use the helper carrying the code under test.
+    libexecdir=$(os.paths libexec-dir)
+    if tests.info is-snapd-from-archive; then
+        libexecdir="/snap/snapd/current$libexecdir"
+    fi
+
+    # Keep the lock file open as fd 9 in this shell so the lock acquired by
+    # flock remains held after the flock command exits. Open the existing
+    # file read-only to avoid creating it.
+    exec 9<"$lock_file"
+    flock -x 9
+
+    echo "Run snap-device-helper in the background while the device cgroup lock is held"
+    # Close fd 9 only in the child (9>&-) so it must acquire its own lock
+    # rather than inherit the shell's locked descriptor.
+    ACTION=add MAJOR=1 MINOR=99 SUBSYSTEM=mem \
+        "$libexecdir"/snapd/snap-device-helper snap_test-snapd-sh-core24_sh 9>&- &
+    pid=$!
+    trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true' EXIT
+
+    echo "Verify that snap-device-helper has not added the device while the lock is held"
+    # Match the child's PID and the lock's inode, not the shell's lock-owner
+    # entry. "->" proves the child is waiting.
+    # Allow slow launches up to 10 seconds, below the 30-second lock timeout.
+    retry -n 100 --wait 0.1 grep -E " -> FLOCK +ADVISORY +WRITE +$pid +[^ ]+:$lock_inode 0 EOF" /proc/locks
+    tests.device-cgroup test-snapd-sh-core24.sh dump | NOMATCH 'c 1:99 rwm'
+
+    echo "Release the lock and wait for the same helper to update the map"
+    flock -u 9
+    wait "$pid"
+    trap - EXIT
+
+    echo "Verify that snap-device-helper has now added the device"
+    tests.device-cgroup test-snapd-sh-core24.sh dump | MATCH 'c 1:99 rwm'
+
+    # Unlocking leaves fd 9 open, so reuse it to hold the lock during relaunch.
+    flock -x 9
+
+    echo "Verify that snap-confine waits for the same lock before pruning"
+    # snap run execs snap-confine, so $! remains the PID of the lock waiter.
+    snap run test-snapd-sh-core24.sh -c '/bin/true' 9>&- &
+    pid=$!
+    trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true' EXIT
+    retry -n 100 --wait 0.1 grep -E " -> FLOCK +ADVISORY +WRITE +$pid +[^ ]+:$lock_inode 0 EOF" /proc/locks
+    tests.device-cgroup test-snapd-sh-core24.sh dump | MATCH 'c 1:99 rwm'
+
+    echo "Verify that /dev/kmsg is not yet tagged or allowed"
+    udevadm info /sys/devices/virtual/mem/kmsg | NOMATCH 'E: (CURRENT_)?TAGS=.*snap_test-snapd-sh-core24_sh'
+    tests.device-cgroup test-snapd-sh-core24.sh dump | NOMATCH 'c 1:11 rwm'
+
+    echo "Tag /dev/kmsg and simulate a helper grant while the launcher waits"
+    # Only update the udev database: do not run a helper that would wait on our lock.
+    echo 'KERNEL=="kmsg", TAG+="snap_test-snapd-sh-core24_sh"' > /etc/udev/rules.d/70-test-device-cgroup-locking.rules
+    udevadm control --reload-rules
+    udevadm trigger --action=change /sys/devices/virtual/mem/kmsg
+    udevadm settle --timeout=5
+    udevadm info /sys/devices/virtual/mem/kmsg | MATCH 'E: (CURRENT_)?TAGS=.*snap_test-snapd-sh-core24_sh'
+    # Bypass the lock to reproduce a grant made before the launcher acquires it.
+    tests.device-cgroup test-snapd-sh-core24.sh allow c 1:11
+
+    echo "Release the lock and wait for snap-confine to prune the stale entry"
+    flock -u 9
+    wait "$pid"
+    trap - EXIT
+
+    # Close the shell's descriptor now that both locking checks are complete.
+    exec 9>&-
+
+    echo "Verify that snap-confine has pruned the stale device entry"
+    tests.device-cgroup test-snapd-sh-core24.sh dump | NOMATCH 'c 1:99 rwm'
+
+    echo "Verify that enumeration under the lock preserved the newly tagged device"
+    tests.device-cgroup test-snapd-sh-core24.sh dump | MATCH 'c 1:11 rwm'
