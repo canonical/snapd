@@ -1,0 +1,143 @@
+summary: snapd downgrades the AppArmor ABI on a kernel with the 5.0 network bug
+
+details: |
+    Some Linux kernels (for example 6.17.0-19 and 6.17.0-23) have a bug in
+    AppArmor network mediation (LP: #2169038): when profiles are compiled
+    against abi/5.0, write() and read() on a connected socket are denied with
+    EACCES. snapd detects this at startup with a probe, records the verdict in
+    /run/snapd/apparmor-5-abi-downgrade and compiles profiles with abi/4.0.
+
+    This test installs such a kernel, makes it the GRUB default, reboots into
+    it and verifies that the probe detected the bug, that the marker file was
+    written, that apparmor_parser is invoked with abi/4.0 and that the system
+    logs of the current boot for snapd.apparmor.service and snapd.service
+    mention the downgrade. The restore step boots the original kernel again
+    and removes the faulty one.
+
+    The test is manual as it installs a kernel and reboots the machine twice.
+
+systems:
+    - ubuntu-24.04-64
+
+manual: true
+
+kill-timeout: 30m
+
+environment:
+    KERNEL_VERSION: 6.17.0-19
+    GRUB_DROPIN: /etc/default/grub.d/99-snapd-test-kernel.cfg
+    STATE_DIR: /var/lib/snapd-test-kernel
+    MARKER: /run/snapd/apparmor-5-abi-downgrade
+
+skip:
+    - reason: The downgrade is only observable with the apparmor_parser from the snapd snap, which supports abi/5.0
+      if: not tests.info is-reexec-in-use
+
+prepare: |
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        mkdir -p "$STATE_DIR"
+        uname -r > "$STATE_DIR/orig-kernel"
+
+        apt-get update
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            "linux-image-$KERNEL_VERSION-generic" \
+            "linux-modules-$KERNEL_VERSION-generic"; then
+            echo "cannot install kernel $KERNEL_VERSION, is it still in the archive?" >&2
+            exit 1
+        fi
+        echo "$KERNEL_VERSION-generic" > "$STATE_DIR/buggy-kernel"
+
+        # Select the faulty kernel in the boot menu with a drop-in, so that
+        # restore only has to remove one file.
+        update-grub
+        # Take the menu entry ids from the generated configuration, instead of
+        # computing them, as they depend on how grub identifies the root device.
+        entry_id="$(sed -n "s/.*menuentry_id_option '\\(gnulinux-$KERNEL_VERSION-generic-advanced-[^']*\\)'.*/\\1/p" /boot/grub/grub.cfg | head -n 1)"
+        submenu_id="$(sed -n "s/.*menuentry_id_option '\\(gnulinux-advanced-[^']*\\)'.*/\\1/p" /boot/grub/grub.cfg | head -n 1)"
+        if [ -z "$entry_id" ] || [ -z "$submenu_id" ]; then
+            echo "cannot find boot menu entry for kernel $KERNEL_VERSION" >&2
+            grep -n "menuentry\|submenu" /boot/grub/grub.cfg >&2
+            exit 1
+        fi
+        mkdir -p "$(dirname "$GRUB_DROPIN")"
+        cat > "$GRUB_DROPIN" <<EOF
+    GRUB_DEFAULT="$submenu_id>$entry_id"
+    GRUB_TIMEOUT=0
+    GRUB_TIMEOUT_STYLE=hidden
+    GRUB_RECORDFAIL_TIMEOUT=0
+    EOF
+        update-grub
+
+        REBOOT
+    fi
+
+    # Back from the reboot, make sure the faulty kernel is really running.
+    test "$(uname -r)" = "$(cat "$STATE_DIR/buggy-kernel")"
+    snap wait system seed.loaded
+
+restore: |
+    if [ "$SPREAD_REBOOT" = 0 ] && [ -e "$STATE_DIR/orig-kernel" ]; then
+        orig_kernel="$(cat "$STATE_DIR/orig-kernel")"
+        if [ "$(uname -r)" != "$orig_kernel" ]; then
+            # Without the drop-in grub would boot the newest kernel, which is
+            # the faulty one, so select the original kernel explicitly.
+            update-grub
+            entry_id="$(sed -n "s/.*menuentry_id_option '\\(gnulinux-$orig_kernel-advanced-[^']*\\)'.*/\\1/p" /boot/grub/grub.cfg | head -n 1)"
+            submenu_id="$(sed -n "s/.*menuentry_id_option '\\(gnulinux-advanced-[^']*\\)'.*/\\1/p" /boot/grub/grub.cfg | head -n 1)"
+            test -n "$entry_id" && test -n "$submenu_id"
+            cat > "$GRUB_DROPIN" <<EOF
+    GRUB_DEFAULT="$submenu_id>$entry_id"
+    GRUB_TIMEOUT=0
+    GRUB_TIMEOUT_STYLE=hidden
+    GRUB_RECORDFAIL_TIMEOUT=0
+    EOF
+            update-grub
+            REBOOT
+        fi
+    fi
+
+    # Running on the original kernel again; the running kernel cannot be removed.
+    if [ -e "$STATE_DIR/orig-kernel" ]; then
+        test "$(uname -r)" = "$(cat "$STATE_DIR/orig-kernel")"
+        rm -f "$GRUB_DROPIN"
+        DEBIAN_FRONTEND=noninteractive apt-get purge -y \
+            "linux-image-$KERNEL_VERSION-generic" \
+            "linux-modules-$KERNEL_VERSION-generic"
+        update-grub
+        rm -rf "$STATE_DIR"
+    else
+        rm -f "$GRUB_DROPIN"
+    fi
+
+debug: |
+    uname -r || true
+    cat "$GRUB_DROPIN" || true
+    grep -n "menuentry \|submenu " /boot/grub/grub.cfg || true
+    cat "$MARKER" || true
+    snap debug execution apparmor || true
+    journalctl -b --no-pager -u snapd.apparmor.service -u snapd.service || true
+
+execute: |
+    echo "The faulty kernel is running"
+    uname -r | MATCH "^$KERNEL_VERSION-generic$"
+
+    echo "The probe verdict marker says the bug is present"
+    retry -n 30 --wait 1 sh -c "MATCH '^1\$' < $MARKER"
+
+    echo "Profiles are compiled with abi/4.0, not abi/5.0"
+    snap debug execution apparmor > apparmor.out
+    MATCH 'apparmor-parser-command: .*--policy-features .*/abi/4\.0' < apparmor.out
+    NOMATCH '/abi/5\.0' < apparmor.out
+
+    echo "Logs of the current boot record the downgrade, exactly once"
+    journalctl -b --no-pager -u snapd.apparmor.service -u snapd.service > boot.log
+    MATCH 'detected AppArmor 5.0 network mediation bug' < boot.log
+    MATCH 'kernel is affected by the AppArmor 5.0 network mediation bug' < boot.log
+    test "$(grep -c 'kernel is affected by the AppArmor 5.0 network mediation bug' boot.log)" = 1
+    NOMATCH 'cannot run probe|probe failed with exit status|ignoring malformed' < boot.log
+
+    echo "A snap can be installed and run with the downgraded profiles"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    tests.cleanup defer snap remove --purge test-snapd-sh
+    test-snapd-sh.sh -c 'true'
+    journalctl -k -b --no-pager | NOMATCH 'operation="file_perm".*class="net"'

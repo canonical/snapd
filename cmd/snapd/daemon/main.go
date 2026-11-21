@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
+	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
@@ -43,10 +44,11 @@ import (
 )
 
 var (
-	syscheckCheckSystem       = syscheck.CheckSystem
-	openAuditWriter           = seclog.OpenAuditWriter
-	newSlogLogger             = seclog.NewSlogLogger
-	systemdInitSdNotifySocket = systemd.InitSdNotifySocket
+	syscheckCheckSystem            = syscheck.CheckSystem
+	openAuditWriter                = seclog.OpenAuditWriter
+	newSlogLogger                  = seclog.NewSlogLogger
+	systemdInitSdNotifySocket      = systemd.InitSdNotifySocket
+	ensureAppArmor5NetworkBugProbe = apparmor.EnsureAppArmor5NetworkBugProbe
 )
 
 const (
@@ -159,6 +161,25 @@ func runWatchdog(d *daemon.Daemon) (*time.Ticker, error) {
 	return wt, nil
 }
 
+// maybeProbeAppArmor5NetworkBug probes the running kernel for the
+// AppArmor 5.0 network mediation bug before any profile compilation
+// happens; if detected, snapd compiles profiles with abi/4.0 instead of
+// abi/5.0. A probe failure is not fatal: it just means no downgrade
+// happens, as on systems without the probe.
+//
+// The probe is skipped while preseeding: preseeding is a partial first
+// boot that updates a target filesystem inside a chroot, so probing here
+// would load policy into the build host's kernel and record a
+// host-specific verdict that the real boot paths probe for themselves.
+func maybeProbeAppArmor5NetworkBug() {
+	if snapdenv.Preseeding() {
+		return
+	}
+	if err := ensureAppArmor5NetworkBugProbe(); err != nil {
+		logger.Debugf("cannot probe for AppArmor 5.0 network mediation bug: %v", err)
+	}
+}
+
 var checkRunningConditionsRetryDelay = 300 * time.Second
 
 func run(ch chan os.Signal) error {
@@ -166,6 +187,8 @@ func run(ch chan os.Signal) error {
 
 	// ensure plug and slot checks are enforced
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
+
+	maybeProbeAppArmor5NetworkBug()
 
 	t0 := time.Now().Truncate(time.Millisecond)
 	snapdenv.SetUserAgentFromVersion(snapdtool.FullVersion(), sandbox.ForceDevMode)

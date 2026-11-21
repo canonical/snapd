@@ -28,8 +28,9 @@ import (
 )
 
 var (
-	Run                  = run
-	SetupSecurityLogging = setupSecurityLogging
+	Run                           = run
+	SetupSecurityLogging          = setupSecurityLogging
+	MaybeProbeAppArmor5NetworkBug = maybeProbeAppArmor5NetworkBug
 )
 
 func MockSyscheckCheckSystem(f func() error) (restore func()) {
@@ -66,4 +67,8 @@ func MockNewSlogLogger(f func(io.Writer, string, seclog.Level) seclog.SecurityLo
 
 func MockSystemdInitSdNotifySocket(f func()) (restore func()) {
 	return testutil.Mock(&systemdInitSdNotifySocket, f)
+}
+
+func MockEnsureAppArmor5NetworkBugProbe(f func() error) (restore func()) {
+	return testutil.Mock(&ensureAppArmor5NetworkBugProbe, f)
 }
