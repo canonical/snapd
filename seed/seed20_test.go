@@ -3424,6 +3424,54 @@ func (s *seed20Suite) TestPreseedCapableSeedNoPreseedAssertion(c *C) {
 	c.Assert(err, Equals, seed.ErrNoPreseedAssertion)
 }
 
+func (s *seed20Suite) TestPreseedCapableSeedPreseedAssertionReadError(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+
+	sysLabel := "20230406"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}, nil)
+
+	// the preseed assertion file exists but cannot be read
+	sysDir := filepath.Join(s.SeedDir, "systems", sysLabel)
+	c.Assert(os.WriteFile(filepath.Join(sysDir, "preseed"), []byte("not an assertion\n"), 0644), IsNil)
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	preseedSeed := seed20.(seed.PreseedCapable)
+
+	err = preseedSeed.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = preseedSeed.LoadEssentialMeta(nil, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	_, err = preseedSeed.LoadPreseedAssertion()
+	c.Assert(err, ErrorMatches, `cannot read system preseed assertion file: .*`)
+}
+
 func (s *seed20Suite) TestPreseedCapableSeedAlternateAuthority(c *C) {
 	r := seed.MockTrusted(s.StoreSigning.Trusted)
 	defer r()
