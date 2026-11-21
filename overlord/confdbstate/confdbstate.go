@@ -440,6 +440,10 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 		return err
 	}
 
+	if err := checkNoHooksOfCallingSnap(hookCtx, ts); err != nil {
+		return fmt.Errorf("cannot write confdb view %s: %v", view.ID(), err)
+	}
+
 	// schedule tasks after saving the tx ID so the deferred cleanup skips waking
 	// up waiters if a task will do it (txs.WriteTxID != "")
 	err = setWriteTransaction(st, account, schema, commitTask.ID(), accessID)
@@ -472,6 +476,35 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 	case <-waitChan:
 	case <-time.After(transactionTimeout):
 		return fmt.Errorf("cannot write confdb view %s: timed out (%s) waiting for change %s", view.ID(), transactionTimeout, chg.ID())
+	}
+
+	return nil
+}
+
+// checkNoHooksOfCallingSnap returns an error if the tasks include a hook of the
+// snap whose (non-confdb) hook is accessing the confdb. The hook manager doesn't
+// run two hooks of the same snap concurrently, so such a hook could only run
+// after the calling hook finishes, while the calling hook waits for it.
+func checkNoHooksOfCallingSnap(hookCtx *hookstate.Context, ts *state.TaskSet) error {
+	if hookCtx.IsEphemeral() {
+		// not running in a hook, so nothing would block the confdb hooks
+		return nil
+	}
+
+	callingSnap := hookCtx.InstanceName().String()
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+
+		var hooksup hookstate.HookSetup
+		if err := t.Get("hook-setup", &hooksup); err != nil {
+			return fmt.Errorf(`internal error: cannot get "hook-setup" from run-hook task: %v`, err)
+		}
+
+		if hooksup.Snap == callingSnap {
+			return fmt.Errorf("cannot run custodian hook %q of snap %q while its %q hook waits for it", hooksup.Hook, callingSnap, hookCtx.HookName())
+		}
 	}
 
 	return nil
@@ -800,6 +833,10 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 	if ts == nil {
 		// no hooks or tasks to run, transaction can read databag directly
 		return tx, nil
+	}
+
+	if err := checkNoHooksOfCallingSnap(hookCtx, ts); err != nil {
+		return nil, fmt.Errorf("cannot read confdb view %s: %v", view.ID(), err)
 	}
 
 	var chg *state.Change

@@ -1252,6 +1252,120 @@ func (s *confdbTestSuite) TestGetTransactionFromNonConfdbHookAddsConfdbTx(c *C) 
 	s.checkSetConfdbChange(c, chg, &hooks)
 }
 
+// testCustodianAccessFromOwnNonConfdbHook runs the custodian's install hook
+// which calls accessFn. Since the hook manager doesn't run two hooks of the same
+// snap concurrently, any of the custodian's hooks scheduled by accessFn could
+// only run after the install hook finishes, so it can't wait for them.
+func (s *confdbTestSuite) testCustodianAccessFromOwnNonConfdbHook(c *C, hooks confdbHooks, accessFn func(ctx *hookstate.Context) error) error {
+	// if the access waits for the custodian's hooks, it can only time out
+	restore := confdbstate.MockTransactionTimeout(testutil.HostScaledTimeout(2 * time.Second))
+	defer restore()
+
+	var accessErr error
+	var otherHooks []string
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		t, _ := ctx.Task()
+
+		s.state.Lock()
+		var hooksup *hookstate.HookSetup
+		err := t.Get("hook-setup", &hooksup)
+		s.state.Unlock()
+		if err != nil {
+			return nil, err
+		}
+
+		if hooksup.Hook == "install" {
+			ctx.Lock()
+			accessErr = accessFn(ctx)
+			ctx.Unlock()
+			return nil, nil
+		}
+
+		otherHooks = append(otherHooks, hooksup.Hook)
+		return nil, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	custodians := map[string]confdbHooks{"custodian-snap": hooks}
+	s.setupConfdbScenario(c, custodians, nil)
+
+	// the custodian also has an install hook
+	hooksDir := snap.MinimalPlaceInfo("custodian-snap", snap.R(1)).HooksDir()
+	c.Assert(os.MkdirAll(hooksDir, 0775), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(hooksDir, "install"), nil, 0755), IsNil)
+
+	hookTask := s.state.NewTask("run-hook", "")
+	chg := s.state.NewChange("install", "")
+	chg.AddTask(hookTask)
+
+	hooksup := &hookstate.HookSetup{
+		Snap: "custodian-snap",
+		Hook: "install",
+	}
+	hookTask.Set("hook-setup", hooksup)
+	s.state.Unlock()
+
+	c.Assert(s.o.StartUp(), IsNil)
+	s.state.EnsureBefore(0)
+	s.o.Loop()
+	defer s.o.Stop()
+
+	select {
+	case <-chg.Ready():
+	case <-time.After(testutil.HostScaledTimeout(10 * time.Second)):
+		c.Fatal("test timed out")
+	}
+
+	// none of the custodian's confdb hooks were scheduled in the change
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Tasks(), HasLen, 1)
+	c.Check(otherHooks, HasLen, 0)
+
+	return accessErr
+}
+
+func (s *confdbTestSuite) TestCustodianWriteFromOwnNonConfdbHook(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+	err := s.testCustodianAccessFromOwnNonConfdbHook(c, changeView|saveView, func(ctx *hookstate.Context) error {
+		return confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"}, nil)
+	})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot write confdb view %s/network/setup-wifi: cannot run custodian hook "change-view-setup" of snap "custodian-snap" while its "install" hook waits for it`, s.devAccID))
+
+	// no write transaction was left ongoing
+	s.state.Lock()
+	defer s.state.Unlock()
+	var ongoingConfdbTxs map[string]*confdbstate.ConfdbTransactions
+	err = s.state.Get("confdb-ongoing-txs", &ongoingConfdbTxs)
+	if err == nil {
+		if txs, ok := ongoingConfdbTxs[s.devAccID+"/network"]; ok {
+			c.Check(txs.WriteTxID, Equals, "")
+		}
+	} else {
+		c.Check(err, testutil.ErrorIs, &state.NoStateError{})
+	}
+}
+
+func (s *confdbTestSuite) TestCustodianReadFromOwnNonConfdbHook(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+	err := s.testCustodianAccessFromOwnNonConfdbHook(c, loadView|queryView, func(ctx *hookstate.Context) error {
+		_, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
+		return err
+	})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot read confdb view %s/network/setup-wifi: cannot run custodian hook "load-view-setup" of snap "custodian-snap" while its "install" hook waits for it`, s.devAccID))
+}
+
+func (s *confdbTestSuite) TestCustodianWithoutHooksAccessFromOwnNonConfdbHook(c *C) {
+	view := s.dbSchema.View("setup-wifi")
+	// the custodian has no hooks that need to run so it can read its own view
+	err := s.testCustodianAccessFromOwnNonConfdbHook(c, noHooks, func(ctx *hookstate.Context) error {
+		_, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
+		return err
+	})
+	c.Assert(err, IsNil)
+}
+
 func (s *confdbTestSuite) mockConfdbHooks() (*[]string, func()) {
 	var hooks []string
 	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
