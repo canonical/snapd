@@ -1438,6 +1438,8 @@ func (v *View) Unset(databag Databag, request string, constraints map[string]any
 			removalPaths = append(removalPaths, matchedPaths...)
 		}
 
+		// drop paths included in others and sort list items in reverse (to prevent
+		// early removals from impacting others)
 		removalPaths = canonicalizeRemovalPaths(removalPaths)
 	}
 
@@ -1449,6 +1451,8 @@ func (v *View) Unset(databag Databag, request string, constraints map[string]any
 
 	// Remove containers left empty by the databag unsets. This cannot be done in
 	// the databag methods because list item removals can affect subsequent matches.
+	// TODO: now that we resolve removals paths and sort list item removals in reverse,
+	// we expand that to unconstrained removes and drop the pruning (for Unset() only)
 	if err := databag.PruneEmpty(); err != nil {
 		return err
 	}
