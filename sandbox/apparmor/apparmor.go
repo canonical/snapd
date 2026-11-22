@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -576,6 +577,18 @@ func FeaturesSysDir() string {
 	return filepath.Join(dirs.GlobalRootDir, featuresSysPath)
 }
 
+var preseedAppArmorFeaturesDir = snapdenv.PreseedAppArmorFeaturesDir
+
+// kernelFeaturesDir returns the directory to probe AppArmor kernel features
+// from: the features of the target kernel when they were provided for
+// preseeding, FeaturesSysDir() otherwise.
+func kernelFeaturesDir() string {
+	if dir := preseedAppArmorFeaturesDir(); dir != "" {
+		return dir
+	}
+	return FeaturesSysDir()
+}
+
 type appArmorProber interface {
 	KernelFeatures() ([]string, error)
 	ParserFeatures() ([]string, error)
@@ -702,11 +715,11 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 var permstable32RelevantFeatures = []string{"prompt"}
 
 func probeKernelFeatures() ([]string, error) {
-	features, err := probeKernelFeaturesInDirRecursively(FeaturesSysDir(), "")
+	features, err := probeKernelFeaturesInDirRecursively(kernelFeaturesDir(), "")
 	if err != nil {
 		return []string{}, err
 	}
-	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(kernelFeaturesDir(), "policy", "permstable32")); err == nil {
 		readFeats := strings.Fields(string(data))
 		for _, feat := range readFeats {
 			if strutil.ListContains(permstable32RelevantFeatures, feat) {
@@ -714,7 +727,7 @@ func probeKernelFeatures() ([]string, error) {
 			}
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "notify", "user")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(kernelFeaturesDir(), "policy", "notify", "user")); err == nil {
 		// XXX: there's no feature added for policy:notify:user, since user is
 		// a file rather than a directory.
 		notifyUserFeatures := strings.Fields(string(data))
@@ -751,7 +764,7 @@ func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, e
 }
 
 func probeKernelFeaturesPermstable32Version() (int64, error) {
-	data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32_version"))
+	data, err := os.ReadFile(filepath.Join(kernelFeaturesDir(), "policy", "permstable32_version"))
 	if err != nil {
 		return 0, err
 	}
@@ -942,7 +955,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 				"--policy-features", abiFile,
 			}
 
-			return exec.Command(path, args...), true, nil
+			return exec.Command(path, withPreseedKernelFeatures(args, true)...), true, nil
 		}
 	}
 
@@ -955,7 +968,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 			// Detect apparmor 5.0 ABI support from the host distribution and use it if available.
 			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
 				logger.Debugf("apparmor 5.0 ABI detected")
-				return exec.Command(path, "--policy-features", hostAbi50File), false, nil
+				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi50File}, true)...), false, nil
 			}
 
 			// Detect but ignore apparmor 4.0 ABI support from the host distribution.
@@ -971,15 +984,33 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 
 			// Perhaps 3.0?
 			if fi, err := os.Lstat(hostAbi30File); err == nil && !fi.IsDir() {
-				return exec.Command(path, "--policy-features", hostAbi30File), false, nil
+				return exec.Command(path, withPreseedKernelFeatures([]string{"--policy-features", hostAbi30File}, true)...), false, nil
 			}
 
 			// Most likely 2.0
-			return exec.Command(path), false, nil
+			return exec.Command(path, withPreseedKernelFeatures(nil, false)...), false, nil
 		}
 	}
 
 	return nil, false, os.ErrNotExist
+}
+
+// withPreseedKernelFeatures appends to the apparmor_parser arguments the
+// option making the parser use the AppArmor kernel features of the target
+// kernel instead of the running one, when these were provided for preseeding.
+// With a policy ABI pin (--policy-features, apparmor >= 3.0) this must be
+// --kernel-features (apparmor >= 2.13), as --features-file would override the
+// pin too. Without a pin, the parser may be older than 2.13, so use
+// --features-file, which accepts a features directory since apparmor 2.10.
+func withPreseedKernelFeatures(args []string, policyPinned bool) []string {
+	dir := preseedAppArmorFeaturesDir()
+	if dir == "" {
+		return args
+	}
+	if policyPinned {
+		return append(args, "--kernel-features", dir)
+	}
+	return append(args, "--features-file", dir)
 }
 
 func appArmorParserVersion() string {
