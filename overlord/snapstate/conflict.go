@@ -131,7 +131,7 @@ func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
 	}
 
 	var snapst SnapState
-	if err := Get(st, snapsup.InstanceName().String(), &snapst); err != nil {
+	if err := Get(st, snapsup.InstanceName(), &snapst); err != nil {
 		return false, err
 	}
 
@@ -360,7 +360,7 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName naming.I
 		// install, while getting the snap info; for refresh, when
 		// getting what needs refreshing).
 		var cursnapst SnapState
-		if err := Get(st, instanceName.String(), &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
+		if err := Get(st, instanceName, &cursnapst); err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 

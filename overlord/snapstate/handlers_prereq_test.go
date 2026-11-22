@@ -525,10 +525,10 @@ func (s *prereqSuite) TestDoPrereqSkipsSameChangeInFlightPrereq(c *C) {
 
 		snapsup, _ := snapstate.TaskSnapSetup(task)
 		var snapst snapstate.SnapState
-		snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
+		snapstate.Get(st, snapsup.InstanceName(), &snapst)
 		snapst.Current = snapsup.Revision()
 		snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
-		snapstate.Set(st, snapsup.InstanceName().String(), &snapst)
+		snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 		return nil
 	}, nil)
@@ -602,10 +602,10 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 
 			snapsup, _ := snapstate.TaskSnapSetup(task)
 			var snapst snapstate.SnapState
-			snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
+			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
 			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
-			snapstate.Set(st, snapsup.InstanceName().String(), &snapst)
+			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 			// check that prerequisites task is not done yet, it must wait for core.
 			// This check guarantees that prerequisites task found link-snap snap
@@ -877,10 +877,10 @@ func (s *prereqSuite) TestDoPrereqRetryWhenDifferentLaneWaitsOnBaseInFlight(c *C
 			// setup everything as if the snap is installed
 			snapsup, _ := snapstate.TaskSnapSetup(task)
 			var snapst snapstate.SnapState
-			snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
+			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
 			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
-			snapstate.Set(st, snapsup.InstanceName().String(), &snapst)
+			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 			// prerequisites must still retry when only another lane for the same
 			// snap is already waiting on the base link-snap.
@@ -968,10 +968,10 @@ func (s *prereqSuite) TestDoPrereqFailWhenCircularDependencyDetected(c *C) {
 
 			snapsup, _ := snapstate.TaskSnapSetup(task)
 			var snapst snapstate.SnapState
-			snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
+			snapstate.Get(st, snapsup.InstanceName(), &snapst)
 			snapst.Current = snapsup.Revision()
 			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
-			snapstate.Set(st, snapsup.InstanceName().String(), &snapst)
+			snapstate.Set(st, snapsup.InstanceName(), &snapst)
 
 			return nil
 		}, nil)

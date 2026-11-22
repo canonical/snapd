@@ -1396,6 +1396,64 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceInstallReservedHookKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap_hook", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_hook" as parallel instance: instance key "hook" is reserved, please use another instance key`)
+
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap_hook", nil, 0, snapstate.Flags{AllowUnsupportedInstances: true})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "install an instance with the reserved hook key")
+	chg.AddAll(ts)
+	s.settle(c)
+	c.Assert(chg.Err(), IsNil)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap_hook", &snapst), IsNil)
+	c.Check(snapst.AllowUnsupportedInstances, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallReservedHookKeyFeatureDisabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.parallel-instances", false), IsNil)
+	tr.Commit()
+
+	for _, flags := range []snapstate.Flags{{}, {AllowUnsupportedInstances: true}} {
+		_, err := snapstate.Install(context.Background(), s.state, "some-snap_hook", nil, 0, flags)
+		c.Check(err, ErrorMatches, `feature flag validation failed for snap "some-snap_hook": experimental feature disabled - test it by setting 'experimental.parallel-instances' to true`)
+	}
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallPathReservedHookKey(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "some-snap_hook", "", snapstate.Flags{}, nil)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_hook" as parallel instance: instance key "hook" is reserved, please use another instance key`)
+
+	// Simulate an installed instance.
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	snapstate.Set(s.state, "some-snap_hook", &snapstate.SnapState{
+		Active:      true,
+		Sequence:    snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:     si.Revision,
+		SnapType:    "app",
+		InstanceKey: "hook",
+	})
+
+	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "some-snap_hook", "", snapstate.Flags{}, nil)
+	c.Check(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByAppSettings(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5989,15 +6047,15 @@ func (s *snapmgrTestSuite) TestInstallPathMany(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []string{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
 `, name)
 		paths = append(paths, makeTestSnap(c, yaml))
 		si := &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R("3"),
 		}
 		sideInfos = append(sideInfos, si)
@@ -6014,7 +6072,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName().String(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, instanceNames[i].String())
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}
@@ -6033,7 +6091,7 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
@@ -6100,15 +6158,15 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionally(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []string{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
 `, name)
 		paths = append(paths, makeTestSnap(c, yaml))
 		si := &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R("3"),
 		}
 		sideInfos = append(sideInfos, si)
@@ -6138,7 +6196,7 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
@@ -6196,10 +6254,10 @@ func (s *snapmgrTestSuite) TestInstallPathManyAsUpdate(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []string{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		si := &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R("1"),
 		}
 		snapstate.Set(s.state, name, &snapstate.SnapState{
@@ -6215,7 +6273,7 @@ epoch: 1
 `, name)
 
 		newSi := &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R("2"),
 		}
 		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
@@ -6238,7 +6296,7 @@ epoch: 1
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	for _, name := range snapNames {
+	for _, name := range instanceNames {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(s.state, name, &snapst)
 		c.Assert(err, IsNil)
@@ -6416,10 +6474,10 @@ func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
 	var paths []string
 	var sideInfos []*snap.SideInfo
 
-	snapNames := []string{"some-snap", "other-snap"}
-	for _, name := range snapNames {
+	instanceNames := []naming.InstanceName{"some-snap", "other-snap"}
+	for _, name := range instanceNames {
 		si := &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R("1"),
 		}
 		snapstate.Set(s.state, name, &snapstate.SnapState{
@@ -6435,7 +6493,7 @@ confinement: classic
 		paths = append(paths, makeTestSnap(c, yaml))
 
 		si = &snap.SideInfo{
-			RealName: name,
+			RealName: name.SnapName().String(),
 			Revision: snap.R("2"),
 		}
 		sideInfos = append(sideInfos, si)
@@ -6693,7 +6751,7 @@ func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFil
 
 	// nothing in state
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, snapName, &snapst), testutil.ErrorIs, state.ErrNoState)
+	c.Assert(snapstate.Get(s.state, naming.InstanceName(snapName), &snapst), testutil.ErrorIs, state.ErrNoState)
 
 	if expectSeqFile {
 		// seq file exists but is zeroed out
@@ -7645,14 +7703,14 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 
 	if opts.undo {
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, instanceName.String(), &snapst)
+		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 
 		c.Check(backend.AuxStoreInfoFilename(snapID), testutil.FileAbsent)
 	} else {
 		// verify snap in the system state
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, instanceName.String(), &snapst)
+		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, IsNil)
 
 		c.Check(snapst.Active, Equals, true)
@@ -8046,12 +8104,12 @@ components:
 
 	if opts.undo {
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, instanceName.String(), &snapst)
+		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	} else {
 		// verify snap in the system state
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, instanceName.String(), &snapst)
+		err = snapstate.Get(s.state, instanceName, &snapst)
 		c.Assert(err, IsNil)
 
 		c.Check(snapst.Active, Equals, true)
@@ -8457,7 +8515,7 @@ func (s *validationSetsSuite) testUpdateComponentsValidationSets(c *C, opts test
 		snap.TestComponent,
 	)})
 
-	snapstate.Set(s.state, instanceName.String(), &snapstate.SnapState{
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active:      true,
 		Sequence:    sequence.SnapSequence{Revisions: []*sequence.RevisionSideState{revisionSideState}},
 		Current:     snap.R(7),

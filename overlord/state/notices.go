@@ -21,6 +21,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -126,17 +128,28 @@ func NewNotice(id string, userID *uint32, nType NoticeType, key string, timestam
 
 // Reoccur returns a deep copy of the receiving notice, updated with the given
 // timestamp and data. Depending on its repeat after duration, the lastRepeated
-// timestamp may be updated. Returns whether the notice was repeated. It is the
-// caller's responsibility to replace the receiver with the new notice in the
-// notice backend from whence it came.
-func (n *Notice) Reoccur(now time.Time, data map[string]string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
-	// TODO:GOVERSION:1.21: simplify to `data = maps.Clone(data)`
-	var newData map[string]string
+// timestamp may be updated. The returned notice's lastData is built from data,
+// then any keys in preserveDataKeys that exist in the receiver's lastData are
+// copied over it, so preserved values take precedence over provided data with
+// the same key.
+//
+// Returns whether the notice was repeated. It is the caller's responsibility
+// to replace the receiver with the new notice in the notice backend from
+// whence it came.
+func (n *Notice) Reoccur(now time.Time, data map[string]string, preserveDataKeys []string, repeatAfter time.Duration) (newNotice *Notice, repeated bool) {
+	newData := make(map[string]string, len(data)+len(preserveDataKeys))
 	if data != nil {
-		newData = make(map[string]string, len(data))
 		for k, v := range data {
 			newData[k] = v
 		}
+	}
+	for _, k := range preserveDataKeys {
+		if v, ok := n.lastData[k]; ok {
+			newData[k] = v
+		}
+	}
+	if len(newData) == 0 {
+		newData = nil
 	}
 	newNotice = n.DeepCopy()
 	newNotice.occurrences++
@@ -400,6 +413,11 @@ type AddNoticeOptions struct {
 	// Data is the optional key-value data for this occurrence.
 	Data map[string]string
 
+	// PreserveDataKeys lists keys to retain from the previous occurrence's data
+	// when this notice reoccurs. Preserved values take precedence over values for
+	// the same key in Data. It has no effect on a notice's first occurrence.
+	PreserveDataKeys []string
+
 	// RepeatAfter defines how long after this notice was last repeated we
 	// should allow it to repeat. Zero means always repeat.
 	RepeatAfter time.Duration
@@ -440,7 +458,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
-		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
+		notice, newOrRepeated = notice.Reoccur(now, options.Data, options.PreserveDataKeys, options.RepeatAfter)
 		s.notices[uniqueKey] = notice
 	}
 
@@ -653,9 +671,21 @@ func (s *State) filterNotices(filter *NoticeFilter) []*Notice {
 func (s *State) unflattenNotices(flat []*Notice) {
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
-	now := time.Now()
+	now := timeNow()
 	s.notices = make(map[noticeKey]*Notice)
 	for _, n := range flat {
+		if n.firstOccurred.IsZero() {
+			logger.Noticef("%s skipped due to invalid first-occurred time: %v", n.String(), n.firstOccurred)
+			continue
+		}
+		if n.lastOccurred.IsZero() {
+			logger.Noticef("%s skipped due to invalid last-occurred time: %v", n.String(), n.lastOccurred)
+			continue
+		}
+		if n.lastRepeated.IsZero() {
+			logger.Noticef("%s skipped due to invalid last-repeated time: %v", n.String(), n.lastRepeated)
+			continue
+		}
 		if n.Expired(now) {
 			continue
 		}

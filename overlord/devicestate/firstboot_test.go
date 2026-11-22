@@ -64,6 +64,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -658,7 +659,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
-	for _, reqName := range []string{"core", "pc-kernel", "pc"} {
+	for _, reqName := range []naming.InstanceName{"core", "pc-kernel", "pc"} {
 		err = snapstate.Get(state, reqName, &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
@@ -1527,7 +1528,7 @@ snaps:
 
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
-	for _, reqName := range []string{"snapd", "core18", "pc-kernel", "pc"} {
+	for _, reqName := range []naming.InstanceName{"snapd", "core18", "pc-kernel", "pc"} {
 		err = snapstate.Get(state, reqName, &snapst)
 		c.Assert(err, IsNil)
 		c.Assert(snapst.Required, Equals, true, Commentf("required not set for %v", reqName))
