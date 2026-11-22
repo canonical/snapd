@@ -9,7 +9,8 @@ details: |
 
 systems:
     - ubuntu-18.04-64
-    - ubuntu-2*-64
+    - ubuntu-2*.04-64
+    - ubuntu-2*.10-64
 
 environment:
     DRIVER_FLAVOR/compute: compute
