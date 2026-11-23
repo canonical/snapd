@@ -31,9 +31,9 @@ import (
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dbusutil/dbustest"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/keyboard"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -53,8 +53,8 @@ func (s *xkbTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.rootDir = c.MkDir()
-	dirs.SetRootDir(s.rootDir)
-	s.AddCleanup(func() { dirs.SetRootDir("") })
+	rootdir.SetRootDir(s.rootDir)
+	s.AddCleanup(func() { rootdir.SetRootDir("") })
 
 	s.mockDBusProperties = nil
 

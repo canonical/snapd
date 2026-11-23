@@ -28,9 +28,9 @@ import (
 	"github.com/godbus/dbus/v5"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/inotify"
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -175,11 +175,11 @@ func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKB
 
 	// We care about IN_MOVED_TO as well to detect configuration updates that
 	// happen atomically through replacement i.e. rename, renameat, renameat2.
-	etcDir := filepath.Join(dirs.GlobalRootDir, "/etc")
+	etcDir := filepath.Join(rootdir.RootDir, "/etc")
 	if err := iw.AddWatch(etcDir, inotify.InCloseWrite|inotify.InMovedTo); err != nil {
 		return nil, err
 	}
-	etcDefaultDir := filepath.Join(dirs.GlobalRootDir, "/etc/default")
+	etcDefaultDir := filepath.Join(rootdir.RootDir, "/etc/default")
 	if err := iw.AddWatch(etcDefaultDir, inotify.InCloseWrite|inotify.InMovedTo); err != nil {
 		return nil, err
 	}
@@ -197,8 +197,8 @@ func NewXKBConfigListener(ctx context.Context, cb func(config *XKBConfig)) (*XKB
 
 func (w *XKBConfigListener) loop() {
 	var kbConfigFiles = []string{
-		filepath.Join(dirs.GlobalRootDir, "/etc/default/keyboard"),
-		filepath.Join(dirs.GlobalRootDir, "/etc/vconsole.conf"),
+		filepath.Join(rootdir.RootDir, "/etc/default/keyboard"),
+		filepath.Join(rootdir.RootDir, "/etc/vconsole.conf"),
 	}
 	for {
 		select {

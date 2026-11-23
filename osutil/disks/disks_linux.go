@@ -34,9 +34,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/rootdir"
 )
+
+// sysfsDir returns the sysfs mount point under the global root directory.
+func sysfsDir() string {
+	return filepath.Join(rootdir.RootDir, "/sys")
+}
 
 var _ = Disk(&disk{})
 
@@ -189,7 +194,7 @@ func diskFromUDevProps(deviceIdentifier string, deviceIDType string, props map[s
 		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output missing property \"DEVPATH\"", deviceIDType, deviceIdentifier)
 	}
 	// create the full path by pre-pending /sys, since udev doesn't include /sys
-	devpath = filepath.Join(dirs.SysfsDir, devpath)
+	devpath = filepath.Join(sysfsDir(), devpath)
 
 	partTableID := props["ID_PART_TABLE_UUID"]
 	if partTableID == "" {
@@ -502,7 +507,7 @@ func parentPartitionPropsForOptions(props map[string]string) (map[string]string,
 
 	majmin := props["MAJOR"] + ":" + props["MINOR"]
 
-	dmDir := filepath.Join(dirs.SysfsDir, "dev", "block", majmin, "dm")
+	dmDir := filepath.Join(sysfsDir(), "dev", "block", majmin, "dm")
 	dmUUID, err := os.ReadFile(filepath.Join(dmDir, "uuid"))
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, err)
@@ -577,7 +582,7 @@ func diskFromPartUDevProps(props map[string]string) (*disk, error) {
 
 	// the DEVPATH is given as relative to /sys, so for simplicity's sake
 	// add /sys to the path we save as we return it later
-	d.devpath = filepath.Join(dirs.SysfsDir, realDiskProps["DEVPATH"])
+	d.devpath = filepath.Join(sysfsDir(), realDiskProps["DEVPATH"])
 
 	partTableID := realDiskProps["ID_PART_TABLE_UUID"]
 	if partTableID == "" {
@@ -732,7 +737,7 @@ func (d *disk) populatePartitions() error {
 			if !ok {
 				return emitUDevPropErr(fmt.Errorf(propNotFoundErrFmt, "DEVPATH"))
 			}
-			part.KernelDevicePath = filepath.Join(dirs.SysfsDir, devpath)
+			part.KernelDevicePath = filepath.Join(sysfsDir(), devpath)
 
 			devname, ok := udevProps["DEVNAME"]
 			if !ok {
@@ -958,7 +963,7 @@ func (d *disk) HasPartitions() bool {
 
 func AllPhysicalDisks() ([]Disk, error) {
 	// get disks for every block device in /sys/block/
-	blockDir := filepath.Join(dirs.SysfsDir, "block")
+	blockDir := filepath.Join(sysfsDir(), "block")
 
 	files, err := os.ReadDir(blockDir)
 	if err != nil {
@@ -1010,7 +1015,7 @@ func DMCryptUUIDFromMountPoint(mountpoint string) (string, error) {
 		if !hasDevPath {
 			return "", ErrNoDmUUID
 		}
-		devUUIDPath := filepath.Join(dirs.SysfsDir, devPath, "dm", "uuid")
+		devUUIDPath := filepath.Join(sysfsDir(), devPath, "dm", "uuid")
 		data, err := os.ReadFile(devUUIDPath)
 		if err != nil {
 			return "", ErrNoDmUUID

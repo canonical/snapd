@@ -22,10 +22,11 @@ package dbusutil
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil/rootdir"
 )
 
 // isSessionBusLikelyPresent checks for the apparent availability of DBus session bus.
@@ -39,12 +40,13 @@ func isSessionBusLikelyPresent() bool {
 		return true
 	}
 	uid := os.Getuid()
-	if fi, err := os.Stat(fmt.Sprintf("%s/%d/dbus-session", dirs.XdgRuntimeDirBase, uid)); err == nil {
+	xdgRuntimeDirBase := filepath.Join(rootdir.RootDir, "/run/user")
+	if fi, err := os.Stat(fmt.Sprintf("%s/%d/dbus-session", xdgRuntimeDirBase, uid)); err == nil {
 		if fi.Mode()&os.ModeType == 0 {
 			return true
 		}
 	}
-	if fi, err := os.Stat(fmt.Sprintf("%s/%d/bus", dirs.XdgRuntimeDirBase, uid)); err == nil {
+	if fi, err := os.Stat(fmt.Sprintf("%s/%d/bus", xdgRuntimeDirBase, uid)); err == nil {
 		if fi.Mode()&os.ModeType == os.ModeSocket {
 			return true
 		}
