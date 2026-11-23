@@ -149,7 +149,7 @@ func (s *noticesSuite) TestNoticesFilterMultipleTypes(c *C) {
 	st.Lock()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	st.Warnf("danger")
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
 	st.Unlock()
@@ -205,7 +205,7 @@ func (s *noticesSuite) TestNoticesFilterInvalidTypes(c *C) {
 	st.Lock()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	time.Sleep(time.Microsecond)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	st.Warnf("danger")
 	st.Unlock()
 
 	// Check that invalid types are discarded, and notices with remaining
@@ -244,7 +244,7 @@ func (s *noticesSuite) TestNoticesShowsTypesAllowedForSnap(c *C) {
 	addNotice(c, st, nil, state.InterfacesRequestsRuleUpdateNotice, "xyz", nil)
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	st.Warnf("danger")
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	addNotice(c, st, nil, state.InterfacesRequestsPromptNotice, "def", nil)
 	st.Unlock()
@@ -348,7 +348,7 @@ func (s *noticesSuite) TestNoticesFilterTypesForSnapForbidden(c *C) {
 	st.Lock()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
 	addNotice(c, st, nil, state.RefreshInhibitNotice, "-", nil)
-	addNotice(c, st, nil, state.WarningNotice, "danger", nil)
+	st.Warnf("danger")
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
 	st.Unlock()
 
@@ -609,7 +609,7 @@ func (s *noticesSuite) TestNoticesWait(c *C) {
 	go func() {
 		time.Sleep(testutil.HostScaledTimeout(50 * time.Millisecond))
 		st.Lock()
-		addNotice(c, st, nil, state.WarningNotice, "foo", nil)
+		st.Warnf("foo")
 		st.Unlock()
 	}()
 

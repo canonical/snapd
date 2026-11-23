@@ -241,7 +241,7 @@ func (m *InterfaceManager) StartUp() error {
 			// Internal error, should not occur
 			logger.Noticef("failed to check the presence of a interfaces-requests-control handler service: %v", err)
 		} else if !present {
-			m.state.AddWarning(`"apparmor-prompting" feature flag enabled but no prompting client is present; requests will be auto-denied until a prompting client is installed`, nil)
+			m.state.Warnf(`"apparmor-prompting" feature flag enabled but no prompting client is present; requests will be auto-denied until a prompting client is installed`)
 		}
 
 		// Must not hold state lock while starting interfaces requests
@@ -261,7 +261,7 @@ func (m *InterfaceManager) StartUp() error {
 			// Do not set "apparmor-prompting" flag to false, since the
 			// user intends for prompting to be enabled, but do record a
 			// warning so the user knows prompting is not current running.
-			m.state.AddWarning(fmt.Sprintf("cannot start prompting backend: %v; prompting will be inactive until snapd is restarted", err), nil)
+			m.state.Warnf(fmt.Sprintf("cannot start prompting backend: %v; prompting will be inactive until snapd is restarted", err))
 		}
 	}
 	if m.profilesNeedRegeneration() {

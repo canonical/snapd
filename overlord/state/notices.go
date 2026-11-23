@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -436,6 +437,9 @@ type AddNoticeOptions struct {
 // AddNotice records an occurrence of a notice with the specified type and key
 // and options.
 func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (string, error) {
+	if noticeType == WarningNotice {
+		return "", fmt.Errorf("cannot create warning notices with AddNotice")
+	}
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
@@ -457,7 +461,12 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 // The caller is responsible for holding the notices mutex for writing.
 func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
 	if options.ExpireAfter == 0 {
-		options.ExpireAfter = defaultNoticeExpireAfter
+		switch noticeType {
+		case WarningNotice:
+			options.ExpireAfter = defaultWarningExpireAfter
+		default:
+			options.ExpireAfter = defaultNoticeExpireAfter
+		}
 	}
 
 	if err := ValidateNotice(noticeType, key, options); err != nil {
@@ -488,19 +497,46 @@ func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, o
 	return notice, nil
 }
 
-// ValidateNotice validates notice type and key before adding.
+// ValidateNotice validates notice type, key, and options before adding.
 func ValidateNotice(noticeType NoticeType, key string, options *AddNoticeOptions) error {
 	if !noticeType.Valid() {
 		return fmt.Errorf("cannot add notice with invalid type %q", noticeType)
 	}
-	if key == "" {
+	if key == "" || strings.TrimSpace(key) != key {
 		return fmt.Errorf("cannot add %s notice with invalid key %q", noticeType, key)
 	}
-	if len(key) > maxNoticeKeyLength {
+	if noticeType != WarningNotice && len(key) > maxNoticeKeyLength {
 		return fmt.Errorf("cannot add %s notice with invalid key: key must be %d bytes or less", noticeType, maxNoticeKeyLength)
 	}
 	if noticeType == RefreshInhibitNotice && key != "-" {
 		return fmt.Errorf(`cannot add %s notice with invalid key %q: only "-" key is supported`, noticeType, key)
+	}
+	if err := validateNoticeOptions(noticeType, options); err != nil {
+		return fmt.Errorf(`cannot add %s notice with %w`, noticeType, err)
+	}
+	return nil
+}
+
+// validateNoticeOptions validates contents of AddNoticeOptions. Currently,
+// only for warning notices.
+func validateNoticeOptions(noticeType NoticeType, options *AddNoticeOptions) error {
+	if noticeType == WarningNotice {
+		if options == nil {
+			return fmt.Errorf("no options")
+		}
+		if showAfter, ok := options.Data["show-after"]; ok {
+			if _, err := time.ParseDuration(showAfter); err != nil {
+				return fmt.Errorf("invalid show-after duration: %w", err)
+			}
+		}
+		if lastShown, ok := options.Data["last-shown"]; ok {
+			if _, err := time.Parse(time.RFC3339Nano, lastShown); err != nil {
+				return fmt.Errorf("invalid last-shown time: %w", err)
+			}
+		}
+		if options.ExpireAfter == 0 {
+			return fmt.Errorf("empty expire-after duration")
+		}
 	}
 	return nil
 }
@@ -703,6 +739,14 @@ func (s *State) unflattenNotices(flat []*Notice) {
 		}
 		if n.lastRepeated.IsZero() {
 			logger.Noticef("%s skipped due to invalid last-repeated time: %v", n.String(), n.lastRepeated)
+			continue
+		}
+		err := validateNoticeOptions(n.Type(), &AddNoticeOptions{
+			Data:        n.lastData,
+			ExpireAfter: n.expireAfter,
+		})
+		if err != nil {
+			logger.Noticef("%s skipped due to invalid option: %v", n.String(), err)
 			continue
 		}
 		if n.Expired(now) {
