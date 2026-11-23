@@ -382,6 +382,114 @@ func (s *preseedSuite) TestRunPreseedUnsupportedVersion(c *C) {
 		`cannot prepare chroot: snapd 2.43.0 from the target system does not support preseeding, the minimum required version is 2.43.3\+`)
 }
 
+const chrootSeccompActionsPath = "/tmp/snapd-preseed-seccomp-actions"
+const seccompActionsAvailPath = "/proc/sys/kernel/seccomp/actions_avail"
+
+func (s *preseedSuite) TestRunPreseedSeccompActionsHappy(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", "")
+	defer mockMountCmd.Restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := preseed.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := preseed.MockSystemSnapFromSeed(func(string, string) (string, string, error) { return "/a/core.snap", "", nil })
+	defer restoreSystemSnapFromSeed()
+
+	mockTargetSnapd := testutil.MockCommand(c, filepath.Join(targetSnapdRoot, "usr/lib/snapd/snapd"), `#!/bin/sh
+	set -eu
+	[ "${SNAPD_PRESEED}" = "1" ]
+`)
+	defer mockTargetSnapd.Restore()
+
+	mockSnapdFromDeb := testutil.MockCommand(c, filepath.Join(tmpDir, "usr/lib/snapd/snapd"), `#!/bin/sh
+	exit 1
+`)
+	defer mockSnapdFromDeb.Restore()
+
+	// a bind-mounted actions_avail needs no particular snapd version: even
+	// a snapd from long before this was introduced reads it as usual
+	mockVersionFiles(c, targetSnapdRoot, "2.44.0", tmpDir, "2.41.0")
+
+	actionsFile := filepath.Join(c.MkDir(), "actions_avail")
+	c.Assert(os.WriteFile(actionsFile, []byte("kill_process errno  allow\n"), 0644), IsNil)
+
+	c.Check(preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: actionsFile}), IsNil)
+
+	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
+
+	// the actions file is copied into the chroot and bind-mounted over the
+	// chroot's actions_avail
+	c.Check(mockMountCmd.Calls(), DeepEquals, [][]string{
+		{"mount", "-t", "proc", "none", filepath.Join(tmpDir, "/proc")},
+		{"mount", "--bind", filepath.Join(tmpDir, chrootSeccompActionsPath), filepath.Join(tmpDir, seccompActionsAvailPath)},
+		{"mount", "-t", "devtmpfs", "none", filepath.Join(tmpDir, "/dev")},
+		// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
+		// and mocking dirs.RootDir
+		{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)},
+	})
+	// order of umounts is reversed, and the copy of the actions file is
+	// removed as well
+	c.Check(mockUmountCmd.Calls(), DeepEquals, [][]string{
+		{"umount", filepath.Join(tmpDir, targetSnapdRoot)},
+		{"umount", "--lazy", filepath.Join(tmpDir, "/dev")},
+		{"umount", filepath.Join(tmpDir, seccompActionsAvailPath)},
+		{"umount", filepath.Join(tmpDir, "/proc")},
+	})
+	c.Check(filepath.Join(tmpDir, chrootSeccompActionsPath), testutil.FileAbsent)
+}
+
+func (s *preseedSuite) TestRunPreseedSeccompActionsChrootFailure(c *C) {
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error {
+		return fmt.Errorf("FAIL: %s", path)
+	})
+	defer restoreSyscallChroot()
+
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	actionsFile := filepath.Join(c.MkDir(), "actions_avail")
+	c.Assert(os.WriteFile(actionsFile, []byte("allow\n"), 0644), IsNil)
+
+	c.Check(preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: actionsFile}), ErrorMatches,
+		fmt.Sprintf("cannot prepare chroot: cannot chroot into %s: FAIL: %s", tmpDir, tmpDir))
+
+	// the copy of the actions file was removed
+	c.Check(filepath.Join(tmpDir, chrootSeccompActionsPath), testutil.FileAbsent)
+}
+
+func (s *preseedSuite) TestRunPreseedSeccompActionsFileErrors(c *C) {
+	restoreSyscallChroot := preseed.MockSyscallChroot(func(path string) error {
+		c.Fatalf("unexpected chroot")
+		return nil
+	})
+	defer restoreSyscallChroot()
+
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	missing := filepath.Join(tmpDir, "missing")
+	c.Check(preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: missing}), ErrorMatches,
+		`cannot read seccomp actions file: open .*/missing: no such file or directory`)
+
+	empty := filepath.Join(tmpDir, "empty")
+	c.Assert(os.WriteFile(empty, []byte(" \n"), 0644), IsNil)
+	c.Check(preseed.Classic(tmpDir, &preseed.ClassicOptions{SeccompActionsFile: empty}), ErrorMatches,
+		`cannot use seccomp actions file ".*/empty": no actions listed`)
+}
+
 func (s *preseedSuite) TestReset(c *C) {
 	startDir, err := os.Getwd()
 	c.Assert(err, IsNil)

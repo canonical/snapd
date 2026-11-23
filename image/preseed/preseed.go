@@ -67,6 +67,10 @@ type CoreOptions struct {
 
 // ClassicOptions provides optional options for classic and hybrid preseeding.
 type ClassicOptions struct {
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail;
+	// it is bind-mounted over the chroot's actions_avail
+	SeccompActionsFile string
 }
 
 // preseedCoreOptions holds internal preseeding options for the core case

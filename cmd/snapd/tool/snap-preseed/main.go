@@ -127,7 +127,9 @@ func run(parser *flags.Parser, args []string) (err error) {
 		return fmt.Errorf("cannot use --system-label without --hybrid")
 	}
 
-	classicOpts := &preseed.ClassicOptions{}
+	classicOpts := &preseed.ClassicOptions{
+		SeccompActionsFile: opts.SeccompActionsFile,
+	}
 
 	if opts.Hybrid {
 		if opts.SystemLabel == "" {
