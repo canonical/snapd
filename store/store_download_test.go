@@ -46,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -645,6 +644,18 @@ var downloadDeltaTests = []struct {
 	expectError:      false,
 }}
 
+func (s *storeDownloadSuite) TestDownloadDeltaFormatsError(c *C) {
+	dauthCtx := &testDauthContext{c: c, deltaFormatsErr: errors.New("cannot read delta formats")}
+	sto := store.New(nil, dauthCtx)
+	restore := store.MockDownload(func(context.Context, string, string, string, *auth.UserState, *store.Store, io.ReadWriteSeeker, int64, progress.Meter, *store.DownloadOptions) error {
+		c.Error("download must not run with invalid delta configuration")
+		return nil
+	})
+	defer restore()
+	err := sto.Download(s.ctx, "test-snap", filepath.Join(c.MkDir(), "test.snap"), &snap.DownloadInfo{}, nil, nil, nil)
+	c.Check(err, ErrorMatches, "cannot read delta formats")
+}
+
 func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
@@ -665,11 +676,8 @@ func (s *storeDownloadSuite) TestDownloadDelta(c *C) {
 		path := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("downloaded-file-%d", i))
 		defer os.Remove(path)
 
-		restore := store.MockSupportedDeltaFormats(func(squashfs.DeltaFormatOpts) []string {
-			return testCase.supportedFormats
-		})
-		defer restore()
-		restore = store.MockDownload(
+		dauthCtx.deltaFormats = testCase.supportedFormats
+		restore := store.MockDownload(
 			func(ctx context.Context, name, sha3, url string, user *auth.UserState,
 				_ *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter,
 				dlOpts *store.DownloadOptions,

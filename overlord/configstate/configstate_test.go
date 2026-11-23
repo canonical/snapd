@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
@@ -324,6 +325,56 @@ func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
 	c.Assert(err, IsNil)
 	snapHomeDirs := []string{"/home", "/home/department", "/users", "/users/seniors"}
 	c.Check(dirs.SnapHomeDirs(), DeepEquals, snapHomeDirs)
+}
+
+func (s *configcoreHijackSuite) TestConfigMngrInitDeltaFormats(c *C) {
+	originalArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
+	arch.SetArchitecture("armhf")
+
+	for _, tc := range []struct {
+		seeded  bool
+		flag    bool
+		formats []string
+		want    []string
+	}{
+		{},
+		{seeded: true, want: []string{"xdelta3"}},
+		{seeded: true, flag: true, want: []string{"snap-1-1-xdelta3", "xdelta3"}},
+		{seeded: true, formats: []string{"snap-1-1-xdelta3"}, want: []string{"snap-1-1-xdelta3"}},
+		{seeded: true, flag: true, formats: []string{"xdelta3"}, want: []string{"snap-1-1-xdelta3", "xdelta3"}},
+	} {
+		o := overlord.Mock()
+		st := o.State()
+		hookMgr, err := hookstate.Manager(st, o.TaskRunner())
+		c.Assert(err, IsNil)
+		st.Lock()
+		st.Set("seeded", tc.seeded)
+		tr := config.NewTransaction(st)
+		if tc.flag {
+			c.Assert(tr.Set("core", "experimental.snap-delta-format", true), IsNil)
+		}
+		if tc.formats != nil {
+			c.Assert(tr.Set("core", "refresh.delta-formats", tc.formats), IsNil)
+		}
+		tr.Commit()
+		st.Unlock()
+		c.Assert(configstate.Init(st, hookMgr), IsNil)
+
+		st.Lock()
+		var formats []string
+		err = config.NewTransaction(st).Get("core", "refresh.delta-formats", &formats)
+		if tc.want == nil {
+			c.Check(config.IsNoOption(err), Equals, true)
+			cfg, err := config.GetSnapConfig(st, "core")
+			c.Check(err, IsNil)
+			c.Check(cfg, IsNil)
+		} else {
+			c.Check(err, IsNil)
+			c.Check(formats, DeepEquals, tc.want)
+		}
+		st.Unlock()
+	}
 }
 
 func (s *configcoreHijackSuite) TestConfigMngrInitPrunesGraduatedExperimentalFeatures(c *C) {

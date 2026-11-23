@@ -20,7 +20,11 @@
 package storecontext_test
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
@@ -29,12 +33,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -220,22 +226,102 @@ func (s *storeCtxSuite) TestStoreIDFromEnv(c *C) {
 	c.Check(storeID, Equals, "env-store-id")
 }
 
-func (s *storeCtxSuite) TestWithSnapStoreDelta(c *C) {
+func (s *storeCtxSuite) TestDeltaFormats(c *C) {
+	originalArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
+	arch.SetArchitecture("armhf")
 	storeCtx := storecontext.New(s.state, &testBackend{nothing: true})
 
-	hasSnapDeltaFormat := storeCtx.WithSnapStoreDelta()
-	c.Check(hasSnapDeltaFormat, Equals, false)
+	formats, err := storeCtx.DeltaFormats()
+	c.Assert(err, IsNil)
+	c.Check(formats, DeepEquals, []string{"xdelta3"})
+	for _, want := range [][]string{{"snap-1-1-xdelta3"}, {"xdelta3", "snap-1-1-xdelta3"}, {"xdelta3"}} {
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "refresh.delta-formats", want), IsNil)
+		// Request-time behavior must not consult the legacy flag.
+		c.Assert(tr.Set("core", "experimental.snap-delta-format", true), IsNil)
+		tr.Commit()
+		s.state.Unlock()
+
+		formats, err := storeCtx.DeltaFormats()
+		c.Assert(err, IsNil)
+		c.Check(formats, DeepEquals, want)
+	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.snap-delta-format", true)
+	c.Assert(tr.Set("core", "refresh.delta-formats", "invalid"), IsNil)
 	tr.Commit()
-
 	s.state.Unlock()
-	hasSnapDeltaFormat = storeCtx.WithSnapStoreDelta()
+	_, err = storeCtx.DeltaFormats()
+	c.Check(err, ErrorMatches, ".*cannot unmarshal string.*")
+}
+
+func (s *storeCtxSuite) TestDeltaFormatsStoreRequests(c *C) {
+	const snapID = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+	headers := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/v2/snaps/refresh")
+		headers <- r.Header.Get("Snap-Accept-Delta-Format")
+		var request struct {
+			Actions []struct {
+				Action      string `json:"action"`
+				InstanceKey string `json:"instance-key"`
+			} `json:"actions"`
+		}
+		c.Assert(json.NewDecoder(r.Body).Decode(&request), IsNil)
+		c.Assert(request.Actions, HasLen, 1)
+		action := request.Actions[0]
+		c.Check(json.NewEncoder(w).Encode(map[string]any{
+			"results": []any{map[string]any{
+				"result": action.Action, "instance-key": action.InstanceKey,
+				"snap-id": snapID, "name": "test-snap",
+				"snap": map[string]any{
+					"snap-id": snapID, "name": "test-snap", "revision": 2, "version": "1",
+					"publisher": map[string]string{"id": "canonical", "username": "canonical", "display-name": "Canonical"},
+				},
+			}},
+		}), IsNil)
+	}))
+	defer server.Close()
+	storeURL, err := url.Parse(server.URL)
+	c.Assert(err, IsNil)
+	cfg := store.DefaultConfig()
+	cfg.StoreBaseURL = storeURL
+	cfg.Authorizer = store.UserAuthorizer{}
+	sto := store.New(cfg, storecontext.New(s.state, &testBackend{nothing: true}))
+
+	for _, formats := range [][]string{{"xdelta3"}, {"snap-1-1-xdelta3"}, {"snap-1-1-xdelta3", "xdelta3"}, {"xdelta3", "snap-1-1-xdelta3"}} {
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "refresh.delta-formats", formats), IsNil)
+		tr.Commit()
+		s.state.Unlock()
+
+		for _, action := range []string{"refresh", "download"} {
+			results, _, err := sto.SnapAction(context.Background(), []*store.CurrentSnap{{
+				InstanceName: "test-snap", SnapID: snapID, Revision: snap.R(1),
+			}}, []*store.SnapAction{{
+				Action: action, InstanceName: "test-snap", SnapID: snapID,
+			}}, nil, nil, nil)
+			c.Assert(err, IsNil)
+			c.Check(results, HasLen, 1)
+			c.Check(<-headers, Equals, strings.Join(formats, ","))
+		}
+	}
+
 	s.state.Lock()
-	c.Check(hasSnapDeltaFormat, Equals, true)
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.delta-formats", "invalid"), IsNil)
+	tr.Commit()
+	s.state.Unlock()
+	_, _, err = sto.SnapAction(context.Background(), nil, []*store.SnapAction{{
+		Action: "download", InstanceName: "test-snap",
+	}}, nil, nil, nil)
+	c.Check(err, ErrorMatches, ".*cannot unmarshal string.*")
+	c.Check(len(headers), Equals, 0)
 }
 
 func (s *storeCtxSuite) TestCloudInfo(c *C) {

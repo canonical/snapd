@@ -53,6 +53,18 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 
 	rt := configcore.NewRunTransaction(tr, nil)
 
+	// Do not create core configuration before gadget defaults are applied:
+	// EarlyConfig uses its presence to detect an already configured system.
+	configured, err := systemAlreadyConfigured(st)
+	if err != nil {
+		return err
+	}
+	if configured {
+		if err := configcore.EnsureRefreshDeltaFormats(rt); err != nil {
+			return err
+		}
+	}
+
 	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
 		return err
 	}

@@ -87,7 +87,6 @@ var connCheckStrategy = retry.LimitCount(3, retry.LimitTime(38*time.Second,
 ))
 
 // For testing purposes
-var squashfsSupportedDeltaFormats = squashfs.SupportedDeltaFormats
 
 // Config represents the configuration to access the snap store
 type Config struct {
@@ -417,14 +416,12 @@ func New(cfg *Config, dauthCtx DeviceAndAuthContext) *Store {
 	return store
 }
 
-func (s *Store) supportedDeltaFormats() []string {
-	withSnapStoreDelta := false
+func (s *Store) supportedDeltaFormats() ([]string, error) {
 	if s.dauthCtx != nil {
-		withSnapStoreDelta = s.dauthCtx.WithSnapStoreDelta()
+		return s.dauthCtx.DeltaFormats()
 	}
 
-	return squashfsSupportedDeltaFormats(
-		squashfs.DeltaFormatOpts{WithSnapDeltaFormat: withSnapStoreDelta})
+	return squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{}), nil
 }
 
 // SetAssertionMaxFormats allows to change the assertion max formats to send

@@ -174,7 +174,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		logger.Debugf("Cache entry for SHA3_384 …%.5s has unexpected size, re-downloading.", downloadInfo.Sha3_384)
 	}
 
-	if len(s.supportedDeltaFormats()) > 0 {
+	deltaFormats, err := s.supportedDeltaFormats()
+	if err != nil {
+		return err
+	}
+	if len(deltaFormats) > 0 {
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 		if len(downloadInfo.Deltas) > 0 {
 			err := s.downloadAndApplyDelta(ctx, name, targetPath, downloadInfo, pbar, user, dlOpts)
@@ -838,11 +842,14 @@ func doDownloadReqImpl(ctx context.Context, storeURL *url.URL, cdnHeader string,
 // selectDelta selects the preferred delta format amongst the options in downloadInfo.
 func (s *Store) selectDelta(downloadInfo *snap.DownloadInfo) (*snap.DeltaInfo, error) {
 	var deltaInfo snap.DeltaInfo
-	deltaFormats := s.supportedDeltaFormats()
+	deltaFormats, err := s.supportedDeltaFormats()
+	if err != nil {
+		return nil, err
+	}
 	idx := len(deltaFormats)
 	for _, info := range downloadInfo.Deltas {
 		// Priority is determined by the order returned by
-		// squashfsSupportedDeltaFormats(): lower index is higher priority. So
+		// supportedDeltaFormats(): lower index is higher priority. So
 		// once we find one at position idx, we do not want to look to higher
 		// indexes in the strings returned by the store.
 		for i := 0; i < idx; i++ {
@@ -877,9 +884,11 @@ func (s *Store) applyDeltaImpl(ctx context.Context, name string, deltaPath strin
 
 	partialTargetPath := targetPath + ".partial"
 
-	// validity check that deltas are available and that the path for the xdelta3
-	// command is set
-	if ok := len(s.supportedDeltaFormats()) > 0; !ok {
+	deltaFormats, err := s.supportedDeltaFormats()
+	if err != nil {
+		return err
+	}
+	if len(deltaFormats) == 0 {
 		return fmt.Errorf("internal error: applyDelta used when deltas are not available")
 	}
 

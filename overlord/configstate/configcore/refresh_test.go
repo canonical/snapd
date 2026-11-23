@@ -25,6 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
@@ -33,6 +35,126 @@ type refreshSuite struct {
 }
 
 var _ = Suite(&refreshSuite{})
+
+func (s *refreshSuite) TestConfigureRefreshDeltaFormats(c *C) {
+	originalArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
+	arch.SetArchitecture("armhf")
+
+	for _, tc := range []struct {
+		value any
+		want  []string
+		err   string
+	}{
+		{nil, []string{"xdelta3"}, ""},
+		{[]string{"xdelta3"}, []string{"xdelta3"}, ""},
+		{[]string{"snap-1-1-xdelta3", "xdelta3"}, []string{"snap-1-1-xdelta3", "xdelta3"}, ""},
+		{[]string{}, nil, "refresh.delta-formats must contain at least one delta format"},
+		{[]string{"unknown"}, nil, `unsupported delta format "unknown" in refresh.delta-formats`},
+		{"xdelta3", nil, ".*cannot unmarshal string.*"},
+		{[]any{"xdelta3", false}, nil, ".*cannot unmarshal bool.*"},
+	} {
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "refresh.delta-formats", tc.value), IsNil)
+		s.state.Unlock()
+		err := configcore.Run(classicDev, configcore.NewRunTransaction(tr, nil))
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err)
+		} else {
+			c.Assert(err, IsNil)
+			s.state.Lock()
+			tr.Commit()
+			var formats []string
+			c.Assert(config.NewTransaction(s.state).Get("core", "refresh.delta-formats", &formats), IsNil)
+			s.state.Unlock()
+			c.Check(formats, DeepEquals, tc.want)
+		}
+	}
+}
+
+func (s *refreshSuite) TestConfigureRefreshDeltaFormatsLegacyFlag(c *C) {
+	originalArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
+	arch.SetArchitecture("armhf")
+
+	for _, initial := range [][]string{nil, {"xdelta3"}, {"snap-1-1-xdelta3"}, {"xdelta3", "snap-1-1-xdelta3"}} {
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "refresh.delta-formats", initial), IsNil)
+		tr.Commit()
+		tr = config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "experimental.snap-delta-format", true), IsNil)
+		s.state.Unlock()
+
+		c.Assert(configcore.Run(classicDev, configcore.NewRunTransaction(tr, nil)), IsNil)
+
+		s.state.Lock()
+		tr.Commit()
+		var formats []string
+		c.Assert(config.NewTransaction(s.state).Get("core", "refresh.delta-formats", &formats), IsNil)
+		want := []string{"snap-1-1-xdelta3", "xdelta3"}
+		if len(initial) == 2 {
+			want = initial
+		}
+		c.Check(formats, DeepEquals, want)
+		tr = config.NewTransaction(s.state)
+		c.Assert(tr.Set("core", "experimental.snap-delta-format", false), IsNil)
+		s.state.Unlock()
+
+		c.Assert(configcore.Run(classicDev, configcore.NewRunTransaction(tr, nil)), IsNil)
+
+		s.state.Lock()
+		tr.Commit()
+		c.Assert(config.NewTransaction(s.state).Get("core", "refresh.delta-formats", &formats), IsNil)
+		s.state.Unlock()
+		c.Check(formats, DeepEquals, want)
+	}
+}
+
+func (s *refreshSuite) TestEarlyRefreshDeltaFormatsLegacyFlag(c *C) {
+	originalArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
+	arch.SetArchitecture("armhf")
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+
+	c.Assert(configcore.Early(classicDev, configcore.NewRunTransaction(tr, nil), map[string]any{
+		"experimental.snap-delta-format": true,
+		"refresh.delta-formats":          []string{"xdelta3"},
+	}), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr.Commit()
+	var formats []string
+	c.Assert(config.NewTransaction(s.state).Get("core", "refresh.delta-formats", &formats), IsNil)
+	c.Check(formats, DeepEquals, []string{"snap-1-1-xdelta3", "xdelta3"})
+}
+
+func (s *refreshSuite) TestConfigureRefreshDeltaFormatsUnset(c *C) {
+	originalArch := arch.DpkgArchitecture()
+	defer arch.SetArchitecture(arch.ArchitectureType(originalArch))
+	arch.SetArchitecture("amd64")
+
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.delta-formats", []string{"xdelta3"}), IsNil)
+	tr.Commit()
+	tr = config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "refresh.delta-formats", nil), IsNil)
+	s.state.Unlock()
+
+	c.Assert(configcore.Run(classicDev, configcore.NewRunTransaction(tr, nil)), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr.Commit()
+	var formats []string
+	c.Assert(config.NewTransaction(s.state).Get("core", "refresh.delta-formats", &formats), IsNil)
+	c.Check(formats, DeepEquals, []string{"snap-1-1-xdelta3", "xdelta3"})
+}
 
 func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 	err := configcore.Run(classicDev, &mockConf{

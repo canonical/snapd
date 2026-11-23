@@ -25,7 +25,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timeutil"
 )
@@ -42,6 +45,7 @@ func init() {
 	supportedConfigurations["core.refresh.metered"] = true
 	supportedConfigurations["core.refresh.retain"] = true
 	supportedConfigurations["core.refresh.rate-limit"] = true
+	supportedConfigurations["core.refresh.delta-formats"] = true
 	supportedConfigurations["core.refresh.max-inhibition-days"] = true
 }
 
@@ -158,8 +162,61 @@ func validateRefreshRateLimit(tr RunTransaction) error {
 	if len(refreshRateLimit) == 0 {
 		return nil
 	}
+
 	if _, err := strutil.ParseByteSize(refreshRateLimit); err != nil {
 		return err
 	}
 	return nil
+}
+
+func validateRefreshDeltaFormats(tr RunTransaction) error {
+	_, err := snapstate.RefreshDeltaFormats(tr)
+	return err
+}
+
+// EnsureRefreshDeltaFormats persists platform defaults when the option is absent.
+// The legacy experimental flag ensures both delta formats are configured.
+// Otherwise explicit lists, including their order, are preserved.
+// The caller must hold the state lock.
+func EnsureRefreshDeltaFormats(tr RunTransaction) error {
+	var value any
+	if err := tr.GetMaybe("core", "refresh.delta-formats", &value); err != nil {
+		return err
+	}
+	enabled, err := features.Flag(tr, features.SnapDeltaFormat)
+	if err != nil {
+		return err
+	}
+	if value != nil && !enabled {
+		return nil
+	}
+	formats, err := snapstate.RefreshDeltaFormats(tr)
+	if err != nil {
+		return err
+	}
+	if enabled {
+		supported := squashfs.SupportedDeltaFormats(squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true})
+		for _, format := range supported {
+			if !strutil.ListContains(formats, format) {
+				formats = supported
+				break
+			}
+		}
+	}
+	return tr.Set("core", "refresh.delta-formats", formats)
+}
+
+func earlyRefreshDeltaFormatsFilter(values, early map[string]any) {
+	for _, key := range []string{"refresh.delta-formats", "experimental.snap-delta-format"} {
+		if value, ok := values[key]; ok {
+			early[key] = value
+		}
+	}
+}
+
+func handleRefreshDeltaFormats(tr RunTransaction, _ *fsOnlyContext) error {
+	st := tr.State()
+	st.Lock()
+	defer st.Unlock()
+	return EnsureRefreshDeltaFormats(tr)
 }

@@ -49,8 +49,8 @@ type DeviceAndAuthContext interface {
 
 	StoreOffline() (bool, error)
 
-	// WithSnapStoreDelta returns whether snap store delta format experimental flag is set or not.
-	WithSnapStoreDelta() bool
+	// DeltaFormats returns the configured delta formats in preference order.
+	DeltaFormats() ([]string, error)
 }
 
 // DeviceSessionRequestParams gathers the assertions and information to be sent to request a device session.

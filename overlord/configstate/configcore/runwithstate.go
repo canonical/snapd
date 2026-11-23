@@ -59,6 +59,7 @@ func init() {
 	validateOnly := &flags{validatedOnlyStateConfig: true}
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
+	addWithStateHandler(validateRefreshDeltaFormats, handleRefreshDeltaFormats, &flags{earlyConfigFilter: earlyRefreshDeltaFormatsFilter})
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
 
 	// disk-reservation.size
