@@ -298,6 +298,27 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnmarshalErrors(c *C) {
+	var n *state.Notice
+	c.Check(json.Unmarshal([]byte(`42`), &n), ErrorMatches, ".* cannot unmarshal .*")
+
+	type T struct{ b, e string }
+	// validity check
+	b := `{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`
+	c.Check(json.Unmarshal([]byte(b), &n), IsNil)
+	for _, t := range []T{
+		// some bogus values
+		{`{"key": "x", "type":"warning", "first-occurred": "2006",                 "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1h"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1d", "repeat-after": "1h"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, ".* unknown unit \"?d\"? .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006"                , "last-repeated": "2006-01-02T15:10:05Z", "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+		{`{"key": "x", "type":"warning", "first-occurred": "2006-01-02T15:04:05Z", "last-occurred": "2006-01-02T15:10:05Z", "last-repeated": "2006"                , "expire-after": "1h", "repeat-after": "1d"}`, "parsing time .* cannot parse .*"},
+	} {
+		var n *state.Notice
+		c.Check(json.Unmarshal([]byte(t.b), &n), ErrorMatches, t.e)
+	}
+}
+
 func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 	now := time.Now()
 	restore := state.MockTime(now)
@@ -308,7 +329,8 @@ func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 
 	ts := now.Add(-10 * time.Hour).UTC().Format(time.RFC3339)
 
-	// One valid notice, notices missing each of the three timestamps.
+	// One valid notice, notices missing each of the three timestamps,
+	// warning notices with invalid data and expire-after, and an expired notice.
 	stateJSON := fmt.Sprintf(`{
 		"data": {}, "changes": {}, "tasks": {},
 		"notices": [
@@ -320,7 +342,16 @@ func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 			 "first-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
 			{"id": "4", "type": "change-update", "key": "no-last-repeated",
 			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s"},
-			{"id": "5", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
+			{"id": "5", "type": "warning", "key": "bad-last-shown", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s",
+			 "last-data": {"last-shown": "0"}},
+			{"id": "6", "type": "warning", "key": "bad-show-after", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s",
+			 "last-data": {"show-after": "16d"}},
+			{"id": "7", "type": "warning", "key": "no-expire-after", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q,
+			 "last-data": {"show-after": "16h", "last-shown": %[1]q}},
+			{"id": "8", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
 			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "9h0m0s",
 			 "last-data": {"show-after": "16h", "last-shown": %[1]q}}
 		],
@@ -338,12 +369,15 @@ func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
 	c.Assert(notices, HasLen, 1)
 	c.Check(notices[0].Key(), Equals, "valid")
 
-	// Each invalid timestamp is logged.
+	// Each zero timestamp and invalid warning notice options are logged.
 	logs := logBuf.String()
 
 	c.Check(logs, Matches, `(?s).*Notice 2 \(public:change-update:no-first-occurred\) skipped due to invalid first-occurred time.*`)
 	c.Check(logs, Matches, `(?s).*Notice 3 \(public:change-update:no-last-occurred\) skipped due to invalid last-occurred time.*`)
 	c.Check(logs, Matches, `(?s).*Notice 4 \(public:change-update:no-last-repeated\) skipped due to invalid last-repeated time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 5 \(public:warning:bad-last-shown\) skipped due to invalid option: invalid last-shown time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 6 \(public:warning:bad-show-after\) skipped due to invalid option: invalid show-after duration.*`)
+	c.Check(logs, Matches, `(?s).*Notice 7 \(public:warning:no-expire-after\) skipped due to invalid option: empty expire-after duration.*`)
 }
 
 func (s *noticesSuite) TestString(c *C) {
@@ -371,7 +405,8 @@ func (s *noticesSuite) TestString(c *C) {
 		"first-occurred": "2023-09-01T05:23:01Z",
 		"last-occurred": "2023-09-01T07:23:02Z",
 		"last-repeated": "2023-09-01T06:23:03.123456789Z",
-		"occurrences": 2
+		"occurrences": 2,
+		"expire-after": "168h0m0s"
 	}`)
 	err = json.Unmarshal(noticeJSON, &notice)
 	c.Assert(err, IsNil)
@@ -399,6 +434,13 @@ func (s *noticesSuite) TestType(c *C) {
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
 	c.Assert(notices, HasLen, 1)
 	c.Check(notices[0].Type(), Equals, state.WarningNotice)
+}
+
+func (s *noticesSuite) TestAddNoticeForWarningError(c *C) {
+	st := state.New(nil)
+	id, err := st.AddNotice(nil, state.WarningNotice, "warning", nil)
+	c.Assert(err, ErrorMatches, "cannot create warning notices with AddNotice")
+	c.Assert(id, Equals, "")
 }
 
 func (s *noticesSuite) TestOccurrences(c *C) {
@@ -1192,6 +1234,31 @@ func (s *noticesSuite) TestValidateNotice(c *C) {
 	id, err = st.AddNotice(nil, state.RefreshInhibitNotice, "123", nil)
 	c.Check(err, ErrorMatches, `internal error: cannot add refresh-inhibit notice with invalid key "123": only "-" key is supported`)
 	c.Check(id, Equals, "")
+
+	// Warning with no options
+	err = state.ValidateNotice(state.WarningNotice, "danger", nil)
+	c.Check(err, ErrorMatches, "cannot add warning notice with no options")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data: map[string]string{"show-after": "16d"},
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with invalid show-after duration: .*")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data: map[string]string{"last-shown": "2000"},
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with invalid last-shown time: .* cannot parse .*")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		ExpireAfter: 0,
+	})
+	c.Check(err, ErrorMatches, "cannot add warning notice with empty expire-after duration")
+
+	err = state.ValidateNotice(state.WarningNotice, "danger", &state.AddNoticeOptions{
+		Data:        map[string]string{"last-shown": "2000-01-01T15:00:00Z", "show-after": "1h"},
+		ExpireAfter: time.Hour,
+	})
+	c.Check(err, IsNil)
 }
 
 func (s *noticesSuite) TestNextNoticeTimestamp(c *C) {
