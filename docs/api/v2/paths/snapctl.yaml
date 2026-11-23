@@ -20,7 +20,7 @@ post:
       name: X-Snapctl-Features
       description: >
         A comma-separated list of feature flags supported by the connecting snapctl client.
-        This is used for feature negotiation between the client and the daemon. 
+        This is used for feature negotiation between the client and the daemon.
         Older clients may not send this header.
       required: false
       schema:
@@ -131,12 +131,12 @@ post:
                 The system-mode command includes `storage-encrypted: managed`
                 in its YAML stdout when the FDE state managed by snapd exists and contains at least one primary key.
                 If that state is absent or contains no primary keys, the line
-                is omitted. 
+                is omitted.
                 This detection does not support two
-                legacy encrypted systems without a primary key: 
+                legacy encrypted systems without a primary key:
                 - systems using v1 TPM keys because an older snapd was used during installation; and
                 - systems whose older kernel snap-bootstrap does not provide
-                a primary key in the keyring. 
+                a primary key in the keyring.
                 This line does not indicate whether encryption is TPM2-backed.
               value:
                 type: sync
