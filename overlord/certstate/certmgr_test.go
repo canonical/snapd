@@ -353,6 +353,73 @@ func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
 	c.Check(calls, Equals, 1)
 }
 
+// TestEnsureRetriesReconcileAfterUpdateFinishes verifies that when an
+// update-cert-db change is in flight during one Ensure, a later Ensure (after
+// the change finishes) still reconciles the store, because the in-flight guard
+// runs before the one-time-checks flag is set (SNAPDENG-38146 review feedback).
+func (s *certMgrTestSuite) TestEnsureRetriesReconcileAfterUpdateFinishes(c *C) {
+	var calls int
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		calls++
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	// An existing (possibly stale) generation is present.
+	seedCurrentPublishedGeneration(c, "existing", []byte("existing"))
+
+	// An update-cert-db change is in flight; the first Ensure must skip
+	// reconciling without consuming the one-time run.
+	chg := s.state.NewChange("foo", "pending update")
+	task := s.state.NewTask("update-cert-db", "pending update")
+	chg.AddTask(task)
+	s.state.Unlock()
+
+	c.Assert(s.mgr.Ensure(), IsNil)
+	c.Check(calls, Equals, 0)
+
+	// The change finishes; the next Ensure must reconcile now.
+	s.state.Lock()
+	chg.SetStatus(state.DoneStatus)
+	task.SetStatus(state.DoneStatus)
+	s.state.Unlock()
+
+	c.Assert(s.mgr.Ensure(), IsNil)
+	c.Check(calls, Equals, 1)
+}
+
+// TestEnsureGCErrorDoesNotBlockReconcile verifies that a garbage-collection
+// failure (e.g. a failed boot-ID read or a full disk) is logged but does not
+// prevent the store from being reconciled — reconciliation is the self-heal
+// this path exists to provide (SNAPDENG-38146 review feedback).
+func (s *certMgrTestSuite) TestEnsureGCErrorDoesNotBlockReconcile(c *C) {
+	var rendered bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		rendered = true
+		return nil
+	})
+	defer restore()
+
+	// Force garbage collection to fail.
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "", errors.New("cannot read boot id")
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	seedCurrentPublishedGeneration(c, "existing", []byte("existing"))
+	s.state.Unlock()
+
+	// Ensure succeeds and the store is reconciled despite the GC failure.
+	c.Assert(s.mgr.Ensure(), IsNil)
+	c.Check(rendered, Equals, true)
+}
+
 func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
 	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		return errors.New("boom")
@@ -426,13 +493,16 @@ func (s *certMgrTestSuite) TestEnsureLoopLogging(c *C) {
 	swfeatstest.CheckEnsureLoopLogging("certmgr.go", c, true)
 }
 
-// TestEnsureClearsStaleInactiveMarkerForReactivatedGeneration covers the case
-// where a generation that was marked inactive (pending deletion on a later boot)
-// becomes current again before Ensure runs. Running guarded garbage collection
-// before reconciliation must clear the stale marker, so the just-reactivated
-// generation is not deleted out from under namespaces still using it
-// (SNAPDENG-38146 review feedback).
-func (s *certMgrTestSuite) TestEnsureClearsStaleInactiveMarkerForReactivatedGeneration(c *C) {
+// TestEnsureClearsStaleInactiveMarkerForDisplacedGeneration pins the
+// GC-before-render ordering. The currently-active generation carries a stale
+// inactivity marker from a previous boot. Because GC runs before the render, the
+// marker is cleared while the generation is still current; the render then
+// displaces it (new content => new generation), and because the marker was
+// cleared, the displaced generation is not treated as pending deletion on this
+// boot. If GC ran after the render instead, the generation would already be
+// non-current when GC looked at it, and the stale marker from the old boot would
+// cause GC to delete it immediately. (SNAPDENG-38146 review feedback)
+func (s *certMgrTestSuite) TestEnsureClearsStaleInactiveMarkerForDisplacedGeneration(c *C) {
 	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
 		return "boot-2", nil
 	})
@@ -442,27 +512,52 @@ func (s *certMgrTestSuite) TestEnsureClearsStaleInactiveMarkerForReactivatedGene
 	s.state.Set("seeded", true)
 	s.state.Unlock()
 
+	// The base starts out providing certificate A.
+	certA, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SystemCertsDir, "a.crt"), certA, 0o644), IsNil)
 
-	// The current generation carries a stale inactivity marker from a previous
-	// boot, as if it had been displaced and is now current again.
-	currentTarget := seedCurrentPublishedGeneration(c, "current", []byte("current"))
-	currentDir := filepath.Join(dirs.SnapdPKIV1Dir, currentTarget)
-	inactiveFile := filepath.Join(currentDir, ".snapd-inactive")
+	// Render the generation for A via the real code so it is the active one.
+	s.mgr = certstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(s.mgr.Ensure(), IsNil)
+	targetA, err := filepath.EvalSymlinks(filepath.Join(dirs.SnapdPKIV1Dir, "merged"))
+	c.Assert(err, IsNil)
+	genDirA := targetA
+	// Resolve to the published/<gen> dir (targetA is absolute after EvalSymlinks).
+	c.Assert(genDirA, Not(Equals), "")
+
+	// Mark the active generation as if it were displaced on a previous boot
+	// (stale marker with an old boot ID).
+	inactiveFile := filepath.Join(genDirA, ".snapd-inactive")
 	c.Assert(os.WriteFile(inactiveFile, []byte("boot-1"), 0o644), IsNil)
 
-	// A render happens but produces the same content, so the generation stays
-	// current (no-op publication).
-	restore := certstate.MockRefreshCertificateDatabase(func() error { return nil })
-	defer restore()
+	// The base now also provides certificate B, so reconciliation will publish a
+	// new generation and displace A.
+	certB, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SystemCertsDir, "b.crt"), certB, 0o644), IsNil)
 
+	// A fresh CertManager (as after a snapd restart) reconciles. GC must run
+	// before the render: it sees A still current with a stale marker and clears
+	// the marker, then the render displaces A.
+	s.mgr = certstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(s.mgr.Ensure(), IsNil)
 
-	// GC ran before the render and cleared the stale marker for the now-current
-	// generation, instead of deleting it.
+	// The displaced generation A survived this boot: GC ran before the render and
+	// cleared A's stale marker while A was still current, so when the render then
+	// displaced A, there was no old-boot marker left to trigger deletion. The
+	// marker stays cleared until a later GC pass re-marks the now-inactive A with
+	// the then-current boot ID.
+	_, err = os.Stat(genDirA)
+	c.Check(err, IsNil, Commentf("displaced generation should survive this boot"))
 	c.Check(inactiveFile, testutil.FileAbsent)
-	_, err := os.Stat(currentDir)
-	c.Check(err, IsNil)
+
+	// The active generation now contains B.
+	out, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(out, certA), Equals, true)
+	c.Check(bytes.Contains(out, certB), Equals, true)
 }
 
 // TestEnsureKeepsLegacyMergedDirWhenUpdateInProgress covers a legacy plain
@@ -471,18 +566,15 @@ func (s *certMgrTestSuite) TestEnsureClearsStaleInactiveMarkerForReactivatedGene
 // that aborts before its update task leaves the store deleted until the next
 // snapd restart (SNAPDENG-38146 review feedback).
 func (s *certMgrTestSuite) TestEnsureKeepsLegacyMergedDirWhenUpdateInProgress(c *C) {
+	// With an update-cert-db change in flight, Ensure returns before the
+	// legacy-dir removal, garbage collection, and reconciliation, so no boot ID
+	// is needed and nothing is rendered.
 	var rendered bool
 	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		rendered = true
 		return nil
 	})
 	defer restore()
-
-	// GC runs first on this path, so provide a boot ID.
-	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
-		return "boot-1", nil
-	})
-	defer restoreBootID()
 
 	s.state.Lock()
 	s.state.Set("seeded", true)
