@@ -439,20 +439,32 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if options == nil {
 		options = &AddNoticeOptions{}
 	}
-	err := ValidateNotice(noticeType, key, options)
-	if err != nil {
-		return "", fmt.Errorf("internal error: %w", err)
-	}
 
 	s.writing()
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
-	now := s.NextNoticeTimestamp().UTC()
-	expireAfter := options.ExpireAfter
-	if expireAfter == 0 {
-		expireAfter = defaultNoticeExpireAfter
+	notice, err := s.doAddNotice(userID, noticeType, key, options)
+	if err != nil {
+		return "", err
 	}
+	return notice.id, nil
+}
+
+// doAddNotice records an occurrence of a notice with the specified type and
+// key and options. Returns a pointer to the notice.
+//
+// The caller is responsible for holding the notices mutex for writing.
+func (s *State) doAddNotice(userID *uint32, noticeType NoticeType, key string, options *AddNoticeOptions) (*Notice, error) {
+	if options.ExpireAfter == 0 {
+		options.ExpireAfter = defaultNoticeExpireAfter
+	}
+
+	if err := ValidateNotice(noticeType, key, options); err != nil {
+		return nil, fmt.Errorf("internal error: %w", err)
+	}
+
+	now := s.NextNoticeTimestamp().UTC()
 	newOrRepeated := false
 	uid, hasUserID := flattenUserID(userID)
 	uniqueKey := noticeKey{hasUserID, uid, noticeType, key}
@@ -460,7 +472,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if !ok || notice.Expired(now) {
 		// First non-expired occurrence of this notice userID+type+key
 		s.lastNoticeId++
-		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, expireAfter)
+		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, options.ExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
@@ -473,7 +485,7 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 		s.noticeCond.Broadcast()
 	}
 
-	return notice.id, nil
+	return notice, nil
 }
 
 // ValidateNotice validates notice type and key before adding.
