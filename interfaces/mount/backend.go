@@ -289,11 +289,11 @@ func opportunisticDiscard(appSet *interfaces.SnapAppSet) error {
 				len(paths), runningApplicationsError)
 		}
 
-		logger.Debugf("no running applications belonging to snap %q, proceeding to discard the snap's mount namespace",
-			instanceName)
 		if err = DiscardLockedSnapNamespace(instanceName); err != nil {
 			return fmt.Errorf("cannot discard mount namespace of snap %q: %w", instanceName, err)
 		}
+		logger.Noticef("no running applications belonging to snap %q, discarded the snap's mount namespace",
+			instanceName)
 
 		return nil
 	})

@@ -136,8 +136,17 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 	walkFunc := func(path string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			// See the documentation of path/filepath.Walk. The error we get is
-			// the error that was encountered while walking. We just surface
-			// that error quickly.
+			// the error that was encountered while walking. A cgroup entry (a
+			// transient systemd scope, a container payload, or the provider's
+			// own hook/service scope during a refresh) can disappear between
+			// readdir and lstat at any time. Tolerate that for individual
+			// entries so that one vanished entry does not abort the whole walk
+			// and lose the entries we already found. A missing scan root is
+			// still surfaced (and mapped to "no instances" by the caller), as
+			// before.
+			if os.IsNotExist(err) && path != cgroupPathToScan {
+				return nil
+			}
 			return err
 		}
 
@@ -182,7 +191,7 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 
 	// NOTE: Walk is internally performed in lexical order so the output is
 	// deterministic and we don't need to sort the returned aggregated PIDs.
-	if err := filepath.Walk(cgroupPathToScan, walkFunc); err != nil {
+	if err := filepathWalk(cgroupPathToScan, walkFunc); err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
@@ -190,6 +199,11 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 	}
 	return pathList, nil
 }
+
+// filepathWalk is a variable so that tests can inject synthetic walk errors
+// (e.g. an entry disappearing mid-walk) that cannot be reproduced
+// deterministically against a real filesystem.
+var filepathWalk = filepath.Walk
 
 // PidsOfSnap returns the association of security tags to PIDs.
 //

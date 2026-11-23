@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	. "gopkg.in/check.v1"
 
@@ -437,5 +438,97 @@ func (s *scanningSuite) TestContainerPathsAreIgnored(c *C) {
 		c.Check(matchesInArray(paths, filepath.Dir(path3)), Equals, 0)
 		c.Check(matchesInArray(paths, filepath.Dir(path4)), Equals, 0)
 		c.Check(matchesInArray(paths, filepath.Dir(path5)), Equals, 0)
+	}
+}
+
+// TestPathsOfSnapToleratesEntryVanishingMidWalk verifies that a cgroup entry
+// disappearing between readdir and lstat (a transient systemd scope, a
+// container payload, or a provider's hook/service scope during a refresh) does
+// not abort the walk and lose the snap's already-found cgroups. This is the
+// false-negative that let opportunisticDiscard drop an occupied mount namespace
+// (SNAPDENG-38148).
+func (s *scanningSuite) TestPathsOfSnapToleratesEntryVanishingMidWalk(c *C) {
+	options := cgroup.InstancePathsOptions{
+		ReturnCGroupPath: true,
+	}
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
+
+		// One snap cgroup present, alongside an unrelated idle unit to walk.
+		snapProcs := s.writePids(c, "system.slice/snap.foo.bar.service", []int{100})
+		s.writePids(c, "system.slice/rca-pad-1.service", []int{200})
+
+		snapDir := filepath.Dir(snapProcs)
+
+		// Inject a synthetic lstat ENOENT for a vanished entry, then run the real
+		// walk. We cover two orderings:
+		//  - "before": the error fires before the walk starts, so nothing has
+		//    been collected yet.
+		//  - "after": the error fires only once the walk has visited the snap's
+		//    cgroup.procs, so the snap's cgroup has already been recorded. This is
+		//    the central regression: an implementation that clears already-found
+		//    paths on ENOENT must still be caught.
+		for _, ordering := range []string{"before", "after"} {
+			restoreWalk := cgroup.MockFilepathWalk(func(root string, walkFn filepath.WalkFunc) error {
+				enoent := &os.PathError{Op: "lstat", Path: filepath.Join(root, "system.slice/rca-churn.scope"), Err: syscall.ENOENT}
+				if ordering == "before" {
+					if err := walkFn(enoent.Path, nil, enoent); err != nil {
+						return err
+					}
+					return filepath.Walk(root, walkFn)
+				}
+				// "after": intercept the walk so the error is delivered once the
+				// snap's cgroup.procs has been visited. Note that the snap's
+				// cgroup is recorded on the cgroup.procs visit, not the
+				// directory visit, and that visit returns filepath.SkipDir, so
+				// the error must be delivered before that result is returned.
+				interceptor := func(path string, info os.FileInfo, err error) error {
+					werr := walkFn(path, info, err)
+					if err == nil && path == snapProcs {
+						// The snap's cgroup was just recorded; now a transient
+						// entry disappears elsewhere in the tree.
+						if eerr := walkFn(enoent.Path, nil, enoent); eerr != nil {
+							return eerr
+						}
+					}
+					return werr
+				}
+				return filepath.Walk(root, interceptor)
+			})
+
+			paths, err := cgroup.InstancePathsOfSnap("foo", options)
+			restoreWalk()
+			c.Assert(err, IsNil, comment)
+			// The vanished entry must not lose the snap's already-found cgroup.
+			c.Check(paths, HasLen, 1, Commentf("cgroup version %v ordering=%v", ver, ordering))
+			c.Check(matchesInArray(paths, snapDir), Equals, 1, Commentf("cgroup version %v ordering=%v", ver, ordering))
+		}
+	}
+}
+
+// TestPathsOfSnapRootVanishingStillMeansEmpty preserves the existing contract:
+// if the scan root itself is gone, the result is empty (and not an error).
+func (s *scanningSuite) TestPathsOfSnapRootVanishingStillMeansEmpty(c *C) {
+	options := cgroup.InstancePathsOptions{
+		ReturnCGroupPath: true,
+	}
+	for _, ver := range []int{cgroup.V2, cgroup.V1} {
+		comment := Commentf("cgroup version %v", ver)
+		restore := cgroup.MockVersion(ver, nil)
+		defer restore()
+
+		s.writePids(c, "system.slice/snap.foo.bar.service", []int{100})
+
+		// Inject ENOENT for the scan root itself.
+		restoreWalk := cgroup.MockFilepathWalk(func(root string, walkFn filepath.WalkFunc) error {
+			return walkFn(root, nil, &os.PathError{Op: "lstat", Path: root, Err: syscall.ENOENT})
+		})
+		defer restoreWalk()
+
+		paths, err := cgroup.InstancePathsOfSnap("foo", options)
+		c.Assert(err, IsNil, comment)
+		c.Check(paths, HasLen, 0, comment)
 	}
 }
