@@ -55,6 +55,7 @@ type options struct {
 	SystemLabel         string `long:"system-label"`
 	PreseedSignKey      string `long:"preseed-sign-key"`
 	AppArmorFeaturesDir string `long:"apparmor-features-dir"`
+	SeccompActionsFile  string `long:"seccomp-actions-file"`
 	SysfsOverlay        string `long:"sysfs-overlay"`
 }
 
@@ -147,6 +148,7 @@ func run(parser *flags.Parser, args []string) (err error) {
 			PrepareImageDir:           chrootDir,
 			PreseedSignKey:            opts.PreseedSignKey,
 			AppArmorKernelFeaturesDir: opts.AppArmorFeaturesDir,
+			SeccompActionsFile:        opts.SeccompActionsFile,
 			SysfsOverlay:              opts.SysfsOverlay,
 		}
 		return preseedCore20(coreOpts)

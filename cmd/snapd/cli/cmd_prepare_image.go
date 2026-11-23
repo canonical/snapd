@@ -40,6 +40,9 @@ type cmdPrepareImage struct {
 	PreseedSignKey string `long:"preseed-sign-key"`
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string `long:"apparmor-features-dir"`
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail
+	SeccompActionsFile string `long:"seccomp-actions-file"`
 	// optional sysfs overlay
 	SysfsOverlay string `long:"sysfs-overlay"`
 	Architecture string `long:"arch"`
@@ -89,6 +92,8 @@ For preparing classic images it supports a --classic mode`),
 			"sysfs-overlay": i18n.G("Optional sysfs overlay to be used when running preseeding steps"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"apparmor-features-dir": i18n.G("Optional path to apparmor kernel features directory (UC20+ only)"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"seccomp-actions-file": i18n.G("Optional path to a file listing the seccomp actions available in the target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail (preseeding only)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"arch": i18n.G("Specify an architecture for snaps for --classic when the model does not"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -203,6 +208,7 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	opts.Preseed = x.Preseed
 	opts.PreseedSignKey = x.PreseedSignKey
 	opts.AppArmorKernelFeaturesDir = x.AppArmorKernelFeaturesDir
+	opts.SeccompActionsFile = x.SeccompActionsFile
 	opts.SysfsOverlay = x.SysfsOverlay
 
 	return imagePrepare(opts)

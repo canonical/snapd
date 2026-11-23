@@ -224,6 +224,28 @@ func chooseTargetSnapdVersion() (*targetSnapdInfo, error) {
 	return &targetSnapdInfo{path: snapdPath, preseedPath: preseedPath, version: whichVer}, nil
 }
 
+// seccompActionsAvailPath is the path, relative to the root of the chroot,
+// of the kernel file listing the seccomp actions supported by the running
+// kernel. It is read by snapd, when computing the system key and deciding
+// whether profiles can use the log action, and by libseccomp, when choosing
+// the actions its filters may use.
+const seccompActionsAvailPath = "/proc/sys/kernel/seccomp/actions_avail"
+
+// readSeccompActions reads the seccomp actions available in the target kernel
+// from a file in the format of /proc/sys/kernel/seccomp/actions_avail. The
+// actions are returned as a single space-separated line.
+func readSeccompActions(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot read seccomp actions file: %v", err)
+	}
+	actions := strings.Fields(string(data))
+	if len(actions) == 0 {
+		return "", fmt.Errorf("cannot use seccomp actions file %q: no actions listed", path)
+	}
+	return strings.Join(actions, " "), nil
+}
+
 func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), err error) {
 	underPreseed := func(path string) string {
 		return filepath.Join(opts.PreseedChrootDir, path)
@@ -398,6 +420,10 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 
 	if opts.AppArmorKernelFeaturesDir != "" {
 		mounts = append(mounts, []string{"--bind", opts.AppArmorKernelFeaturesDir, underPreseed("sys/kernel/security/apparmor/features")})
+	}
+
+	if opts.SeccompActionsFile != "" {
+		mounts = append(mounts, []string{"--bind", opts.SeccompActionsFile, underPreseed(seccompActionsAvailPath)})
 	}
 
 	for _, mountArgs := range mounts {
@@ -766,6 +792,12 @@ func Core20(opts *CoreOptions) error {
 	opts.PrepareImageDir, err = filepath.Abs(opts.PrepareImageDir)
 	if err != nil {
 		return err
+	}
+
+	if opts.SeccompActionsFile != "" {
+		if _, err := readSeccompActions(opts.SeccompActionsFile); err != nil {
+			return err
+		}
 	}
 
 	popts, cleanup, err := prepareCore20Chroot(opts)

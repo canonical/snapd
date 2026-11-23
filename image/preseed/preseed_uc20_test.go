@@ -92,7 +92,7 @@ var sysFsOverlaysGood = []string{"class/backlight", "class/bluetooth", "class/gp
 
 var sysFsOverlaysBad = []string{"class/backlight-xxx", "class/spi", "devices/pci"}
 
-func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay string, handleWritablePaths bool) {
+func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, sysfsOverlay, seccompActionsFile string, handleWritablePaths bool) {
 
 	testKey, _ := assertstest.GenerateKey(752)
 
@@ -273,6 +273,7 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		PrepareImageDir:           tmpDir,
 		PreseedSignKey:            "",
 		AppArmorKernelFeaturesDir: customAppArmorFeaturesDir,
+		SeccompActionsFile:        seccompActionsFile,
 		SysfsOverlay:              sysfsOverlay,
 	}
 
@@ -363,6 +364,11 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 		// order of umounts is reversed, prepend
 		expectedUmountCalls = append([][]string{{"umount", filepath.Join(preseedTmpDir, "/sys/kernel/security/apparmor/features")}}, expectedUmountCalls...)
 	}
+	if seccompActionsFile != "" {
+		expectedMountCalls = append(expectedMountCalls, []string{"mount", "--bind", seccompActionsFile, filepath.Join(preseedTmpDir, "/proc/sys/kernel/seccomp/actions_avail")})
+		// order of umounts is reversed, prepend
+		expectedUmountCalls = append([][]string{{"umount", filepath.Join(preseedTmpDir, "/proc/sys/kernel/seccomp/actions_avail")}}, expectedUmountCalls...)
+	}
 	c.Check(mockMountCmd.Calls(), DeepEquals, expectedMountCalls)
 
 	c.Check(mockTar.Calls(), DeepEquals, [][]string{
@@ -443,17 +449,25 @@ func (s *preseedSuite) testRunPreseedUC20Happy(c *C, customAppArmorFeaturesDir, 
 
 func (s *preseedSuite) TestRunPreseedUC20Happy(c *C) {
 	const handleWritablePaths = false
-	s.testRunPreseedUC20Happy(c, "", "", handleWritablePaths)
+	s.testRunPreseedUC20Happy(c, "", "", "", handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappyWritablePaths(c *C) {
 	const handleWritablePaths = true
-	s.testRunPreseedUC20Happy(c, "", "", handleWritablePaths)
+	s.testRunPreseedUC20Happy(c, "", "", "", handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappyCustomApparmorFeaturesDir(c *C) {
 	const handleWritablePaths = false
-	s.testRunPreseedUC20Happy(c, "/custom-aa-features", "", handleWritablePaths)
+	s.testRunPreseedUC20Happy(c, "/custom-aa-features", "", "", handleWritablePaths)
+}
+
+func (s *preseedSuite) TestRunPreseedUC20HappySeccompActionsFile(c *C) {
+	actionsFile := filepath.Join(c.MkDir(), "actions_avail")
+	c.Assert(os.WriteFile(actionsFile, []byte("kill_process errno allow\n"), 0644), IsNil)
+
+	const handleWritablePaths = false
+	s.testRunPreseedUC20Happy(c, "", "", actionsFile, handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
@@ -495,7 +509,7 @@ func (s *preseedSuite) TestRunPreseedUC20HappySysfsOverlay(c *C) {
 	}
 
 	const handleWritablePaths = false
-	s.testRunPreseedUC20Happy(c, "", tmpdir, handleWritablePaths)
+	s.testRunPreseedUC20Happy(c, "", tmpdir, "", handleWritablePaths)
 }
 
 func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
@@ -520,4 +534,17 @@ func (s *preseedSuite) TestRunPreseedUC20ExecFormatError(c *C) {
 
 	err = preseed.RunUC20PreseedMode(popts)
 	c.Check(err, ErrorMatches, `error running snapd, please try installing the "qemu-user-static" package: fork/exec .* exec format error`)
+}
+
+func (s *preseedSuite) TestCore20SeccompActionsFileErrors(c *C) {
+	// the file does not exist
+	missing := filepath.Join(c.MkDir(), "missing")
+	c.Check(preseed.Core20(&preseed.CoreOptions{SeccompActionsFile: missing}), ErrorMatches,
+		`cannot read seccomp actions file: open .*/missing: no such file or directory`)
+
+	// no actions are listed
+	empty := filepath.Join(c.MkDir(), "actions_avail")
+	c.Assert(os.WriteFile(empty, []byte(" \n"), 0644), IsNil)
+	c.Check(preseed.Core20(&preseed.CoreOptions{SeccompActionsFile: empty}), ErrorMatches,
+		`cannot use seccomp actions file ".*/actions_avail": no actions listed`)
 }

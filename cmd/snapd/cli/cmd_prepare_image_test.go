@@ -271,7 +271,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 	r := cmdsnap.MockImagePrepare(prep)
 	defer r()
 
-	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "--sysfs-overlay", "sys-overlay", "model", "prepare-dir"})
+	rest, err := cmdsnap.Parser(cmdsnap.Client()).ParseArgs([]string{"prepare-image", "--preseed", "--preseed-sign-key", "key", "--apparmor-features-dir", "aafeatures-dir", "--seccomp-actions-file", "seccomp-actions", "--sysfs-overlay", "sys-overlay", "model", "prepare-dir"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
@@ -282,6 +282,7 @@ func (s *SnapPrepareImageSuite) TestPrepareImagePreseed(c *C) {
 		PreseedSignKey:            "key",
 		SysfsOverlay:              "sys-overlay",
 		AppArmorKernelFeaturesDir: "aafeatures-dir",
+		SeccompActionsFile:        "seccomp-actions",
 	})
 }
 

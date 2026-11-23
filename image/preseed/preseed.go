@@ -57,6 +57,10 @@ type CoreOptions struct {
 	PreseedSignKey string
 	// optional path to AppArmor kernel features directory
 	AppArmorKernelFeaturesDir string
+	// optional path to a file listing the seccomp actions available in the
+	// target kernel, in the format of /proc/sys/kernel/seccomp/actions_avail;
+	// it is bind-mounted over the chroot's actions_avail
+	SeccompActionsFile string
 	// optional sysfs overlay
 	SysfsOverlay string
 }
