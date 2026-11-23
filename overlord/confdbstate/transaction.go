@@ -346,6 +346,27 @@ func (t *Transaction) Get(path []confdb.Accessor, cstrs map[string]any) (any, er
 	return t.modified.Get(path, cstrs)
 }
 
+// Resolve returns the concrete paths selected by path and constraints,
+// including changes already recorded in the transaction.
+func (t *Transaction) Resolve(path []confdb.Accessor, cstrs map[string]any) ([][]confdb.Accessor, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.aborted() {
+		return nil, errors.New("cannot read from aborted transaction")
+	}
+
+	if len(t.operations) == 0 {
+		return t.pristine.Resolve(path, cstrs)
+	}
+
+	if err := t.applyChanges(); err != nil {
+		return nil, err
+	}
+
+	return t.modified.Resolve(path, cstrs)
+}
+
 // Commit applies the previous writes and validates the final databag. If any
 // error occurs, the original databag is kept.
 func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error {
