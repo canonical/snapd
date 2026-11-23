@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"gopkg.in/tomb.v2"
 )
@@ -439,9 +441,25 @@ func (m *DeviceMgmtManager) isRemoteDeviceManagementEnabled() bool {
 	return enabled
 }
 
+// exchangeInterval returns the minimum time between message exchanges. When
+// testing, SNAPD_DEVICE_MGMT_EXCHANGE_INTERVAL overrides the default.
+func exchangeInterval() time.Duration {
+	if snapdenv.Testing() {
+		s := os.Getenv("SNAPD_DEVICE_MGMT_EXCHANGE_INTERVAL")
+		if s != "" {
+			d, err := time.ParseDuration(s)
+			if err == nil && d > 0 {
+				return d
+			}
+		}
+	}
+
+	return defaultExchangeInterval
+}
+
 // shouldExchangeMessages checks whether a message exchange should happen now.
 func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
-	nextExchange := ms.LastExchangeTime.Add(defaultExchangeInterval)
+	nextExchange := ms.LastExchangeTime.Add(exchangeInterval())
 	if timeNow().Before(nextExchange) {
 		return false
 	}
