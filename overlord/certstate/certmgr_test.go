@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -454,6 +455,39 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) 
 	backupPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
 	_, err = os.Stat(backupPath)
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+// TestDoUpdateCertificateDatabaseRemovesOldPlainMergedDir ensures the update
+// handler removes the old-style merged directory (a plain directory from before
+// generations were published) before recording the previous generation, so the
+// rollback target is a real generation and not the leftover directory.
+func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseRemovesOldPlainMergedDir(c *C) {
+	newPEM, _, err := makeTestCertPEM("new")
+	c.Assert(err, IsNil)
+
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "new.crt"), newPEM, 0o644), IsNil)
+
+	// merged is a plain directory (old layout), not a symlink.
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(mergedDir, "leftover"), []byte("stale"), 0o644), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg := s.state.NewChange("foo", "test change")
+	chg.AddTask(s.state.NewTask("update-cert-db", "running handler"))
+	s.settle(c)
+
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// The plain directory is gone and merged is now a symlink to a generation.
+	c.Check(osutil.IsSymlink(mergedDir), Equals, true)
+	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(out, newPEM), Equals, true)
 }
 
 func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseRetryAfterSwapPreservesUndoBackup(c *C) {

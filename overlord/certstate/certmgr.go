@@ -20,6 +20,7 @@ package certstate
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -89,6 +90,18 @@ func (m *CertManager) ensureGarbageCollectionRun() error {
 	return garbageCollectCertificateGenerations(bootID)
 }
 
+// removeOldCertificateDatabase removes the old-style merged certificate path
+// when it is a plain directory (from before generations were published), so the
+// store can be regenerated. It is a no-op when merged is already a symlink to a
+// published generation.
+func (m *CertManager) removeOldCertificateDatabase() error {
+	mergedDir := CurrentCertificateDir()
+	if osutil.IsSymlink(mergedDir) {
+		return nil
+	}
+	return os.RemoveAll(mergedDir)
+}
+
 func (m *CertManager) Ensure() error {
 	st := m.state
 	st.Lock()
@@ -122,14 +135,11 @@ func (m *CertManager) Ensure() error {
 
 	// If the merged certificate path is a plain directory (the old layout from
 	// before generations were published), remove it so it can be regenerated.
-	mergedDir := CurrentCertificateDir()
-	if !osutil.IsSymlink(mergedDir) {
-		if err := os.RemoveAll(mergedDir); err != nil {
-			// In case of weird errors in this case, log it and skip generation. If it was
-			// a weird FS error, then we'll just retry again on next snapd startup.
-			logger.Noticef("error checking merged certificate database: %v", err)
-			return nil
-		}
+	if err := m.removeOldCertificateDatabase(); err != nil {
+		// In case of weird errors in this case, log it and skip generation. If it was
+		// a weird FS error, then we'll just retry again on next snapd startup.
+		logger.Noticef("error checking merged certificate database: %v", err)
+		return nil
 	}
 
 	// Reconcile the managed store with the current inputs. This covers both the
@@ -153,7 +163,9 @@ func (m *CertManager) Ensure() error {
 		}
 	}
 
-	// Run garbage collection for the cert generations after reconciliation.
+	// Run garbage collection for the cert generations after reconciliation. This
+	// runs even while an update-cert-db change is in flight: GC has its own
+	// in-flight guard and only removes old generations, it never renders.
 	return m.ensureGarbageCollectionRun()
 }
 
@@ -191,6 +203,15 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 		defer st.Unlock()
 		t.Logf("/etc/ssl/certs is not available on this system, skipping certificate database update")
 		return nil
+	}
+
+	// Remove the old-style merged directory (a plain directory from before
+	// generations were published) before recording the previous generation, so
+	// the rollback target is a real generation and not the leftover directory.
+	if err := m.removeOldCertificateDatabase(); err != nil {
+		st.Lock()
+		defer st.Unlock()
+		return fmt.Errorf("cannot remove old certificate database: %v", err)
 	}
 
 	// Record the current generation before updating, so that
