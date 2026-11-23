@@ -214,6 +214,28 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 	})
 }
 
+func (s *netplanSuite) TestNetplanGetFromDBusGetErrorStillCancels(c *C) {
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	s.backend.WithLocked(func() {
+		s.backend.ConfigApiGetErr = dbus.MakeFailedError(fmt.Errorf("netplan get failed: Child process exited with code 1"))
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	netplanCfg := make(map[string]any)
+	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	c.Assert(err, ErrorMatches, `.*netplan get failed: Child process exited with code 1.*`)
+
+	s.backend.WithLocked(func() {
+		// the config snapshot must be discarded even though Get failed
+		c.Check(s.backend.ConfigApiCancelCalls, Equals, 1)
+	})
+}
+
 func (s *netplanSuite) TestNetplanGetFromDBusCancelFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

@@ -271,16 +271,16 @@ func getNetplanFromSystem(key string) (result any, err error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var netplanYamlCfg string
-	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Get", 0).Store(&netplanYamlCfg); err != nil {
-		return nil, err
-	}
 	defer func() {
 		if err := cancelNetplanCfgSnapshot(netplanCfgSnapshot); err != nil {
 			logger.Noticef("%s", err)
 		}
 	}()
+
+	var netplanYamlCfg string
+	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Get", 0).Store(&netplanYamlCfg); err != nil {
+		return nil, err
+	}
 
 	var cfg map[string]any
 	if err := yaml.Unmarshal([]byte(netplanYamlCfg), &cfg); err != nil {
