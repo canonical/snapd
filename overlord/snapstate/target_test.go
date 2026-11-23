@@ -1553,7 +1553,7 @@ func (s *targetTestSuite) testUpdateWithIntegrityData(c *C, essentialSnap bool) 
 		Revision: snap.R(1),
 	}})
 
-	snapstate.Set(s.state, instanceName.String(), &snapstate.SnapState{
+	snapstate.Set(s.state, instanceName, &snapstate.SnapState{
 		Active:          true,
 		TrackingChannel: "stable",
 		Sequence:        seq,
