@@ -60,7 +60,7 @@ var (
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
 
-	taskRetryInterval    = 60 * time.Second
+	taskMaxRetryDelay    = 60 * time.Second
 	taskMaxRetryAttempts = 15
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
@@ -478,7 +478,15 @@ func maybeRetryTask(t *state.Task, key string) error {
 	}
 	t.Set(key, attempts)
 
-	return &state.Retry{After: taskRetryInterval}
+	delay := 10 * time.Second
+	for i := 1; i < attempts && delay < taskMaxRetryDelay; i++ {
+		delay *= 2
+	}
+	if delay > taskMaxRetryDelay {
+		delay = taskMaxRetryDelay
+	}
+
+	return &state.Retry{After: delay}
 }
 
 // doExchangeMessages exchanges messages with the store: sends queued response messages,

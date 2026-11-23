@@ -49,8 +49,8 @@ func MockMaxBlockedMessagesPerSequence(n int) func() {
 	return testutil.Mock(&maxBlockedMessagesPerSequence, n)
 }
 
-func MockTaskRetryInterval(d time.Duration) func() {
-	return testutil.Mock(&taskRetryInterval, d)
+func MockTaskMaxRetryDelay(d time.Duration) func() {
+	return testutil.Mock(&taskMaxRetryDelay, d)
 }
 
 func MockTaskMaxRetryAttempts(n int) func() {

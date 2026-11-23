@@ -1468,7 +1468,7 @@ func (s *deviceMgmtMgrSuite) validateWithoutAccountKey(c *C, bs asserts.Backstor
 		fetchCalls++
 		return fetchErr
 	}))
-	s.AddCleanup(devicemgmtstate.MockTaskRetryInterval(time.Millisecond))
+	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryDelay(time.Millisecond))
 	s.AddCleanup(devicemgmtstate.MockTaskMaxRetryAttempts(10))
 
 	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
