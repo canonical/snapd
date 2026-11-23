@@ -765,6 +765,8 @@ func (m *InterfaceManager) setupSnapSecurityFor(task *state.Task, appSet *interf
 		sctx.Reason = interfaces.SnapSetupReasonPlugConnectionChange
 	case forSlotSnap:
 		sctx.Reason = interfaces.SnapSetupReasonSlotConnectionChange
+	default:
+		sctx.Reason = interfaces.SnapSetupReasonOther
 	}
 
 	sctxs := map[string]interfaces.SetupContext{

@@ -5989,28 +5989,33 @@ func (s *interfaceManagerSuite) TestSelfConnectDisconnectSetsUpSecurity(c *C) {
 	s.mockSnap(c, producerYaml4)
 	_ = s.manager(c)
 
-	s.state.Lock()
-	ts, err := ifacestate.Connect(s.state, "producer", "self", "producer", "slot")
-	c.Assert(err, IsNil)
-	change := s.state.NewChange("connect", "")
-	change.AddAll(ts)
-	s.state.Unlock()
+	var change *state.Change
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		ts, err := ifacestate.Connect(s.state, "producer", "self", "producer", "slot")
+		c.Assert(err, IsNil)
+		change = s.state.NewChange("connect", "")
+		change.AddAll(ts)
+	}()
 	s.settle(c)
 
 	conn := s.getConnection(c, "producer", "self", "producer", "slot")
-	s.state.Lock()
-	c.Assert(change.Err(), IsNil)
-	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
-	for _, call := range s.secBackend.SetupCalls {
-		c.Check(call.SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
-	}
-	s.secBackend.SetupCalls = nil
+	func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		c.Assert(change.Err(), IsNil)
+		c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+		for _, call := range s.secBackend.SetupCalls {
+			c.Check(call.SetupContext.Reason, Equals, interfaces.SnapSetupReasonPlugConnectionChange)
+		}
+		s.secBackend.SetupCalls = nil
 
-	ts, err = ifacestate.Disconnect(s.state, conn)
-	c.Assert(err, IsNil)
-	change = s.state.NewChange("disconnect", "")
-	change.AddAll(ts)
-	s.state.Unlock()
+		ts, err := ifacestate.Disconnect(s.state, conn)
+		c.Assert(err, IsNil)
+		change = s.state.NewChange("disconnect", "")
+		change.AddAll(ts)
+	}()
 	s.settle(c)
 
 	s.state.Lock()
