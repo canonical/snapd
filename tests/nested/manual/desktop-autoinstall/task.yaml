@@ -46,6 +46,8 @@ environment:
 
 debug: |
     tests.nested get serial-log || true
+    echo "autoinstall user-data:"
+    cat "$(tests.nested get assets-path)/autoinstall-user-data" || true
 
 execute: |
     export NESTED_AUTOINSTALL_CONFIG="${PWD}/autoinstall-tpmfde.yaml"
