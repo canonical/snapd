@@ -426,6 +426,88 @@ func (s *certMgrTestSuite) TestEnsureLoopLogging(c *C) {
 	swfeatstest.CheckEnsureLoopLogging("certmgr.go", c, true)
 }
 
+// TestEnsureClearsStaleInactiveMarkerForReactivatedGeneration covers the case
+// where a generation that was marked inactive (pending deletion on a later boot)
+// becomes current again before Ensure runs. Running guarded garbage collection
+// before reconciliation must clear the stale marker, so the just-reactivated
+// generation is not deleted out from under namespaces still using it
+// (SNAPDENG-38146 review feedback).
+func (s *certMgrTestSuite) TestEnsureClearsStaleInactiveMarkerForReactivatedGeneration(c *C) {
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "boot-2", nil
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+
+	// The current generation carries a stale inactivity marker from a previous
+	// boot, as if it had been displaced and is now current again.
+	currentTarget := seedCurrentPublishedGeneration(c, "current", []byte("current"))
+	currentDir := filepath.Join(dirs.SnapdPKIV1Dir, currentTarget)
+	inactiveFile := filepath.Join(currentDir, ".snapd-inactive")
+	c.Assert(os.WriteFile(inactiveFile, []byte("boot-1"), 0o644), IsNil)
+
+	// A render happens but produces the same content, so the generation stays
+	// current (no-op publication).
+	restore := certstate.MockRefreshCertificateDatabase(func() error { return nil })
+	defer restore()
+
+	c.Assert(s.mgr.Ensure(), IsNil)
+
+	// GC ran before the render and cleared the stale marker for the now-current
+	// generation, instead of deleting it.
+	c.Check(inactiveFile, testutil.FileAbsent)
+	_, err := os.Stat(currentDir)
+	c.Check(err, IsNil)
+}
+
+// TestEnsureKeepsLegacyMergedDirWhenUpdateInProgress covers a legacy plain
+// merged directory existing while an update-cert-db change is in flight. The
+// store must not be removed on a path that skips rendering, otherwise a change
+// that aborts before its update task leaves the store deleted until the next
+// snapd restart (SNAPDENG-38146 review feedback).
+func (s *certMgrTestSuite) TestEnsureKeepsLegacyMergedDirWhenUpdateInProgress(c *C) {
+	var rendered bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		rendered = true
+		return nil
+	})
+	defer restore()
+
+	// GC runs first on this path, so provide a boot ID.
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "boot-1", nil
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+
+	// merged is a plain directory (legacy layout), not a symlink.
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(mergedDir, "leftover"), []byte("stale"), 0o644), IsNil)
+
+	// An update-cert-db change is in flight.
+	chg := s.state.NewChange("foo", "pending update")
+	chg.AddTask(s.state.NewTask("update-cert-db", "pending update"))
+	s.state.Unlock()
+
+	c.Assert(s.mgr.Ensure(), IsNil)
+
+	// The render was skipped and the legacy directory was left in place, so the
+	// store is still present for the in-flight change to reconcile.
+	c.Check(rendered, Equals, false)
+	c.Check(osutil.IsSymlink(mergedDir), Equals, false)
+	_, err := os.Stat(filepath.Join(mergedDir, "leftover"))
+	c.Check(err, IsNil)
+}
+
 func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) {
 	certA, _, err := makeTestCertPEM("A")
 	c.Assert(err, IsNil)

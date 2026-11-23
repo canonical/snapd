@@ -133,6 +133,17 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
+	// Skip the render while an update-cert-db change is in flight so we do not
+	// race the generation that the task's undo expects to restore. This must
+	// come before the legacy-directory removal and reconciliation below so that
+	// a pending change that later aborts does not leave the store deleted until
+	// the next snapd restart. The store is reconciled again on the next snapd
+	// start.
+	if hasTaskInProgress(st, "update-cert-db") {
+		logger.Debugf("skipping certificate database generation as update-cert-db change is in flight")
+		return nil
+	}
+
 	// If the merged certificate path is a plain directory (the old layout from
 	// before generations were published), remove it so it can be regenerated.
 	if err := m.removeOldCertificateDatabase(); err != nil {
@@ -140,6 +151,13 @@ func (m *CertManager) Ensure() error {
 		// a weird FS error, then we'll just retry again on next snapd startup.
 		logger.Noticef("error checking merged certificate database: %v", err)
 		return nil
+	}
+
+	// Run garbage collection for the cert generations before reconciliation so a
+	// generation that is about to become current again has any stale inactivity
+	// marker cleared first, and obsolete trees are reclaimed before rendering.
+	if err := m.ensureGarbageCollectionRun(); err != nil {
+		return err
 	}
 
 	// Reconcile the managed store with the current inputs. This covers both the
@@ -151,22 +169,9 @@ func (m *CertManager) Ensure() error {
 	// RefreshCertificateDatabase is content-addressed, so it is a no-op when the
 	// store already matches the current inputs.
 	//
-	// Skip the render while an update-cert-db change is in flight so we do not
-	// race the generation that the task's undo expects to restore. The store is
-	// reconciled again on the next snapd start.
-	//
 	// TODO: The database will be generated with the lock being held here, which is not
 	// the best, as there is some overhead in file-generation and hashing.
-	if !hasTaskInProgress(st, "update-cert-db") {
-		if err := RefreshCertificateDatabase(); err != nil {
-			return err
-		}
-	}
-
-	// Run garbage collection for the cert generations after reconciliation. This
-	// runs even while an update-cert-db change is in flight: GC has its own
-	// in-flight guard and only removes old generations, it never renders.
-	return m.ensureGarbageCollectionRun()
+	return RefreshCertificateDatabase()
 }
 
 // recordCurrentCertificateGeneration is a helper function to make sure
