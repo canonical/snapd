@@ -174,7 +174,7 @@ func (s *certMgrTestSuite) TestEnsureSkipsOnClassic(c *C) {
 	c.Check(called, Equals, false)
 }
 
-func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
+func (s *certMgrTestSuite) TestEnsureReconcilesWhenCertDbExists(c *C) {
 	var called bool
 	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		called = true
@@ -192,6 +192,82 @@ func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
 
 	s.state.Unlock()
 	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	// Even when merged already points at a generation, Ensure reconciles the
+	// store with the current inputs, because a base refresh planned by a
+	// pre-certstate snapd schedules no update-cert-db task and would otherwise
+	// leave the store rendered from the old base (SNAPDENG-38146).
+	c.Check(called, Equals, true)
+}
+
+// TestEnsureReconcilesStaleGeneration exercises the real RefreshCertificateDatabase
+// (not a mock) to prove that a generation rendered from an old base is
+// re-rendered from the current base when Ensure runs.
+func (s *certMgrTestSuite) TestEnsureReconcilesStaleGeneration(c *C) {
+	certA, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	certB, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	// The base initially provides only certificate A.
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SystemCertsDir, "a.crt"), certA, 0o644), IsNil)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	// First Ensure renders the generation from A.
+	c.Assert(s.mgr.Ensure(), IsNil)
+	mergedBundle := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
+	out, err := os.ReadFile(mergedBundle)
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(out, certA), Equals, true)
+	c.Check(bytes.Contains(out, certB), Equals, false)
+
+	// The base is refreshed and now also provides certificate B, but no
+	// update-cert-db task runs (as happens when the refresh was planned by a
+	// pre-certstate snapd).
+	c.Assert(os.WriteFile(filepath.Join(dirs.SystemCertsDir, "b.crt"), certB, 0o644), IsNil)
+
+	// A fresh CertManager (as after a snapd restart) reconciles the store.
+	s.mgr = certstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(s.mgr.Ensure(), IsNil)
+
+	out, err = os.ReadFile(mergedBundle)
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(out, certA), Equals, true)
+	c.Check(bytes.Contains(out, certB), Equals, true)
+}
+
+// TestEnsureSkipsReconcileWhileUpdateInProgress ensures Ensure does not render
+// a new generation while an update-cert-db change is in flight, so the task's
+// recorded previous generation and its undo stay coherent.
+func (s *certMgrTestSuite) TestEnsureSkipsReconcileWhileUpdateInProgress(c *C) {
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	// GC still runs on this path, so provide a boot ID.
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "boot-1", nil
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	seedCurrentPublishedGeneration(c, "existing", []byte("existing"))
+
+	// An update-cert-db change is in flight.
+	chg := s.state.NewChange("foo", "pending update")
+	chg.AddTask(s.state.NewTask("update-cert-db", "pending update"))
+	s.state.Unlock()
 
 	err := s.mgr.Ensure()
 	c.Assert(err, IsNil)

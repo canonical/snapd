@@ -120,15 +120,10 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	// If the CA certificate database is already present, nothing to do.
-	// Remove the old style merged folder if it exists. If the merged folder exists, and
-	// it's not a symlink, we remove the folder and regenerate the database
+	// If the merged certificate path is a plain directory (the old layout from
+	// before generations were published), remove it so it can be regenerated.
 	mergedDir := CurrentCertificateDir()
-	if osutil.IsSymlink(mergedDir) {
-		// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
-		logger.Debugf("merged certificate database exists, running garbage collection")
-		return m.ensureGarbageCollectionRun()
-	} else {
+	if !osutil.IsSymlink(mergedDir) {
 		if err := os.RemoveAll(mergedDir); err != nil {
 			// In case of weird errors in this case, log it and skip generation. If it was
 			// a weird FS error, then we'll just retry again on next snapd startup.
@@ -137,17 +132,29 @@ func (m *CertManager) Ensure() error {
 		}
 	}
 
-	// Run garbage collection for the cert generations, but only after the symlink check.
-	if err := m.ensureGarbageCollectionRun(); err != nil {
-		return err
-	}
-
-	// Create the update CA certificate database, this is likely a first
-	// run on a pre-existing system after this was introduced.
+	// Reconcile the managed store with the current inputs. This covers both the
+	// first run on a pre-existing system (no merged symlink yet) and the case
+	// where merged already points at a generation. The latter matters because a
+	// refresh of the model base may have been planned by a snapd that predates
+	// the managed certificate store (and so scheduled no update-cert-db task),
+	// leaving the published generation rendered from the previous base.
+	// RefreshCertificateDatabase is content-addressed, so it is a no-op when the
+	// store already matches the current inputs.
+	//
+	// Skip the render while an update-cert-db change is in flight so we do not
+	// race the generation that the task's undo expects to restore. The store is
+	// reconciled again on the next snapd start.
+	//
 	// TODO: The database will be generated with the lock being held here, which is not
 	// the best, as there is some overhead in file-generation and hashing.
-	logger.Noticef("No CA certificate database found, generating it now")
-	return RefreshCertificateDatabase()
+	if !hasTaskInProgress(st, "update-cert-db") {
+		if err := RefreshCertificateDatabase(); err != nil {
+			return err
+		}
+	}
+
+	// Run garbage collection for the cert generations after reconciliation.
+	return m.ensureGarbageCollectionRun()
 }
 
 // recordCurrentCertificateGeneration is a helper function to make sure
