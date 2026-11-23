@@ -105,7 +105,7 @@ func compSetupAndState(t *state.Task) (*ComponentSetup, *SnapSetup, *SnapState, 
 		return nil, nil, nil, err
 	}
 	var snapst SnapState
-	err = Get(t.State(), ssup.InstanceName().String(), &snapst)
+	err = Get(t.State(), ssup.InstanceName(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, nil, err
 	}
@@ -469,7 +469,7 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Finally, write the state
-	Set(st, snapsup.InstanceName().String(), snapSt)
+	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -515,7 +515,7 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 		linkedComp.SideInfo.Component)
 
 	// Finally, write the state
-	Set(st, snapsup.InstanceName().String(), snapSt)
+	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -552,7 +552,7 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 	}
 
 	// Finally, write the state
-	Set(st, snapInfo.InstanceName().String(), snapSt)
+	Set(st, snapInfo.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -579,7 +579,7 @@ func (m *SnapManager) doUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err error)
 	}
 
 	// Finally, write the state
-	Set(st, snapSup.InstanceName().String(), snapSt)
+	Set(st, snapSup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -635,7 +635,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	}
 
 	// Finally, write the state
-	Set(st, snapsup.InstanceName().String(), snapSt)
+	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -672,7 +672,7 @@ func (m *SnapManager) undoUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err erro
 	}
 
 	// Finally, write the state
-	Set(st, snapSup.InstanceName().String(), snapSt)
+	Set(st, snapSup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 

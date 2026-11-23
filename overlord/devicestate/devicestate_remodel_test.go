@@ -3495,7 +3495,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		TrackingChannel: "20/stable",
 	})
 	// new gadget, base and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-new", "pc-kernel-new", "core24-new"} {
+	for _, alreadyInstalledName := range []naming.InstanceName{"pc-new", "pc-kernel-new", "core24-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "20/stable"
 		switch alreadyInstalledName {
@@ -3506,9 +3506,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			snapYaml = "name: pc-new\nversion: 1\ntype: gadget\nbase: core24-new\n"
 		}
 		si := &snap.SideInfo{
-			RealName: alreadyInstalledName,
+			RealName: alreadyInstalledName.SnapName().String(),
 			Revision: snap.R(222),
-			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName),
+			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName.String()),
 		}
 		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
 		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
@@ -3822,7 +3822,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 		TrackingChannel: "20/stable",
 	})
 	// new gadget and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core24-new", "pc-new"} {
+	for _, alreadyInstalledName := range []naming.InstanceName{"pc-kernel-new", "core24-new", "pc-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "other/edge"
 		rev := snap.R(222)
@@ -3834,9 +3834,9 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			rev = snap.R(224)
 		}
 		si := &snap.SideInfo{
-			RealName: alreadyInstalledName,
+			RealName: alreadyInstalledName.SnapName().String(),
 			Revision: rev,
-			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName),
+			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName.String()),
 		}
 		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
 		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
@@ -4101,7 +4101,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		TrackingChannel: "20/stable",
 	})
 	// new gadget and kernel which are already installed
-	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
+	for _, alreadyInstalledName := range []naming.InstanceName{"pc-kernel-new", "core20-new"} {
 		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
 		channel := "kernel/stable"
 		if alreadyInstalledName == "core20-new" {
@@ -4109,9 +4109,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 			channel = "base/stable"
 		}
 		si := &snap.SideInfo{
-			RealName: alreadyInstalledName,
+			RealName: alreadyInstalledName.SnapName().String(),
 			Revision: snap.R(222),
-			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName),
+			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName.String()),
 		}
 		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
 		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
@@ -5799,7 +5799,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		Revision: snap.R(1),
 		RealName: "pc",
 	})
-	snapstate.Set(s.state, info.InstanceName().String(), &snapstate.SnapState{
+	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
@@ -6178,7 +6178,7 @@ plugs:
 	})
 
 	if missingWhen != "install" {
-		snapstate.Set(s.state, info.InstanceName().String(), &snapstate.SnapState{
+		snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 			SnapType:        string(info.Type()),
 			Active:          true,
 			Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&info.SideInfo}),
@@ -6416,7 +6416,7 @@ plugs:
 		Revision: snap.R(1),
 		RealName: "bar-missing-deps",
 	})
-	snapstate.Set(s.state, barInfo.InstanceName().String(), &snapstate.SnapState{
+	snapstate.Set(s.state, barInfo.InstanceName(), &snapstate.SnapState{
 		SnapType:        string(barInfo.Type()),
 		Active:          true,
 		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&barInfo.SideInfo}),

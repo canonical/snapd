@@ -164,7 +164,7 @@ jobs:
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
-      spread-env: "SPREAD_TAG_FEATURES=1"
+      spread-env: "SPREAD_TAG_FEATURES=true"
       upload-artifacts: true
       skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
       log-to-grafana: false

@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -84,7 +85,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 
 	prevTimestamp := timestamp
 	timestamp = timestamp.Add(5 * time.Second)
-	notice, repeated := notice.Reoccur(timestamp, data, repeatAfter)
+	notice, repeated := notice.Reoccur(timestamp, data, nil, repeatAfter)
 	c.Check(repeated, Equals, false)
 	n := noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -95,7 +96,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// If total time since last repeated is greater than repeatAfter, should
 	// be repeated, even if time since last occurred is shorter.
 	timestamp = timestamp.Add(6 * time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, nil, repeatAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -107,7 +108,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// saved in the notice, so check that the former has precedence.
 	repeatAfter = time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, nil, repeatAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -119,7 +120,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	prevTimestamp = timestamp
 	repeatAfter = 10 * time.Second
 	timestamp = timestamp.Add(2 * time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, nil, repeatAfter)
 	c.Check(repeated, Equals, false)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -130,7 +131,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// If the repeatAfter argument is 0, then always repeat
 	repeatAfter = 0
 	timestamp = timestamp.Add(time.Second)
-	notice, repeated = notice.Reoccur(timestamp, data, repeatAfter)
+	notice, repeated = notice.Reoccur(timestamp, data, nil, repeatAfter)
 	c.Check(repeated, Equals, true)
 	n = noticeToMap(c, notice)
 	c.Check(n["last-occurred"], Equals, timestamp.Format(time.RFC3339Nano))
@@ -141,7 +142,7 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	// Reoccur does not mutate the existing notice, instead creates a deep copy
 	newTimestamp := timestamp.Add(time.Second)
 	newData := map[string]string{"something": "changed"}
-	newNotice, repeated := notice.Reoccur(newTimestamp, newData, repeatAfter)
+	newNotice, repeated := notice.Reoccur(newTimestamp, newData, nil, repeatAfter)
 	c.Check(repeated, Equals, true)
 	newN := noticeToMap(c, newNotice)
 	c.Check(newN["last-occurred"], Equals, newTimestamp.Format(time.RFC3339Nano))
@@ -156,6 +157,23 @@ func (s *noticesSuite) TestReoccur(c *C) {
 	c.Check(n["occurrences"], Equals, 6.0)
 	c.Check(n["repeat-after"], IsNil)
 	c.Check(n["last-data"], DeepEquals, map[string]any{"fizz": "buzz"})
+
+	// Reoccur preserves data keys if explicitly listed
+	newerNotice, repeated := newNotice.Reoccur(newTimestamp, data, []string{"something"}, repeatAfter)
+	c.Check(repeated, Equals, true)
+	newN = noticeToMap(c, newerNotice)
+	c.Check(newN["occurrences"], Equals, 8.0)
+	c.Check(newN["repeat-after"], IsNil)
+	c.Check(newN["last-data"], DeepEquals, map[string]any{"something": "changed", "fizz": "buzz"})
+
+	// Preserved data has precedence over new data
+	data = map[string]string{"something": "new"}
+	newerNotice, repeated = newerNotice.Reoccur(newTimestamp, data, []string{"something"}, repeatAfter)
+	c.Check(repeated, Equals, true)
+	newN = noticeToMap(c, newerNotice)
+	c.Check(newN["occurrences"], Equals, 9.0)
+	c.Check(newN["repeat-after"], IsNil)
+	c.Check(newN["last-data"], DeepEquals, map[string]any{"something": "changed"})
 }
 
 func (s *noticesSuite) TestDeepCopy(c *C) {
@@ -280,6 +298,54 @@ func (s *noticesSuite) TestUnmarshal(c *C) {
 	})
 }
 
+func (s *noticesSuite) TestUnflattenNoticesSkips(c *C) {
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+
+	logBuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
+
+	ts := now.Add(-10 * time.Hour).UTC().Format(time.RFC3339)
+
+	// One valid notice, notices missing each of the three timestamps.
+	stateJSON := fmt.Sprintf(`{
+		"data": {}, "changes": {}, "tasks": {},
+		"notices": [
+			{"id": "1", "type": "change-update", "key": "valid",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "2", "type": "change-update", "key": "no-first-occurred",
+			 "last-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "3", "type": "change-update", "key": "no-last-occurred",
+			 "first-occurred": %[1]q, "last-repeated": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "4", "type": "change-update", "key": "no-last-repeated",
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "672h0m0s"},
+			{"id": "5", "type": "warning", "key": "expired-notice", "last-repeated": %[1]q,
+			 "first-occurred": %[1]q, "last-occurred": %[1]q, "expire-after": "9h0m0s",
+			 "last-data": {"show-after": "16h", "last-shown": %[1]q}}
+		],
+		"last-change-id": 0, "last-task-id": 0, "last-lane-id": 0, "last-notice-id": 0
+	}`, ts)
+
+	st := state.New(nil)
+	st.Lock()
+	err := json.Unmarshal([]byte(stateJSON), st)
+	c.Assert(err, IsNil)
+	st.Unlock()
+
+	// Only the valid notice is kept.
+	notices := st.Notices(nil)
+	c.Assert(notices, HasLen, 1)
+	c.Check(notices[0].Key(), Equals, "valid")
+
+	// Each invalid timestamp is logged.
+	logs := logBuf.String()
+
+	c.Check(logs, Matches, `(?s).*Notice 2 \(public:change-update:no-first-occurred\) skipped due to invalid first-occurred time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 3 \(public:change-update:no-last-occurred\) skipped due to invalid last-occurred time.*`)
+	c.Check(logs, Matches, `(?s).*Notice 4 \(public:change-update:no-last-repeated\) skipped due to invalid last-repeated time.*`)
+}
+
 func (s *noticesSuite) TestString(c *C) {
 	noticeJSON := []byte(`{
 		"id": "1",
@@ -356,6 +422,76 @@ func (s *noticesSuite) TestOccurrences(c *C) {
 	c.Check(n["occurrences"], Equals, 1.0)
 }
 
+func (s *noticesSuite) TestRepeatWithPreservedDataKeys(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	id1, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		Data: map[string]string{"key": "val"},
+	})
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+	n1 := noticeToMap(c, notice1)
+	c.Check(n1["last-data"], DeepEquals, map[string]any{"key": "val"})
+
+	// Key specified in PreserveDataKeys is preserved when notice reoccurs
+	id2, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		Data:             map[string]string{"other": "value"},
+		PreserveDataKeys: []string{"key"},
+	})
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+	n2 := noticeToMap(c, notice2)
+	c.Check(n2["last-data"], DeepEquals, map[string]any{"key": "val", "other": "value"})
+
+	// Retained data has precedence over new data
+	id3, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		Data:             map[string]string{"key": "new val"},
+		PreserveDataKeys: []string{"key"},
+	})
+	c.Assert(err, IsNil)
+	notice3 := st.Notice(id3)
+	c.Assert(notice3, NotNil)
+	n3 := noticeToMap(c, notice3)
+	c.Check(n3["last-data"], DeepEquals, map[string]any{"key": "val"})
+
+	// Keys in PreserveDataKeys that are absent from the previous data do not
+	// suppress the value provided by the new data, while present keys are
+	// still retained
+	id4, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		Data:             map[string]string{"missing": "new value"},
+		PreserveDataKeys: []string{"missing", "key"},
+	})
+	c.Assert(err, IsNil)
+	notice4 := st.Notice(id4)
+	c.Assert(notice4, NotNil)
+	n4 := noticeToMap(c, notice4)
+	c.Check(n4["last-data"], DeepEquals, map[string]any{"missing": "new value", "key": "val"})
+
+	// Preserved keys are retained even when the new occurrence has no data
+	id5, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		PreserveDataKeys: []string{"key"},
+	})
+	c.Assert(err, IsNil)
+	notice5 := st.Notice(id5)
+	c.Assert(notice5, NotNil)
+	n5 := noticeToMap(c, notice5)
+	c.Check(n5["last-data"], DeepEquals, map[string]any{"key": "val"})
+
+	// Preserving keys that do not exist anywhere leaves lastData empty
+	id6, err := st.AddNotice(nil, state.ChangeUpdateNotice, "foo", &state.AddNoticeOptions{
+		PreserveDataKeys: []string{"nonexistent"},
+	})
+	c.Assert(err, IsNil)
+	notice6 := st.Notice(id6)
+	c.Assert(notice6, NotNil)
+	n6 := noticeToMap(c, notice6)
+	c.Check(n6["last-data"], IsNil)
+}
+
 func (s *noticesSuite) TestRepeatAfterFirst(c *C) {
 	s.testRepeatAfter(c, 10*time.Second, 0, 10*time.Second)
 }
@@ -391,16 +527,45 @@ func (s *noticesSuite) testRepeatAfter(c *C, first, second, delay time.Duration)
 
 	// Add a notice (with faked time) after a long time and ensure it has repeated
 	future := time.Now().Add(delay)
+	restore := state.MockNextNoticeTimestamp(future)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/bar", &state.AddNoticeOptions{
 		RepeatAfter: second,
-		Time:        future,
 	})
+	restore()
 	notices = st.Notices(nil)
 	c.Assert(notices, HasLen, 1)
 	n = noticeToMap(c, notices[0])
 	newLastRepeated, err := time.Parse(time.RFC3339, n["last-repeated"].(string))
 	c.Assert(err, IsNil)
 	c.Assert(newLastRepeated.After(lastRepeated), Equals, true)
+}
+
+func (s *noticesSuite) TestAddNoticeForExistingExpiredNotice(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	userID := uint32(123)
+	key := "baz"
+	restore := state.MockNextNoticeTimestamp(time.Now())
+	id1, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key,
+		&state.AddNoticeOptions{ExpireAfter: time.Microsecond})
+	restore()
+	c.Assert(err, IsNil)
+	notice1 := st.Notice(id1)
+	c.Assert(notice1, NotNil)
+
+	time.Sleep(3 * time.Microsecond)
+	timestamp := time.Now()
+	c.Assert(notice1.Expired(timestamp), Equals, true)
+
+	id2, err := st.AddNotice(&userID, state.ChangeUpdateNotice, key, nil)
+	c.Assert(err, IsNil)
+	notice2 := st.Notice(id2)
+	c.Assert(notice2, NotNil)
+
+	c.Assert(id1, Not(Equals), id2)
+	c.Assert(st.Notice(id1), IsNil)
 }
 
 func (s *noticesSuite) TestNoticesFilterUserID(c *C) {
@@ -725,9 +890,10 @@ func (s *noticesSuite) TestPruneNoticesCheckpoint(c *C) {
 	st := state.New(backend)
 	st.Lock()
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", &state.AddNoticeOptions{
-		Time: old,
-	})
+
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.ChangeUpdateNotice, "123", nil)
+	restore()
 	addNotice(c, st, nil, state.ChangeUpdateNotice, "456", nil)
 	st.Unlock()
 	c.Assert(backend.checkpoints, HasLen, 1)
@@ -755,12 +921,10 @@ func (s *noticesSuite) TestDeleteExpired(c *C) {
 	defer st.Unlock()
 
 	old := time.Now().Add(-8 * 24 * time.Hour)
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", &state.AddNoticeOptions{
-		Time: old,
-	})
-	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", &state.AddNoticeOptions{
-		Time: old,
-	})
+	restore := state.MockNextNoticeTimestamp(old)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/w", nil)
+	addNotice(c, st, nil, state.WarningNotice, "foo.com/x", nil)
+	restore()
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/y", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.WarningNotice, "foo.com/z", nil)

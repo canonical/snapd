@@ -3,7 +3,7 @@ summary: Ensure snapd builds as a snap
 details: |
   This test verifies that snapd can be built with snapcraft with lxd
   backend as well as host backend on matching version of the
-  build-base (currently 26.04)
+  build-base (currently 22.04)
 
 # TODO: we don't need to build the snapd snap in this test on as many systems
 # when we have a way to dynamically download the snapd snap that was built for a
@@ -30,15 +30,14 @@ systems:
     # used as development environments anyway
     - -ubuntu-16.04-*
     - -ubuntu-18.04-*
-    - -ubuntu-20.04-*
 
 # Start early as it takes a long time.
 priority: 100
 kill-timeout: 35m
 
 environment:
-    # the destructive build mode runs only on resolute, but we also run lxd on
-    # resolute to make sure it builds there too
+    # the destructive build mode runs only on jammy, but we also run lxd on
+    # jammy to make sure it builds there too
     SNAPCRAFT_BUILD_ENVIRONMENT/destructive: host
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
     CONSUMER_SNAP: test-snapd-policy-app-consumer
@@ -61,9 +60,9 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    # only run the destructive mode variant on resolute
-    if ! os.query is-resolute && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-resolute"
+    # only run the destructive mode variant on jammy
+    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-jammy"
         exit 0
     fi
 
@@ -147,9 +146,9 @@ execute: |
 
     libexecdir="$(os.paths libexec-dir)"
 
-    # only run the destructive mode variant on resolute
-    if ! os.query is-resolute && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
-        echo "Skipping destructive mode build on non-resolute"
+    # only run the destructive mode variant on jammy
+    if ! os.query is-jammy && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-jammy"
         exit 0
     fi
 
@@ -175,6 +174,13 @@ execute: |
     # Use test build to make sure the version is higher than the deb/rpm coming from the repo
     touch test-build
 
+    # Snapcraft copies an empty http_proxy/https_proxy into the LXD instance,
+    # which makes gpg's keyserver retry fail with "IPC syntax error".
+    if [ -z "${http_proxy:-}" ]; then unset http_proxy; fi
+    if [ -z "${https_proxy:-}" ]; then unset https_proxy; fi
+    if [ -z "${HTTP_PROXY:-}" ]; then unset HTTP_PROXY; fi
+    if [ -z "${HTTPS_PROXY:-}" ]; then unset HTTPS_PROXY; fi
+
     echo "Build the snap"
     snap run snapcraft --verbose --output=snapd_spread-test.snap
     popd
@@ -187,6 +193,10 @@ execute: |
     #!/bin/sh
     cd $PROJECT_PATH
     rm -f test-build
+    if [ -z "\${http_proxy:-}" ]; then unset http_proxy; fi
+    if [ -z "\${https_proxy:-}" ]; then unset https_proxy; fi
+    if [ -z "\${HTTP_PROXY:-}" ]; then unset HTTP_PROXY; fi
+    if [ -z "\${HTTPS_PROXY:-}" ]; then unset HTTPS_PROXY; fi
     snap run snapcraft clean
     EOF
     chmod +x snapcraft-cleanup.sh

@@ -428,7 +428,7 @@ func (s *deviceMgrInstallModeSuite) makeMockInstalledPcKernelAndGadget(c *C, ins
 		Revision: snap.R(2),
 		SnapID:   baseId,
 	}
-	snapstate.Set(s.state, base, &snapstate.SnapState{
+	snapstate.Set(s.state, naming.InstanceName(base), &snapstate.SnapState{
 		SnapType: "base",
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,

@@ -23,3 +23,11 @@ var (
 	GetRootHashFromOutput = getRootHashFromOutput
 	ShouldApplyWorkaround = shouldApplyNewFileWorkaroundForOlderThan204
 )
+
+func MockTestingBuild(testing bool) (restore func()) {
+	old := testingBuild
+	testingBuild = testing
+	return func() {
+		testingBuild = old
+	}
+}

@@ -49,8 +49,8 @@ type Flags struct {
 	IgnoreValidation bool `json:"ignore-validation,omitempty"`
 
 	// AllowUnsupportedInstances is set when the user requested to install
-	// snap parallel instances with unsupported interfaces or apps. It is
-	// persisted in SnapState and honored on subsequent refreshes.
+	// snap parallel instances with unsupported instance keys, interfaces,
+	// or apps. It is persisted in SnapState and honored on subsequent refreshes.
 	AllowUnsupportedInstances bool `json:"allow-unsupported-instances,omitempty"`
 
 	// IgnoreRunning is set to indicate that running apps or hooks should be

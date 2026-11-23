@@ -40,7 +40,7 @@ func MockPreseedCore20(f func(opts *preseed.CoreOptions) error) (restore func())
 	return r
 }
 
-func MockPreseedClassic(f func(dir string) error) (restore func()) {
+func MockPreseedClassic(f func(dir string, opts *preseed.ClassicOptions) error) (restore func()) {
 	r := testutil.Backup(&preseedClassic)
 	preseedClassic = f
 	return r
@@ -52,7 +52,7 @@ func MockPreseedClassicReset(f func(dir string) error) (restore func()) {
 	return r
 }
 
-func MockPreseedHybrid(f func(dir, label string) error) (restore func()) {
+func MockPreseedHybrid(f func(dir, label string, opts *preseed.ClassicOptions) error) (restore func()) {
 	return testutil.Mock(&preseedHybrid, f)
 }
 

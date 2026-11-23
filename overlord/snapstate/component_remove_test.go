@@ -163,7 +163,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentsParallelInstance(c *C) {
 				sequence.NewComponentState(csi, snap.StandardComponent),
 			}),
 		})
-		snapstate.Set(s.state, tc.instanceName, &snapstate.SnapState{
+		snapstate.Set(s.state, naming.InstanceName(tc.instanceName), &snapstate.SnapState{
 			Active:      true,
 			InstanceKey: tc.instanceKey,
 			Sequence:    seq,
@@ -318,7 +318,7 @@ func setInstanceStateWithComponents(st *state.State, snapName, instanceKey strin
 	snapRev snap.Revision, comps []*sequence.ComponentState) {
 	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
 		SnapID: "some-snap-id"}
-	snapstate.Set(st, snap.InstanceName(snapName, instanceKey).String(), &snapstate.SnapState{
+	snapstate.Set(st, snap.InstanceName(snapName, instanceKey), &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
 			[]*sequence.RevisionSideState{

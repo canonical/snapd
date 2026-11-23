@@ -549,7 +549,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 			Messages: []store.MessageWithToken{
 				s.makeStoreRequestMessage(c, "operator", "someId", "test-kind", "token-123"),
 			},
-			TotalPendingMessages: 1,
+			HasPendingMessages: true,
 		}, nil
 	})
 
@@ -584,8 +584,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 		c.Check(req.Messages, HasLen, 1)
 
 		return &store.MessageExchangeResponse{
-			Messages:             []store.MessageWithToken{},
-			TotalPendingMessages: 0,
+			Messages:           []store.MessageWithToken{},
+			HasPendingMessages: false,
 		}, nil
 	})
 
@@ -659,7 +659,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
 					},
 				},
 			},
-			TotalPendingMessages: 1,
+			HasPendingMessages: true,
 		}, nil
 	})
 
@@ -686,7 +686,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateMessage(c *C) {
 				msg,
 				{Token: "token-2", Message: msg.Message},
 			},
-			TotalPendingMessages: 2,
+			HasPendingMessages: true,
 		}, nil
 	})
 
@@ -720,7 +720,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateSequencedMessagePast
 			Messages: []store.MessageWithToken{
 				s.makeStoreRequestMessage(c, "operator", "seqA-2", "test-kind", "token-2"),
 			},
-			TotalPendingMessages: 1,
+			HasPendingMessages: true,
 		}, nil
 	})
 

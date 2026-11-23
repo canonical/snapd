@@ -736,9 +736,18 @@ cleanup_snapcraft() {
 
 run_snapcraft() {
     ensure_snapcraft
+    # An empty http_proxy is forwarded into the build and makes gpg's
+    # keyserver retry fail with "IPC syntax error". Unset inside the
+    # subshell so the caller's spread environment is unchanged.
     # maybe read the log path from snapcraft output as an improvement
     # but this works
-    if ! (cd "${PROJECT_PATH}" && snapcraft "$@"); then
+    if ! (
+        if [ -z "${http_proxy:-}" ]; then unset http_proxy; fi
+        if [ -z "${https_proxy:-}" ]; then unset https_proxy; fi
+        if [ -z "${HTTP_PROXY:-}" ]; then unset HTTP_PROXY; fi
+        if [ -z "${HTTPS_PROXY:-}" ]; then unset HTTPS_PROXY; fi
+        cd "${PROJECT_PATH}" && snapcraft "$@"
+    ); then
         # shellcheck disable=SC2012
         tail -n1000 "${HOME}/.local/state/snapcraft/log/$(ls -t "${HOME}/.local/state/snapcraft/log/" -1 | head -n1)"
         false

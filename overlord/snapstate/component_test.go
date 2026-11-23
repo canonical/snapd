@@ -249,7 +249,7 @@ func (s *snapmgrTestSuite) TestComponentUnenforcedValidationSet(c *C) {
 	s.testComponentRemoveValidationSet(c, "othersnap", "othercomp", "otherIDVyZEmYsCMFDE9qt92UV8rC8Wdk", "")
 }
 
-func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName, targetCompName, targetSnapID, expectedErrorMsg string) {
+func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetInstanceName naming.InstanceName, targetCompName, targetSnapID, expectedErrorMsg string) {
 	defer snapstate.MockSnapReadInfo(snap.ReadInfo)()
 
 	snapRev := snap.R(1)
@@ -257,11 +257,11 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 
 	const optionalCompName = "othercomp2"
 
-	ssi := &snap.SideInfo{RealName: targetSnapName, Revision: snapRev, SnapID: targetSnapID}
-	cref := naming.NewComponentRef(naming.SnapName(targetSnapName), targetCompName)
+	ssi := &snap.SideInfo{RealName: targetInstanceName.SnapName().String(), Revision: snapRev, SnapID: targetSnapID}
+	cref := naming.NewComponentRef(targetInstanceName.SnapName(), targetCompName)
 	csi := snap.NewComponentSideInfo(cref, compRev)
 
-	otherCref := naming.NewComponentRef(naming.SnapName(targetSnapName), optionalCompName)
+	otherCref := naming.NewComponentRef(targetInstanceName.SnapName(), optionalCompName)
 	otherCsi := snap.NewComponentSideInfo(otherCref, compRev)
 
 	componentsMap := map[string]any{
@@ -278,11 +278,11 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.mockComponentInfos(c, targetSnapName, []string{targetCompName}, []snap.Revision{compRev})
+	s.mockComponentInfos(c, targetInstanceName.SnapName().String(), []string{targetCompName}, []snap.Revision{compRev})
 
 	if targetCompName != optionalCompName {
 		compStates = append(compStates, sequence.NewComponentState(otherCsi, snap.StandardComponent))
-		s.mockComponentInfos(c, targetSnapName, []string{optionalCompName}, []snap.Revision{compRev})
+		s.mockComponentInfos(c, targetInstanceName.SnapName().String(), []string{optionalCompName}, []snap.Revision{compRev})
 
 		componentsMap[optionalCompName] = map[string]any{
 			"type": "standard",
@@ -290,7 +290,7 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	}
 
 	snapYamlObj := map[string]any{
-		"name":       targetSnapName,
+		"name":       targetInstanceName,
 		"version":    1,
 		"components": componentsMap,
 	}
@@ -309,7 +309,7 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 	compSt := snapSt.CurrentComponentState(cref)
 
 	snaptest.MockSnap(c, snapYaml, ssi)
-	snapstate.Set(s.state, targetSnapName, snapSt)
+	snapstate.Set(s.state, targetInstanceName, snapSt)
 
 	// Validation set configuration
 	const enforcedSnapName = "mysnap"
