@@ -351,7 +351,7 @@ jobs:
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
-        fuzzing-search-dir: confdb	
+        fuzzing-search-dirs: confdb snap/naming
 
   unit-tests-root:
     uses: ./.github/workflows/unit-tests.yaml

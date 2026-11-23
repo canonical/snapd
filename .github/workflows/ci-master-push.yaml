@@ -143,7 +143,7 @@ jobs:
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
-        fuzzing-search-dir: confdb
+        fuzzing-search-dirs: confdb snap/naming
         fuzz-only-if-package-has-changed-files: false
 
   code-coverage:

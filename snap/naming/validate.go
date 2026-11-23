@@ -59,6 +59,9 @@ func isValidName(name string) bool {
 }
 
 // ValidateInstance checks if a string can be used as a snap instance name.
+// Installation policy may reserve some valid keys, e.g. "hook". Those keys
+// are considered valid here so that already installed instances can still be
+// managed.
 func ValidateInstance(instanceName string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_instance_name_validate and validate_instance_name .

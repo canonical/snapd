@@ -379,6 +379,17 @@ be rebuilt, the tests may be invoked with `NO_REBUILD=1` like so:
 
     $ NO_REBUILD=1 ./run-spread <spread-args>
 
+The `features` scenario collects function-feature traces and requires a snap
+that was built from instrumented sources. `run-spread` does not instrument the
+sources automatically; provide an instrumented snap explicitly:
+
+    $ ./run-spread --scenario features --instrumented-snap /path/to/snapd.snap <spread-args>
+
+The feature instrumentation is added by
+`go run ./tests/utils/features/instrument-funcs` before building the snap. This
+modifies Go source files in the checkout, so use an appropriate worktree when
+building an instrumented snap locally.
+
 #### Running spread without a cloud account
 
 You can run most of the tests locally, using the `garden` backend. For example,

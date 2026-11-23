@@ -19,6 +19,30 @@ skip:
 
 prepare: |
     echo "Break DNS"
+    # systemctl stop is undone by the varlink socket and by D-Bus activation.
+    # Mask those units before stopping the service so a lookup cannot start it.
+    if systemctl is-active --quiet systemd-resolved.service; then
+        touch resolved.active
+    fi
+    for unit in \
+        systemd-resolved-varlink.socket \
+        systemd-resolved-monitor.socket \
+        dbus-org.freedesktop.resolve1.service \
+        systemd-resolved.service
+    do
+        if systemctl cat "$unit" >/dev/null 2>&1; then
+            if [ "$unit" != systemd-resolved.service ] && systemctl is-active --quiet "$unit"; then
+                echo "$unit" >> resolved-activated.txt
+            fi
+            systemctl mask --runtime "$unit"
+            systemctl stop "$unit"
+            echo "$unit" >> resolved-units.txt
+        fi
+    done
+    if systemctl is-active --quiet systemd-resolved.service; then
+        echo "systemd-resolved is still active"
+        exit 1
+    fi
     if os.query is-core; then
        resolvConf=$(realpath /etc/resolv.conf)
        mv "${resolvConf}" "${resolvConf}.save"
@@ -27,10 +51,6 @@ prepare: |
         mv /etc/resolv.conf /etc/resolv.conf.save
     fi
     systemctl stop snapd.service
-    if systemctl is-active systemd-resolved; then
-        systemctl stop systemd-resolved
-        touch resolved.active
-    fi
 
 restore: |
     echo "Unbreak DNS"
@@ -40,8 +60,18 @@ restore: |
     else
        mv /etc/resolv.conf.save /etc/resolv.conf
     fi
+    if [ -f resolved-units.txt ]; then
+        while read -r unit; do
+            systemctl unmask --runtime "$unit"
+        done < resolved-units.txt
+    fi
+    if [ -f resolved-activated.txt ]; then
+        while read -r unit; do
+            systemctl start "$unit"
+        done < resolved-activated.txt
+    fi
     if [ -e resolved.active ]; then
-        systemctl start systemd-resolved
+        systemctl start systemd-resolved.service
     fi
     systemctl stop snapd.service
 
