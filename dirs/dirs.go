@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/snapcore/snapd/osutil/rootdir"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -210,8 +211,6 @@ const (
 var (
 	// not exported because it does not honor the global rootdir
 	snappyDir = filepath.Join("var", "lib", "snapd")
-
-	callbacks = []func(string){}
 )
 
 type SnapDirOptions struct {
@@ -226,8 +225,18 @@ type SnapDirOptions struct {
 }
 
 func init() {
+	// The re-derivation of the dirs variables must be the first
+	// rootdir callback registered: every other callback registrant
+	// imports this package, so this init function is guaranteed to
+	// have run before any of them, and the callbacks they register
+	// can rely on the dirs variables being up to date.
+	rootdir.AddRootDirCallback(setDirsVars)
+
 	// init the global directories at startup
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
+	if root == "" {
+		root = rootdir.RootDir
+	}
 
 	SetRootDir(root)
 }
@@ -295,17 +304,11 @@ func SetSnapHomeDirs(homedirs string) []string {
 
 // StripRootDir strips the custom global root directory from the specified argument.
 func StripRootDir(dir string) string {
-	if !filepath.IsAbs(dir) {
-		panic(fmt.Sprintf("supplied path is not absolute %q", dir))
-	}
-	if !strings.HasPrefix(dir, GlobalRootDir) {
-		panic(fmt.Sprintf("supplied path is not related to global root %q", dir))
-	}
-	result, err := filepath.Rel(GlobalRootDir, dir)
+	result, err := rootdir.StripRootDir(dir)
 	if err != nil {
-		panic(err)
+		panic(err.Error())
 	}
-	return "/" + result
+	return result
 }
 
 // DataHomeGlobs returns a slice of globbing expressions for the snap directories in use.
@@ -488,7 +491,7 @@ func SnapExportLibDirUnder(rootdir string) string {
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
 func AddRootDirCallback(c func(string)) {
-	callbacks = append(callbacks, c)
+	rootdir.AddRootDirCallback(c)
 }
 
 var (
@@ -563,10 +566,14 @@ func snapMountDirProbe(rootdir string) (string, error) {
 
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
-func SetRootDir(rootdir string) {
-	if rootdir == "" {
-		rootdir = "/"
-	}
+func SetRootDir(root string) {
+	rootdir.SetRootDir(root)
+}
+
+// setDirsVars re-derives the dirs variables from the given root directory.
+// It is registered as the first osutil/rootdir callback, so it runs before
+// any other registered callback.
+func setDirsVars(rootdir string) {
 	GlobalRootDir = rootdir
 
 	isInsideBase, _ := isInsideBaseSnap()
@@ -732,12 +739,6 @@ func SetRootDir(rootdir string) {
 
 	// If the root directory changes we also need to reset snapHomeDirs.
 	SetSnapHomeDirs("/home")
-
-	// call the callbacks last so that the callbacks can just reference the
-	// global vars if they want, instead of using the new rootdir directly
-	for _, c := range callbacks {
-		c(rootdir)
-	}
 
 	if release.OnClassic {
 		// On Classic, the data disk is mounted as /
