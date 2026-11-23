@@ -601,11 +601,26 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-// checkParallelInstancesSupport checks that a snap installed as a parallel
-// instance only uses interfaces that support parallel instances.
+const reservedInstanceKeyHook = "hook"
+
+// checkParallelInstancesSupport checks that a parallel instance uses a supported
+// instance key, interfaces, and app settings. It must be called with state locked.
 func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 	if info.InstanceKey == "" {
 		return nil
+	}
+
+	// Reserve "hook" until udev tags and pinned BPF map names distinguish
+	// snap.foo_hook.app from snap.foo.hook.app. Existing instances can still
+	// refresh.
+	if info.InstanceKey == reservedInstanceKeyHook {
+		var snapst SnapState
+		if err := Get(st, info.InstanceName().String(), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+		if !snapst.IsInstalled() {
+			return fmt.Errorf("cannot install snap %q as parallel instance: instance key %q is reserved, please use another instance key", info.InstanceName(), info.InstanceKey)
+		}
 	}
 
 	repo := ifacerepo.Get(st)

@@ -65,7 +65,7 @@ conflicting aliases of other snaps whose automatic aliases will be disabled and
 manual aliases will be removed.
 
 Use --allow-unsupported-instances to install parallel instances even when their
-plugs, slots, or apps do not support parallel instances.
+instance keys, plugs, slots, or apps do not support parallel instances.
 
 With no further options, the snaps are installed tracking the stable channel,
 with strict security confinement. All available channels of a snap are listed in
@@ -106,8 +106,8 @@ channels of a snap are listed in its 'snap info' output.
 When --revision is used, a later refresh will typically undo the revision
 override.
 
-Use --allow-unsupported-instances to refresh blocked parallel instances even when their
-plugs, slots, or apps do not support parallel instances.
+Use --allow-unsupported-instances to refresh blocked parallel instances even when
+their instance keys, plugs, slots, or apps do not support parallel instances.
 
 Hold (--hold) is used to postpone snap refresh updates for all snaps when no
 snaps are specified, or for the specified snaps.

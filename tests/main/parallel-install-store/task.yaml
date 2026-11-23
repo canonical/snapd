@@ -7,14 +7,19 @@ details: |
     The test checks that snapd can successfully install snaps, as parallel
     instances, from the snap store, to ensure that the store is not confused by
     the presence of the instance key.
+    The reserved instance key "hook" must be rejected.
 
 execute: |
     echo "Installation of parallel instance fails if the feature is disabled"
     snap set system experimental.parallel-instances=false
-    not snap install test-snapd-tools_foo 2> run.err
+    not snap install test-snapd-tools_hook 2> run.err
     MATCH 'experimental feature disabled' < run.err
 
     snap set system experimental.parallel-instances=true
+
+    echo "Installation with the reserved hook instance key fails"
+    not snap install test-snapd-tools_hook 2>run.err
+    tr '\n' ' ' < run.err | tr -s ' ' | MATCH 'instance key "hook" is reserved, please use another instance key'
 
     snap install test-snapd-tools_foo | MATCH '^test-snapd-tools_foo .* installed'
 

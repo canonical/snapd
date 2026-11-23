@@ -20,7 +20,6 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -186,11 +185,42 @@ static void sc_udev_setup_acls_common(sc_device_cgroup *cgroup) {
     sc_udev_allow_dev_net_tun(cgroup);
 }
 
+/**
+ * Derive the udev tag from the snap security tag.
+ *
+ * Dots become single underscores and the optional single plus sign
+ * becomes a double underscore.
+ * Keep this in sync with the corresponding snapd side encoding in
+ * udev spec.
+ **/
 static char *sc_security_to_udev_tag(const char *security_tag) {
-    char *udev_tag = sc_strdup(security_tag);
-    for (char *c = strchr(udev_tag, '.'); c != NULL; c = strchr(c, '.')) {
-        *c = '_';
+    /* The validated tag contains at most one '+', which expands to "__". */
+    size_t udev_tag_size = strlen(security_tag) + 1;
+    if (strchr(security_tag, '+') != NULL) {
+        ++udev_tag_size;
     }
+
+    char *udev_tag = malloc(udev_tag_size);
+    if (udev_tag == NULL) {
+        die("cannot allocate udev tag");
+    }
+
+    char *out = udev_tag;
+    for (const char *cursor = security_tag; *cursor != '\0'; ++cursor) {
+        switch (*cursor) {
+            case '+':
+                *out++ = '_';
+                *out++ = '_';
+                break;
+            case '.':
+                *out++ = '_';
+                break;
+            default:
+                *out++ = *cursor;
+                break;
+        }
+    }
+    *out = '\0';
     return udev_tag;
 }
 
@@ -250,10 +280,6 @@ void sc_setup_device_cgroup(const char *security_tag, sc_device_cgroup_mode mode
         debug("no current tags support present");
     }
 
-    /* Derive the udev tag from the snap security tag.
-     *
-     * Because udev does not allow for dots in tag names, those are replaced by
-     * underscores in snapd. We just match that behavior. */
     char *udev_tag SC_CLEANUP(sc_cleanup_string) = NULL;
     udev_tag = sc_security_to_udev_tag(security_tag);
 
