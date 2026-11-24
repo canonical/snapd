@@ -48,10 +48,7 @@ execute: |
 
     echo "Ensure that snap-confine has finished its task and that the snap process is active."
     # Note that we don't want to wait forever either.
-    for _ in $(seq 30); do
-        test -e /var/snap/test-snapd-sh/current/1.stamp && break
-        sleep 0.1
-    done
+    retry -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/1.stamp
 
     echo "While the process is alive its PID can be seen in the tasks file of the control group."
     MATCH "^${pid1}$" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
@@ -61,10 +58,7 @@ execute: |
     test-snapd-sh.sh -c 'touch $SNAP_DATA/2.stamp && exec sleep 1h' &
     pid2=$!
     pids+=("$pid2")
-    for _ in $(seq 30); do
-        test -e /var/snap/test-snapd-sh/current/2.stamp && break
-        sleep 0.1
-    done
+    retry -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/2.stamp
     MATCH "^${pid2}$" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
 
     echo "When the process terminates the control group is updated and the task no longer registers there."
@@ -85,13 +79,10 @@ execute: |
     echo "Reinstall the snap and keep a process running during removal."
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     #shellcheck disable=SC2016
-    test-snapd-sh.sh -c 'touch $SNAP_DATA/running.stamp && exec sleep 1h' &
+    test-snapd-sh.sh -c 'touch $SNAP_DATA/3.stamp && exec sleep 1h' &
     pid3=$!
     pids=("$pid3")
-    for _ in $(seq 30); do
-        test -e /var/snap/test-snapd-sh/current/running.stamp && break
-        sleep 0.1
-    done
+    retry -n 30 --wait 0.1 test -e /var/snap/test-snapd-sh/current/3.stamp
     MATCH "^${pid3}$" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
 
     echo "Removing the snap succeeds but leaves the populated freezer group intact."

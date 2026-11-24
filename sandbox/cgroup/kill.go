@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // KillSnapProcesses sends a signal to all the processes belonging to
@@ -119,7 +120,7 @@ func isCgroupNotExistErr(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENODEV)
 }
 
-func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
+func killSnapProcessesImplV1(ctx context.Context, instanceName string) error {
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, maxKillTimeout)
 	defer cancel()
 
@@ -133,14 +134,14 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 		//     This gives a chance to thaw the cgroup and trying again.
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, killFreezeTimeout)
 		defer cancel()
-		err := freezeSnapProcessesImplV1(ctxWithTimeout, snapName)
+		err := freezeSnapProcessesImplV1(ctxWithTimeout, instanceName)
 		if err != nil && !isCgroupNotExistErr(err) {
-			logger.Noticef("could not freeze cgroup while killing %q processes: %v", snapName, err)
+			logger.Noticef("could not freeze cgroup while killing %q processes: %v", instanceName, err)
 		}
 	}
 	thaw := func() {
 		// SIGKILL on a frozen cgroup will not take effect until the cgroup is thawed
-		thawSnapProcessesImplV1(snapName)
+		thawSnapProcessesImplV1(instanceName)
 		// Give for the sent SIGKILL signals to take effect on the next loop
 		time.Sleep(killThawCooldown)
 	}
@@ -156,7 +157,7 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 		return true
 	}
 
-	if err := applyToSnap(snapName, killCgroupProcs, skipError); err != nil {
+	if err := applyToSnap(instanceName, killCgroupProcs, skipError); err != nil {
 		return err
 	}
 
@@ -165,7 +166,7 @@ func killSnapProcessesImplV1(ctx context.Context, snapName string) error {
 	// by the usual snap.<security-tag>-<uuid>.scope pattern.
 	// Here, We rely on the fact that snap-confine moves the snap pids into the freezer cgroup
 	// created for the snap.
-	err := killProcessesInCgroup(ctxWithTimeout, filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName)), freeze, thaw)
+	err := killProcessesInCgroup(ctxWithTimeout, snapFreezerCgroupV1Path(naming.InstanceName(instanceName)), freeze, thaw)
 	if err != nil && !isCgroupNotExistErr(err) && firstErr == nil {
 		firstErr = err
 	}

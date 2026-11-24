@@ -50,11 +50,16 @@ func init() {
 	})
 }
 
+func snapFreezerCgroupV1Path(instanceName naming.InstanceName) string {
+	return filepath.Join(freezerCgroupV1Dir, "snap."+instanceName.String())
+}
+
 // RemoveSnapFreezerCgroupV1 removes the cgroup-v1 freezer group of a snap instance.
 // Missing groups are ignored. Populated groups are left intact and return an
-// error. The caller must serialize this operation with snap-confine.
+// error. The caller must hold the per-instance snap lock to prevent snap-confine
+// from creating or joining the group while it is being removed.
 func RemoveSnapFreezerCgroupV1(instanceName naming.InstanceName) error {
-	path := filepath.Join(freezerCgroupV1Dir, "snap."+instanceName.String())
+	path := snapFreezerCgroupV1Path(instanceName)
 	// Remove only the directory: the kernel removes the control
 	// files and refuses removal if processes or child groups remain.
 	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -97,15 +102,15 @@ var ThawSnapProcesses = func(snapName string) error {
 // freezeSnapProcessesImplV1 freezes all the processes originating from the given snap.
 // Processes are frozen regardless of which particular snap application they
 // originate from.
-var freezeSnapProcessesImplV1 = func(ctx context.Context, snapName string) error {
-	fname := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
+var freezeSnapProcessesImplV1 = func(ctx context.Context, instanceName string) error {
+	fname := filepath.Join(snapFreezerCgroupV1Path(naming.InstanceName(instanceName)), "freezer.state")
 	if err := os.WriteFile(fname, []byte("FROZEN"), 0644); errors.Is(err, fs.ErrNotExist) {
 		// When there's no freezer cgroup we don't have to freeze anything.
 		// This can happen when no process belonging to a given snap has been
 		// started yet.
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("cannot freeze processes of snap %q, %w", snapName, err)
+		return fmt.Errorf("cannot freeze processes of snap %q, %w", instanceName, err)
 	}
 
 	// Add an upper bound to the timeout if cgroup is stuck at freeze state
@@ -119,7 +124,7 @@ var freezeSnapProcessesImplV1 = func(ctx context.Context, snapName string) error
 	for {
 		data, err := osReadFile(fname)
 		if err != nil {
-			return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %w", snapName, err)
+			return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %w", instanceName, err)
 		}
 		// If the cgroup is frozen then we are done
 		if bytes.Equal(bytes.TrimSpace(data), []byte("FROZEN")) {
@@ -129,22 +134,22 @@ var freezeSnapProcessesImplV1 = func(ctx context.Context, snapName string) error
 		select {
 		case <-ctxWithTimeout.Done():
 			// If we got here then we timed out after seeing FREEZING for too long.
-			ThawSnapProcesses(snapName) // ignore the error, this is best-effort.
-			return fmt.Errorf("cannot finish freezing processes of snap %q (freezer state: %s): %w", snapName, data, ctxWithTimeout.Err())
+			ThawSnapProcesses(instanceName) // ignore the error, this is best-effort.
+			return fmt.Errorf("cannot finish freezing processes of snap %q (freezer state: %s): %w", instanceName, data, ctxWithTimeout.Err())
 		case <-ticker.C:
 		}
 	}
 }
 
-var thawSnapProcessesImplV1 = func(snapName string) error {
-	fname := filepath.Join(freezerCgroupV1Dir, fmt.Sprintf("snap.%s", snapName), "freezer.state")
+var thawSnapProcessesImplV1 = func(instanceName string) error {
+	fname := filepath.Join(snapFreezerCgroupV1Path(naming.InstanceName(instanceName)), "freezer.state")
 	if err := os.WriteFile(fname, []byte("THAWED"), 0644); err != nil && errors.Is(err, fs.ErrNotExist) {
 		// When there's no freezer cgroup we don't have to thaw anything.
 		// This can happen when no process belonging to a given snap has been
 		// started yet.
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("cannot thaw processes of snap %q", snapName)
+		return fmt.Errorf("cannot thaw processes of snap %q", instanceName)
 	}
 	return nil
 }
