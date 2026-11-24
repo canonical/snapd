@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: FDEStatus
+description: >-
+  Status information describing whether the system has a working full-disk
+  encryption (FDE) setup. If the FDE is set up and not working, includes details to better understand the situation.
+required:
+  - status
+  - auto-repair-result
+  - preinstall
+properties:
+  status:
+    oneOf:
+      - type: string
+        const: active
+        description: >-
+          The system is FDE enabled and operating normally (none of
+          the other states apply).
+      - type: string
+        const: inactive
+        description: >-
+          FDE is not currently active, because TPM-backed FDE was
+          not selected at install time.
+      - type: string
+        const: recovery
+        description: >-
+          A recovery key was provided to unlock one or more storage
+          containers, but the system has not yet been restarted.
+      - type: string
+        const: degraded
+        description: >-
+          The system is unlocked, but another problem was detected.
+      - type: string
+        const: indeterminate
+        description: >-
+          There was an error while detecting the current status. This can
+          also happen in case of a major failure starting snapd.
+  auto-repair-result:
+    type: string
+    enum:
+      - not-initialized
+      - not-attempted
+      - failed-platform-init
+      - failed-keyslots
+      - failed-encryption-support
+      - success
+    description: >-
+      The result of the automatic post-recovery repair. Always present in
+      this version of the API. Will have the value 'not-initialized' early on
+      snapd boot until it has checked whether or not to run the repair. If
+      the value is 'not-attempted', snapd has decided not to attempt the
+      repair.
+  recommendations:
+    type: array
+    items:
+      type: string
+      enum:
+        - permit-manual
+        - require-reprovision
+        - require-platform-reset
+    description: >-
+      Remedial actions recommended to the system administrator to manually
+      repair the FDE setup.
+  preinstall:
+    type: object
+    description: Information related to decisions made at install time.
+    required:
+      - accepted-errors
+      - requirements
+    properties:
+      accepted-errors:
+        type: object
+        description: >-
+          A map of error-kind to arguments, for each preinstall check error
+          that was accepted via a 'proceed' action at install time. Arguments
+          are currently unused but reserved for future use.
+        additionalProperties:
+          type: object
+          nullable: true
+          additionalProperties: true
+      requirements:
+        type: array
+        items:
+          type: string
+          enum:
+            - volumes-auth
+        description: >-
+          A list of requirements enforced at install time. 'volumes-auth'
+          indicates that volumes authentication using a PIN or passphrase is
+          required.
