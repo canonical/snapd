@@ -248,6 +248,14 @@ func handleConfdbControlAction(c *Command, r *http.Request, user *auth.UserState
 	if err := validateFeatureFlag(st, features.RemoteDeviceManagement); err != nil {
 		return err
 	}
+	var enabled bool
+	tr := config.NewTransaction(st)
+	if err := tr.GetMaybe("core", "remote-device-management.enabled", &enabled); err != nil {
+		return InternalError("internal error: cannot check remote-device-management.enabled option: %s", err)
+	}
+	if !enabled {
+		return BadRequest("remote device management is disabled: set 'remote-device-management.enabled' to true")
+	}
 
 	devMgr := c.d.overlord.DeviceManager()
 	cc, err := devMgr.ConfdbControl()

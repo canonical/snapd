@@ -123,6 +123,13 @@ func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
 	tr.Commit()
 }
 
+func setRemoteMgmtOption(c *C, st *state.State, value any) {
+	tr := config.NewTransaction(st)
+	err := tr.Set("core", "remote-device-management.enabled", value)
+	c.Assert(err, IsNil)
+	tr.Commit()
+}
+
 type deviceMgmtMgrSuite struct {
 	testutil.BaseTest
 
@@ -182,6 +189,7 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(restoreLogger)
 
 	setRemoteMgmtFeatureFlag(c, s.st, true)
+	setRemoteMgmtOption(c, s.st, true)
 
 	s.mockStore(func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return &store.MessageExchangeResponse{}, nil
@@ -336,6 +344,7 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 	type test struct {
 		name             string
 		flag             any
+		option           any
 		lastExchangeTime time.Time
 		readyResponses   map[string]store.Message
 		expected         bool
@@ -393,6 +402,28 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 			lastExchangeTime: enoughTimePassed,
 			expected:         false,
 		},
+		{
+			name:             "feature flag on, option off, no responses, enough time passed",
+			flag:             true,
+			option:           false,
+			lastExchangeTime: enoughTimePassed,
+			expected:         false,
+		},
+		{
+			name:             "feature flag on, option off, has responses, enough time passed",
+			flag:             true,
+			option:           false,
+			lastExchangeTime: enoughTimePassed,
+			readyResponses:   map[string]store.Message{"mesg-1": {}},
+			expected:         true,
+		},
+		{
+			name:             "feature flag on, option check error, no responses, enough time passed",
+			flag:             true,
+			option:           "banana",
+			lastExchangeTime: enoughTimePassed,
+			expected:         false,
+		},
 	}
 
 	s.st.Lock()
@@ -407,7 +438,12 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 			LastExchangeTime: tt.lastExchangeTime,
 		}
 
+		option := tt.option
+		if option == nil {
+			option = true
+		}
 		setRemoteMgmtFeatureFlag(c, s.st, tt.flag)
+		setRemoteMgmtOption(c, s.st, option)
 
 		exchange := s.mgr.ShouldExchangeMessages(ms)
 		c.Check(exchange, Equals, tt.expected, cmt)

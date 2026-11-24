@@ -425,14 +425,27 @@ func (m *DeviceMgmtManager) Ensure() error {
 	return nil
 }
 
-// isRemoteDeviceManagementEnabled checks whether the remote device management feature is enabled.
+// isRemoteDeviceManagementEnabled checks whether remote device management is
+// enabled. Both the remote-device-management feature flag and the
+// remote-device-management.enabled option must be set.
 func (m *DeviceMgmtManager) isRemoteDeviceManagementEnabled() bool {
 	tr := config.NewTransaction(m.state)
-	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
+	flagEnabled, err := features.Flag(tr, features.RemoteDeviceManagement)
 	if err != nil && !config.IsNoOption(err) {
 		logger.Noticef("cannot check remote-device-management feature flag: %v", err)
 
 		// If the flag cannot be checked, assume disabled.
+		return false
+	}
+	if !flagEnabled {
+		return false
+	}
+
+	var enabled bool
+	if err := tr.GetMaybe("core", "remote-device-management.enabled", &enabled); err != nil {
+		logger.Noticef("cannot check remote-device-management.enabled option: %v", err)
+
+		// If the option cannot be checked, assume disabled.
 		return false
 	}
 

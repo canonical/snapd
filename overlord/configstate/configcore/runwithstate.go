@@ -67,6 +67,9 @@ func init() {
 	// legacy experimental disk space flags
 	addWithStateHandler(nil, handleLegacyDiskSpaceFeatures, nil)
 
+	// remote-device-management.enabled
+	addWithStateHandler(validateRemoteDeviceManagementSettings, handleRemoteDeviceManagementSettings, nil)
+
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, coreOnly)
 
