@@ -4761,16 +4761,12 @@ func (s *snapmgrTestSuite) TestInstallManyDiskSpaceError(c *C) {
 	c.Check(diskSpaceErr.ChangeKind, Equals, "install")
 }
 
-func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabled(c *C) {
+func (s *snapmgrTestSuite) TestInstallManyDiskCheckDisabledWithoutReservation(c *C) {
 	restore := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return &osutil.NotEnoughDiskSpaceError{} })
 	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.check-disk-space-install", false)
-	tr.Commit()
 
 	_, _, err := snapstate.InstallMany(s.state, []naming.InstanceName{"one", "two"}, nil, 0, nil)
 	c.Check(err, IsNil)

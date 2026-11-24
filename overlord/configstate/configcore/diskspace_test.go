@@ -21,13 +21,12 @@
 package configcore_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type diskSpaceSuite struct {
@@ -67,161 +66,40 @@ func (s *diskSpaceSuite) TestConfigureDiskSpaceReservation(c *C) {
 	}
 }
 
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationFeatureFlags(c *C) {
+func (s *diskSpaceSuite) TestGraduatedDiskSpaceFlagsPreserveReservation(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	for _, feature := range []features.SnapdFeature{
-		features.CheckDiskSpaceInstall,
-		features.CheckDiskSpaceRefresh,
-		features.CheckDiskSpaceRemove,
+	for _, feature := range []string{
+		"check-disk-space-install",
+		"check-disk-space-refresh",
+		"check-disk-space-remove",
 	} {
-		tr := config.NewTransaction(s.state)
-		snapName, confName := feature.ConfigOption()
-		c.Assert(tr.Set(snapName, confName, true), IsNil)
+		for _, reservation := range []any{nil, 0, "1G"} {
+			setupTr := config.NewTransaction(s.state)
+			c.Assert(setupTr.Set("core", "disk-reservation.size", reservation), IsNil)
+			setupTr.Commit()
 
-		runTr := configcore.NewRunTransaction(tr, nil)
-		c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
+			tr := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
+			c.Assert(tr.Set("core", "experimental."+feature, true), IsNil)
 
-		var reservation uint64
-		c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
-		c.Check(reservation, Equals, uint64(5*1024*1024))
+			s.state.Unlock()
+			err := configcore.Run(classicDev, tr)
+			s.state.Lock()
+			c.Assert(err, IsNil)
+			tr.Commit()
 
-		c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
-		c.Assert(tr.Set(snapName, confName, nil), IsNil)
-		tr.Commit()
+			var enabled bool
+			c.Check(config.IsNoOption(tr.Get("core", "experimental."+feature, &enabled)), Equals, true)
+
+			var value any
+			err = tr.Get("core", "disk-reservation.size", &value)
+			if reservation == nil {
+				c.Check(config.IsNoOption(err), Equals, true)
+			} else {
+				c.Assert(err, IsNil)
+				c.Check(fmt.Sprint(value), Equals, fmt.Sprint(reservation))
+			}
+		}
 	}
-}
-
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationPreservesConfiguredValue(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
-	c.Assert(tr.Set("core", "disk-reservation.size", 0), IsNil)
-
-	runTr := configcore.NewRunTransaction(tr, nil)
-	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
-
-	var reservation uint64
-	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
-	c.Check(reservation, Equals, uint64(0))
-}
-
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationDoesNothingWhenFeaturesDisabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	runTr := configcore.NewRunTransaction(tr, nil)
-	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
-
-	var reservation any
-	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
-}
-
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationPreservesFlags(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	installSnap, installConf := features.CheckDiskSpaceInstall.ConfigOption()
-	removeSnap, removeConf := features.CheckDiskSpaceRemove.ConfigOption()
-	c.Assert(tr.Set(installSnap, installConf, true), IsNil)
-	c.Assert(tr.Set(removeSnap, removeConf, false), IsNil)
-
-	runTr := configcore.NewRunTransaction(tr, nil)
-	c.Assert(configcore.MigrateDiskSpaceReservation(runTr), IsNil)
-	tr.Commit()
-
-	var enabled bool
-	c.Assert(tr.Get(installSnap, installConf, &enabled), IsNil)
-	c.Check(enabled, Equals, true)
-	c.Assert(tr.Get(removeSnap, removeConf, &enabled), IsNil)
-	c.Check(enabled, Equals, false)
-	refreshSnap, refreshConf := features.CheckDiskSpaceRefresh.ConfigOption()
-	c.Check(config.IsNoOption(tr.Get(refreshSnap, refreshConf, &enabled)), Equals, true)
-
-	var reservation uint64
-	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
-	c.Check(reservation, Equals, uint64(5*1024*1024))
-}
-
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationOnFeatureFlagChange(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	for _, feature := range []features.SnapdFeature{
-		features.CheckDiskSpaceInstall,
-		features.CheckDiskSpaceRefresh,
-		features.CheckDiskSpaceRemove,
-	} {
-		tr := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
-		snapName, confName := feature.ConfigOption()
-		c.Assert(tr.Set(snapName, confName, true), IsNil)
-
-		s.state.Unlock()
-		err := configcore.Run(classicDev, tr)
-		s.state.Lock()
-		c.Assert(err, IsNil)
-
-		var reservation uint64
-		c.Check(config.IsNoOption(config.NewTransaction(s.state).Get("core", "disk-reservation.size", &reservation)), Equals, true)
-		var migrated bool
-		c.Check(s.state.Get("disk-space-reservation-migrated", &migrated), testutil.ErrorIs, state.ErrNoState)
-		tr.Commit()
-
-		var enabled bool
-		c.Assert(tr.Get(snapName, confName, &enabled), IsNil)
-		c.Check(enabled, Equals, true)
-
-		c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
-		c.Check(reservation, Equals, uint64(5*1024*1024))
-
-		cleanupTr := config.NewTransaction(s.state)
-		c.Assert(cleanupTr.Set("core", "disk-reservation.size", nil), IsNil)
-		c.Assert(cleanupTr.Set(snapName, confName, nil), IsNil)
-		cleanupTr.Commit()
-	}
-}
-
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationSkippedWhenComplete(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	s.state.Set("disk-space-reservation-migrated", true)
-	tr := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
-	c.Assert(configcore.MigrateDiskSpaceReservation(tr), IsNil)
-
-	var reservation any
-	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
-
-	s.state.Unlock()
-	err := configcore.Run(classicDev, tr)
-	s.state.Lock()
-	c.Assert(err, IsNil)
-	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
-}
-
-func (s *diskSpaceSuite) TestMigrateDiskSpaceReservationKeepsExplicitUnset(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	setupTr := config.NewTransaction(s.state)
-	c.Assert(setupTr.Set("core", "disk-reservation.size", 0), IsNil)
-	setupTr.Commit()
-
-	tr := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
-	c.Assert(tr.Set("core", "disk-reservation.size", nil), IsNil)
-
-	s.state.Unlock()
-	err := configcore.Run(classicDev, tr)
-	s.state.Lock()
-	c.Assert(err, IsNil)
-
-	var reservation any
-	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }

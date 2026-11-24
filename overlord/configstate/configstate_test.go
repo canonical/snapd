@@ -350,30 +350,40 @@ func (s *configcoreHijackSuite) TestConfigMngrInitPrunesGraduatedExperimentalFea
 	c.Check(config.IsNoOption(err), Equals, true)
 }
 
-func (s *configcoreHijackSuite) TestConfigMngrInitMigratesDiskSpaceReservation(c *C) {
-	s.o = overlord.Mock()
-	s.state = s.o.State()
-	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
-	c.Assert(err, IsNil)
+func (s *configcoreHijackSuite) TestConfigMngrInitPrunesDiskSpaceFlagsPreservingReservation(c *C) {
+	for _, reservation := range []any{nil, 0, "1G"} {
+		s.o = overlord.Mock()
+		s.state = s.o.State()
+		hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+		c.Assert(err, IsNil)
 
-	s.state.Lock()
-	t := config.NewTransaction(s.state)
-	c.Assert(t.Set("core", "experimental.check-disk-space-install", true), IsNil)
-	t.Commit()
-	s.state.Unlock()
+		s.state.Lock()
+		t := config.NewTransaction(s.state)
+		for _, feature := range []string{"check-disk-space-install", "check-disk-space-refresh", "check-disk-space-remove"} {
+			c.Assert(t.Set("core", "experimental."+feature, true), IsNil)
+		}
+		c.Assert(t.Set("core", "disk-reservation.size", reservation), IsNil)
+		t.Commit()
+		s.state.Unlock()
 
-	c.Assert(configstate.Init(s.state, hookMgr), IsNil)
+		c.Assert(configstate.Init(s.state, hookMgr), IsNil)
 
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	t = config.NewTransaction(s.state)
-	var reservation uint64
-	c.Assert(t.Get("core", "disk-reservation.size", &reservation), IsNil)
-	c.Check(reservation, Equals, uint64(5*1024*1024))
-	var enabled bool
-	c.Assert(t.Get("core", "experimental.check-disk-space-install", &enabled), IsNil)
-	c.Check(enabled, Equals, true)
+		s.state.Lock()
+		t = config.NewTransaction(s.state)
+		for _, feature := range []string{"check-disk-space-install", "check-disk-space-refresh", "check-disk-space-remove"} {
+			var enabled bool
+			c.Check(config.IsNoOption(t.Get("core", "experimental."+feature, &enabled)), Equals, true)
+		}
+		var value any
+		err = t.Get("core", "disk-reservation.size", &value)
+		s.state.Unlock()
+		if reservation == nil {
+			c.Check(config.IsNoOption(err), Equals, true)
+		} else {
+			c.Assert(err, IsNil)
+			c.Check(fmt.Sprint(value), Equals, fmt.Sprint(reservation))
+		}
+	}
 }
 
 type witnessManager struct {

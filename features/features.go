@@ -46,12 +46,6 @@ const (
 	HiddenSnapDataHomeDir
 	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) can be moved to ~/Snap.
 	MoveSnapHomeDir
-	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
-	CheckDiskSpaceRemove
-	// CheckDiskSpaceInstall controls free disk space check on snap install.
-	CheckDiskSpaceInstall
-	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
-	CheckDiskSpaceRefresh
 	// Confdb enables experimental configuration based on confdb and views.
 	Confdb
 	// AppArmorPrompting enables AppArmor to prompt the user for permission when apps perform certain operations.
@@ -111,10 +105,6 @@ var featureNames = map[SnapdFeature]string{
 	HiddenSnapDataHomeDir: "hidden-snap-folder",
 	MoveSnapHomeDir:       "move-snap-home-dir",
 
-	CheckDiskSpaceInstall: "check-disk-space-install",
-	CheckDiskSpaceRefresh: "check-disk-space-refresh",
-	CheckDiskSpaceRemove:  "check-disk-space-remove",
-
 	Confdb: "confdb",
 
 	AppArmorPrompting:  "apparmor-prompting",
@@ -158,6 +148,9 @@ var featuresGraduated = map[string]bool{
 	"refresh-app-awareness-ux":          true,
 	"dbus-activation":                   true,
 	"quota-groups":                      true,
+	"check-disk-space-install":          true,
+	"check-disk-space-refresh":          true,
+	"check-disk-space-remove":           true,
 }
 
 // featuresPermanentlyDisabled contains features whose implementation is

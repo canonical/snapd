@@ -72,21 +72,19 @@ func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeature(c *C) {
 	r.state.Lock()
 	defer r.state.Unlock()
 
-	task := r.state.NewTask("configure", "configure")
-	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
-
 	for _, feature := range features.Graduated() {
+		task := r.state.NewTask("configure", "configure")
+		tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
+
 		c.Assert(tr.Set("core", "experimental."+feature, true), IsNil)
-	}
-	c.Assert(tr.Set("core", "experimental.parallel-instances", true), IsNil)
+		c.Assert(tr.Set("core", "experimental.parallel-instances", true), IsNil)
 
-	r.state.Unlock()
-	c.Assert(configcore.Run(coreDev, tr), IsNil)
-	r.state.Lock()
+		r.state.Unlock()
+		c.Assert(configcore.Run(coreDev, tr), IsNil)
+		r.state.Lock()
 
-	tr.Commit()
+		tr.Commit()
 
-	for _, feature := range features.Graduated() {
 		msg := "feature " + feature + " is no longer experimental and is always enabled"
 
 		var value any
@@ -96,12 +94,11 @@ func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeature(c *C) {
 		c.Check(logbuf.String(), testutil.Contains, msg)
 		c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
 		c.Check(warningsStrings(r.state.AllWarnings()), testutil.Contains, msg)
+		var parallelInstances bool
+		err = tr.Get("core", "experimental.parallel-instances", &parallelInstances)
+		c.Check(err, IsNil)
+		c.Check(parallelInstances, Equals, true)
 	}
-
-	var parallelInstances bool
-	err := tr.Get("core", "experimental.parallel-instances", &parallelInstances)
-	c.Check(err, IsNil)
-	c.Check(parallelInstances, Equals, true)
 
 }
 
