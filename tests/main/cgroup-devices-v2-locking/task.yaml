@@ -9,6 +9,8 @@ details: |
     that udev enumeration also happens under the lock.
 
 # skip all systems that do not use unified cgroup hierarchy by default
+# ubuntu-core systems are skipped because bpftool is not available there
+# and tests.device-cgroup depends on it for cgroup v2 map access
 systems:
   - -amazon-*
   - -opensuse-15*
@@ -25,11 +27,7 @@ prepare: |
     # Drain queued events before saving /dev/kmsg's udev metadata (c 1:11).
     # The test adds a tag, but never opens the device itself.
     udevadm settle
-    if [ -e /run/udev/data/c1:11 ]; then
-        cp -a /run/udev/data/c1:11 kmsg.udev-data
-    fi
-    # Trust the backup (or its absence) only after preparation completes.
-    touch kmsg.udev-backup-ready
+    cp -a /run/udev/data/c1:11 kmsg.udev-data
 
     # snaps using core24 base always get a device cgroup
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
@@ -37,7 +35,7 @@ prepare: |
 restore: |
     # Remove the test rule and reprocess only /dev/kmsg to drop its current tag.
     rm -f /etc/udev/rules.d/70-test-device-cgroup-locking.rules
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm trigger --action=change /sys/devices/virtual/mem/kmsg
     udevadm settle
 
@@ -47,20 +45,14 @@ restore: |
 
     # Retriggering drops current tags, but historical tags survive in the
     # database and enumeration index. Restore both so the test is repeatable.
-    # If preparation failed before saving the original state, leave it untouched.
-    if [ -e kmsg.udev-backup-ready ]; then
-        if [ -e kmsg.udev-data ]; then
-            cp -a kmsg.udev-data /run/udev/data/c1:11
-        else
-            # No original entry existed, so remove the one created by the test.
-            rm -f /run/udev/data/c1:11
-        fi
-
+    # If preparation failed before the backup was created, leave it untouched.
+    if [ -e kmsg.udev-data ]; then
+        cp -a kmsg.udev-data /run/udev/data/c1:11
         # Remove the device's entry from the separate tag index; an empty directory
         # does not affect enumeration.
         rm -f /run/udev/tags/snap_test-snapd-sh-core24_sh/c1:11
+        rm -f kmsg.udev-data
     fi
-    rm -f kmsg.udev-data kmsg.udev-backup-ready
 
     # Pinned BPF maps and lock files can outlive the processes that created them.
     rm -f /sys/fs/bpf/snap/snap_test-snapd-sh-core24_sh
@@ -78,7 +70,7 @@ execute: |
     # Use the helper carrying the code under test.
     libexecdir=$(os.paths libexec-dir)
     if tests.info is-snapd-from-archive; then
-        libexecdir="/snap/snapd/current$libexecdir"
+        libexecdir=/snap/snapd/current/usr/lib/snapd
     fi
 
     # Keep the lock file open as fd 9 in this shell so the lock acquired by
@@ -128,7 +120,7 @@ execute: |
     echo "Tag /dev/kmsg and simulate a helper grant while the launcher waits"
     # Only update the udev database: do not run a helper that would wait on our lock.
     echo 'KERNEL=="kmsg", TAG+="snap_test-snapd-sh-core24_sh"' > /etc/udev/rules.d/70-test-device-cgroup-locking.rules
-    udevadm control --reload-rules
+    udevadm control --reload
     udevadm trigger --action=change /sys/devices/virtual/mem/kmsg
     udevadm settle --timeout=5
     udevadm info /sys/devices/virtual/mem/kmsg | MATCH 'E: (CURRENT_)?TAGS=.*snap_test-snapd-sh-core24_sh'

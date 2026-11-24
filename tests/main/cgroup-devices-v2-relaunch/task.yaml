@@ -8,6 +8,8 @@ details: |
     removed from the map.
 
 # skip all systems that do not use unified cgroup hierarchy by default
+# ubuntu-core systems are skipped because bpftool is not available there
+# and tests.device-cgroup depends on it for cgroup v2 map access
 systems:
   - -amazon-*
   - -opensuse-15*
