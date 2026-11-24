@@ -70,7 +70,7 @@ nested_setup_vm(){
         remote.exec "echo Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY NO_PROXY=$nested_no_proxy no_proxy=$nested_no_proxy SNAPD_USE_PROXY=$SNAPD_USE_PROXY | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf"
 
         # Configure snapd to use the pkgproxy
-        if [ -n "${PKGPROXY_URL:-}" ]; then
+        if [ "${USE_PKGPROXY:-}" = true ] && [ -n "${PKGPROXY_URL:-}" ]; then
             remote.exec "echo [Service] | sudo tee /etc/systemd/system/snapd.service.d/pkgproxy.conf"
             remote.exec "echo Environment=SNAPPY_FORCE_API_URL=$PKGPROXY_URL | sudo tee -a /etc/systemd/system/snapd.service.d/pkgproxy.conf"
         fi

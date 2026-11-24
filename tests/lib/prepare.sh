@@ -109,7 +109,7 @@ EOF
 }
 
 setup_snapd_pkgproxy() {
-    if [ -z "${PKGPROXY_URL:-}" ]; then
+    if [ "${USE_PKGPROXY:-}" != true ] || [ -z "${PKGPROXY_URL:-}" ]; then
         return
     fi
 
