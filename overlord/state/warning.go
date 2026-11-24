@@ -22,6 +22,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -41,6 +42,96 @@ type jsonWarning struct {
 	LastShown   *time.Time `json:"last-shown,omitempty"`
 	ExpireAfter string     `json:"expire-after,omitempty"`
 	RepeatAfter string     `json:"repeat-after,omitempty"`
+}
+
+// migrateWarnings migrates the old warning structs found when unmarshalling
+// state to warnings backed by notices.
+func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
+	s.noticesMu.Lock()
+	defer s.noticesMu.Unlock()
+	now := timeNow()
+	for _, w := range oldWarnings {
+		if w.FirstAdded.IsZero() {
+			logger.Noticef("warning skipped in migration: empty first-added")
+			continue
+		}
+		if w.LastAdded.IsZero() {
+			logger.Noticef("warning skipped in migration: empty last-added")
+			continue
+		}
+		expireAfter, err := time.ParseDuration(w.ExpireAfter)
+		if err != nil {
+			expireAfter = defaultWarningExpireAfter
+		}
+		if w.LastAdded.Add(expireAfter).Before(now) {
+			continue
+		}
+
+		data := map[string]string{}
+		showAfter, err := time.ParseDuration(w.RepeatAfter)
+		if err != nil {
+			showAfter = defaultWarningShowAfter
+		}
+		if showAfter != 0 {
+			data["show-after"] = showAfter.String()
+		}
+		if w.LastShown != nil {
+			data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
+		}
+		if err = ValidateNotice(WarningNotice, w.Message, &AddNoticeOptions{
+			Data:        data,
+			ExpireAfter: expireAfter,
+		}); err != nil {
+			logger.Noticef("warning skipped in migration: %v", err)
+			continue
+		}
+
+		uniqueKey := warningNoticeKey(w.Message)
+		notice := s.noticeBackingWarning(w.Message)
+		// "last-repeated" needs to be unique for the backing notice.
+		timestamp := s.ensureUniqueNoticeTimestamp(w.LastAdded)
+		if notice == nil || notice.Expired(now) {
+			// no warning notice with the same message or a warning notice with that
+			// message has expired.
+			s.lastNoticeId++
+			notice = NewNotice(strconv.Itoa(s.lastNoticeId), nil, WarningNotice, w.Message, timestamp, data, 0, expireAfter)
+			notice.firstOccurred = w.FirstAdded
+		} else {
+			// only preserve the notice's "last-shown" value if the warning
+			// being migrated does not have a "last-shown" value
+			var preserve []string
+			if w.LastShown == nil {
+				preserve = []string{"last-shown"}
+			}
+			notice, _ = notice.Reoccur(timestamp, data, preserve, 0)
+		}
+		s.notices[uniqueKey] = notice
+	}
+}
+
+// ensureUniqueNoticeTimestamp returns the given timestamp if there are no
+// existing non-expired notices with an identical timestamp. Otherwise, it
+// adds 1 nanosecond repeatedly until it finds an unused notice timestamp.
+// It then updates the state's last notice timestamp if the unique timestamp
+// is newer, and returns the unique timestamp.
+//
+// The caller must hold noticesMu for writing, so that the returned value
+// remains unique until the notice is recorded.
+func (s *State) ensureUniqueNoticeTimestamp(t time.Time) time.Time {
+	for _, n := range s.doNotices(nil) {
+		if n.lastRepeated.After(t) {
+			break
+		}
+		if n.lastRepeated.Equal(t) {
+			t = t.Add(time.Nanosecond)
+		}
+	}
+	s.lastNoticeTimestampMu.Lock()
+	defer s.lastNoticeTimestampMu.Unlock()
+	if t.After(s.lastNoticeTimestamp) {
+		s.lastNoticeTimestamp = t
+	}
+	return t
 }
 
 type Warning struct {

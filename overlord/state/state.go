@@ -189,7 +189,13 @@ type marshalledState struct {
 	Data    map[string]*json.RawMessage `json:"data"`
 	Changes map[string]*Change          `json:"changes"`
 	Tasks   map[string]*Task            `json:"tasks"`
-	Notices []*Notice                   `json:"notices,omitempty"`
+
+	// Included to migrate warnings to notices. This will only ever be
+	// unmarshalled from disk, never populated into state itself or when
+	// marshalling to disk.
+	Warnings []*jsonWarning `json:"warnings,omitempty"`
+
+	Notices []*Notice `json:"notices,omitempty"`
 
 	LastChangeId int `json:"last-change-id"`
 	LastTaskId   int `json:"last-task-id"`
@@ -233,6 +239,11 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	s.lastTaskId = unmarshalled.LastTaskId
 	s.lastLaneId = unmarshalled.LastLaneId
 	s.lastNoticeId = unmarshalled.LastNoticeId
+	// Since notices may be created for the migrated warnings,
+	// migrate the old warnings after setting the lastNoticeId.
+	if len(unmarshalled.Warnings) > 0 {
+		s.migrateWarnings(unmarshalled.Warnings)
+	}
 	// Update the last notice timestamp if the one saved to disk is later.
 	// The timestamp on disk is only guaranteed to reflect the most recent
 	// timestamp of notices which are stored in state, since state lock was
