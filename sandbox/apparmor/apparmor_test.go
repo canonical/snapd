@@ -555,6 +555,31 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverride(c *C) {
 	c.Check(version, Equals, int64(3))
 }
 
+func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverrideMissingDir(c *C) {
+	// a non-empty preseed AppArmor features directory that does not exist
+	missingDir := filepath.Join(c.MkDir(), "does-not-exist")
+	defer apparmor.MockPreseedAppArmorFeaturesDir(missingDir)()
+
+	_, err := apparmor.ProbeKernelFeatures()
+	c.Assert(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	_, err = apparmor.ProbeKernelFeaturesPermstable32Version()
+	c.Assert(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverrideNotADirectory(c *C) {
+	// a non-empty preseed AppArmor features directory that is not a directory
+	notADir := filepath.Join(c.MkDir(), "not-a-directory")
+	c.Assert(os.WriteFile(notADir, nil, 0644), IsNil)
+	defer apparmor.MockPreseedAppArmorFeaturesDir(notADir)()
+
+	_, err := apparmor.ProbeKernelFeatures()
+	c.Assert(err, NotNil)
+	c.Check(os.IsNotExist(err), Equals, false)
+}
+
 func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C) {
 	// Pretend that apparmor kernel features directory doesn't exist.
 	version, err := apparmor.ProbeKernelFeaturesPermstable32Version()
