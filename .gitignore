@@ -70,6 +70,10 @@ data/env/snapd.sh
 cmd/Makefile
 cmd/Makefile.in
 snap-confine-*.tar.gz
+
+# Local Spread workflow evidence
+/.log/
+/.logs/
 .deps
 
 # Autoconf

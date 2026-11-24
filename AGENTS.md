@@ -132,7 +132,7 @@ on risk and the touched surface.
 | Shared Go behavior | Expand to affected packages, then use `./run-checks` before committing |
 | C code under `cmd` | Run the relevant target, commonly `make -C cmd check` |
 | Spread task definition | Run the focused shell and format checks below |
-| Spread test or system behavior | Follow the `run-spread-test` skill and target a specific test path |
+| Spread test or system behavior | Follow the [Spread workflow router](.agents/skills/spread-router/SKILL.md) and target a specific test path |
 | Agent skill script | Run `python3 -m unittest discover -s .agents/skills/<skill>/scripts` |
 | Documentation only | Run the applicable linter and `git diff --check` |
 
