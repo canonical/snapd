@@ -35,7 +35,7 @@ var (
 )
 
 func MockPreseedAppArmorFeaturesDir(dir string) (restore func()) {
-	return testutil.Mock(&preseedAppArmorFeaturesDir, func() string { return dir })
+	return testutil.Mock(&snapdenvPreseedAppArmorFeaturesDir, func() string { return dir })
 }
 
 func MockRuntimeNumCPU(new func() int) (restore func()) {

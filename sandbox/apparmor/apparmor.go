@@ -577,13 +577,13 @@ func FeaturesSysDir() string {
 	return filepath.Join(dirs.GlobalRootDir, featuresSysPath)
 }
 
-var preseedAppArmorFeaturesDir = snapdenv.PreseedAppArmorFeaturesDir
+var snapdenvPreseedAppArmorFeaturesDir = snapdenv.PreseedAppArmorFeaturesDir
 
 // kernelFeaturesDir returns the directory to probe AppArmor kernel features
 // from: the features of the target kernel when they were provided for
 // preseeding, FeaturesSysDir() otherwise.
 func kernelFeaturesDir() string {
-	if dir := preseedAppArmorFeaturesDir(); dir != "" {
+	if dir := snapdenvPreseedAppArmorFeaturesDir(); dir != "" {
 		return dir
 	}
 	return FeaturesSysDir()
@@ -1010,7 +1010,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 // a directory works since AppArmor 2.10: the argument is passed to
 // aa_features_new(), which is documented as taking a file or directory.
 func withPreseedKernelFeatures(args []string) []string {
-	dir := preseedAppArmorFeaturesDir()
+	dir := snapdenvPreseedAppArmorFeaturesDir()
 	if dir == "" {
 		return args
 	}
@@ -1018,7 +1018,7 @@ func withPreseedKernelFeatures(args []string) []string {
 }
 
 func withPreseedLegacyFeaturesFile(args []string) []string {
-	dir := preseedAppArmorFeaturesDir()
+	dir := snapdenvPreseedAppArmorFeaturesDir()
 	if dir == "" {
 		return args
 	}
