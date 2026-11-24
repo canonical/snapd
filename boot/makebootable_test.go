@@ -2407,17 +2407,14 @@ version: 5.0
 	c.Check(systemGenv.Get("snapd_good_recovery_systems"), Equals, "")
 }
 
-func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
-	bootloader.Force(nil)
-	model := boottest.MakeMockUC20Model()
-	snapsDirs := filepath.Join(s.rootdir, "/somewhere")
-	err := os.MkdirAll(snapsDirs, 0755)
-	c.Assert(err, IsNil)
-
+// mockRunnableSystemGrub mocks grub on ubuntu-seed and an unpacked gadget
+// with grub assets, as needed by MakeRunnableSystem, and returns the unpacked
+// gadget directory.
+func (s *makeBootable20Suite) mockRunnableSystemGrub(c *C) (unpackedGadgetDir string) {
 	// grub on ubuntu-seed
 	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
 	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
-	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	err := os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
 	c.Assert(err, IsNil)
 	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
 	c.Assert(err, IsNil)
@@ -2425,7 +2422,7 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
 	c.Assert(genv.Save(), IsNil)
 
 	// mock grub so it is detected as the current bootloader
-	unpackedGadgetDir := c.MkDir()
+	unpackedGadgetDir = c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
 	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
 	grubCfg := []byte("#grub cfg")
@@ -2438,10 +2435,20 @@ func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
 		{"meta/snap.yaml", gadgetSnapYaml},
 		{"meta/gadget.yaml", gadgetYaml},
 	})
-	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
-	defer restore()
-	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
-	defer restore()
+	s.AddCleanup(assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset))
+	s.AddCleanup(assets.MockInternal("grub.cfg", grubCfgAsset))
+
+	return unpackedGadgetDir
+}
+
+func (s *makeBootable20Suite) TestMakeRunnableSystemStandaloneSnapsCopy(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+	snapsDirs := filepath.Join(s.rootdir, "/somewhere")
+	err := os.MkdirAll(snapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	unpackedGadgetDir := s.mockRunnableSystemGrub(c)
 
 	// make the snaps symlinks so that we can ensure that makebootable follows
 	// the symlinks and copies the files and not the symlinks
@@ -2513,6 +2520,136 @@ model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQu
 current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
 `
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, expectedModeenv)
+}
+
+func (s *makeBootable20Suite) TestMakeRunnableSystemCopiesIntegrityData(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+	unpackedGadgetDir := s.mockRunnableSystemGrub(c)
+
+	seedSnapsDir := filepath.Join(s.rootdir, "/seed/snaps")
+	c.Assert(os.MkdirAll(seedSnapsDir, 0755), IsNil)
+	// snaps set up in the ephemeral system, e.g. in install mode
+	ephemeralSnapsDir := filepath.Join(s.rootdir, "/ephemeral/snaps")
+	c.Assert(os.MkdirAll(ephemeralSnapsDir, 0755), IsNil)
+
+	writeFile := func(path, content string) {
+		c.Assert(os.WriteFile(path, []byte(content), 0644), IsNil)
+	}
+
+	// asserted base set up in the ephemeral system as a symlink to the snap
+	// in the seed, with its integrity data only next to the snap in the seed
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDir, "core20_3.snap")
+	c.Assert(os.Rename(baseFn, baseInSeed), IsNil)
+	baseInEphemeral := filepath.Join(ephemeralSnapsDir, "core20_3.snap")
+	c.Assert(os.Symlink(baseInSeed, baseInEphemeral), IsNil)
+	writeFile(filepath.Join(seedSnapsDir, "core20_3_aaa.dmverity"), "base verity")
+
+	// asserted kernel in the seed with multiple integrity files
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 4.1
+`, snap.R(5),
+		[][]string{
+			{"kernel.efi", "I'm a kernel.efi"},
+		},
+	)
+	kernelInSeed := filepath.Join(seedSnapsDir, "pc-kernel_5.snap")
+	c.Assert(os.Rename(kernelFn, kernelInSeed), IsNil)
+	writeFile(filepath.Join(seedSnapsDir, "pc-kernel_5_ccc.dmverity"), "kernel verity ccc")
+	// symlinked integrity files are copied as regular files
+	kernelVerityDdd := filepath.Join(c.MkDir(), "kernel.dmverity")
+	writeFile(kernelVerityDdd, "kernel verity ddd")
+	c.Assert(os.Symlink(kernelVerityDdd, filepath.Join(seedSnapsDir, "pc-kernel_5_ddd.dmverity")), IsNil)
+	// partial downloads and integrity files of other snaps are not copied
+	writeFile(filepath.Join(seedSnapsDir, "pc-kernel_5_eee.dmverity.partial"), "")
+	writeFile(filepath.Join(seedSnapsDir, "pc-kernel_5_1_fff.dmverity"), "")
+
+	// integrity files of unasserted snaps are not copied
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 3.0
+`, snap.R(-1))
+	gadgetInSeed := filepath.Join(seedSnapsDir, "pc_3.0.snap")
+	c.Assert(os.Rename(gadgetFn, gadgetInSeed), IsNil)
+	writeFile(filepath.Join(seedSnapsDir, "pc_3.0_bbb.dmverity"), "")
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemLabel: "20221004",
+		BasePath:            baseInEphemeral,
+		Base:                baseInfo,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetInSeed,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+	}
+
+	err := boot.MakeRunnableSystem(model, bootWith, nil, nil)
+	c.Assert(err, IsNil)
+
+	snapBlobDir := dirs.SnapBlobDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
+	c.Check(filepath.Join(snapBlobDir, "core20_3.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(snapBlobDir, "pc-kernel_5.snap"), testutil.FilePresent)
+	c.Check(filepath.Join(snapBlobDir, "pc_x1.snap"), testutil.FilePresent)
+
+	baseVerityCopy := filepath.Join(snapBlobDir, "core20_3_aaa.dmverity")
+	kernelVerityCccCopy := filepath.Join(snapBlobDir, "pc-kernel_5_ccc.dmverity")
+	kernelVerityDddCopy := filepath.Join(snapBlobDir, "pc-kernel_5_ddd.dmverity")
+	c.Check(baseVerityCopy, testutil.FileEquals, "base verity")
+	c.Check(kernelVerityCccCopy, testutil.FileEquals, "kernel verity ccc")
+	c.Check(kernelVerityDddCopy, testutil.FileEquals, "kernel verity ddd")
+	c.Check(osutil.IsSymlink(kernelVerityDddCopy), Equals, false)
+
+	integrityFiles, err := filepath.Glob(filepath.Join(snapBlobDir, "*.dmverity*"))
+	c.Assert(err, IsNil)
+	c.Check(integrityFiles, DeepEquals, []string{baseVerityCopy, kernelVerityCccCopy, kernelVerityDddCopy})
+}
+
+func (s *makeBootable20Suite) TestMakeRunnableSystemCopyIntegrityDataUnexpectedSnapFileName(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+	unpackedGadgetDir := s.mockRunnableSystemGrub(c)
+
+	seedSnapsDir := filepath.Join(s.rootdir, "/seed/snaps")
+	c.Assert(os.MkdirAll(seedSnapsDir, 0755), IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	kernelFn, kernelInfo := makeSnap(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 4.1
+`, snap.R(5))
+	gadgetFn, gadgetInfo := makeSnap(c, "pc", `name: pc
+type: gadget
+version: 3.0
+`, snap.R(4))
+
+	// the asserted kernel is not named <instance_name>_<revision>.snap, so
+	// its integrity files would not match the copied snap
+	kernelInSeed := filepath.Join(seedSnapsDir, "pc-kernel.snap")
+	c.Assert(os.Rename(kernelFn, kernelInSeed), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(seedSnapsDir, "pc-kernel_ccc.dmverity"), nil, 0644), IsNil)
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemLabel: "20221004",
+		BasePath:            baseFn,
+		Base:                baseInfo,
+		KernelPath:          kernelInSeed,
+		Kernel:              kernelInfo,
+		Gadget:              gadgetInfo,
+		GadgetPath:          gadgetFn,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+	}
+
+	err := boot.MakeRunnableSystem(model, bootWith, nil, nil)
+	c.Assert(err, ErrorMatches, `internal error: cannot copy integrity data for snap "pc-kernel": unexpected snap file name "pc-kernel.snap"`)
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
