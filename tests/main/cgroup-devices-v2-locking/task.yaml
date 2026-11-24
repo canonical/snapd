@@ -70,7 +70,7 @@ execute: |
     # Use the helper carrying the code under test.
     libexecdir=$(os.paths libexec-dir)
     if tests.info is-snapd-from-archive; then
-        libexecdir=/snap/snapd/current/usr/lib/snapd
+        libexecdir=/snap/snapd/current/usr/lib
     fi
 
     # Keep the lock file open as fd 9 in this shell so the lock acquired by
