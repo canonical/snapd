@@ -78,6 +78,9 @@ func (s *State) migrateWarnings(oldWarnings []*jsonWarning) {
 		if w.LastShown != nil {
 			data["last-shown"] = w.LastShown.Format(time.RFC3339Nano)
 		}
+		if len(data) == 0 {
+			data = nil
+		}
 		if err = ValidateNotice(WarningNotice, w.Message, &AddNoticeOptions{
 			Data:        data,
 			ExpireAfter: expireAfter,
@@ -250,7 +253,7 @@ type AddWarningOptions struct {
 }
 
 // AddWarning records a warning with the specified message and options.
-func (s *State) AddWarning(message string, options *AddWarningOptions) string {
+func (s *State) AddWarning(message string, options *AddWarningOptions) {
 	if options == nil {
 		options = &AddWarningOptions{}
 	}
@@ -281,12 +284,11 @@ func (s *State) AddWarning(message string, options *AddWarningOptions) string {
 		addNoticeOptions.Data = nil
 	}
 
-	notice, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
+	_, err := s.doAddNotice(nil, WarningNotice, message, addNoticeOptions)
 	if err != nil {
 		// warning notice failed validation.
 		logger.Panicf("%v", err)
 	}
-	return notice.id
 }
 
 // RemoveWarning removes a warning given its message.
@@ -308,7 +310,7 @@ func (s *State) RemoveWarning(message string) error {
 }
 
 // warningNoticeKey is a helper function that returns the noticeKey for a
-// warning with given its message.
+// warning with the given message.
 func warningNoticeKey(message string) noticeKey {
 	const (
 		warningNoticeHasUserID = false
@@ -318,7 +320,7 @@ func warningNoticeKey(message string) noticeKey {
 }
 
 // noticeBackingWarning is a helper function that returns the notice
-// backing the warning with given its message.
+// backing the warning with the given message.
 func (s *State) noticeBackingWarning(message string) *Notice {
 	key := warningNoticeKey(message)
 	notice, ok := s.notices[key]

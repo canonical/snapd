@@ -156,8 +156,7 @@ func (stateSuite) TestExpiredWarningLastShownNotPreserved(c *check.C) {
 	lastShown1, err := w.LastShown()
 	c.Check(err, check.IsNil)
 	c.Check(lastShown1, check.Equals, now.UTC())
-
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(testutil.HostScaledTimeout(30 * time.Millisecond))
 	now = time.Now()
 	c.Check(w.Expired(now), check.Equals, true)
 
