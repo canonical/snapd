@@ -31,7 +31,6 @@ var (
 	NumberOfJobsParam     = numberOfJobsParam
 	SetupConfCacheDirs    = setupConfCacheDirs
 	SetupNotifySocketPath = setupNotifySocketPath
-	KernelFeaturesDir     = kernelFeaturesDir
 )
 
 func MockPreseedAppArmorFeaturesDir(dir string) (restore func()) {

@@ -526,11 +526,11 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	}
 }
 
-func (s *apparmorSuite) TestKernelFeaturesDir(c *C) {
-	c.Check(apparmor.KernelFeaturesDir(), Equals, apparmor.FeaturesSysDir())
+func (s *apparmorSuite) TestFeaturesSysDirPreseedOverride(c *C) {
+	c.Check(apparmor.FeaturesSysDir(), Equals, filepath.Join(s.fakeroot, featuresSysPath))
 
 	defer apparmor.MockPreseedAppArmorFeaturesDir("/aa-features")()
-	c.Check(apparmor.KernelFeaturesDir(), Equals, "/aa-features")
+	c.Check(apparmor.FeaturesSysDir(), Equals, "/aa-features")
 }
 
 func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverride(c *C) {

@@ -571,22 +571,17 @@ var (
 // Each apparmor feature is manifested as a directory entry.
 const featuresSysPath = "sys/kernel/security/apparmor/features"
 
-// FeaturesSysDir returns the path to the AppArmor features sysfs, which is
-// /sys/kernel/security/apparmor/features, relative to the current root dir.
-func FeaturesSysDir() string {
-	return filepath.Join(dirs.GlobalRootDir, featuresSysPath)
-}
-
 var snapdenvPreseedAppArmorFeaturesDir = snapdenv.PreseedAppArmorFeaturesDir
 
-// kernelFeaturesDir returns the directory to probe AppArmor kernel features
+// FeaturesSysDir returns the directory to probe AppArmor kernel features
 // from: the features of the target kernel when they were provided for
-// preseeding, FeaturesSysDir() otherwise.
-func kernelFeaturesDir() string {
+// preseeding, /sys/kernel/security/apparmor/features (relative to the current
+// root dir) otherwise.
+func FeaturesSysDir() string {
 	if dir := snapdenvPreseedAppArmorFeaturesDir(); dir != "" {
 		return dir
 	}
-	return FeaturesSysDir()
+	return filepath.Join(dirs.GlobalRootDir, featuresSysPath)
 }
 
 type appArmorProber interface {
@@ -715,11 +710,11 @@ func (aap *appArmorProbe) ParserFeatures() ([]string, error) {
 var permstable32RelevantFeatures = []string{"prompt"}
 
 func probeKernelFeatures() ([]string, error) {
-	features, err := probeKernelFeaturesInDirRecursively(kernelFeaturesDir(), "")
+	features, err := probeKernelFeaturesInDirRecursively(FeaturesSysDir(), "")
 	if err != nil {
 		return []string{}, err
 	}
-	if data, err := os.ReadFile(filepath.Join(kernelFeaturesDir(), "policy", "permstable32")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32")); err == nil {
 		readFeats := strings.Fields(string(data))
 		for _, feat := range readFeats {
 			if strutil.ListContains(permstable32RelevantFeatures, feat) {
@@ -727,7 +722,7 @@ func probeKernelFeatures() ([]string, error) {
 			}
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(kernelFeaturesDir(), "policy", "notify", "user")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "notify", "user")); err == nil {
 		// XXX: there's no feature added for policy:notify:user, since user is
 		// a file rather than a directory.
 		notifyUserFeatures := strings.Fields(string(data))
@@ -764,7 +759,7 @@ func probeKernelFeaturesInDirRecursively(dir string, prefix string) ([]string, e
 }
 
 func probeKernelFeaturesPermstable32Version() (int64, error) {
-	data, err := os.ReadFile(filepath.Join(kernelFeaturesDir(), "policy", "permstable32_version"))
+	data, err := os.ReadFile(filepath.Join(FeaturesSysDir(), "policy", "permstable32_version"))
 	if err != nil {
 		return 0, err
 	}
