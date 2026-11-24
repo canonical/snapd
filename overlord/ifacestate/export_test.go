@@ -153,6 +153,10 @@ func MockAssessAppArmorPrompting(new func(m *InterfaceManager) bool) (restore fu
 	return testutil.Mock(&assessAppArmorPrompting, new)
 }
 
+func MockPreseedAppArmorCheck(new func() error) (restore func()) {
+	return testutil.Mock(&preseedAppArmorCheck, new)
+}
+
 func MockInterfacesRequestsControlHandlerServicePresent(new func(m *InterfaceManager) (bool, error)) (restore func()) {
 	return testutil.Mock(&interfacesRequestsControlHandlerServicePresent, new)
 }

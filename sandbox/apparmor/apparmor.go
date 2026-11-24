@@ -608,8 +608,18 @@ func (aaa *appArmorAssess) assess() {
 func (aaa *appArmorAssess) doAssess() (level LevelType, summary string) {
 	// First, quickly check if apparmor is available in the kernel at all.
 	kernelFeatures, err := aaa.KernelFeatures()
-	if os.IsNotExist(err) {
-		return Unsupported, "apparmor not enabled"
+	if err != nil {
+		if snapdenvPreseedAppArmorFeaturesDir() != "" {
+			// The preseed features directory is provided explicitly, so
+			// failing to read it is a broken configuration, not absence of
+			// AppArmor support in the target kernel. Report the actual
+			// error; InterfaceManager.StartUp makes this level fatal when
+			// preseeding.
+			return Unusable, fmt.Sprintf("cannot read AppArmor kernel features of the target kernel: %v", err)
+		}
+		if os.IsNotExist(err) {
+			return Unsupported, "apparmor not enabled"
+		}
 	}
 	// Then check that the parser supports the required parser features.
 	// If we have any missing required features then apparmor is unusable.
@@ -732,6 +742,14 @@ func probeKernelFeatures() ([]string, error) {
 	}
 	// Features must be sorted
 	sort.Strings(features)
+	if snapdenvPreseedAppArmorFeaturesDir() != "" && len(features) == 0 {
+		// A kernel with AppArmor enabled always has some features: if the
+		// preseed features directory has none, it is not a usable dump of
+		// /sys/kernel/security/apparmor/features. Error out rather than
+		// assessing AppArmor support as unusable, leaving preseeding to
+		// silently generate no AppArmor profiles.
+		return []string{}, fmt.Errorf("no AppArmor kernel features found in %q", FeaturesSysDir())
+	}
 	return features, nil
 }
 

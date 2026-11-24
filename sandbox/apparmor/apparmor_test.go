@@ -580,6 +580,46 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverrideNotADirect
 	c.Check(os.IsNotExist(err), Equals, false)
 }
 
+func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPreseedOverrideNoFeatures(c *C) {
+	// a preseed AppArmor features directory with nothing usable in it
+	for _, dir := range []string{
+		// empty
+		c.MkDir(),
+		// only files, no directories
+		filepath.Join(c.MkDir(), "only-files"),
+	} {
+		c.Assert(os.MkdirAll(dir, 0755), IsNil)
+		c.Assert(os.WriteFile(filepath.Join(dir, "file"), nil, 0644), IsNil)
+
+		testDir := apparmor.MockPreseedAppArmorFeaturesDir(dir)
+		_, err := apparmor.ProbeKernelFeatures()
+		testDir()
+
+		c.Assert(err, NotNil, Commentf("test dir: %s", dir))
+		c.Check(err, ErrorMatches, `no AppArmor kernel features found in ".*"`, Commentf("test dir: %s", dir))
+	}
+}
+
+func (*apparmorSuite) TestAppArmorLevelPreseedKernelFeaturesError(c *C) {
+	// While preseeding, the error from probing the AppArmor kernel features
+	// of the target kernel is reported in the assessment summary, instead of
+	// being read as absence of AppArmor support in the target kernel.
+	defer apparmor.MockPreseedAppArmorFeaturesDir("/aa-features")()
+
+	// the directory does not exist
+	restore := apparmor.MockFeatures([]string{}, os.ErrNotExist, []string{}, nil)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
+	c.Check(apparmor.Summary(), Equals, "cannot read AppArmor kernel features of the target kernel: file does not exist")
+	restore()
+
+	// the directory has no features in it
+	errNoFeatures := fmt.Errorf("no AppArmor kernel features found in %q", "/aa-features")
+	restore = apparmor.MockFeatures([]string{}, errNoFeatures, []string{}, nil)
+	c.Check(apparmor.ProbedLevel(), Equals, apparmor.Unusable)
+	c.Check(apparmor.Summary(), Equals, fmt.Sprintf("cannot read AppArmor kernel features of the target kernel: %v", errNoFeatures))
+	restore()
+}
+
 func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C) {
 	// Pretend that apparmor kernel features directory doesn't exist.
 	version, err := apparmor.ProbeKernelFeaturesPermstable32Version()
