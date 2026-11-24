@@ -5120,16 +5120,17 @@ func (m *SnapManager) doPrepareKernelSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// At this point the new component mounts are available, but link-snap
-	// has not yet recorded the target revision in the sequence. For a
-	// same-revision refresh, unlink-current-component may already have
-	// dropped a replaced component from the live sequence, so use the
-	// pre-update snapshot instead of the (possibly already mutated)
-	// sequence to retain its current set until component prepare.
+	// Component mounts are available, but link-snap has not recorded the
+	// target revision and component preparation has not updated its tree yet.
 	var comps []*snap.ComponentSideInfo
 	if snapsup.Revision() == snapSt.Current {
+		// In same-revision refresh unlink-current-component may have removed a
+		// replaced component from the live sequence. Keep the previous set
+		// until component preparation takes over.
 		comps = snapsup.PreUpdateKernelModuleComponents
 	} else {
+		// Reuse the target revision's components, including any installed
+		// earlier, then add newly mounted components not recorded by link-snap.
 		comps = snapSt.Sequence.ComponentsWithTypeForRev(snapsup.Revision(), snap.KernelModulesComponent)
 		setups, err := TaskComponentSetups(t)
 		if err != nil {
